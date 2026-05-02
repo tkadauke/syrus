@@ -4,6 +4,7 @@ class User < ApplicationRecord
   has_many :repositories, dependent: :destroy
   has_many :jobs, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
+  has_one :github_installation, dependent: :destroy
 
   encrypts :claude_oauth_token
   encrypts :github_token
