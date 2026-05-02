@@ -216,4 +216,37 @@ RSpec.describe Job do
       expect(ordinary.initial_run).to be_present
     end
   end
+
+  describe "#terminal?" do
+    it "is false for queued and running" do
+      job = Factories.job
+      expect(job).not_to be_terminal
+      job.start!
+      expect(job).not_to be_terminal
+    end
+
+    it "is true for succeeded, failed, and cancelled" do
+      [ ->(j) { j.start!; j.succeed! }, ->(j) { j.fail! }, ->(j) { j.cancel! } ].each do |drive|
+        job = Factories.job
+        drive.call(job)
+        expect(job).to be_terminal
+      end
+    end
+  end
+
+  describe "auto-enqueue RunJob on commit" do
+    it "enqueues a RunJob carrying the new Job's id" do
+      repo = Factories.repository
+      expect {
+        Job.create!(user: repo.user, repository: repo, issue_number: 99)
+      }.to have_enqueued_job(RunJob).with { |id| expect(id).to be_a(Integer) }
+    end
+
+    it "does not enqueue if the Job is created in a terminal state" do
+      repo = Factories.repository
+      expect {
+        Job.create!(user: repo.user, repository: repo, issue_number: 100, state: "cancelled")
+      }.not_to have_enqueued_job(RunJob)
+    end
+  end
 end

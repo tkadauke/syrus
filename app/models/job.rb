@@ -46,6 +46,19 @@ class Job < ApplicationRecord
     )
   end
 
+  def terminal?
+    succeeded? || failed? || cancelled?
+  end
+
+  after_create_commit :enqueue_run
+
+  private
+
+  def enqueue_run
+    return if terminal?
+    RunJob.perform_later(id)
+  end
+
   aasm column: :state, whiny_transitions: false do
     state :open, initial: true
     state :closed
