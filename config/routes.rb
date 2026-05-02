@@ -5,6 +5,9 @@ Rails.application.routes.draw do
 
   resource :credentials, only: %i[ edit update ]
   resources :repositories, except: %i[ show ] do
+    collection do
+      get :branches
+    end
     member do
       post :poll
       post :archive

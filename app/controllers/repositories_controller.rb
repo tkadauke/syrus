@@ -11,6 +11,20 @@ class RepositoriesController < ApplicationController
     @repository = Current.user.repositories.build(default_branch: "main", trigger_label: "syrus")
   end
 
+  def branches
+    owner = params[:owner].to_s.strip
+    name  = params[:name].to_s.strip
+    if owner.blank? || name.blank?
+      render json: { error: "missing_params" } and return
+    end
+    result = GithubClient.for(Current.user).repo_branches("#{owner}/#{name}")
+    render json: result
+  rescue Octokit::NotFound, Octokit::Unauthorized, Octokit::Forbidden
+    render json: { error: "not_found" }
+  rescue StandardError
+    render json: { error: "error" }
+  end
+
   def create
     @repository = Current.user.repositories.build(repository_params)
     if @repository.save

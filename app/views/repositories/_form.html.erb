@@ -1,4 +1,4 @@
-<%= form_with model: repository, class: "space-y-5" do |form| %>
+<%= form_with model: repository, data: { controller: "repository-form" }, class: "space-y-5" do |form| %>
   <% if repository.errors.any? %>
     <ul class="text-sm text-red-600 list-disc pl-5">
       <% repository.errors.full_messages.each do |msg| %>
@@ -11,19 +11,28 @@
     <div>
       <%= form.label :owner, class: "block text-sm font-medium text-gray-700" %>
       <%= form.text_field :owner, required: true, autocomplete: "off",
+            data: { repository_form_target: "owner", action: "input->repository-form#fetchBranches" },
             class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
     </div>
     <div>
       <%= form.label :name, class: "block text-sm font-medium text-gray-700" %>
       <%= form.text_field :name, required: true, autocomplete: "off",
+            data: { repository_form_target: "name", action: "input->repository-form#fetchBranches" },
             class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
+      <p data-repository-form-target="repoError"
+         class="hidden text-sm text-red-600 mt-1"></p>
     </div>
   </div>
 
   <div>
     <%= form.label :default_branch, class: "block text-sm font-medium text-gray-700" %>
     <%= form.text_field :default_branch, required: true,
+          data: { repository_form_target: "branchText" },
           class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
+    <select name="repository[default_branch]" disabled
+            data-repository-form-target="branchSelect"
+            class="hidden block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono bg-white">
+    </select>
   </div>
 
   <div>

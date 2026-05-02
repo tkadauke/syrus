@@ -114,4 +114,14 @@ class GithubClient
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}##{issue_number} linked-PR lookup: #{e.message}")
     raise
   end
+
+  # Returns { branches: [...names], default_branch: "main" } or raises.
+  def repo_branches(repo_slug)
+    repo = @client.repo(repo_slug)
+    branches = @client.branches(repo_slug).map(&:name)
+    { branches: branches, default_branch: repo.default_branch }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} branches: #{e.message}")
+    raise
+  end
 end
