@@ -559,6 +559,37 @@ RSpec.describe RunJob do
       expect(scheduled_task.consecutive_failure_count).to eq(1)
     end
 
+    it "opens the PR on a replay Run when the initial Run never reached push" do
+      # Reproduces Job 10: an initial Run failed mid-agent (no commit,
+      # no push, no PR), then a replay Run takes over, succeeds, and
+      # MUST open the PR — otherwise the branch makes it to origin
+      # with no PR pointing at it.
+      job.update!(branch_name: "syrus/issue-42-#{job.id}")  # initial set this before dying
+      replay = Run.create!(job: job, trigger_kind: "replay")
+
+      expect {
+        described_class.perform_now(replay.id)
+      }.to change { job.reload.pr_number }.from(nil).to(123)
+      expect(@pr_stub).to have_been_requested
+      expect(replay.reload.state).to eq("succeeded")
+    end
+
+    it "does not open a second PR on a replay after the initial already opened one" do
+      described_class.perform_now(run.id)
+      expect(job.reload.pr_number).to eq(123)
+      WebMock.reset_executed_requests!
+
+      replay = Run.create!(job: job, trigger_kind: "replay")
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        File.write(File.join(workspace_path, "feature.rb"), "def greet = 'hi again'\n")
+        AgentInvocation::Result.new(turns: 2, exit_status: 0, timed_out: false, is_error: false, outcome: "success")
+      }
+      described_class.perform_now(replay.id)
+
+      expect(@pr_stub).not_to have_been_requested
+      expect(job.reload.pr_number).to eq(123)  # unchanged
+    end
+
     it "captures only the branch's contribution in agent_diff, even when main moves forward" do
       # Initial run lays down feature.rb on the syrus branch.
       described_class.perform_now(run.id)
