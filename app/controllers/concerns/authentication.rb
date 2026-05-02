@@ -31,7 +31,11 @@ module Authentication
 
     def request_authentication
       session[:return_to_after_authenticating] = request.url
-      redirect_to new_session_path
+      if User.count.zero?
+        redirect_to new_user_path, notice: "Create the first account — it will be the admin."
+      else
+        redirect_to new_session_path
+      end
     end
 
     def after_authentication_url
