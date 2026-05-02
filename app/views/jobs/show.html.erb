@@ -70,31 +70,37 @@
 
   <%= turbo_stream_from @job, "logs" %>
 
-  <% @job.runs.each_with_index do |run, idx| %>
-    <section class="border border-gray-200 rounded-lg overflow-hidden">
-      <header class="bg-gray-50 px-4 py-3 flex items-center justify-between">
+  <% total_runs = @job.runs.size %>
+  <% @job.runs.reverse_each.with_index do |run, i| %>
+    <details <%= "open" if i == 0 %> class="border border-gray-200 rounded-lg overflow-hidden group">
+      <summary class="bg-gray-50 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-100 select-none [&::-webkit-details-marker]:hidden list-none">
         <div class="flex items-center gap-3">
-          <span class="font-medium text-gray-900">Run <%= idx + 1 %></span>
+          <span class="font-medium text-gray-900">Run <%= total_runs - i %></span>
           <%= trigger_pill(run.trigger_kind) %>
           <%= state_pill(run.state) %>
         </div>
-        <div class="text-xs text-gray-500">
-          <% if run.started_at %>
-            <%= run.started_at.to_fs(:short) %>
-            <% if run.finished_at %>
-              → <%= run.finished_at.to_fs(:short) %>
+        <div class="flex items-center gap-3">
+          <div class="text-xs text-gray-500">
+            <% if run.started_at %>
+              <%= run.started_at.to_fs(:short) %>
+              <% if run.finished_at %>
+                → <%= run.finished_at.to_fs(:short) %>
+              <% end %>
+            <% else %>
+              not yet started
             <% end %>
-          <% else %>
-            not yet started
-          <% end %>
-          <% if run.agent_turns %>
-            · turns=<%= run.agent_turns %>
-          <% end %>
-          <% if run.agent_outcome %>
-            · <span class="font-mono"><%= run.agent_outcome %></span>
-          <% end %>
+            <% if run.agent_turns %>
+              · turns=<%= run.agent_turns %>
+            <% end %>
+            <% if run.agent_outcome %>
+              · <span class="font-mono"><%= run.agent_outcome %></span>
+            <% end %>
+          </div>
+          <svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
         </div>
-      </header>
+      </summary>
 
       <div class="p-4 space-y-4">
         <div>
@@ -115,7 +121,7 @@
           </div>
         <% end %>
       </div>
-    </section>
+    </details>
   <% end %>
 
   <div class="text-sm">
