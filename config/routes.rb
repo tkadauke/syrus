@@ -4,7 +4,7 @@ Rails.application.routes.draw do
   resources :users, only: %i[ new create ]
 
   resource :credentials, only: %i[ edit update ]
-  resources :repositories, except: %i[ show ] do
+  resources :repositories do
     collection do
       get :branches
     end

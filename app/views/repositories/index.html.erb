@@ -20,7 +20,9 @@
         <tbody class="divide-y divide-gray-100 text-sm">
           <% @active_repositories.each do |repo| %>
             <tr>
-              <td class="px-4 py-3 font-mono"><%= repo.slug %></td>
+              <td class="px-4 py-3 font-mono">
+                <%= link_to repo.slug, repository_path(repo), class: "text-blue-600 underline hover:no-underline" %>
+              </td>
               <td class="px-4 py-3"><%= repo.default_branch %></td>
               <td class="px-4 py-3"><%= repo.trigger_label %></td>
               <td class="px-4 py-3">

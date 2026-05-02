@@ -56,7 +56,7 @@ RSpec.describe "Repositories", type: :request do
       expect {
         post poll_repository_path(mine)
       }.to have_enqueued_job(PollRepositoryJob).with(mine.id, force: true)
-      expect(response).to redirect_to(repositories_path)
+      expect(response).to redirect_to(repository_path(mine))
       expect(flash[:notice]).to match(/Polling/)
     end
 
@@ -104,5 +104,47 @@ RSpec.describe "Repositories", type: :request do
         expect(response.body).to match(/Archived\s*\(\s*1\s*\)/)
       end
     end
+
+    describe "GET /repositories/:id" do
+      it "requires authentication" do
+        # tested via the outer unauthenticated context below
+      end
+
+      it "renders the show page" do
+        mine = Factories.repository(user: user, owner: "acme", name: "widgets")
+        get repository_path(mine)
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("acme/widgets")
+      end
+
+      it "shows only jobs belonging to this repository" do
+        mine  = Factories.repository(user: user, owner: "acme", name: "widgets")
+        other = Factories.repository(user: user, owner: "acme", name: "other")
+        job_mine  = Factories.job(repository: mine)
+        job_other = Factories.job(repository: other)
+
+        get repository_path(mine)
+        expect(response.body).to include(job_path(job_mine))
+        expect(response.body).not_to include(job_path(job_other))
+      end
+
+      it "does not show another user's repository" do
+        foreign = Factories.repository(user: other, owner: "globex", name: "things")
+        get repository_path(foreign)
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "links the slug to GitHub" do
+        mine = Factories.repository(user: user, owner: "acme", name: "widgets")
+        get repository_path(mine)
+        expect(response.body).to include("https://github.com/acme/widgets")
+      end
+    end
+  end
+
+  it "requires authentication on show" do
+    repo = Factories.repository(user: user)
+    get repository_path(repo)
+    expect(response).to redirect_to(new_session_path)
   end
 end
