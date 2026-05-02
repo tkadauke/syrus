@@ -87,6 +87,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_130000) do
     t.datetime "finished_at"
     t.text "issue_body"
     t.integer "issue_number"
+    t.text "issue_summary"
     t.string "issue_title"
     t.string "kind", default: "issue", null: false
     t.string "last_ci_handled_sha"

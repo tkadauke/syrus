@@ -2,6 +2,15 @@
   <div class="flex items-center justify-between">
     <div>
       <h1 class="font-bold text-2xl">
+        <% if @job.issue_title.present? %>
+          <%= @job.issue_title %>
+        <% else %>
+          <span class="font-mono"><%= @job.repository.slug %></span>
+          <span class="text-gray-400">·</span>
+          <%= link_to "##{@job.issue_number}", job_issue_url(@job), target: "_blank", rel: "noopener", class: "text-blue-600 underline hover:no-underline" %>
+        <% end %>
+      </h1>
+      <p class="mt-1 text-sm text-gray-500">
         <span class="font-mono"><%= @job.repository.slug %></span>
         <span class="text-gray-400">·</span>
         <%= job_source_label_html(@job) %>
@@ -15,6 +24,9 @@
         <%= pluralize(@job.workflows.size, "workflow") %> ·
         <%= pluralize(@job.runs.size, "run") %>
       </p>
+      <% if @job.issue_summary.present? %>
+        <p class="mt-2 text-sm text-gray-600 max-w-2xl"><%= @job.issue_summary %></p>
+      <% end %>
     </div>
     <div class="flex items-center gap-3">
       <%= state_pill(job_summary_state(@job)) %>

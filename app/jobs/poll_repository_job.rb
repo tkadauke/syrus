@@ -92,7 +92,8 @@ class PollRepositoryJob < ApplicationJob
     Job.create!(
       user: repository.user,
       repository: repository,
-      issue_number: issue.number
+      issue_number: issue.number,
+      issue_title: issue.title
     )
   end
 
