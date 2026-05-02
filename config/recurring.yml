@@ -18,7 +18,10 @@ default: &default
     schedule: every 5 minutes
   poll_rebases:
     class: PollAllRebasesJob
-    schedule: every 5 minutes
+    schedule: every 15 minutes
+  reap_stale_runs:
+    class: ReapStaleRunsJob
+    schedule: every minute
 
 development:
   <<: *default

@@ -34,6 +34,17 @@ class RunJob < ApplicationJob
     # Jobs where the PR is external. Skip the closed-Job guard for them.
     return if @job.closed? && !@run.rebase?
 
+    if @run.running?
+      # A previous worker called start! then died without a rescue/ensure.
+      # The only safe path forward is to fail this run so the operator can
+      # replay it — re-running from the middle of an unknown state isn't safe.
+      @run.agent_outcome = "worker_died"
+      @run.fail!
+      @run.save!
+      log("run abandoned — worker died mid-execution; use Replay to retry")
+      return
+    end
+
     @run.start!
     @run.save!  # AASM after-callbacks set started_at; persist it.
     @job.update!(started_at: Time.current) if @job.started_at.nil?
@@ -388,5 +399,6 @@ class RunJob < ApplicationJob
   def log(chunk)
     next_seq = (@run.job_logs.maximum(:sequence) || -1) + 1
     @run.job_logs.create!(chunk: chunk, sequence: next_seq)
+    @run.update_column(:last_heartbeat_at, Time.current) if @run.running?
   end
 end

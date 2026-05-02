@@ -8,9 +8,16 @@ class Run < ApplicationRecord
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
 
+  STALE_HEARTBEAT_THRESHOLD = 2.minutes
+
   scope :active, -> { where(state: %w[ queued running ]) }
   scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
   scope :ordered, -> { order(:created_at) }
+  scope :stale, -> {
+    t = STALE_HEARTBEAT_THRESHOLD.ago
+    where(state: "running")
+      .where("last_heartbeat_at < :t OR (last_heartbeat_at IS NULL AND started_at < :t)", t: t)
+  }
 
   aasm column: :state, whiny_transitions: false do
     state :queued, initial: true
