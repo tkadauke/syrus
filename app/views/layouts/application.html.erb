@@ -70,12 +70,16 @@
       <%= yield %>
     </main>
 
-    <footer class="container mx-auto px-5 pb-6 text-xs text-gray-400 text-right">
+    <footer class="container mx-auto px-5 pb-6 text-xs text-gray-400 flex items-end justify-between gap-4">
+      <%= link_to SYRUS_WIKIPEDIA_URL, target: "_blank", rel: "noopener",
+            class: "italic hover:text-gray-600 hover:no-underline" do %>
+        &ldquo;<%= random_syrus_quote %>&rdquo; &mdash; Publilius Syrus
+      <% end %>
       <% if app_revision_url %>
         <%= link_to app_revision, app_revision_url, target: "_blank", rel: "noopener",
-              class: "font-mono underline hover:no-underline hover:text-gray-600" %>
+              class: "font-mono underline hover:no-underline hover:text-gray-600 shrink-0" %>
       <% else %>
-        <span class="font-mono"><%= app_revision %></span>
+        <span class="font-mono shrink-0"><%= app_revision %></span>
       <% end %>
     </footer>
   </body>
