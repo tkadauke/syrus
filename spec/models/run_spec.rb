@@ -88,6 +88,32 @@ RSpec.describe Run do
     end
   end
 
+  describe ".average_duration_for" do
+    it "returns nil when no completed runs of that trigger kind exist" do
+      Factories.job  # one queued initial run, not terminal
+      expect(Run.average_duration_for("initial")).to be_nil
+    end
+
+    it "averages finished_at - started_at across terminal runs of the trigger kind" do
+      r1 = Factories.run  # initial
+      r1.update_columns(state: "succeeded", started_at: 100.seconds.ago, finished_at: 70.seconds.ago)  # 30s
+      r2 = Factories.run
+      r2.update_columns(state: "succeeded", started_at: 50.seconds.ago, finished_at: 0.seconds.ago)   # 50s
+      Factories.run.update_columns(state: "queued")  # not terminal — ignored
+      expect(Run.average_duration_for("initial")).to eq(40)
+    end
+
+    it "scopes by trigger_kind — pr_comment runs don't count toward initial average" do
+      initial_run = Factories.run
+      initial_run.update_columns(state: "succeeded", started_at: 100.seconds.ago, finished_at: 90.seconds.ago)  # 10s
+      followup_job = Factories.job
+      followup = Run.create!(job: followup_job, trigger_kind: "pr_comment")
+      followup.update_columns(state: "succeeded", started_at: 100.seconds.ago, finished_at: 0.seconds.ago)  # 100s
+      expect(Run.average_duration_for("initial")).to eq(10)
+      expect(Run.average_duration_for("pr_comment")).to eq(100)
+    end
+  end
+
   describe "auto-enqueue RunJob on commit" do
     it "enqueues a RunJob with the new Run's id" do
       job  # force creation outside the expect block so its initial-Run

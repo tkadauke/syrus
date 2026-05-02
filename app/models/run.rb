@@ -42,6 +42,14 @@ class Run < ApplicationRecord
   # "tell anyone watching this Job to morph itself".
   broadcasts_refreshes_to ->(run) { run.job }
 
+  def self.average_duration_for(trigger_kind)
+    completed = terminal.where(trigger_kind: trigger_kind)
+                        .where.not(started_at: nil, finished_at: nil)
+    return nil if completed.empty?
+    total = completed.sum { |r| r.finished_at - r.started_at }
+    (total / completed.size).to_i
+  end
+
   def initial?
     trigger_kind == "initial"
   end
