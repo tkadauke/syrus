@@ -89,6 +89,8 @@ RSpec.describe RunJob do
       expect(job.state).to eq("open")     # thread stays open even after a successful run
       expect(job.branch_name).to eq("syrus/issue-42-#{job.id}")
       expect(job.pr_number).to eq(123)
+      expect(job.issue_title).to eq("Add greeting helper")
+      expect(job.issue_body).to eq("We need a greeting helper.")
       expect(@pr_stub).to have_been_requested
 
       branches = `git --git-dir=#{bare_remote_dir} branch --list 'syrus/*'`.split("\n").map(&:strip)

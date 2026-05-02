@@ -30,6 +30,19 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to include("initial")  # trigger pill
       end
 
+      it "renders issue_body when present" do
+        job.update!(issue_title: "Add greeting helper", issue_body: "We need a greeting helper.")
+        get job_path(job)
+        expect(response.body).to include("Add greeting helper")
+        expect(response.body).to include("We need a greeting helper.")
+      end
+
+      it "renders nothing for issue body when issue_body is nil" do
+        job.update!(issue_title: nil, issue_body: nil)
+        get job_path(job)
+        expect(response.body).not_to include("whitespace-pre-wrap")
+      end
+
       it "404s for another user's job" do
         foreign_repo = Factories.repository(user: other)
         foreign_job = Factories.job(repository: foreign_repo, issue_number: 1)

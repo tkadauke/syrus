@@ -41,6 +41,15 @@
     </div>
   </div>
 
+  <% if @job.issue_title.present? %>
+    <div>
+      <div class="text-lg font-medium text-gray-800"><%= @job.issue_title %></div>
+      <% if @job.issue_body.present? %>
+        <pre class="mt-2 text-sm text-gray-500 whitespace-pre-wrap break-words max-w-prose font-mono"><%= @job.issue_body %></pre>
+      <% end %>
+    </div>
+  <% end %>
+
   <div class="bg-white border border-gray-200 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
     <div>
       <div class="text-xs uppercase text-gray-500">Branch</div>
