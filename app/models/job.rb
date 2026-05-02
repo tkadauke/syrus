@@ -82,6 +82,18 @@ class Job < ApplicationRecord
         self.failure_count = 0
       }
     end
+
+    # Undoes a close. Clears closure_reason + finished_at so the thread
+    # looks alive again. Doesn't un-cancel any cancelled Runs (those
+    # invocations really did stop) — the user follows up with
+    # "Run again on this branch" to spawn a fresh Run if they want.
+    # Polling resumes automatically once the Job is open again.
+    event :reopen do
+      transitions from: :closed, to: :open, after: -> {
+        self.closure_reason = nil
+        self.finished_at = nil
+      }
+    end
   end
 
   # Issue Jobs autostart their initial Run on create (the standard
