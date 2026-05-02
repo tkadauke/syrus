@@ -10,7 +10,7 @@ Rails.application.routes.draw do
     end
   end
   resources :invitations, only: %i[ index create destroy ]
-  resource :settings, only: %i[ edit update ]
+  resource :settings, only: %i[ show edit update ]
   resources :jobs, only: %i[ show ] do
     member do
       post :run_again      # soft replay — new Run on the existing branch

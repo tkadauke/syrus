@@ -1,5 +1,9 @@
 class SettingsController < ApplicationController
-  before_action :require_admin
+  before_action :require_admin, only: %i[edit update]
+
+  def show
+    redirect_to edit_credentials_path
+  end
 
   def edit
     @setting = AppSetting.current

@@ -33,11 +33,7 @@
           <% if Current.user %>
             <div class="flex items-center gap-4 text-sm">
               <%= link_to "Repositories", repositories_path, class: "text-gray-700 hover:text-blue-600" %>
-              <%= link_to "Credentials", edit_credentials_path, class: "text-gray-700 hover:text-blue-600" %>
-              <% if Current.user.admin? %>
-                <%= link_to "Invitations", invitations_path, class: "text-gray-700 hover:text-blue-600" %>
-                <%= link_to "Settings", edit_settings_path, class: "text-gray-700 hover:text-blue-600" %>
-              <% end %>
+              <%= link_to "Settings", settings_path, class: "text-gray-700 hover:text-blue-600" %>
             </div>
           <% end %>
         </div>
