@@ -350,6 +350,14 @@ class Job < ApplicationRecord
     nil
   end
 
+  # Trigger a Turbo morph-refresh on the Job's show page on any change.
+  # Combined with turbo_refreshes_with method: :morph in the layout,
+  # this re-renders the page server-side and patches in only the changed
+  # bits (state pill, closure_reason, branch_name, pr_number, etc.)
+  # without disturbing user scroll or the live transcript (marked
+  # data-turbo-permanent on the show page).
+  broadcasts_refreshes
+
   def close_with_reason!(reason)
     update!(closure_reason: reason)
     close!
