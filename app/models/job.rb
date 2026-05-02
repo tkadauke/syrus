@@ -28,6 +28,7 @@ class Job < ApplicationRecord
       transitions from: :closed, to: :open, after: -> {
         self.closure_reason = nil
         self.finished_at = nil
+        self.failure_count = 0
       }
     end
   end
@@ -79,6 +80,18 @@ class Job < ApplicationRecord
 
   def any_active_run?
     runs.active.exists?
+  end
+
+  # Called by RunJob after a non-rebase run fails. Increments the
+  # failure counter and auto-closes the job if the configured threshold
+  # is reached, preventing further polling from scheduling new runs
+  # until an operator reopens it (which also resets the counter).
+  def record_run_failure!
+    increment!(:failure_count)
+    return if closed?
+    if failure_count >= AppSetting.max_job_failures
+      close_with_reason!("too_many_failures")
+    end
   end
 
   private

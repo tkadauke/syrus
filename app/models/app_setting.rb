@@ -7,4 +7,8 @@ class AppSetting < ApplicationRecord
   def self.signups_open?
     current.signups_open
   end
+
+  def self.max_job_failures
+    current.max_job_failures
+  end
 end

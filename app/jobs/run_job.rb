@@ -68,6 +68,7 @@ class RunJob < ApplicationJob
       @run.fail!
       @run.save!
     end
+    @job&.record_run_failure! unless @run&.rebase?
     raise
   ensure
     @workspace&.cleanup

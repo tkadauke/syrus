@@ -387,6 +387,33 @@ RSpec.describe RunJob do
     end
   end
 
+  describe "failure counting" do
+    before do
+      RunJob.agent_runner = ->(**_) {
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil)
+      }
+    end
+
+    it "increments job failure_count when a run fails" do
+      expect { described_class.perform_now(run.id) rescue nil }.to change { job.reload.failure_count }.from(0).to(1)
+    end
+
+    it "auto-closes job with too_many_failures when threshold is reached" do
+      AppSetting.current.update!(max_job_failures: 1)
+      expect { described_class.perform_now(run.id) rescue nil }
+        .to change { job.reload.closure_reason }.from(nil).to("too_many_failures")
+    end
+
+    it "does not increment failure_count for rebase runs" do
+      rebase = Run.create!(job: job, trigger_kind: "rebase")
+      RunJob.agent_runner = ->(**_) {
+        AgentInvocation::Result.new(turns: 1, exit_status: 1, timed_out: false, is_error: false, outcome: nil, final_text: nil)
+      }
+      expect { described_class.perform_now(rebase.id) rescue nil }
+        .not_to change { job.reload.failure_count }
+    end
+  end
+
   describe "PR-opening failure" do
     it "marks the Run failed and cleans up the worktree" do
       stub_request(:post, "https://api.github.com/repos/acme/widgets/pulls")

@@ -13,6 +13,7 @@
 ActiveRecord::Schema[8.1].define(version: 2026_05_02_231135) do
   create_table "app_settings", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.integer "max_job_failures", default: 3, null: false
     t.boolean "signups_open", default: false, null: false
     t.datetime "updated_at", null: false
   end
@@ -45,6 +46,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_231135) do
     t.string "closure_reason"
     t.datetime "created_at", null: false
     t.integer "external_pr_number"
+    t.integer "failure_count", default: 0, null: false
     t.datetime "finished_at"
     t.integer "issue_number", null: false
     t.datetime "last_seen_comment_at"

@@ -109,6 +109,48 @@ RSpec.describe Job do
     end
   end
 
+  describe "#record_run_failure!" do
+    let(:job) { Factories.job }
+
+    it "increments failure_count" do
+      expect { job.record_run_failure! }.to change { job.reload.failure_count }.from(0).to(1)
+    end
+
+    it "does not close the job when below the threshold" do
+      AppSetting.current.update!(max_job_failures: 3)
+      2.times { job.record_run_failure! }
+      expect(job.reload).to be_open
+    end
+
+    it "closes the job with too_many_failures when threshold is reached" do
+      AppSetting.current.update!(max_job_failures: 3)
+      3.times { job.record_run_failure! }
+      job.reload
+      expect(job).to be_closed
+      expect(job.closure_reason).to eq("too_many_failures")
+    end
+
+    it "is a no-op on job state when job is already closed" do
+      job.close_with_reason!("cancelled")
+      expect { job.record_run_failure! }.not_to change { job.reload.state }
+    end
+  end
+
+  describe "#reopen! resets failure_count" do
+    it "resets failure_count to 0 on reopen" do
+      AppSetting.current.update!(max_job_failures: 3)
+      job = Factories.job
+      3.times { job.record_run_failure! }
+      expect(job.reload).to be_closed
+
+      job.reopen!
+      job.save!
+
+      expect(job.reload.failure_count).to eq(0)
+      expect(job).to be_open
+    end
+  end
+
   describe "preempted creation (state: closed at create time)" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
