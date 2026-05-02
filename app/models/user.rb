@@ -19,6 +19,7 @@ class User < ApplicationRecord
   has_many :chat_pending_actions, dependent: :destroy
   has_many :cron_templates, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
+  has_one :github_installation, dependent: :destroy
 
   AGENT_PROVIDERS = %w[ claude codex ].freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze

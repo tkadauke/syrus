@@ -4,7 +4,7 @@ RSpec.describe GithubClient do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
-  it "raises when the user has no github_token" do
+  it "raises when the user has no github_token and no App installation" do
     bare = Factories.user
     expect { GithubClient.new(bare) }.to raise_error(ArgumentError)
   end
