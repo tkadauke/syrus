@@ -558,6 +558,38 @@ RSpec.describe RunJob do
       expect(cron_job.closure_reason).to eq("too_many_failures")
       expect(scheduled_task.consecutive_failure_count).to eq(1)
     end
+
+    it "captures only the branch's contribution in agent_diff, even when main moves forward" do
+      # Initial run lays down feature.rb on the syrus branch.
+      described_class.perform_now(run.id)
+      job.reload
+
+      # Now main moves forward with an unrelated commit. This is the
+      # real-world setup that broke before: PR sat open while we
+      # landed other things on main.
+      Dir.mktmpdir("syrus-main-bump") do |bump|
+        sh("git clone -q #{bare_remote_dir} #{bump}")
+        File.write("#{bump}/UNRELATED.md", "this landed on main after the syrus PR was opened\n")
+        sh("git -C #{bump} add UNRELATED.md")
+        sh("git -C #{bump} commit -q -m 'unrelated main commit'")
+        sh("git -C #{bump} push origin main")
+      end
+
+      # Spawn a follow-up Run that touches feature.rb.
+      followup = Run.create!(job: job, trigger_kind: "pr_comment")
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        File.write(File.join(workspace_path, "feature.rb"), "def greet = 'hi there'\n")
+        AgentInvocation::Result.new(turns: 2, exit_status: 0, timed_out: false, is_error: false, outcome: "success")
+      }
+      described_class.perform_now(followup.id)
+
+      followup.reload
+      expect(followup.state).to eq("succeeded")
+      # The captured diff must NOT include UNRELATED.md as a removal —
+      # that file is only on main, never on the syrus branch.
+      expect(followup.agent_diff).not_to include("UNRELATED.md")
+      expect(followup.agent_diff).to include("feature.rb")
+    end
   end
 
   describe "pre-pickup cancellation" do
