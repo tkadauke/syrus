@@ -444,6 +444,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_160143) do
     t.text "invalidation_reason"
     t.text "issue_body"
     t.integer "issue_number"
+    t.text "issue_summary"
     t.string "issue_title"
     t.string "kind", default: "issue", null: false
     t.text "landing_failure_reason"
