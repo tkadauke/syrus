@@ -387,6 +387,9 @@ class RunJob < ApplicationJob
   end
 
   def commit_message
+    @run.reload
+    return @run.agent_pr_title if @run.agent_pr_title.present?
+
     if @job.cron?
       "Syrus scheduled task: #{@job.scheduled_task&.name || "##{@job.scheduled_task_id}"}"
     elsif @run.initial?

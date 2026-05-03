@@ -101,7 +101,7 @@ RSpec.describe RunJob do
       expect(files).to include("feature.rb")
 
       tip = `git --git-dir=#{bare_remote_dir} log -1 --format='%s' #{job.branch_name}`.strip
-      expect(tip).to match(/Syrus agent for acme\/widgets#42/)
+      expect(tip).to eq("Add greeting helper")
     end
 
     it "tears down the worktree" do
@@ -357,6 +357,44 @@ RSpec.describe RunJob do
       # that file is only on main, never on the syrus branch.
       expect(followup.agent_diff).not_to include("UNRELATED.md")
       expect(followup.agent_diff).to include("feature.rb")
+    end
+
+    it "uses the agent-submitted title as the commit message on a follow-up run" do
+      described_class.perform_now(run.id)
+      job.reload
+      WebMock.reset_executed_requests!
+
+      followup = Run.create!(job: job, trigger_kind: "pr_comment")
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        File.write(File.join(workspace_path, "feature.rb"), "def greet = 'hi there'\n")
+        Run.last.update!(
+          agent_pr_title: "Address review feedback: use keyword argument",
+          agent_pr_body:  "Switched from positional to keyword argument as requested.",
+          agent_summary:  "Updated greet method signature."
+        )
+        AgentInvocation::Result.new(turns: 2, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
+      }
+      described_class.perform_now(followup.id)
+
+      tip = `git --git-dir=#{bare_remote_dir} log -1 --format='%s' #{job.branch_name}`.strip
+      expect(tip).to eq("Address review feedback: use keyword argument")
+    end
+
+    it "falls back to the templated commit message when the agent didn't call submit_summary on a follow-up run" do
+      described_class.perform_now(run.id)
+      job.reload
+      WebMock.reset_executed_requests!
+
+      followup = Run.create!(job: job, trigger_kind: "pr_comment")
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        File.write(File.join(workspace_path, "feature.rb"), "def greet = 'hi there'\n")
+        # Deliberately not calling submit_summary — template fallback expected.
+        AgentInvocation::Result.new(turns: 2, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
+      }
+      described_class.perform_now(followup.id)
+
+      tip = `git --git-dir=#{bare_remote_dir} log -1 --format='%s' #{job.branch_name}`.strip
+      expect(tip).to match(/Syrus pr_comment for acme\/widgets#42/)
     end
   end
 

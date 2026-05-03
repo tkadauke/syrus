@@ -12,7 +12,11 @@ module Prompts
 
       - `pr_title`: 50–72 chars, imperative mood ("Add greeting helper",
         not "Adds greeting helper" or "This PR adds…"). No leading prefix
-        or repo slug.
+        or repo slug. On the initial run this becomes the GitHub PR title;
+        on follow-up runs (pr_comment, replay, etc.) the PR already exists
+        and this becomes the git commit message — describe what changed *in
+        this revision*, not the whole PR (e.g. "Address review feedback:
+        validate empty input on UserForm").
       - `pr_body`: markdown, 1–3 short paragraphs. Lead with the why; then
         mention what changed. No headings, no "This PR…" preamble.
       - `summary`: 1–2 sentences describing what you did. Operator-facing,

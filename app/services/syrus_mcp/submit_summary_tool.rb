@@ -11,10 +11,11 @@ module SyrusMcp
     description <<~DESC
       Hand a PR title, PR body, and operator-facing summary back to Syrus.
       Call this near the end of every run. On the initial run Syrus uses
-      pr_title and pr_body to open the GitHub PR. On follow-up runs the PR
-      already exists, so pr_title and pr_body are persisted on the run
-      record but not pushed to GitHub; summary is shown on the Syrus job
-      page either way.
+      pr_title and pr_body to open the GitHub PR. On follow-up runs (pr_comment,
+      replay, etc.) the PR already exists — pr_title becomes the git commit
+      message for this revision's commit (describe what changed in this pass,
+      not the whole PR), and pr_body is stored per-run but not pushed to GitHub.
+      summary is shown on the Syrus job page either way.
     DESC
 
     input_schema(
