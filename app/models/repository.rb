@@ -1,6 +1,8 @@
 class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
 
+  attribute :polling_enabled, :boolean, default: true
+
   belongs_to :user
   has_many :jobs, dependent: :destroy
 

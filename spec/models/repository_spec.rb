@@ -7,7 +7,7 @@ RSpec.describe Repository do
     repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
     expect(repo).to be_persisted
     expect(repo.default_branch).to eq("main")
-    expect(repo.polling_enabled).to be false
+    expect(repo.polling_enabled).to be true
     expect(repo.trigger_label).to eq("syrus")
   end
 
