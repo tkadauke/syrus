@@ -10,6 +10,8 @@ class Job < ApplicationRecord
 
   scope :open_threads, -> { where(state: "open") }
   scope :closed_threads, -> { where(state: "closed") }
+  scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
+  scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
 
   aasm column: :state, whiny_transitions: false do
     state :open, initial: true
