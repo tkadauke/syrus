@@ -151,6 +151,49 @@ RSpec.describe Job do
     end
   end
 
+  describe "scopes" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    describe ".with_pr" do
+      it "includes jobs with a pr_number" do
+        job = Job.create!(user: user, repository: repository, issue_number: 1, pr_number: 42)
+        expect(Job.with_pr).to include(job)
+      end
+
+      it "includes jobs with an external_pr_number" do
+        job = Job.create!(user: user, repository: repository, issue_number: 1,
+                          state: "closed", closure_reason: "preempted",
+                          external_pr_number: 7, finished_at: Time.current)
+        expect(Job.with_pr).to include(job)
+      end
+
+      it "excludes jobs with neither pr_number nor external_pr_number" do
+        job = Job.create!(user: user, repository: repository, issue_number: 1)
+        expect(Job.with_pr).not_to include(job)
+      end
+    end
+
+    describe ".without_pr" do
+      it "includes jobs with no pr_number and no external_pr_number" do
+        job = Job.create!(user: user, repository: repository, issue_number: 1)
+        expect(Job.without_pr).to include(job)
+      end
+
+      it "excludes jobs with a pr_number" do
+        job = Job.create!(user: user, repository: repository, issue_number: 1, pr_number: 42)
+        expect(Job.without_pr).not_to include(job)
+      end
+
+      it "excludes jobs with an external_pr_number" do
+        job = Job.create!(user: user, repository: repository, issue_number: 1,
+                          state: "closed", closure_reason: "preempted",
+                          external_pr_number: 7, finished_at: Time.current)
+        expect(Job.without_pr).not_to include(job)
+      end
+    end
+  end
+
   describe "preempted creation (state: closed at create time)" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
