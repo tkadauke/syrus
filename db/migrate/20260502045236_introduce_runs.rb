@@ -66,7 +66,7 @@ class IntroduceRuns < ActiveRecord::Migration[8.1]
 
     # Translate old Job states into the new open/closed pair.
     # Anything that hadn't been cancelled stays "open" — succeeded threads
-    # may receive PR feedback; failed threads can be replayed.
+    # may receive PR feedback; failed threads can be retried.
     execute "UPDATE jobs SET closure_reason = 'cancelled' WHERE state = 'cancelled'"
     execute "UPDATE jobs SET state = 'closed' WHERE state = 'cancelled'"
     execute "UPDATE jobs SET state = 'open' WHERE state IN ('queued', 'running', 'succeeded', 'failed')"

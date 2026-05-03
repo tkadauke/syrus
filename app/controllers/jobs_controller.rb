@@ -48,7 +48,7 @@ class JobsController < ApplicationController
     redirect_to job_path(job), notice: "Ad hoc job created."
   end
 
-  # Soft replay — push another commit to the existing branch by spawning
+  # Soft retry — push another commit to the existing branch by spawning
   # a new Run on the same Job. Useful when the agent stopped halfway
   # through and you want it to take another swing without abandoning the
   # in-flight work.
@@ -65,9 +65,9 @@ class JobsController < ApplicationController
 
     ctx = params[:replay_context].to_s.strip
     artifacts = ctx.present? ? { "replay_context" => ctx } : nil
-    workflow = Workflows::Replay.instantiate(job: @job, artifacts: artifacts)
+    workflow = Workflows::Retry.instantiate(job: @job, artifacts: artifacts)
     StepDispatcher.start_workflow(workflow)
-    redirect_to job_path(@job, tab: "workflows"), notice: "Replay workflow enqueued."
+    redirect_to job_path(@job, tab: "workflows"), notice: "Retry workflow enqueued."
   end
 
   # Hard reset — close this thread (no more polling, no more runs), then
@@ -124,7 +124,7 @@ class JobsController < ApplicationController
     end
     session = source_run.claude_session
     unless session
-      redirect_to job_path(@job), alert: "No Claude session captured for that Run — try Replay instead."
+      redirect_to job_path(@job), alert: "No Claude session captured for that Run — try Retry instead."
       return
     end
 
@@ -174,7 +174,7 @@ class JobsController < ApplicationController
 
   # Stop a single active Run without closing the thread. Useful when
   # a run is clearly stuck. The thread stays open so the operator can
-  # replay, resume, or run again after stopping.
+  # retry, resume, or run again after stopping.
   def stop_run
     run = @job.runs.find_by(id: params[:run_id])
     unless run

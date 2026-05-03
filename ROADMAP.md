@@ -310,6 +310,189 @@ line numbers, copy-line. Today's "DIFF" panel is a raw monospace dump;
 this turns it into something a reviewer actually wants to read before
 clicking through to GitHub.
 
+### Job as execution DAG (phased agent execution)
+
+Today's `Run` conflates "a node in the workflow" with "an attempt at
+executing that node." Once we add phased execution (implement →
+summarize → test plan → test execution → graders → PR open), the
+linearity breaks down. Different trigger kinds need different
+workflows. The right model is a DAG: each `Job` is an execution
+graph; each node is a step with its own retry policy and
+preconditions; each step has zero or more `Run`s (today's `Run`
+becomes "an attempt at a step").
+
+This entry organizes several adjacent roadmap items — **Agent ↔
+Syrus MCP sidecar**, **Quality graders before PR submission**,
+**Agent-authored test plans for visual graders** — into one coherent
+machinery. Those entries describe the *what* of individual nodes;
+this entry describes *how the nodes are wired together and executed*.
+
+**Data shape:**
+
+```
+Job ──< Step ──< Run
+              │
+              └─ depends_on_step_id (or, in v3, a join table)
+```
+
+- `Step.kind` — `implement`, `summarize`, `test_plan`, `test_run`,
+  `ci_grader`, `visual_grader`, `adversarial_review`, `pr_open`,
+  `rebase`, `pr_comment_response`, etc.
+- `Step.state` — `queued | running | succeeded | failed | skipped`
+  (skipped = upstream failed, or agent-authored optional step that
+  wasn't requested)
+- `Step.next_step_id` (v1) or `step_dependencies` (v3) — wiring
+- `Run` keeps today's columns but `belongs_to :step` instead of
+  directly to `:job`; `trigger_kind` migrates from `Run` to `Step`
+  (steps know what kind of work they are; runs are just attempts)
+
+**Per-trigger DAG templates.** Each trigger kind is a different DAG
+shape — that's central to the design, not an edge case:
+
+- **Initial run** (issue → PR):
+  `implement → summarize → test_plan → test_run → pr_open`
+- **PR feedback** (`pr_comment`):
+  `respond → summarize_amend → test_plan → test_run → push`
+  (no `pr_open` — PR already exists; commit message comes from
+  `summarize_amend`)
+- **Rebase** (`rebase`):
+  `auto_rebase` (non-agentic) → if conflict → `agent_rebase` →
+  `force_push`. Skips all other phases — rebases don't need test
+  plans or summaries.
+- **CI failure** (`ci_failure`):
+  `analyze_failure → fix → test_plan → test_run → push`
+- **Resume** (`resume`):
+  inherits the parent Run's failed step — pick up from there, not
+  from the top of the DAG.
+- **Retry** (`retry`):
+  same DAG as `initial` but on the existing branch.
+- **Manual** (`manual`):
+  freeform — single `manual` step, no graph.
+
+Templates live as Ruby classes (`Workflows::Initial`,
+`Workflows::PrFeedback`, etc.) — one source of truth per trigger.
+
+**v1 — linear chain, named concept (small).** Skip parallel
+execution; just untangle Step from Run and ship phased execution
+linearly via a `Step.next_step_id` pointer. The DAG of "implement →
+summarize" is two boxes connected by an arrow. Templates per trigger
+kind are linear chains. Existing single-Run flows migrate to a
+single-step `Workflows::Legacy` (or just `implement`-only) workflow
+to keep history clean. UI shows the chain horizontally on the job
+page with the current step highlighted; dashboard rows surface the
+current step name as a small caption under the status pill.
+
+This is the immediate win: phased execution becomes possible without
+any DAG/parallel-branch machinery. We get cleaner per-step prompts
+and the per-trigger workflow templates, which is most of the value.
+
+**v2 — explicit parallel branches.** *Skipped for now.* The work to
+go from "linear chain" to "real graph with concurrent branches"
+(graders running in parallel, fan-in to `pr_open`) is non-trivial:
+needs a step dispatcher that finds runnable nodes, handles fan-in,
+manages partial-failure semantics. We can build it if/when we
+actually have multiple graders to run concurrently — but the v1
+linear chain is enough for the current grader story (graders run
+sequentially after the test step, before `pr_open`).
+
+**v3 — agent-authored edges (the interesting one).** Templates from
+v1 are the *minimum* DAG; the agent can extend them at runtime via
+MCP tools:
+
+- `submit_test_plan(steps:)` — already in the roadmap; in this
+  model, calling it adds a `test_run` step downstream of the
+  current step, with the plan as the step's input.
+- `request_review(prompt:)` — adds an `adversarial_review` step.
+- `request_grader(kind:)` — opt the current Job into a specific
+  grader.
+- `mark_optional_step_done(kind:)` — declare an existing optional
+  step as skippable for this run (e.g. agent already verified
+  manually).
+
+The DAG starts as the trigger's template; the agent grows it
+(append-only — no removing edges, no cycles) as it learns what the
+change needs. This pairs naturally with `Step.depends_on` — the
+agent's MCP call inserts a new node and edges into the existing
+graph.
+
+**UI implications:**
+
+- **Per-Job page**: graph view of the current Job's DAG. Nodes
+  colored by state, current node highlighted, click-to-drill-into
+  step transcript and runs. With v1's linear chain this is just a
+  horizontal row of boxes; with v3's agent-authored edges it grows
+  organically.
+- **Dashboard row**: small caption under the status pill —
+  `currently: test_run (step 3/5)` — gives operators an immediate
+  read on where the Job is.
+- **Step detail panel**: list of attempts (Runs) under the step,
+  with each Run's transcript / diff / agent metadata. Clicking
+  "Resume failed step" retries just that step, not the whole Job.
+
+**Failure semantics:**
+
+- Step `failed` → downstream steps stay `queued` (effectively
+  blocked) until a retry. Independent branches (v3) keep running.
+- Job `failure_count` increments only on terminal failure (no more
+  retries available for any step in the DAG).
+- The "auto-close after N failures" rule keys off this same counter.
+
+**Migration:**
+
+- Add `Step` model. Existing `Run`s get backfilled into a single
+  `Step(kind: "implement")` per Run, preserving history.
+- New code paths use `Workflows::*` templates to scaffold steps.
+- Old code paths (the `Run`-direct creation in `Job`,
+  `PollPullRequestJob`, etc.) migrate one trigger at a time.
+
+### Agent ↔ Syrus MCP sidecar
+
+The agent needs a way to communicate structured signals back to Syrus
+beyond just the diff: "I can't implement this", "this is already done in
+commit X", "here's the PR title and body I want", "please ask the user
+to clarify Y". Don't parse trailing JSON from the transcript — that's
+one-shot, brittle, and dies with the run. Use MCP instead: the agent
+already speaks tool-use natively.
+
+**Shape**: a stdio-mode MCP server spawned by the worker as a sidecar to
+`claude-code`. Agent talks to the sidecar over stdio; sidecar talks to
+ActiveRecord directly in-process. No network, no auth, no token
+lifecycle. The sidecar holds the current `run_id` so the agent can only
+act on its own run.
+
+**Initial tool surface** (run-scoped):
+
+- `comment(body)` — append a comment to the run, visible in the UI
+  alongside the transcript
+- `mark_failed(category, reason)` — categories: `cant_implement`,
+  `already_done`, `needs_clarification`, `blocked_external`
+- `submit_summary(pr_title:, pr_body:, summary:)` — the agent-authored
+  PR copy (single source for it; no JSON-blob fallback). Also rendered
+  in the comment feed at the point in the run where the agent called
+  it, so the operator sees "the agent submitted its summary here" in
+  context with the streamed transcript — not just buried in the PR
+  body once the run finishes
+- `set_progress(stage, note)` — optional mid-run telemetry
+
+**Degradation hierarchy** for the PR-copy case specifically:
+
+1. Agent called `submit_summary` during the main run (cheapest — no
+   extra tokens, signal is volunteered)
+2. `PrSummarizer` second-shot invocation: a fresh `max_turns: 1` claude
+   call rooted in a tmpdir, given the issue + the produced diff, asked
+   for `{title, body}`. Catches the "agent forgot to call the tool"
+   case without needing a parallel transcript-parsing channel
+3. Templated PR body as a last resort, with "no agent summary"
+   surfaced in the UI
+
+For non-PR-copy signals (`comment`, `mark_failed`, etc.) there is no
+fallback — if the tool wasn't called, the signal didn't happen.
+
+**Audit**: every tool call lands in `JobLog` automatically.
+
+**Reuse**: when the public REST API and MCP API entries below ship,
+they expose the same internal services this sidecar uses.
+
 ### Unified job page context
 
 Surface *all* relevant context for a job on its detail page, not just
@@ -332,7 +515,7 @@ the PR, without the round-trip through GitHub's UI.
 ### Multiple PRs per issue
 
 Treat one GitHub issue as a collection of attempts, not a single PR.
-Replays, parallel variants ("show me three approaches"), and natural
+Retries, parallel variants ("show me three approaches"), and natural
 splits (foundation refactor first, then the feature) all want >1
 thread on the same issue. The polling dedup already only blocks
 *non-terminal* duplicates, so this is mostly a first-class UI/data-

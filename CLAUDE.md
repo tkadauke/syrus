@@ -46,7 +46,7 @@ kinds use the same Workflow pipeline.
 
 - `initial` — first attempt on a Job (issue → branch → PR)
 - `pr_comment` — review feedback follow-up; reuses the same branch
-- `ci_failure`, `replay`, `manual` — operator-initiated retries
+- `ci_failure`, `retry`, `manual` — operator-initiated retries
 - `rebase` — maintenance Run that rebases the PR's branch onto base
   when the PR has gone unmergeable. Skips the closed-Job guard (a
   preempted Job's external PR can still need rebases), skips

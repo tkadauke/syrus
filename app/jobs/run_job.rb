@@ -34,7 +34,7 @@ class RunJob < ApplicationJob
   #      reaped or cancelled this chain).
   #   2. Re-entrancy guard: a Run found in `running` state on entry
   #      means the prior worker died mid-perform — fail it with
-  #      `worker_died` so the operator can use Replay/Resume.
+  #      `worker_died` so the operator can use Retry/Resume.
   #   3. Bring Workflow + Step + Run all to `running`.
   #   4. Dispatch to the per-kind handler in Steps::*. Handlers do
   #      not manage state — they just do the work or raise.
@@ -115,14 +115,14 @@ class RunJob < ApplicationJob
     if @run.running?
       # Worker died mid-perform on a prior attempt (or SQ re-claimed
       # us after a process prune). Fail with worker_died so the
-      # operator gets a Replay button on the dashboard.
+      # operator gets a Retry button on the dashboard.
       @run.agent_outcome = "worker_died"
       @run.fail!
       @run.save!
       @step.fail! if @step.may_fail?
       @step.save!
       @workflow.record_run_failure!
-      log("run abandoned — worker died mid-execution; use Replay to retry")
+      log("run abandoned — worker died mid-execution; use Retry to try again")
       return
     end
 

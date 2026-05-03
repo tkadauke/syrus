@@ -176,7 +176,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `pr_comment` | `PollPullRequestJob` finds new review comments since `last_seen_comment_at` | reuses the same branch |
 | `ci_failure` | `PollPullRequestJob` finds failing checks on the head SHA | reuses the same branch; gated on `last_ci_handled_sha` |
 | `rebase` | `PollRebaseJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; force-pushes |
-| `replay` | operator: "Run again" | new Run on the existing branch |
+| `retry` | operator: "Run again" | new Run on the existing branch |
 | `manual` | operator: explicit manual prompt | freeform |
 | `resume` | operator: "Resume failed run" | continues a prior Run via `claude --resume` from `ClaudeSession.transcript_jsonl` |
 
@@ -299,7 +299,7 @@ time, not RunJob start time).
 
 The dedup is the `Job.find_or_create_by(repository, issue_number,
 state: "open")` with the partial unique index — a closed thread plus
-an open thread for the same issue is allowed (replay-after-close).
+an open thread for the same issue is allowed (retry-after-close).
 
 ### PR feedback (`pr_comment`, `ci_failure`)
 

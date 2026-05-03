@@ -58,7 +58,7 @@ module JobsHelper
     "initial"     => "bg-purple-100 text-purple-700",
     "pr_comment"  => "bg-cyan-100 text-cyan-700",
     "ci_failure"  => "bg-red-100 text-red-700",
-    "replay"      => "bg-amber-100 text-amber-700",
+    "retry"       => "bg-amber-100 text-amber-700",
     "manual"      => "bg-gray-100 text-gray-700",
     "rebase"      => "bg-teal-100 text-teal-700",
     "resume"      => "bg-fuchsia-100 text-fuchsia-700"

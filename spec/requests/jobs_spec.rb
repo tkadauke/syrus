@@ -111,10 +111,10 @@ RSpec.describe "Jobs", type: :request do
     end
   end
 
-  describe "POST /jobs/:id/run_again (soft replay)" do
+  describe "POST /jobs/:id/run_again (soft retry)" do
     before { sign_in_as(user) }
 
-    it "creates a new Run with trigger_kind=replay on the existing Job and enqueues RunJob" do
+    it "creates a new Run with trigger_kind=retry on the existing Job and enqueues RunJob" do
       job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
       expect {
         post run_again_job_path(job)
@@ -122,7 +122,7 @@ RSpec.describe "Jobs", type: :request do
         .and have_enqueued_job(RunJob)
 
       new_run = job.runs.last
-      expect(new_run.trigger_kind).to eq("replay")
+      expect(new_run.trigger_kind).to eq("retry")
       expect(new_run.state).to eq("queued")
       expect(response).to redirect_to(job_path(job, tab: "workflows"))
     end

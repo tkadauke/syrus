@@ -43,7 +43,7 @@ empty PRs reliably, swapping in the agent at M4 is mechanical.
 | **M2** | GitHub poller: per-user token, label-triggered issue ingestion, dedup |
 | **M3** | Deterministic harness — clones, branches, opens an empty PR, cleans up. **No AI yet.** |
 | **M4** | Agent invocation: replace the placeholder commit with `claude-code`, stream transcript |
-| **M5** | Web UI: repo registry CRUD, job dashboard, live transcript, replay/cancel |
+| **M5** | Web UI: repo registry CRUD, job dashboard, live transcript, retry/cancel |
 | **M6** | PR feedback loop: poll review comments, dispatch follow-up jobs |
 | **M7** | Hardening: worker isolation, resource limits, k8s secrets, Prometheus metrics, retention |
 | **M8** | Rollout: deploy to K3s, migrate first real repo, retire per-repo claude skills |
