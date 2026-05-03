@@ -110,9 +110,9 @@ class RepositoriesController < ApplicationController
     redirect_to repositories_path, notice: "#{@repository.slug} archived."
   end
 
-  # Bulk Replay across every open Job in this repo whose latest Run
+  # Bulk Retry across every open Job in this repo whose latest Run
   # ended in failure. Same per-Job semantics as the "Retry" button on
-  # Job#show: spawns a Workflows::Replay on the existing branch, no
+  # Job#show: spawns a Workflows::Retry on the existing branch, no
   # PR re-opening. Skips Jobs with an active Run (they're already
   # making progress) and closed Jobs (Reopen is still a manual call,
   # since "I want this Job alive again" is a deliberate decision).
@@ -127,12 +127,12 @@ class RepositoriesController < ApplicationController
     end
 
     eligible.each do |job|
-      workflow = Workflows::Replay.instantiate(job: job)
+      workflow = Workflows::Retry.instantiate(job: job)
       StepDispatcher.start_workflow(workflow)
     end
 
     redirect_to repository_path(@repository),
-                notice: "Replay enqueued for #{helpers.pluralize(eligible.size, 'failed job')}."
+                notice: "Retry enqueued for #{helpers.pluralize(eligible.size, 'failed job')}."
   end
 
   def unarchive

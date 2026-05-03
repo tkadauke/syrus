@@ -114,7 +114,7 @@ RSpec.describe "Repositories", type: :request do
         run.update!(state: "failed", finished_at: Time.current)
       end
 
-      it "spawns a Replay workflow for each failed open Job and counts them" do
+      it "spawns a Retry workflow for each failed open Job and counts them" do
         failed_a = Factories.job(repository: repo, issue_number: 1)
         failed_b = Factories.job(repository: repo, issue_number: 2)
         succeeded = Factories.job(repository: repo, issue_number: 3)
@@ -129,7 +129,7 @@ RSpec.describe "Repositories", type: :request do
 
         expect {
           post retry_failed_jobs_repository_path(repo)
-        }.to change { Workflow.where(trigger_kind: "replay").count }.by(2)
+        }.to change { Workflow.where(trigger_kind: "retry").count }.by(2)
 
         expect(response).to redirect_to(repository_path(repo))
         expect(flash[:notice]).to match(/2 failed jobs/)

@@ -11,7 +11,7 @@ module Workflows
     "pr_comment" => :PrFeedback,
     "ci_failure" => :CiFailure,
     "rebase"     => :Rebase,
-    "replay"     => :Replay,
+    "retry"      => :Retry,
     "manual"     => :Manual,
     "resume"     => :Resume
   }.freeze

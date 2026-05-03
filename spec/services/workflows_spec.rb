@@ -9,7 +9,7 @@ RSpec.describe Workflows do
       expect(described_class.for(trigger_kind: "pr_comment")).to eq(Workflows::PrFeedback)
       expect(described_class.for(trigger_kind: "ci_failure")).to eq(Workflows::CiFailure)
       expect(described_class.for(trigger_kind: "rebase")).to     eq(Workflows::Rebase)
-      expect(described_class.for(trigger_kind: "replay")).to     eq(Workflows::Replay)
+      expect(described_class.for(trigger_kind: "retry")).to      eq(Workflows::Retry)
       expect(described_class.for(trigger_kind: "manual")).to     eq(Workflows::Manual)
       expect(described_class.for(trigger_kind: "resume")).to     eq(Workflows::Resume)
     end

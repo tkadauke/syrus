@@ -1,5 +1,5 @@
 module Steps
-  # Second step of Initial / Replay workflows. Short claude call
+  # Second step of Initial / Retry workflows. Short claude call
   # (--resumed against the implement step's session) whose only
   # job is to call `submit_summary` via the MCP sidecar. The
   # MCP tool writes pr_title / pr_body / summary onto the Run;

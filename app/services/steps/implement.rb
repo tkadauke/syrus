@@ -1,5 +1,5 @@
 module Steps
-  # First step of Initial / Replay workflows. Spawns claude with
+  # First step of Initial / Retry workflows. Spawns claude with
   # Prompts::Implement (issue title + body + the standard safety
   # block + a "don't call submit_summary here" nudge). Agent reads
   # the codebase, makes file changes; this handler commits them

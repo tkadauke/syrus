@@ -1,5 +1,5 @@
 module Prompts
-  # Summarize-step prompt for the Initial / Replay workflows.
+  # Summarize-step prompt for the Initial / Retry workflows.
   # Spawned as a short claude call with `--resume <implement-step
   # session_id>`, so the agent has full context of the
   # implementation it just finished. Its only job is to call the
