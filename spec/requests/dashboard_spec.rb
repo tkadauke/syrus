@@ -164,5 +164,43 @@ RSpec.describe "Dashboard", type: :request do
         end
       end
     end
+
+    describe "rate limit banner" do
+      def set_rate_limit(remaining:, limit: 5000, resource: "core")
+        user.update_columns(
+          gh_rate_limit_remaining:  remaining,
+          gh_rate_limit_limit:      limit,
+          gh_rate_limit_reset_at:   1.hour.from_now,
+          gh_rate_limit_resource:   resource,
+          gh_rate_limit_observed_at: Time.current
+        )
+      end
+
+      it "shows a warning banner when remaining quota is below 200" do
+        set_rate_limit(remaining: 150)
+        get root_path
+        expect(response.body).to include("quota low")
+        expect(response.body).to include("150")
+      end
+
+      it "shows a critical banner when quota is exhausted" do
+        set_rate_limit(remaining: 0)
+        get root_path
+        expect(response.body).to include("exhausted")
+      end
+
+      it "shows no banner when quota is ample (>= 200)" do
+        set_rate_limit(remaining: 4000)
+        get root_path
+        expect(response.body).not_to include("quota low")
+        expect(response.body).not_to include("exhausted")
+      end
+
+      it "shows no banner when no rate limit data has been recorded yet" do
+        get root_path
+        expect(response.body).not_to include("quota low")
+        expect(response.body).not_to include("exhausted")
+      end
+    end
   end
 end

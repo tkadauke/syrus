@@ -24,6 +24,15 @@
             <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700">admin</span>
           <% end %>
         </span>
+        <% repo_user = @repository.user %>
+        <% if repo_user.gh_rate_limit_observed_at %>
+          <span>
+            GitHub quota:
+            <strong><%= number_with_delimiter(repo_user.gh_rate_limit_remaining) %></strong> /
+            <%= number_with_delimiter(repo_user.gh_rate_limit_limit) %>
+            (<%= repo_user.gh_rate_limit_resource || "core" %>)
+          </span>
+        <% end %>
         <span>Added: <%= @repository.created_at.to_fs(:long) %></span>
       </div>
     </div>

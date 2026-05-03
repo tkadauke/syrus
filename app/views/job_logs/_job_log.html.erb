@@ -1,1 +1,5 @@
-<div id="<%= dom_id(job_log) %>" class="font-mono text-xs text-gray-100 whitespace-pre-wrap"><%= job_log.chunk %></div>
+<% if job_log.kind == "rate_limited" %>
+  <div id="<%= dom_id(job_log) %>" class="font-mono text-xs text-amber-400 whitespace-pre-wrap"><%= job_log.chunk %></div>
+<% else %>
+  <div id="<%= dom_id(job_log) %>" class="font-mono text-xs text-gray-100 whitespace-pre-wrap"><%= job_log.chunk %></div>
+<% end %>

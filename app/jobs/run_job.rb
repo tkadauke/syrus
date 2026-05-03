@@ -28,6 +28,7 @@ class RunJob < ApplicationJob
   def perform(run_id)
     @run = ::Run.find(run_id)
     @job = @run.job
+    Thread.current[:syrus_current_run] = @run
     return if @run.terminal?
     # Rebase Runs are independent of Job lifecycle — they exist to keep
     # an existing PR's branch mergeable, including for preempted (closed)
@@ -110,6 +111,7 @@ class RunJob < ApplicationJob
     @job&.record_run_failure! unless @run&.rebase?
     raise
   ensure
+    Thread.current[:syrus_current_run] = nil
     @workspace&.cleanup
   end
 

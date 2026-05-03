@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_03_042513) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_03_100001) do
   create_table "app_settings", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "max_job_failures", default: 3, null: false
@@ -18,7 +18,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_042513) do
     t.datetime "updated_at", null: false
   end
 
-  create_table "claude_sessions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "claude_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "run_id", null: false
     t.string "session_id", null: false
@@ -28,7 +28,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_042513) do
     t.index ["run_id"], name: "index_claude_sessions_on_run_id", unique: true
   end
 
-  create_table "invitations", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "invitations", force: :cascade do |t|
     t.datetime "accepted_at"
     t.datetime "created_at", null: false
     t.string "email_address", null: false
@@ -41,17 +41,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_042513) do
     t.index ["token"], name: "index_invitations_on_token", unique: true
   end
 
-  create_table "job_logs", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "job_logs", force: :cascade do |t|
     t.text "chunk", null: false
     t.datetime "created_at", null: false
-    t.integer "run_id", null: false
+    t.string "kind"
+    t.bigint "run_id", null: false
     t.integer "sequence", null: false
     t.datetime "updated_at", null: false
     t.index ["run_id", "sequence"], name: "index_job_logs_on_run_id_and_sequence", unique: true
     t.index ["run_id"], name: "index_job_logs_on_run_id"
   end
 
-  create_table "jobs", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "jobs", force: :cascade do |t|
     t.string "branch_name"
     t.string "closure_reason"
     t.datetime "created_at", null: false
@@ -81,7 +82,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_042513) do
     t.index ["user_id"], name: "index_jobs_on_user_id"
   end
 
-  create_table "repositories", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "repositories", force: :cascade do |t|
     t.datetime "archived_at"
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
@@ -96,7 +97,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_042513) do
     t.index ["user_id"], name: "index_repositories_on_user_id"
   end
 
-  create_table "runs", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "runs", force: :cascade do |t|
     t.text "agent_diff"
     t.string "agent_outcome"
     t.text "agent_pr_body"
@@ -152,12 +153,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_042513) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
-  create_table "users", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "users", force: :cascade do |t|
     t.boolean "admin", default: false, null: false
     t.integer "agent_max_turns", default: 200, null: false
     t.string "claude_oauth_token"
     t.datetime "created_at", null: false
     t.string "email_address", null: false
+    t.integer "gh_rate_limit_limit"
+    t.datetime "gh_rate_limit_observed_at"
+    t.integer "gh_rate_limit_remaining"
+    t.datetime "gh_rate_limit_reset_at"
+    t.string "gh_rate_limit_resource", limit: 32
     t.string "github_token"
     t.string "password_digest", null: false
     t.datetime "updated_at", null: false

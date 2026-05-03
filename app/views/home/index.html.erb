@@ -4,6 +4,27 @@
       morphs the dashboard live without a reload. %>
   <%= turbo_stream_from Current.user, "jobs" %>
 
+  <% rl_user = Current.user %>
+  <% if rl_user.gh_rate_limit_remaining&.zero? %>
+    <div class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+      <strong>GitHub quota exhausted.</strong>
+      Polls and runs are paused until the quota resets
+      <% if rl_user.gh_rate_limit_reset_at %>
+        (<%= relative_timestamp(rl_user.gh_rate_limit_reset_at) %>).
+      <% else %>
+        at the next reset window.
+      <% end %>
+    </div>
+  <% elsif rl_user.gh_rate_limit_remaining && rl_user.gh_rate_limit_remaining < 200 %>
+    <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+      GitHub quota low:
+      <strong><%= number_with_delimiter(rl_user.gh_rate_limit_remaining) %></strong> /
+      <%= number_with_delimiter(rl_user.gh_rate_limit_limit) %> remaining
+      (<%= rl_user.gh_rate_limit_resource || "core" %> bucket).
+      Resets <%= relative_timestamp(rl_user.gh_rate_limit_reset_at) %>.
+    </div>
+  <% end %>
+
   <h1 class="font-bold text-3xl">Dashboard</h1>
 
   <div class="border-b border-gray-200">

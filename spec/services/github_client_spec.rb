@@ -96,6 +96,7 @@ RSpec.describe GithubClient do
         .to_return(status: 200, headers: { "Content-Type" => "application/json" },
                    body: { login: "john" }.to_json)
       stub_request(:get, "https://api.github.com/user/orgs")
+        .with(query: hash_including({}))
         .to_return(status: 200, headers: { "Content-Type" => "application/json" },
                    body: [ { login: "org-b" }, { login: "org-a" } ].to_json)
     end
@@ -122,11 +123,91 @@ RSpec.describe GithubClient do
 
     it "fetches org repos when owner_type is 'org'" do
       stub_request(:get, "https://api.github.com/orgs/my-org/repos")
+        .with(query: hash_including({}))
         .to_return(status: 200, headers: { "Content-Type" => "application/json" },
                    body: [ { name: "z-repo" }, { name: "a-repo" } ].to_json)
 
       result = client.owner_repos("my-org", owner_type: "org")
       expect(result).to eq(%w[a-repo z-repo])
+    end
+  end
+
+  describe "rate limit tracking" do
+    let(:client) { GithubClient.for(user) }
+    let(:reset_epoch) { 1_714_944_000 }
+    let(:rate_limit_headers) do
+      {
+        "x-ratelimit-remaining" => "4221",
+        "x-ratelimit-limit"     => "5000",
+        "x-ratelimit-reset"     => reset_epoch.to_s,
+        "x-ratelimit-resource"  => "core"
+      }
+    end
+
+    def stub_user_endpoint(status: 200, extra_headers: {})
+      stub_request(:get, "https://api.github.com/user")
+        .to_return(
+          status: status,
+          headers: { "Content-Type" => "application/json" }.merge(rate_limit_headers).merge(extra_headers),
+          body: status == 200 ? { login: "john" }.to_json : { message: "API rate limit exceeded" }.to_json
+        )
+    end
+
+    def stub_orgs_endpoint
+      stub_request(:get, "https://api.github.com/user/orgs")
+        .with(query: hash_including({}))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" }.merge(rate_limit_headers),
+          body: [].to_json
+        )
+    end
+
+    it "persists rate limit columns after a successful API call" do
+      stub_user_endpoint
+      stub_orgs_endpoint
+
+      client.accessible_owners
+
+      user.reload
+      expect(user.gh_rate_limit_remaining).to eq(4221)
+      expect(user.gh_rate_limit_limit).to eq(5000)
+      expect(user.gh_rate_limit_resource).to eq("core")
+      expect(user.gh_rate_limit_reset_at).to be_within(1.second).of(Time.at(reset_epoch))
+      expect(user.gh_rate_limit_observed_at).to be_within(5.seconds).of(Time.current)
+    end
+
+    it "persists rate limit columns and writes a kind=rate_limited JobLog on TooManyRequests" do
+      run = Factories.run
+      Thread.current[:syrus_current_run] = run
+
+      stub_user_endpoint(status: 403, extra_headers: { "x-ratelimit-remaining" => "0" })
+
+      expect { client.accessible_owners }.to raise_error(Octokit::TooManyRequests)
+
+      user.reload
+      expect(user.gh_rate_limit_remaining).to eq(0)
+
+      log = run.reload.job_logs.last
+      expect(log).to be_present
+      expect(log.kind).to eq("rate_limited")
+      expect(log.chunk).to include("rate-limited")
+      expect(log.chunk).to include("core")
+    ensure
+      Thread.current[:syrus_current_run] = nil
+    end
+
+    it "persists rate limit columns but skips JobLog when no run context is set" do
+      Thread.current[:syrus_current_run] = nil
+      run = Factories.run
+
+      stub_user_endpoint(status: 403, extra_headers: { "x-ratelimit-remaining" => "0" })
+
+      expect { client.accessible_owners }.to raise_error(Octokit::TooManyRequests)
+
+      user.reload
+      expect(user.gh_rate_limit_remaining).to eq(0)
+      expect(JobLog.where(kind: "rate_limited").count).to eq(0)
     end
   end
 end
