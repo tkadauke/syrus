@@ -14,6 +14,7 @@
             <th class="px-4 py-2 text-left">Default branch</th>
             <th class="px-4 py-2 text-left">Trigger label</th>
             <th class="px-4 py-2 text-left">Polling</th>
+            <th class="px-4 py-2 text-left">Last poll</th>
             <th class="px-4 py-2"></th>
           </tr>
         </thead>
@@ -30,6 +31,18 @@
                   <span class="inline-block px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">enabled</span>
                 <% else %>
                   <span class="inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">paused</span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-sm">
+                <% if repo.last_poll_status == "failed" %>
+                  <span class="text-red-600 font-medium">failed</span>
+                  <span class="text-gray-500 text-xs"><%= relative_timestamp(repo.last_poll_started_at) %></span>
+                  <div class="text-red-500 text-xs mt-0.5 font-mono truncate max-w-xs" title="<%= h repo.last_poll_error %>"><%= repo.last_poll_error %></div>
+                <% elsif repo.last_poll_status == "ok" %>
+                  <span class="text-green-700">ok</span>
+                  <span class="text-gray-500 text-xs"><%= relative_timestamp(repo.last_poll_started_at) %></span>
+                <% else %>
+                  <span class="text-gray-400">—</span>
                 <% end %>
               </td>
               <td class="px-4 py-3 text-right space-x-3">

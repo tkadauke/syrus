@@ -13,11 +13,20 @@ class PollRepositoryJob < ApplicationJob
     return if repository.archived?
     return unless force || repository.polling_enabled?
 
-    issues = GithubClient.for(repository.user)
-                         .issues_with_label(repository.slug, repository.trigger_label)
+    repository.update_columns(last_poll_started_at: Time.current, last_poll_status: nil, last_poll_error: nil)
 
-    issues.each do |issue|
-      ingest(issue, repository)
+    begin
+      issues = GithubClient.for(repository.user)
+                           .issues_with_label(repository.slug, repository.trigger_label)
+
+      issues.each do |issue|
+        ingest(issue, repository)
+      end
+
+      repository.update_columns(last_poll_status: "ok", last_poll_error: nil)
+    rescue => e
+      repository.update_columns(last_poll_status: "failed", last_poll_error: e.message)
+      raise
     end
   end
 

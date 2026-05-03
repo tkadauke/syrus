@@ -140,4 +140,54 @@ RSpec.describe PollRepositoryJob do
       end
     end
   end
+
+  describe "poll status tracking", vcr: { cassette_name: "poll_repository_job/lists_issues" } do
+    before { allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil) }
+
+    it "sets last_poll_status to 'ok' and records last_poll_started_at after a successful poll" do
+      freeze_time do
+        described_class.perform_now(repository.id)
+        repository.reload
+        expect(repository.last_poll_status).to eq("ok")
+        expect(repository.last_poll_started_at).to eq(Time.current)
+        expect(repository.last_poll_error).to be_nil
+      end
+    end
+
+    it "sets last_poll_status to 'failed' with the error message when GitHub raises" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_raise(RuntimeError, "401 Bad credentials")
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to raise_error(RuntimeError, "401 Bad credentials")
+
+      repository.reload
+      expect(repository.last_poll_status).to eq("failed")
+      expect(repository.last_poll_error).to eq("401 Bad credentials")
+      expect(repository.last_poll_started_at).to be_present
+    end
+
+    it "does not update poll status when the repository is archived (no poll ran)" do
+      repository.archive!
+      described_class.perform_now(repository.id, force: true)
+      repository.reload
+      expect(repository.last_poll_status).to be_nil
+    end
+
+    it "does not update poll status when polling is disabled and force is false (no poll ran)" do
+      repository.update!(polling_enabled: false)
+      described_class.perform_now(repository.id)
+      repository.reload
+      expect(repository.last_poll_status).to be_nil
+    end
+
+    it "clears a prior failed status after a successful poll" do
+      repository.update_columns(last_poll_status: "failed", last_poll_error: "old error")
+      described_class.perform_now(repository.id)
+      repository.reload
+      expect(repository.last_poll_status).to eq("ok")
+      expect(repository.last_poll_error).to be_nil
+    end
+  end
 end

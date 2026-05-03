@@ -10,8 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_03_100001) do
-  create_table "app_settings", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+ActiveRecord::Schema[8.1].define(version: 2026_05_03_110000) do
+  create_table "app_settings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "signups_open", default: false, null: false
@@ -86,6 +86,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_100001) do
     t.datetime "archived_at"
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
+    t.text "last_poll_error"
+    t.datetime "last_poll_started_at"
+    t.string "last_poll_status"
     t.string "name", null: false
     t.string "owner", null: false
     t.boolean "polling_enabled", default: true, null: false
@@ -121,7 +124,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_100001) do
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
   end
 
-  create_table "scheduled_tasks", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "scheduled_tasks", force: :cascade do |t|
     t.datetime "archived_at"
     t.integer "consecutive_failure_count", default: 0, null: false
     t.datetime "created_at", null: false
@@ -144,7 +147,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_100001) do
     t.index ["user_id"], name: "index_scheduled_tasks_on_user_id"
   end
 
-  create_table "sessions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+  create_table "sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "ip_address"
     t.datetime "updated_at", null: false
