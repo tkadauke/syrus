@@ -73,6 +73,9 @@
                 · <span data-run-timer-target="remaining"></span>
               <% end %>
             </span>
+            <% if run.last_heartbeat_at %>
+              · heartbeat <%= relative_timestamp(run.last_heartbeat_at) %>
+            <% end %>
           <% elsif run.started_at %>
             <%= relative_timestamp(run.started_at) %>
             <% if run.finished_at %>
