@@ -22,6 +22,7 @@ RSpec.describe PollRepositoryJob do
 
       created = Job.where(repository: repository).order(:created_at).last
       expect(created.issue_number).to eq(42)
+      expect(created.issue_title).to eq("Add feature")
       expect(created.state).to eq("open")
       expect(created.runs.first.state).to eq("queued")
     end

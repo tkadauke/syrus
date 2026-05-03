@@ -34,6 +34,9 @@ RSpec.describe RunJob do
     RunJob.agent_runner = method(:default_agent_runner)
     PrSummarizer.runner = method(:default_pr_summarizer_runner)
 
+    # Prevent IssueSummarizer from shelling out to claude in tests.
+    allow_any_instance_of(IssueSummarizer).to receive(:summarize).and_return(nil)
+
     @data_root = Dir.mktmpdir("syrus-data")
     ENV["SYRUS_DATA_ROOT"] = @data_root
   end
@@ -132,6 +135,25 @@ RSpec.describe RunJob do
       job.reload
       expect(job.issue_title).to eq("Add greeting helper")
       expect(job.issue_body).to eq("We need a greeting helper.")
+    end
+
+    it "persists issue_summary when IssueSummarizer returns text" do
+      allow_any_instance_of(IssueSummarizer).to receive(:summarize).and_return("Adds a greeting helper used by the welcome page.")
+      job; drain_workflow!(job)
+      expect(job.reload.issue_summary).to eq("Adds a greeting helper used by the welcome page.")
+    end
+
+    it "leaves issue_summary nil when IssueSummarizer returns nil" do
+      job; drain_workflow!(job)
+      expect(job.reload.issue_summary).to be_nil
+    end
+
+    it "does not overwrite pre-existing issue_title or issue_summary" do
+      job.update!(issue_title: "Pre-existing title", issue_summary: "Pre-existing summary")
+      drain_workflow!(job)
+      job.reload
+      expect(job.issue_title).to eq("Pre-existing title")
+      expect(job.issue_summary).to eq("Pre-existing summary")
     end
 
     it "schedules a delayed PollRebaseJob so the mergeability badge refreshes after pr_open" do
