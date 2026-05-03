@@ -66,6 +66,12 @@
                 <td class="px-4 py-3 font-mono"><%= job.repository.slug %></td>
                 <td class="px-4 py-3">
                   <%= link_to "##{job.issue_number}", job_issue_url(job), target: "_blank", rel: "noopener", class: "text-blue-600 underline hover:no-underline" %>
+                  <% if job.pr_number %>
+                    <span class="ml-1 text-xs text-indigo-700">
+                      →
+                      <%= link_to "PR ##{job.pr_number}", job_pr_url(job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
+                    </span>
+                  <% end %>
                   <% if job.external_pr_number %>
                     <span class="ml-1 text-xs text-violet-700">
                       ↪
