@@ -69,7 +69,7 @@
         <% if @job.pr_number || @job.external_pr_number %>
           <div class="text-xs text-gray-400 flex items-center gap-2">
             <% if @job.pr_mergeable_checked_at %>
-              <span>checked <%= time_ago_in_words(@job.pr_mergeable_checked_at) %> ago</span>
+              <span>checked <%= relative_timestamp(@job.pr_mergeable_checked_at) %></span>
               <span class="text-gray-300">·</span>
             <% end %>
             <%= button_to "Check now", check_mergeability_job_path(@job), method: :post,
@@ -81,13 +81,13 @@
     </div>
     <div>
       <div class="text-xs uppercase text-gray-500">Started</div>
-      <div class="text-gray-700"><%= @job.started_at&.to_fs(:long) || "—" %></div>
+      <div class="text-gray-700"><%= relative_timestamp(@job.started_at) %></div>
     </div>
     <div>
       <div class="text-xs uppercase text-gray-500">Closed</div>
       <div class="text-gray-700">
         <% if @job.closed? %>
-          <%= @job.finished_at&.to_fs(:long) %>
+          <%= relative_timestamp(@job.finished_at) %>
           <span class="ml-1 text-gray-500 text-xs">(<%= @job.closure_reason || "unspecified" %>)</span>
         <% else %>
           <span class="text-gray-400">still open</span>
@@ -129,9 +129,9 @@
               <% end %>
             </span>
           <% elsif run.started_at %>
-            <%= run.started_at.to_fs(:short) %>
+            <%= relative_timestamp(run.started_at) %>
             <% if run.finished_at %>
-              → <%= run.finished_at.to_fs(:short) %>
+              → <%= relative_timestamp(run.finished_at) %>
             <% end %>
           <% else %>
             not yet started

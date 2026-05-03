@@ -50,4 +50,12 @@ module ApplicationHelper
     return nil if app_revision == "dev"
     "https://github.com/#{GITHUB_REPO}/commit/#{app_revision}"
   end
+
+  def relative_timestamp(time, fallback: "—")
+    return fallback if time.nil?
+
+    absolute = time.strftime("%b %-d, %Y at %-I:%M %p")
+    relative = time > Time.current ? "in #{time_ago_in_words(time)}" : "#{time_ago_in_words(time)} ago"
+    content_tag(:time, relative, datetime: time.iso8601, title: absolute)
+  end
 end

@@ -46,7 +46,7 @@
               <tr>
                 <td class="px-4 py-3"><%= inv.email_address %></td>
                 <td class="px-4 py-3 font-mono text-xs break-all"><%= new_user_url(token: inv.token) %></td>
-                <td class="px-4 py-3 text-gray-500"><%= time_ago_in_words(inv.expires_at) %> from now</td>
+                <td class="px-4 py-3 text-gray-500">expires <%= relative_timestamp(inv.expires_at) %></td>
                 <td class="px-4 py-3 text-right">
                   <%= button_to "Revoke", invitation_path(inv), method: :delete,
                         class: "text-red-600 underline hover:no-underline cursor-pointer",

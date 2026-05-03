@@ -62,7 +62,7 @@
             <% @archived_repositories.each do |repo| %>
               <tr>
                 <td class="px-4 py-3 font-mono text-gray-500"><%= repo.slug %></td>
-                <td class="px-4 py-3 text-gray-500">archived <%= time_ago_in_words(repo.archived_at) %> ago</td>
+                <td class="px-4 py-3 text-gray-500">archived <%= relative_timestamp(repo.archived_at) %></td>
                 <td class="px-4 py-3 text-right space-x-3">
                   <%= button_to "Unarchive", unarchive_repository_path(repo), method: :post,
                         class: "text-blue-600 underline hover:no-underline cursor-pointer",

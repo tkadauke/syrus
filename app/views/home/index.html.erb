@@ -74,7 +74,7 @@
                   <% end %>
                 </td>
                 <td class="px-4 py-3 text-gray-600"><%= job.runs.size %></td>
-                <td class="px-4 py-3 text-gray-500"><%= job.started_at&.to_fs(:short) || "—" %></td>
+                <td class="px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
                 <td class="px-4 py-3 text-right">
                   <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>
                 </td>
@@ -116,7 +116,7 @@
                 <td class="px-4 py-3">
                   <%= link_to "##{run.job.issue_number}", job_issue_url(run.job), target: "_blank", rel: "noopener", class: "text-blue-600 underline hover:no-underline" %>
                 </td>
-                <td class="px-4 py-3 text-gray-500"><%= run.started_at&.to_fs(:short) || "—" %></td>
+                <td class="px-4 py-3 text-gray-500"><%= relative_timestamp(run.started_at) %></td>
                 <td class="px-4 py-3 text-right">
                   <%= link_to "View", job_path(run.job), class: "text-blue-600 underline hover:no-underline" %>
                 </td>
