@@ -6,47 +6,95 @@
 
   <h1 class="font-bold text-3xl">Dashboard</h1>
 
-  <% if @jobs.any? %>
-    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
-          <tr>
-            <th class="px-4 py-2 text-left">State</th>
-            <th class="px-4 py-2 text-left">Repository</th>
-            <th class="px-4 py-2 text-left">Issue</th>
-            <th class="px-4 py-2 text-left">Runs</th>
-            <th class="px-4 py-2 text-left">Started</th>
-            <th class="px-4 py-2"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100 text-sm">
-          <% @jobs.each do |job| %>
+  <div class="border-b border-gray-200">
+    <nav class="-mb-px flex gap-6">
+      <%= link_to "Jobs", root_path,
+            class: "pb-3 text-sm font-medium border-b-2 #{@active_tab == 'jobs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}" %>
+      <%= link_to "Runs", root_path(tab: "runs"),
+            class: "pb-3 text-sm font-medium border-b-2 #{@active_tab == 'runs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}" %>
+    </nav>
+  </div>
+
+  <% if @active_tab == "jobs" %>
+    <% if @jobs.any? %>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <td class="px-4 py-3"><%= state_pill(job_summary_state(job)) %></td>
-              <td class="px-4 py-3 font-mono"><%= job.repository.slug %></td>
-              <td class="px-4 py-3">
-                <%= link_to "##{job.issue_number}", job_issue_url(job), target: "_blank", rel: "noopener", class: "text-blue-600 underline hover:no-underline" %>
-                <% if job.external_pr_number %>
-                  <span class="ml-1 text-xs text-violet-700">
-                    ↪
-                    <%= link_to "PR ##{job.external_pr_number}", external_pr_url(job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
-                  </span>
-                <% end %>
-              </td>
-              <td class="px-4 py-3 text-gray-600"><%= job.runs.size %></td>
-              <td class="px-4 py-3 text-gray-500"><%= job.started_at&.to_fs(:short) || "—" %></td>
-              <td class="px-4 py-3 text-right">
-                <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>
-              </td>
+              <th class="px-4 py-2 text-left">State</th>
+              <th class="px-4 py-2 text-left">Repository</th>
+              <th class="px-4 py-2 text-left">Issue</th>
+              <th class="px-4 py-2 text-left">Runs</th>
+              <th class="px-4 py-2 text-left">Started</th>
+              <th class="px-4 py-2"></th>
             </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody class="divide-y divide-gray-100 text-sm">
+            <% @jobs.each do |job| %>
+              <tr>
+                <td class="px-4 py-3"><%= state_pill(job_summary_state(job)) %></td>
+                <td class="px-4 py-3 font-mono"><%= job.repository.slug %></td>
+                <td class="px-4 py-3">
+                  <%= link_to "##{job.issue_number}", job_issue_url(job), target: "_blank", rel: "noopener", class: "text-blue-600 underline hover:no-underline" %>
+                  <% if job.external_pr_number %>
+                    <span class="ml-1 text-xs text-violet-700">
+                      ↪
+                      <%= link_to "PR ##{job.external_pr_number}", external_pr_url(job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
+                    </span>
+                  <% end %>
+                </td>
+                <td class="px-4 py-3 text-gray-600"><%= job.runs.size %></td>
+                <td class="px-4 py-3 text-gray-500"><%= job.started_at&.to_fs(:short) || "—" %></td>
+                <td class="px-4 py-3 text-right">
+                  <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
+        No jobs yet. Add a repository, enable polling, label an issue
+        <code class="bg-gray-100 px-1 rounded">syrus</code>, and one will show up here.
+      </div>
+    <% end %>
   <% else %>
-    <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
-      No jobs yet. Add a repository, enable polling, label an issue
-      <code class="bg-gray-100 px-1 rounded">syrus</code>, and one will show up here.
-    </div>
+    <% if @runs.any? %>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr>
+              <th class="px-4 py-2 text-left">State</th>
+              <th class="px-4 py-2 text-left">Trigger</th>
+              <th class="px-4 py-2 text-left">Repository</th>
+              <th class="px-4 py-2 text-left">Issue</th>
+              <th class="px-4 py-2 text-left">Started</th>
+              <th class="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 text-sm">
+            <% @runs.each do |run| %>
+              <tr>
+                <td class="px-4 py-3"><%= state_pill(run.state) %></td>
+                <td class="px-4 py-3"><%= trigger_pill(run.trigger_kind) %></td>
+                <td class="px-4 py-3 font-mono"><%= run.job.repository.slug %></td>
+                <td class="px-4 py-3">
+                  <%= link_to "##{run.job.issue_number}", job_issue_url(run.job), target: "_blank", rel: "noopener", class: "text-blue-600 underline hover:no-underline" %>
+                </td>
+                <td class="px-4 py-3 text-gray-500"><%= run.started_at&.to_fs(:short) || "—" %></td>
+                <td class="px-4 py-3 text-right">
+                  <%= link_to "View", job_path(run.job), class: "text-blue-600 underline hover:no-underline" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
+        No runs yet.
+      </div>
+    <% end %>
   <% end %>
 </div>
