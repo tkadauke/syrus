@@ -120,6 +120,11 @@
           <span class="font-medium text-gray-900">Run <%= run_number %></span>
           <%= trigger_pill(run.trigger_kind) %>
           <%= state_pill(run.state) %>
+          <% if run.queued? || run.running? %>
+            <%= button_to "Stop", stop_run_job_path(@job, run_id: run.id), method: :post,
+                  class: "px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer",
+                  form: { class: "inline", data: { turbo_confirm: "Stop this run?" } } %>
+          <% end %>
           <% if (run.failed? || run.cancelled?) && run.claude_session %>
             <%= button_to "Resume", resume_job_path(@job, source_run_id: run.id), method: :post,
                   class: "px-2 py-0.5 rounded text-xs font-medium bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200 cursor-pointer",

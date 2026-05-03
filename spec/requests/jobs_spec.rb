@@ -145,6 +145,63 @@ RSpec.describe "Jobs", type: :request do
     end
   end
 
+  describe "POST /jobs/:id/stop_run" do
+    before { sign_in_as(user) }
+
+    it "cancels the target Run without closing the Job" do
+      run = job.initial_run
+      run.start!; run.save!
+
+      post stop_run_job_path(job, run_id: run.id)
+
+      run.reload
+      job.reload
+      expect(run.state).to eq("cancelled")
+      expect(job.state).to eq("open")
+      expect(response).to redirect_to(job_path(job))
+      expect(flash[:notice]).to match(/stopped/i)
+    end
+
+    it "works on a queued (not yet started) Run" do
+      run = job.initial_run  # state=queued by default
+
+      post stop_run_job_path(job, run_id: run.id)
+
+      expect(run.reload.state).to eq("cancelled")
+      expect(job.reload.state).to eq("open")
+    end
+
+    it "refuses to stop an already-terminal Run" do
+      run = job.initial_run
+      run.start!; run.succeed!; run.save!
+
+      post stop_run_job_path(job, run_id: run.id)
+
+      expect(run.reload.state).to eq("succeeded")
+      expect(flash[:alert]).to match(/not active/i)
+    end
+
+    it "returns not found for a run_id that doesn't belong to this Job" do
+      other_job = Factories.job(repository: repository, issue_number: 99)
+      stranger = other_job.initial_run
+
+      post stop_run_job_path(job, run_id: stranger.id)
+
+      expect(stranger.reload.state).to eq("queued")
+      expect(flash[:alert]).to match(/not found/i)
+    end
+
+    it "404s for another user's job" do
+      foreign_repo = Factories.repository(user: other)
+      foreign_job  = Factories.job(repository: foreign_repo, issue_number: 1)
+      run          = foreign_job.initial_run
+
+      post stop_run_job_path(foreign_job, run_id: run.id)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "POST /jobs/:id/poll_feedback" do
     before { sign_in_as(user) }
 

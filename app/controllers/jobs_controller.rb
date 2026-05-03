@@ -120,6 +120,26 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: "Rebase enqueued."
   end
 
+  # Stop a single active Run without closing the thread. Useful when
+  # a run is clearly stuck. The thread stays open so the operator can
+  # replay, resume, or run again after stopping.
+  def stop_run
+    run = @job.runs.find_by(id: params[:run_id])
+    unless run
+      redirect_to job_path(@job), alert: "Run not found."
+      return
+    end
+
+    unless run.may_cancel?
+      redirect_to job_path(@job), alert: "Run is not active."
+      return
+    end
+
+    run.cancel!
+    run.save!
+    redirect_to job_path(@job), notice: "Run stopped."
+  end
+
   # Undo a close. The next poll cycle may immediately re-close the
   # Job if the underlying reason still applies (e.g. syrus-stop label
   # still on the PR, PR merged on GitHub) — that's intentional. Local

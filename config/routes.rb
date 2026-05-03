@@ -26,6 +26,7 @@ Rails.application.routes.draw do
       post :rebase         # manually trigger a rebase Run on this Job's PR
       post :check_mergeability  # ask GitHub for the latest mergeable status now
       post :resume         # continue a failed Run via claude --resume
+      post :stop_run       # cancel a single active Run without closing the thread
     end
   end
 
