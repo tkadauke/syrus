@@ -1,4 +1,5 @@
-<%= form_with model: task, url: form_url, scope: :scheduled_task, class: "space-y-5" do |form| %>
+<%= form_with model: task, url: form_url, scope: :scheduled_task, class: "space-y-5",
+              data: { controller: "scheduled-task-form" } do |form| %>
   <% if task.errors.any? %>
     <div class="bg-red-50 border border-red-200 text-red-800 rounded-md p-3 text-sm">
       <ul class="list-disc list-inside">
@@ -20,14 +21,15 @@
     <%= form.label :kind, "Kind", class: "block text-sm font-medium text-gray-700" %>
     <%= form.select :kind, ScheduledTask::KINDS.map { |k| [ k, k ] },
           {},
-          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full",
+          data: { scheduled_task_form_target: "kindSelect", action: "change->scheduled-task-form#kindChanged" } %>
     <p class="text-xs text-gray-500 mt-1">
       <strong>cron</strong> recurs on a schedule (min 1-hour interval). <strong>one_shot</strong> fires once at a specific time.
     </p>
   </div>
 
-  <div>
-    <%= form.label :cron_expression, "Cron expression (cron only)", class: "block text-sm font-medium text-gray-700" %>
+  <div data-scheduled-task-form-target="cronSection" class="<%= 'hidden' if task.one_shot? %>">
+    <%= form.label :cron_expression, "Cron expression", class: "block text-sm font-medium text-gray-700" %>
     <p class="text-xs text-gray-500 mt-1">
       Standard 5-field cron: <code>min hour day-of-month month day-of-week</code>.
       Must fire at most once per hour. The minute slot will be auto-replaced with this task's
@@ -44,8 +46,8 @@
           class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
   </div>
 
-  <div>
-    <%= form.label :fire_at, "Fire at (one_shot only)", class: "block text-sm font-medium text-gray-700" %>
+  <div data-scheduled-task-form-target="oneShotSection" class="<%= 'hidden' unless task.one_shot? %>">
+    <%= form.label :fire_at, "Fire at", class: "block text-sm font-medium text-gray-700" %>
     <p class="text-xs text-gray-500 mt-1">UTC. Must be in the future.</p>
     <%= form.datetime_local_field :fire_at,
           class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>

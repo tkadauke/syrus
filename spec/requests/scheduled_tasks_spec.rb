@@ -23,6 +23,37 @@ RSpec.describe "Scheduled tasks", type: :request do
   context "signed in" do
     before { sign_in_as(user) }
 
+    describe "GET /repositories/:id/scheduled_tasks/new" do
+      it "shows the cron section and hides fire_at for the default cron kind" do
+        get new_repository_scheduled_task_path(repository)
+        expect(response).to be_successful
+        expect(response.body).to include('data-scheduled-task-form-target="cronSection" class=""')
+        expect(response.body).to include('data-scheduled-task-form-target="oneShotSection" class="hidden"')
+      end
+    end
+
+    describe "GET /scheduled_tasks/:id/edit" do
+      it "hides cron section and shows fire_at for a one_shot task" do
+        task = repository.scheduled_tasks.create!(
+          user: user, name: "Once", kind: "one_shot",
+          fire_at: 2.days.from_now, pr_pileup_policy: "skip",
+          prompt: "Do something."
+        )
+        get edit_scheduled_task_path(task)
+        expect(response).to be_successful
+        expect(response.body).to include('data-scheduled-task-form-target="cronSection" class="hidden"')
+        expect(response.body).to include('data-scheduled-task-form-target="oneShotSection" class=""')
+      end
+
+      it "shows cron section and hides fire_at for a cron task" do
+        task = repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)
+        get edit_scheduled_task_path(task)
+        expect(response).to be_successful
+        expect(response.body).to include('data-scheduled-task-form-target="cronSection" class=""')
+        expect(response.body).to include('data-scheduled-task-form-target="oneShotSection" class="hidden"')
+      end
+    end
+
     describe "GET /scheduled_tasks" do
       it "lists the user's active tasks" do
         repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)
