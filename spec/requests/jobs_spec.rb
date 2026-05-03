@@ -374,11 +374,11 @@ RSpec.describe "Jobs", type: :request do
       expect(response.body).to match(/data-turbo-confirm=.*abandons the existing branch/)
     end
 
-    it "does NOT put a confirm on Run again on this branch (additive, not destructive)" do
+    it "does NOT put a confirm on Retry (additive, not destructive)" do
       job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
       get job_path(job)
-      expect(response.body).to include("Run again on this branch")
-      expect(response.body).not_to match(/data-turbo-confirm=.*on this branch/)
+      expect(response.body).to include("Retry")
+      expect(response.body).not_to match(/data-turbo-confirm=.*Retry/)
     end
 
     it "shows Reopen on closed jobs and hides it on open ones" do

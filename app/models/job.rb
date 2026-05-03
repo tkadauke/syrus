@@ -60,7 +60,7 @@ class Job < ApplicationRecord
     # Undoes a close. Clears closure_reason + finished_at so the thread
     # looks alive again. Doesn't un-cancel any cancelled Runs (those
     # invocations really did stop) — the user follows up with
-    # "Run again on this branch" to spawn a fresh Run if they want.
+    # "Retry" to spawn a fresh Run if they want.
     # Polling resumes automatically once the Job is open again.
     event :reopen do
       transitions from: :closed, to: :open, after: -> {
