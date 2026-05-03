@@ -92,6 +92,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_001718) do
     t.datetime "finished_at"
     t.string "head_sha"
     t.integer "job_id", null: false
+    t.datetime "last_heartbeat_at", precision: nil
     t.text "prompt"
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
@@ -99,6 +100,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_001718) do
     t.datetime "updated_at", null: false
     t.index ["job_id", "state"], name: "index_runs_on_job_id_and_state"
     t.index ["job_id"], name: "index_runs_on_job_id"
+    t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
   end
 
   create_table "sessions", force: :cascade do |t|

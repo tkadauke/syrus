@@ -420,6 +420,38 @@ RSpec.describe RunJob do
     end
   end
 
+  describe "re-entrancy guard (worker died mid-run)" do
+    it "marks the run failed with worker_died when it is already running on entry" do
+      run.update_columns(state: "running", started_at: 10.minutes.ago)
+
+      agent_invoked = false
+      RunJob.agent_runner = ->(**_) {
+        agent_invoked = true
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil)
+      }
+
+      expect { described_class.perform_now(run.id) }.not_to raise_error
+
+      run.reload
+      expect(run.state).to eq("failed")
+      expect(run.agent_outcome).to eq("worker_died")
+      expect(agent_invoked).to be false
+      expect(@pr_stub).not_to have_been_requested
+    end
+
+    it "writes an abandonment log entry" do
+      run.update_columns(state: "running", started_at: 10.minutes.ago)
+      described_class.perform_now(run.id)
+      expect(run.job_logs.last.chunk).to include("worker died")
+    end
+
+    it "does not touch a run that is already terminal" do
+      run.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
+      described_class.perform_now(run.id)
+      expect(run.reload.state).to eq("failed")
+    end
+  end
+
   describe "PR-opening failure" do
     it "marks the Run failed and cleans up the worktree" do
       stub_request(:post, "https://api.github.com/repos/acme/widgets/pulls")
