@@ -31,6 +31,10 @@ Run (one per attempt):  queued → running → succeeded | failed | cancelled
 `Run` carries the per-attempt state — prompt, agent metadata, diff,
 PR copy submitted by the agent.
 
+`Job#kind` is `issue` (default, filed from GitHub) or `cron` (fired by a
+`ScheduledTask` — no issue_number, prompt pre-rendered at fire time). Both
+kinds use the same Run pipeline and state machine.
+
 ### Run trigger kinds
 
 `Run.trigger_kind` distinguishes what an attempt is *for*:
@@ -45,6 +49,14 @@ PR copy submitted by the agent.
   tree), uses `git push --force` instead of fast-forward, and skips
   the PR-opening step. Triggered by `PollAllRebasesJob` when a PR is
   `mergeable: false` and we control the head branch.
+- `resume` — restores a prior Claude Code session onto a new worktree.
+  RunJob reads the JSONL file Claude wrote at session end and persists
+  it to `ClaudeSession`; on resume it copies the JSONL back to the
+  new worktree's project-encoded path and passes `--resume <session_id>`
+  to claude. Uses `Prompts::Resume` (tells the agent it was interrupted,
+  uncommitted edits are gone, to verify state with git status/log and
+  continue). Operator clicks "Resume" on any failed/cancelled Run that
+  has a captured `ClaudeSession`.
 
 ### Per-Run pipeline (`app/jobs/run_job.rb`)
 
@@ -70,6 +82,32 @@ PR copy submitted by the agent.
    GitHub's "Files changed" tab shows) to avoid pollution when main
    moves forward while the syrus branch is open.
 
+### Scheduled tasks
+
+`ScheduledTask` lets the operator attach recurring or one-shot agent
+prompts to a repository — no GitHub issue required. `kind=cron` uses a
+5-field cron expression (validated to fire at most once per hour);
+`kind=one_shot` uses a `fire_at` datetime. Each task has a random
+`minute_offset` seeded at create time so two tasks with the same nominal
+schedule never collide on the wall clock.
+
+`PollScheduledTasksJob` (runs every minute) evaluates due tasks and fires
+them. Each fire creates a `Job` with `kind=cron` (linked via
+`scheduled_task_id`, no `issue_number`) and an initial `Run` whose prompt
+is pre-rendered at fire time (variables `{{repo_slug}}`,
+`{{last_fired_at}}`, etc.). The standard RunJob pipeline takes over from
+there on branch `syrus/scheduled-<task_id>-<job_id>`.
+
+`pr_pileup_policy` controls what happens when the previous fire's PR is
+still open at next tick: `skip` (default, don't fire), `pile` (fire
+anyway), `replace` (cancel the old Job and fire). Auto-pause kicks in
+when consecutive failure count hits the `AppSetting.max_job_failures`
+threshold; operator must Resume to re-enable.
+
+"No changes" is the explicit happy path for cron Jobs — the agent
+surveys, calls `submit_summary` with a one-line note, and the Job closes
+with reason `no_changes`.
+
 ### Live UI
 
 `Job` and `Run` use `broadcasts_refreshes` + Turbo morph (`<%= turbo_refreshes_with method: :morph %>`)
@@ -82,8 +120,9 @@ preserve scroll position across morphs.
 
 - **Prompts** all live under `app/services/prompts/` as PORO classes
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
-  `Prompts::SubmitSummaryInstructions`). Each has a `to_s`. Compose by
-  appending; never inline prompt text in jobs/services.
+  `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`, `Prompts::Resume`,
+  `Prompts::ScheduledTask`). Each has a `to_s`. Compose by appending;
+  never inline prompt text in jobs/services.
 - **Encrypted attributes** — `User#github_token`, `User#claude_oauth_token`
   use Active Record Encryption. Means `RAILS_MASTER_KEY` is required in
   any process that touches them. Smoke tests inside containers without
@@ -93,6 +132,10 @@ preserve scroll position across morphs.
   See `Run` model.
 - **Per-repo concurrency** — `RunJob` uses Solid Queue's `limits_concurrency`
   keyed on `repository_id` so two runs on the same repo never overlap.
+- **Per-user max-turns** — `User#agent_max_turns` (default 200, range
+  0–1000). `0` means no `--max-turns` flag is passed to claude (the
+  per-run 30-minute timeout still bounds runaway loops). Threaded through
+  RunJob → AgentInvocation for both regular and rebase runs.
 - **Three-dot diffs only** — `git diff <base>...HEAD`, never two-dot.
   Lesson learned the hard way (commit `67b2bf9`).
 - **Worktrees live outside the repo** — under `$SYRUS_DATA_ROOT` (default
@@ -221,8 +264,8 @@ kubectl --kubeconfig ~/.kube/config-production -n syrus-production \
 **Useful diagnostic recipes** (run via the pattern above):
 
 - *Active / zombie Runs* — `Run.where(state: %w[queued running])`.
-  A "running" Run whose worker process is dead = zombie; the
-  ReapStaleRunsJob (PR #30 once merged) handles these automatically.
+  A "running" Run whose worker process is dead = zombie;
+  `ReapStaleRunsJob` (runs every minute) handles these automatically.
 - *Solid Queue history for a Run id* — `SolidQueue::Job.where(class_name: "RunJob")`
   filtered by `j.arguments&.dig("arguments")&.first == run_id`.
   Look for `j.failed_execution&.error&.dig("message")` for the death cause.
@@ -248,7 +291,7 @@ restart kills any active RunJob mid-perform after the K8s grace
 period (~30s). RunJob's `ensure` cleanup may not finish; orphan
 worktrees and zombie Runs can accumulate. The orphan-sweep on next
 setup (`5e325b0`) catches terminal Runs' worktrees, but Runs whose
-state is stuck in `running` need PR #30's reaper. If you see a
+state is stuck in `running` are cleaned up by `ReapStaleRunsJob`. If you see a
 "refusing to fetch into branch X checked out at /worktrees/N" error
 post-deploy, it's a stale registration — clean by walking
 `<bare>/.git/worktrees/*` and force-removing whose Run is
@@ -335,10 +378,15 @@ app/services/syrus_mcp/sidecar.rb            # MCP::Server boot + SIGTERM trap
 app/services/syrus_mcp/submit_summary_tool.rb # the one MCP tool
 app/services/prompts/                        # all agent prompts (PORO)
 app/services/pr_summarizer.rb                # second-shot fallback
-app/jobs/poll_*.rb                           # 6 polling jobs (cron-style; see config/recurring.yml)
+app/jobs/poll_*.rb                           # polling jobs (cron-style; see config/recurring.yml)
+app/jobs/reap_stale_runs_job.rb              # kills zombie Runs every minute
+app/jobs/claude_session_prune_job.rb         # drops old ClaudeSession rows daily
 app/models/{job,run,repository,user}.rb      # core models + AASM
+app/models/scheduled_task.rb                 # cron/one-shot task attached to a repo
+app/models/claude_session.rb                 # captured JSONL for --resume flows
 bin/syrus-mcp-sidecar                        # Ruby binstub, claude spawns this
 bin/jobs                                     # Solid Queue worker entry
 config/database.yml                          # 4-DB prod (primary/cache/queue/cable)
+config/recurring.yml                         # Solid Queue recurring job schedule
 ROADMAP.md                                   # milestone plan + future work
 ```
