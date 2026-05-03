@@ -147,4 +147,29 @@ class GithubClient
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} branches: #{e.message}")
     raise
   end
+
+  # Returns { user: "login", orgs: ["org1", "org2"] } — the authenticated
+  # user's login plus all org logins they belong to, sorted.
+  def accessible_owners
+    login = @client.user.login
+    orgs  = @client.organizations.map(&:login).sort
+    { user: login, orgs: orgs }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited on accessible_owners: #{e.message}")
+    raise
+  end
+
+  # Returns sorted repo names for the given owner. owner_type "user" fetches
+  # the authenticated user's own repos; anything else fetches org repos.
+  def owner_repos(owner, owner_type:)
+    repos = if owner_type == "user"
+      @client.repos(nil, type: "owner")
+    else
+      @client.org_repos(owner)
+    end
+    repos.map(&:name).sort
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited on #{owner} repos: #{e.message}")
+    raise
+  end
 end

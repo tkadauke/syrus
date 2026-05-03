@@ -32,6 +32,31 @@ class RepositoriesController < ApplicationController
     @repository = Current.user.repositories.build(default_branch: "main", trigger_label: "syrus")
   end
 
+  def owners
+    result = GithubClient.for(Current.user).accessible_owners
+    render json: result
+  rescue ArgumentError
+    render json: { error: "no_token" }
+  rescue Octokit::Unauthorized, Octokit::Forbidden
+    render json: { error: "unauthorized" }
+  rescue StandardError
+    render json: { error: "error" }
+  end
+
+  def repos
+    owner = params[:owner].to_s.strip
+    return render json: { error: "missing_params" } if owner.blank?
+    owner_type = params[:owner_type].to_s.strip
+    result = GithubClient.for(Current.user).owner_repos(owner, owner_type: owner_type)
+    render json: { repos: result }
+  rescue ArgumentError
+    render json: { error: "no_token" }
+  rescue Octokit::NotFound, Octokit::Unauthorized, Octokit::Forbidden
+    render json: { error: "not_found" }
+  rescue StandardError
+    render json: { error: "error" }
+  end
+
   def branches
     owner = params[:owner].to_s.strip
     name  = params[:name].to_s.strip

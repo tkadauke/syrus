@@ -87,4 +87,46 @@ RSpec.describe GithubClient do
       expect(stub).to have_been_requested
     end
   end
+
+  describe "#accessible_owners" do
+    let(:client) { GithubClient.for(user) }
+
+    before do
+      stub_request(:get, "https://api.github.com/user")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { login: "john" }.to_json)
+      stub_request(:get, "https://api.github.com/user/orgs")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: [ { login: "org-b" }, { login: "org-a" } ].to_json)
+    end
+
+    it "returns the authenticated user's login and sorted org logins" do
+      result = client.accessible_owners
+      expect(result[:user]).to eq("john")
+      expect(result[:orgs]).to eq(%w[org-a org-b])
+    end
+  end
+
+  describe "#owner_repos" do
+    let(:client) { GithubClient.for(user) }
+
+    it "fetches the authenticated user's own repos when owner_type is 'user'" do
+      stub_request(:get, "https://api.github.com/user/repos")
+        .with(query: hash_including("type" => "owner"))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: [ { name: "repo-b" }, { name: "repo-a" } ].to_json)
+
+      result = client.owner_repos("john", owner_type: "user")
+      expect(result).to eq(%w[repo-a repo-b])
+    end
+
+    it "fetches org repos when owner_type is 'org'" do
+      stub_request(:get, "https://api.github.com/orgs/my-org/repos")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: [ { name: "z-repo" }, { name: "a-repo" } ].to_json)
+
+      result = client.owner_repos("my-org", owner_type: "org")
+      expect(result).to eq(%w[a-repo z-repo])
+    end
+  end
 end

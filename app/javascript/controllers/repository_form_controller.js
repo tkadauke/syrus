@@ -1,31 +1,156 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["owner", "name", "branchText", "branchSelect", "repoError"]
+  static targets = [
+    "ownerText", "ownerSelect", "ownerManualLink",
+    "nameText", "nameSelect", "nameManualLink",
+    "branchText", "branchSelect",
+    "repoError"
+  ]
 
   connect() {
-    this.debounceTimer = null
-    // On edit form, if fields are already populated, fetch branches immediately.
-    if (this.ownerTarget.value.trim() && this.nameTarget.value.trim()) {
-      this.doFetch(this.ownerTarget.value.trim(), this.nameTarget.value.trim())
+    this.branchDebounceTimer = null
+    this.ownerTypes = {}  // login → "user" | "org"
+    this.fetchOwners()
+  }
+
+  // ── Owner ──────────────────────────────────────────────────────────────────
+
+  async fetchOwners() {
+    try {
+      const resp = await fetch("/repositories/owners", {
+        headers: { "Accept": "application/json", "X-CSRF-Token": this.csrfToken }
+      })
+      const data = await resp.json()
+      if (data.error) return
+
+      const owners = []
+      if (data.user) {
+        this.ownerTypes[data.user] = "user"
+        owners.push(data.user)
+      }
+      ;(data.orgs || []).forEach(org => {
+        this.ownerTypes[org] = "org"
+        owners.push(org)
+      })
+
+      if (owners.length > 0) this.populateOwners(owners)
+    } catch (_e) {
+      // network error — leave text input visible
     }
   }
 
-  fetchBranches() {
-    clearTimeout(this.debounceTimer)
-    const owner = this.ownerTarget.value.trim()
-    const name = this.nameTarget.value.trim()
+  populateOwners(owners) {
+    const text   = this.ownerTextTarget
+    const select = this.ownerSelectTarget
+    const current = text.value.trim()
 
-    if (!owner || !name) {
-      this.resetBranchField()
-      this.hideRepoError()
-      return
+    select.innerHTML =
+      '<option value="">Select owner…</option>' +
+      owners.map(o =>
+        `<option value="${this.esc(o)}"${o === current ? " selected" : ""}>${this.esc(o)}</option>`
+      ).join("")
+
+    this.showSelect(text, select)
+    this.ownerManualLinkTarget.classList.remove("hidden")
+
+    // Edit form: owner already set — immediately fetch its repos
+    if (current && this.ownerTypes[current]) {
+      this.fetchRepos(current, this.ownerTypes[current])
     }
-
-    this.debounceTimer = setTimeout(() => this.doFetch(owner, name), 500)
   }
 
-  async doFetch(owner, name) {
+  ownerSelected() {
+    const owner = this.ownerSelectTarget.value
+    this.ownerTextTarget.value = owner
+    this.resetNameField()
+    this.resetBranchField()
+    if (!owner) return
+    this.fetchRepos(owner, this.ownerTypes[owner] || "org")
+  }
+
+  enterOwnerManually(event) {
+    event.preventDefault()
+    this.showText(this.ownerTextTarget, this.ownerSelectTarget)
+    this.ownerManualLinkTarget.classList.add("hidden")
+    this.resetNameField()
+    this.resetBranchField()
+  }
+
+  ownerTextChanged() {
+    this.resetNameField()
+    this.resetBranchField()
+    this.scheduleBranchFetch()
+  }
+
+  // ── Name / Repo ────────────────────────────────────────────────────────────
+
+  async fetchRepos(owner, ownerType) {
+    try {
+      const url = `/repositories/repos?owner=${encodeURIComponent(owner)}&owner_type=${encodeURIComponent(ownerType)}`
+      const resp = await fetch(url, {
+        headers: { "Accept": "application/json", "X-CSRF-Token": this.csrfToken }
+      })
+      const data = await resp.json()
+      if (!data.error && data.repos) this.populateRepos(data.repos, owner)
+    } catch (_e) {
+      // network error — leave name text input
+    }
+  }
+
+  populateRepos(repos, owner) {
+    const text   = this.nameTextTarget
+    const select = this.nameSelectTarget
+    const current = text.value.trim()
+
+    select.innerHTML =
+      '<option value="">Select repository…</option>' +
+      repos.map(r =>
+        `<option value="${this.esc(r)}"${r === current ? " selected" : ""}>${this.esc(r)}</option>`
+      ).join("")
+
+    this.showSelect(text, select)
+    this.nameManualLinkTarget.classList.remove("hidden")
+
+    // Edit form: name already set — fetch branches
+    if (current && repos.includes(current)) {
+      this.doFetchBranches(owner, current)
+    }
+  }
+
+  nameSelected() {
+    const name = this.nameSelectTarget.value
+    this.nameTextTarget.value = name
+    this.resetBranchField()
+    this.hideRepoError()
+    if (!name) return
+    const owner = this.currentOwner
+    if (owner) this.doFetchBranches(owner, name)
+  }
+
+  enterNameManually(event) {
+    event.preventDefault()
+    this.showText(this.nameTextTarget, this.nameSelectTarget)
+    this.nameManualLinkTarget.classList.add("hidden")
+    this.resetBranchField()
+  }
+
+  nameTextChanged() {
+    this.resetBranchField()
+    this.scheduleBranchFetch()
+  }
+
+  // ── Branches (unchanged logic, factored) ──────────────────────────────────
+
+  scheduleBranchFetch() {
+    clearTimeout(this.branchDebounceTimer)
+    const owner = this.currentOwner
+    const name  = this.currentName
+    if (!owner || !name) { this.hideRepoError(); return }
+    this.branchDebounceTimer = setTimeout(() => this.doFetchBranches(owner, name), 500)
+  }
+
+  async doFetchBranches(owner, name) {
     try {
       const url = `/repositories/branches?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(name)}`
       const resp = await fetch(url, {
@@ -44,36 +169,46 @@ export default class extends Controller {
         this.populateBranches(data.branches, data.default_branch)
       }
     } catch (_e) {
-      // network error — leave the UI as-is
+      // network error — leave UI as-is
     }
   }
 
   populateBranches(branches, defaultBranch) {
     const select = this.branchSelectTarget
-    const text = this.branchTextTarget
-    // Prefer the current user-entered value; fall back to GitHub's default.
-    const currentValue = text.value.trim() || defaultBranch
+    const text   = this.branchTextTarget
+    const current = text.value.trim() || defaultBranch
 
     select.innerHTML = branches
-      .map(b => `<option value="${this.escapeHtml(b)}"${b === currentValue ? " selected" : ""}>${this.escapeHtml(b)}</option>`)
+      .map(b => `<option value="${this.esc(b)}"${b === current ? " selected" : ""}>${this.esc(b)}</option>`)
       .join("")
 
-    text.disabled = true
-    text.classList.add("hidden")
-    select.disabled = false
-    select.classList.remove("hidden")
+    this.showSelect(text, select)
+  }
+
+  // ── Reset helpers ──────────────────────────────────────────────────────────
+
+  resetNameField() {
+    const select = this.nameSelectTarget
+    const text   = this.nameTextTarget
+    select.disabled = true
+    select.classList.add("hidden")
+    select.innerHTML = ""
+    text.disabled = false
+    text.classList.remove("hidden")
+    if (this.hasNameManualLinkTarget) this.nameManualLinkTarget.classList.add("hidden")
   }
 
   resetBranchField() {
     const select = this.branchSelectTarget
-    const text = this.branchTextTarget
-
+    const text   = this.branchTextTarget
     select.disabled = true
     select.classList.add("hidden")
     select.innerHTML = ""
     text.disabled = false
     text.classList.remove("hidden")
   }
+
+  // ── Error display ──────────────────────────────────────────────────────────
 
   hideRepoError() {
     this.repoErrorTarget.textContent = ""
@@ -85,7 +220,36 @@ export default class extends Controller {
     this.repoErrorTarget.classList.remove("hidden")
   }
 
-  escapeHtml(str) {
+  // ── Utilities ─────────────────────────────────────────────────────────────
+
+  showSelect(text, select) {
+    text.disabled = true
+    text.classList.add("hidden")
+    select.disabled = false
+    select.classList.remove("hidden")
+  }
+
+  showText(text, select) {
+    select.disabled = true
+    select.classList.add("hidden")
+    text.disabled = false
+    text.classList.remove("hidden")
+    text.focus()
+  }
+
+  get currentOwner() {
+    const sel = this.ownerSelectTarget
+    if (!sel.classList.contains("hidden")) return sel.value
+    return this.ownerTextTarget.value.trim()
+  }
+
+  get currentName() {
+    const sel = this.nameSelectTarget
+    if (!sel.classList.contains("hidden")) return sel.value
+    return this.nameTextTarget.value.trim()
+  }
+
+  esc(str) {
     return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   }
 

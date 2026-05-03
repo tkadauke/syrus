@@ -6,6 +6,8 @@ Rails.application.routes.draw do
   resource :credentials, only: %i[ edit update ]
   resources :repositories do
     collection do
+      get :owners
+      get :repos
       get :branches
     end
     member do

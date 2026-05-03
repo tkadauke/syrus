@@ -11,14 +11,30 @@
     <div>
       <%= form.label :owner, class: "block text-sm font-medium text-gray-700" %>
       <%= form.text_field :owner, required: true, autocomplete: "off",
-            data: { repository_form_target: "owner", action: "input->repository-form#fetchBranches" },
+            data: { repository_form_target: "ownerText", action: "input->repository-form#ownerTextChanged" },
             class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
+      <select name="repository[owner]" disabled
+              data-repository-form-target="ownerSelect"
+              data-action="change->repository-form#ownerSelected"
+              class="hidden block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono bg-white">
+      </select>
+      <a href="#" data-repository-form-target="ownerManualLink"
+         data-action="click->repository-form#enterOwnerManually"
+         class="hidden text-xs text-gray-500 underline mt-1 inline-block">Enter manually</a>
     </div>
     <div>
       <%= form.label :name, class: "block text-sm font-medium text-gray-700" %>
       <%= form.text_field :name, required: true, autocomplete: "off",
-            data: { repository_form_target: "name", action: "input->repository-form#fetchBranches" },
+            data: { repository_form_target: "nameText", action: "input->repository-form#nameTextChanged" },
             class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
+      <select name="repository[name]" disabled
+              data-repository-form-target="nameSelect"
+              data-action="change->repository-form#nameSelected"
+              class="hidden block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono bg-white">
+      </select>
+      <a href="#" data-repository-form-target="nameManualLink"
+         data-action="click->repository-form#enterNameManually"
+         class="hidden text-xs text-gray-500 underline mt-1 inline-block">Enter manually</a>
       <p data-repository-form-target="repoError"
          class="hidden text-sm text-red-600 mt-1"></p>
     </div>
