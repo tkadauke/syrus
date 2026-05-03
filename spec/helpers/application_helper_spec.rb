@@ -44,4 +44,47 @@ RSpec.describe ApplicationHelper, type: :helper do
     end
   end
 
+  describe "#relative_timestamp" do
+    it "returns the fallback for nil" do
+      expect(helper.relative_timestamp(nil)).to eq("—")
+    end
+
+    it "returns the custom fallback for nil" do
+      expect(helper.relative_timestamp(nil, fallback: "N/A")).to eq("N/A")
+    end
+
+    it "renders a <time> element with the iso8601 datetime attribute" do
+      time = 5.minutes.ago
+      html = helper.relative_timestamp(time)
+      node = Nokogiri::HTML.fragment(html).at("time")
+      expect(node).to be_present
+      expect(node["datetime"]).to eq(time.iso8601)
+    end
+
+    it "includes the absolute time in the title attribute" do
+      time = Time.zone.local(2025, 3, 15, 14, 30)
+      html = helper.relative_timestamp(time)
+      node = Nokogiri::HTML.fragment(html).at("time")
+      expect(node["title"]).to eq("Mar 15, 2025 at 2:30 PM")
+    end
+
+    it "attaches the relative-time Stimulus controller" do
+      html = helper.relative_timestamp(5.minutes.ago)
+      node = Nokogiri::HTML.fragment(html).at("time")
+      expect(node["data-controller"]).to eq("relative-time")
+    end
+
+    it "renders a past timestamp as 'X ago'" do
+      html = helper.relative_timestamp(5.minutes.ago)
+      node = Nokogiri::HTML.fragment(html).at("time")
+      expect(node.text).to match(/ago\z/)
+    end
+
+    it "renders a future timestamp as 'in X'" do
+      html = helper.relative_timestamp(5.minutes.from_now)
+      node = Nokogiri::HTML.fragment(html).at("time")
+      expect(node.text).to match(/\Ain /)
+    end
+  end
+
 end

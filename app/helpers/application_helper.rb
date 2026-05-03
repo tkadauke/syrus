@@ -56,6 +56,6 @@ module ApplicationHelper
 
     absolute = time.strftime("%b %-d, %Y at %-I:%M %p")
     relative = time > Time.current ? "in #{time_ago_in_words(time)}" : "#{time_ago_in_words(time)} ago"
-    content_tag(:time, relative, datetime: time.iso8601, title: absolute)
+    content_tag(:time, relative, datetime: time.iso8601, title: absolute, data: { controller: "relative-time" })
   end
 end
