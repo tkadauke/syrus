@@ -30,7 +30,16 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to include("initial")  # trigger pill
       end
 
-      it "renders issue_body when present" do
+      it "renders issue_title next to the issue number in the heading" do
+        job.update!(issue_title: "Add greeting helper")
+        get job_path(job)
+        expect(response.body).to include("#42")
+        expect(response.body).to include("Add greeting helper")
+        # Both should appear close together — the title follows the issue link in the h1.
+        expect(response.body).to match(/#42.*Add greeting helper/m)
+      end
+
+      it "renders issue_body when present (no summary → plain block)" do
         job.update!(issue_title: "Add greeting helper", issue_body: "We need a greeting helper.")
         get job_path(job)
         expect(response.body).to include("Add greeting helper")
@@ -41,6 +50,37 @@ RSpec.describe "Jobs", type: :request do
         job.update!(issue_title: nil, issue_body: nil)
         get job_path(job)
         expect(response.body).not_to include("whitespace-pre-wrap")
+      end
+
+      it "shows Summary and Runs tabs when a run has an agent_summary" do
+        run = job.initial_run
+        run.start!; run.succeed!; run.save!
+        run.update!(agent_summary: "Added the greeting helper method to ApplicationHelper.")
+
+        get job_path(job)
+        expect(response.body).to include("Summary")
+        expect(response.body).to include("Runs (")
+        expect(response.body).to include("Added the greeting helper method to ApplicationHelper.")
+      end
+
+      it "shows issue_body inside the Summary tab when summary is present" do
+        job.update!(issue_body: "We need a greeting helper.")
+        run = job.initial_run
+        run.start!; run.succeed!; run.save!
+        run.update!(agent_summary: "Done.")
+
+        get job_path(job)
+        expect(response.body).to include("We need a greeting helper.")
+        expect(response.body).to include("Done.")
+      end
+
+      it "does not show Summary tab when no run has an agent_summary" do
+        run = job.initial_run
+        run.start!; run.succeed!; run.save!
+
+        get job_path(job)
+        # No summary tab nav — the runs render directly without tabs.
+        expect(response.body).not_to include('data-action="click-&gt;tabs#switch"')
       end
 
       it "404s for another user's job" do

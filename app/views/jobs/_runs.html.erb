@@ -1,0 +1,82 @@
+<% runs_array = runs.to_a %>
+<% runs_array.reverse_each.with_index do |run, idx| %>
+  <% run_number = runs_array.size - idx %>
+  <% is_latest = idx == 0 %>
+  <section class="border border-gray-200 rounded-lg overflow-hidden">
+    <header class="bg-gray-50 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="font-medium text-gray-900">Run <%= run_number %></span>
+        <%= trigger_pill(run.trigger_kind) %>
+        <%= state_pill(run.state) %>
+        <% if run.queued? || run.running? %>
+          <%= button_to "Stop", stop_run_job_path(job, run_id: run.id), method: :post,
+                class: "px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer",
+                form: { class: "inline", data: { turbo_confirm: "Stop this run?" } } %>
+        <% end %>
+        <% if (run.failed? || run.cancelled?) && run.claude_session %>
+          <%= button_to "Resume", resume_job_path(job, source_run_id: run.id), method: :post,
+                class: "px-2 py-0.5 rounded text-xs font-medium bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200 cursor-pointer",
+                form: { class: "inline" } %>
+        <% end %>
+      </div>
+      <div class="text-xs text-gray-500">
+        <% if run.running? && run.started_at %>
+          <% avg = Run.average_duration_for(run.trigger_kind) %>
+          <span data-controller="run-timer"
+                data-run-timer-started-at-value="<%= run.started_at.iso8601 %>"
+                data-run-timer-estimated-seconds-value="<%= avg || 0 %>">
+            <span data-run-timer-target="elapsed">…</span>
+            <% if avg %>
+              · <span data-run-timer-target="remaining"></span>
+            <% end %>
+          </span>
+        <% elsif run.started_at %>
+          <%= relative_timestamp(run.started_at) %>
+          <% if run.finished_at %>
+            → <%= relative_timestamp(run.finished_at) %>
+          <% end %>
+        <% else %>
+          not yet started
+        <% end %>
+        <% if run.agent_turns %>
+          · turns=<%= run.agent_turns %>
+        <% end %>
+        <% if run.agent_outcome %>
+          · <span class="font-mono"><%= run.agent_outcome %></span>
+        <% end %>
+      </div>
+    </header>
+
+    <div class="border-t border-gray-100 divide-y divide-gray-100">
+      <details <%= is_latest ? "open" : "" %> class="group">
+        <summary class="px-4 py-2 text-xs uppercase tracking-wide text-gray-500 cursor-pointer select-none hover:bg-gray-50 flex items-center gap-2 [&::marker]:hidden [&::-webkit-details-marker]:hidden">
+          <span class="text-gray-400 group-open:rotate-90 transition-transform duration-150 inline-block">▶</span>
+          Transcript
+          <% unless run.job_logs.any? %>
+            <span class="normal-case text-gray-400 font-normal">(empty)</span>
+          <% end %>
+        </summary>
+        <%# data-turbo-permanent so streamed JobLog appends survive
+            morph refreshes — without it a Job/Run state change can
+            wipe in-flight transcript chunks. %>
+        <div id="run_<%= run.id %>_logs" data-turbo-permanent class="bg-black text-gray-100 p-3 max-h-96 overflow-y-auto space-y-1">
+          <% if run.job_logs.any? %>
+            <%= render run.job_logs %>
+          <% else %>
+            <p class="font-mono text-xs text-gray-400">No transcript chunks yet.</p>
+          <% end %>
+        </div>
+      </details>
+
+      <% if run.agent_diff.present? %>
+        <details class="group">
+          <summary class="px-4 py-2 text-xs uppercase tracking-wide text-gray-500 cursor-pointer select-none hover:bg-gray-50 flex items-center gap-2 [&::marker]:hidden [&::-webkit-details-marker]:hidden">
+            <span class="text-gray-400 group-open:rotate-90 transition-transform duration-150 inline-block">▶</span>
+            Diff
+          </summary>
+          <pre class="bg-black text-gray-100 p-3 overflow-x-auto max-h-96 overflow-y-auto text-xs font-mono whitespace-pre"><%= run.agent_diff %></pre>
+        </details>
+      <% end %>
+    </div>
+  </section>
+<% end %>
