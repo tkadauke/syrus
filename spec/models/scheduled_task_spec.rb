@@ -221,4 +221,40 @@ RSpec.describe ScheduledTask do
       expect(task.has_open_pr?).to be false
     end
   end
+
+  describe "#last_pr_job" do
+    let(:task) { build_cron.tap(&:save!) }
+
+    it "returns nil when no Jobs have a pr_number" do
+      task.jobs.create!(
+        user: user, repository: repository,
+        kind: "cron", scheduled_task: task, issue_number: nil
+      )
+      expect(task.last_pr_job).to be_nil
+    end
+
+    it "returns the most recent Job with a pr_number" do
+      older = task.jobs.create!(
+        user: user, repository: repository,
+        kind: "cron", scheduled_task: task, issue_number: nil, pr_number: 10
+      )
+      newer = task.jobs.create!(
+        user: user, repository: repository,
+        kind: "cron", scheduled_task: task, issue_number: nil, pr_number: 20
+      )
+      expect(task.last_pr_job).to eq(newer)
+    end
+
+    it "ignores Jobs without a pr_number when selecting the most recent" do
+      pr_job = task.jobs.create!(
+        user: user, repository: repository,
+        kind: "cron", scheduled_task: task, issue_number: nil, pr_number: 10
+      )
+      task.jobs.create!(
+        user: user, repository: repository,
+        kind: "cron", scheduled_task: task, issue_number: nil
+      )
+      expect(task.last_pr_job).to eq(pr_job)
+    end
+  end
 end

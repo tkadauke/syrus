@@ -113,6 +113,12 @@ class ScheduledTask < ApplicationRecord
     jobs.where(state: "open").where.not(pr_number: nil)
   end
 
+  # The most recently created Job from this task that opened a PR.
+  # Used by Prompts::ScheduledTask to tell the agent what happened last time.
+  def last_pr_job
+    jobs.where.not(pr_number: nil).order(created_at: :desc).first
+  end
+
   def soft_delete!
     update!(archived_at: Time.current)
   end

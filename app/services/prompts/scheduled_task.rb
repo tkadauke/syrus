@@ -16,7 +16,23 @@ module Prompts
       date
       last_fired_at
       last_successful_fire_at
+      last_pr_number
+      last_pr_state
     ].freeze
+
+    # Maps a Job's closure_reason (or nil for open) to a label the agent
+    # can reason about.
+    PR_STATE_LABELS = {
+      nil         => "open",
+      "pr_merged" => "merged",
+      "pr_closed" => "closed",
+      "pr_approved" => "approved",
+      "syrus_stop"  => "stopped",
+      "too_many_failures" => "failed",
+      "cancelled"         => "cancelled",
+      "replaced_by_scheduled_task" => "replaced",
+      "no_changes"        => "no_changes",
+    }.freeze
 
     def initialize(scheduled_task:, fired_at: Time.current)
       @task = scheduled_task
@@ -54,7 +70,9 @@ module Prompts
         Standing instruction context:
         - Schedule kind: #{@task.kind}
         - Fired at: #{@fired_at.utc.iso8601}
+        - Previous fire: #{@task.last_fired_at&.utc&.iso8601 || 'never'}
         - Last successful fire: #{@task.last_successful_fire_at&.utc&.iso8601 || 'never'}
+        - Last PR: #{last_pr_summary}
       TXT
     end
 
@@ -72,7 +90,23 @@ module Prompts
       when :date                      then @fired_at.utc.to_date.iso8601
       when :last_fired_at             then @task.last_fired_at&.utc&.iso8601 || "never"
       when :last_successful_fire_at   then @task.last_successful_fire_at&.utc&.iso8601 || "never"
+      when :last_pr_number            then last_pr_job ? last_pr_job.pr_number.to_s : "none"
+      when :last_pr_state             then last_pr_job ? pr_state_label(last_pr_job) : "none"
       end
+    end
+
+    def last_pr_job
+      @last_pr_job ||= @task.last_pr_job
+    end
+
+    def pr_state_label(job)
+      PR_STATE_LABELS.fetch(job.closure_reason, "closed")
+    end
+
+    def last_pr_summary
+      job = last_pr_job
+      return "none" unless job
+      "##{job.pr_number} (#{pr_state_label(job)})"
     end
   end
 end
