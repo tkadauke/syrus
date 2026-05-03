@@ -1,6 +1,10 @@
 class HomeController < ApplicationController
+  PER_PAGE = 25
+
   def index
     @repositories = Current.user.repositories.order(:owner, :name)
+    @active_tab = params[:tab] == "runs" ? "runs" : "jobs"
+    @page = [params[:page].to_i, 1].max
 
     @jobs = Current.user.jobs.includes(:repository)
     @jobs = @jobs.where(state: params[:state]) if params[:state].present?
@@ -16,10 +20,12 @@ class HomeController < ApplicationController
       @jobs = @jobs.where(created_at: cutoff..) if cutoff
     end
 
-    @jobs = @jobs.order(created_at: :desc).limit(50)
+    @jobs_total = @jobs.count
+    @jobs = @jobs.order(created_at: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
 
     @runs = Run.joins(:job).where(jobs: { user_id: Current.user.id })
-               .includes(job: :repository).order(created_at: :desc).limit(50)
-    @active_tab = params[:tab] == "runs" ? "runs" : "jobs"
+               .includes(job: :repository)
+    @runs_total = @runs.count
+    @runs = @runs.order(created_at: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
   end
 end

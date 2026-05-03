@@ -46,7 +46,8 @@
       <% end %>
     <% end %>
 
-    <% if @jobs.any? %>
+    <% if @jobs.any? || @page > 1 %>
+      <% jobs_total_pages = (@jobs_total.to_f / HomeController::PER_PAGE).ceil %>
       <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50 text-xs uppercase text-gray-500">
@@ -83,6 +84,27 @@
           </tbody>
         </table>
       </div>
+      <% if jobs_total_pages > 1 %>
+        <% first_item = (@page - 1) * HomeController::PER_PAGE + 1 %>
+        <% last_item = [@page * HomeController::PER_PAGE, @jobs_total].min %>
+        <div class="flex items-center justify-between text-sm text-gray-600">
+          <span>Showing <%= first_item %>–<%= last_item %> of <%= @jobs_total %></span>
+          <div class="flex gap-2">
+            <% if @page > 1 %>
+              <%= link_to "← Previous", root_path(request.query_parameters.merge("page" => @page - 1)),
+                    class: "px-3 py-1 border border-gray-300 rounded hover:bg-gray-50" %>
+            <% else %>
+              <span class="px-3 py-1 border border-gray-200 rounded text-gray-300">← Previous</span>
+            <% end %>
+            <% if @page < jobs_total_pages %>
+              <%= link_to "Next →", root_path(request.query_parameters.merge("page" => @page + 1)),
+                    class: "px-3 py-1 border border-gray-300 rounded hover:bg-gray-50" %>
+            <% else %>
+              <span class="px-3 py-1 border border-gray-200 rounded text-gray-300">Next →</span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
     <% else %>
       <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
         <% if params[:state].present? || params[:repository_id].present? || params[:pr].present? || params[:age].present? %>
@@ -94,7 +116,8 @@
       </div>
     <% end %>
   <% else %>
-    <% if @runs.any? %>
+    <% if @runs.any? || @page > 1 %>
+      <% runs_total_pages = (@runs_total.to_f / HomeController::PER_PAGE).ceil %>
       <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50 text-xs uppercase text-gray-500">
@@ -125,6 +148,27 @@
           </tbody>
         </table>
       </div>
+      <% if runs_total_pages > 1 %>
+        <% first_item = (@page - 1) * HomeController::PER_PAGE + 1 %>
+        <% last_item = [@page * HomeController::PER_PAGE, @runs_total].min %>
+        <div class="flex items-center justify-between text-sm text-gray-600">
+          <span>Showing <%= first_item %>–<%= last_item %> of <%= @runs_total %></span>
+          <div class="flex gap-2">
+            <% if @page > 1 %>
+              <%= link_to "← Previous", root_path(request.query_parameters.merge("page" => @page - 1)),
+                    class: "px-3 py-1 border border-gray-300 rounded hover:bg-gray-50" %>
+            <% else %>
+              <span class="px-3 py-1 border border-gray-200 rounded text-gray-300">← Previous</span>
+            <% end %>
+            <% if @page < runs_total_pages %>
+              <%= link_to "Next →", root_path(request.query_parameters.merge("page" => @page + 1)),
+                    class: "px-3 py-1 border border-gray-300 rounded hover:bg-gray-50" %>
+            <% else %>
+              <span class="px-3 py-1 border border-gray-200 rounded text-gray-300">Next →</span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
     <% else %>
       <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
         No runs yet.
