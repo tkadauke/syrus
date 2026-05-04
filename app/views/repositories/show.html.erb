@@ -53,6 +53,8 @@
               class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
               form: { class: "inline", data: { turbo_confirm: "Replay #{retryable.size} failed job(s)?" } } %>
       <% end %>
+      <%= link_to "Browse issues", issues_repository_path(@repository),
+            class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium" %>
       <%= link_to "Edit", edit_repository_path(@repository),
             class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium" %>
       <%= button_to "Remove", repository_path(@repository), method: :delete,

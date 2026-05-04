@@ -239,6 +239,38 @@ class GithubClient
     raise
   end
 
+  # All open or closed issues for a repo (no label filter). Pull requests are
+  # excluded — GitHub's issues endpoint returns them too when their state
+  # matches. Results are sorted by updated_at desc (GitHub default).
+  def list_all_issues(repo_slug, state: "open")
+    track_rate_limits { @client.list_issues(repo_slug, state: state) }
+      .reject { |i| i.respond_to?(:pull_request) && i.pull_request }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing issues on #{repo_slug}: #{e.message}")
+    raise
+  end
+
+  def add_issue_comment(repo_slug, issue_number, body)
+    track_rate_limits { @client.add_comment(repo_slug, issue_number, body) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited adding comment on #{repo_slug}##{issue_number}: #{e.message}")
+    raise
+  end
+
+  def close_issue(repo_slug, issue_number)
+    track_rate_limits { @client.close_issue(repo_slug, issue_number) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited closing #{repo_slug}##{issue_number}: #{e.message}")
+    raise
+  end
+
+  def add_label_to_issue(repo_slug, issue_number, label)
+    track_rate_limits { @client.add_labels_to_an_issue(repo_slug, issue_number, [label]) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited adding label on #{repo_slug}##{issue_number}: #{e.message}")
+    raise
+  end
+
   # Returns sorted repo names for the given owner. owner_type "user" fetches
   # the authenticated user's own repos; anything else fetches org repos.
   def owner_repos(owner, owner_type:)

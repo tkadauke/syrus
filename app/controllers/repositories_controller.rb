@@ -1,5 +1,5 @@
 class RepositoriesController < ApplicationController
-  before_action :load_repository, only: %i[ show edit update destroy poll archive unarchive retry_failed_jobs ]
+  before_action :load_repository, only: %i[ show edit update destroy poll archive unarchive retry_failed_jobs issues comment_issue close_issue delegate_issue ]
 
   PER_PAGE = 20
 
@@ -138,6 +138,46 @@ class RepositoriesController < ApplicationController
   def unarchive
     @repository.unarchive!
     redirect_to repositories_path, notice: "#{@repository.slug} unarchived. Re-enable polling to start ingestion again."
+  end
+
+  def issues
+    @state = params.fetch(:state, "open").presence_in(%w[open closed]) || "open"
+    @issues = GithubClient.for(Current.user).list_all_issues(@repository.slug, state: @state).first(50)
+  rescue ArgumentError
+    @issues = []
+    flash.now[:alert] = "No GitHub token configured — add one in Settings."
+  rescue Octokit::Error => e
+    @issues = []
+    flash.now[:alert] = "GitHub error: #{e.message}"
+  end
+
+  def comment_issue
+    issue_number = params.require(:issue_number).to_i
+    body = params[:comment_body].to_s.strip
+    if body.blank?
+      redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Comment cannot be blank."
+      return
+    end
+    GithubClient.for(Current.user).add_issue_comment(@repository.slug, issue_number, body)
+    redirect_to issues_repository_path(@repository, state: params[:state]), notice: "Comment added to ##{issue_number}."
+  rescue => e
+    redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to add comment: #{e.message}"
+  end
+
+  def close_issue
+    issue_number = params.require(:issue_number).to_i
+    GithubClient.for(Current.user).close_issue(@repository.slug, issue_number)
+    redirect_to issues_repository_path(@repository, state: params[:state]), notice: "Issue ##{issue_number} closed."
+  rescue => e
+    redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to close issue: #{e.message}"
+  end
+
+  def delegate_issue
+    issue_number = params.require(:issue_number).to_i
+    GithubClient.for(Current.user).add_label_to_issue(@repository.slug, issue_number, @repository.trigger_label)
+    redirect_to issues_repository_path(@repository, state: params[:state]), notice: "Issue ##{issue_number} delegated to Syrus."
+  rescue => e
+    redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to delegate issue: #{e.message}"
   end
 
   private

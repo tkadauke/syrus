@@ -54,6 +54,10 @@ Rails.application.routes.draw do
       post :archive
       post :unarchive
       post :retry_failed_jobs
+      get  :issues
+      post :comment_issue
+      post :close_issue
+      post :delegate_issue
     end
     resources :scheduled_tasks, only: %i[ new create ]
   end
