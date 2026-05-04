@@ -4,7 +4,7 @@ export default class extends Controller {
   static targets = ["tab", "panel"]
 
   connect() {
-    this.activeIndex = 0
+    this.activeIndex = this.tabIndexFromURL()
     this.apply()
     document.addEventListener("turbo:morph", this.reapply)
   }
@@ -15,6 +15,7 @@ export default class extends Controller {
 
   switch(event) {
     this.activeIndex = this.tabTargets.indexOf(event.currentTarget)
+    this.updateURL()
     this.apply()
   }
 
@@ -34,5 +35,21 @@ export default class extends Controller {
   // Arrow function so `this` is bound when used as an event listener.
   reapply = () => {
     if (this.element.isConnected) this.apply()
+  }
+
+  tabIndexFromURL() {
+    const params = new URLSearchParams(window.location.search)
+    const tabId = params.get("tab")
+    if (!tabId) return 0
+    const idx = this.tabTargets.findIndex(t => t.dataset.tabId === tabId)
+    return idx >= 0 ? idx : 0
+  }
+
+  updateURL() {
+    const tab = this.tabTargets[this.activeIndex]
+    if (!tab?.dataset.tabId) return
+    const url = new URL(window.location)
+    url.searchParams.set("tab", tab.dataset.tabId)
+    history.pushState({}, "", url)
   }
 }

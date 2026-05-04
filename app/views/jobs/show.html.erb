@@ -165,11 +165,11 @@
   <% if summary_run %>
     <div data-controller="tabs">
       <div class="flex border-b border-gray-200">
-        <button type="button" data-tabs-target="tab" data-action="click->tabs#switch"
+        <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="summary"
                 class="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600 -mb-px">
           Summary
         </button>
-        <button type="button" data-tabs-target="tab" data-action="click->tabs#switch"
+        <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="workflows"
                 class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 -mb-px">
           Workflows (<%= workflows.size %>)
         </button>

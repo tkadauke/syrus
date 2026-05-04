@@ -110,7 +110,7 @@ RSpec.describe "Jobs", type: :request do
       new_run = job.runs.last
       expect(new_run.trigger_kind).to eq("replay")
       expect(new_run.state).to eq("queued")
-      expect(response).to redirect_to(job_path(job))
+      expect(response).to redirect_to(job_path(job, tab: "workflows"))
     end
 
     it "stores replay_context in workflow artifacts when provided" do

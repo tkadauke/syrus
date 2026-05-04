@@ -23,7 +23,7 @@ class JobsController < ApplicationController
     artifacts = ctx.present? ? { "replay_context" => ctx } : nil
     workflow = Workflows::Replay.instantiate(job: @job, artifacts: artifacts)
     StepDispatcher.start_workflow(workflow)
-    redirect_to job_path(@job), notice: "Replay workflow enqueued."
+    redirect_to job_path(@job, tab: "workflows"), notice: "Replay workflow enqueued."
   end
 
   # Hard reset — close this thread (no more polling, no more runs), then
