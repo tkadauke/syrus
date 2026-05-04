@@ -4,6 +4,10 @@ class PollAllPullRequestsJob < ApplicationJob
   # Fan-out for the PR feedback loop — fires each open thread that has a
   # PR through PollPullRequestJob, which does the actual comment fetching
   # and follow-up Run dispatch.
+  #
+  # Also fans out to PollExternalPrJob for open Jobs whose issue was
+  # preempted by a human-authored PR (external_pr_number set, no pr_number)
+  # so the Job closes when that external PR is merged.
   def perform
     return if AppSetting.polling_paused?
     Job.joins(:repository)
@@ -11,6 +15,13 @@ class PollAllPullRequestsJob < ApplicationJob
        .where(state: "open").where.not(pr_number: nil)
        .find_each do |job|
       PollPullRequestJob.perform_later(job.id)
+    end
+
+    Job.joins(:repository)
+       .merge(Repository.active)
+       .where(state: "open", pr_number: nil).where.not(external_pr_number: nil)
+       .find_each do |job|
+      PollExternalPrJob.perform_later(job.id)
     end
   end
 end

@@ -92,6 +92,7 @@ module JobsHelper
   # PR — that's a more informative bucket than generic "closed."
   def job_summary_state(job)
     return "preempted" if job.closure_reason == "preempted"
+    return "preempted" if job.closure_reason&.start_with?("external_pr_")
     return "closed" if job.closed?
     job.current_run&.state || "pending"
   end
