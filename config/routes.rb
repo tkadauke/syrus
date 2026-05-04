@@ -109,7 +109,12 @@ Rails.application.routes.draw do
     # `?email=substr`, `?has_github_token=true|false`,
     # `?has_claude_token=true|false`. Filter logic lives in
     # Admin::UsersFilter so the API mirror reuses it.
-    resources :users, only: %i[ index show ]
+    resources :users, only: %i[ index show ] do
+      member do
+        post :pause_scheduling
+        post :unpause_scheduling
+      end
+    end
 
     # Operator console — kill switches + audit log (L).
     get  "console",                    to: "console#show",              as: :console

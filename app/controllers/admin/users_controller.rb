@@ -17,6 +17,20 @@ module Admin
                                          .order(performed_at: :desc).limit(10)
     end
 
+    def pause_scheduling
+      @user = User.find(params[:id])
+      @user.update!(scheduling_paused: true)
+      AdminAction.log!(user: Current.user, action: :pause_user_scheduling, params: { target_user_id: @user.id })
+      redirect_to admin_user_path(@user), notice: "Scheduling paused for #{@user.email_address}."
+    end
+
+    def unpause_scheduling
+      @user = User.find(params[:id])
+      @user.update!(scheduling_paused: false)
+      AdminAction.log!(user: Current.user, action: :unpause_user_scheduling, params: { target_user_id: @user.id })
+      redirect_to admin_user_path(@user), notice: "Scheduling resumed for #{@user.email_address}."
+    end
+
     private
 
     def filter_params

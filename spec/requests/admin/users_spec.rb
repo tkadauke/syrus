@@ -67,4 +67,54 @@ RSpec.describe "Admin users", type: :request do
       expect(response.body).to include(admin_users_path(gh_rate: "low"))
     end
   end
+
+  describe "POST /admin/users/:id/pause_scheduling" do
+    let(:target) { Factories.user(email_address: "target@example.com") }
+
+    it "blocks non-admins" do
+      sign_in_as(non_admin)
+      post "/admin/users/#{target.id}/pause_scheduling"
+      expect(response).to redirect_to(root_path)
+    end
+
+    it "pauses scheduling for the target user" do
+      sign_in_as(admin)
+      expect {
+        post "/admin/users/#{target.id}/pause_scheduling"
+      }.to change { target.reload.scheduling_paused }.from(false).to(true)
+      expect(response).to redirect_to(admin_user_path(target))
+    end
+
+    it "logs an AdminAction" do
+      sign_in_as(admin)
+      expect {
+        post "/admin/users/#{target.id}/pause_scheduling"
+      }.to change { AdminAction.where(action: "pause_user_scheduling").count }.by(1)
+    end
+  end
+
+  describe "POST /admin/users/:id/unpause_scheduling" do
+    let(:target) { Factories.user(email_address: "target@example.com", scheduling_paused: true) }
+
+    it "blocks non-admins" do
+      sign_in_as(non_admin)
+      post "/admin/users/#{target.id}/unpause_scheduling"
+      expect(response).to redirect_to(root_path)
+    end
+
+    it "resumes scheduling for the target user" do
+      sign_in_as(admin)
+      expect {
+        post "/admin/users/#{target.id}/unpause_scheduling"
+      }.to change { target.reload.scheduling_paused }.from(true).to(false)
+      expect(response).to redirect_to(admin_user_path(target))
+    end
+
+    it "logs an AdminAction" do
+      sign_in_as(admin)
+      expect {
+        post "/admin/users/#{target.id}/unpause_scheduling"
+      }.to change { AdminAction.where(action: "unpause_user_scheduling").count }.by(1)
+    end
+  end
 end

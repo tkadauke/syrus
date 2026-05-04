@@ -33,6 +33,10 @@
           <dt class="text-gray-600">Agent max turns</dt>
           <dd><%= @user.agent_max_turns %></dd>
         </div>
+        <div class="flex justify-between">
+          <dt class="text-gray-600">Scheduling paused</dt>
+          <dd><%= @user.scheduling_paused? ? "yes" : "no" %></dd>
+        </div>
       </dl>
     </div>
 
@@ -64,6 +68,23 @@
             <dd><%= @user.gh_rate_limit_observed_at&.strftime("%Y-%m-%d %H:%M %Z") || "—" %></dd>
           </div>
         </dl>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Scheduling control %>
+  <div class="bg-white border border-gray-200 rounded-lg p-4">
+    <h2 class="font-semibold text-sm uppercase text-gray-500 mb-3">Scheduling</h2>
+    <div class="flex items-center gap-4">
+      <span class="text-sm text-gray-600">
+        Status: <strong><%= @user.scheduling_paused? ? "paused" : "active" %></strong>
+      </span>
+      <% if @user.scheduling_paused? %>
+        <%= button_to "Resume scheduling", unpause_scheduling_admin_user_path(@user),
+              class: "px-3 py-1.5 rounded-md bg-green-600 hover:bg-green-500 text-white text-sm font-medium" %>
+      <% else %>
+        <%= button_to "Pause scheduling", pause_scheduling_admin_user_path(@user),
+              class: "px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium" %>
       <% end %>
     </div>
   </div>
