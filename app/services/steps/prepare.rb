@@ -19,15 +19,6 @@ module Steps
   class Prepare < Base
     PER_COMMAND_TIMEOUT = 10.minutes.to_i
 
-    # Buffering for streamed prep output. `bundle install` and friends
-    # spit hundreds of lines per second; one JobLog row + one Turbo
-    # broadcast per line was both DB-heavy and laggy in the UI.
-    # Coalesce until either threshold trips, then flush as a single
-    # multi-line chunk. Final flush in `ensure` covers the trailing
-    # partial buffer.
-    LOG_FLUSH_BYTES    = 16 * 1024
-    LOG_FLUSH_INTERVAL = 1.0
-
     # Mirror of AgentInvocation::AGENT_ENV_FORWARD. Prep commands
     # run with EXACTLY this env (unsetenv_others: true) so the
     # worker pod's BUNDLE_PATH=/usr/local/bundle, BUNDLE_DEPLOYMENT=1,

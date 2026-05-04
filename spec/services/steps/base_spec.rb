@@ -13,7 +13,7 @@ RSpec.describe Steps::Base do
   let(:handler_class) do
     Class.new(described_class) do
       def call; nil; end
-      public :log, :parent_session_id, :with_mcp_config, :sidecar_env   # expose for tests
+      public :log, :parent_session_id, :with_mcp_config, :sidecar_env, :buffered_log_sink
     end
   end
   let(:handler) { handler_class.new(run) }
@@ -178,6 +178,84 @@ RSpec.describe Steps::Base do
     it "omits keys not present in the worker's ENV (don't pass empty strings to claude)" do
       Steps::Base::SIDECAR_ENV_FORWARD.each { |k| ENV.delete(k) }
       expect(handler.sidecar_env).to eq({})
+    end
+  end
+
+  describe "#buffered_log_sink" do
+    it "buffers small chunks below byte threshold without writing to DB" do
+      sink, flush = handler.buffered_log_sink
+      sink.call("hello ", kind: "assistant_text")
+      sink.call("world",  kind: "assistant_text")
+      expect(run.job_logs.count).to eq(0)
+      flush.call
+      expect(run.job_logs.count).to eq(1)
+      expect(run.job_logs.first.chunk).to eq("hello world")
+    end
+
+    it "flushes immediately when buffer exceeds LOG_FLUSH_BYTES" do
+      sink, _flush = handler.buffered_log_sink
+      sink.call("x" * (Steps::Base::LOG_FLUSH_BYTES + 1), kind: "assistant_text")
+      expect(run.job_logs.count).to eq(1)
+    end
+
+    it "flushes when LOG_FLUSH_INTERVAL has elapsed since last flush" do
+      # freeze_time so last_flush has usec: 0; travel() stubs via
+      # .change(usec: 0) and would give elapsed < 1s if last_flush
+      # has sub-second precision captured from the real clock.
+      freeze_time
+      sink, flush = handler.buffered_log_sink
+      sink.call("line one", kind: "assistant_text")
+      expect(run.job_logs.count).to eq(0)
+
+      travel(Steps::Base::LOG_FLUSH_INTERVAL + 0.1)
+      sink.call("line two", kind: "assistant_text")
+
+      # Interval elapsed on the second call — both lines land in one row
+      expect(run.job_logs.count).to eq(1)
+      expect(run.job_logs.first.chunk).to include("line one")
+    end
+
+    it "flushes on kind change to keep different-kind chunks in separate rows" do
+      sink, flush = handler.buffered_log_sink
+      sink.call("agent text", kind: "assistant_text")
+      sink.call("tool call",  kind: "tool_call")
+
+      logs = run.job_logs.order(:sequence)
+      expect(logs.count).to eq(1)
+      expect(logs.first.chunk).to eq("agent text")
+      expect(logs.first.kind).to eq("assistant_text")
+
+      flush.call
+      expect(run.job_logs.count).to eq(2)
+      expect(run.job_logs.order(:sequence).last.chunk).to eq("tool call")
+      expect(run.job_logs.order(:sequence).last.kind).to eq("tool_call")
+    end
+
+    it "drain flush writes any trailing partial buffer" do
+      sink, flush = handler.buffered_log_sink
+      sink.call("partial", kind: "system")
+      expect(run.job_logs.count).to eq(0)
+      flush.call
+      expect(run.job_logs.first.chunk).to eq("partial")
+      expect(run.job_logs.first.kind).to eq("system")
+    end
+
+    it "calling flush twice does not double-write" do
+      sink, flush = handler.buffered_log_sink
+      sink.call("data", kind: "assistant_text")
+      flush.call
+      flush.call
+      expect(run.job_logs.count).to eq(1)
+    end
+
+    it "does not accumulate blank or whitespace-only chunks (mirrors #log contract)" do
+      sink, flush = handler.buffered_log_sink
+      sink.call("real", kind: "assistant_text")
+      sink.call("",        kind: "assistant_text")
+      sink.call("   \n\n", kind: "assistant_text")
+      flush.call
+      expect(run.job_logs.count).to eq(1)
+      expect(run.job_logs.first.chunk).to eq("real")
     end
   end
 end

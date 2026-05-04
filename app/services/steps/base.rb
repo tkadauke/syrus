@@ -27,6 +27,11 @@ module Steps
   class Base
     class StepFailed < StandardError; end
 
+    # Shared buffering thresholds — used by buffered_log_sink (claude
+    # output) and by Prepare#stream_buffered (shell command output).
+    LOG_FLUSH_BYTES    = 16 * 1024
+    LOG_FLUSH_INTERVAL = 1.0
+
     attr_reader :run, :step, :workflow, :job, :repository
 
     def initialize(run)
@@ -63,6 +68,37 @@ module Steps
       run.update_column(:last_heartbeat_at, Time.current) if run.running?
     end
 
+    # Returns [sink, flush] — a buffering wrapper around #log. The sink
+    # lambda accumulates chunks and flushes to one JobLog row when either
+    # LOG_FLUSH_BYTES or LOG_FLUSH_INTERVAL elapses. Flush also triggers
+    # on kind change so different-typed chunks stay in separate rows.
+    # Caller must call flush.call after the stream ends to drain any
+    # trailing partial buffer.
+    def buffered_log_sink
+      buffer     = +""
+      last_kind  = nil
+      last_flush = Time.current
+
+      flush = lambda do
+        next if buffer.empty?
+        log(buffer.chomp, kind: last_kind)
+        buffer.clear
+        last_flush = Time.current
+      end
+
+      sink = lambda do |chunk, kind: nil|
+        text = chunk.to_s
+        next if text.strip.empty?  # mirrors #log: blank lines don't accumulate
+        flush.call if !buffer.empty? && kind != last_kind
+        last_kind = kind
+        buffer << text
+        elapsed = Time.current - last_flush
+        flush.call if buffer.bytesize >= LOG_FLUSH_BYTES || elapsed >= LOG_FLUSH_INTERVAL
+      end
+
+      [ sink, flush ]
+    end
+
     # ---- Agentic helpers (used by claude-spawning handlers) ----
 
     # Drive an AgentInvocation in this Workflow's workspace,
@@ -72,16 +108,21 @@ module Steps
     # on any of the non-success outcomes.
     def run_agent(prompt:, max_turns: nil)
       with_mcp_config do |mcp_config_path|
-        result = AgentInvocation.new(
-          workspace.path,
-          prompt: prompt,
-          oauth_token: job.user.claude_oauth_token,
-          log_sink: ->(chunk, **opts) { log(chunk, **opts) },
-          runner: RunJob.agent_runner,
-          max_turns: max_turns || job.user.agent_max_turns,
-          mcp_config: mcp_config_path,
-          resume_session_id: parent_session_id
-        ).run
+        sink, flush = buffered_log_sink
+        begin
+          result = AgentInvocation.new(
+            workspace.path,
+            prompt: prompt,
+            oauth_token: job.user.claude_oauth_token,
+            log_sink: sink,
+            runner: RunJob.agent_runner,
+            max_turns: max_turns || job.user.agent_max_turns,
+            mcp_config: mcp_config_path,
+            resume_session_id: parent_session_id
+          ).run
+        ensure
+          flush.call
+        end
 
         persist_agent_metadata(result)
         capture_claude_session(result)
