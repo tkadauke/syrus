@@ -17,9 +17,12 @@ RSpec.describe Prompts::Rebase do
   it "tells the agent to rebase, not to make functional changes, and not to push (Syrus does that)" do
     out = described_class.new(repo_slug: "acme/widgets", branch_name: "b", base_branch: "main", pr_number: 1).to_s
 
-    expect(out).to match(/git rebase origin\/main/)
+    # Branch names live in the context paragraph; rebase instruction uses
+    # a generic placeholder in the skill file — the agent substitutes from context.
+    expect(out).to include("main")
+    expect(out).to match(/git rebase/)
     expect(out).to match(/Do NOT make functional changes/i)
-    expect(out).to match(/force-push/)   # mentions Syrus pushes, agent doesn't
+    expect(out).to match(/force-push/)
   end
 
   it "tells the agent to abort rather than push a half-rebased branch" do

@@ -25,9 +25,9 @@ RSpec.describe Prompts::Implement do
     expect(out).to include(Prompts::GitSafety::TEXT)
   end
 
-  it "appends the phased-execution note telling the agent NOT to call submit_summary" do
+  it "includes the phased-execution note telling the agent NOT to call submit_summary" do
     out = described_class.new(issue: issue).to_s
-    expect(out).to include(Prompts::Implement::STEP_NOTE)
+    expect(out).to include("Phased execution note: you're running the **implement** step")
     expect(out).to match(/DO NOT\s+call `submit_summary`/m)
   end
 
@@ -50,10 +50,10 @@ RSpec.describe Prompts::Implement do
 
     it "is injected between the issue content and the git safety block when present" do
       out = described_class.new(issue: issue, replay_context: "Please fix the failing tests.").to_s
-      issue_pos  = out.index("Add greeting helper")
+      issue_pos   = out.index("Add greeting helper")
       context_pos = out.index("Additional context from the operator")
       safety_pos  = out.index(Prompts::GitSafety::TEXT)
-      step_pos    = out.index(Prompts::Implement::STEP_NOTE)
+      step_pos    = out.index("Phased execution note: you're running the **implement** step")
       expect(context_pos).to be > issue_pos
       expect(safety_pos).to be > context_pos
       expect(step_pos).to be > safety_pos

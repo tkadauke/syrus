@@ -34,7 +34,7 @@ RSpec.describe Steps::Implement do
     it "builds and persists the prompt from Prompts::Implement" do
       handler.call
       expect(run.reload.prompt).to include("Add greeting helper")
-      expect(run.reload.prompt).to include(Prompts::Implement::STEP_NOTE)
+      expect(run.reload.prompt).to include("Phased execution note: you're running the **implement** step")
     end
 
     it "skips prompt rebuild when run.prompt is already set" do
