@@ -229,6 +229,59 @@ RSpec.describe "Repositories", type: :request do
         expect(response.body).to include("https://github.com/acme/widgets")
       end
 
+      describe "tabs" do
+        let(:repo) { Factories.repository(user: user) }
+
+        it "defaults to the overview tab" do
+          get repository_path(repo)
+          expect(response).to have_http_status(:ok)
+          expect(response.body).to include("Overview")
+          expect(response.body).to include("GitHub Issues")
+          expect(response.body).to include("Recent jobs")
+        end
+
+        it "renders the github_issues tab and fetches issues" do
+          fake_issue = double("issue",
+            number: 42, title: "Fix the thing", html_url: "https://github.com/test/repo/issues/42",
+            body: "description", state: "open", labels: [], user: nil,
+            created_at: 1.day.ago)
+          allow(GithubClient).to receive(:for).and_return(
+            instance_double(GithubClient, list_all_issues: [ fake_issue ])
+          )
+
+          get repository_path(repo, tab: "github_issues")
+          expect(response).to have_http_status(:ok)
+          expect(response.body).to include("Fix the thing")
+          expect(response.body).not_to include("Recent jobs")
+        end
+
+        it "shows an alert on the github_issues tab when no token is configured" do
+          allow(GithubClient).to receive(:for).and_raise(ArgumentError)
+
+          get repository_path(repo, tab: "github_issues")
+          expect(response).to have_http_status(:ok)
+          expect(flash[:alert]).to match(/No GitHub token/)
+        end
+
+        it "shows an alert on the github_issues tab when GitHub returns an error" do
+          allow(GithubClient).to receive(:for).and_return(
+            instance_double(GithubClient).tap { |d|
+              allow(d).to receive(:list_all_issues).and_raise(Octokit::Forbidden)
+            }
+          )
+
+          get repository_path(repo, tab: "github_issues")
+          expect(response).to have_http_status(:ok)
+          expect(flash[:alert]).to match(/GitHub error/)
+        end
+
+        it "ignores unknown tab values and falls back to overview" do
+          get repository_path(repo, tab: "hax")
+          expect(response).to have_http_status(:ok)
+          expect(response.body).to include("Recent jobs")
+        end
+      end
+
       describe "pagination" do
         let(:repo) { Factories.repository(user: user) }
 

@@ -10,6 +10,7 @@ class RepositoriesController < ApplicationController
   end
 
   def show
+    @tab = params.fetch(:tab, "overview").presence_in(%w[overview github_issues]) || "overview"
     @page = [ params.fetch(:page, 1).to_i, 1 ].max
     @jobs = @repository.jobs
       .includes(:runs)
@@ -26,6 +27,8 @@ class RepositoriesController < ApplicationController
       .where(runs: { state: "failed", updated_at: 7.days.ago.. })
       .distinct
       .count
+
+    load_github_issues if @tab == "github_issues"
   end
 
   def new
@@ -184,6 +187,17 @@ class RepositoriesController < ApplicationController
 
   def load_repository
     @repository = Current.user.repositories.find(params[:id])
+  end
+
+  def load_github_issues
+    @state = params.fetch(:state, "open").presence_in(%w[open closed]) || "open"
+    @issues = GithubClient.for(Current.user).list_all_issues(@repository.slug, state: @state).first(50)
+  rescue ArgumentError
+    @issues = []
+    flash.now[:alert] = "No GitHub token configured — add one in Settings."
+  rescue Octokit::Error => e
+    @issues = []
+    flash.now[:alert] = "GitHub error: #{e.message}"
   end
 
   def repository_params
