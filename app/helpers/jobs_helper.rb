@@ -101,7 +101,7 @@ module JobsHelper
   # Implement (workflow: initial)". Returns nil for jobs with no
   # active workflow so callers can omit the caption entirely.
   def current_step_caption(job)
-    wf = job.workflows.where(state: %w[ queued running ]).order(:created_at).last
+    wf = job.workflows.where(state: "running").order(:created_at).last
     return nil unless wf
     step = wf.current_step
     return "currently: #{wf.trigger_kind_humanized}" unless step
