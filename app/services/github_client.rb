@@ -285,6 +285,62 @@ class GithubClient
     raise
   end
 
+  # Returns { commits: [...], merge_base_sha: "abc" } for commits that are
+  # on `head` but not yet in `base`. Each commit entry has :sha, :short_sha,
+  # :message (first line), and :date. Commits are returned newest-first.
+  # Returns empty commits + nil merge_base_sha if the head branch doesn't
+  # exist yet (Octokit::NotFound).
+  def compare_commits(repo_slug, base, head)
+    result = track_rate_limits { @client.compare(repo_slug, base, head) }
+    commits = Array(result.commits).map { |c|
+      {
+        sha:       c.sha,
+        short_sha: c.sha[0, 7],
+        message:   c.commit.message.lines.first&.strip || "",
+        date:      c.commit.committer.date
+      }
+    }.reverse
+    { commits: commits, merge_base_sha: result.merge_base_commit.sha }
+  rescue Octokit::NotFound
+    { commits: [], merge_base_sha: nil }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} compare #{base}...#{head}: #{e.message}")
+    raise
+  end
+
+  # Returns { items: [...], truncated: bool } for all blob paths under `ref`.
+  # Each item has :path and :size. Items are sorted alphabetically by path.
+  # Fetches the commit's tree SHA first, then walks the tree recursively.
+  def file_tree_at(repo_slug, ref)
+    commit = track_rate_limits { @client.commit(repo_slug, ref) }
+    tree   = track_rate_limits { @client.tree(repo_slug, commit.commit.tree.sha, recursive: 1) }
+    items  = Array(tree.tree)
+               .select { |item| item.type == "blob" }
+               .map    { |item| { path: item.path, size: item.size.to_i } }
+               .sort_by { |item| item[:path] }
+    { items: items, truncated: tree.truncated == true }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{ref} tree: #{e.message}")
+    raise
+  end
+
+  # Returns { content: "...", size: N } for the file at `path` at `ref`.
+  # Returns nil if the path is not a blob (it's a directory or not found).
+  # Content is decoded from base64 and transcoded to UTF-8; binary files
+  # may contain replacement characters.
+  def file_content_at(repo_slug, path, ref)
+    result = track_rate_limits { @client.contents(repo_slug, path: path, ref: ref) }
+    return nil unless result.respond_to?(:type) && result.type == "file"
+    raw = Base64.decode64(result.content.to_s)
+    { content: raw.encode("UTF-8", invalid: :replace, undef: :replace, replace: "�"),
+      size:    result.size.to_i }
+  rescue Octokit::NotFound
+    nil
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}:#{path}@#{ref}: #{e.message}")
+    raise
+  end
+
   private
 
   # Wraps an Octokit call. On success, persists the rate-limit headers the

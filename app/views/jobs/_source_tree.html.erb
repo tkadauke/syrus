@@ -1,0 +1,47 @@
+<%# Recursive partial — renders one level of the file tree.
+    tree:          nested hash from build_file_tree (string keys = dirs, :files = blobs)
+    job:           the Job record (for URL generation)
+    ref:           the selected commit SHA or branch name
+    selected_path: currently viewed file path (for highlighting the active row) %>
+<% sorted_dirs  = tree.reject { |k, _| k == :files }.sort_by { |k, _| k.to_s.downcase } %>
+<% sorted_files = tree.fetch(:files, []).sort_by { |f| File.basename(f[:path]).downcase } %>
+
+<% sorted_dirs.each do |name, subtree| %>
+  <details open class="group">
+    <summary class="flex items-center gap-1 px-2 py-0.5 cursor-pointer select-none
+                    hover:bg-gray-100 text-xs text-gray-600 font-medium list-none">
+      <svg class="w-3 h-3 shrink-0 text-gray-400 transition-transform group-open:rotate-90"
+           viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"/>
+      </svg>
+      <svg class="w-3.5 h-3.5 shrink-0 text-yellow-500" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1z"/>
+      </svg>
+      <span><%= name %></span>
+    </summary>
+    <div class="ml-4 border-l border-gray-200">
+      <%= render "source_tree",
+            tree:          subtree,
+            job:           job,
+            ref:           ref,
+            selected_path: selected_path %>
+    </div>
+  </details>
+<% end %>
+
+<% sorted_files.each do |item| %>
+  <%
+    active   = item[:path] == selected_path
+    filename = File.basename(item[:path])
+    href     = source_job_path(job, ref: ref, path: item[:path])
+  %>
+  <a href="<%= href %>"
+     class="flex items-center gap-1.5 px-2 py-0.5 text-xs font-mono truncate
+            <%= active ? "bg-blue-50 text-blue-700 font-semibold" : "text-gray-700 hover:bg-gray-100" %>">
+    <svg class="w-3.5 h-3.5 shrink-0 <%= active ? "text-blue-400" : "text-gray-400" %>"
+         viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688Z"/>
+    </svg>
+    <span class="truncate"><%= filename %></span>
+  </a>
+<% end %>

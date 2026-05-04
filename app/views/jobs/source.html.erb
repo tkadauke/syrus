@@ -1,0 +1,116 @@
+<%# Source browser — loaded inside the lazy Turbo Frame on the Job show page.
+    Also renders as a standalone page if accessed directly (e.g. shared link). %>
+
+<% content_for :head do %>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/highlight.min.js"></script>
+<% end %>
+
+<turbo-frame id="source-browser-<%= @job.id %>">
+  <% if @source_error %>
+    <div class="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+      <%= @source_error %>
+    </div>
+
+  <% else %>
+    <%# Commit selector row -%>
+    <div class="flex items-center gap-3 mb-3">
+      <% if @branch_commits.any? %>
+        <%# Form targets the containing frame automatically (link/form inside a turbo-frame). %>
+        <%= form_with url: source_job_path(@job), method: :get,
+                      data: { controller: "auto-submit" } do |f| %>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-gray-500 text-xs uppercase tracking-wide">Viewing</span>
+            <%= f.select :ref,
+                  @branch_commits.map { |c| ["#{c[:short_sha]}  #{c[:message].truncate(60)}", c[:sha]] },
+                  { selected: @selected_ref,
+                    include_blank: "Merge base (#{@merge_base_sha&.first(7) || @job.repository.default_branch})" },
+                  class: "text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  data: { action: "change->auto-submit#submit" } %>
+          </div>
+        <% end %>
+      <% else %>
+        <span class="text-xs text-gray-500">
+          Showing
+          <strong class="font-mono">
+            <%= @merge_base_sha&.first(7) || @job.repository.default_branch %>
+          </strong>
+          (merge base — no branch commits yet)
+        </span>
+      <% end %>
+
+      <% if @tree_truncated %>
+        <span class="text-xs text-amber-600 ml-auto">
+          Tree truncated — repository exceeds GitHub's recursive tree limit.
+        </span>
+      <% end %>
+    </div>
+
+    <%# Two-column layout: file tree (left) + file content (right) -%>
+    <div class="flex border border-gray-200 rounded-lg overflow-hidden" style="height: 600px;">
+
+      <%# File tree sidebar -%>
+      <div class="w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 py-1">
+        <% if @tree_items.empty? %>
+          <p class="px-3 py-4 text-xs text-gray-400">No files found.</p>
+        <% else %>
+          <%= render "source_tree",
+                tree:          @file_tree,
+                job:           @job,
+                ref:           @selected_ref,
+                selected_path: @selected_path %>
+        <% end %>
+      </div>
+
+      <%# File content pane -%>
+      <div class="flex-1 overflow-auto bg-white">
+        <% if @file_content_error %>
+          <div class="p-4 text-sm text-red-600"><%= @file_content_error %></div>
+
+        <% elsif @file_content %>
+          <%
+            ext      = File.extname(@selected_path.to_s).downcase.delete_prefix(".")
+            language = {
+              "rb"   => "ruby",    "rake" => "ruby",   "gemspec" => "ruby",
+              "js"   => "javascript", "mjs" => "javascript", "cjs" => "javascript",
+              "ts"   => "typescript",
+              "jsx"  => "javascript", "tsx" => "typescript",
+              "py"   => "python",
+              "erb"  => "erb",     "html" => "html",   "htm" => "html",
+              "css"  => "css",     "scss" => "scss",   "sass" => "sass",
+              "json" => "json",
+              "yml"  => "yaml",    "yaml" => "yaml",
+              "md"   => "markdown",
+              "sh"   => "shell",   "bash" => "shell",  "zsh" => "shell",
+              "go"   => "go",
+              "java" => "java",
+              "rs"   => "rust",
+              "php"  => "php",
+              "sql"  => "sql",
+              "xml"  => "xml",     "svg" => "xml",
+              "toml" => "toml",
+              "tf"   => "hcl",
+            }.fetch(ext, "plaintext")
+          %>
+
+          <div class="text-xs text-gray-500 px-4 py-2 border-b border-gray-100 flex items-center gap-2 bg-gray-50 font-mono sticky top-0">
+            <span class="truncate"><%= @selected_path %></span>
+            <span class="ml-auto shrink-0 text-gray-400">
+              <%= number_with_delimiter(@file_content[:size]) %> B
+            </span>
+          </div>
+
+          <pre class="m-0 overflow-x-auto text-sm leading-relaxed"><code
+            class="language-<%= language %>"
+            data-controller="source-highlight"><%= @file_content[:content] %></code></pre>
+
+        <% else %>
+          <div class="flex items-center justify-center h-full text-sm text-gray-400">
+            Select a file to view its contents.
+          </div>
+        <% end %>
+      </div>
+
+    </div>
+  <% end %>
+</turbo-frame>

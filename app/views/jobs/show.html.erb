@@ -162,36 +162,62 @@
 
   <%= render "timeline", events: timeline_events %>
 
-  <% if summary_run %>
-    <div data-controller="tabs">
-      <div class="flex border-b border-gray-200">
-        <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="summary"
-                class="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600 -mb-px">
-          Summary
-        </button>
-        <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="workflows"
-                class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 -mb-px">
-          Workflows (<%= workflows.size %>)
-        </button>
-      </div>
+  <% content_for :head do %>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/highlight.min.js"></script>
+  <% end %>
 
-      <div data-tabs-target="panel" class="space-y-4 pt-4">
-        <% if @job.issue_body.present? %>
-          <div>
-            <div class="text-xs uppercase text-gray-500 mb-1">Issue</div>
-            <pre class="text-sm text-gray-600 whitespace-pre-wrap break-words max-w-prose font-mono"><%= @job.issue_body %></pre>
-          </div>
-        <% end %>
+  <% if summary_run %>
+
+  <div data-controller="tabs">
+    <div class="flex border-b border-gray-200">
+      <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="summary"
+              class="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600 -mb-px">
+        Summary
+      </button>
+      <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="workflows"
+              class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 -mb-px">
+        Workflows (<%= workflows.size %>)
+      </button>
+      <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="source"
+              class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 -mb-px">
+        Source
+      </button>
+    </div>
+
+    <%# Summary panel — always present; shows issue body and/or agent summary %>
+    <div data-tabs-target="panel" class="space-y-4 pt-4">
+      <% if @job.issue_body.present? %>
+        <div>
+          <div class="text-xs uppercase text-gray-500 mb-1">Issue</div>
+          <pre class="text-sm text-gray-600 whitespace-pre-wrap break-words max-w-prose font-mono"><%= @job.issue_body %></pre>
+        </div>
+      <% end %>
+      <% if summary_run %>
         <div>
           <div class="text-xs uppercase text-gray-500 mb-1">Agent summary</div>
           <p class="text-gray-800"><%= summary_run.agent_summary %></p>
         </div>
-      </div>
-
-      <div data-tabs-target="panel" class="hidden space-y-6 pt-4">
-        <%= render "workflows", workflows: workflows, job: @job %>
-      </div>
+      <% elsif @job.issue_body.blank? %>
+        <p class="text-sm text-gray-400">No summary yet.</p>
+      <% end %>
     </div>
+
+    <%# Workflows panel %>
+    <div data-tabs-target="panel" class="hidden space-y-6 pt-4">
+      <%= render "workflows", workflows: workflows, job: @job %>
+    </div>
+
+    <%# Source panel — lazy Turbo Frame; GitHub API is only called when this
+        tab is first activated (IntersectionObserver fires when hidden→visible). %>
+    <div data-tabs-target="panel" class="hidden pt-4">
+      <turbo-frame id="source-browser-<%= @job.id %>"
+                   src="<%= source_job_path(@job) %>"
+                   loading="lazy">
+        <div class="text-sm text-gray-400 py-8 text-center">Loading source browser…</div>
+      </turbo-frame>
+    </div>
+  </div>
 
   <% else %>
     <% if @job.issue_body.present? %>

@@ -275,6 +275,63 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: reopen_notice(prior_reason)
   end
 
+  # Browse the repository source at a selected commit ref. Defaults to the
+  # merge base (the state of the repo before any Syrus commits) when the
+  # branch has no ahead commits, or to the most recent branch commit when it
+  # does. `?ref=SHA` selects a specific commit; `?path=file/path` loads the
+  # content of that file.
+  #
+  # Rendered inside a lazy Turbo Frame on the Job show page — the GitHub API
+  # is only hit when the Source tab is first activated.
+  def source
+    unless Current.user.github_token.present?
+      @source_error = "GitHub token not configured. Add one in Settings to browse source."
+      return
+    end
+
+    github       = GithubClient.for(Current.user)
+    repo_slug    = @job.repository.slug
+    default_ref  = @job.repository.default_branch
+    branch       = @job.branch_name
+
+    @branch_commits  = []
+    @merge_base_sha  = nil
+
+    if branch.present?
+      compare = github.compare_commits(repo_slug, default_ref, branch)
+      @branch_commits = compare[:commits]
+      @merge_base_sha = compare[:merge_base_sha]
+    end
+
+    # Default: show the most recent branch commit, or the merge base if the
+    # branch has no ahead commits, or the default branch name if we have no
+    # branch at all.
+    @selected_ref = params[:ref].presence ||
+                    @branch_commits.first&.fetch(:sha) ||
+                    @merge_base_sha ||
+                    default_ref
+
+    begin
+      tree_result  = github.file_tree_at(repo_slug, @selected_ref)
+      @tree_items  = tree_result[:items]
+      @tree_truncated = tree_result[:truncated]
+      @file_tree   = build_file_tree(@tree_items)
+    rescue => e
+      @source_error = "Could not load file tree: #{e.message}"
+      @tree_items   = []
+      @file_tree    = {}
+    end
+
+    @selected_path = params[:path].presence
+    if @selected_path && @source_error.nil?
+      begin
+        @file_content = github.file_content_at(repo_slug, @selected_path, @selected_ref)
+      rescue => e
+        @file_content_error = e.message
+      end
+    end
+  end
+
   private
 
   def reopen_notice(prior_reason)
@@ -291,5 +348,26 @@ class JobsController < ApplicationController
 
   def load_job
     @job = Current.user.jobs.includes(:repository, runs: :job_logs).find(params[:id])
+  end
+
+  # Converts a flat list of {path:, size:} items into a nested hash
+  # suitable for the _source_tree partial. Each node is a hash whose
+  # string keys are subdirectory names and whose :files key holds the
+  # array of blob items at that level.
+  #
+  #   build_file_tree([{path:"lib/foo.rb"},{path:"lib/bar/baz.rb"}])
+  #   # => {"lib"=>{files:[{path:"lib/foo.rb"}], "bar"=>{files:[...]}}}
+  def build_file_tree(items)
+    root = { files: [] }
+    items.each do |item|
+      parts = item[:path].split("/")
+      node  = root
+      parts[0..-2].each do |dir|
+        node[dir] ||= { files: [] }
+        node = node[dir]
+      end
+      node[:files] << item
+    end
+    root
   end
 end
