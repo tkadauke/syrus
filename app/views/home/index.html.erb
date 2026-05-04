@@ -89,6 +89,9 @@
                 <td class="px-4 py-3 font-mono"><%= job.repository.slug %></td>
                 <td class="px-4 py-3">
                   <%= job_source_label_html(job) %>
+                  <% if job.issue_title.present? %>
+                    <span class="ml-1 text-gray-700"><%= job.issue_title %></span>
+                  <% end %>
                   <% if job.pr_number %>
                     <span class="ml-1 text-xs text-indigo-700">
                       →
@@ -171,6 +174,9 @@
                 <td class="px-4 py-3 font-mono"><%= wf.job.repository.slug %></td>
                 <td class="px-4 py-3">
                   <%= job_source_label_html(wf.job) %>
+                  <% if wf.job.issue_title.present? %>
+                    <span class="ml-1 text-gray-700"><%= wf.job.issue_title %></span>
+                  <% end %>
                   <% if wf.job.pr_number %>
                     <span class="ml-1 text-xs text-indigo-700">
                       →
