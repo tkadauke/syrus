@@ -1,7 +1,51 @@
 class JobsController < ApplicationController
-  before_action :load_job
+  before_action :load_job, except: %i[ new create ]
 
   def show
+  end
+
+  def new
+    @repositories = Current.user.repositories.active.order(:owner, :name)
+    @selected_repository_id = params[:repository_id]
+  end
+
+  # Create an ad hoc Job from a free-form operator prompt — no GitHub
+  # issue, no cron schedule. Behaves like a cron Job fire: the prompt
+  # is pre-rendered at create time and passed to StepDispatcher so
+  # the agent receives it verbatim when RunJob starts.
+  def create
+    @repositories = Current.user.repositories.active.order(:owner, :name)
+
+    repository = Current.user.repositories.active.find_by(id: params[:repository_id])
+    unless repository
+      flash.now[:alert] = "Repository not found or not active."
+      render :new, status: :unprocessable_entity
+      return
+    end
+
+    title = params[:title].to_s.strip.presence || "Ad hoc job"
+    prompt_text = params[:prompt].to_s.strip
+
+    if prompt_text.blank?
+      @selected_repository_id = params[:repository_id]
+      flash.now[:alert] = "Prompt can't be blank."
+      render :new, status: :unprocessable_entity
+      return
+    end
+
+    job = Current.user.jobs.create!(
+      repository: repository,
+      kind: "adhoc",
+      issue_number: nil,
+      issue_title: title,
+      issue_body: prompt_text
+    )
+
+    rendered_prompt = Prompts::AdhocJob.new(prompt: prompt_text).to_s
+    workflow = Workflows::Initial.instantiate(job: job)
+    StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
+
+    redirect_to job_path(job), notice: "Ad hoc job created."
   end
 
   # Soft replay — push another commit to the existing branch by spawning

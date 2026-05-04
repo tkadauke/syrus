@@ -590,4 +590,112 @@ RSpec.describe "Jobs", type: :request do
       expect(response.body).not_to include("Rebase now")
     end
   end
+
+  describe "GET /jobs/new" do
+    it "requires authentication" do
+      user  # ensure a user exists so auth redirects to login, not registration
+      get new_job_path
+      expect(response).to redirect_to(new_session_path)
+    end
+
+    context "signed in" do
+      before { sign_in_as(user) }
+
+      it "renders the new ad hoc job form with the user's active repositories" do
+        repository  # ensure it exists
+        get new_job_path
+        expect(response).to be_successful
+        expect(response.body).to include("New ad hoc job")
+        expect(response.body).to include("acme/widgets")
+      end
+
+      it "pre-selects the repository when repository_id is given in params" do
+        repository
+        get new_job_path(repository_id: repository.id)
+        expect(response.body).to include("selected")
+        expect(response.body).to include(repository.id.to_s)
+      end
+    end
+  end
+
+  describe "POST /jobs (create ad hoc job)" do
+    before { sign_in_as(user) }
+
+    it "creates an adhoc Job, starts the workflow, and redirects to the job page" do
+      repository  # ensure it exists
+      expect {
+        post jobs_path, params: {
+          repository_id: repository.id,
+          title: "Bump Ruby version",
+          prompt: "Update the Ruby version in .ruby-version to 3.3.0."
+        }
+      }.to change(Job, :count).by(1)
+        .and have_enqueued_job(RunJob)
+
+      new_job = Job.order(:created_at).last
+      expect(new_job.kind).to eq("adhoc")
+      expect(new_job.issue_title).to eq("Bump Ruby version")
+      expect(new_job.issue_body).to eq("Update the Ruby version in .ruby-version to 3.3.0.")
+      expect(new_job.issue_number).to be_nil
+      expect(new_job.repository).to eq(repository)
+      expect(new_job.runs.count).to eq(1)
+      expect(new_job.runs.first.trigger_kind).to eq("initial")
+      expect(response).to redirect_to(job_path(new_job))
+    end
+
+    it "uses 'Ad hoc job' as the default title when none is provided" do
+      post jobs_path, params: {
+        repository_id: repository.id,
+        prompt: "Do something."
+      }
+      new_job = Job.order(:created_at).last
+      expect(new_job.issue_title).to eq("Ad hoc job")
+    end
+
+    it "pre-renders the prompt and sets it on the first Run" do
+      post jobs_path, params: {
+        repository_id: repository.id,
+        prompt: "Do something useful."
+      }
+      run = Job.order(:created_at).last.runs.first
+      expect(run.prompt).to include("Do something useful.")
+    end
+
+    it "re-renders the form with an error when the prompt is blank" do
+      expect {
+        post jobs_path, params: { repository_id: repository.id, prompt: "  " }
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("blank")
+    end
+
+    it "re-renders the form with an error when repository_id is missing" do
+      expect {
+        post jobs_path, params: { repository_id: "", prompt: "Do something." }
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Repository not found")
+    end
+
+    it "refuses to create a job for another user's repository" do
+      foreign_repo = Factories.repository(user: other)
+      expect {
+        post jobs_path, params: {
+          repository_id: foreign_repo.id,
+          prompt: "Do something."
+        }
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
+  describe "POST /jobs authentication check" do
+    it "requires authentication" do
+      post jobs_path, params: { repository_id: repository.id, prompt: "Do something." }
+      expect(response).to redirect_to(new_session_path)
+    end
+  end
 end

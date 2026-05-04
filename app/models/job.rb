@@ -1,7 +1,7 @@
 class Job < ApplicationRecord
   include AASM
 
-  KINDS = %w[ issue cron ].freeze
+  KINDS = %w[ issue cron adhoc ].freeze
 
   belongs_to :user
   belongs_to :repository
@@ -22,11 +22,13 @@ class Job < ApplicationRecord
             if: :issue?
   validates :scheduled_task_id, presence: true, if: :cron?
   validate  :issue_number_blank_for_cron, if: :cron?
+  validate  :issue_number_blank_for_adhoc, if: :adhoc?
 
   scope :open_threads, -> { where(state: "open") }
   scope :closed_threads, -> { where(state: "closed") }
   scope :issue_kind, -> { where(kind: "issue") }
   scope :cron_kind,  -> { where(kind: "cron") }
+  scope :adhoc_kind, -> { where(kind: "adhoc") }
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
 
@@ -38,6 +40,10 @@ class Job < ApplicationRecord
     kind == "cron"
   end
 
+  def adhoc?
+    kind == "adhoc"
+  end
+
   # Returns an "issue-shaped" object (responds to #title, #body) for
   # use by prompt classes that historically only knew about GitHub
   # issues. For issue Jobs this is delegated to GithubClient by the
@@ -45,11 +51,14 @@ class Job < ApplicationRecord
   # ScheduledTask so PrFeedback / CiFailure / PrSummarizer prompts
   # don't need to special-case kind.
   def synthetic_issue
-    return nil unless cron? && scheduled_task
-    Struct.new(:title, :body).new(
-      "Scheduled task: #{scheduled_task.name}",
-      scheduled_task.prompt.to_s
-    )
+    if cron? && scheduled_task
+      Struct.new(:title, :body).new(
+        "Scheduled task: #{scheduled_task.name}",
+        scheduled_task.prompt.to_s
+      )
+    elsif adhoc?
+      Struct.new(:title, :body).new(issue_title.to_s, issue_body.to_s)
+    end
   end
 
   aasm column: :state, whiny_transitions: false do
@@ -187,5 +196,9 @@ class Job < ApplicationRecord
 
   def issue_number_blank_for_cron
     errors.add(:issue_number, "must be blank for cron Jobs") if issue_number.present?
+  end
+
+  def issue_number_blank_for_adhoc
+    errors.add(:issue_number, "must be blank for ad hoc Jobs") if issue_number.present?
   end
 end

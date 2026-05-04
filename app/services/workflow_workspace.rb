@@ -78,6 +78,8 @@ class WorkflowWorkspace
   def initial_branch_name
     if @job.cron?
       "syrus/scheduled-#{@job.scheduled_task_id}-#{@job.id}"
+    elsif @job.adhoc?
+      "syrus/adhoc-#{@job.id}"
     else
       "syrus/issue-#{@job.issue_number}-#{@job.id}"
     end

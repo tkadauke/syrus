@@ -23,7 +23,13 @@ module Steps
         run.update!(prompt: Prompts::Implement.new(issue: issue, replay_context: ctx).to_s)
       end
 
-      target_label = job.issue? ? "#{repository.slug}##{job.issue_number}" : "scheduled task ##{job.scheduled_task_id}"
+      target_label = if job.issue?
+        "#{repository.slug}##{job.issue_number}"
+      elsif job.adhoc?
+        "ad hoc job ##{job.id}"
+      else
+        "scheduled task ##{job.scheduled_task_id}"
+      end
       log("invoking agent for #{target_label} (workflow ##{workflow.id}, step ##{step.id} implement)")
 
       run_agent(prompt: run.prompt)
@@ -40,7 +46,7 @@ module Steps
     private
 
     def fetch_issue
-      return job.synthetic_issue if job.cron?
+      return job.synthetic_issue if job.cron? || job.adhoc?
       GithubClient.for(job.user).fetch_issue(repository.slug, job.issue_number)
     end
 

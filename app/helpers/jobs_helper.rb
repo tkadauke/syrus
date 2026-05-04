@@ -152,6 +152,8 @@ module JobsHelper
       label = task ? "scheduled: #{task.name}" : "scheduled task ##{job.scheduled_task_id}"
       target = task ? scheduled_task_path(task) : nil
       target ? link_to(label, target, class: "text-blue-600 underline hover:no-underline") : label
+    elsif job.adhoc?
+      content_tag(:span, "ad hoc", class: "text-gray-600")
     else
       link_to "##{job.issue_number}", job_issue_url(job),
               target: "_blank", rel: "noopener",

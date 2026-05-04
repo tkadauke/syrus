@@ -68,7 +68,7 @@ Rails.application.routes.draw do
   resources :cron_templates
   resources :invitations, only: %i[ index create destroy ]
   resource :settings, only: %i[ show edit update ]
-  resources :jobs, only: %i[ show ] do
+  resources :jobs, only: %i[ show new create ] do
     member do
       post :run_again      # soft replay — new Run on the existing branch
       post :restart        # hard reset — close this thread, open a new one with a fresh branch + PR
