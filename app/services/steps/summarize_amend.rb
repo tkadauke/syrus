@@ -38,9 +38,12 @@ module Steps
     def rewrite_amend_commit_message!
       subject = workflow.artifact("amend_commit_subject")
       return if subject.blank?
+
+      body    = workflow.artifact("amend_commit_body")
+      message = body.present? ? [ subject, "", body ].join("\n") : subject
       streaming_git.run(
         "-c", "user.name=Syrus", "-c", "user.email=syrus@noreply.invalid",
-        "commit", "--amend", "-m", subject,
+        "commit", "--amend", "-m", message,
         chdir: workspace.path.to_s
       )
     end

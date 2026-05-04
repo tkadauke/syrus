@@ -35,19 +35,35 @@ module Steps
       workflow.set_artifact!("summary",  run.agent_summary)  if run.agent_summary.present?
     end
 
-    # Replace the implement step's placeholder commit message
-    # ("Syrus implement step (will be rewritten by summarize)")
-    # with the agent-authored pr_title, so the eventual GitHub
-    # commit log shows useful subjects.
+    # Replace the implement step's placeholder commit message with
+    # the agent-authored pr_title + pr_body. Including the body
+    # means GitHub squash-merge picks it up as the merge commit
+    # description, not just the title. `Closes #N` is prepended
+    # defensively so auto-close works even if the agent omits it.
     def rewrite_implement_commit_message!
       title = workflow.artifact("pr_title")
       return if title.blank?
+
+      body    = workflow.artifact("pr_body")
+      message = build_pr_commit_message(title, body)
       streaming_git.run(
         "-c", "user.name=Syrus",
         "-c", "user.email=syrus@noreply.invalid",
-        "commit", "--amend", "-m", title,
+        "commit", "--amend", "-m", message,
         chdir: workspace.path.to_s
       )
+    end
+
+    def build_pr_commit_message(title, body)
+      return title if body.blank?
+
+      parts = [ title, "" ]
+      if job.issue? && body !~ /Closes\s+##{job.issue_number}/
+        parts << "Closes ##{job.issue_number}"
+        parts << ""
+      end
+      parts << body
+      parts.join("\n")
     end
   end
 end

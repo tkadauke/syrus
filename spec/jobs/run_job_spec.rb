@@ -78,6 +78,18 @@ RSpec.describe RunJob do
       expect(tip).to eq("Add greeting helper")
     end
 
+    it "includes the agent pr_body in the commit message body" do
+      job; drain_workflow!(job)
+      body = `git --git-dir=#{bare_remote_dir} log -1 --format='%b' #{job.branch_name}`.strip
+      expect(body).to include("Adds a tiny greet helper used by the welcome page.")
+    end
+
+    it "prepends Closes #N in the commit message for issue jobs" do
+      job; drain_workflow!(job)
+      full = `git --git-dir=#{bare_remote_dir} log -1 --format='%B' #{job.branch_name}`.strip
+      expect(full).to include("Closes #42")
+    end
+
     it "tears down the workspace when the Workflow succeeds" do
       job; drain_workflow!(job)
       wf = job.workflows.last
