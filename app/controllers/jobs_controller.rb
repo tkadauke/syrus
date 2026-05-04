@@ -5,8 +5,9 @@ class JobsController < ApplicationController
   end
 
   def new
-    @repositories = Current.user.repositories.active.order(:owner, :name)
+    @repositories       = Current.user.repositories.active.order(:owner, :name)
     @selected_repository_id = params[:repository_id]
+    @prompt_templates   = PromptTemplate.all
   end
 
   # Create an ad hoc Job from a free-form operator prompt — no GitHub
@@ -14,7 +15,8 @@ class JobsController < ApplicationController
   # is pre-rendered at create time and passed to StepDispatcher so
   # the agent receives it verbatim when RunJob starts.
   def create
-    @repositories = Current.user.repositories.active.order(:owner, :name)
+    @repositories     = Current.user.repositories.active.order(:owner, :name)
+    @prompt_templates = PromptTemplate.all
 
     repository = Current.user.repositories.active.find_by(id: params[:repository_id])
     unless repository

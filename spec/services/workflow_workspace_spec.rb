@@ -32,6 +32,45 @@ RSpec.describe WorkflowWorkspace do
   end
 
   describe "#setup" do
+    context "agent skill provisioning" do
+      it "copies each lib/agent_skills/*.md into .claude/skills/<id>/SKILL.md" do
+        ws = described_class.new(workflow)
+        ws.setup
+        skill_ids = Dir.glob(Rails.root.join("lib/agent_skills/*.md")).map { |f| File.basename(f, ".md") }
+        skill_ids.each do |id|
+          skill_md = ws.path.join(".claude/skills/#{id}/SKILL.md")
+          expect(skill_md).to exist, "expected skill file at #{skill_md}"
+        end
+      end
+
+      it "adds provisioned skill directories to .git/info/exclude" do
+        ws = described_class.new(workflow)
+        ws.setup
+        exclude = ws.path.join(".git/info/exclude").read
+        skill_ids = Dir.glob(Rails.root.join("lib/agent_skills/*.md")).map { |f| File.basename(f, ".md") }
+        skill_ids.each do |id|
+          expect(exclude).to include(".claude/skills/#{id}/")
+        end
+      end
+
+      it "skills survive ensure_clean_working_tree (git clean -fd respects exclude)" do
+        ws = described_class.new(workflow)
+        ws.setup
+        # Simulate a retry: call setup again — should hit ensure_clean_working_tree.
+        ws.setup
+        skill_ids = Dir.glob(Rails.root.join("lib/agent_skills/*.md")).map { |f| File.basename(f, ".md") }
+        skill_ids.each do |id|
+          expect(ws.path.join(".claude/skills/#{id}/SKILL.md")).to exist
+        end
+      end
+
+      it "is a no-op when lib/agent_skills/ does not exist" do
+        allow(Rails).to receive(:root).and_return(Pathname.new(Dir.mktmpdir))
+        ws = described_class.new(workflow)
+        expect { ws.setup }.not_to raise_error
+      end
+    end
+
     context "fresh workflow (no prior workspace)" do
       it "creates a clone on the workflow's branch" do
         ws = described_class.new(workflow)

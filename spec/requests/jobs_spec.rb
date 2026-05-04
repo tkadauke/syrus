@@ -822,6 +822,20 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to include("selected")
         expect(response.body).to include(repository.id.to_s)
       end
+
+      it "renders the prompt template picker with all built-in templates" do
+        get new_job_path
+        PromptTemplate.all.each do |template|
+          expect(response.body).to include(template.name)
+          expect(response.body).to include(template.description)
+        end
+      end
+
+      it "embeds template data in the Stimulus controller attribute" do
+        get new_job_path
+        expect(response.body).to include("data-controller=\"prompt-template\"")
+        expect(response.body).to include("configure-syrus-prep")
+      end
     end
   end
 
@@ -875,6 +889,7 @@ RSpec.describe "Jobs", type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("blank")
+      expect(response.body).to include("configure-syrus-prep")  # templates survive re-render
     end
 
     it "re-renders the form with an error when repository_id is missing" do

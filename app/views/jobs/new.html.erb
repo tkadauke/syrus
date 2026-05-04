@@ -33,21 +33,44 @@
       <% end %>
     </div>
 
-    <div>
-      <label for="title" class="block text-sm font-medium text-gray-700 mb-1">
-        Title <span class="text-gray-400 font-normal">(optional)</span>
-      </label>
-      <input type="text" name="title" id="title"
-             placeholder="e.g. Bump Ruby version to 3.3"
-             class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-    </div>
+    <div data-controller="prompt-template"
+         data-prompt-template-templates-value="<%= @prompt_templates.map { |t| { id: t.id, name: t.name, prompt: t.prompt } }.to_json %>">
 
-    <div>
-      <label for="prompt" class="block text-sm font-medium text-gray-700 mb-1">Prompt</label>
-      <textarea name="prompt" id="prompt" rows="10" required
-                placeholder="Describe what you want the agent to do…"
-                class="w-full text-sm font-mono border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-      <p class="mt-1 text-xs text-gray-500">The agent receives this prompt verbatim, plus the standard git-safety and submit-summary instructions.</p>
+      <% if @prompt_templates.any? %>
+        <div class="space-y-2">
+          <p class="text-sm font-medium text-gray-700">Templates</p>
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <% @prompt_templates.each do |template| %>
+              <button type="button"
+                      data-action="click->prompt-template#apply"
+                      data-template-id="<%= template.id %>"
+                      class="text-left rounded-md border border-gray-200 px-3 py-2.5 hover:border-blue-300 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="text-sm font-medium text-gray-900"><%= template.name %></div>
+                <div class="mt-0.5 text-xs text-gray-500 leading-snug"><%= template.description %></div>
+              </button>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <div class="<%= @prompt_templates.any? ? 'mt-4' : '' %>">
+        <label for="title" class="block text-sm font-medium text-gray-700 mb-1">
+          Title <span class="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input type="text" name="title" id="title"
+               data-prompt-template-target="title"
+               placeholder="e.g. Bump Ruby version to 3.3"
+               class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+      </div>
+
+      <div class="mt-4">
+        <label for="prompt" class="block text-sm font-medium text-gray-700 mb-1">Prompt</label>
+        <textarea name="prompt" id="prompt" rows="10" required
+                  data-prompt-template-target="prompt"
+                  placeholder="Describe what you want the agent to do…"
+                  class="w-full text-sm font-mono border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+        <p class="mt-1 text-xs text-gray-500">The agent receives this prompt verbatim, plus the standard git-safety and submit-summary instructions.</p>
+      </div>
     </div>
 
     <div class="flex items-center gap-3 pt-2">
