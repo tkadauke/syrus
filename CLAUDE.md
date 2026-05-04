@@ -16,28 +16,33 @@ Solid Queue + Solid Cache + Solid Cable · Tailwind via
 External polling drives everything — no webhooks. `PollAllRepositoriesJob`
 fans out to one `PollRepositoryJob` per active repository, which lists
 issues with the configured trigger label. Each new labeled issue creates
-a `Job` (the *thread*), which auto-creates an initial `Run` (the *attempt*),
-which auto-enqueues a `RunJob`. `PollAllPullRequestsJob` does the same
-for PR review feedback, creating follow-up `Run`s on existing `Job`s.
+a `Job` (the *thread*), which auto-creates an initial `Workflow` (the
+*attempt*), which auto-enqueues its first `Step`'s `Run`. `PollAllPullRequestsJob`
+does the same for PR review feedback, creating follow-up `Workflow`s on
+existing `Job`s.
 
-The two state machines (AASM):
+The state machines (AASM):
 
 ```
-Job (one per issue):    open ⇄ closed
-Run (one per attempt):  queued → running → succeeded | failed | cancelled
+Job (one per issue):       open ⇄ closed
+Workflow (one per attempt): queued → running → succeeded | failed | cancelled
+Step (one per step):        queued → running → succeeded | failed | cancelled
+Run (one per step):         queued → running → succeeded | failed | cancelled
 ```
 
 `Job` carries the GitHub identifiers (issue + PR numbers, branch name).
-`Run` carries the per-attempt state — prompt, agent metadata, diff,
-PR copy submitted by the agent.
+`Workflow` is the top-level unit for a single attempt; it owns a chain of
+`Step`s and a shared workspace at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`.
+Each `Step` dispatches to a `Steps::` handler and owns one `Run`. `Run`
+carries per-attempt state — prompt, agent metadata, diff, PR copy.
 
 `Job#kind` is `issue` (default, filed from GitHub) or `cron` (fired by a
 `ScheduledTask` — no issue_number, prompt pre-rendered at fire time). Both
-kinds use the same Run pipeline and state machine.
+kinds use the same Workflow pipeline.
 
-### Run trigger kinds
+### Trigger kinds
 
-`Run.trigger_kind` distinguishes what an attempt is *for*:
+`Workflow#trigger_kind` distinguishes what an attempt is *for*:
 
 - `initial` — first attempt on a Job (issue → branch → PR)
 - `pr_comment` — review feedback follow-up; reuses the same branch
@@ -49,38 +54,65 @@ kinds use the same Run pipeline and state machine.
   tree), uses `git push --force` instead of fast-forward, and skips
   the PR-opening step. Triggered by `PollAllRebasesJob` when a PR is
   `mergeable: false` and we control the head branch.
-- `resume` — restores a prior Claude Code session onto a new worktree.
-  RunJob reads the JSONL file Claude wrote at session end and persists
-  it to `ClaudeSession`; on resume it copies the JSONL back to the
-  new worktree's project-encoded path and passes `--resume <session_id>`
-  to claude. Uses `Prompts::Resume` (tells the agent it was interrupted,
-  uncommitted edits are gone, to verify state with git status/log and
-  continue). Operator clicks "Resume" on any failed/cancelled Run that
-  has a captured `ClaudeSession`.
+- `resume` — restores a prior Claude Code session. Chain:
+  `agent_rebase → summarize_amend → push`. The session JSONL captured at
+  end-of-session (stored in `ClaudeSession`) is copied back to the workspace
+  at the project-encoded path; `--resume <session_id>` is passed to claude.
+  Operator clicks "Resume" on any failed/cancelled Run that has a captured
+  `ClaudeSession`.
 
-### Per-Run pipeline (`app/jobs/run_job.rb`)
+### Per-Workflow pipeline (`app/jobs/run_job.rb`, `app/services/workflows/`, `app/services/steps/`)
 
-1. **`JobWorkspace`** does a fresh shallow clone (`--depth 50`) per Run at
-   `$SYRUS_DATA_ROOT/runs/<run_id>`. No shared state between concurrent Runs.
-   Always clones the default branch so it is a local ref for three-dot diff;
-   then creates a new branch (initial run) or fetches and checks out the
-   existing one (follow-ups). Cleaned up in `ensure`.
-2. **`AgentInvocation`** spawns `claude --print` in the clone. Streams
-   `stream-json` events through `process_event`, captures `final_text`
-   and metadata from the `result` event. Pluggable `runner:` for tests.
-3. **MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over
-   stdio via a per-run `mcp.json` tempfile RunJob writes. Exposes one
-   tool, `submit_summary(pr_title, pr_body, summary)`, which writes
-   directly onto the `Run` and appends a `JobLog` audit line. See
-   `app/services/syrus_mcp/`.
-4. **PR copy degradation** — `open_pull_request_if_missing` reads the
-   agent's submitted title/body first; falls through to `PrSummarizer`
-   (a single-shot `claude` call against the diff); falls through to a
-   templated default. Path 2 and 3 are last-resort safety nets — path 1
-   is the goal.
-5. **Diff capture** uses `git diff main...HEAD` (three-dot — what
-   GitHub's "Files changed" tab shows) to avoid pollution when main
-   moves forward while the syrus branch is open.
+Each Workflow runs a named chain of Steps. Workflow definitions live in
+`app/services/workflows/`; step handlers in `app/services/steps/`. All Steps
+in a Workflow share one `WorkflowWorkspace` (shallow clone at
+`$SYRUS_DATA_ROOT/workflows/<workflow_id>/`). Workspace lifecycle is tied to
+Workflow terminal transitions (not per-Step ensure). `WorkflowWorkspacePruneJob`
+sweeps old terminal workspaces after 7 days.
+
+Current chains:
+
+```
+initial:     prepare → implement → summarize → pr_open
+pr_comment:  prepare → respond → summarize_amend → push
+ci_failure:  prepare → analyze_and_fix → summarize_amend → push
+replay:      prepare → implement → summarize → pr_open
+rebase:      auto_rebase → force_push
+resume:      agent_rebase → summarize_amend → push
+```
+
+Key steps:
+
+- **`prepare`** — Runs `bundle install`, `npm ci`, etc. from `.syrus.yml`
+  or auto-detects from lockfiles. Env is scrubbed to a safe forward list
+  so the worker's Bundler config doesn't pollute the target repo's install.
+  Per-command timeout: 10 minutes. Succeeds with "nothing to do" if the
+  repo has no setup commands — chain shape stays uniform.
+- **`implement`** / **`respond`** / **`analyze_and_fix`** — Agentic steps:
+  invoke `AgentInvocation`, which spawns `claude --print` with `stream-json`.
+  Pluggable `runner:` for tests.
+- **`summarize`** / **`summarize_amend`** — Short agentic step that
+  `--resume`s the prior session and asks the agent to call `submit_summary`.
+  The session JSONL is on disk in the shared workspace — no DB roundtrip.
+- **`pr_open`** / **`push`** / **`auto_rebase`** / **`force_push`** —
+  Non-agentic: run service code (`PullRequestOpener`, `git push`, etc.).
+
+**MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over stdio
+via a per-step `mcp.json` tempfile. Exposes one tool,
+`submit_summary(pr_title, pr_body, summary)`, which writes directly onto
+the Workflow's `artifacts` bag and appends a `JobLog` audit line.
+`alwaysLoad: true` in the mcp.json keeps sidecar tools in the agent's
+active toolset even after `--resume`. The config key and binary basename
+must match (`syrus-mcp-sidecar`) — misalignment causes the resumed agent
+to invoke a tool name that doesn't exist. See `app/services/syrus_mcp/`.
+
+**PR copy degradation** — `open_pull_request_if_missing` reads
+`workflow.artifacts["pr_title"]`/`["pr_body"]` first; falls through to
+`PrSummarizer`; falls through to a templated default. Path 1 is the goal.
+
+**Diff capture** uses `git diff <default_branch>...HEAD` (three-dot — what
+GitHub's "Files changed" tab shows) to avoid pollution when the base branch
+moves forward while the syrus branch is open.
 
 ### Scheduled tasks
 
@@ -89,7 +121,9 @@ prompts to a repository — no GitHub issue required. `kind=cron` uses a
 5-field cron expression (validated to fire at most once per hour);
 `kind=one_shot` uses a `fire_at` datetime. Each task has a random
 `minute_offset` seeded at create time so two tasks with the same nominal
-schedule never collide on the wall clock.
+schedule never collide on the wall clock. Tasks can optionally reference
+a `CronTemplate` (`app/models/cron_template.rb`) — a per-user reusable
+prompt+schedule config that multiple ScheduledTasks can share.
 
 `PollScheduledTasksJob` (runs every minute) evaluates due tasks and fires
 them. Each fire creates a `Job` with `kind=cron` (linked via
@@ -130,8 +164,14 @@ preserve scroll position across morphs.
 - **AASM events on Run** — call `start!`, `succeed!`, `fail!`, `cancel!`,
   always followed by `save!` (callbacks set timestamps but don't persist).
   See `Run` model.
-- **Per-repo concurrency** — `RunJob` uses Solid Queue's `limits_concurrency`
-  keyed on `repository_id` so two runs on the same repo never overlap.
+- **Per-Job concurrency** — `RunJob` uses Solid Queue's `limits_concurrency`
+  keyed on `job_id` so two Workflows on the same Job never overlap. (Was
+  per-repo; changed because the shared WorkflowWorkspace path is per-Workflow-id,
+  so the collision risk is within a Job, not across repos.)
+- **Two SolidQueue queues** — `runs` (dedicated worker) for long agent
+  invocations; `default` for pollers, Turbo broadcasts, and reaper jobs.
+  Splitting prevents long RunJobs from starving the reaper and making the UI
+  feel frozen.
 - **Per-user max-turns** — `User#agent_max_turns` (default 200, range
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
   per-run 30-minute timeout still bounds runaway loops). Threaded through
@@ -155,6 +195,10 @@ preserve scroll position across morphs.
   `spec/support/`. WebMock + VCR for GitHub. The agent runner is stubbed
   via `RunJob.agent_runner` and `PrSummarizer.runner` test seams; never
   shell out to real `claude` from tests.
+- **REST Admin API** — `GET /api/v1/admin/overview`, `/stuck`, `/jobs/:id`,
+  `/workflows/:id`, `/queue`, etc. Bearer-token auth via `User#api_token`
+  (deterministic-encrypted column). For external dashboards / monitoring.
+  See `app/controllers/api/`.
 
 ## Tests are not optional
 
@@ -380,23 +424,31 @@ Required runtime env:
 ## Key files at a glance
 
 ```
-app/jobs/run_job.rb                          # the orchestrator
+app/jobs/run_job.rb                          # the orchestrator (dispatches to Steps::*)
+app/services/workflows/                      # Workflow chain definitions (initial, replay, etc.)
+app/services/steps/                          # per-Step handlers (prepare, implement, summarize, …)
+app/services/steps/base.rb                   # shared workspace + AgentInvocation + MCP config
+app/services/workflow_workspace.rb           # per-Workflow clone lifecycle (replaces JobWorkspace)
 app/services/agent_invocation.rb             # claude subprocess + stream-json parser
-app/services/job_workspace.rb                # per-Run clone lifecycle
 app/services/git_runner.rb                   # streaming git wrapper
 app/services/syrus_mcp/sidecar.rb            # MCP::Server boot + SIGTERM trap
-app/services/syrus_mcp/submit_summary_tool.rb # the one MCP tool
+app/services/syrus_mcp/submit_summary_tool.rb # the one MCP tool (writes to Workflow#artifacts)
 app/services/prompts/                        # all agent prompts (PORO)
 app/services/pr_summarizer.rb                # second-shot fallback
 app/jobs/poll_*.rb                           # polling jobs (cron-style; see config/recurring.yml)
 app/jobs/reap_stale_runs_job.rb              # kills zombie Runs every minute
+app/jobs/workflow_workspace_prune_job.rb     # daily sweep of old terminal workspaces
 app/jobs/claude_session_prune_job.rb         # drops old ClaudeSession rows daily
-app/models/{job,run,repository,user}.rb      # core models + AASM
+app/models/{job,run,workflow,step}.rb        # core models + AASM
+app/models/{repository,user}.rb             # repo + user (user has api_token, cron_templates)
 app/models/scheduled_task.rb                 # cron/one-shot task attached to a repo
+app/models/cron_template.rb                 # per-user reusable schedule+prompt template
 app/models/claude_session.rb                 # captured JSONL for --resume flows
+app/controllers/api/                         # REST admin API (Bearer-token auth)
 bin/syrus-mcp-sidecar                        # Ruby binstub, claude spawns this
 bin/jobs                                     # Solid Queue worker entry
 config/database.yml                          # 4-DB prod (primary/cache/queue/cable)
+config/queue.yml                             # SolidQueue: `runs` + `default` worker split
 config/recurring.yml                         # Solid Queue recurring job schedule
 ROADMAP.md                                   # milestone plan + future work
 ```
