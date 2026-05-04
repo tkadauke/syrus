@@ -50,6 +50,44 @@ RSpec.describe Steps::Summarize do
     `git -C #{@ws_path} log -1 --format='%B'`.strip
   end
 
+  describe "skipping agent when implement step already submitted summary" do
+    let(:implement_step) do
+      Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+    end
+    let(:implement_run) do
+      r = Run.create!(job: job, step: implement_step, trigger_kind: "initial",
+                      agent_pr_title: "Add greeting helper",
+                      agent_pr_body:  "Adds a tiny helper.",
+                      agent_summary:  "Added a greeting helper method.")
+      r.start!; r.succeed!; r.save!
+      r
+    end
+
+    before { implement_run }
+
+    it "does not invoke the agent" do
+      expect(handler).not_to receive(:run_agent)
+      handler.call
+    end
+
+    it "promotes pr_title from the implement run onto workflow artifacts" do
+      handler.call
+      expect(workflow.reload.artifact("pr_title")).to eq("Add greeting helper")
+    end
+
+    it "promotes pr_body and summary from the implement run" do
+      handler.call
+      workflow.reload
+      expect(workflow.artifact("pr_body")).to eq("Adds a tiny helper.")
+      expect(workflow.artifact("summary")).to eq("Added a greeting helper method.")
+    end
+
+    it "rewrites the commit message using the implement run's pr_title" do
+      handler.call
+      expect(commit_message).to start_with("Add greeting helper")
+    end
+  end
+
   describe "commit message rewrite" do
     it "amends the placeholder commit subject to the agent-authored pr_title" do
       stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")

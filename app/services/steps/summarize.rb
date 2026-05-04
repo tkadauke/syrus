@@ -14,6 +14,14 @@ module Steps
 
     def call
       workspace.setup
+
+      if (impl_run = implement_run_with_summary)
+        log("implement step already called submit_summary — skipping agent call")
+        promote_artifacts!(from: impl_run)
+        rewrite_implement_commit_message!
+        return
+      end
+
       run.update!(prompt: Prompts::Summarize.new.to_s) if run.prompt.blank?
 
       log("invoking agent for summarize step (workflow ##{workflow.id}, --resume from implement)")
@@ -26,13 +34,21 @@ module Steps
 
     private
 
-    def promote_artifacts!
-      run.reload  # MCP sidecar writes here mid-run
-      raise StepFailed, "agent didn't call submit_summary" if run.agent_pr_title.blank?
+    def implement_run_with_summary
+      impl_run = step.previous_step&.latest_run
+      impl_run if impl_run&.agent_pr_title.present?
+    end
 
-      workflow.set_artifact!("pr_title", run.agent_pr_title) if run.agent_pr_title.present?
-      workflow.set_artifact!("pr_body",  run.agent_pr_body)  if run.agent_pr_body.present?
-      workflow.set_artifact!("summary",  run.agent_summary)  if run.agent_summary.present?
+    def promote_artifacts!(from: nil)
+      unless from
+        run.reload  # MCP sidecar writes here mid-run
+      end
+      source = from || run
+      raise StepFailed, "agent didn't call submit_summary" if source.agent_pr_title.blank?
+
+      workflow.set_artifact!("pr_title", source.agent_pr_title)
+      workflow.set_artifact!("pr_body",  source.agent_pr_body) if source.agent_pr_body.present?
+      workflow.set_artifact!("summary",  source.agent_summary) if source.agent_summary.present?
     end
 
     # Replace the implement step's placeholder commit message with
