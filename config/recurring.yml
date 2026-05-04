@@ -34,6 +34,9 @@ default: &default
   prune_workflow_workspaces:
     class: WorkflowWorkspacePruneJob
     schedule: every 2 hours
+  sync_agent_skills:
+    class: SyncAgentSkillsJob
+    schedule: every hour
 
 development:
   <<: *default
