@@ -196,6 +196,26 @@ RSpec.describe "Dashboard", type: :request do
       end
     end
 
+    describe "filter memory controller" do
+      let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+
+      it "attaches filter-memory controller to the jobs filter form" do
+        get root_path
+        expect(response.body).to include('data-controller="auto-submit filter-memory"')
+      end
+
+      it "attaches filter-memory#clear action to the Clear link when filters are active" do
+        Factories.job(repository: repo, issue_number: 1)
+        get root_path, params: { state: "open" }
+        expect(response.body).to include("filter-memory#clear")
+      end
+
+      it "does not render the Clear link (or its action) when no filters are active" do
+        get root_path
+        expect(response.body).not_to include("filter-memory#clear")
+      end
+    end
+
     describe "rate limit banner" do
       def set_rate_limit(remaining:, limit: 5000, resource: "core")
         user.update_columns(
