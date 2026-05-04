@@ -39,10 +39,13 @@ RSpec.describe PromptTemplate do
       expect(template).to be_present
     end
 
-    it "prompt covers common package managers" do
-      expect(template.prompt).to include("Gemfile")
-      expect(template.prompt).to include("package.json")
-      expect(template.prompt).to include(".syrus.yml")
+    it "prompt invokes the configure-syrus-prep skill" do
+      expect(template.prompt).to eq("/configure-syrus-prep")
+    end
+
+    it "has a matching skill file in lib/agent_skills/" do
+      skill_path = Rails.root.join("lib/agent_skills/configure-syrus-prep.md")
+      expect(skill_path).to exist
     end
   end
 
@@ -53,8 +56,13 @@ RSpec.describe PromptTemplate do
       expect(template).to be_present
     end
 
-    it "prompt mentions GitHub Actions" do
-      expect(template.prompt).to include("GitHub Actions")
+    it "prompt invokes the add-github-actions-ci skill" do
+      expect(template.prompt).to eq("/add-github-actions-ci")
+    end
+
+    it "has a matching skill file in lib/agent_skills/" do
+      skill_path = Rails.root.join("lib/agent_skills/add-github-actions-ci.md")
+      expect(skill_path).to exist
     end
   end
 
@@ -65,8 +73,13 @@ RSpec.describe PromptTemplate do
       expect(template).to be_present
     end
 
-    it "prompt mentions lockfile" do
-      expect(template.prompt).to include("lockfile")
+    it "prompt invokes the update-dependencies skill" do
+      expect(template.prompt).to eq("/update-dependencies")
+    end
+
+    it "has a matching skill file in lib/agent_skills/" do
+      skill_path = Rails.root.join("lib/agent_skills/update-dependencies.md")
+      expect(skill_path).to exist
     end
   end
 end
