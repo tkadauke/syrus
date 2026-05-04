@@ -28,6 +28,28 @@ class WorkflowWorkspace
     data_root.join("workflows", workflow.id.to_s)
   end
 
+  # Read the committed-but-not-pushed diff (three-dot vs default
+  # branch) and list of uncommitted files from the workflow's
+  # workspace. Returns nil when: workspace doesn't exist, workflow
+  # isn't failed with intact workspace, or there are no changes.
+  # Errors are swallowed so callers don't need to rescue.
+  def self.local_diff_for(workflow)
+    path = path_for(workflow)
+    return nil unless path.exist? && workflow.failed? && workflow.cleaned_up_at.nil?
+
+    git = GitRunner.new
+    default_branch = workflow.job.repository.default_branch
+    committed   = git.run("diff", "#{default_branch}...HEAD", chdir: path.to_s).strip
+    uncommitted = git.run("status", "--short", chdir: path.to_s).strip
+
+    return nil if committed.empty? && uncommitted.empty?
+
+    { committed: committed, uncommitted: uncommitted }
+  rescue StandardError => e
+    Rails.logger.warn("[WorkflowWorkspace] local_diff_for failed for workflow ##{workflow.id}: #{e.class}: #{e.message}")
+    nil
+  end
+
   # Class-level cleanup so the Workflow's AASM terminal-transition
   # callback can fire it without instantiating the full workspace.
   # Best-effort: if the path is gone or unreadable, swallow. Stamps

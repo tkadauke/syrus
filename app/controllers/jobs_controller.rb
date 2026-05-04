@@ -194,6 +194,25 @@ class JobsController < ApplicationController
                 notice: "Retrying #{failed_step.kind} for workflow ##{workflow.id}…"
   end
 
+  # Push committed (and stage+commit any uncommitted) changes from a
+  # failed Workflow's workspace to GitHub. The operator can then open
+  # a PR by hand. Refuses when the workspace is gone or the workflow
+  # isn't failed. Idempotent: the job no-ops if already pushed.
+  def push_commits
+    workflow = @job.workflows.find_by(id: params[:workflow_id])
+    unless workflow
+      redirect_to job_path(@job), alert: "Workflow not found."
+      return
+    end
+    unless workflow.failed? && workflow.cleaned_up_at.nil?
+      redirect_to job_path(@job), alert: "Workspace is not available for this workflow."
+      return
+    end
+
+    PushPendingCommitsJob.perform_later(workflow.id)
+    redirect_to job_path(@job), notice: "Pushing commits to GitHub…"
+  end
+
   # Undo a close. The next poll cycle may immediately re-close the
   # Job if the underlying reason still applies (e.g. syrus-stop label
   # still on the PR, PR merged on GitHub) — that's intentional. Local

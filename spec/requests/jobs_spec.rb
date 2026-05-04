@@ -535,6 +535,58 @@ RSpec.describe "Jobs", type: :request do
     end
   end
 
+  describe "POST /jobs/:id/push_commits" do
+    before { sign_in_as(user) }
+
+    let(:failed_workflow) do
+      Workflow.create!(job: job, trigger_kind: "initial",
+                       state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    end
+
+    before { failed_workflow }  # ensure created before assertions
+
+    it "enqueues PushPendingCommitsJob for a failed workflow with intact workspace" do
+      expect {
+        post push_commits_job_path(job, workflow_id: failed_workflow.id)
+      }.to have_enqueued_job(PushPendingCommitsJob).with(failed_workflow.id)
+      expect(response).to redirect_to(job_path(job))
+      expect(flash[:notice]).to match(/Pushing commits/)
+    end
+
+    it "refuses when the workflow is not in a failed state" do
+      failed_workflow.update_columns(state: "running", finished_at: nil)
+      expect {
+        post push_commits_job_path(job, workflow_id: failed_workflow.id)
+      }.not_to have_enqueued_job(PushPendingCommitsJob)
+      expect(flash[:alert]).to match(/not available/)
+    end
+
+    it "refuses when the workspace has already been cleaned up" do
+      failed_workflow.update_columns(cleaned_up_at: Time.current)
+      expect {
+        post push_commits_job_path(job, workflow_id: failed_workflow.id)
+      }.not_to have_enqueued_job(PushPendingCommitsJob)
+      expect(flash[:alert]).to match(/not available/)
+    end
+
+    it "returns not found for a workflow_id that doesn't belong to this Job" do
+      other_job  = Factories.job(repository: repository, issue_number: 99)
+      other_wf   = Workflow.create!(job: other_job, trigger_kind: "initial",
+                                    state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+      expect {
+        post push_commits_job_path(job, workflow_id: other_wf.id)
+      }.not_to have_enqueued_job(PushPendingCommitsJob)
+      expect(flash[:alert]).to match(/not found/)
+    end
+
+    it "404s for another user's job" do
+      foreign_repo = Factories.repository(user: other)
+      foreign_job  = Factories.job(repository: foreign_repo, issue_number: 1)
+      post push_commits_job_path(foreign_job, workflow_id: failed_workflow.id)
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "show page mergeability badge + Rebase button" do
     before { sign_in_as(user) }
 

@@ -121,6 +121,82 @@ RSpec.describe WorkflowWorkspace do
     end
   end
 
+  describe ".local_diff_for" do
+    it "returns nil when the workspace doesn't exist" do
+      expect(described_class.local_diff_for(workflow)).to be_nil
+    end
+
+    it "returns nil when the workflow isn't failed (e.g. queued)" do
+      # workflow starts in queued state; no workspace needed
+      expect(described_class.local_diff_for(workflow)).to be_nil
+    end
+
+    it "returns nil when cleaned_up_at is set" do
+      ws = described_class.new(workflow)
+      ws.setup
+      workflow.start!; workflow.fail!; workflow.save!
+      workflow.update_columns(cleaned_up_at: Time.current)
+      expect(described_class.local_diff_for(workflow)).to be_nil
+    end
+
+    it "returns nil when workspace exists but has no changes vs default branch" do
+      ws = described_class.new(workflow)
+      ws.setup
+      workflow.start!; workflow.fail!; workflow.save!
+      expect(described_class.local_diff_for(workflow)).to be_nil
+    end
+
+    it "returns committed diff when there are commits ahead of the default branch" do
+      ws = described_class.new(workflow)
+      ws.setup
+      File.write(ws.path.join("feature.rb"), "def greet; 'hello'; end\n")
+      sh("git -C #{ws.path} add feature.rb")
+      sh("git -C #{ws.path} commit -q -m 'Add greeting'")
+      workflow.start!; workflow.fail!; workflow.save!
+
+      result = described_class.local_diff_for(workflow)
+      expect(result).not_to be_nil
+      expect(result[:committed]).to include("feature.rb")
+      expect(result[:uncommitted]).to be_empty
+    end
+
+    it "returns uncommitted status when there are only unstaged files" do
+      ws = described_class.new(workflow)
+      ws.setup
+      File.write(ws.path.join("wip.rb"), "# work in progress\n")
+      workflow.start!; workflow.fail!; workflow.save!
+
+      result = described_class.local_diff_for(workflow)
+      expect(result).not_to be_nil
+      expect(result[:committed]).to be_empty
+      expect(result[:uncommitted]).to include("wip.rb")
+    end
+
+    it "returns both committed and uncommitted when both are present" do
+      ws = described_class.new(workflow)
+      ws.setup
+      File.write(ws.path.join("committed.rb"), "# committed\n")
+      sh("git -C #{ws.path} add committed.rb")
+      sh("git -C #{ws.path} commit -q -m 'Done half'")
+      File.write(ws.path.join("wip.rb"), "# wip\n")
+      workflow.start!; workflow.fail!; workflow.save!
+
+      result = described_class.local_diff_for(workflow)
+      expect(result).not_to be_nil
+      expect(result[:committed]).to include("committed.rb")
+      expect(result[:uncommitted]).to include("wip.rb")
+    end
+
+    it "returns nil (swallows error) when git fails rather than raising" do
+      # Workspace dir exists but isn't a git repo — git will error.
+      bad_path = described_class.path_for(workflow)
+      FileUtils.mkdir_p(bad_path)
+      workflow.start!; workflow.fail!; workflow.save!
+      expect { described_class.local_diff_for(workflow) }.not_to raise_error
+      expect(described_class.local_diff_for(workflow)).to be_nil
+    end
+  end
+
   describe "Workflow terminal-state cleanup hook" do
     it "tears the workspace down when the Workflow transitions to succeeded" do
       ws = described_class.new(workflow)

@@ -41,4 +41,54 @@
             workflow: workflow, workflow_is_latest: is_latest, job: job %>
     <% end %>
   </div>
+
+  <%# When a workflow fails and the workspace is still on disk, offer
+      the operator a way to push whatever the agent committed (or
+      staged/unstaged but never committed) so they can open a PR by
+      hand. Once pushed, flip to a success banner with a GitHub link. %>
+  <% if workflow.failed? %>
+    <% if workflow.artifact("commits_pushed_at") %>
+      <div class="border-t border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between text-sm">
+        <span class="text-green-800">
+          Commits pushed to <code class="font-mono text-xs"><%= workflow.artifact("commits_pushed_branch") %></code>
+        </span>
+        <%= link_to "Create PR on GitHub →",
+              "https://github.com/#{job.repository.owner}/#{job.repository.name}/compare/#{workflow.artifact("commits_pushed_branch")}",
+              target: "_blank", rel: "noopener",
+              class: "text-green-700 underline hover:no-underline text-xs" %>
+      </div>
+    <% elsif workflow.cleaned_up_at.nil? %>
+      <% local_changes = WorkflowWorkspace.local_diff_for(workflow) %>
+      <% if local_changes %>
+        <div class="border-t border-amber-200 bg-amber-50 px-4 py-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-amber-800">Local changes not yet on GitHub</span>
+            <%= button_to "Push to GitHub",
+                  push_commits_job_path(job, workflow_id: workflow.id), method: :post,
+                  class: "px-3 py-1 rounded text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 cursor-pointer",
+                  form: { class: "inline",
+                          data: { turbo_confirm: "Stage, commit (if needed), and push all local changes to GitHub?" } } %>
+          </div>
+          <% if local_changes[:committed].present? %>
+            <details class="group mt-1">
+              <summary class="text-xs text-amber-700 cursor-pointer select-none hover:text-amber-900 flex items-center gap-1 [&::marker]:hidden [&::-webkit-details-marker]:hidden">
+                <span class="text-amber-500 group-open:rotate-90 transition-transform duration-150 inline-block">▶</span>
+                Committed changes (not yet pushed)
+              </summary>
+              <pre class="mt-1 bg-black text-gray-100 p-3 overflow-x-auto max-h-64 overflow-y-auto text-xs font-mono whitespace-pre"><%= local_changes[:committed] %></pre>
+            </details>
+          <% end %>
+          <% if local_changes[:uncommitted].present? %>
+            <details class="group mt-1">
+              <summary class="text-xs text-amber-700 cursor-pointer select-none hover:text-amber-900 flex items-center gap-1 [&::marker]:hidden [&::-webkit-details-marker]:hidden">
+                <span class="text-amber-500 group-open:rotate-90 transition-transform duration-150 inline-block">▶</span>
+                Uncommitted changes (will be staged and committed on push)
+              </summary>
+              <pre class="mt-1 bg-black text-gray-100 p-3 overflow-x-auto max-h-48 overflow-y-auto text-xs font-mono whitespace-pre"><%= local_changes[:uncommitted] %></pre>
+            </details>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
 </section>
