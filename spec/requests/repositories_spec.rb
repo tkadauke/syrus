@@ -228,6 +228,44 @@ RSpec.describe "Repositories", type: :request do
         get repository_path(mine)
         expect(response.body).to include("https://github.com/acme/widgets")
       end
+
+      describe "pagination" do
+        let(:repo) { Factories.repository(user: user) }
+
+        it "shows no pagination controls when jobs fit on one page" do
+          3.times { |i| Factories.job(repository: repo, issue_number: i + 1) }
+          get repository_path(repo)
+          expect(response.body).not_to include("← Previous")
+          expect(response.body).not_to include("Next →")
+        end
+
+        it "shows 'Showing X–Y of Z' counter and navigation when jobs exceed one page" do
+          (RepositoriesController::PER_PAGE + 2).times { |i| Factories.job(repository: repo, issue_number: i + 1) }
+          get repository_path(repo)
+          total = RepositoriesController::PER_PAGE + 2
+          expect(response.body).to include("Showing 1–#{RepositoriesController::PER_PAGE} of #{total}")
+          expect(response.body).to include("Next →")
+        end
+
+        it "renders a disabled Previous button on page 1" do
+          (RepositoriesController::PER_PAGE + 1).times { |i| Factories.job(repository: repo, issue_number: i + 1) }
+          get repository_path(repo)
+          expect(response.body).to match(/class="px-3 py-1 border border-gray-200 rounded text-gray-300"[^>]*>← Previous/)
+        end
+
+        it "renders a disabled Next button on the last page" do
+          (RepositoriesController::PER_PAGE + 1).times { |i| Factories.job(repository: repo, issue_number: i + 1) }
+          get repository_path(repo, page: 2)
+          expect(response.body).to match(/class="px-3 py-1 border border-gray-200 rounded text-gray-300"[^>]*>Next →/)
+        end
+
+        it "shows the correct range on page 2" do
+          (RepositoriesController::PER_PAGE + 3).times { |i| Factories.job(repository: repo, issue_number: i + 1) }
+          get repository_path(repo, page: 2)
+          total = RepositoriesController::PER_PAGE + 3
+          expect(response.body).to include("Showing #{RepositoriesController::PER_PAGE + 1}–#{total} of #{total}")
+        end
+      end
     end
   end
 

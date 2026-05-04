@@ -136,6 +136,16 @@ preserve scroll position across morphs.
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
   per-run 30-minute timeout still bounds runaway loops). Threaded through
   RunJob → AgentInvocation for both regular and rebase runs.
+- **Pagination standard** — all paginated list views use the same UI:
+  "Showing X–Y of Z" counter on the left; bordered pill buttons
+  (`px-3 py-1 border border-gray-300 rounded hover:bg-gray-50`) for
+  Previous/Next on the right with `gap-2` between them; disabled
+  direction rendered as a grayed `<span>` with `border-gray-200
+  text-gray-300` (never hidden). Wrapper: `flex items-center
+  justify-between text-sm text-gray-600`. The controller exposes
+  `@total_<collection>` and reads `PER_PAGE` from the controller constant;
+  the view computes `first_item`/`last_item` inline. Only show the
+  pagination block when `total_pages > 1`.
 - **Three-dot diffs only** — `git diff <base>...HEAD`, never two-dot.
   Lesson learned the hard way (commit `67b2bf9`).
 - **Clones live outside the repo** — under `$SYRUS_DATA_ROOT` (default

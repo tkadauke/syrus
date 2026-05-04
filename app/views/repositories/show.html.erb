@@ -184,16 +184,22 @@
       </div>
 
       <% if @total_pages > 1 %>
+        <% first_item = (@page - 1) * RepositoriesController::PER_PAGE + 1 %>
+        <% last_item = [@page * RepositoriesController::PER_PAGE, @total_jobs].min %>
         <div class="flex items-center justify-between mt-4 text-sm text-gray-600">
-          <span>Page <%= @page %> of <%= @total_pages %></span>
-          <div class="flex gap-3">
+          <span>Showing <%= first_item %>–<%= last_item %> of <%= @total_jobs %></span>
+          <div class="flex gap-2">
             <% if @page > 1 %>
               <%= link_to "← Previous", repository_path(@repository, page: @page - 1),
-                    class: "text-blue-600 underline hover:no-underline" %>
+                    class: "px-3 py-1 border border-gray-300 rounded hover:bg-gray-50" %>
+            <% else %>
+              <span class="px-3 py-1 border border-gray-200 rounded text-gray-300">← Previous</span>
             <% end %>
             <% if @page < @total_pages %>
               <%= link_to "Next →", repository_path(@repository, page: @page + 1),
-                    class: "text-blue-600 underline hover:no-underline" %>
+                    class: "px-3 py-1 border border-gray-300 rounded hover:bg-gray-50" %>
+            <% else %>
+              <span class="px-3 py-1 border border-gray-200 rounded text-gray-300">Next →</span>
             <% end %>
           </div>
         </div>
