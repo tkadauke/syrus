@@ -77,9 +77,15 @@ class Run < ApplicationRecord
   # succeeded/failed/cancelled), so this is a no-op there.
   after_update_commit :cascade_cancel_to_workflow!,
                        if: :saved_change_to_state_to_cancelled?
+  after_update_commit :clear_transcript_on_success!,
+                       if: :saved_change_to_state_to_succeeded?
 
   def saved_change_to_state_to_cancelled?
     saved_change_to_state? && state == "cancelled"
+  end
+
+  def saved_change_to_state_to_succeeded?
+    saved_change_to_state? && state == "succeeded"
   end
 
   def cascade_cancel_to_workflow!
@@ -146,6 +152,10 @@ class Run < ApplicationRecord
   end
 
   private
+
+  def clear_transcript_on_success!
+    claude_session&.update_column(:transcript_jsonl, nil)
+  end
 
   def enqueue_run_job
     return if terminal?

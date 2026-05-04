@@ -21,6 +21,25 @@ RSpec.describe ClaudeSessionPruneJob do
     expect(ClaudeSession.exists?(active_session.id)).to be true
   end
 
+  it "clears transcript_jsonl for succeeded Runs within the retention window" do
+    succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+    session = ClaudeSession.create!(run: succeeded_run, session_id: "ok", transcript_jsonl: "payload")
+
+    described_class.perform_now
+
+    expect(session.reload.transcript_jsonl).to be_nil
+    expect(ClaudeSession.exists?(session.id)).to be true  # row kept, just transcript cleared
+  end
+
+  it "does not clear transcript_jsonl for failed/cancelled Runs within the retention window" do
+    failed_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
+    session = ClaudeSession.create!(run: failed_run, session_id: "fail", transcript_jsonl: "payload")
+
+    described_class.perform_now
+
+    expect(session.reload.transcript_jsonl).to eq("payload")
+  end
+
   it "is a no-op when nothing is prunable" do
     expect { described_class.perform_now }.not_to change { ClaudeSession.count }
   end

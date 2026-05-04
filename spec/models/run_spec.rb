@@ -142,6 +142,30 @@ RSpec.describe Run do
     end
   end
 
+  describe "transcript pruning on success" do
+    it "clears ClaudeSession transcript_jsonl when the Run transitions to succeeded" do
+      run = job.initial_run
+      run.start!; run.save!
+      session = ClaudeSession.create!(run: run, session_id: "abc", transcript_jsonl: "big payload")
+      run.succeed!; run.save!
+      expect(session.reload.transcript_jsonl).to be_nil
+    end
+
+    it "does not clear transcript when the Run fails" do
+      run = job.initial_run
+      run.start!; run.save!
+      session = ClaudeSession.create!(run: run, session_id: "abc", transcript_jsonl: "big payload")
+      run.fail!; run.save!
+      expect(session.reload.transcript_jsonl).to eq("big payload")
+    end
+
+    it "is a no-op when the Run has no ClaudeSession" do
+      run = job.initial_run
+      run.start!; run.save!
+      expect { run.succeed!; run.save! }.not_to raise_error
+    end
+  end
+
   describe "#terminal?" do
     it "is false for queued and running" do
       run = job.initial_run

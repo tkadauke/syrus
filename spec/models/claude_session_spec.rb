@@ -43,6 +43,26 @@ RSpec.describe ClaudeSession do
     end
   end
 
+  describe ".with_succeeded_transcript" do
+    it "includes succeeded Runs that still have a non-nil transcript_jsonl" do
+      succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+      session = described_class.create!(run: succeeded_run, session_id: "s", transcript_jsonl: "data")
+      expect(described_class.with_succeeded_transcript).to include(session)
+    end
+
+    it "excludes succeeded Runs whose transcript_jsonl is already nil" do
+      succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+      session = described_class.create!(run: succeeded_run, session_id: "s", transcript_jsonl: nil)
+      expect(described_class.with_succeeded_transcript).not_to include(session)
+    end
+
+    it "excludes failed and cancelled Runs regardless of transcript content" do
+      failed_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
+      session = described_class.create!(run: failed_run, session_id: "f", transcript_jsonl: "data")
+      expect(described_class.with_succeeded_transcript).not_to include(session)
+    end
+  end
+
   describe ".prunable" do
     it "includes sessions whose Run is terminal AND older than RETAIN_AFTER_TERMINAL" do
       old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }

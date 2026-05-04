@@ -13,6 +13,13 @@ class ClaudeSession < ApplicationRecord
                .where("claude_sessions.updated_at < ?", RETAIN_AFTER_TERMINAL.ago)
   }
 
+  # Sessions whose Run already succeeded but still carry a transcript — cleared
+  # by the prune job as a belt-and-suspenders sweep (the Run callback handles
+  # the common case immediately at transition time).
+  scope :with_succeeded_transcript, -> {
+    joins(:run).where(runs: { state: "succeeded" }).where.not(transcript_jsonl: nil)
+  }
+
   # Path Claude Code uses to store its session JSONL on disk:
   # `~/.claude/projects/<encoded-cwd>/<session-uuid>.jsonl`
   # The "project" component is the absolute cwd with every "/"
