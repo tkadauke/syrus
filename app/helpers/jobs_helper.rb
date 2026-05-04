@@ -162,6 +162,55 @@ module JobsHelper
     end
   end
 
+  HEALTH_STATUS_STYLES = {
+    "healthy"  => { text: "text-green-700",  bg: "bg-green-50",  border: "border-green-200" },
+    "warning"  => { text: "text-amber-700",  bg: "bg-amber-50",  border: "border-amber-200" },
+    "critical" => { text: "text-red-700",    bg: "bg-red-50",    border: "border-red-200"   }
+  }.freeze
+
+  # Three-way boolean signal cell: ✓ green / ✗ red / — gray-unavailable.
+  def bool_signal(value)
+    case value
+    when true  then content_tag(:span, "✓", class: "text-green-600 font-medium")
+    when false then content_tag(:span, "✗", class: "text-red-600 font-medium")
+    else            content_tag(:span, "—", class: "text-gray-400")
+    end
+  end
+
+  # Heartbeat age formatted + colour-coded by staleness thresholds.
+  def heartbeat_signal(age_seconds)
+    return content_tag(:span, "none", class: "text-gray-400") if age_seconds.nil?
+
+    minutes = (age_seconds / 60.0).round(1)
+    label   = "#{minutes} min ago"
+
+    css = if age_seconds < DiagnoseRunJob::WARNING_HEARTBEAT.to_i
+            "text-green-600"
+          elsif age_seconds < DiagnoseRunJob::CRITICAL_HEARTBEAT.to_i
+            "text-amber-600"
+          else
+            "text-red-600 font-medium"
+          end
+
+    content_tag(:span, label, class: css)
+  end
+
+  # SolidQueue job-state badge colour.
+  def sq_state_signal(sq_job_state)
+    return content_tag(:span, "—", class: "text-gray-400") if sq_job_state.nil?
+
+    css = case sq_job_state
+          when "claimed"  then "text-green-600"
+          when "ready"    then "text-blue-600"
+          when "finished" then "text-gray-500"
+          when "failed"   then "text-red-600 font-medium"
+          when "missing"  then "text-amber-600"
+          else                 "text-gray-600"
+          end
+
+    content_tag(:span, sq_job_state, class: "font-mono #{css}")
+  end
+
   MERGEABILITY_STYLES = {
     "mergeable"    => "bg-green-100 text-green-700",
     "needs rebase" => "bg-red-100 text-red-700",

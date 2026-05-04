@@ -86,6 +86,7 @@ Rails.application.routes.draw do
       post :retry_step     # re-run the failed step in a failed Workflow (keeps the existing workspace)
       post :push_commits   # push uncommitted/committed local changes from a failed Workflow's workspace
       get  :source         # browse the repo source at any branch commit or merge base
+      post :diagnose       # capture a RunHealthSnapshot for an active Run
     end
   end
 

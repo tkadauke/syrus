@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_04_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_04_130000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -124,6 +124,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_120000) do
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["user_id", "owner", "name"], name: "index_repositories_on_user_id_and_owner_and_name", unique: true
     t.index ["user_id"], name: "index_repositories_on_user_id"
+  end
+
+  create_table "run_health_snapshots", force: :cascade do |t|
+    t.integer  "run_id",                  null: false
+    t.string   "run_state",               null: false
+    t.datetime "last_heartbeat_at"
+    t.integer  "heartbeat_age_seconds"
+    t.datetime "last_log_at"
+    t.integer  "log_count"
+    t.text     "last_log_preview"
+    t.integer  "agent_turns"
+    t.string   "agent_outcome"
+    t.integer  "agent_diff_bytes"
+    t.string   "head_sha"
+    t.string   "sq_job_state"
+    t.text     "sq_error_class"
+    t.text     "sq_error_message"
+    t.text     "sq_error_backtrace"
+    t.boolean  "worktree_exists"
+    t.text     "worktree_git_status"
+    t.text     "worktree_recent_commits"
+    t.boolean  "claude_process_running"
+    t.text     "claude_process_info"
+    t.boolean  "branch_on_origin"
+    t.boolean  "mcp_sidecar_alive"
+    t.string   "health_status"
+    t.text     "hint"
+    t.datetime "created_at",              null: false
+    t.datetime "updated_at",              null: false
+    t.index ["created_at"],   name: "index_run_health_snapshots_on_created_at"
+    t.index ["run_id"],       name: "index_run_health_snapshots_on_run_id"
   end
 
   create_table "run_diagnostics", force: :cascade do |t|
@@ -261,6 +292,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_120000) do
   add_foreign_key "jobs", "users"
   add_foreign_key "repositories", "users"
   add_foreign_key "run_diagnostics", "runs"
+  add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "runs", "jobs"
   add_foreign_key "runs", "steps"
   add_foreign_key "scheduled_tasks", "cron_templates"

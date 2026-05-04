@@ -50,6 +50,9 @@
             <%= button_to "Stop", stop_run_job_path(job, run_id: run.id), method: :post,
                   class: "px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer",
                   form: { class: "inline", data: { turbo_confirm: "Stop this run?" } } %>
+            <%= button_to "Diagnose", diagnose_job_path(job, run_id: run.id), method: :post,
+                  class: "px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer",
+                  form: { class: "inline" } %>
           <% end %>
           <% rl_log = run.job_logs.find { |l| l.kind == "rate_limited" } %>
           <% if rl_log %>
@@ -142,6 +145,24 @@
 
       <% if Current.user&.admin? && run.run_diagnostic %>
         <%= render "diagnostic", diagnostic: run.run_diagnostic %>
+      <% end %>
+
+      <% if run.run_health_snapshots.any? %>
+        <details <%= run.run_health_snapshots.last&.health_status == "critical" ? "open" : "" %> class="group">
+          <summary class="px-4 py-2 text-xs uppercase tracking-wide text-gray-500 cursor-pointer select-none hover:bg-gray-50 flex items-center gap-2 [&::marker]:hidden [&::-webkit-details-marker]:hidden">
+            <span class="text-gray-400 group-open:rotate-90 transition-transform duration-150 inline-block">▶</span>
+            Health snapshots
+            <span class="normal-case font-normal">
+              (<%= run.run_health_snapshots.size %> · latest:
+              <% last = run.run_health_snapshots.last %>
+              <% status_css = { "healthy" => "text-green-600", "warning" => "text-amber-600", "critical" => "text-red-600" }[last.health_status] || "text-gray-500" %>
+              <span class="<%= status_css %>"><%= last.health_status || "unknown" %></span>)
+            </span>
+          </summary>
+          <div class="divide-y divide-gray-100">
+            <%= render run.run_health_snapshots %>
+          </div>
+        </details>
       <% end %>
 
       <% if run.agent_diff.present? %>

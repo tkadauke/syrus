@@ -332,6 +332,24 @@ class JobsController < ApplicationController
     end
   end
 
+  # Enqueue a DiagnoseRunJob for an active Run. Returns immediately;
+  # Turbo Stream refresh delivers the RunHealthSnapshot when ready.
+  def diagnose
+    run = @job.runs.find_by(id: params[:run_id])
+    unless run
+      redirect_to job_path(@job), alert: "Run not found."
+      return
+    end
+
+    unless run.queued? || run.running?
+      redirect_to job_path(@job), alert: "Diagnose is only available for active runs."
+      return
+    end
+
+    DiagnoseRunJob.perform_later(run.id)
+    redirect_to job_path(@job), notice: "Diagnostic queued — snapshot will appear shortly."
+  end
+
   private
 
   def reopen_notice(prior_reason)
@@ -347,7 +365,9 @@ class JobsController < ApplicationController
   end
 
   def load_job
-    @job = Current.user.jobs.includes(:repository, runs: :job_logs).find(params[:id])
+    @job = Current.user.jobs
+                  .includes(:repository, runs: [:job_logs, :run_health_snapshots])
+                  .find(params[:id])
   end
 
   # Converts a flat list of {path:, size:} items into a nested hash

@@ -1,0 +1,112 @@
+<%# Renders one RunHealthSnapshot card. Called from _step.html.erb for each
+    snapshot on an active Run. Color-coded by health_status. %>
+<% styles = HEALTH_STATUS_STYLES[snapshot.health_status] ||
+            { text: "text-gray-700", bg: "bg-gray-50", border: "border-gray-200" } %>
+<div class="border-t <%= styles[:border] %> <%= styles[:bg] %> px-4 py-3 text-xs">
+  <%# Header row %>
+  <div class="flex items-center gap-2 mb-2">
+    <span class="font-semibold uppercase tracking-wide <%= styles[:text] %>">
+      <%= snapshot.health_status&.upcase || "UNKNOWN" %>
+    </span>
+    <span class="text-gray-500">· snapshot <%= relative_timestamp(snapshot.created_at) %></span>
+  </div>
+
+  <%# Decision-helper hint %>
+  <% if snapshot.hint.present? %>
+    <p class="mb-2 font-medium <%= styles[:text] %>"><%= snapshot.hint %></p>
+  <% end %>
+
+  <%# Signal grid %>
+  <div class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-0.5 font-mono">
+    <%# DB-level signals %>
+    <span class="text-gray-500">run state</span>
+    <span><%= snapshot.run_state %></span>
+
+    <span class="text-gray-500">heartbeat age</span>
+    <span><%= heartbeat_signal(snapshot.heartbeat_age_seconds) %></span>
+
+    <span class="text-gray-500">last log</span>
+    <span>
+      <% if snapshot.last_log_at %>
+        <%= relative_timestamp(snapshot.last_log_at) %> (<%= snapshot.log_count %> total)
+      <% else %>
+        <span class="text-gray-400">none</span>
+      <% end %>
+    </span>
+
+    <span class="text-gray-500">agent turns</span>
+    <span><%= snapshot.agent_turns || "—" %></span>
+
+    <span class="text-gray-500">diff size</span>
+    <span><%= snapshot.agent_diff_bytes ? "#{snapshot.agent_diff_bytes} B" : "—" %></span>
+
+    <span class="text-gray-500">head SHA</span>
+    <span class="truncate"><%= snapshot.head_sha&.first(12) || "—" %></span>
+
+    <%# SolidQueue signals %>
+    <span class="text-gray-500">SQ job state</span>
+    <span>
+      <% if snapshot.sq_job_state.nil? %>
+        <span class="text-gray-400">unavailable</span>
+      <% else %>
+        <%= sq_state_signal(snapshot.sq_job_state) %>
+      <% end %>
+    </span>
+
+    <%# Process-level signals %>
+    <span class="text-gray-500">worktree</span>
+    <span><%= bool_signal(snapshot.worktree_exists) %></span>
+
+    <span class="text-gray-500">claude running</span>
+    <span><%= bool_signal(snapshot.claude_process_running) %></span>
+
+    <span class="text-gray-500">branch on origin</span>
+    <span><%= bool_signal(snapshot.branch_on_origin) %></span>
+  </div>
+
+  <%# Expandable detail panels %>
+  <% if snapshot.last_log_preview.present? %>
+    <details class="mt-2">
+      <summary class="text-gray-500 cursor-pointer select-none hover:text-gray-700">Last log preview</summary>
+      <pre class="mt-1 font-mono text-xs bg-black text-gray-100 p-2 rounded whitespace-pre-wrap max-h-20 overflow-y-auto"><%= snapshot.last_log_preview %></pre>
+    </details>
+  <% end %>
+
+  <% if snapshot.worktree_git_status.present? %>
+    <details class="mt-2">
+      <summary class="text-gray-500 cursor-pointer select-none hover:text-gray-700">Git status</summary>
+      <pre class="mt-1 font-mono text-xs bg-black text-gray-100 p-2 rounded whitespace-pre-wrap max-h-24 overflow-y-auto"><%= snapshot.worktree_git_status %></pre>
+    </details>
+  <% end %>
+
+  <% if snapshot.worktree_recent_commits.present? %>
+    <details class="mt-2">
+      <summary class="text-gray-500 cursor-pointer select-none hover:text-gray-700">Commits ahead of base</summary>
+      <pre class="mt-1 font-mono text-xs bg-black text-gray-100 p-2 rounded whitespace-pre-wrap"><%= snapshot.worktree_recent_commits %></pre>
+    </details>
+  <% end %>
+
+  <% if snapshot.sq_error_class.present? || snapshot.sq_error_message.present? %>
+    <details class="mt-2">
+      <summary class="text-gray-500 cursor-pointer select-none hover:text-gray-700">SQ error details</summary>
+      <div class="mt-1 font-mono text-xs bg-white border border-red-200 rounded p-2 max-h-32 overflow-y-auto">
+        <% if snapshot.sq_error_class.present? %>
+          <div class="text-red-700 font-medium"><%= snapshot.sq_error_class %></div>
+        <% end %>
+        <% if snapshot.sq_error_message.present? %>
+          <pre class="whitespace-pre-wrap text-red-600 mt-1"><%= snapshot.sq_error_message %></pre>
+        <% end %>
+        <% if snapshot.sq_error_backtrace.present? %>
+          <pre class="whitespace-pre-wrap text-gray-600 mt-1 border-t border-gray-100 pt-1"><%= snapshot.sq_error_backtrace %></pre>
+        <% end %>
+      </div>
+    </details>
+  <% end %>
+
+  <% if snapshot.claude_process_info.present? %>
+    <details class="mt-2">
+      <summary class="text-gray-500 cursor-pointer select-none hover:text-gray-700">Claude process</summary>
+      <pre class="mt-1 font-mono text-xs bg-black text-gray-100 p-2 rounded whitespace-pre-wrap"><%= snapshot.claude_process_info %></pre>
+    </details>
+  <% end %>
+</div>

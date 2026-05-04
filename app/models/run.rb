@@ -12,6 +12,7 @@ class Run < ApplicationRecord
   # belongs_to to required.
   belongs_to :step, optional: true
   has_many :job_logs, -> { order(:sequence) }, dependent: :destroy
+  has_many :run_health_snapshots, -> { order(:created_at) }, dependent: :destroy
   has_one :claude_session, dependent: :destroy
   has_one :run_diagnostic, dependent: :destroy
 
