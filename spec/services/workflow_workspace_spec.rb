@@ -151,7 +151,7 @@ RSpec.describe WorkflowWorkspace do
       ws.setup
       workflow.start!
       workflow.fail!
-      workflow.update!(finished_at: (WorkflowWorkspacePruneJob::RETAIN_AFTER_TERMINAL + 1.day).ago)
+      workflow.update!(finished_at: (WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE + 1.day).ago)
       WorkflowWorkspacePruneJob.perform_now
       expect(ws.path).not_to exist
       expect(workflow.reload.cleaned_up_at).to be_present
@@ -163,6 +163,36 @@ RSpec.describe WorkflowWorkspace do
       workflow.cancel!
       workflow.save!
       expect(ws.path).not_to exist
+    end
+
+    it "logs cleanup start/end to the latest run's JobLog when a run exists" do
+      step = workflow.steps.create!(kind: "implement", position: 0)
+      run  = step.runs.create!(job: job, trigger_kind: "initial")
+
+      ws = described_class.new(workflow)
+      ws.setup
+      workflow.start!
+      workflow.succeed!
+      workflow.save!
+
+      log_chunks = run.job_logs.reload.pluck(:chunk)
+      expect(log_chunks).to include(a_string_matching(/cleanup starting/))
+      expect(log_chunks).to include(a_string_matching(/cleanup complete/))
+    end
+
+    it "cleanup_for does not stamp cleaned_up_at when rm_rf silently leaves the directory" do
+      ws = described_class.new(workflow)
+      ws.setup
+      ws_path = ws.path
+
+      # Simulate rm_rf running without actually removing the directory.
+      allow(FileUtils).to receive(:rm_rf).and_call_original
+      allow(FileUtils).to receive(:rm_rf).with(ws_path.to_s) { nil }
+
+      described_class.cleanup_for(workflow)
+
+      expect(ws_path).to exist
+      expect(workflow.reload.cleaned_up_at).to be_nil
     end
 
     it "doesn't blow up the state transition if cleanup raises" do

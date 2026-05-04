@@ -57,7 +57,7 @@ module Admin
     end
 
     def nearly_pruned_workflows
-      cutoff = (WorkflowWorkspacePruneJob::RETAIN_AFTER_TERMINAL - 1.day).ago
+      cutoff = (WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE - 1.day).ago
       Workflow.where(state: "failed")
               .where(cleaned_up_at: nil)
               .where("finished_at < ?", cutoff)

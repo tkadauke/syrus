@@ -76,9 +76,17 @@ class Workflow < ApplicationRecord
 
   # Best-effort workspace teardown. Errors are swallowed (logged at
   # warn level by WorkflowWorkspace.cleanup_for) so a stuck file or
-  # missing path can't block a state transition.
+  # missing path can't block a state transition. Writes JobLog entries
+  # to the latest run so absence of the log lines signals a missed
+  # cleanup.
   def cleanup_workspace!
+    log_workspace_event("[workspace] cleanup starting")
     WorkflowWorkspace.cleanup_for(self)
+    if self.class.where(id: id).pick(:cleaned_up_at).present?
+      log_workspace_event("[workspace] cleanup complete")
+    else
+      log_workspace_event("[workspace] cleanup incomplete — directory may still be on disk; prune job will retry")
+    end
   end
 
   def terminal?
@@ -135,5 +143,19 @@ class Workflow < ApplicationRecord
 
   def trigger_kind_humanized
     trigger_kind.tr("_", " ")
+  end
+
+  private
+
+  # Write a JobLog entry on the latest run so cleanup activity is
+  # visible in the transcript UI. Best-effort — failure here must
+  # not block cleanup or state transitions.
+  def log_workspace_event(message)
+    run = Run.where(step_id: steps.select(:id)).order(created_at: :desc).first
+    return unless run
+    seq = (run.job_logs.maximum(:sequence) || -1) + 1
+    run.job_logs.create!(chunk: message, sequence: seq, kind: "system")
+  rescue StandardError
+    # Logging is informational; never let it interfere with cleanup.
   end
 end

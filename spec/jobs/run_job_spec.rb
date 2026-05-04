@@ -96,6 +96,37 @@ RSpec.describe RunJob do
       expect(WorkflowWorkspace.path_for(wf)).not_to exist
     end
 
+    it "workspace stays on disk when the Workflow fails (retry-from-failed-step needs it)" do
+      RunJob.agent_runner = ->(**_) {
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: true, outcome: "error_during_execution", final_text: nil, session_id: nil)
+      }
+      job; drain_workflow!(job)
+      wf = job.workflows.last
+      expect(wf.state).to eq("failed")
+      expect(WorkflowWorkspace.path_for(wf)).to exist
+      expect(wf.cleaned_up_at).to be_nil
+    end
+
+    it "workspace is torn down when a Run is cancelled (cascade to Workflow)" do
+      job
+      wf = job.workflows.last
+      step = wf.first_step
+      run = step.runs.first
+
+      # Seed a workspace directory so cleanup has something real to remove.
+      wf_path = WorkflowWorkspace.path_for(wf)
+      FileUtils.mkdir_p(wf_path.to_s)
+      expect(wf_path).to exist
+
+      run.update!(state: "running", started_at: 1.minute.ago)
+      run.cancel!
+      run.save!
+
+      expect(wf.reload.state).to eq("cancelled")
+      expect(wf_path).not_to exist
+    end
+
     it "stamps issue_title + issue_body on the Job" do
       job; drain_workflow!(job)
       job.reload

@@ -36,10 +36,25 @@ class WorkflowWorkspace
   # workspace is no longer on disk. Stamped even when the dir was
   # already gone — the state we care about is "not on disk", not
   # "we did the rm_rf."
+  #
+  # IMPORTANT: `cleaned_up_at` is only set when the directory is
+  # confirmed absent after the rm_rf. If rm_rf silently fails to
+  # remove the directory (e.g. permissions), we log a warning and
+  # leave `cleaned_up_at` nil so WorkflowWorkspacePruneJob retries
+  # rather than treating a still-present dir as already gone.
   def self.cleanup_for(workflow)
     p = path_for(workflow)
-    FileUtils.rm_rf(p.to_s) if File.exist?(p.to_s)
+    Rails.logger.info("[WorkflowWorkspace] cleanup start for Workflow ##{workflow.id} at #{p}")
+
+    FileUtils.rm_rf(p.to_s) if p.exist?
+
+    if p.exist?
+      Rails.logger.warn("[WorkflowWorkspace] rm_rf completed but #{p} still present for Workflow ##{workflow.id} — will retry on next prune pass")
+      return
+    end
+
     workflow.update_columns(cleaned_up_at: Time.current) if workflow.persisted?
+    Rails.logger.info("[WorkflowWorkspace] cleanup done for Workflow ##{workflow.id}")
   rescue StandardError => e
     Rails.logger.warn("[WorkflowWorkspace] cleanup failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
   end
