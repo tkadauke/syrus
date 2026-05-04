@@ -113,6 +113,22 @@ RSpec.describe "Jobs", type: :request do
       expect(response).to redirect_to(job_path(job))
     end
 
+    it "stores replay_context in workflow artifacts when provided" do
+      job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+      post run_again_job_path(job), params: { replay_context: "Please fix the failing tests in spec/models/user_spec.rb." }
+
+      workflow = job.workflows.where(trigger_kind: "replay").last
+      expect(workflow.artifacts["replay_context"]).to eq("Please fix the failing tests in spec/models/user_spec.rb.")
+    end
+
+    it "stores no artifacts when replay_context is blank" do
+      job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+      post run_again_job_path(job), params: { replay_context: "  " }
+
+      workflow = job.workflows.where(trigger_kind: "replay").last
+      expect(workflow.artifacts).to be_nil
+    end
+
     it "refuses when the Job is closed" do
       job.close_with_reason!("manual")
       expect {

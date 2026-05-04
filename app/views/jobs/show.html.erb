@@ -52,11 +52,34 @@
           Cancel & close button is the right tool when an active
           Run needs to make way. %>
       <% unless @job.any_active_run? %>
-        <%= split_button(
-              theme: "blue",
-              disabled: !@job.open?,
-              primary: { label: "Retry", path: run_again_job_path(@job) },
-              options: retry_options) %>
+        <div data-controller="replay-context">
+          <% replay_options = [
+               { label: "Retry with context…", data_action: "replay-context#open" }
+             ] + retry_options %>
+          <%= split_button(
+                theme: "blue",
+                disabled: !@job.open?,
+                primary: { label: "Retry", path: run_again_job_path(@job) },
+                options: replay_options) %>
+          <dialog data-replay-context-target="dialog"
+                  class="rounded-lg shadow-xl p-0 w-full max-w-lg backdrop:bg-black/50">
+            <%= form_with url: run_again_job_path(@job), method: :post, class: "p-6 space-y-4" do |f| %>
+              <h2 class="text-base font-semibold text-gray-900">Retry with additional context</h2>
+              <p class="text-sm text-gray-500">Tell the agent what went wrong or what to focus on. Leave blank to retry without context.</p>
+              <%= f.text_area :replay_context, rows: 4,
+                    class: "w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    placeholder: "e.g. The tests in spec/models/user_spec.rb are failing — please fix them before committing." %>
+              <div class="flex justify-end gap-2">
+                <button type="button" data-action="replay-context#close"
+                        class="px-3 py-1.5 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                  Cancel
+                </button>
+                <%= f.submit "Retry",
+                      class: "px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-md cursor-pointer" %>
+              </div>
+            <% end %>
+          </dialog>
+        </div>
       <% end %>
 
       <% if @job.open? %>

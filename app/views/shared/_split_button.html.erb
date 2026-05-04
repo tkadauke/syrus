@@ -42,11 +42,19 @@
   <div data-split-button-target="menu"
        class="hidden absolute right-0 top-full mt-1 z-10 min-w-max bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden">
     <% options.each do |opt| %>
-      <% opt_form = { class: "block" } %>
-      <% opt_form[:data] = { turbo_confirm: opt[:confirm] } if opt[:confirm] %>
-      <%= button_to opt[:label], opt[:path], method: (opt[:method] || :post),
-            class: "block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer whitespace-nowrap",
-            form: opt_form %>
+      <% if opt[:data_action] %>
+        <button type="button"
+                data-action="<%= opt[:data_action] %>"
+                class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer whitespace-nowrap">
+          <%= opt[:label] %>
+        </button>
+      <% else %>
+        <% opt_form = { class: "block" } %>
+        <% opt_form[:data] = { turbo_confirm: opt[:confirm] } if opt[:confirm] %>
+        <%= button_to opt[:label], opt[:path], method: (opt[:method] || :post),
+              class: "block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer whitespace-nowrap",
+              form: opt_form %>
+      <% end %>
     <% end %>
   </div>
 </div>

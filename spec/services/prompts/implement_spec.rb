@@ -36,4 +36,28 @@ RSpec.describe Prompts::Implement do
     expect(out).not_to include(Prompts::SubmitSummaryInstructions::TEXT)
     expect(out).not_to match(/CALL THE `submit_summary` MCP TOOL/)
   end
+
+  describe "replay_context" do
+    it "is omitted when not provided" do
+      out = described_class.new(issue: issue).to_s
+      expect(out).not_to include("Additional context from the operator")
+    end
+
+    it "is omitted when blank" do
+      out = described_class.new(issue: issue, replay_context: "   ").to_s
+      expect(out).not_to include("Additional context from the operator")
+    end
+
+    it "is injected between the issue content and the git safety block when present" do
+      out = described_class.new(issue: issue, replay_context: "Please fix the failing tests.").to_s
+      issue_pos  = out.index("Add greeting helper")
+      context_pos = out.index("Additional context from the operator")
+      safety_pos  = out.index(Prompts::GitSafety::TEXT)
+      step_pos    = out.index(Prompts::Implement::STEP_NOTE)
+      expect(context_pos).to be > issue_pos
+      expect(safety_pos).to be > context_pos
+      expect(step_pos).to be > safety_pos
+      expect(out).to include("Please fix the failing tests.")
+    end
+  end
 end

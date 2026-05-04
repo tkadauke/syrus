@@ -9,16 +9,17 @@ module Prompts
   # implementation; keeps the summary tied to the post-work
   # context the agent has at the end.
   class Implement
-    def initialize(issue:)
+    def initialize(issue:, replay_context: nil)
       @issue = issue
+      @replay_context = replay_context
     end
 
     def to_s
-      [
-        "#{@issue.title}\n\n#{@issue.body}".strip,
-        GitSafety::TEXT,
-        STEP_NOTE
-      ].join("\n\n")
+      sections = [ "#{@issue.title}\n\n#{@issue.body}".strip ]
+      sections << "Additional context from the operator:\n\n#{@replay_context}" if @replay_context.present?
+      sections << GitSafety::TEXT
+      sections << STEP_NOTE
+      sections.join("\n\n")
     end
 
     STEP_NOTE = <<~TXT.strip

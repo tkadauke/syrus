@@ -19,7 +19,8 @@ module Steps
       if run.prompt.blank?
         issue = fetch_issue
         job.update!(issue_title: issue.title, issue_body: issue.body) if job.issue?
-        run.update!(prompt: Prompts::Implement.new(issue: issue).to_s)
+        ctx = workflow.artifacts&.dig("replay_context")
+        run.update!(prompt: Prompts::Implement.new(issue: issue, replay_context: ctx).to_s)
       end
 
       target_label = job.issue? ? "#{repository.slug}##{job.issue_number}" : "scheduled task ##{job.scheduled_task_id}"
