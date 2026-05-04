@@ -34,6 +34,7 @@
             <div class="flex items-center gap-4 text-sm">
               <%= link_to "Repositories", repositories_path, class: "text-gray-700 hover:text-blue-600" %>
               <%= link_to "Scheduled tasks", scheduled_tasks_path, class: "text-gray-700 hover:text-blue-600" %>
+              <%= link_to "Templates", cron_templates_path, class: "text-gray-700 hover:text-blue-600" %>
               <%= link_to "Settings", settings_path, class: "text-gray-700 hover:text-blue-600" %>
               <% if Current.user.admin? %>
                 <%# Admin diagnostics — see docs/plans/admin-diagnostics.md.

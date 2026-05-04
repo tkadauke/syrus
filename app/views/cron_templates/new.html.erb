@@ -1,0 +1,15 @@
+<div class="max-w-2xl">
+  <h1 class="font-bold text-2xl">New cron template</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Define a reusable recurring-task blueprint. Apply it to any of your repositories
+    to create a scheduled task with these settings pre-filled.
+  </p>
+
+  <div class="mt-6">
+    <%= render "form",
+          template: @template,
+          form_url: cron_templates_path,
+          submit_label: "Create template",
+          cancel_url: cron_templates_path %>
+  </div>
+</div>

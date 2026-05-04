@@ -13,6 +13,16 @@ module Factories
     }.merge(attrs))
   end
 
+  def cron_template(**attrs)
+    CronTemplate.create!({
+      user: attrs[:user] || user,
+      name: "Weekly maintenance",
+      prompt: "Keep things tidy.",
+      cron_expression: "0 9 * * 1",
+      pr_pileup_policy: "skip"
+    }.merge(attrs))
+  end
+
   def job(**attrs)
     repo = attrs[:repository] || repository
     Job.create!({

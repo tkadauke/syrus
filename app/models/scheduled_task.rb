@@ -8,6 +8,7 @@ class ScheduledTask < ApplicationRecord
 
   belongs_to :user
   belongs_to :repository
+  belongs_to :cron_template, optional: true
   has_many :jobs, dependent: :nullify
 
   scope :active, -> { where(archived_at: nil).where(state: %w[ scheduled ]) }

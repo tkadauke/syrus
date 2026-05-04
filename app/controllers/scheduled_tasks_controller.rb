@@ -19,11 +19,27 @@ class ScheduledTasksController < ApplicationController
       kind: "cron",
       pr_pileup_policy: "skip"
     )
+    if params[:from_template].present?
+      @from_template = Current.user.cron_templates.find_by(id: params[:from_template])
+      if @from_template
+        @task.assign_attributes(
+          name: @from_template.name,
+          prompt: @from_template.prompt,
+          cron_expression: @from_template.cron_expression,
+          pr_pileup_policy: @from_template.pr_pileup_policy,
+          cron_template: @from_template
+        )
+      end
+    end
   end
 
   def create
     @task = @repository.scheduled_tasks.build(scheduled_task_params)
     @task.user = Current.user
+    if params[:from_template].present?
+      template = Current.user.cron_templates.find_by(id: params[:from_template])
+      @task.cron_template = template if template
+    end
     if @task.save
       redirect_to scheduled_task_path(@task), notice: "Scheduled task created."
     else

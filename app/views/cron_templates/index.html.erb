@@ -1,0 +1,67 @@
+<div class="space-y-8">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="font-bold text-3xl">Cron templates</h1>
+      <p class="text-sm text-gray-600 mt-1">
+        Reusable recurring-task blueprints. Apply one to a repository to create a
+        scheduled task with the template's settings pre-filled.
+      </p>
+    </div>
+    <%= link_to "New template", new_cron_template_path,
+          class: "rounded-md px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium" %>
+  </div>
+
+  <% if @templates.any? %>
+    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+          <tr>
+            <th class="px-4 py-2 text-left">Name</th>
+            <th class="px-4 py-2 text-left">Schedule</th>
+            <th class="px-4 py-2 text-left">Pileup policy</th>
+            <th class="px-4 py-2 text-left">Applied to</th>
+            <th class="px-4 py-2 text-left">Status</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 text-sm">
+          <% @templates.each do |tmpl| %>
+            <tr>
+              <td class="px-4 py-3 font-medium">
+                <%= link_to tmpl.name, cron_template_path(tmpl), class: "text-blue-600 underline hover:no-underline" %>
+                <% if tmpl.description.present? %>
+                  <p class="text-xs text-gray-500 font-normal mt-0.5"><%= tmpl.description %></p>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 font-mono text-xs"><%= tmpl.cron_expression %></td>
+              <td class="px-4 py-3 text-xs"><%= tmpl.pr_pileup_policy %></td>
+              <td class="px-4 py-3 text-xs text-gray-600">
+                <%= tmpl.scheduled_tasks.alive.count %> repo<%= "s" if tmpl.scheduled_tasks.alive.count != 1 %>
+              </td>
+              <td class="px-4 py-3">
+                <% if tmpl.enabled? %>
+                  <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">enabled</span>
+                <% else %>
+                  <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">disabled</span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <%= link_to "Open", cron_template_path(tmpl), class: "text-blue-600 underline hover:no-underline" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <div class="bg-white border border-gray-200 rounded-lg p-8 text-center">
+      <p class="text-gray-600">No templates yet.</p>
+      <p class="text-sm text-gray-500 mt-2">
+        Create a template to define a reusable recurring-task blueprint, then apply it
+        to any of your repositories.
+      </p>
+      <%= link_to "Create your first template", new_cron_template_path,
+            class: "mt-4 inline-block rounded-md px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium" %>
+    </div>
+  <% end %>
+</div>

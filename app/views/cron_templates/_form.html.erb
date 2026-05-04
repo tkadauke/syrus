@@ -1,0 +1,77 @@
+<%= form_with model: template, url: form_url, scope: :cron_template, class: "space-y-5" do |form| %>
+  <% if template.errors.any? %>
+    <div class="bg-red-50 border border-red-200 text-red-800 rounded-md p-3 text-sm">
+      <ul class="list-disc list-inside">
+        <% template.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :name, "Name", class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500 mt-1">Short label shown in the dashboard.</p>
+    <%= form.text_field :name,
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+  </div>
+
+  <div>
+    <%= form.label :description, "Description", class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500 mt-1">Optional. Remind yourself what this template is for.</p>
+    <%= form.text_field :description,
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+  </div>
+
+  <div>
+    <%= form.label :cron_expression, "Cron expression", class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500 mt-1">
+      Standard 5-field cron: <code>min hour day-of-month month day-of-week</code>.
+      Must fire at most once per hour. The minute slot will be replaced with a per-task
+      random offset when this template is applied to a repository.
+    </p>
+    <p class="text-xs text-gray-500 mt-1">
+      Examples — <code>0 * * * *</code> (top of every hour),
+      <code>0 9 * * *</code> (9am daily UTC),
+      <code>0 9 * * 1</code> (Monday 9am UTC),
+      <code>0 0 1 * *</code> (1st of each month).
+    </p>
+    <%= form.text_field :cron_expression, placeholder: "0 9 * * 1",
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
+  </div>
+
+  <div>
+    <%= form.label :pr_pileup_policy, "PR pileup policy", class: "block text-sm font-medium text-gray-700" %>
+    <%= form.select :pr_pileup_policy, CronTemplate::PR_PILEUP_POLICIES.map { |p| [ p, p ] }, {},
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+    <p class="text-xs text-gray-500 mt-1">
+      What to do if the previous fire's PR is still open when the next tick comes:
+      <strong>skip</strong> (recommended) — don't fire until the previous PR closes;
+      <strong>pile</strong> — open another PR;
+      <strong>replace</strong> — close the previous PR, open a fresh one.
+    </p>
+  </div>
+
+  <div>
+    <%= form.label :prompt, "Prompt", class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500 mt-1">
+      The standing instruction for the agent. Variables expanded at fire time:
+      <code>{{repo_slug}}</code>, <code>{{repo_default_branch}}</code>,
+      <code>{{date}}</code>, <code>{{last_fired_at}}</code>, <code>{{last_successful_fire_at}}</code>.
+    </p>
+    <%= form.text_area :prompt, rows: 8,
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <%= form.check_box :enabled, class: "rounded border-gray-400" %>
+    <%= form.label :enabled, "Enabled", class: "text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500">Disabled templates can still be applied to repos; the resulting scheduled tasks inherit this setting.</p>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <%= form.submit submit_label,
+          class: "rounded-md px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
+    <%= link_to "Cancel", cancel_url, class: "text-sm text-gray-600 hover:text-gray-900" %>
+  </div>
+<% end %>

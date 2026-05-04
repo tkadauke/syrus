@@ -1,0 +1,14 @@
+<div class="max-w-2xl">
+  <h1 class="font-bold text-2xl">Edit template</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Changes here do not propagate to existing scheduled tasks that were applied from this template.
+  </p>
+
+  <div class="mt-6">
+    <%= render "form",
+          template: @template,
+          form_url: cron_template_path(@template),
+          submit_label: "Save",
+          cancel_url: cron_template_path(@template) %>
+  </div>
+</div>

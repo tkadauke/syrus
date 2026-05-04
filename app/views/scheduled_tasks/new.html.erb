@@ -1,13 +1,20 @@
 <div class="max-w-2xl">
   <h1 class="font-bold text-2xl">New scheduled task</h1>
-  <p class="text-sm text-gray-600 mt-1">
-    On <span class="font-mono"><%= @repository.slug %></span>.
-  </p>
+  <% if @from_template %>
+    <p class="text-sm text-gray-600 mt-1">
+      From template <%= link_to @from_template.name, cron_template_path(@from_template), class: "text-blue-600 underline hover:no-underline" %>,
+      on <span class="font-mono"><%= @repository.slug %></span>.
+    </p>
+  <% else %>
+    <p class="text-sm text-gray-600 mt-1">
+      On <span class="font-mono"><%= @repository.slug %></span>.
+    </p>
+  <% end %>
 
   <div class="mt-6">
     <%= render "form",
           task: @task,
-          form_url: repository_scheduled_tasks_path(@repository),
+          form_url: repository_scheduled_tasks_path(@repository, from_template: @from_template&.id),
           submit_label: "Create",
           cancel_url: repository_path(@repository) %>
   </div>
