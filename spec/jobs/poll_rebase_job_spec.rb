@@ -102,14 +102,44 @@ RSpec.describe PollRebaseJob do
       }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
     end
 
-    it "skips when the rebase attempt cap is hit" do
-      stub_pr(pr_resource(mergeable: false))
-      described_class::REBASE_ATTEMPT_CAP.times do
-        Workflow.create!(job: job, trigger_kind: "rebase", state: "failed")
+    def rebase_workflow(state)
+      Workflow.create!(job: job, trigger_kind: "rebase", state: state)
+    end
+
+    context "rebase attempt cap (consecutive failures since last success)" do
+      it "does not block a Job whose rebase workflows all succeeded" do
+        stub_pr(pr_resource(mergeable: false))
+        5.times { rebase_workflow("succeeded") }
+        expect {
+          described_class.perform_now(job.id)
+        }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
       end
-      expect {
-        described_class.perform_now(job.id)
-      }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
+
+      it "does not block when only 1 failure follows prior successes" do
+        stub_pr(pr_resource(mergeable: false))
+        4.times { rebase_workflow("succeeded") }
+        rebase_workflow("failed")
+        expect {
+          described_class.perform_now(job.id)
+        }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+      end
+
+      it "blocks when all rebase workflows failed consecutively" do
+        stub_pr(pr_resource(mergeable: false))
+        5.times { rebase_workflow("failed") }
+        expect {
+          described_class.perform_now(job.id)
+        }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
+      end
+
+      it "blocks when 5 consecutive failures follow prior successes" do
+        stub_pr(pr_resource(mergeable: false))
+        4.times { rebase_workflow("succeeded") }
+        5.times { rebase_workflow("failed") }
+        expect {
+          described_class.perform_now(job.id)
+        }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
+      end
     end
 
     it "uses external_pr_number when pr_number is nil" do

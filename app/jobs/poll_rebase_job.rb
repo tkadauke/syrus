@@ -1,11 +1,13 @@
 class PollRebaseJob < ApplicationJob
   queue_as :default
 
-  # Cap how many rebase attempts we make per Job before giving up. The
-  # second attempt usually succeeds when the first didn't (transient
-  # CI noise, GitHub mergeable computation lag). Five rebases on the
-  # same PR means the agent can't resolve the conflict mechanically —
-  # bail and surface to the operator.
+  # Cap how many consecutive failed rebase attempts we make per Job
+  # before giving up. The second attempt usually succeeds when the
+  # first didn't (transient CI noise, GitHub mergeable computation
+  # lag). Five consecutive failures means the agent can't resolve the
+  # conflict mechanically — bail and surface to the operator.
+  # Successful rebases reset the counter (long-lived PRs that rebase
+  # cleanly many times should never be blocked).
   REBASE_ATTEMPT_CAP = 5
 
   # One concurrent poll per Job — the same Job's rebase poll
@@ -84,8 +86,14 @@ class PollRebaseJob < ApplicationJob
   end
 
   def attempt_cap_reached?
-    return false unless @job.workflows.where(trigger_kind: "rebase").count >= REBASE_ATTEMPT_CAP
-    Rails.logger.info("[PollRebaseJob] job #{@job.id} hit rebase cap (#{REBASE_ATTEMPT_CAP}); skipping")
+    consecutive = 0
+    @job.workflows.where(trigger_kind: "rebase").reorder(id: :desc).each do |w|
+      break if w.succeeded?
+      consecutive += 1 if w.failed?
+      # queued/running/cancelled don't count toward or reset the streak
+    end
+    return false if consecutive < REBASE_ATTEMPT_CAP
+    Rails.logger.info("[PollRebaseJob] job #{@job.id} hit rebase cap (#{REBASE_ATTEMPT_CAP} consecutive failures); skipping")
     true
   end
 end
