@@ -11,6 +11,7 @@ class PollScheduledTasksJob < ApplicationJob
     ScheduledTask.alive
                  .where(state: "scheduled")
                  .joins(:repository).merge(Repository.active)
+                 .joins(:user).where(users: { scheduling_paused: false })
                  .find_each do |task|
       next unless task.due?(now: now)
 

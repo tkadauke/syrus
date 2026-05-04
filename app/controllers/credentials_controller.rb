@@ -38,6 +38,6 @@ class CredentialsController < ApplicationController
   private
 
   def credentials_params
-    params.expect(user: [ :claude_oauth_token, :github_token, :agent_max_turns ])
+    params.expect(user: [ :claude_oauth_token, :github_token, :agent_max_turns, :scheduling_paused ])
   end
 end
