@@ -32,6 +32,28 @@ RSpec.describe PromptTemplate do
     end
   end
 
+  shared_examples "a skill-backed template" do |skill_id|
+    let(:skill_path) { Rails.root.join("lib/agent_skills/#{skill_id}.md") }
+
+    it "has a matching skill file in lib/agent_skills/" do
+      expect(skill_path).to exist
+    end
+
+    it "prompt contains the skill body with frontmatter stripped" do
+      raw      = skill_path.read
+      expected = raw.sub(/\A---\n.*?\n---\n/m, "").strip
+      expect(subject.prompt).to eq(expected)
+    end
+
+    it "prompt does not contain YAML frontmatter" do
+      expect(subject.prompt).not_to start_with("---")
+    end
+
+    it "prompt is non-blank" do
+      expect(subject.prompt).to be_present
+    end
+  end
+
   describe "configure-syrus-prep template" do
     subject(:template) { described_class.find("configure-syrus-prep") }
 
@@ -39,14 +61,7 @@ RSpec.describe PromptTemplate do
       expect(template).to be_present
     end
 
-    it "prompt invokes the configure-syrus-prep skill" do
-      expect(template.prompt).to eq("/configure-syrus-prep")
-    end
-
-    it "has a matching skill file in lib/agent_skills/" do
-      skill_path = Rails.root.join("lib/agent_skills/configure-syrus-prep.md")
-      expect(skill_path).to exist
-    end
+    include_examples "a skill-backed template", "configure-syrus-prep"
   end
 
   describe "add-github-actions-ci template" do
@@ -56,14 +71,7 @@ RSpec.describe PromptTemplate do
       expect(template).to be_present
     end
 
-    it "prompt invokes the add-github-actions-ci skill" do
-      expect(template.prompt).to eq("/add-github-actions-ci")
-    end
-
-    it "has a matching skill file in lib/agent_skills/" do
-      skill_path = Rails.root.join("lib/agent_skills/add-github-actions-ci.md")
-      expect(skill_path).to exist
-    end
+    include_examples "a skill-backed template", "add-github-actions-ci"
   end
 
   describe "update-dependencies template" do
@@ -73,13 +81,6 @@ RSpec.describe PromptTemplate do
       expect(template).to be_present
     end
 
-    it "prompt invokes the update-dependencies skill" do
-      expect(template.prompt).to eq("/update-dependencies")
-    end
-
-    it "has a matching skill file in lib/agent_skills/" do
-      skill_path = Rails.root.join("lib/agent_skills/update-dependencies.md")
-      expect(skill_path).to exist
-    end
+    include_examples "a skill-backed template", "update-dependencies"
   end
 end
