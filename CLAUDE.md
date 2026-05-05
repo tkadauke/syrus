@@ -36,9 +36,11 @@ Run (one per step):         queued → running → succeeded | failed | cancelle
 Each `Step` dispatches to a `Steps::` handler and owns one `Run`. `Run`
 carries per-attempt state — prompt, agent metadata, diff, PR copy.
 
-`Job#kind` is `issue` (default, filed from GitHub) or `cron` (fired by a
-`ScheduledTask` — no issue_number, prompt pre-rendered at fire time). Both
-kinds use the same Workflow pipeline.
+`Job#kind` is `issue` (default, filed from GitHub), `cron` (fired by a
+`ScheduledTask` — no issue_number, prompt pre-rendered at fire time), or
+`adhoc` (operator-created free-form prompt, no GitHub issue or scheduled
+task — prompt supplied directly at job creation). All three kinds use the
+same Workflow pipeline.
 
 ### Trigger kinds
 
@@ -94,7 +96,9 @@ Key steps:
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   `--resume`s the prior session and asks the agent to call `submit_summary`.
   The session JSONL is on disk in the shared workspace — no DB roundtrip.
-  Skipped (no-op) if the implement/respond step already called `submit_summary`.
+  If the implement step already called `submit_summary` (artifacts contain
+  `agent_pr_title`), the summarize step skips the agent call entirely and
+  promotes artifacts directly — saving a full agent turn.
 - **`pr_open`** / **`push`** / **`auto_rebase`** / **`force_push`** —
   Non-agentic: run service code (`PullRequestOpener`, `git push`, etc.).
 
@@ -156,8 +160,8 @@ preserve scroll position across morphs.
 - **Prompts** all live under `app/services/prompts/` as PORO classes
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`, `Prompts::Resume`,
-  `Prompts::ScheduledTask`). Each has a `to_s`. Compose by appending;
-  never inline prompt text in jobs/services.
+  `Prompts::ScheduledTask`, `Prompts::AdhocJob`). Each has a `to_s`. Compose
+  by appending; never inline prompt text in jobs/services.
 - **Encrypted attributes** — `User#github_token`, `User#claude_oauth_token`
   use Active Record Encryption. Means `RAILS_MASTER_KEY` is required in
   any process that touches them. Smoke tests inside containers without
@@ -177,6 +181,9 @@ preserve scroll position across morphs.
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
   per-run 30-minute timeout still bounds runaway loops). Threaded through
   RunJob → AgentInvocation for both regular and rebase runs.
+- **Per-user scheduling pause** — `User#scheduling_paused` (boolean).
+  `PollScheduledTasksJob` skips paused users entirely. Operator can toggle
+  via admin UI; user can toggle in `/credentials/edit`.
 - **Pagination standard** — all paginated list views use the same UI:
   "Showing X–Y of Z" counter on the left; bordered pill buttons
   (`px-3 py-1 border border-gray-300 rounded hover:bg-gray-50`) for
