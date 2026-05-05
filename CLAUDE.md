@@ -76,7 +76,7 @@ Current chains:
 initial:     prepare → implement → summarize → pr_open
 pr_comment:  prepare → respond → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
-replay:      prepare → implement → summarize → pr_open
+retry:       prepare → implement → summarize → pr_open
 rebase:      auto_rebase → force_push
 resume:      agent_rebase → summarize_amend → push
 ```
@@ -94,6 +94,7 @@ Key steps:
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   `--resume`s the prior session and asks the agent to call `submit_summary`.
   The session JSONL is on disk in the shared workspace — no DB roundtrip.
+  Skipped (no-op) if the implement/respond step already called `submit_summary`.
 - **`pr_open`** / **`push`** / **`auto_rebase`** / **`force_push`** —
   Non-agentic: run service code (`PullRequestOpener`, `git push`, etc.).
 
@@ -195,10 +196,11 @@ preserve scroll position across morphs.
   `spec/support/`. WebMock + VCR for GitHub. The agent runner is stubbed
   via `RunJob.agent_runner` and `PrSummarizer.runner` test seams; never
   shell out to real `claude` from tests.
-- **REST Admin API** — `GET /api/v1/admin/overview`, `/stuck`, `/jobs/:id`,
-  `/workflows/:id`, `/queue`, etc. Bearer-token auth via `User#api_token`
-  (deterministic-encrypted column). For external dashboards / monitoring.
-  See `app/controllers/api/`.
+- **REST Admin API** — `GET /api/v1/admin/overview`, `/stuck`, `/jobs`
+  (filterable list by `pr_number`, `issue_number`, `repo`, `state`),
+  `/jobs/:id`, `/workflows/:id`, `/queue`, etc. Bearer-token auth via
+  `User#api_token` (deterministic-encrypted column). For external dashboards /
+  monitoring. See `app/controllers/api/`.
 
 ## Tests are not optional
 
@@ -425,7 +427,7 @@ Required runtime env:
 
 ```
 app/jobs/run_job.rb                          # the orchestrator (dispatches to Steps::*)
-app/services/workflows/                      # Workflow chain definitions (initial, replay, etc.)
+app/services/workflows/                      # Workflow chain definitions (initial, retry, etc.)
 app/services/steps/                          # per-Step handlers (prepare, implement, summarize, …)
 app/services/steps/base.rb                   # shared workspace + AgentInvocation + MCP config
 app/services/workflow_workspace.rb           # per-Workflow clone lifecycle (replaces JobWorkspace)
