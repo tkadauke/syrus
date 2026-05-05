@@ -163,38 +163,6 @@ class WorkflowWorkspace
     else
       @git.run("checkout", "-b", @branch_name, chdir: path.to_s)
     end
-
-    provision_agent_skills
-  end
-
-  # Copy Syrus's built-in agent skills into the workspace's .claude/skills/
-  # directory so the agent can reference them during the run. Each skill is a
-  # Markdown file in lib/agent_skills/ that becomes a .claude/skills/<id>/SKILL.md.
-  #
-  # The skill directories are added to .git/info/exclude so they are never
-  # staged or committed — they are workspace-local context for the agent, not
-  # content for the target repo.
-  #
-  # Safe to call only from clone_and_checkout (not ensure_clean_working_tree)
-  # because git clean -fd respects .git/info/exclude and leaves them intact on
-  # retry-within-step.
-  def provision_agent_skills
-    skills_src = Rails.root.join("lib/agent_skills")
-    return unless skills_src.exist?
-
-    skill_files = Dir.glob(skills_src.join("*.md"))
-    return if skill_files.empty?
-
-    exclude_file = path.join(".git/info/exclude")
-    FileUtils.mkdir_p(exclude_file.dirname)
-
-    skill_files.each do |skill_file|
-      skill_id  = File.basename(skill_file, ".md")
-      skill_dir = path.join(".claude/skills/#{skill_id}")
-      FileUtils.mkdir_p(skill_dir)
-      FileUtils.cp(skill_file, skill_dir.join("SKILL.md"))
-      File.open(exclude_file, "a") { |f| f.puts ".claude/skills/#{skill_id}/" }
-    end
   end
 
   # Workspace exists from a prior Run, typically a retry-within-step
