@@ -89,7 +89,12 @@
           <tbody class="divide-y divide-gray-100 text-sm">
             <% @jobs.each do |job| %>
               <tr>
-                <td class="px-4 py-3"><%= state_pill(job_summary_state(job)) %></td>
+                <td class="px-4 py-3">
+                  <%= state_pill(job_summary_state(job)) %>
+                  <% if job.priority != "medium" %>
+                    <%= priority_pill(job.priority) %>
+                  <% end %>
+                </td>
                 <td class="px-4 py-3 font-mono"><%= job.repository.slug %></td>
                 <td class="px-4 py-3">
                   <%= job_source_label_html(job) %>

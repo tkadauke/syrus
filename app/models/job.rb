@@ -3,6 +3,13 @@ class Job < ApplicationRecord
 
   KINDS = %w[ issue cron adhoc ].freeze
 
+  PRIORITIES = %w[ high medium low ].freeze
+  # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
+  # lower numbers first, so high-priority jobs (0) run before medium (10) and
+  # low (20). The gap of 10 between levels leaves room for future additions
+  # without renumbering existing entries.
+  PRIORITY_TO_SQ = { "high" => 0, "medium" => 10, "low" => 20 }.freeze
+
   belongs_to :user
   belongs_to :repository
   belongs_to :scheduled_task, optional: true
@@ -16,6 +23,7 @@ class Job < ApplicationRecord
   has_many :job_logs, through: :runs
 
   validates :kind, presence: true, inclusion: { in: KINDS }
+  validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -115,6 +123,10 @@ class Job < ApplicationRecord
   # there should pick up newly-polled Jobs (and state changes on
   # existing ones) without a manual refresh.
   broadcasts_refreshes_to ->(job) { [ job.repository, "jobs" ] }
+
+  def solid_queue_priority
+    PRIORITY_TO_SQ.fetch(priority.to_s, PRIORITY_TO_SQ["medium"])
+  end
 
   def close_with_reason!(reason)
     update!(closure_reason: reason)

@@ -171,6 +171,6 @@ class Run < ApplicationRecord
     # a queue round-trip that would land at the back of FIFO and
     # spread one Workflow across multiple worker pickups.
     return if Thread.current[:syrus_in_run_job]
-    RunJob.perform_later(id)
+    RunJob.set(priority: job.solid_queue_priority).perform_later(id)
   end
 end

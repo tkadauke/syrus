@@ -35,12 +35,16 @@ class JobsController < ApplicationController
       return
     end
 
+    priority = params[:priority].to_s.presence
+    priority = "medium" unless Job::PRIORITIES.include?(priority)
+
     job = Current.user.jobs.create!(
       repository: repository,
       kind: "adhoc",
       issue_number: nil,
       issue_title: title,
-      issue_body: prompt_text
+      issue_body: prompt_text,
+      priority: priority
     )
 
     rendered_prompt = Prompts::AdhocJob.new(prompt: prompt_text).to_s

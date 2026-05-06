@@ -87,6 +87,16 @@ module JobsHelper
     colored_pill(trigger_kind, classes: TRIGGER_STYLES[trigger_kind.to_s] || ApplicationHelper::PILL_FALLBACK_CLASSES)
   end
 
+  PRIORITY_STYLES = {
+    "high"   => "bg-red-100 text-red-700",
+    "medium" => "bg-gray-100 text-gray-700",
+    "low"    => "bg-slate-100 text-slate-500"
+  }.freeze
+
+  def priority_pill(priority)
+    colored_pill(priority, classes: PRIORITY_STYLES[priority.to_s] || ApplicationHelper::PILL_FALLBACK_CLASSES)
+  end
+
   # The most useful one-word summary for a Job in a list view:
   # "preempted" beats "closed" when a Job was preempted by an external
   # PR — that's a more informative bucket than generic "closed."

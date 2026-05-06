@@ -236,6 +236,43 @@ RSpec.describe Job do
     end
   end
 
+  describe "priority" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "defaults to 'medium'" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+      expect(job.priority).to eq("medium")
+    end
+
+    it "accepts high, medium, and low" do
+      %w[high medium low].each do |p|
+        job = Job.new(user: user, repository: repository, issue_number: 1, priority: p)
+        expect(job).to be_valid, "expected #{p} to be valid"
+      end
+    end
+
+    it "rejects unknown priority values" do
+      job = Job.new(user: user, repository: repository, issue_number: 1, priority: "urgent")
+      expect(job).not_to be_valid
+      expect(job.errors[:priority]).to be_present
+    end
+
+    describe "#solid_queue_priority" do
+      it "maps high to a lower integer than medium" do
+        high_job = Job.new(priority: "high")
+        medium_job = Job.new(priority: "medium")
+        expect(high_job.solid_queue_priority).to be < medium_job.solid_queue_priority
+      end
+
+      it "maps medium to a lower integer than low" do
+        medium_job = Job.new(priority: "medium")
+        low_job = Job.new(priority: "low")
+        expect(medium_job.solid_queue_priority).to be < low_job.solid_queue_priority
+      end
+    end
+  end
+
   describe "preempted creation (state: closed at create time)" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }

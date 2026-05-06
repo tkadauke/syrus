@@ -61,7 +61,9 @@ class RunJob < ApplicationJob
   def perform(run_id)
     if AppSetting.runs_paused?
       Rails.logger.info("[RunJob] runs paused — deferring Run ##{run_id} by #{RUNS_PAUSED_RETRY_DELAY}")
-      self.class.set(wait: RUNS_PAUSED_RETRY_DELAY).perform_later(run_id)
+      sq_priority = ::Run.joins(:job).where(id: run_id).pick("jobs.priority")
+      sq_num = ::Job::PRIORITY_TO_SQ.fetch(sq_priority.to_s, ::Job::PRIORITY_TO_SQ["medium"])
+      self.class.set(wait: RUNS_PAUSED_RETRY_DELAY, priority: sq_num).perform_later(run_id)
       return
     end
 

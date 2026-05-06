@@ -164,6 +164,21 @@ RSpec.describe Run do
         Run.create!(job: job, trigger_kind: "manual", state: "succeeded")
       }.not_to have_enqueued_job(RunJob)
     end
+
+    it "enqueues with the job's SolidQueue priority for a high-priority job" do
+      high_job = Factories.job(priority: "high")
+      expected_priority = Job::PRIORITY_TO_SQ["high"]
+      Run.create!(job: high_job, trigger_kind: "pr_comment")
+      run_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |j| j[:job] == RunJob }
+      expect(run_jobs.last[:priority]).to eq(expected_priority)
+    end
+
+    it "enqueues with medium SolidQueue priority by default" do
+      job
+      Run.create!(job: job, trigger_kind: "pr_comment")
+      run_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |j| j[:job] == RunJob }
+      expect(run_jobs.last[:priority]).to eq(Job::PRIORITY_TO_SQ["medium"])
+    end
   end
 
   describe "transcript pruning on success" do
