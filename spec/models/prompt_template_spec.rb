@@ -11,7 +11,7 @@ RSpec.describe PromptTemplate do
         expect(t.id).to        be_present, "template #{t.inspect} missing id"
         expect(t.name).to      be_present, "template #{t.id} missing name"
         expect(t.description).to be_present, "template #{t.id} missing description"
-        expect(t.prompt).to    be_present, "template #{t.id} missing prompt"
+        expect(t.prompt).to be_present, "template #{t.id} missing prompt"
       end
     end
 
