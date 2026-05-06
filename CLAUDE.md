@@ -197,10 +197,14 @@ preserve scroll position across morphs.
   via `RunJob.agent_runner` and `PrSummarizer.runner` test seams; never
   shell out to real `claude` from tests.
 - **REST Admin API** — `GET /api/v1/admin/overview`, `/stuck`, `/jobs`
-  (filterable list by `pr_number`, `issue_number`, `repo`, `state`),
-  `/jobs/:id`, `/workflows/:id`, `/queue`, etc. Bearer-token auth via
-  `User#api_token` (deterministic-encrypted column). For external dashboards /
-  monitoring. See `app/controllers/api/`.
+  (filterable by `pr_number`, `issue_number`, `repo`, `state`, `user`,
+  `has_active_workflow`, `failed_in_last_24h`), `/jobs/:id`, `/workflows/:id`,
+  `/runs` (cross-Job flat list; filterable by `state`, `trigger_kind`, `job_id`,
+  `since`), `/queue`, etc. Bearer-token auth via `User#api_token`
+  (deterministic-encrypted column). Nested serializers are resilient — a single
+  bad row emits `{ error_serializing: "..." }` rather than 500ing the whole
+  response (`Admin::JobStateSerializer`). See `app/controllers/api/` and
+  `app/services/admin/`.
 
 ## Tests are not optional
 
@@ -433,6 +437,7 @@ app/services/steps/base.rb                   # shared workspace + AgentInvocatio
 app/services/workflow_workspace.rb           # per-Workflow clone lifecycle (replaces JobWorkspace)
 app/services/agent_invocation.rb             # claude subprocess + stream-json parser
 app/services/git_runner.rb                   # streaming git wrapper
+app/services/admin/job_state_serializer.rb   # shared Workflow→Step→Run serializer for admin API
 app/services/syrus_mcp/sidecar.rb            # MCP::Server boot + SIGTERM trap
 app/services/syrus_mcp/submit_summary_tool.rb # the one MCP tool (writes to Workflow#artifacts)
 app/services/prompts/                        # all agent prompts (PORO)
