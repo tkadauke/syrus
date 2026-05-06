@@ -120,7 +120,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       end
 
       get "/api/v1/admin/jobs/#{job_with.id}", headers: auth(admin_token)
-      expect(response).to be_successful, "expected 200, got #{response.status}: #{response.body[0,400]}"
+      expect(response).to be_successful, "expected 200, got #{response.status}: #{response.body[0, 400]}"
 
       run_payload = parse_body["workflows"]
         .flat_map { |wf| wf["steps"] }

@@ -22,7 +22,7 @@ class PromptTemplate
       id: "update-dependencies",
       name: "Update dependencies",
       description: "Update all packages to their latest compatible versions and fix any issues."
-    ),
+    )
   ].freeze
 
   # Returns the skill's instruction body (frontmatter stripped) so the agent
