@@ -79,27 +79,32 @@
           <thead class="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
               <th class="px-4 py-2 text-left">State</th>
-              <th class="px-4 py-2 text-left">Repository</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
               <th class="px-4 py-2 text-left">Issue</th>
-              <th class="px-4 py-2 text-left">Runs</th>
-              <th class="px-4 py-2 text-left">Started</th>
-              <th class="px-4 py-2"></th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Runs</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
+              <th class="hidden sm:table-cell px-4 py-2"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 text-sm">
             <% @jobs.each do |job| %>
               <tr>
-                <td class="px-4 py-3">
+                <td class="px-4 py-3 align-top">
                   <%= state_pill(job_summary_state(job)) %>
                   <% if job.priority != "medium" %>
                     <%= priority_pill(job.priority) %>
                   <% end %>
                 </td>
-                <td class="px-4 py-3 font-mono"><%= job.repository.slug %></td>
+                <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
+                  <%= link_to job.repository.slug, repository_path(job.repository), class: "text-gray-700 hover:underline" %>
+                </td>
                 <td class="px-4 py-3">
+                  <div class="sm:hidden text-xs font-mono text-gray-500 mb-0.5">
+                    <%= link_to job.repository.slug, repository_path(job.repository), class: "hover:underline" %>
+                  </div>
                   <%= job_source_label_html(job) %>
                   <% if job.issue_title.present? %>
-                    <span class="ml-1 text-gray-700"><%= job.issue_title %></span>
+                    <%= link_to job.issue_title, job_path(job), class: "ml-1 text-gray-700 hover:underline" %>
                   <% end %>
                   <% if job.pr_number %>
                     <span class="ml-1 text-xs text-indigo-700">
@@ -117,10 +122,15 @@
                   <% if caption %>
                     <div class="text-xs text-gray-500 italic mt-0.5"><%= caption %></div>
                   <% end %>
+                  <div class="sm:hidden text-xs text-gray-400 mt-1 flex items-center gap-1.5">
+                    <span><%= pluralize(job.runs.size, "run") %></span>
+                    <span>·</span>
+                    <span><%= relative_timestamp(job.started_at) %></span>
+                  </div>
                 </td>
-                <td class="px-4 py-3 text-gray-600"><%= job.runs.size %></td>
-                <td class="px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
-                <td class="px-4 py-3 text-right">
+                <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= job.runs.size %></td>
+                <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
+                <td class="hidden sm:table-cell px-4 py-3 text-right">
                   <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>
                 </td>
               </tr>
@@ -167,24 +177,32 @@
           <thead class="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
               <th class="px-4 py-2 text-left">State</th>
-              <th class="px-4 py-2 text-left">Trigger</th>
-              <th class="px-4 py-2 text-left">Repository</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Trigger</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
               <th class="px-4 py-2 text-left">Issue</th>
-              <th class="px-4 py-2 text-left">Step</th>
-              <th class="px-4 py-2 text-left">Started</th>
-              <th class="px-4 py-2"></th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Step</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
+              <th class="hidden sm:table-cell px-4 py-2"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 text-sm">
             <% @workflows.each do |wf| %>
               <tr>
-                <td class="px-4 py-3"><%= state_pill(wf.state) %></td>
-                <td class="px-4 py-3"><%= trigger_pill(wf.trigger_kind) %></td>
-                <td class="px-4 py-3 font-mono"><%= wf.job.repository.slug %></td>
+                <td class="px-4 py-3 align-top"><%= state_pill(wf.state) %></td>
+                <td class="hidden sm:table-cell px-4 py-3 align-top"><%= trigger_pill(wf.trigger_kind) %></td>
+                <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
+                  <%= link_to wf.job.repository.slug, repository_path(wf.job.repository), class: "text-gray-700 hover:underline" %>
+                </td>
                 <td class="px-4 py-3">
+                  <div class="sm:hidden flex items-center gap-1.5 mb-0.5">
+                    <%= trigger_pill(wf.trigger_kind) %>
+                    <span class="text-xs font-mono text-gray-500">
+                      <%= link_to wf.job.repository.slug, repository_path(wf.job.repository), class: "hover:underline" %>
+                    </span>
+                  </div>
                   <%= job_source_label_html(wf.job) %>
                   <% if wf.job.issue_title.present? %>
-                    <span class="ml-1 text-gray-700"><%= wf.job.issue_title %></span>
+                    <%= link_to wf.job.issue_title, job_path(wf.job), class: "ml-1 text-gray-700 hover:underline" %>
                   <% end %>
                   <% if wf.job.pr_number %>
                     <span class="ml-1 text-xs text-indigo-700">
@@ -198,10 +216,15 @@
                       <%= link_to "PR ##{wf.job.external_pr_number}", external_pr_url(wf.job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
                     </span>
                   <% end %>
+                  <div class="sm:hidden text-xs text-gray-400 mt-1 flex items-center gap-1.5">
+                    <span><%= workflow_step_caption(wf) %></span>
+                    <span>·</span>
+                    <span><%= relative_timestamp(wf.started_at || wf.created_at) %></span>
+                  </div>
                 </td>
-                <td class="px-4 py-3 text-gray-600"><%= workflow_step_caption(wf) %></td>
-                <td class="px-4 py-3 text-gray-500"><%= relative_timestamp(wf.started_at || wf.created_at) %></td>
-                <td class="px-4 py-3 text-right">
+                <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= workflow_step_caption(wf) %></td>
+                <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(wf.started_at || wf.created_at) %></td>
+                <td class="hidden sm:table-cell px-4 py-3 text-right">
                   <%= link_to "View", job_path(wf.job), class: "text-blue-600 underline hover:no-underline" %>
                 </td>
               </tr>
