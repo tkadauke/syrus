@@ -18,6 +18,13 @@ RSpec.describe StepDispatcher do
         described_class.start_workflow(workflow)
       }.to change { s1.runs.count }.by(1)
       expect(s1.runs.last.trigger_kind).to eq("initial")
+      expect(s1.runs.last.agent_provider).to eq("claude")
+    end
+
+    it "copies the workflow agent_provider onto created Runs" do
+      workflow.update!(agent_provider: "codex")
+      described_class.start_workflow(workflow)
+      expect(s1.runs.last.agent_provider).to eq("codex")
     end
 
     it "is idempotent — won't double-create a Run" do

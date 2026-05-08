@@ -7,15 +7,18 @@
       lets the action row wrap naturally with `flex-wrap`. %>
   <div class="space-y-3">
     <div>
-      <h1 class="font-bold text-2xl">
-        <span class="font-mono"><%= @job.repository.slug %></span>
-        <span class="text-gray-400">·</span>
-        <%= job_source_label_html(@job) %>
-        <% if @job.issue_title.present? %>
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="font-bold text-2xl">
+          <span class="font-mono"><%= @job.repository.slug %></span>
           <span class="text-gray-400">·</span>
-          <span class="font-normal"><%= @job.issue_title %></span>
-        <% end %>
-      </h1>
+          <%= job_source_label_html(@job) %>
+          <% if @job.issue_title.present? %>
+            <span class="text-gray-400">·</span>
+            <span class="font-normal"><%= @job.issue_title %></span>
+          <% end %>
+        </h1>
+        <%= job_agent_pill(@job) %>
+      </div>
       <p class="mt-1 text-sm text-gray-500">
         Job #<%= @job.id %> ·
         <%= pluralize(@job.workflows.size, "workflow") %> ·
@@ -25,9 +28,22 @@
     <div class="flex flex-wrap items-center gap-3">
       <%= state_pill(job_summary_state(@job)) %>
       <% if @job.open? && @job.pr_number.present? %>
-        <%= button_to "Check for PR feedback", poll_feedback_job_path(@job), method: :post,
-              class: "rounded-md px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium cursor-pointer",
-              form: { class: "inline" } %>
+        <% feedback_agent_options = @job.alternate_configured_agent_providers.map do |provider|
+             {
+               label: "Check feedback with #{provider.titleize}",
+               path: poll_feedback_job_path(@job, agent_provider: provider)
+             }
+           end %>
+        <% if feedback_agent_options.any? %>
+          <%= split_button(
+                theme: "cyan",
+                primary: { label: "Check for PR feedback", path: poll_feedback_job_path(@job) },
+                options: feedback_agent_options) %>
+        <% else %>
+          <%= button_to "Check for PR feedback", poll_feedback_job_path(@job), method: :post,
+                class: "rounded-md px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium cursor-pointer",
+                form: { class: "inline" } %>
+        <% end %>
       <% end %>
       <%# "Rebase now" is always available when there's a PR and no
           rebase already in flight — sometimes the operator wants to
@@ -38,18 +54,37 @@
           consecutive-failure cap, and the per-repo rebase cap (which
           only applies to autonomous polling) doesn't gate this path. %>
       <% if @job.pr_number.present? && !@job.workflows.active.where(trigger_kind: "rebase").exists? %>
-        <%= button_to "Rebase now", rebase_job_path(@job), method: :post,
-              class: "rounded-md px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium cursor-pointer",
-              form: { class: "inline" },
-              title: @job.pr_mergeable == false ? "Branch is unmergeable — auto-resolve" : "Force rebase onto base (e.g. to pull in upstream changes)" %>
+        <% rebase_title = @job.pr_mergeable == false ? "Branch is unmergeable — auto-resolve" : "Force rebase onto base (e.g. to pull in upstream changes)" %>
+        <% rebase_agent_options = @job.alternate_configured_agent_providers.map do |provider|
+             {
+               label: "Rebase with #{provider.titleize}",
+               path: rebase_job_path(@job, agent_provider: provider)
+             }
+           end %>
+        <% if rebase_agent_options.any? %>
+          <%= split_button(
+                theme: "teal",
+                primary: { label: "Rebase now", path: rebase_job_path(@job), title: rebase_title },
+                options: rebase_agent_options) %>
+        <% else %>
+          <%= button_to "Rebase now", rebase_job_path(@job), method: :post,
+                class: "rounded-md px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium cursor-pointer",
+                form: { class: "inline" },
+                title: rebase_title %>
+        <% end %>
       <% end %>
       <%# Consolidated retry actions. Primary = Retry (soft replay
           on the existing branch). Dropdown holds variants: retry
-          from the failed step in-place when the latest workflow
-          can do that, plus the always-available "start over with
-          a new job" hard reset. %>
-      <% latest_wf = @job.workflows.last %>
-      <% retry_options = [] %>
+          with another configured agent, retry from the failed step
+          in-place when the latest workflow can do that, plus the
+          always-available "start over with a new job" hard reset. %>
+      <% latest_wf = @job.latest_workflow %>
+      <% retry_options = @job.retry_with_agent_providers.map do |provider|
+           {
+             label: "Retry with #{provider.titleize}",
+             path: run_again_job_path(@job, agent_provider: provider)
+           }
+         end %>
       <% if latest_wf&.retry_available? %>
         <% retry_options << {
              label: "Retry from failed step",

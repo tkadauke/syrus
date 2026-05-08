@@ -13,7 +13,8 @@ RSpec.describe Steps::Base do
   let(:handler_class) do
     Class.new(described_class) do
       def call; nil; end
-      public :log, :parent_session_id, :with_mcp_config, :sidecar_env, :buffered_log_sink
+      public :log, :parent_session_id, :buffered_log_sink, :agent_provider,
+             :agent_adapter, :capture_agent_session
     end
   end
   let(:handler) { handler_class.new(run) }
@@ -115,69 +116,41 @@ RSpec.describe Steps::Base do
     end
   end
 
-  describe "#with_mcp_config" do
-    # AgentInvocation strips env before launching claude (allowlist of
-    # OS-level vars only — no RAILS_ENV, no DB credentials, no Bundler
-    # config). claude doesn't restore any of that when spawning MCP
-    # server children, so the sidecar inherits a near-empty env. Without
-    # forwarding the worker's Rails+Bundler config, the sidecar's
-    # Rails boot crashes (defaults to development, can't load gems
-    # WITHOUT'd at install time) and claude marks the server `failed`
-    # in its system/init event.
-    around do |ex|
-      stash = {
-        "RAILS_ENV"               => "production",
-        "RAILS_MASTER_KEY"        => "deadbeef",
-        "SECRET_KEY_BASE"         => "secretsecret",
-        "RAILS_LOG_TO_STDOUT"     => "1",
-        "DB_HOST"                 => "syrus-mysql",
-        "SYRUS_DATABASE_PASSWORD" => "swordfish",
-        "BUNDLE_PATH"             => "/usr/local/bundle",
-        "BUNDLE_DEPLOYMENT"       => "1",
-        "BUNDLE_WITHOUT"          => "development:test",
-        "TZ"                      => "America/New_York"
-      }
-      saved = ENV.to_h.slice(*stash.keys)
-      stash.each { |k, v| ENV[k] = v }
-      ex.run
-    ensure
-      stash.keys.each { |k| ENV.delete(k) }
-      saved.each { |k, v| ENV[k] = v }
-    end
-
-    it "forwards RAILS_*, DB_*, BUNDLE_*, TZ from worker env into mcp.json" do
-      handler.with_mcp_config do |path|
-        config = JSON.parse(File.read(path))
-        env    = config.dig("mcpServers", "syrus-mcp-sidecar", "env")
-        expect(env).to include(
-          "RAILS_ENV"               => "production",
-          "RAILS_MASTER_KEY"        => "deadbeef",
-          "SECRET_KEY_BASE"         => "secretsecret",
-          "DB_HOST"                 => "syrus-mysql",
-          "SYRUS_DATABASE_PASSWORD" => "swordfish",
-          "BUNDLE_PATH"             => "/usr/local/bundle",
-          "BUNDLE_DEPLOYMENT"       => "1",
-          "BUNDLE_WITHOUT"          => "development:test",
-          "TZ"                      => "America/New_York"
-        )
-      end
-    end
-
-    it "uses syrus-mcp-sidecar as both the config key and command basename" do
-      handler.with_mcp_config do |path|
-        config = JSON.parse(File.read(path))
-        servers = config["mcpServers"]
-        expect(servers.keys).to eq([ "syrus-mcp-sidecar" ])
-        expect(servers["syrus-mcp-sidecar"]["command"]).to end_with("/syrus-mcp-sidecar")
-        expect(servers["syrus-mcp-sidecar"]["alwaysLoad"]).to be(true)
-      end
+  describe "#agent_provider" do
+    it "prefers the Run provider" do
+      workflow.update!(agent_provider: "claude")
+      run.update!(agent_provider: "codex")
+      expect(handler.agent_provider).to eq("codex")
     end
   end
 
-  describe "#sidecar_env" do
-    it "omits keys not present in the worker's ENV (don't pass empty strings to claude)" do
-      Steps::Base::SIDECAR_ENV_FORWARD.each { |k| ENV.delete(k) }
-      expect(handler.sidecar_env).to eq({})
+  describe "#agent_adapter" do
+    it "builds the adapter for the resolved provider" do
+      run.update!(agent_provider: "codex")
+      expect(handler.agent_adapter).to be_a(AgentProviders::Codex)
+    end
+  end
+
+  describe "#capture_agent_session" do
+    it "stores a codex transcript from the invocation result" do
+      run.update!(agent_provider: "codex")
+      result = AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "codex-thread",
+        transcript_jsonl: "{\"type\":\"session_meta\"}\n"
+      )
+
+      handler.capture_agent_session(result)
+
+      session = run.reload.claude_session
+      expect(session.provider).to eq("codex")
+      expect(session.session_id).to eq("codex-thread")
+      expect(session.transcript_jsonl).to include("session_meta")
     end
   end
 

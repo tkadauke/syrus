@@ -58,7 +58,8 @@ module Api
 
           new_run = failed_step.runs.create!(
             job: workflow.job,
-            trigger_kind: workflow.trigger_kind
+            trigger_kind: workflow.trigger_kind,
+            agent_provider: workflow.agent_provider
           )
 
           render json: {

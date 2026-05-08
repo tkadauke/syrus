@@ -5,6 +5,18 @@ module Factories
     User.create!({ email_address: "user-#{SecureRandom.hex(4)}@example.com", password: "supersecret" }.merge(attrs))
   end
 
+  def codex_auth_json(access_token: "access-token", refresh_token: "refresh-token", id_token: "id-token")
+    JSON.generate(
+      "auth_mode" => "chatgpt",
+      "tokens" => {
+        "id_token" => id_token,
+        "access_token" => access_token,
+        "refresh_token" => refresh_token
+      },
+      "last_refresh" => "2026-05-08T00:00:00Z"
+    )
+  end
+
   def repository(**attrs)
     Repository.create!({
       user: attrs[:user] || user,

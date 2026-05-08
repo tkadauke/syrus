@@ -46,6 +46,15 @@ RSpec.describe "API: /api/v1/admin/workflows/:id/*", type: :request do
       expect(summarize_step.reload.state).to eq("queued")
     end
 
+    it "preserves the workflow agent provider on the retry run" do
+      workflow.update!(agent_provider: "codex")
+
+      post "/api/v1/admin/workflows/#{workflow.id}/retry_step", headers: auth
+
+      summarize_step = workflow.steps.find_by(kind: "summarize")
+      expect(summarize_step.runs.order(:created_at).last.agent_provider).to eq("codex")
+    end
+
     it "refuses when the workspace was already cleaned up" do
       workflow.update_columns(cleaned_up_at: Time.current)
       post "/api/v1/admin/workflows/#{workflow.id}/retry_step", headers: auth

@@ -9,6 +9,7 @@ RSpec.describe PollScheduledTasksJob do
       user: user, repository: repository,
       name: "T", prompt: "p",
       kind: "cron", cron_expression: "0 * * * *",
+      minute_offset: 0,
       pr_pileup_policy: "skip"
     }.merge(overrides))
   end

@@ -32,6 +32,21 @@ RSpec.describe "Admin users", type: :request do
       expect(response.body).not_to include(ok_user.email_address)
     end
 
+    it "honors ?has_codex_token=true filter" do
+      sign_in_as(admin)
+      codex_user = Factories.user(email_address: "codex@example.com", codex_api_key: "sk_test")
+      codex_login_user = Factories.user(email_address: "codex-login@example.com",
+                                        codex_auth_mode: "chatgpt_login",
+                                        codex_auth_json: Factories.codex_auth_json(access_token: "access_test"))
+      other_user = Factories.user(email_address: "plain@example.com")
+
+      get "/admin/users", params: { has_codex_token: "true" }
+
+      expect(response.body).to include(codex_user.email_address)
+      expect(response.body).to include(codex_login_user.email_address)
+      expect(response.body).not_to include(other_user.email_address)
+    end
+
     it "shows the empty-state row when filters don't match anything" do
       sign_in_as(admin)
       get "/admin/users", params: { email: "absolutely-no-match-#{SecureRandom.hex(4)}" }
@@ -44,13 +59,21 @@ RSpec.describe "Admin users", type: :request do
       sign_in_as(admin)
       target = Factories.user(email_address: "target@example.com",
                               github_token: "ghp_secretvalue",
-                              claude_oauth_token: "co_secretvalue")
+                              claude_oauth_token: "co_secretvalue",
+                              agent_provider: "codex",
+                              codex_auth_mode: "chatgpt_login",
+                              codex_api_key: "sk_codex_secretvalue",
+                              codex_auth_json: Factories.codex_auth_json(access_token: "codex_access_secretvalue"))
       get "/admin/users/#{target.id}"
       expect(response).to be_successful
       expect(response.body).to include("target@example.com")
+      expect(response.body).to include("codex")
+      expect(response.body).to include("chatgpt_login")
       expect(response.body).to include("set")        # token presence indicator
       expect(response.body).not_to include("ghp_secretvalue")
       expect(response.body).not_to include("co_secretvalue")
+      expect(response.body).not_to include("sk_codex_secretvalue")
+      expect(response.body).not_to include("codex_access_secretvalue")
     end
 
     it "404s on unknown id" do

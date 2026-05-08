@@ -1,7 +1,13 @@
 <div class="space-y-6">
-  <div class="flex items-center justify-between">
+  <div class="flex items-center justify-between gap-3">
     <h1 class="font-bold text-2xl">Users</h1>
-    <span class="text-sm text-gray-500"><%= @users.size %> matching</span>
+    <div class="flex items-center gap-3">
+      <%# "N matching" is signal but not load-bearing — hide on
+          mobile to give the admin nav room. The result rows below
+          implicitly communicate the count. %>
+      <span class="hidden sm:inline text-sm text-gray-500"><%= @users.size %> matching</span>
+      <%= render "admin/nav" %>
+    </div>
   </div>
 
   <%# Filter strip — GET form, query params drive Admin::UsersFilter.
@@ -33,6 +39,12 @@
       </div>
 
       <div>
+        <label class="block text-xs uppercase text-gray-500 mb-1">Codex credential</label>
+        <%= f.select :has_codex_token, [ [ "—", "" ], [ "Set", "true" ], [ "Missing", "false" ] ],
+              { selected: params[:has_codex_token] }, class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
+      </div>
+
+      <div>
         <label class="block text-xs uppercase text-gray-500 mb-1">GH rate</label>
         <%= f.select :gh_rate, [ [ "—", "" ], [ "Low (< 10%)", "low" ], [ "Exhausted", "exhausted" ] ],
               { selected: params[:gh_rate] }, class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
@@ -54,15 +66,17 @@
         <tr>
           <th class="px-4 py-2 text-left">Email</th>
           <th class="px-4 py-2 text-left">Admin</th>
+          <th class="px-4 py-2 text-left">Agent</th>
           <th class="px-4 py-2 text-left">GH token</th>
           <th class="px-4 py-2 text-left">Claude token</th>
+          <th class="px-4 py-2 text-left">Codex auth</th>
           <th class="px-4 py-2 text-left">Max turns</th>
           <th class="px-4 py-2 text-left">GH rate</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
         <% if @users.empty? %>
-          <tr><td colspan="6" class="px-4 py-6 text-center text-gray-500">No users match these filters.</td></tr>
+          <tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">No users match these filters.</td></tr>
         <% end %>
         <% @users.each do |user| %>
           <% pct = if user.gh_rate_limit_limit.to_i > 0
@@ -73,8 +87,13 @@
               <%= link_to user.email_address, admin_user_path(user), class: "text-blue-600 hover:underline" %>
             </td>
             <td class="px-4 py-2"><%= user.admin? ? "yes" : "—" %></td>
+            <td class="px-4 py-2"><%= user.agent_provider %></td>
             <td class="px-4 py-2"><%= user.github_token.present? ? "✓" : "—" %></td>
             <td class="px-4 py-2"><%= user.claude_oauth_token.present? ? "✓" : "—" %></td>
+            <td class="px-4 py-2">
+              <%= user.codex_auth_mode %>
+              <%= (user.codex_api_key.present? || user.codex_auth_json.present?) ? "✓" : "—" %>
+            </td>
             <td class="px-4 py-2"><%= user.agent_max_turns %></td>
             <td class="px-4 py-2">
               <% if pct.nil? %>

@@ -2,6 +2,7 @@ class ClaudeSession < ApplicationRecord
   belongs_to :run
 
   validates :session_id, presence: true
+  validates :provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
 
   # Keep sessions for diagnostics for two weeks after the parent Run
   # reaches a terminal state. After that, ClaudeSessionPruneJob deletes

@@ -1,6 +1,7 @@
 module Admin
   # Translates the `?gh_rate=`, `?admin=`, `?email=`,
-  # `?has_github_token=`, `?has_claude_token=` query params from the
+  # `?has_github_token=`, `?has_claude_token=`, `?has_codex_token=`
+  # query params from the
   # admin user directory into an ActiveRecord scope. Shared by the
   # HTML and JSON admin user controllers.
   #
@@ -13,7 +14,7 @@ module Admin
     # Stable order: known filters → labelled values for the
     # filter UI strip. The query-param keys are also the filter
     # names; values that aren't in this list are ignored.
-    BOOLEAN_KEYS = %w[ admin has_github_token has_claude_token ].freeze
+    BOOLEAN_KEYS = %w[ admin has_github_token has_claude_token has_codex_token ].freeze
     VALID_GH_RATE = %w[ low exhausted ].freeze
 
     attr_reader :params
@@ -28,6 +29,7 @@ module Admin
       relation = filter_admin(relation)
       relation = filter_has_github_token(relation)
       relation = filter_has_claude_token(relation)
+      relation = filter_has_codex_token(relation)
       relation = filter_gh_rate(relation)
       relation
     end
@@ -40,6 +42,7 @@ module Admin
       filters["admin"]            = boolean_repr(:admin)            unless admin_param.nil?
       filters["has_github_token"] = boolean_repr(:has_github_token) unless has_github_token_param.nil?
       filters["has_claude_token"] = boolean_repr(:has_claude_token) unless has_claude_token_param.nil?
+      filters["has_codex_token"]  = boolean_repr(:has_codex_token)  unless has_codex_token_param.nil?
       filters["gh_rate"]          = gh_rate           if gh_rate_filter
       filters
     end
@@ -57,6 +60,7 @@ module Admin
     def admin_param;            normalize_bool(params[:admin]);            end
     def has_github_token_param; normalize_bool(params[:has_github_token]); end
     def has_claude_token_param; normalize_bool(params[:has_claude_token]); end
+    def has_codex_token_param;  normalize_bool(params[:has_codex_token]);  end
 
     def gh_rate
       params[:gh_rate].to_s.downcase
@@ -91,6 +95,12 @@ module Admin
                              : relation.where(claude_oauth_token: nil)
     end
 
+    def filter_has_codex_token(relation)
+      return relation if has_codex_token_param.nil?
+      has_codex_token_param ? relation.where("codex_api_key IS NOT NULL OR codex_auth_json IS NOT NULL")
+                            : relation.where(codex_api_key: nil, codex_auth_json: nil)
+    end
+
     # 10%-of-cap threshold matches the "GitHub rate limits" tile on
     # /admin so a click on that tile lands on the same set the tile
     # was counting. "exhausted" = literal zero remaining.
@@ -121,6 +131,7 @@ module Admin
       when :admin            then admin_param
       when :has_github_token then has_github_token_param
       when :has_claude_token then has_claude_token_param
+      when :has_codex_token  then has_codex_token_param
       end
       param ? "yes" : "no"
     end

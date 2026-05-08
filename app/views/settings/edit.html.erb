@@ -1,7 +1,7 @@
 <div class="max-w-xl space-y-6">
-  <div class="flex items-center justify-between">
+  <div class="flex items-center justify-between gap-3">
     <h1 class="font-bold text-3xl">App settings</h1>
-    <%= link_to "← Admin overview", admin_root_path, class: "text-sm text-blue-600 hover:underline" %>
+    <%= render "admin/nav" %>
   </div>
 
   <%= form_with model: @setting, url: settings_path, scope: :app_setting, method: :patch, class: "bg-white border border-gray-200 rounded-lg p-6 space-y-4" do |form| %>

@@ -35,6 +35,7 @@ class StepDispatcher
     step.runs.create!(
       job: workflow.job,
       trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
       parent_session_id: parent_session_id,
       prompt: prompt
     )

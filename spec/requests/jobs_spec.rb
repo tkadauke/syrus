@@ -44,6 +44,13 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to match(/#42.*Add greeting helper/m)
       end
 
+      it "shows the selected agent as a pill next to the title" do
+        get job_path(job)
+
+        expect(response.body).to include("Claude Code")
+        expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*Claude Code/m)
+      end
+
       it "renders issue_body when present (no summary → plain block)" do
         job.update!(issue_title: "Add greeting helper", issue_body: "We need a greeting helper.")
         get job_path(job)
@@ -141,6 +148,59 @@ RSpec.describe "Jobs", type: :request do
 
       workflow = job.workflows.where(trigger_kind: "retry").last
       expect(workflow.artifacts).to be_nil
+    end
+
+    it "retries with an explicitly selected alternate configured agent" do
+      user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      job.initial_run.update!(
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        agent_provider: "claude"
+      )
+      job.latest_workflow.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+      expect {
+        post run_again_job_path(job), params: { agent_provider: "codex" }
+      }.to change { job.workflows.where(trigger_kind: "retry").count }.by(1)
+
+      workflow = job.workflows.where(trigger_kind: "retry").last
+      expect(job.reload.agent_provider).to eq("codex")
+      expect(workflow.agent_provider).to eq("codex")
+      expect(workflow.first_step.runs.last.agent_provider).to eq("codex")
+      expect(flash[:notice]).to match(/with Codex/)
+    end
+
+    it "rejects an explicit provider that was used by the latest run" do
+      user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      job.initial_run.update!(
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        agent_provider: "claude"
+      )
+      job.latest_workflow.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+      expect {
+        post run_again_job_path(job), params: { agent_provider: "claude" }
+      }.not_to change { job.workflows.where(trigger_kind: "retry").count }
+      expect(flash[:alert]).to match(/not available/)
+    end
+
+    it "rejects an explicit provider that is not configured" do
+      user.update!(claude_oauth_token: "oat-test", codex_api_key: nil)
+      job.initial_run.update!(
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        agent_provider: "claude"
+      )
+      job.latest_workflow.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+      expect {
+        post run_again_job_path(job), params: { agent_provider: "codex" }
+      }.not_to change { job.workflows.where(trigger_kind: "retry").count }
+      expect(flash[:alert]).to match(/not available/)
     end
 
     it "refuses when the Job is closed" do
@@ -310,6 +370,14 @@ RSpec.describe "Jobs", type: :request do
       expect(flash[:notice]).to match(/Retrying summarize/)
     end
 
+    it "preserves the workflow agent provider on the retry Run" do
+      workflow.update!(agent_provider: "codex")
+
+      post retry_step_job_path(job, workflow_id: workflow.id)
+
+      expect(failed_step.runs.order(:created_at).last.agent_provider).to eq("codex")
+    end
+
     it "refuses when the workflow's workspace was already cleaned up" do
       workflow.update_columns(cleaned_up_at: Time.current)
       expect {
@@ -342,6 +410,30 @@ RSpec.describe "Jobs", type: :request do
         post poll_feedback_job_path(job)
       }.to have_enqueued_job(PollPullRequestJob).with(job.id, manual: true)
       expect(response).to redirect_to(job_path(job))
+    end
+
+    it "switches the job and passes an explicitly selected configured agent to the PR poller" do
+      user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      job.update!(pr_number: 42, agent_provider: "claude")
+
+      expect {
+        post poll_feedback_job_path(job), params: { agent_provider: "codex" }
+      }.to have_enqueued_job(PollPullRequestJob).with(job.id, manual: true, agent_provider: "codex")
+
+      expect(job.reload.agent_provider).to eq("codex")
+      expect(flash[:notice]).to match(/with Codex/)
+    end
+
+    it "rejects an explicitly selected agent that is not configured" do
+      user.update!(claude_oauth_token: "oat-test", codex_api_key: nil)
+      job.update!(pr_number: 42, agent_provider: "claude")
+
+      expect {
+        post poll_feedback_job_path(job), params: { agent_provider: "codex" }
+      }.not_to have_enqueued_job(PollPullRequestJob)
+
+      expect(job.reload.agent_provider).to eq("claude")
+      expect(flash[:alert]).to match(/not configured/)
     end
 
     it "refuses on a Job with no PR" do
@@ -477,6 +569,35 @@ RSpec.describe "Jobs", type: :request do
       expect(response.body).not_to match(/data-turbo-confirm=.*Retry/)
     end
 
+    it "offers Retry with the configured agent not used by the latest run" do
+      user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      job.initial_run.update!(
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        agent_provider: "claude"
+      )
+      job.latest_workflow.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+      get job_path(job)
+
+      expect(response.body).to include("Retry with Codex")
+      expect(response.body).to include("agent_provider=codex")
+      expect(response.body).not_to include("Retry with Claude")
+    end
+
+    it "offers agent choices for PR feedback and rebase manual actions" do
+      user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      job.update!(pr_number: 42, agent_provider: "claude")
+
+      get job_path(job)
+
+      expect(response.body).to include("Check feedback with Codex")
+      expect(response.body).to include("Rebase with Codex")
+      expect(response.body).not_to include("Check feedback with Claude")
+      expect(response.body).not_to include("Rebase with Claude")
+    end
+
     it "shows Reopen on closed jobs and hides it on open ones" do
       get job_path(job)
       expect(response.body).not_to include("Reopen")
@@ -498,6 +619,33 @@ RSpec.describe "Jobs", type: :request do
       }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
       expect(response).to redirect_to(job_path(job))
       expect(flash[:notice]).to match(/Rebase workflow enqueued/)
+    end
+
+    it "switches the job and instantiates Rebase with an explicitly selected configured agent" do
+      user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      job.update!(pr_number: 7, branch_name: "syrus/issue-42-1", agent_provider: "claude")
+
+      expect {
+        post rebase_job_path(job), params: { agent_provider: "codex" }
+      }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+
+      workflow = job.workflows.where(trigger_kind: "rebase").last
+      expect(job.reload.agent_provider).to eq("codex")
+      expect(workflow.agent_provider).to eq("codex")
+      expect(workflow.first_step.runs.last.agent_provider).to eq("codex")
+      expect(flash[:notice]).to match(/with Codex/)
+    end
+
+    it "rejects an explicitly selected rebase agent that is not configured" do
+      user.update!(claude_oauth_token: "oat-test", codex_api_key: nil)
+      job.update!(pr_number: 7, branch_name: "syrus/issue-42-1", agent_provider: "claude")
+
+      expect {
+        post rebase_job_path(job), params: { agent_provider: "codex" }
+      }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
+
+      expect(job.reload.agent_provider).to eq("claude")
+      expect(flash[:alert]).to match(/not configured/)
     end
 
     it "works on a closed (preempted) Job using external_pr_number" do

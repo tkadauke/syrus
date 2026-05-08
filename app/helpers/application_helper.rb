@@ -96,9 +96,11 @@ module ApplicationHelper
   # appending here; the partial reads via split_button_theme.
   SPLIT_BUTTON_THEMES = {
     "blue"    => "bg-blue-600 hover:bg-blue-500 text-white",
+    "cyan"    => "bg-cyan-600 hover:bg-cyan-500 text-white",
     "red"     => "bg-red-600 hover:bg-red-500 text-white",
     "amber"   => "bg-amber-600 hover:bg-amber-500 text-white",
     "emerald" => "bg-emerald-600 hover:bg-emerald-500 text-white",
+    "teal"    => "bg-teal-600 hover:bg-teal-500 text-white",
     "gray"    => "bg-gray-200 hover:bg-gray-300 text-gray-800"
   }.freeze
 

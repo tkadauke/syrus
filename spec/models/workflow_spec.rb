@@ -16,6 +16,10 @@ RSpec.describe Workflow do
       expect(build_wf(trigger_kind: "rumour")).not_to be_valid
     end
 
+    it "rejects unknown agent_provider" do
+      expect(build_wf(agent_provider: "oracle")).not_to be_valid
+    end
+
     it "requires a job" do
       expect(build_wf(job: nil)).not_to be_valid
     end

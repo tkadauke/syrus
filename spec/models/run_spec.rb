@@ -76,6 +76,12 @@ RSpec.describe Run do
       expect(r).to be_valid
     end
 
+    it "validates agent_provider" do
+      r = Run.new(job: job, trigger_kind: "initial", agent_provider: "oracle")
+      expect(r).not_to be_valid
+      expect(r.errors[:agent_provider]).to be_present
+    end
+
     it "exposes #rebase?" do
       r = Run.create!(job: job, trigger_kind: "rebase")
       expect(r).to be_rebase

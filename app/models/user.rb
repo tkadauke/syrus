@@ -6,7 +6,12 @@ class User < ApplicationRecord
   has_many :cron_templates, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
 
+  AGENT_PROVIDERS = %w[ claude codex ].freeze
+  CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
+
   encrypts :claude_oauth_token
+  encrypts :codex_api_key
+  encrypts :codex_auth_json
   encrypts :github_token
   # `deterministic: true` so we can WHERE on the encrypted column
   # for the API auth lookup. Same plaintext always encrypts to the
@@ -29,11 +34,32 @@ class User < ApplicationRecord
   validates :agent_max_turns,
             presence: true,
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
+  validates :agent_provider, presence: true, inclusion: { in: AGENT_PROVIDERS }
+  validates :codex_auth_mode, presence: true, inclusion: { in: CODEX_AUTH_MODES }
 
   before_create :promote_first_user_to_admin
 
   def admin?
     admin
+  end
+
+  def configured_agent_providers
+    AGENT_PROVIDERS.select { |provider| agent_provider_configured?(provider) }
+  end
+
+  def alternate_configured_agent_providers
+    configured_agent_providers - [ agent_provider ]
+  end
+
+  def agent_provider_configured?(provider)
+    case provider.to_s
+    when "claude"
+      claude_oauth_token.present?
+    when "codex"
+      codex_configured?
+    else
+      false
+    end
   end
 
   # Generate (and persist) a fresh API token. Returns the
@@ -75,6 +101,17 @@ class User < ApplicationRecord
   end
 
   private
+
+  def codex_configured?
+    case codex_auth_mode
+    when "api_key"
+      codex_api_key.present?
+    when "chatgpt_login"
+      codex_auth_json.present?
+    else
+      false
+    end
+  end
 
   def promote_first_user_to_admin
     self.admin = true if User.count.zero?

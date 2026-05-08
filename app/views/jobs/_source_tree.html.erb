@@ -2,12 +2,20 @@
     tree:          nested hash from build_file_tree (string keys = dirs, :files = blobs)
     job:           the Job record (for URL generation)
     ref:           the selected commit SHA or branch name
-    selected_path: currently viewed file path (for highlighting the active row) %>
+    selected_path: currently viewed file path (for highlighting the active row)
+    parent_path:   "" at the root, then recursively built up so each
+                   <details> can carry a stable `data-path` that the
+                   source-tree Stimulus controller uses to remember
+                   which directories the operator collapsed. %>
+<% parent_path ||= "" %>
 <% sorted_dirs  = tree.reject { |k, _| k == :files }.sort_by { |k, _| k.to_s.downcase } %>
 <% sorted_files = tree.fetch(:files, []).sort_by { |f| File.basename(f[:path]).downcase } %>
 
 <% sorted_dirs.each do |name, subtree| %>
-  <details open class="group">
+  <% full_path = [ parent_path, name ].reject(&:blank?).join("/") %>
+  <details open class="group"
+           data-source-tree-target="dir"
+           data-path="<%= full_path %>">
     <summary class="flex items-center gap-1 px-2 py-0.5 cursor-pointer select-none
                     hover:bg-gray-100 text-xs text-gray-600 font-medium list-none">
       <svg class="w-3 h-3 shrink-0 text-gray-400 transition-transform group-open:rotate-90"
@@ -24,7 +32,8 @@
             tree:          subtree,
             job:           job,
             ref:           ref,
-            selected_path: selected_path %>
+            selected_path: selected_path,
+            parent_path:   full_path %>
     </div>
   </details>
 <% end %>

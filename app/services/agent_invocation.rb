@@ -16,7 +16,24 @@ class AgentInvocation
   # final assistant text from the result event — useful for single-shot
   # callers (PR summarizer, etc.) that want the response without
   # re-aggregating the streamed assistant chunks.
-  Result = Data.define(:turns, :exit_status, :timed_out, :is_error, :outcome, :final_text, :session_id) do
+  class Result
+    attr_reader :turns, :exit_status, :timed_out, :is_error, :outcome,
+                :final_text, :session_id, :transcript_jsonl, :transcript_path
+
+    def initialize(turns:, exit_status:, timed_out:, is_error:, outcome:,
+                   final_text:, session_id:, transcript_jsonl: nil,
+                   transcript_path: nil)
+      @turns = turns
+      @exit_status = exit_status
+      @timed_out = timed_out
+      @is_error = is_error
+      @outcome = outcome
+      @final_text = final_text
+      @session_id = session_id
+      @transcript_jsonl = transcript_jsonl
+      @transcript_path = transcript_path
+    end
+
     def success? = !timed_out && exit_status == 0 && !is_error
   end
 

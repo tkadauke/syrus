@@ -133,6 +133,22 @@ RSpec.describe PollPullRequestJob do
       expect(job.reload.last_seen_comment_at.utc).to be_within(1.second).of(t2)
     end
 
+    it "uses an explicitly selected agent provider for PR feedback workflows" do
+      stub_issue_comments([
+        { id: 1, body: "Could you also handle empty strings?",
+          user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id, manual: true, agent_provider: "codex")
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.agent_provider).to eq("codex")
+      expect(wf.first_step.runs.last.agent_provider).to eq("codex")
+    end
+
     it "DOES process operator-authored comments (Syrus runs under the operator's PAT today; the operator IS the reviewer)" do
       stub_issue_comments([
         { id: 1, body: "extract this into a helper",
@@ -215,6 +231,22 @@ RSpec.describe PollPullRequestJob do
       expect(first["conclusion"]).to eq("failure")
       expect(wf.artifact("head_sha")).to eq(sha)
       expect(job.reload.last_ci_handled_sha).to eq(sha)
+    end
+
+    it "uses an explicitly selected agent provider for CI-failure workflows" do
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "https://github.com/acme/widgets/runs/100",
+          output: { summary: "RSpec failed" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id, manual: true, agent_provider: "codex")
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+
+      wf = job.workflows.where(trigger_kind: "ci_failure").last
+      expect(wf.agent_provider).to eq("codex")
+      expect(wf.first_step.runs.last.agent_provider).to eq("codex")
     end
 
     it "is a no-op when all checks are passing" do

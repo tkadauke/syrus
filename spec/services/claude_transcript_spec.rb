@@ -143,4 +143,57 @@ RSpec.describe ClaudeTranscript do
       expect(summary.exit_reason).to be_nil
     end
   end
+
+  describe "Codex rollout JSONL compatibility" do
+    let(:jsonl) do
+      [
+        {
+          "timestamp" => "2026-05-07T18:00:00Z",
+          "type" => "session_meta",
+          "payload" => { "id" => "019e-codex", "cwd" => "/work", "model" => "gpt-5.2-codex" }
+        },
+        {
+          "timestamp" => "2026-05-07T18:00:01Z",
+          "type" => "event_msg",
+          "payload" => { "type" => "user_message", "message" => "Do the thing" }
+        },
+        {
+          "timestamp" => "2026-05-07T18:00:02Z",
+          "type" => "response_item",
+          "payload" => {
+            "type" => "function_call",
+            "namespace" => "mcp__syrus__",
+            "name" => "submit_summary",
+            "arguments" => { pr_title: "Add thing" }.to_json,
+            "call_id" => "call_1"
+          }
+        },
+        {
+          "timestamp" => "2026-05-07T18:00:03Z",
+          "type" => "event_msg",
+          "payload" => { "type" => "agent_message", "message" => "Done." }
+        },
+        {
+          "timestamp" => "2026-05-07T18:00:04Z",
+          "type" => "event_msg",
+          "payload" => { "type" => "task_complete", "last_agent_message" => "Done.", "duration_ms" => 1234 }
+        }
+      ].map(&:to_json).join("\n")
+    end
+
+    it "extracts core events from Codex rollout files" do
+      events = described_class.new(jsonl).events.to_a
+      expect(events.map(&:kind)).to include(:system_init, :user_prompt, :tool_use, :assistant_text, :result)
+      expect(events.find { |e| e.kind == :tool_use }.data[:name]).to eq("mcp__syrus__submit_summary")
+    end
+
+    it "summarizes Codex sessions with MCP usage" do
+      summary = described_class.new(jsonl).summary
+      expect(summary.session_id).to eq("019e-codex")
+      expect(summary.cwd).to eq("/work")
+      expect(summary.mcp_tool_called?).to be true
+      expect(summary.tool_call_counts).to eq("mcp__syrus__submit_summary" => 1)
+      expect(summary.exit_reason).to eq("success")
+    end
+  end
 end

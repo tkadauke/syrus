@@ -2,7 +2,7 @@
      data-controller="auto-refresh"
      data-auto-refresh-interval-value="<%= @poll_interval %>">
 
-  <div class="flex items-center justify-between">
+  <div class="flex items-start justify-between gap-3">
     <div>
       <h1 class="font-bold text-2xl">Stuck things</h1>
       <p class="text-sm text-gray-500 mt-1">
@@ -11,10 +11,13 @@
         <span class="font-mono">Admin::StuckItems</span>.
       </p>
     </div>
-    <div class="text-xs text-gray-500 flex items-center gap-2">
-      <span>Auto-refresh every <%= @poll_interval %>s</span>
-      <span class="text-gray-300">·</span>
-      <a href="#" data-action="click->auto-refresh#refreshNow" class="text-blue-600 underline hover:no-underline">Refresh now</a>
+    <div class="flex items-center gap-3">
+      <div class="hidden sm:flex text-xs text-gray-500 items-center gap-2">
+        <span>Auto-refresh every <%= @poll_interval %>s</span>
+        <span class="text-gray-300">·</span>
+        <a href="#" data-action="click->auto-refresh#refreshNow" class="text-blue-600 underline hover:no-underline">Refresh now</a>
+      </div>
+      <%= render "admin/nav" %>
     </div>
   </div>
 

@@ -71,9 +71,17 @@ class JobsController < ApplicationController
 
     ctx = params[:replay_context].to_s.strip
     artifacts = ctx.present? ? { "replay_context" => ctx } : nil
-    workflow = Workflows::Retry.instantiate(job: @job, artifacts: artifacts)
+    agent_provider = params[:agent_provider].to_s.presence
+    if agent_provider.present? && !@job.retry_with_agent_providers.include?(agent_provider)
+      redirect_to job_path(@job), alert: "That agent is not available for retry."
+      return
+    end
+    @job.switch_agent_provider!(agent_provider) if agent_provider.present?
+
+    workflow = Workflows::Retry.instantiate(job: @job, artifacts: artifacts, agent_provider: agent_provider)
     StepDispatcher.start_workflow(workflow)
-    redirect_to job_path(@job, tab: "workflows"), notice: "Retry workflow enqueued."
+    notice = agent_provider.present? ? "Retry workflow enqueued with #{agent_provider.titleize}." : "Retry workflow enqueued."
+    redirect_to job_path(@job, tab: "workflows"), notice: notice
   end
 
   # Hard reset — close this thread (no more polling, no more runs), then
@@ -107,14 +115,22 @@ class JobsController < ApplicationController
       redirect_to job_path(@job), alert: "Can only check feedback on open Jobs that have a PR."
       return
     end
+    agent_provider = params[:agent_provider].to_s.presence
+    return unless valid_configured_agent_provider?(agent_provider)
+    @job.switch_agent_provider!(agent_provider) if agent_provider.present?
 
     # `manual: true` — bypass the pr_comment / ci_failure cap that
     # exists to defend the autonomous 5-minute poller against
     # runaway loops. The operator clicking the button is an explicit
     # override; without this, the click is a silent no-op once a Job
     # has burned through PR_COMMENT_FOLLOWUP_CAP rounds.
-    PollPullRequestJob.perform_later(@job.id, manual: true)
-    redirect_to job_path(@job), notice: "Checking PR feedback now…"
+    if agent_provider.present?
+      PollPullRequestJob.perform_later(@job.id, manual: true, agent_provider: agent_provider)
+    else
+      PollPullRequestJob.perform_later(@job.id, manual: true)
+    end
+    notice = agent_provider.present? ? "Checking PR feedback with #{agent_provider.titleize} now…" : "Checking PR feedback now…"
+    redirect_to job_path(@job), notice: notice
   end
 
   # Continue a failed/cancelled Run by reloading its claude session
@@ -139,7 +155,7 @@ class JobsController < ApplicationController
       return
     end
 
-    workflow = Workflows::Resume.instantiate(job: @job)
+    workflow = Workflows::Resume.instantiate(job: @job, agent_provider: session.provider)
     # The first (and only) step of Resume is `manual` — pass the
     # parent session id so AgentInvocation runs claude with
     # `--resume <session>`.
@@ -177,10 +193,14 @@ class JobsController < ApplicationController
       redirect_to job_path(@job), alert: "A rebase is already in progress — wait for it to finish."
       return
     end
+    agent_provider = params[:agent_provider].to_s.presence
+    return unless valid_configured_agent_provider?(agent_provider)
+    @job.switch_agent_provider!(agent_provider) if agent_provider.present?
 
-    workflow = Workflows::Rebase.instantiate(job: @job)
+    workflow = Workflows::Rebase.instantiate(job: @job, agent_provider: agent_provider)
     StepDispatcher.start_workflow(workflow)
-    redirect_to job_path(@job), notice: "Rebase workflow enqueued."
+    notice = agent_provider.present? ? "Rebase workflow enqueued with #{agent_provider.titleize}." : "Rebase workflow enqueued."
+    redirect_to job_path(@job), notice: notice
   end
 
   # Stop a single active Run without closing the thread. Useful when
@@ -244,7 +264,8 @@ class JobsController < ApplicationController
 
     failed_step.runs.create!(
       job: @job,
-      trigger_kind: workflow.trigger_kind
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
     )
 
     redirect_to job_path(@job),
@@ -373,6 +394,14 @@ class JobsController < ApplicationController
     else
       base
     end
+  end
+
+  def valid_configured_agent_provider?(agent_provider)
+    return true if agent_provider.blank?
+    return true if Current.user.agent_provider_configured?(agent_provider)
+
+    redirect_to job_path(@job), alert: "That agent is not configured."
+    false
   end
 
   def load_job

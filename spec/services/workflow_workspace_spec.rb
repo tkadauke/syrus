@@ -31,6 +31,13 @@ RSpec.describe WorkflowWorkspace do
     end
   end
 
+  describe ".agent_home_for" do
+    it "is keyed on job id and provider, outside the git workspace" do
+      expect(described_class.agent_home_for(workflow, "codex"))
+        .to eq(Pathname.new(@data_root).join("agent_homes", "jobs", job.id.to_s, "codex"))
+    end
+  end
+
   describe "#setup" do
     context "fresh workflow (no prior workspace)" do
       it "creates a clone on the workflow's branch" do
@@ -113,6 +120,15 @@ RSpec.describe WorkflowWorkspace do
       expect(ws.path).to exist
       ws.cleanup
       expect(ws.path).not_to exist
+    end
+
+    it "removes the job-scoped agent home" do
+      ws = described_class.new(workflow)
+      ws.setup
+      agent_home = described_class.agent_home_for(workflow, "codex")
+      FileUtils.mkdir_p(agent_home)
+      ws.cleanup
+      expect(agent_home).not_to exist
     end
 
     it "is idempotent on a missing path" do

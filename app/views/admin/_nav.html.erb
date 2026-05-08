@@ -1,0 +1,46 @@
+<%# Shared admin navigation strip + mobile hamburger. Rendered by
+    every admin page (and the admin-only Settings + Invitations
+    pages) so the operator can move between them without going
+    through the user-menu dropdown. Replaces the per-page
+    "← Admin overview" back-links that used to live in each header.
+
+    Desktop (`>=sm`): inline `·`-separated link strip.
+    Mobile (`<sm`):    hamburger menu with the same items
+                       (reuses split_button_controller).
+
+    Auto-refresh / "Refresh now" controls are page-specific
+    (overview + stuck) and stay inline on those pages, NOT in
+    this partial. %>
+<div class="flex items-center gap-3">
+  <div class="hidden sm:flex text-xs text-gray-500 items-center gap-3">
+    <%= link_to "Overview",     admin_root_path,           class: "text-blue-600 underline hover:no-underline" %>
+    <span class="text-gray-300">·</span>
+    <%= link_to "Users",        admin_users_path,          class: "text-blue-600 underline hover:no-underline" %>
+    <span class="text-gray-300">·</span>
+    <%= link_to "Queue",        admin_queue_path("active"), class: "text-blue-600 underline hover:no-underline" %>
+    <span class="text-gray-300">·</span>
+    <%= link_to "Console",      admin_console_path,        class: "text-blue-600 underline hover:no-underline" %>
+    <span class="text-gray-300">·</span>
+    <%= link_to "App settings", edit_settings_path,        class: "text-blue-600 underline hover:no-underline" %>
+    <span class="text-gray-300">·</span>
+    <%= link_to "Invitations",  invitations_path,          class: "text-blue-600 underline hover:no-underline" %>
+  </div>
+
+  <div class="sm:hidden relative" data-controller="split-button">
+    <button type="button" data-action="click->split-button#toggle"
+            class="flex items-center text-gray-700 hover:text-blue-600 cursor-pointer p-1"
+            aria-label="Admin menu">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+      </svg>
+    </button>
+    <div data-split-button-target="menu" class="hidden absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-md shadow-lg py-1 z-10 text-sm">
+      <%= link_to "Overview",     admin_root_path,            class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
+      <%= link_to "Users",        admin_users_path,           class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
+      <%= link_to "Queue",        admin_queue_path("active"), class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
+      <%= link_to "Console",      admin_console_path,         class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
+      <%= link_to "App settings", edit_settings_path,         class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
+      <%= link_to "Invitations",  invitations_path,           class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
+    </div>
+  </div>
+</div>

@@ -76,6 +76,16 @@ RSpec.describe Job do
       expect(job.runs.size).to eq(1)
       expect(job.runs.first.trigger_kind).to eq("initial")
     end
+
+    it "defaults the job agent provider from the user's current provider" do
+      user = Factories.user(agent_provider: "codex", codex_api_key: "sk-test")
+      repository = Factories.repository(user: user)
+
+      job = Factories.job(repository: repository)
+
+      expect(job.agent_provider).to eq("codex")
+      expect(job.initial_run.agent_provider).to eq("codex")
+    end
   end
 
   describe "Run helpers" do
@@ -106,6 +116,64 @@ RSpec.describe Job do
       job.initial_run.cancel!
       job.initial_run.save!
       expect(job.any_active_run?).to be false
+    end
+  end
+
+  describe "#retry_with_agent_providers" do
+    let(:user) do
+      Factories.user(
+        claude_oauth_token: "oat-test",
+        codex_auth_mode: "api_key",
+        codex_api_key: "sk-test"
+      )
+    end
+    let(:repository) { Factories.repository(user: user) }
+    let(:job) { Factories.job(repository: repository) }
+
+    def finish_latest_workflow(state:, provider: "claude")
+      run = job.initial_run
+      run.update!(
+        state: state,
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        agent_provider: provider
+      )
+      job.latest_workflow.update!(
+        state: state,
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+    end
+
+    it "returns configured providers excluding the provider from the latest run" do
+      finish_latest_workflow(state: "succeeded", provider: "claude")
+
+      expect(job.reload.retry_with_agent_providers).to eq([ "codex" ])
+    end
+
+    it "supports failed workflows" do
+      finish_latest_workflow(state: "failed", provider: "codex")
+
+      expect(job.reload.retry_with_agent_providers).to eq([ "claude" ])
+    end
+
+    it "returns no providers when only one agent is configured" do
+      user.update!(codex_api_key: nil)
+      finish_latest_workflow(state: "succeeded", provider: "claude")
+
+      expect(job.reload.retry_with_agent_providers).to be_empty
+    end
+
+    it "returns no providers when the latest workflow is not failed or succeeded" do
+      finish_latest_workflow(state: "cancelled", provider: "claude")
+
+      expect(job.reload.retry_with_agent_providers).to be_empty
+    end
+
+    it "uses the job's provider for alternate manual action choices" do
+      job.update!(agent_provider: "codex")
+
+      expect(job.alternate_configured_agent_providers).to eq([ "claude" ])
     end
   end
 

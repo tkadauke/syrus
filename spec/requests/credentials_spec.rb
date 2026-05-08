@@ -1,7 +1,12 @@
 require "rails_helper"
 
 RSpec.describe "Credentials", type: :request do
-  let(:user) { Factories.user(claude_oauth_token: "sk-existing", github_token: "ghp_existing") }
+  let(:user) do
+    Factories.user(claude_oauth_token: "sk-existing",
+                   codex_api_key: "sk-codex-existing",
+                   codex_auth_json: Factories.codex_auth_json(access_token: "codex-access-existing"),
+                   github_token: "ghp_existing")
+  end
 
   it "requires authentication" do
     user  # force a User to exist; first-run setup redirects to new_user instead
@@ -16,23 +21,51 @@ RSpec.describe "Credentials", type: :request do
       get edit_credentials_path
       expect(response).to be_successful
       expect(response.body).not_to include("sk-existing")
+      expect(response.body).not_to include("sk-codex-existing")
+      expect(response.body).not_to include("codex-access-existing")
       expect(response.body).not_to include("ghp_existing")
       expect(response.body).to include("Currently set")
     end
 
     it "updates only non-blank fields (write-only)" do
-      patch credentials_path, params: { user: { claude_oauth_token: "sk-new", github_token: "" } }
+      patch credentials_path, params: {
+        user: {
+          claude_oauth_token: "sk-new",
+          codex_api_key: "",
+          codex_auth_json: "",
+          github_token: ""
+        }
+      }
       expect(response).to redirect_to(edit_credentials_path)
       user.reload
       expect(user.claude_oauth_token).to eq("sk-new")
+      expect(user.codex_api_key).to eq("sk-codex-existing")
+      expect(user.codex_auth_json).to include("codex-access-existing")
       expect(user.github_token).to eq("ghp_existing")
     end
 
     it "leaves both unchanged when both fields are blank" do
-      patch credentials_path, params: { user: { claude_oauth_token: "", github_token: "" } }
+      patch credentials_path, params: { user: { claude_oauth_token: "", codex_api_key: "", codex_auth_json: "", github_token: "" } }
       user.reload
       expect(user.claude_oauth_token).to eq("sk-existing")
+      expect(user.codex_api_key).to eq("sk-codex-existing")
+      expect(user.codex_auth_json).to include("codex-access-existing")
       expect(user.github_token).to eq("ghp_existing")
+    end
+
+    it "updates the agent provider" do
+      patch credentials_path, params: { user: { agent_provider: "codex" } }
+      expect(response).to redirect_to(edit_credentials_path)
+      expect(user.reload.agent_provider).to eq("codex")
+    end
+
+    it "updates Codex auth mode and auth.json" do
+      auth_json = Factories.codex_auth_json(access_token: "new-access")
+      patch credentials_path, params: { user: { codex_auth_mode: "chatgpt_login", codex_auth_json: auth_json } }
+      expect(response).to redirect_to(edit_credentials_path)
+      user.reload
+      expect(user.codex_auth_mode).to eq("chatgpt_login")
+      expect(user.codex_auth_json).to eq(auth_json)
     end
 
     it "updates agent_max_turns when provided" do

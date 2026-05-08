@@ -34,7 +34,7 @@ module Admin
     private
 
     def filter_params
-      params.permit(:email, :admin, :has_github_token, :has_claude_token, :gh_rate)
+      params.permit(:email, :admin, :has_github_token, :has_claude_token, :has_codex_token, :gh_rate)
     end
   end
 end
