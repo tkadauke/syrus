@@ -1,6 +1,6 @@
 <div class="space-y-6">
   <%# Subscribe to the per-user "jobs" stream so any Job/Run change
-      (new Job, state pill move, run count tick, mergeability flip)
+      (new Job, state pill move, workflow count tick, mergeability flip)
       morphs the dashboard live without a reload. %>
   <%= turbo_stream_from Current.user, "jobs" %>
 
@@ -81,7 +81,7 @@
               <th class="px-4 py-2 text-left">State</th>
               <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
               <th class="px-4 py-2 text-left">Issue</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Runs</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Workflows</th>
               <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
               <th class="hidden sm:table-cell px-4 py-2"></th>
             </tr>
@@ -123,12 +123,12 @@
                     <div class="text-xs text-gray-500 italic mt-0.5"><%= caption %></div>
                   <% end %>
                   <div class="sm:hidden text-xs text-gray-400 mt-1 flex items-center gap-1.5">
-                    <span><%= pluralize(job.runs.size, "run") %></span>
+                    <span><%= pluralize(job.workflows.size, "workflow") %></span>
                     <span>·</span>
                     <span><%= relative_timestamp(job.started_at) %></span>
                   </div>
                 </td>
-                <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= job.runs.size %></td>
+                <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= job.workflows.size %></td>
                 <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
                 <td class="hidden sm:table-cell px-4 py-3 text-right">
                   <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>

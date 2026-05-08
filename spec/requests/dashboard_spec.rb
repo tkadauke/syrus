@@ -32,6 +32,26 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include("No jobs yet")
     end
 
+    it "shows each job's workflow count instead of run count" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repo, issue_number: 7)
+      workflow = job.workflows.first
+      workflow.first_step.runs.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded"
+      )
+
+      get root_path
+
+      document = Nokogiri::HTML(response.body)
+      row = document.at_css("tbody tr")
+      expect(document.at_css("thead").text).to include("Workflows")
+      expect(document.at_css("thead").text).not_to include("Runs")
+      expect(row.css("td")[3].text.strip).to eq("1")
+      expect(row.text).to include("1 workflow")
+    end
+
     describe "Workflows tab" do
       it "renders the empty state when no workflows exist" do
         get root_path(tab: "workflows")
