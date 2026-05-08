@@ -17,6 +17,18 @@ RSpec.describe "Credentials", type: :request do
   context "signed in" do
     before { sign_in_as(user) }
 
+    def credentials_document
+      Nokogiri::HTML(response.body)
+    end
+
+    def agent_section(target)
+      credentials_document.at_css(%([data-credentials-form-target="#{target}"]))
+    end
+
+    def disabled_field?(selector)
+      credentials_document.at_css(selector).attribute("disabled").present?
+    end
+
     it "renders the edit form without echoing existing values" do
       get edit_credentials_path
       expect(response).to be_successful
@@ -25,6 +37,46 @@ RSpec.describe "Credentials", type: :request do
       expect(response.body).not_to include("codex-access-existing")
       expect(response.body).not_to include("ghp_existing")
       expect(response.body).to include("Currently set")
+    end
+
+    it "renders only the selected agent's credential fields" do
+      get edit_credentials_path
+
+      expect(agent_section("claudeSection")["class"].to_s.split).not_to include("hidden")
+      expect(disabled_field?("#user_claude_oauth_token")).to be(false)
+
+      expect(agent_section("codexAuthModeSection")["class"].to_s.split).to include("hidden")
+      expect(disabled_field?("#user_codex_auth_mode")).to be(true)
+      expect(agent_section("codexApiKeySection")["class"].to_s.split).to include("hidden")
+      expect(disabled_field?("#user_codex_api_key")).to be(true)
+      expect(agent_section("codexAuthJsonSection")["class"].to_s.split).to include("hidden")
+      expect(disabled_field?("#user_codex_auth_json")).to be(true)
+    end
+
+    it "renders only the selected Codex auth method's credential field" do
+      user.update!(agent_provider: "codex", codex_auth_mode: "chatgpt_login")
+
+      get edit_credentials_path
+
+      expect(agent_section("claudeSection")["class"].to_s.split).to include("hidden")
+      expect(disabled_field?("#user_claude_oauth_token")).to be(true)
+      expect(agent_section("codexAuthModeSection")["class"].to_s.split).not_to include("hidden")
+      expect(disabled_field?("#user_codex_auth_mode")).to be(false)
+      expect(agent_section("codexApiKeySection")["class"].to_s.split).to include("hidden")
+      expect(disabled_field?("#user_codex_api_key")).to be(true)
+      expect(agent_section("codexAuthJsonSection")["class"].to_s.split).not_to include("hidden")
+      expect(disabled_field?("#user_codex_auth_json")).to be(false)
+    end
+
+    it "offers a no-agent selection whose initial state hides every agent credential section" do
+      patch credentials_path, params: { user: { agent_provider: "oracle" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(credentials_document.at_css("#user_agent_provider option[value='']")).to be_present
+      expect(agent_section("claudeSection")["class"].to_s.split).to include("hidden")
+      expect(agent_section("codexAuthModeSection")["class"].to_s.split).to include("hidden")
+      expect(agent_section("codexApiKeySection")["class"].to_s.split).to include("hidden")
+      expect(agent_section("codexAuthJsonSection")["class"].to_s.split).to include("hidden")
     end
 
     it "updates only non-blank fields (write-only)" do
