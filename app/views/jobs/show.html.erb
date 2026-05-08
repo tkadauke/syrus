@@ -7,15 +7,18 @@
       lets the action row wrap naturally with `flex-wrap`. %>
   <div class="space-y-3">
     <div>
-      <h1 class="font-bold text-2xl">
-        <span class="font-mono"><%= @job.repository.slug %></span>
-        <span class="text-gray-400">·</span>
-        <%= job_source_label_html(@job) %>
-        <% if @job.issue_title.present? %>
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="font-bold text-2xl">
+          <span class="font-mono"><%= @job.repository.slug %></span>
           <span class="text-gray-400">·</span>
-          <span class="font-normal"><%= @job.issue_title %></span>
-        <% end %>
-      </h1>
+          <%= job_source_label_html(@job) %>
+          <% if @job.issue_title.present? %>
+            <span class="text-gray-400">·</span>
+            <span class="font-normal"><%= @job.issue_title %></span>
+          <% end %>
+        </h1>
+        <%= job_agent_pill(@job) %>
+      </div>
       <p class="mt-1 text-sm text-gray-500">
         Job #<%= @job.id %> ·
         <%= pluralize(@job.workflows.size, "workflow") %> ·

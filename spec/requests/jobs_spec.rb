@@ -44,6 +44,13 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to match(/#42.*Add greeting helper/m)
       end
 
+      it "shows the selected agent as a pill next to the title" do
+        get job_path(job)
+
+        expect(response.body).to include("Claude Code")
+        expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*Claude Code/m)
+      end
+
       it "renders issue_body when present (no summary → plain block)" do
         job.update!(issue_title: "Add greeting helper", issue_body: "We need a greeting helper.")
         get job_path(job)
