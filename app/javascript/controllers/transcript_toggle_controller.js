@@ -13,7 +13,14 @@ export default class extends Controller {
   static values = { showTools: { type: Boolean, default: false } }
 
   connect() {
+    this.stickToBottom = false
+    this.boundTrackScroll = this.trackScroll.bind(this)
     this.applyState()
+    this.startAutoScroll()
+  }
+
+  disconnect() {
+    this.stopAutoScroll()
   }
 
   toggle(event) {
@@ -31,9 +38,53 @@ export default class extends Controller {
   applyState() {
     if (this.hasContainerTarget) {
       this.containerTarget.classList.toggle("hide-tool-rows", !this.showToolsValue)
+      if (this.stickToBottom) this.scrollToBottom()
     }
     if (this.hasLabelTarget) {
       this.labelTarget.textContent = this.showToolsValue ? "Hide tool calls" : "Show tool calls"
     }
+  }
+
+  startAutoScroll() {
+    if (!this.hasContainerTarget) return
+
+    this.containerTarget.addEventListener("scroll", this.boundTrackScroll)
+    this.stickToBottom = this.isAtBottom()
+    this.observer = new MutationObserver(() => {
+      if (this.stickToBottom) this.scrollToBottom()
+    })
+    this.observer.observe(this.containerTarget, { childList: true, subtree: true })
+  }
+
+  stopAutoScroll() {
+    if (this.hasContainerTarget) {
+      this.containerTarget.removeEventListener("scroll", this.boundTrackScroll)
+    }
+    if (this.observer) {
+      this.observer.disconnect()
+      this.observer = null
+    }
+  }
+
+  trackScroll() {
+    this.stickToBottom = this.isAtBottom()
+  }
+
+  isAtBottom() {
+    if (!this.hasContainerTarget) return false
+
+    const threshold = 24
+    const remaining = this.containerTarget.scrollHeight -
+      this.containerTarget.scrollTop -
+      this.containerTarget.clientHeight
+    return remaining <= threshold
+  }
+
+  scrollToBottom() {
+    if (!this.hasContainerTarget) return
+
+    requestAnimationFrame(() => {
+      this.containerTarget.scrollTop = this.containerTarget.scrollHeight
+    })
   }
 }
