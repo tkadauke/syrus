@@ -67,15 +67,16 @@ module ApplicationHelper
   def duration_caption(started_at, finished_at)
     return nil if started_at.nil? || finished_at.nil?
     span = (finished_at - started_at).to_i
-    label = if span < 60
-              "#{span} #{'second'.pluralize(span)}"
-            else
-              # ActiveSupport's distance_of_time_in_words returns "less
-              # than a minute", "about 3 hours", "1 day", etc. — same
-              # English-language scale time_ago_in_words uses, so the
-              # caption sits naturally next to relative_timestamp output.
-              distance_of_time_in_words(started_at, finished_at)
-            end
+    label =
+      if span < 60
+        "#{span} #{'second'.pluralize(span)}"
+      else
+        # ActiveSupport's distance_of_time_in_words returns "less
+        # than a minute", "about 3 hours", "1 day", etc. — same
+        # English-language scale time_ago_in_words uses, so the
+        # caption sits naturally next to relative_timestamp output.
+        distance_of_time_in_words(started_at, finished_at)
+      end
     title = "#{started_at.strftime('%-I:%M:%S %p')} → #{finished_at.strftime('%-I:%M:%S %p')}"
     content_tag(:span, label, title: title)
   end
