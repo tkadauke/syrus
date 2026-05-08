@@ -2,6 +2,8 @@ require "tempfile"
 
 module AgentProviders
   class Claude < Base
+    SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
+
     def self.provider = "claude"
 
     def run(prompt:, log_sink:, max_turns: nil)
@@ -23,11 +25,13 @@ module AgentProviders
       capture = super
       return nil unless capture
       return capture if capture.transcript_jsonl.present?
+      session_id = normalized_session_id(result.session_id)
+      return missing_session_capture(result) unless session_id
 
       path = ClaudeSession.canonical_path_for(
         home: ENV.fetch("HOME"),
         cwd: workspace.path,
-        session_id: result.session_id
+        session_id: session_id
       )
 
       if File.exist?(path)
@@ -48,6 +52,22 @@ module AgentProviders
     end
 
     private
+
+    def normalized_session_id(session_id)
+      normalized = session_id.to_s
+      return unless normalized.match?(SESSION_ID_PATTERN)
+
+      normalized
+    end
+
+    def missing_session_capture(result)
+      SessionCapture.new(
+        provider: provider,
+        session_id: result.session_id,
+        transcript_jsonl: nil,
+        missing_message: "[agent_session] invalid Claude session id - Resume won't be available for this Run"
+      )
+    end
 
     # Per-Run mcp.json tempfile so claude knows how to reach our
     # sidecar. `alwaysLoad: true` (claude-code v2.1.121+) skips

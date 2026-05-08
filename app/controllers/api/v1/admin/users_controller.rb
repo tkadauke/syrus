@@ -24,8 +24,10 @@ module Api
 
         private
 
+        FILTER_PARAM_KEYS = %w[ email admin has_github_token has_claude_token has_codex_token gh_rate ].freeze
+
         def filter_params
-          params.permit(:email, :admin, :has_github_token, :has_claude_token, :has_codex_token, :gh_rate)
+          params.to_unsafe_h.slice(*FILTER_PARAM_KEYS).symbolize_keys
         end
 
         def serialize_user_row(user)

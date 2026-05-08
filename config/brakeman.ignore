@@ -20,66 +20,26 @@
       "note": "Controller validates @tab via case/redirect and returns early for unknown values; only known tab names reach the render."
     },
     {
-      "warning_type": "Mass Assignment",
-      "warning_code": 105,
-      "fingerprint": "2cf7eceb0110d80cd2847bab861fffedaea7acaafc81c05d075879617f2a57c1",
-      "check_name": "PermitAttributes",
-      "message": "Potentially dangerous key allowed for mass assignment",
-      "file": "app/controllers/api/v1/admin/users_controller.rb",
-      "line": 28,
-      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
-      "code": "params.permit(:email, :admin, :has_github_token, :has_claude_token, :gh_rate)",
-      "render_path": null,
-      "location": {
-        "type": "method",
-        "class": "Api::V1::Admin::UsersController",
-        "method": "filter_params"
-      },
-      "user_input": ":admin",
-      "confidence": "High",
-      "note": "Admin-only controller (Bearer-token auth); permitting :admin for admin user management is intentional."
-    },
-    {
-      "warning_type": "Mass Assignment",
-      "warning_code": 105,
-      "fingerprint": "c40997c3a82ca7623daadf610e343d51231e56424ddfceefeaf8ba3171a3486b",
-      "check_name": "PermitAttributes",
-      "message": "Potentially dangerous key allowed for mass assignment",
-      "file": "app/controllers/admin/users_controller.rb",
-      "line": 37,
-      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
-      "code": "params.permit(:email, :admin, :has_github_token, :has_claude_token, :gh_rate)",
-      "render_path": null,
-      "location": {
-        "type": "method",
-        "class": "Admin::UsersController",
-        "method": "filter_params"
-      },
-      "user_input": ":admin",
-      "confidence": "High",
-      "note": "Admin-only controller; permitting :admin for admin user management is intentional."
-    },
-    {
       "warning_type": "File Access",
       "warning_code": 16,
-      "fingerprint": "d750213088cca6858fae5435b38f7a656cb314abfb2b594da6ce46e9d7ba4089",
+      "fingerprint": "5272000e9f23de53e54466dbf3e99700b8ed61ac684b65e01dd250885870aedd",
       "check_name": "FileAccess",
       "message": "Model attribute used in file name",
-      "file": "app/services/steps/base.rb",
-      "line": 241,
+      "file": "app/services/agent_providers/claude.rb",
+      "line": 41,
       "link": "https://brakemanscanner.org/docs/warning_types/file_access/",
-      "code": "File.read(ClaudeSession.canonical_path_for(:home => ENV.fetch(\"HOME\"), :cwd => workspace.path, :session_id => result.session_id))",
+      "code": "File.read(ClaudeSession.canonical_path_for(:home => ENV.fetch(\"HOME\"), :cwd => workspace.path, :session_id => normalized_session_id(result.session_id)))",
       "render_path": null,
       "location": {
         "type": "method",
-        "class": "Steps::Base",
-        "method": "capture_claude_session"
+        "class": "AgentProviders::Claude",
+        "method": "session_capture"
       },
-      "user_input": "ClaudeSession.canonical_path_for(:home => ENV.fetch(\"HOME\"), :cwd => workspace.path, :session_id => result.session_id)",
+      "user_input": "ClaudeSession.canonical_path_for(:home => ENV.fetch(\"HOME\"), :cwd => workspace.path, :session_id => normalized_session_id(result.session_id))",
       "confidence": "Medium",
-      "note": "session_id is set by the Claude agent process, not user-controlled input; path construction is via canonical_path_for which doesn't allow traversal."
+      "note": "session_id is emitted by the Claude agent process and is rejected unless it matches SESSION_ID_PATTERN before path construction."
     }
   ],
-  "updated": "2026-05-04 21:20:00 -0400",
+  "updated": "2026-05-08 05:23:00 +0000",
   "brakeman_version": "8.0.4"
 }

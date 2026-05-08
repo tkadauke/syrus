@@ -100,5 +100,20 @@ RSpec.describe AgentProviders::Claude do
         ENV["HOME"] = saved_home
       end
     end
+
+    it "does not read a transcript path for an unsafe session id" do
+      result = AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                           is_error: false, outcome: "success",
+                                           final_text: nil, session_id: "../outside")
+
+      expect(File).not_to receive(:read)
+
+      capture = adapter.session_capture(result)
+
+      expect(capture.provider).to eq("claude")
+      expect(capture.session_id).to eq("../outside")
+      expect(capture.transcript_jsonl).to be_nil
+      expect(capture.missing_message).to include("invalid Claude session id")
+    end
   end
 end
