@@ -28,6 +28,10 @@ class WorkflowWorkspace
     data_root.join("workflows", workflow.id.to_s)
   end
 
+  def self.agent_home_for(workflow, provider)
+    data_root.join("agent_homes", "jobs", workflow.job_id.to_s, provider.to_s)
+  end
+
   # Read the committed-but-not-pushed diff (three-dot vs default
   # branch) and list of uncommitted files from the workflow's
   # workspace. Returns nil when: workspace doesn't exist, workflow
@@ -66,9 +70,11 @@ class WorkflowWorkspace
   # rather than treating a still-present dir as already gone.
   def self.cleanup_for(workflow)
     p = path_for(workflow)
+    agent_home = data_root.join("agent_homes", "jobs", workflow.job_id.to_s)
     Rails.logger.info("[WorkflowWorkspace] cleanup start for Workflow ##{workflow.id} at #{p}")
 
     FileUtils.rm_rf(p.to_s) if p.exist?
+    FileUtils.rm_rf(agent_home.to_s) if agent_home.exist?
 
     if p.exist?
       Rails.logger.warn("[WorkflowWorkspace] rm_rf completed but #{p} still present for Workflow ##{workflow.id} — will retry on next prune pass")

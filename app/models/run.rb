@@ -22,6 +22,7 @@ class Run < ApplicationRecord
   end
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
+  validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
 
   # Backstop for genuine agent hangs (claude alive but making no
   # progress). Rare in practice — claude almost always streams a chunk

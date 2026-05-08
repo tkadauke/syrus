@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_06_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_08_002000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -33,6 +33,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_000001) do
 
   create_table "claude_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "provider", default: "claude", null: false
     t.integer "run_id", null: false
     t.string "session_id", null: false
     t.text "transcript_jsonl", limit: 67108864
@@ -79,6 +80,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_000001) do
   end
 
   create_table "jobs", force: :cascade do |t|
+    t.string "agent_provider", null: false
     t.string "branch_name"
     t.string "closure_reason"
     t.datetime "created_at", null: false
@@ -177,6 +179,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_000001) do
     t.string "agent_outcome"
     t.text "agent_pr_body"
     t.string "agent_pr_title"
+    t.string "agent_provider", default: "claude", null: false
     t.text "agent_summary"
     t.integer "agent_turns"
     t.datetime "created_at", null: false
@@ -250,8 +253,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_000001) do
   create_table "users", force: :cascade do |t|
     t.boolean "admin", default: false, null: false
     t.integer "agent_max_turns", default: 200, null: false
+    t.string "agent_provider", default: "claude", null: false
     t.string "api_token"
     t.string "claude_oauth_token"
+    t.string "codex_api_key"
+    t.text "codex_auth_json"
+    t.string "codex_auth_mode", default: "api_key", null: false
     t.datetime "created_at", null: false
     t.string "email_address", null: false
     t.datetime "gh_api_blocked_at"
@@ -270,6 +277,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_000001) do
   end
 
   create_table "workflows", force: :cascade do |t|
+    t.string "agent_provider", default: "claude", null: false
     t.text "artifacts"
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false

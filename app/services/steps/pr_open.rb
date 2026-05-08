@@ -90,9 +90,19 @@ module Steps
       parts << ""
       parts << "---"
       implement_run = workflow.steps.where(kind: "implement").last&.latest_run
-      turns = implement_run&.agent_turns
-      parts << "*Authored by an LLM (Run took #{turns || '?'} turn(s), trigger=#{workflow.trigger_kind}). Review carefully.*"
+      parts << attribution_footer(implement_run)
       parts.join("\n")
+    end
+
+    def attribution_footer(implement_run)
+      provider = implement_run&.agent_provider.presence || workflow.agent_provider.presence
+      author = provider.present? ? provider.titleize : "an LLM"
+
+      details = []
+      details << "Run took #{implement_run&.agent_turns || '?'} turn(s)" unless provider == "codex"
+      details << "trigger=#{workflow.trigger_kind}"
+
+      "*Authored by #{author} (#{details.join(', ')}). Review carefully.*"
     end
 
     def template_title

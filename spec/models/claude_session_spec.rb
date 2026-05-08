@@ -15,6 +15,12 @@ RSpec.describe ClaudeSession do
       expect(s).not_to be_valid
     end
 
+    it "validates provider" do
+      s = described_class.new(run: run, session_id: "uuid", provider: "oracle")
+      expect(s).not_to be_valid
+      expect(s.errors[:provider]).to be_present
+    end
+
     it "destroys with the parent Run" do
       s = described_class.create!(run: run, session_id: "uuid", transcript_jsonl: "x")
       expect { run.destroy }.to change { described_class.where(id: s.id).count }.by(-1)

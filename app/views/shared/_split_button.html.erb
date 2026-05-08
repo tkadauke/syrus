@@ -15,18 +15,21 @@
 <% theme_classes = split_button_theme(local_assigns.fetch(:theme, "blue")) %>
 <% disabled = local_assigns.fetch(:disabled, false) %>
 <% primary_method = primary[:method] || :post %>
+<% primary_title = primary[:title] %>
 <% primary_form = { class: "inline" } %>
 <% primary_form[:data] = { turbo_confirm: primary[:confirm] } if primary[:confirm] %>
 
 <div class="relative inline-flex" data-controller="split-button">
   <% if disabled %>
     <button type="button" disabled
+            title="<%= primary_title %>"
             class="<%= theme_classes %> rounded-l-md px-3 py-1.5 text-sm font-medium opacity-60 cursor-not-allowed">
       <%= primary[:label] %>
     </button>
   <% else %>
     <%= button_to primary[:label], primary[:path], method: primary_method,
           class: "#{theme_classes} rounded-l-md px-3 py-1.5 text-sm font-medium cursor-pointer",
+          title: primary_title,
           form: primary_form %>
   <% end %>
 

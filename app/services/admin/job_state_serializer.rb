@@ -16,6 +16,7 @@ module Admin
       {
         id: wf.id,
         trigger_kind: wf.trigger_kind,
+        agent_provider: wf.agent_provider,
         state: wf.state,
         failure_count: wf.failure_count,
         artifacts: wf.artifacts,
@@ -48,6 +49,7 @@ module Admin
         id: run.id,
         state: run.state,
         trigger_kind: run.trigger_kind,
+        agent_provider: run.agent_provider,
         agent_outcome: run.agent_outcome,
         agent_turns: run.agent_turns,
         agent_pr_title: run.agent_pr_title,
@@ -61,6 +63,7 @@ module Admin
         job_log_count: run.job_logs.size,
         claude_session: run.claude_session && {
           session_id: run.claude_session.session_id,
+          provider: run.claude_session.provider,
           # transcript_jsonl is dropped on Run success (commit
           # 804cdf5) — keep the metadata visible but flag the
           # body as pruned instead of pretending size 0.

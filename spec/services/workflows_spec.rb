@@ -28,10 +28,22 @@ RSpec.describe Workflows do
       wf = Workflows::Initial.instantiate(job: job)
       expect(wf).to be_persisted
       expect(wf.trigger_kind).to eq("initial")
+      expect(wf.agent_provider).to eq("claude")
       expect(wf.state).to eq("queued")
       expect(wf.steps.pluck(:kind, :position)).to eq([
         [ "prepare", 0 ], [ "implement", 1 ], [ "summarize", 2 ], [ "pr_open", 3 ]
       ])
+    end
+
+    it "records the job's current agent provider on the workflow" do
+      job.update!(agent_provider: "codex")
+      wf = Workflows::Initial.instantiate(job: job)
+      expect(wf.agent_provider).to eq("codex")
+    end
+
+    it "allows callers to override agent_provider for resume workflows" do
+      wf = Workflows::Resume.instantiate(job: job, agent_provider: "codex")
+      expect(wf.agent_provider).to eq("codex")
     end
 
     it "wires next_step_id top-down (linear chain)" do

@@ -7,6 +7,12 @@ RSpec.describe Admin::UsersFilter do
   let!(:plain_user)     { Factories.user(email_address: "ophelia@example.com") }
   let!(:gh_token_user)  { Factories.user(email_address: "alice@example.com", github_token: "ghp_x") }
   let!(:claude_user)    { Factories.user(email_address: "bob@example.com", claude_oauth_token: "co_x") }
+  let!(:codex_user)     { Factories.user(email_address: "cora@example.com", codex_api_key: "sk_x") }
+  let!(:codex_login_user) do
+    Factories.user(email_address: "dana@example.com",
+                   codex_auth_mode: "chatgpt_login",
+                   codex_auth_json: Factories.codex_auth_json(access_token: "access_x"))
+  end
   let!(:rate_low_user)  { Factories.user(email_address: "lila@example.com",
                                           gh_rate_limit_remaining: 50, gh_rate_limit_limit: 5000) }
   let!(:rate_ok_user)   { Factories.user(email_address: "rita@example.com",
@@ -58,6 +64,18 @@ RSpec.describe Admin::UsersFilter do
     end
   end
 
+  describe "has_codex_token filter" do
+    it "true → only users with any Codex credential" do
+      expect(described_class.new(has_codex_token: "true").scope)
+        .to contain_exactly(codex_user, codex_login_user)
+    end
+
+    it "false → only users without any Codex credential" do
+      result = described_class.new(has_codex_token: "false").scope
+      expect(result).not_to include(codex_user, codex_login_user)
+    end
+  end
+
   describe "gh_rate filter" do
     it "low → users below the 10% threshold (and not zero, since zero is its own bucket too)" do
       result = described_class.new(gh_rate: "low").scope
@@ -89,8 +107,8 @@ RSpec.describe Admin::UsersFilter do
     end
 
     it "lists each provided filter for the UI strip" do
-      f = described_class.new(email: "foo", admin: "true", gh_rate: "low")
-      expect(f.active_filters).to eq("email" => "foo", "admin" => "yes", "gh_rate" => "low")
+      f = described_class.new(email: "foo", admin: "true", has_codex_token: "false", gh_rate: "low")
+      expect(f.active_filters).to eq("email" => "foo", "admin" => "yes", "has_codex_token" => "no", "gh_rate" => "low")
     end
   end
 end

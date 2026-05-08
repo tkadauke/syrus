@@ -17,18 +17,19 @@ WORKDIR /rails
 # Install base packages. Notes specific to Syrus:
 #   - `git` is needed at *runtime*, not just build, because the worker
 #     shells out to it for every clone / commit / push.
-#   - `nodejs` + `npm` are required to install the `claude` CLI, which
-#     the agent worker spawns per Run via AgentInvocation.
+#   - `nodejs` + `npm` are required to install the agent CLIs, which
+#     the agent worker spawns per Run via AgentInvocation / CodexInvocation.
 #   - `gnupg` and `ca-certificates` are needed for NodeSource's apt repo.
 ARG NODE_MAJOR=22
 ARG CLAUDE_CODE_VERSION=2.1.126
+ARG CODEX_CLI_VERSION=0.129.0
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
       ca-certificates curl default-mysql-client git gnupg libjemalloc2 libvips && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
     apt-get install --no-install-recommends -y nodejs && \
-    npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && \
+    npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @openai/codex@${CODEX_CLI_VERSION} && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 

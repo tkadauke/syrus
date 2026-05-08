@@ -61,6 +61,9 @@ class ClaudeTranscript
     when "user"        then user_events(parsed)
     when "assistant"   then assistant_events(parsed)
     when "result"      then [ result_event(parsed) ]
+    when "session_meta" then [ codex_session_event(parsed) ]
+    when "event_msg"    then codex_event_events(parsed)
+    when "response_item" then codex_response_item_events(parsed)
     else                    [ Event.new(kind: :other, timestamp: parsed["timestamp"], data: parsed) ]
     end
   rescue JSON::ParserError
@@ -146,6 +149,91 @@ class ClaudeTranscript
         final_text: parsed["result"]
       }
     )
+  end
+
+  def codex_session_event(parsed)
+    payload = parsed["payload"] || {}
+    Event.new(
+      kind: :system_init,
+      timestamp: parsed["timestamp"] || payload["timestamp"],
+      data: {
+        model: payload["model"],
+        cwd: payload["cwd"],
+        tools: [],
+        session_id: payload["id"]
+      }
+    )
+  end
+
+  def codex_event_events(parsed)
+    payload = parsed["payload"] || {}
+    timestamp = parsed["timestamp"]
+
+    case payload["type"]
+    when "user_message"
+      [ Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: payload["message"] }) ]
+    when "agent_message"
+      [ Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: payload["message"] }) ]
+    when "mcp_tool_call_end"
+      result = payload["result"]
+      [ Event.new(
+        kind: :tool_result,
+        timestamp: timestamp,
+        data: {
+          tool_use_id: payload["call_id"],
+          content: result,
+          error: result.is_a?(Hash) && result.key?("Err")
+        }
+      ) ]
+    when "task_complete"
+      [ Event.new(
+        kind: :result,
+        timestamp: timestamp,
+        data: {
+          turns: nil,
+          duration_ms: payload["duration_ms"],
+          cost_usd: nil,
+          is_error: false,
+          subtype: "success",
+          final_text: payload["last_agent_message"]
+        }
+      ) ]
+    else
+      [ Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
+    end
+  end
+
+  def codex_response_item_events(parsed)
+    payload = parsed["payload"] || {}
+    timestamp = parsed["timestamp"]
+
+    case payload["type"]
+    when "message"
+      content = payload["content"]
+      text = if content.is_a?(Array)
+        content.filter_map { |part| part["text"] || part.dig("content", 0, "text") }.join("\n")
+      else
+        content.to_s
+      end
+      return [] if text.blank?
+      [ Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ]
+    when "function_call"
+      name = [ payload["namespace"], payload["name"] ].compact.join
+      input = JSON.parse(payload["arguments"].to_s) rescue payload["arguments"]
+      [ Event.new(
+        kind: :tool_use,
+        timestamp: timestamp,
+        data: { name: name, input: input, id: payload["call_id"] }
+      ) ]
+    when "function_call_output"
+      [ Event.new(
+        kind: :tool_result,
+        timestamp: timestamp,
+        data: { tool_use_id: payload["call_id"], content: payload["output"], error: false }
+      ) ]
+    else
+      []
+    end
   end
 
   def compute_summary

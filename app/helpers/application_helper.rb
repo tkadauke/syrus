@@ -69,13 +69,13 @@ module ApplicationHelper
     span = (finished_at - started_at).to_i
     label = if span < 60
               "#{span} #{'second'.pluralize(span)}"
-            else
+    else
               # ActiveSupport's distance_of_time_in_words returns "less
               # than a minute", "about 3 hours", "1 day", etc. — same
               # English-language scale time_ago_in_words uses, so the
               # caption sits naturally next to relative_timestamp output.
               distance_of_time_in_words(started_at, finished_at)
-            end
+    end
     title = "#{started_at.strftime('%-I:%M:%S %p')} → #{finished_at.strftime('%-I:%M:%S %p')}"
     content_tag(:span, label, title: title)
   end
@@ -96,9 +96,11 @@ module ApplicationHelper
   # appending here; the partial reads via split_button_theme.
   SPLIT_BUTTON_THEMES = {
     "blue"    => "bg-blue-600 hover:bg-blue-500 text-white",
+    "cyan"    => "bg-cyan-600 hover:bg-cyan-500 text-white",
     "red"     => "bg-red-600 hover:bg-red-500 text-white",
     "amber"   => "bg-amber-600 hover:bg-amber-500 text-white",
     "emerald" => "bg-emerald-600 hover:bg-emerald-500 text-white",
+    "teal"    => "bg-teal-600 hover:bg-teal-500 text-white",
     "gray"    => "bg-gray-200 hover:bg-gray-300 text-gray-800"
   }.freeze
 

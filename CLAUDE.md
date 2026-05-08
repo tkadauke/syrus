@@ -184,6 +184,11 @@ preserve scroll position across morphs.
 - **Per-user scheduling pause** — `User#scheduling_paused` (boolean).
   `PollScheduledTasksJob` skips paused users entirely. Operator can toggle
   via admin UI; user can toggle in `/credentials/edit`.
+- **Per-Job priority** — `Job#priority` is `high` / `medium` (default) /
+  `low`. Converted to SolidQueue integers at enqueue time via
+  `Job#solid_queue_priority` (high→0, medium→10, low→20); the
+  `Run#enqueue_run_job` path and paused-run re-enqueue in `RunJob` both
+  use it. Admin API exposes `priority` on job list and detail responses.
 - **Pagination standard** — all paginated list views use the same UI:
   "Showing X–Y of Z" counter on the left; bordered pill buttons
   (`px-3 py-1 border border-gray-300 rounded hover:bg-gray-50`) for

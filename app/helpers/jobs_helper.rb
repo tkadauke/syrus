@@ -97,6 +97,10 @@ module JobsHelper
     colored_pill(priority, classes: PRIORITY_STYLES[priority.to_s] || ApplicationHelper::PILL_FALLBACK_CLASSES)
   end
 
+  def job_agent_pill(_job)
+    colored_pill("Claude Code", classes: "bg-indigo-100 text-indigo-700", extra: "whitespace-nowrap")
+  end
+
   # The most useful one-word summary for a Job in a list view:
   # "preempted" beats "closed" when a Job was preempted by an external
   # PR — that's a more informative bucket than generic "closed."

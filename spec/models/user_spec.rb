@@ -24,10 +24,15 @@ RSpec.describe User do
   end
 
   describe "encrypted credentials" do
-    it "round-trips claude_oauth_token and github_token" do
-      user = User.create!(attrs.merge(claude_oauth_token: "oat-abc", github_token: "ghp_xyz"))
+    it "round-trips claude_oauth_token, codex credentials, and github_token" do
+      user = User.create!(attrs.merge(claude_oauth_token: "oat-abc",
+                                      codex_api_key: "sk-codex",
+                                      codex_auth_json: Factories.codex_auth_json(access_token: "codex-access"),
+                                      github_token: "ghp_xyz"))
       reloaded = User.find(user.id)
       expect(reloaded.claude_oauth_token).to eq("oat-abc")
+      expect(reloaded.codex_api_key).to eq("sk-codex")
+      expect(reloaded.codex_auth_json).to include("codex-access")
       expect(reloaded.github_token).to eq("ghp_xyz")
     end
 
@@ -35,6 +40,101 @@ RSpec.describe User do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-secret"))
       raw = User.connection.select_value("SELECT claude_oauth_token FROM users WHERE id = #{user.id}")
       expect(raw).not_to include("oat-secret")
+    end
+  end
+
+  describe "agent_provider" do
+    it "defaults to claude" do
+      expect(User.create!(attrs).agent_provider).to eq("claude")
+    end
+
+    it "accepts codex" do
+      user = User.create!(attrs.merge(agent_provider: "codex"))
+      expect(user.agent_provider).to eq("codex")
+    end
+
+    it "rejects unknown providers" do
+      user = User.new(attrs.merge(agent_provider: "oracle"))
+      expect(user).not_to be_valid
+      expect(user.errors[:agent_provider]).to be_present
+    end
+  end
+
+  describe "codex_auth_mode" do
+    it "defaults to api_key" do
+      expect(User.create!(attrs).codex_auth_mode).to eq("api_key")
+    end
+
+    it "accepts chatgpt_login" do
+      user = User.create!(attrs.merge(codex_auth_mode: "chatgpt_login"))
+      expect(user.codex_auth_mode).to eq("chatgpt_login")
+    end
+
+    it "rejects unknown modes" do
+      user = User.new(attrs.merge(codex_auth_mode: "browser_cookie"))
+      expect(user).not_to be_valid
+      expect(user.errors[:codex_auth_mode]).to be_present
+    end
+  end
+
+  describe "#configured_agent_providers" do
+    it "includes Claude when a Claude token is set" do
+      user = User.create!(attrs.merge(claude_oauth_token: "oat-test"))
+
+      expect(user.configured_agent_providers).to eq([ "claude" ])
+    end
+
+    it "includes Codex when API key auth is selected and an API key is set" do
+      user = User.create!(attrs.merge(codex_auth_mode: "api_key", codex_api_key: "sk-test"))
+
+      expect(user.configured_agent_providers).to eq([ "codex" ])
+    end
+
+    it "includes Codex when ChatGPT login auth is selected and auth.json is set" do
+      user = User.create!(
+        attrs.merge(
+          codex_auth_mode: "chatgpt_login",
+          codex_auth_json: Factories.codex_auth_json(access_token: "access-test")
+        )
+      )
+
+      expect(user.configured_agent_providers).to eq([ "codex" ])
+    end
+
+    it "requires credentials for the active Codex auth mode" do
+      user = User.create!(
+        attrs.merge(
+          codex_auth_mode: "chatgpt_login",
+          codex_api_key: "sk-unused-for-chatgpt-login"
+        )
+      )
+
+      expect(user.configured_agent_providers).to be_empty
+    end
+
+    it "returns every configured provider in registry order" do
+      user = User.create!(
+        attrs.merge(
+          claude_oauth_token: "oat-test",
+          codex_auth_mode: "api_key",
+          codex_api_key: "sk-test"
+        )
+      )
+
+      expect(user.configured_agent_providers).to eq(%w[ claude codex ])
+    end
+
+    it "returns configured providers other than the user's default provider" do
+      user = User.create!(
+        attrs.merge(
+          agent_provider: "claude",
+          claude_oauth_token: "oat-test",
+          codex_auth_mode: "api_key",
+          codex_api_key: "sk-test"
+        )
+      )
+
+      expect(user.alternate_configured_agent_providers).to eq([ "codex" ])
     end
   end
 

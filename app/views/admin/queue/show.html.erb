@@ -1,9 +1,12 @@
 <div class="space-y-6">
-  <div class="flex items-center justify-between">
+  <div class="flex items-center justify-between gap-3">
     <h1 class="font-bold text-2xl">SolidQueue inspector</h1>
-    <%= button_to "Reap stale runs now", admin_reap_stale_runs_path, method: :post,
-          class: "rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium cursor-pointer",
-          form: { class: "inline" } %>
+    <div class="flex items-center gap-3">
+      <%= button_to "Reap stale runs now", admin_reap_stale_runs_path, method: :post,
+            class: "rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium cursor-pointer",
+            form: { class: "inline" } %>
+      <%= render "admin/nav" %>
+    </div>
   </div>
 
   <%# Tabs %>

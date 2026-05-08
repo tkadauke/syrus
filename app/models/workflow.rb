@@ -10,6 +10,7 @@ class Workflow < ApplicationRecord
   has_many :steps, -> { order(:position) }, dependent: :destroy
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
+  validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
 
   # Free-form bag of artifacts produced during this workflow. The
   # MCP sidecar's `submit_summary` writes pr_title/pr_body/summary
@@ -120,6 +121,10 @@ class Workflow < ApplicationRecord
 
   def terminal?
     succeeded? || failed? || cancelled?
+  end
+
+  def retry_as_new_workflow_available?
+    succeeded? || failed?
   end
 
   # Failed workflows whose disk workspace is still around — the

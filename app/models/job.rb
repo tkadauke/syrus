@@ -24,6 +24,7 @@ class Job < ApplicationRecord
 
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
+  validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -31,6 +32,7 @@ class Job < ApplicationRecord
   validates :scheduled_task_id, presence: true, if: :cron?
   validate  :issue_number_blank_for_cron, if: :cron?
   validate  :issue_number_blank_for_adhoc, if: :adhoc?
+  before_validation :default_agent_provider, on: :create
 
   scope :open_threads, -> { where(state: "open") }
   scope :closed_threads, -> { where(state: "closed") }
@@ -150,6 +152,29 @@ class Job < ApplicationRecord
     runs.last
   end
 
+  def latest_workflow
+    workflows.last
+  end
+
+  def retry_with_agent_providers
+    return [] unless open?
+    return [] if any_active_run?
+    return [] unless latest_workflow&.retry_as_new_workflow_available?
+
+    configured = user.configured_agent_providers
+    return [] unless configured.size > 1
+
+    configured - [ current_run&.agent_provider ]
+  end
+
+  def alternate_configured_agent_providers
+    user.configured_agent_providers - [ agent_provider ]
+  end
+
+  def switch_agent_provider!(provider)
+    update!(agent_provider: provider)
+  end
+
   # The very first Run — the one that created the branch and PR.
   def initial_run
     runs.find_by(trigger_kind: "initial")
@@ -204,6 +229,10 @@ class Job < ApplicationRecord
   def create_initial_run
     workflow = Workflows::Initial.instantiate(job: self)
     StepDispatcher.start_workflow(workflow)
+  end
+
+  def default_agent_provider
+    self.agent_provider ||= user&.agent_provider
   end
 
   def issue_number_blank_for_cron

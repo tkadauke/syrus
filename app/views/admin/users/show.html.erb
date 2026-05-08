@@ -9,7 +9,7 @@
         <% end %>
       </div>
     </div>
-    <%= link_to "← Back to users", admin_users_path, class: "text-sm text-blue-600 hover:underline" %>
+    <%= render "admin/nav" %>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -26,8 +26,24 @@
           <dd><%= @user.claude_oauth_token.present? ? "✓ set" : "—" %></dd>
         </div>
         <div class="flex justify-between">
+          <dt class="text-gray-600">Codex API key</dt>
+          <dd><%= @user.codex_api_key.present? ? "✓ set" : "—" %></dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-gray-600">Codex auth.json</dt>
+          <dd><%= @user.codex_auth_json.present? ? "✓ set" : "—" %></dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-gray-600">Codex auth mode</dt>
+          <dd><%= @user.codex_auth_mode %></dd>
+        </div>
+        <div class="flex justify-between">
           <dt class="text-gray-600">API token</dt>
           <dd><%= @user.api_token.present? ? "✓ set" : "—" %></dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-gray-600">Agent provider</dt>
+          <dd><%= @user.agent_provider %></dd>
         </div>
         <div class="flex justify-between">
           <dt class="text-gray-600">Agent max turns</dt>

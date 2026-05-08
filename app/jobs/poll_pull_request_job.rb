@@ -22,8 +22,9 @@ class PollPullRequestJob < ApplicationJob
   # explicit override of that defense, so we skip the cap checks
   # in that path. Without this, the button silently no-ops on Jobs
   # that have already burned through their pr_comment quota.
-  def perform(job_id, manual: false)
+  def perform(job_id, manual: false, agent_provider: nil)
     @manual = manual
+    @agent_provider = agent_provider.presence
     @job = Job.find_by(id: job_id)
     return unless @job&.open? && @job.pr_number.present?
     return if @job.repository.archived?
@@ -117,7 +118,7 @@ class PollPullRequestJob < ApplicationJob
     artifacts = {
       "pr_comments" => new_comments.map { |c| serialize_comment(c) }
     }
-    workflow = Workflows::PrFeedback.instantiate(job: @job, artifacts: artifacts)
+    workflow = Workflows::PrFeedback.instantiate(job: @job, artifacts: artifacts, agent_provider: @agent_provider)
     StepDispatcher.start_workflow(workflow)
 
     latest = new_comments.map(&:created_at).max
@@ -195,7 +196,7 @@ class PollPullRequestJob < ApplicationJob
       "head_sha"      => head_sha,
       "failed_checks" => failed_checks
     }
-    workflow = Workflows::CiFailure.instantiate(job: @job, artifacts: artifacts)
+    workflow = Workflows::CiFailure.instantiate(job: @job, artifacts: artifacts, agent_provider: @agent_provider)
     StepDispatcher.start_workflow(workflow)
     @job.update!(last_ci_handled_sha: head_sha)
     Rails.logger.info("[PollPullRequestJob] job #{@job.id}: enqueued CiFailure workflow ##{workflow.id} for #{head_sha[0..6]} (#{failed_checks.size} failing)")

@@ -1,5 +1,3 @@
-require "tempfile"
-
 module Steps
   # Base class for all v1 step handlers. A handler is a PORO that
   # takes a Run, does the work for one Step's one attempt, and
@@ -11,15 +9,15 @@ module Steps
   #
   # - **Agentic handlers** (Implement, Summarize, Respond,
   #   SummarizeAmend, AnalyzeAndFix, AgentRebase, Manual) spawn
-  #   claude via AgentInvocation. They share the helpers in this
-  #   base class for prompt resolution, MCP config, session
-  #   capture, and cross-step `--resume` threading.
+  #   the Workflow's configured agent provider. They share the helpers
+  #   in this base class for prompt resolution, generic session capture,
+  #   and cross-step resume threading.
   #
   # - **Non-agentic handlers** (PrOpen, Push, AutoRebase,
   #   ForcePush) just run service code (PullRequestOpener,
   #   `git push`, AutoRebase service). They use the same
   #   workspace and #log API as agentic handlers but don't touch
-  #   any of the claude/MCP/session machinery.
+  #   any of the agent/MCP/session machinery.
   #
   # Handlers raise StepFailed on irrecoverable failure. The
   # orchestrator catches it, transitions the Run + Step to
@@ -27,7 +25,7 @@ module Steps
   class Base
     class StepFailed < StandardError; end
 
-    # Shared buffering thresholds — used by buffered_log_sink (claude
+    # Shared buffering thresholds — used by buffered_log_sink (agent
     # output) and by Prepare#stream_buffered (shell command output).
     LOG_FLUSH_BYTES    = 16 * 1024
     LOG_FLUSH_INTERVAL = 1.0
@@ -99,118 +97,43 @@ module Steps
       [ sink, flush ]
     end
 
-    # ---- Agentic helpers (used by claude-spawning handlers) ----
+    # ---- Agentic helpers (used by agent-spawning handlers) ----
 
-    # Drive an AgentInvocation in this Workflow's workspace,
+    # Drive the configured agent provider in this Workflow's workspace,
     # threading `--resume` from the upstream step's session when
     # one is available. Streams transcript chunks into JobLog,
-    # captures the new session JSONL on success, raises StepFailed
+    # captures the new session transcript on success, raises StepFailed
     # on any of the non-success outcomes.
     def run_agent(prompt:, max_turns: nil)
-      with_mcp_config do |mcp_config_path|
-        sink, flush = buffered_log_sink
-        begin
-          result = AgentInvocation.new(
-            workspace.path,
-            prompt: prompt,
-            oauth_token: job.user.claude_oauth_token,
-            log_sink: sink,
-            runner: RunJob.agent_runner,
-            max_turns: max_turns || job.user.agent_max_turns,
-            mcp_config: mcp_config_path,
-            resume_session_id: parent_session_id
-          ).run
-        ensure
-          flush.call
-        end
-
-        persist_agent_metadata(result)
-        capture_claude_session(result)
-
-        raise StepFailed, "agent timed out"                                 if result.timed_out
-        raise StepFailed, "agent reported #{result.outcome || 'error'}"      if result.is_error
-        raise StepFailed, "agent exited #{result.exit_status}"               unless result.success?
-
-        result
+      sink, flush = buffered_log_sink
+      begin
+        result = agent_adapter.run(prompt: prompt, log_sink: sink, max_turns: max_turns)
+      ensure
+        flush.call
       end
+
+      persist_agent_metadata(result)
+      capture_agent_session(result)
+
+      raise StepFailed, "agent timed out"                            if result.timed_out
+      raise StepFailed, "agent reported #{result.outcome || 'error'}" if result.is_error
+      raise StepFailed, "agent exited #{result.exit_status}"          unless result.success?
+
+      result
+    rescue AgentProviders::ConfigurationError => e
+      raise StepFailed, e.message
     end
 
-    # Per-Run mcp.json tempfile so claude knows how to reach our
-    # sidecar. `alwaysLoad: true` (claude-code v2.1.121+) skips
-    # tool-search deferral and keeps `mcp__syrus__submit_summary`
-    # in the agent's active tool list at all times — including on
-    # `--resume`d sessions, where claude was otherwise routing MCP
-    # tools through the deferred catalog and the resumed agent
-    # couldn't find them. (Smoking gun: Run #181's transcript,
-    # where the summarize agent's first action was a ToolSearch
-    # for `AskUserQuestion` because submit_summary wasn't visible.)
-    # Server key MUST match the binary basename (`syrus-mcp-sidecar`).
-    # claude-code derives the MCP-tool prefix differently between
-    # fresh and `--resume`d invocations: fresh uses the config
-    # key, resume uses the binary basename. If those differ, the
-    # resumed agent invokes a tool name that doesn't exist —
-    # exactly Run 206's failure: implement saw the tool as
-    # `mcp__syrus__submit_summary` (config key "syrus"), summarize
-    # tried to call `mcp__syrus-mcp-sidecar__submit_summary`
-    # (binary basename) and got "no such tool available." Aligning
-    # the names sidesteps the underlying claude-code quirk;
-    # SyrusMcp::Sidecar also reports the same name via serverInfo
-    # so all three sources agree.
-    def with_mcp_config
-      Tempfile.create([ "syrus-mcp-#{run.id}-", ".json" ]) do |f|
-        f.write({
-          mcpServers: {
-            "syrus-mcp-sidecar" => {
-              type: "stdio",
-              command: Rails.root.join("bin/syrus-mcp-sidecar").to_s,
-              args: [ "--run-id", run.id.to_s ],
-              # Forward the worker's Bundler env to the sidecar.
-              # AgentInvocation strips Bundler vars before launching
-              # claude (so the agent doesn't accidentally use
-              # Syrus's bundle when working in the target repo);
-              # claude in turn doesn't restore them when spawning
-              # MCP server children. Without these forwarded back,
-              # the sidecar's Rails boot can't find Syrus's gems
-              # (BUNDLE_PATH points to /usr/local/bundle in the
-              # prod image; nil in dev where the default works).
-              # The binstub force-sets BUNDLE_GEMFILE itself; we
-              # supply BUNDLE_PATH and friends here so deployment
-              # / without rules carry over.
-              env: sidecar_env,
-              alwaysLoad: true
-            }
-          }
-        }.to_json)
-        f.flush
-        yield f.path
-      end
+    def agent_provider
+      run.agent_provider.presence || workflow.agent_provider.presence || job.user.agent_provider
     end
 
-    # Env vars the sidecar needs to boot Syrus's Rails app and reach
-    # MySQL. claude is launched with `unsetenv_others: true` and a
-    # narrow allowlist (so the agent's claude doesn't accidentally
-    # see Syrus-internal credentials or use Syrus's bundle); claude
-    # then doesn't put any of those back when spawning MCP server
-    # children. Without this forwarding, the sidecar inherits a
-    # near-empty env, Rails defaults to `development` (which loads
-    # gems not installed in the prod-WITHOUT bundle), and the boot
-    # crashes before claude completes the MCP handshake — hence
-    # `mcp_servers: [{name: syrus-mcp-sidecar, status: failed}]`.
-    SIDECAR_ENV_FORWARD = %w[
-      RAILS_ENV
-      RAILS_MASTER_KEY
-      SECRET_KEY_BASE
-      RAILS_LOG_TO_STDOUT
-      DB_HOST
-      SYRUS_DATABASE_PASSWORD
-      BUNDLE_PATH
-      BUNDLE_DEPLOYMENT
-      BUNDLE_WITHOUT
-      TZ
-    ].freeze
-
-    def sidecar_env
-      ENV.slice(*SIDECAR_ENV_FORWARD).compact
+    def agent_adapter
+      @agent_adapter ||= AgentProviders.for(agent_provider).new(
+        run: run,
+        workspace: workspace,
+        parent_session_id: parent_session_id
+      )
     end
 
     # Resume threading. v1 contract: `--resume` only crosses Step
@@ -222,26 +145,27 @@ module Steps
       run.parent_session_id.presence || step.upstream_session_id
     end
 
-    # Capture the claude session JSONL from disk into ClaudeSession
-    # for cross-pod survival (Resume Run / cross-Workflow Resume).
-    # Best-effort — skip if claude didn't emit a session_id, skip
-    # if the JSONL isn't where we expected. Same logic + error
-    # handling as RunJob#persist_claude_session.
-    def capture_claude_session(result)
-      return unless result.session_id
-      path = ClaudeSession.canonical_path_for(
-        home: ENV.fetch("HOME"),
-        cwd: workspace.path,
-        session_id: result.session_id
-      )
-      unless File.exist?(path)
-        log("[claude_session] no JSONL at #{path} — Resume won't be available for this Run")
+    # Capture the agent session JSONL into ClaudeSession. The table/model
+    # name is still historical; provider marks which CLI produced it.
+    def capture_agent_session(result)
+      capture = agent_adapter.session_capture(result)
+      return unless capture
+
+      if capture.transcript_jsonl.blank?
+        log(capture.missing_message) if capture.missing_message.present?
+        log("[agent_session] no transcript captured for #{capture.provider} session #{capture.session_id}")
         return
       end
-      ClaudeSession.create!(run: run, session_id: result.session_id, transcript_jsonl: File.read(path))
-      log("[claude_session] captured #{result.session_id} (#{File.size(path)} bytes)")
+
+      ClaudeSession.create!(
+        run: run,
+        provider: capture.provider,
+        session_id: capture.session_id,
+        transcript_jsonl: capture.transcript_jsonl
+      )
+      log("[agent_session] captured #{capture.provider} #{capture.session_id} (#{capture.transcript_jsonl.bytesize} bytes)")
     rescue StandardError => e
-      log("[claude_session] capture failed: #{e.class}: #{e.message}")
+      log("[agent_session] capture failed: #{e.class}: #{e.message}")
     end
 
     def persist_agent_metadata(result)

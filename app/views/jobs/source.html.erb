@@ -46,11 +46,23 @@
       <% end %>
     </div>
 
-    <%# Two-column layout: file tree (left) + file content (right) -%>
+    <%# Two-column layout: file tree (left) + file content (right).
+        On mobile (`<sm`), the two panes swap rather than sit side-by-
+        side: when no file is selected, only the tree is visible
+        (full width); when a file IS selected, only the content is
+        visible (full width) with a "← Files" back-link in its header.
+        On desktop both stay visible side-by-side as before. -%>
     <div class="flex border border-gray-200 rounded-lg overflow-hidden" style="height: 600px;">
 
-      <%# File tree sidebar -%>
-      <div class="w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 py-1">
+      <%# File tree sidebar — hidden on mobile when a file is open.
+          The source-tree Stimulus controller layers on top of the
+          server-rendered tree to remember which directories the
+          operator collapsed across Turbo morphs (without it, every
+          re-render of an active Job's Source tab snaps every dir
+          back to `<details open>`). -%>
+      <div class="<%= 'hidden sm:block ' if @file_content %>w-full sm:w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 py-1"
+           data-controller="source-tree"
+           data-source-tree-job-id-value="<%= @job.id %>">
         <% if @tree_items.empty? %>
           <p class="px-3 py-4 text-xs text-gray-400">No files found.</p>
         <% else %>
@@ -58,12 +70,15 @@
                 tree:          @file_tree,
                 job:           @job,
                 ref:           @selected_ref,
-                selected_path: @selected_path %>
+                selected_path: @selected_path,
+                parent_path:   "" %>
         <% end %>
       </div>
 
-      <%# File content pane -%>
-      <div class="flex-1 overflow-auto bg-white">
+      <%# File content pane — hidden on mobile when no file is open
+          (the empty "Select a file" placeholder takes up real
+          estate the tree could use better there). -%>
+      <div class="<%= 'hidden sm:block ' unless @file_content %>flex-1 overflow-auto bg-white">
         <% if @file_content_error %>
           <div class="p-4 text-sm text-red-600"><%= @file_content_error %></div>
 
@@ -94,6 +109,12 @@
           %>
 
           <div class="text-xs text-gray-500 px-4 py-2 border-b border-gray-100 flex items-center gap-2 bg-gray-50 font-mono sticky top-0">
+            <%# Mobile-only "back to file tree" — strips the path
+                param so the next render shows the tree pane only. %>
+            <%= link_to source_job_path(@job, ref: @selected_ref),
+                  class: "sm:hidden shrink-0 text-blue-600 hover:underline normal-case" do %>
+              ← Files
+            <% end %>
             <span class="truncate"><%= @selected_path %></span>
             <span class="ml-auto shrink-0 text-gray-400">
               <%= number_with_delimiter(@file_content[:size]) %> B
