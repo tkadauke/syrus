@@ -182,6 +182,10 @@ preserve scroll position across morphs.
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
   per-run 30-minute timeout still bounds runaway loops). Threaded through
   RunJob → AgentInvocation for both regular and rebase runs.
+- **Agent provider selection** — `User#agent_provider` defaults new Jobs
+  and repository-level bulk retries. Per-Job actions can switch
+  `Job#agent_provider`; always pass the chosen provider through to the
+  new Workflow/Run instead of relying on later inference.
 - **Per-user scheduling pause** — `User#scheduling_paused` (boolean).
   `PollScheduledTasksJob` skips paused users entirely. Operator can toggle
   via admin UI; user can toggle in `/credentials/edit`.
