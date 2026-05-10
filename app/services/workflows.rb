@@ -13,7 +13,8 @@ module Workflows
     "rebase"     => :Rebase,
     "retry"      => :Retry,
     "manual"     => :Manual,
-    "resume"     => :Resume
+    "resume"     => :Resume,
+    "local_dev"  => :LocalDev
   }.freeze
 
   def self.for(trigger_kind:)

@@ -124,11 +124,17 @@ class WorkflowWorkspace
   def initial_branch_name
     if @job.cron?
       "syrus/scheduled-#{@job.scheduled_task_id}-#{@job.id}"
+    elsif local_source_path
+      "syrus/local-#{@job.id}"
     elsif @job.adhoc?
       "syrus/adhoc-#{@job.id}"
     else
       "syrus/issue-#{@job.issue_number}-#{@job.id}"
     end
+  end
+
+  def local_source_path
+    @workflow.artifact("local_source_path").presence
   end
 
   # Use the authenticated URL for clone + ls-remote + fetch (the
@@ -142,6 +148,11 @@ class WorkflowWorkspace
 
   def clone_and_checkout
     FileUtils.mkdir_p(path.dirname)
+    if local_source_path
+      clone_local_source
+      return
+    end
+
     @git.run(
       "clone", "--depth", CLONE_DEPTH.to_s,
       "--branch", @repository.default_branch,
@@ -172,6 +183,19 @@ class WorkflowWorkspace
     else
       @git.run("checkout", "-b", @branch_name, chdir: path.to_s)
     end
+  end
+
+  def clone_local_source
+    source = Pathname.new(local_source_path).expand_path
+    raise "local source path does not exist: #{source}" unless source.exist?
+
+    @git.run(
+      "clone",
+      "--branch", @repository.default_branch,
+      "--no-tags", source.to_s, path.to_s,
+      env: @env
+    )
+    @git.run("checkout", "-b", @branch_name, chdir: path.to_s)
   end
 
   # Workspace exists from a prior Run, typically a retry-within-step

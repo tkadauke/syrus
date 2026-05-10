@@ -1,0 +1,44 @@
+#!/usr/bin/env ruby
+
+require "optparse"
+
+APP_PATH = File.expand_path("../config/application", __dir__)
+require_relative "../config/boot"
+require_relative "../config/environment"
+
+command = ARGV.shift
+
+case command
+when "dev"
+  options = { workflow: "local_dev" }
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: bin/syrus dev /path/to/repo --prompt PROMPT [--output FILE]"
+    opts.on("--prompt PROMPT", "Prompt to run against the local checkout") { |value| options[:prompt] = value }
+    opts.on("--output FILE", "Write the resulting diff to FILE instead of stdout") { |value| options[:output] = value }
+    opts.on("--workflow NAME", "Workflow template to use (default: local_dev)") { |value| options[:workflow] = value }
+    opts.on("--agent-provider NAME", "Agent provider to use for this run") { |value| options[:agent_provider] = value }
+    opts.on("-h", "--help", "Show this help") do
+      puts opts
+      exit 0
+    end
+  end
+
+  parser.parse!(ARGV)
+  path = ARGV.shift
+
+  begin
+    LocalDevRunner.call(
+      path: path,
+      prompt: options[:prompt],
+      output: options[:output],
+      workflow: options[:workflow],
+      agent_provider: options[:agent_provider]
+    )
+  rescue StandardError => e
+    warn "syrus dev failed: #{e.message}"
+    exit 1
+  end
+else
+  warn "Usage: bin/syrus dev /path/to/repo --prompt PROMPT [--output FILE]"
+  exit 1
+end
