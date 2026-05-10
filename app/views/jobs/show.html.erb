@@ -22,7 +22,8 @@
       <p class="mt-1 text-sm text-gray-500">
         Job #<%= @job.id %> ·
         <%= pluralize(@job.workflows.size, "workflow") %> ·
-        <%= pluralize(@job.runs.size, "run") %>
+        <%= pluralize(@job.runs.size, "run") %> ·
+        <span class="font-medium text-gray-700"><%= cost_caption(@job.total_cost_usd) %></span>
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-3">
@@ -186,6 +187,11 @@
           </div>
         <% end %>
       </div>
+    </div>
+    <div>
+      <div class="text-xs uppercase text-gray-500">Total cost</div>
+      <div class="text-gray-900 font-medium"><%= cost_caption(@job.total_cost_usd) %></div>
+      <div class="text-xs text-gray-500"><%= pluralize(@job.billed_runs_count, "billed run") %></div>
     </div>
     <div>
       <div class="text-xs uppercase text-gray-500">Started</div>

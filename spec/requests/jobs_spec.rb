@@ -54,6 +54,26 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*Codex/m)
       end
 
+      it "shows aggregate cost in the header and per-run cost details" do
+        run = job.initial_run
+        run.update!(
+          cost_usd: 1.23,
+          input_tokens: 1000,
+          output_tokens: 200,
+          cache_creation_input_tokens: 300,
+          cache_read_input_tokens: 4000
+        )
+
+        get job_path(job)
+
+        expect(response.body).to include("Total cost")
+        expect(response.body).to include("$1.23")
+        expect(response.body).to include("Input tokens")
+        expect(response.body).to include("1,000")
+        expect(response.body).to include("Cache hits")
+        expect(response.body).to include("4,000")
+      end
+
       it "renders issue_body when present (no summary → plain block)" do
         job.update!(issue_title: "Add greeting helper", issue_body: "We need a greeting helper.")
         get job_path(job)

@@ -120,6 +120,14 @@ module JobsHelper
       job.runs.reorder(created_at: :desc).limit(1).pick(:agent_provider)
   end
 
+  def cost_caption(amount)
+    format("$%.2f", amount.to_d)
+  end
+
+  def token_caption(count)
+    count.present? ? number_with_delimiter(count) : "—"
+  end
+
   # The most useful one-word summary for a Job in a list view:
   # "preempted" beats "closed" when a Job was preempted by an external
   # PR — that's a more informative bucket than generic "closed."

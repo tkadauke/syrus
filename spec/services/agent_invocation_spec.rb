@@ -81,6 +81,33 @@ RSpec.describe AgentInvocation do
       expect(lines.last).to match(/subtype=success/).and match(/turns=5/)
     end
 
+    it "captures cost and token usage from the result event" do
+      event = {
+        type: "result",
+        num_turns: 5,
+        duration_ms: 12345,
+        is_error: false,
+        subtype: "success",
+        total_cost_usd: 0.1234,
+        usage: {
+          input_tokens: 100,
+          output_tokens: 20,
+          cache_creation_input_tokens: 30,
+          cache_read_input_tokens: 400
+        }
+      }.to_json
+
+      update = invocation.send(:process_event, event, ->(l, **_) { lines << l })
+
+      expect(update).to include(
+        cost_usd: 0.1234,
+        input_tokens: 100,
+        output_tokens: 20,
+        cache_creation_input_tokens: 30,
+        cache_read_input_tokens: 400
+      )
+    end
+
     it "captures error subtype on max-turns" do
       event = { type: "result", num_turns: 50, is_error: true, subtype: "error_max_turns" }.to_json
       update = invocation.send(:process_event, event, ->(l, **_) { lines << l })

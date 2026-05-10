@@ -1,0 +1,38 @@
+class PrCostFooter
+  START_MARKER = "<!-- syrus-cost-footer:start -->".freeze
+  END_MARKER = "<!-- syrus-cost-footer:end -->".freeze
+
+  def self.apply(body, job)
+    new(job).apply(body)
+  end
+
+  def initialize(job)
+    @job = job
+  end
+
+  def apply(body)
+    stripped = strip_existing(body.to_s.rstrip)
+    return stripped unless @job.repository.pr_cost_footer_enabled?
+
+    [ stripped, "", START_MARKER, sentence, END_MARKER ].join("\n")
+  end
+
+  def sentence
+    "This PR was implemented by Syrus across #{runs_label} at a total cost of #{formatted_cost}."
+  end
+
+  private
+
+  def strip_existing(body)
+    body.gsub(/\n*#{Regexp.escape(START_MARKER)}.*?#{Regexp.escape(END_MARKER)}\s*/m, "").rstrip
+  end
+
+  def runs_label
+    count = @job.runs.count
+    "#{count} #{'Run'.pluralize(count)}"
+  end
+
+  def formatted_cost
+    format("$%.2f", @job.total_cost_usd.to_d)
+  end
+end

@@ -72,6 +72,11 @@
     <%= form.label :polling_enabled, "Polling enabled", class: "text-sm text-gray-700" %>
   </div>
 
+  <div class="flex items-center gap-2">
+    <%= form.check_box :pr_cost_footer_enabled, class: "rounded border-gray-400" %>
+    <%= form.label :pr_cost_footer_enabled, "Add Syrus cost footer to PR descriptions", class: "text-sm text-gray-700" %>
+  </div>
+
   <div class="flex items-center gap-3">
     <%= form.submit class: "rounded-md px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
     <%= link_to "Cancel", repositories_path, class: "text-gray-700 underline hover:no-underline" %>

@@ -67,6 +67,11 @@ module AgentProviders
       updates = {}
       updates[:agent_turns] = result.turns if result.turns
       updates[:agent_outcome] = result.outcome if result.outcome
+      updates[:cost_usd] = result.cost_usd if result.cost_usd
+      updates[:input_tokens] = result.input_tokens if result.input_tokens
+      updates[:output_tokens] = result.output_tokens if result.output_tokens
+      updates[:cache_creation_input_tokens] = result.cache_creation_input_tokens if result.cache_creation_input_tokens
+      updates[:cache_read_input_tokens] = result.cache_read_input_tokens if result.cache_read_input_tokens
       @run.update!(updates) if updates.any?
 
       SessionStore.new(run: @run, log: log).capture!(session_capture(result))

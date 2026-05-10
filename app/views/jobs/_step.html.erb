@@ -108,8 +108,43 @@
           <% if run.agent_outcome.present? && run.agent_outcome != "success" %>
             · <span class="font-mono"><%= run.agent_outcome %></span>
           <% end %>
+          <% if run.cost_usd.present? %>
+            · <span class="font-medium text-gray-700"><%= cost_caption(run.cost_usd) %></span>
+          <% end %>
         </div>
       </div>
+
+      <% if run.cost_breakdown? %>
+        <details class="group">
+          <summary class="px-4 py-2 text-xs uppercase tracking-wide text-gray-500 cursor-pointer select-none hover:bg-gray-50 flex items-center gap-2 [&::marker]:hidden [&::-webkit-details-marker]:hidden">
+            <span class="text-gray-400 group-open:rotate-90 transition-transform duration-150 inline-block">▶</span>
+            Cost
+            <span class="normal-case font-normal text-gray-400"><%= cost_caption(run.cost_usd || 0) %></span>
+          </summary>
+          <dl class="px-4 py-3 bg-white grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Input tokens</dt>
+              <dd class="font-mono text-gray-800"><%= token_caption(run.input_tokens) %></dd>
+            </div>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Output tokens</dt>
+              <dd class="font-mono text-gray-800"><%= token_caption(run.output_tokens) %></dd>
+            </div>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Cache writes</dt>
+              <dd class="font-mono text-gray-800"><%= token_caption(run.cache_creation_input_tokens) %></dd>
+            </div>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Cache hits</dt>
+              <dd class="font-mono text-gray-800"><%= token_caption(run.cache_read_input_tokens) %></dd>
+            </div>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Total</dt>
+              <dd class="font-mono text-gray-900"><%= cost_caption(run.cost_usd || 0) %></dd>
+            </div>
+          </dl>
+        </details>
+      <% end %>
 
       <%# Skip the transcript for steps that haven't started yet —
           the agent hasn't been spawned, there's nothing to show,

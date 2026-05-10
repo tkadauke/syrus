@@ -90,7 +90,7 @@ module Steps
       parts << "---"
       implement_run = workflow.steps.where(kind: "implement").last&.latest_run
       parts << attribution_footer(implement_run)
-      parts.join("\n")
+      PrCostFooter.apply(parts.join("\n"), job)
     end
 
     def attribution_footer(implement_run)

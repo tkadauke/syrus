@@ -103,6 +103,34 @@ RSpec.describe AgentProviders::Claude do
     end
   end
 
+  describe "#record_result!" do
+    it "persists cost and token usage from the invocation result" do
+      result = AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: nil,
+        cost_usd: 0.123456,
+        input_tokens: 100,
+        output_tokens: 20,
+        cache_creation_input_tokens: 30,
+        cache_read_input_tokens: 400
+      )
+
+      adapter.record_result!(result, log: ->(*) { })
+
+      run.reload
+      expect(run.cost_usd).to eq(BigDecimal("0.123456"))
+      expect(run.input_tokens).to eq(100)
+      expect(run.output_tokens).to eq(20)
+      expect(run.cache_creation_input_tokens).to eq(30)
+      expect(run.cache_read_input_tokens).to eq(400)
+    end
+  end
+
   describe "#session_capture" do
     it "reads Claude's canonical JSONL path when the invocation result did not include transcript data" do
       Dir.mktmpdir do |home|

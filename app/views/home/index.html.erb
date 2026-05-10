@@ -94,6 +94,7 @@
                   <% if job.priority != "medium" %>
                     <%= priority_pill(job.priority) %>
                   <% end %>
+                  <div class="mt-1 text-xs text-gray-500"><%= cost_caption(job.total_cost_usd) %></div>
                 </td>
                 <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
                   <%= link_to job.repository.slug, repository_path(job.repository), class: "text-gray-700 hover:underline" %>

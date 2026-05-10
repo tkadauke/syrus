@@ -123,6 +123,14 @@ class Workflow < ApplicationRecord
     succeeded? || failed? || cancelled?
   end
 
+  def runs
+    Run.where(step_id: steps.select(:id)).order(:created_at)
+  end
+
+  def total_cost_usd
+    runs.sum(:cost_usd)
+  end
+
   def retry_as_new_workflow_available?
     succeeded? || failed?
   end

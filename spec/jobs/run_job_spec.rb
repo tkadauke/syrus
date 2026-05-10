@@ -32,7 +32,11 @@ RSpec.describe RunJob do
     )
     stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/123").with(query: hash_including({})).to_return(
       status: 200, headers: { "Content-Type" => "application/json" },
-      body: { number: 123, state: "open", merged: false }.to_json
+      body: { number: 123, state: "open", merged: false, body: "Existing PR body" }.to_json
+    )
+    @pr_update_stub = stub_request(:patch, "https://api.github.com/repos/acme/widgets/pulls/123").to_return(
+      status: 200, headers: { "Content-Type" => "application/json" },
+      body: { number: 123, state: "open", body: "Existing PR body" }.to_json
     )
 
     RunJob.agent_runner = method(:default_agent_runner)

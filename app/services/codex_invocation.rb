@@ -62,7 +62,11 @@ class CodexInvocation
       is_error: false,
       outcome: nil,
       final_text: nil,
-      session_id: nil
+      session_id: nil,
+      input_tokens: nil,
+      output_tokens: nil,
+      cache_creation_input_tokens: nil,
+      cache_read_input_tokens: nil
     }
     timed_out = false
     result = nil
@@ -93,7 +97,11 @@ class CodexInvocation
         final_text: metadata[:final_text],
         session_id: metadata[:session_id],
         transcript_path: transcript_path,
-        transcript_jsonl: read_transcript(transcript_path)
+        transcript_jsonl: read_transcript(transcript_path),
+        input_tokens: metadata[:input_tokens],
+        output_tokens: metadata[:output_tokens],
+        cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
+        cache_read_input_tokens: metadata[:cache_read_input_tokens]
       )
     end
     result
@@ -170,6 +178,12 @@ class CodexInvocation
         kind: "system"
       )
       { turns: 1, is_error: false, outcome: "success" }
+        .merge(
+          input_tokens: usage["input_tokens"],
+          output_tokens: usage["output_tokens"],
+          cache_creation_input_tokens: usage["cached_input_tokens"],
+          cache_read_input_tokens: usage["cached_input_tokens"]
+        )
     when "turn.failed"
       message = event["error"] || event["message"] || "turn failed"
       log_sink.call("[codex error] #{message}", kind: "system")

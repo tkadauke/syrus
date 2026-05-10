@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_09_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_10_000000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -122,6 +122,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_09_000000) do
     t.string "name", null: false
     t.string "owner", null: false
     t.boolean "polling_enabled", default: true, null: false
+    t.boolean "pr_cost_footer_enabled", default: true, null: false
     t.string "trigger_label", default: "syrus", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
@@ -183,11 +184,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_09_000000) do
     t.string "agent_provider", default: "claude", null: false
     t.text "agent_summary"
     t.integer "agent_turns"
+    t.integer "cache_creation_input_tokens"
+    t.integer "cache_read_input_tokens"
+    t.decimal "cost_usd", precision: 12, scale: 6
     t.datetime "created_at", null: false
     t.datetime "finished_at"
     t.string "head_sha"
+    t.integer "input_tokens"
     t.integer "job_id", null: false
     t.datetime "last_heartbeat_at"
+    t.integer "output_tokens"
     t.string "parent_session_id"
     t.text "prompt"
     t.datetime "started_at"

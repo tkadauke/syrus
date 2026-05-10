@@ -184,6 +184,22 @@ class Job < ApplicationRecord
     runs.where(state: "succeeded").last
   end
 
+  def total_cost_usd
+    if runs.loaded?
+      runs.sum { |run| run.cost_usd.to_d }
+    else
+      runs.sum(:cost_usd)
+    end
+  end
+
+  def billed_runs_count
+    if runs.loaded?
+      runs.count { |run| run.cost_usd.present? }
+    else
+      runs.where.not(cost_usd: nil).count
+    end
+  end
+
   def any_active_run?
     runs.active.exists?
   end

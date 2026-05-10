@@ -18,11 +18,15 @@ class AgentInvocation
   # re-aggregating the streamed assistant chunks.
   class Result
     attr_reader :turns, :exit_status, :timed_out, :is_error, :outcome,
-                :final_text, :session_id, :transcript_jsonl, :transcript_path
+                :final_text, :session_id, :transcript_jsonl, :transcript_path,
+                :cost_usd, :input_tokens, :output_tokens,
+                :cache_creation_input_tokens, :cache_read_input_tokens
 
     def initialize(turns:, exit_status:, timed_out:, is_error:, outcome:,
                    final_text:, session_id:, transcript_jsonl: nil,
-                   transcript_path: nil)
+                   transcript_path: nil, cost_usd: nil, input_tokens: nil,
+                   output_tokens: nil, cache_creation_input_tokens: nil,
+                   cache_read_input_tokens: nil)
       @turns = turns
       @exit_status = exit_status
       @timed_out = timed_out
@@ -32,6 +36,11 @@ class AgentInvocation
       @session_id = session_id
       @transcript_jsonl = transcript_jsonl
       @transcript_path = transcript_path
+      @cost_usd = cost_usd
+      @input_tokens = input_tokens
+      @output_tokens = output_tokens
+      @cache_creation_input_tokens = cache_creation_input_tokens
+      @cache_read_input_tokens = cache_read_input_tokens
     end
 
     def success? = !timed_out && exit_status == 0 && !is_error
@@ -101,7 +110,11 @@ class AgentInvocation
     cmd += [ "--max-turns", max_turns.to_s ] if max_turns && max_turns.positive?
     cmd += [ prompt ]
 
-    metadata = { turns: nil, is_error: false, outcome: nil, final_text: nil, session_id: nil }
+    metadata = {
+      turns: nil, is_error: false, outcome: nil, final_text: nil, session_id: nil,
+      cost_usd: nil, input_tokens: nil, output_tokens: nil,
+      cache_creation_input_tokens: nil, cache_read_input_tokens: nil
+    }
     timed_out = false
 
     # `unsetenv_others: true` means: child gets EXACTLY the env we
@@ -137,7 +150,12 @@ class AgentInvocation
         is_error: metadata[:is_error],
         outcome: metadata[:outcome],
         final_text: metadata[:final_text],
-        session_id: metadata[:session_id]
+        session_id: metadata[:session_id],
+        cost_usd: metadata[:cost_usd],
+        input_tokens: metadata[:input_tokens],
+        output_tokens: metadata[:output_tokens],
+        cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
+        cache_read_input_tokens: metadata[:cache_read_input_tokens]
       )
     end
   end
@@ -244,16 +262,25 @@ class AgentInvocation
         { session_id: event["session_id"] } if event["session_id"]
       end
     when "result"
+      usage = event["usage"] || {}
       log_sink.call(
-        "[result] subtype=#{event['subtype']}, is_error=#{event['is_error']}, turns=#{event['num_turns']}, duration_ms=#{event['duration_ms']}",
+        "[result] subtype=#{event['subtype']}, is_error=#{event['is_error']}, turns=#{event['num_turns']}, duration_ms=#{event['duration_ms']}, total_cost_usd=#{event['total_cost_usd']}",
         kind: "system"
       )
+      usage_updates = {
+        cost_usd: event["total_cost_usd"],
+        input_tokens: usage["input_tokens"],
+        output_tokens: usage["output_tokens"],
+        cache_creation_input_tokens: usage["cache_creation_input_tokens"],
+        cache_read_input_tokens: usage["cache_read_input_tokens"]
+      }.compact
+
       {
         turns: event["num_turns"],
         is_error: event["is_error"],
         outcome: event["subtype"],
         final_text: event["result"]
-      }
+      }.merge(usage_updates)
     else
       nil
     end

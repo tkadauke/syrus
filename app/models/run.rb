@@ -157,6 +157,14 @@ class Run < ApplicationRecord
     succeeded? || failed? || cancelled?
   end
 
+  def cost_breakdown?
+    cost_usd.present? ||
+      input_tokens.present? ||
+      output_tokens.present? ||
+      cache_creation_input_tokens.present? ||
+      cache_read_input_tokens.present?
+  end
+
   private
 
   def clear_transcript_on_success!

@@ -52,6 +52,17 @@ RSpec.describe "Dashboard", type: :request do
       expect(row.text).to include("1 workflow")
     end
 
+    it "shows each job's total cost next to its state" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repo, issue_number: 7)
+      job.initial_run.update!(cost_usd: 1.23)
+
+      get root_path
+
+      row = Nokogiri::HTML(response.body).at_css("tbody tr")
+      expect(row.css("td").first.text).to include("$1.23")
+    end
+
     describe "Workflows tab" do
       it "renders the empty state when no workflows exist" do
         get root_path(tab: "workflows")
