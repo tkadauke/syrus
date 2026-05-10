@@ -37,6 +37,25 @@ RSpec.describe Steps::Implement do
       expect(run.reload.prompt).to include("Phased execution note: you're running the **implement** step")
     end
 
+    it "does not inject the concurrent jobs section when no other jobs are in flight" do
+      handler.call
+      expect(run.reload.prompt).not_to include("Other Syrus Jobs running on this repo right now:")
+    end
+
+    it "injects concurrent job context when another job is in flight" do
+      context = instance_double(
+        Services::ConcurrentJobsContext,
+        to_prompt_section: "Other Syrus Jobs running on this repo right now:\n" \
+                           "- Job #142 (issue: \"Fix login bug\"): touching app/models/user.rb"
+      )
+      allow(Services::ConcurrentJobsContext).to receive(:new).with(job: job).and_return(context)
+
+      handler.call
+
+      expect(run.reload.prompt).to include("Other Syrus Jobs running on this repo right now:")
+      expect(run.reload.prompt).to include("touching app/models/user.rb")
+    end
+
     it "skips prompt rebuild when run.prompt is already set" do
       run.update!(prompt: "pre-set prompt content")
       expect(Prompts::Implement).not_to receive(:new)

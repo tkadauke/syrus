@@ -308,6 +308,18 @@ class GithubClient
     raise
   end
 
+  # Returns file paths changed on `head` compared with `base`.
+  # Empty means either no diff or the head branch is not on GitHub yet.
+  def changed_files_between(repo_slug, base, head)
+    result = track_rate_limits { @client.compare(repo_slug, base, head) }
+    Array(result.files).map(&:filename).compact.uniq.sort
+  rescue Octokit::NotFound
+    []
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} changed files #{base}...#{head}: #{e.message}")
+    raise
+  end
+
   # Returns { items: [...], truncated: bool } for all blob paths under `ref`.
   # Each item has :path and :size. Items are sorted alphabetically by path.
   # Fetches the commit's tree SHA first, then walks the tree recursively.

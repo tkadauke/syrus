@@ -20,7 +20,13 @@ module Steps
         issue = fetch_issue
         job.update!(issue_title: issue.title, issue_body: issue.body) if job.issue?
         ctx = workflow.artifacts&.dig("replay_context")
-        run.update!(prompt: Prompts::Implement.new(issue: issue, replay_context: ctx).to_s)
+        concurrent_context = Services::ConcurrentJobsContext.new(job: job).to_prompt_section
+        prompt = Prompts::Implement.new(
+          issue: issue,
+          replay_context: ctx,
+          concurrent_context: concurrent_context
+        ).to_s
+        run.update!(prompt: prompt)
       end
 
       target_label = if job.issue?

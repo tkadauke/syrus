@@ -9,14 +9,16 @@ module Prompts
   class Implement
     SKILL_FILE = Rails.root.join(".claude/skills/implement/SKILL.md").freeze
 
-    def initialize(issue:, replay_context: nil)
+    def initialize(issue:, replay_context: nil, concurrent_context: nil)
       @issue = issue
       @replay_context = replay_context
+      @concurrent_context = concurrent_context
     end
 
     def to_s
       input = [ "#{@issue.title}\n\n#{@issue.body}".strip ]
       input << "Additional context from the operator:\n\n#{@replay_context}" if @replay_context.present?
+      input << @concurrent_context if @concurrent_context.present?
       SkillLoader.render(SKILL_FILE, input.join("\n\n"))
     end
   end

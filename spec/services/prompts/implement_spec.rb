@@ -60,4 +60,22 @@ RSpec.describe Prompts::Implement do
       expect(out).to include("Please fix the failing tests.")
     end
   end
+
+  describe "concurrent_context" do
+    it "is omitted when blank" do
+      out = described_class.new(issue: issue, concurrent_context: "   ").to_s
+      expect(out).not_to include("Other Syrus Jobs running on this repo right now")
+    end
+
+    it "is injected before the git safety block when present" do
+      context = "Other Syrus Jobs running on this repo right now:\n- Job #142: touching app/models/user.rb"
+      out = described_class.new(issue: issue, concurrent_context: context).to_s
+
+      context_pos = out.index(context)
+      safety_pos = out.index(Prompts::GitSafety::TEXT)
+
+      expect(context_pos).to be_present
+      expect(safety_pos).to be > context_pos
+    end
+  end
 end
