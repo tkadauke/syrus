@@ -127,7 +127,7 @@ class RepositoriesController < ApplicationController
       return
     end
 
-    agent_provider = Current.user.agent_provider
+    agent_provider = @repository.effective_agent_provider
     eligible.each do |job|
       job.switch_agent_provider!(agent_provider)
       workflow = Workflows::Retry.instantiate(job: job, agent_provider: agent_provider)

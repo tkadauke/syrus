@@ -64,7 +64,7 @@
             form: { class: "inline" } %>
       <% retryable = @repository.jobs.where(state: "open").select { |j| !j.any_active_run? && j.current_run&.failed? } %>
       <% if retryable.any? %>
-        <% preferred_agent = Current.user.agent_provider.titleize %>
+        <% preferred_agent = @repository.effective_agent_provider.titleize %>
         <%= button_to "Retry #{retryable.size} failed with #{preferred_agent}", retry_failed_jobs_repository_path(@repository), method: :post,
               class: "rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium cursor-pointer",
               form: { class: "inline", data: { turbo_confirm: "Retry #{retryable.size} failed job(s) with #{preferred_agent}?" } } %>

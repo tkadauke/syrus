@@ -171,6 +171,24 @@ RSpec.describe "Repositories", type: :request do
         expect(flash[:notice]).to match(/with Codex/)
       end
 
+      it "uses the repository default agent when one is specified" do
+        repo.update!(agent_provider: "codex")
+        failed_a = Factories.job(repository: repo, issue_number: 1)
+        failed_b = Factories.job(repository: repo, issue_number: 2)
+        fail_latest_run!(failed_a)
+        fail_latest_run!(failed_b)
+
+        post retry_failed_jobs_repository_path(repo)
+
+        [ failed_a, failed_b ].each do |failed_job|
+          retry_workflow = failed_job.reload.workflows.where(trigger_kind: "retry").last
+          expect(failed_job.agent_provider).to eq("codex")
+          expect(retry_workflow.agent_provider).to eq("codex")
+          expect(retry_workflow.first_step.runs.last.agent_provider).to eq("codex")
+        end
+        expect(flash[:notice]).to match(/with Codex/)
+      end
+
       it "returns an alert when no Jobs need retrying" do
         Factories.job(repository: repo, issue_number: 1)  # has only a queued initial run
         post retry_failed_jobs_repository_path(repo)
@@ -247,6 +265,17 @@ RSpec.describe "Repositories", type: :request do
         get repository_path(mine)
         expect(response.body).to include("Agent:")
         expect(response.body).to include("Codex")
+      end
+
+      it "labels retry failed with the repository default agent" do
+        mine = Factories.repository(user: user, agent_provider: "codex")
+        failed = Factories.job(repository: mine)
+        failed.current_run.update!(state: "failed", finished_at: Time.current)
+
+        get repository_path(mine)
+
+        expect(response.body).to include("Retry 1 failed with Codex")
+        expect(response.body).to include("Retry 1 failed job(s) with Codex?")
       end
 
       it "shows only jobs belonging to this repository" do
