@@ -2,13 +2,13 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Steps::Respond do
-  let(:user)     { Factories.user(github_token: "ghp_test_token") }
+  let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user) }
-  let(:job)      { Factories.job(repository: repository) }
+  let(:job) { Factories.job(repository: repository) }
   let(:workflow) { Workflows::PrFeedback.instantiate(job: job, artifacts: artifacts) }
-  let(:step)     { workflow.steps.find_by(kind: "respond") }
-  let(:run)      { step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider) }
-  let(:handler)  { described_class.new(run) }
+  let(:step) { workflow.steps.find_by(kind: "respond") }
+  let(:run) { step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider) }
+  let(:handler) { described_class.new(run) }
   let(:artifacts) do
     {
       "pr_comments" => [
@@ -62,7 +62,6 @@ RSpec.describe Steps::Respond do
 
   it "tags new comments with [NEW] when the artifact carries a feedback_cutoff" do
     cutoff = 1.minute.ago
-    # one prior + one new
     workflow.update!(artifacts: workflow.artifacts.merge(
       "pr_comments" => [
         { "author" => "reviewer", "body" => "prior round comment", "created_at" => (cutoff - 1.hour).iso8601 },
@@ -77,21 +76,17 @@ RSpec.describe Steps::Respond do
     expect(prompt).to include("[NEW]")
     expect(prompt).to include("fresh round comment")
     expect(prompt).to include("prior round comment")
-    # Prior comment is rendered but not tagged [NEW].
     new_position = prompt.index("[NEW]")
     prior_position = prompt.index("prior round comment")
-    expect(prior_position).to be < new_position  # chronological order preserved
+    expect(prior_position).to be < new_position
   end
 
   it "includes prior pr_comment workflow summaries when they exist" do
-    # Build a prior succeeded pr_comment workflow with a summarize_amend
-    # step whose Run carries an agent_summary.
     prior_wf = Workflows::PrFeedback.instantiate(job: job, artifacts: { "pr_comments" => [] })
     prior_wf.update!(state: "succeeded", started_at: 1.hour.ago, finished_at: 30.minutes.ago)
     summarize = prior_wf.steps.find_by(kind: "summarize_amend")
     Run.create!(job: job, step: summarize, trigger_kind: "pr_comment",
                 state: "succeeded", agent_summary: "Tightened the greeting docstring per reviewer ask.")
-    # Re-instantiate the current workflow so it's newer than the prior one
     new_wf = Workflows::PrFeedback.instantiate(job: job, artifacts: artifacts)
     new_step = new_wf.steps.find_by(kind: "respond")
     new_run = new_step.runs.create!(job: job, trigger_kind: new_wf.trigger_kind)
@@ -111,7 +106,6 @@ RSpec.describe Steps::Respond do
   end
 
   it "best-effort skips recent commits when git log fails" do
-    # GitRunner will fail because the tmp workspace isn't a real repo.
     expect { handler.call }.not_to raise_error
     expect(run.reload.prompt).not_to include("Recent commits on the working branch")
   end
@@ -147,5 +141,64 @@ RSpec.describe Steps::Respond do
     handler.call
 
     expect(run.reload.prompt).to eq("pre-set prompt content")
+  end
+
+  describe "prompt building after auto-applied suggestions" do
+    let(:artifacts) do
+      {
+        "applied_suggestions" => [ { "comment_id" => 10 } ],
+        "pr_comments" => [
+          {
+            "id" => 10,
+            "author" => "reviewer",
+            "body" => "Please also rename the helper.\n\n```suggestion\n  \"Ave\"\n```",
+            "path" => "lib/greet.rb",
+            "line" => 2,
+            "created_at" => Time.current.iso8601
+          }
+        ]
+      }
+    end
+
+    it "keeps the prose for the agent but removes the already-applied suggestion block" do
+      prompt = handler.send(:compose_prompt)
+
+      expect(prompt).to include("Please also rename the helper.")
+      expect(prompt).not_to include("```suggestion")
+      expect(prompt).not_to include("\"Ave\"")
+    end
+  end
+
+  describe "prompt building after suggestion conflicts" do
+    let(:artifacts) do
+      {
+        "suggestion_conflicts" => [
+          {
+            "path" => "lib/greet.rb",
+            "start_line" => 9,
+            "line" => 9,
+            "reason" => "comment line 9 is past end of file (3 lines)"
+          }
+        ],
+        "pr_comments" => [
+          {
+            "id" => 11,
+            "author" => "reviewer",
+            "body" => "```suggestion\n  \"Ave\"\n```",
+            "path" => "lib/greet.rb",
+            "line" => 9,
+            "created_at" => Time.current.iso8601
+          }
+        ]
+      }
+    end
+
+    it "surfaces auto-apply failures to the agent" do
+      prompt = handler.send(:compose_prompt)
+
+      expect(prompt).to include("Some GitHub suggested changes could not be applied automatically")
+      expect(prompt).to include("lib/greet.rb:9-9")
+      expect(prompt).to include("past end of file")
+    end
   end
 end

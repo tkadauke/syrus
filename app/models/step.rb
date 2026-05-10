@@ -8,9 +8,11 @@ class Step < ApplicationRecord
     implement
     summarize
     pr_open
+    apply_suggestions
     respond
     summarize_amend
     push
+    reply_suggestions
     analyze_and_fix
     auto_rebase
     agent_rebase
@@ -19,14 +21,13 @@ class Step < ApplicationRecord
     grader
     grader_fanout
     grader_collect
-    apply_suggestions
     auto_merge
     manual
   ].freeze
 
   # Step kinds that spawn an agent subprocess. Non-agentic steps
-  # (pr_open, push, auto_rebase, force_push, apply_suggestions,
-  # auto_merge) just run service code
+  # (pr_open, apply_suggestions, push, reply_suggestions, auto_rebase,
+  # force_push, auto_merge) just run service code
   # — Steps::PrOpen calls PullRequestOpener, Steps::Push runs `git
   # push`, etc. — and never invoke an agent.
   AGENTIC_KINDS = %w[

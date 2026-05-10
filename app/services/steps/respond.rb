@@ -20,7 +20,7 @@ module Steps
     private
 
     def compose_prompt
-      comments = workflow.artifact("pr_comments") || []
+      comments = comments_for_agent
       cutoff = parse_cutoff(workflow.artifact("feedback_cutoff"))
       issue = job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
 
@@ -96,6 +96,28 @@ module Steps
       []
     end
 
+    def comments_for_agent
+      applied_ids = Array(workflow.artifact("applied_suggestions")).map { |s| s["comment_id"] }.compact
+      comments = Array(workflow.artifact("pr_comments")).filter_map do |comment|
+        copy = comment.dup
+        copy["body"] = strip_suggestion_blocks(copy["body"]) if applied_ids.include?(copy["id"])
+        copy["body"].present? ? copy : nil
+      end
+
+      conflicts = Array(workflow.artifact("suggestion_conflicts"))
+      return comments if conflicts.empty?
+
+      comments + [ {
+        "author" => "Syrus",
+        "body" => "Some GitHub suggested changes could not be applied automatically:\n" +
+          conflicts.map { |c| "- #{c['path']}:#{c['start_line']}-#{c['line']} (#{c['reason']})" }.join("\n"),
+        "path" => nil,
+        "line" => nil,
+        "diff_hunk" => nil,
+        "created_at" => Time.current.iso8601
+      } ]
+    end
+
     # The polling job stashes raw comment data on the workflow
     # artifact when instantiating; rehydrate it into objects that
     # Prompts::PrFeedback expects (responds to #user.login,
@@ -108,6 +130,10 @@ module Steps
           c["body"], c["path"], c["line"], c["diff_hunk"], c["created_at"]
         )
       end
+    end
+
+    def strip_suggestion_blocks(body)
+      body.to_s.gsub(Steps::ApplySuggestions::SUGGESTION_BLOCK, "").strip
     end
   end
 end

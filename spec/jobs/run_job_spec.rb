@@ -337,7 +337,7 @@ RSpec.describe RunJob do
 
   # ----- PrFeedback workflow -------------------------------------
 
-  describe "PrFeedback workflow (pr_comment → respond → grade → summarize_amend → push)" do
+  describe "PrFeedback workflow (pr_comment → apply_suggestions → respond → grade → summarize_amend → push)" do
     before do
       # Initial workflow first so the branch exists on origin.
       job; drain_workflow!(job)
@@ -357,12 +357,14 @@ RSpec.describe RunJob do
       expect(wf.state).to eq("succeeded")
       kinds_and_states = wf.steps.where.not(kind: "grader").pluck(:kind, :state)
       expect(kinds_and_states).to eq([
-        [ "prepare",         "succeeded" ],
-        [ "respond",         "succeeded" ],
-        [ "grader_fanout",   "succeeded" ],
-        [ "grader_collect",  "succeeded" ],
-        [ "summarize_amend", "succeeded" ],
-        [ "push",            "succeeded" ]
+        [ "prepare",           "succeeded" ],
+        [ "apply_suggestions", "succeeded" ],
+        [ "respond",           "succeeded" ],
+        [ "grader_fanout",     "succeeded" ],
+        [ "grader_collect",    "succeeded" ],
+        [ "summarize_amend",   "succeeded" ],
+        [ "push",              "succeeded" ],
+        [ "reply_suggestions", "succeeded" ]
       ])
       # No new PR — same Job's existing one
       expect(@pr_stub).not_to have_been_requested

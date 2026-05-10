@@ -2,7 +2,7 @@ module Workflows
   # Reviewer left a comment on the PR. Address it on the existing
   # branch, push.
   #
-  #   prepare → loop(respond, grade) → summarize_amend → push
+  #   prepare → apply_suggestions → loop(respond, grade) → summarize_amend → push → reply_suggestions
   #
   # respond runs the agent with the comment text + diff context —
   # *fresh* agent session (no --resume from the prior workflow's
@@ -11,16 +11,20 @@ module Workflows
   # --resumes respond and produces the *commit message for the
   # amendment* (not a fresh PR title). push is non-agentic.
   class PrFeedback < Base
-    steps :prepare, Workflows::Loop.new(steps: [ :respond, :grader_fanout, :grader_collect ]), :summarize_amend, :push
+    steps :prepare, :apply_suggestions,
+          Workflows::Loop.new(steps: [ :respond, :grader_fanout, :grader_collect ]),
+          :summarize_amend, :push, :reply_suggestions
 
     def self.trigger_kind = "pr_comment"
 
     def self.steps_for(_job)
       [
         "prepare",
+        "apply_suggestions",
         Workflows::Loop.new(max_iterations: AppSetting.grade_max_iterations, steps: [ :respond, :grader_fanout, :grader_collect ]),
         "summarize_amend",
-        "push"
+        "push",
+        "reply_suggestions"
       ]
     end
 

@@ -207,7 +207,7 @@ RSpec.describe Workflows do
 
     it "instantiates PrFeedback with respond → grader_fanout → grader_collect → summarize_amend → push" do
       wf = Workflows::PrFeedback.instantiate(job: job)
-      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect summarize_amend push ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare apply_suggestions respond grader_fanout grader_collect summarize_amend push reply_suggestions ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond grader_fanout grader_collect ])
       expect(wf.chain_template).to include(
         { "type" => "loop", "max_iterations" => AppSetting.grade_max_iterations, "steps" => %w[ respond grader_fanout grader_collect ] }

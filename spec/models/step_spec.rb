@@ -62,7 +62,7 @@ describe "details JSON bag" do
     end
 
     it "is false for kinds that just run service code" do
-      %w[ pr_open push auto_rebase force_push ].each do |k|
+      %w[ pr_open apply_suggestions push reply_suggestions auto_rebase force_push ].each do |k|
         expect(build_step(kind: k).agentic?).to be(false), "expected #{k} to be non-agentic"
       end
     end

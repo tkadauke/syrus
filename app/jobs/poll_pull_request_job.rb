@@ -174,7 +174,9 @@ class PollPullRequestJob < ApplicationJob
     {
       "author"     => c.user&.login,
       "body"       => c.body,
+      "id"         => (c.respond_to?(:id) ? c.id : nil),
       "path"       => (c.respond_to?(:path) ? c.path : nil),
+      "start_line" => (c.respond_to?(:start_line) ? c.start_line : nil),
       "line"       => (c.respond_to?(:line) ? c.line : nil),
       "diff_hunk"  => (c.respond_to?(:diff_hunk) ? c.diff_hunk : nil),
       "created_at" => c.created_at&.iso8601

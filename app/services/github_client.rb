@@ -468,6 +468,14 @@ class GithubClient
     raise
   end
 
+  def reply_to_pr_review_comment(repo_slug, pr_number, comment_id, body)
+    path = "/repos/#{repo_slug}/pulls/#{pr_number}/comments/#{comment_id}/replies"
+    track_rate_limits { @client.post(path, { body: body }.to_json) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited replying to #{repo_slug} PR ##{pr_number} review comment #{comment_id}: #{e.message}")
+    raise
+  end
+
   def close_issue(repo_slug, issue_number)
     track_rate_limits { @client.close_issue(repo_slug, issue_number) }
   rescue Octokit::TooManyRequests => e

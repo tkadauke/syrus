@@ -194,6 +194,7 @@ RSpec.describe PollPullRequestJob do
         "Could you also handle empty strings?", "Breaks on nil"
       )
       expect(comments.find { |c| c["path"] == "lib/greet.rb" }["line"]).to eq(5)
+      expect(comments.find { |c| c["path"] == "lib/greet.rb" }["id"]).to eq(2)
       expect(job.reload.last_seen_comment_at.utc).to be_within(1.second).of(t2)
       expect(job.reload.last_feedback_addressed_at).to be_nil
     end
