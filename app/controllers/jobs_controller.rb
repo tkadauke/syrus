@@ -9,6 +9,7 @@ class JobsController < ApplicationController
     @selected_repository_id = params[:repository_id]
     @configured_agent_providers = Current.user.configured_agent_providers
     @selected_agent_provider = params[:agent_provider].to_s.presence
+    @create_more        = create_more?
     @prompt_templates   = PromptTemplate.all
   end
 
@@ -20,6 +21,8 @@ class JobsController < ApplicationController
     @repositories     = Current.user.repositories.active.order(:owner, :name)
     @configured_agent_providers = Current.user.configured_agent_providers
     @prompt_templates = PromptTemplate.all
+    @create_more      = create_more?
+    @selected_repository_id = params[:repository_id]
 
     repository = Current.user.repositories.active.find_by(id: params[:repository_id])
     @selected_repository_id = params[:repository_id]
@@ -64,7 +67,11 @@ class JobsController < ApplicationController
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
     StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
 
-    redirect_to job_path(job), notice: "Ad hoc job created."
+    if @create_more
+      redirect_to new_job_path(repository_id: repository.id, create_more: "1"), notice: "Ad hoc job created."
+    else
+      redirect_to job_path(job), notice: "Ad hoc job created."
+    end
   end
 
   # Soft retry — push another commit to the existing branch by spawning
@@ -396,6 +403,10 @@ class JobsController < ApplicationController
   end
 
   private
+
+  def create_more?
+    ActiveModel::Type::Boolean.new.cast(params[:create_more])
+  end
 
   def reopen_notice(prior_reason)
     base = "Thread reopened."

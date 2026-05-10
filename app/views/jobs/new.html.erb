@@ -100,6 +100,13 @@
       </select>
     </div>
 
+    <div class="flex items-center gap-2">
+      <%= f.check_box :create_more,
+            checked: @create_more,
+            class: "h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" %>
+      <%= f.label :create_more, "Create More", class: "text-sm font-medium text-gray-700" %>
+    </div>
+
     <div class="flex items-center gap-3 pt-2">
       <%= f.submit "Create job",
             class: "rounded-md px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",

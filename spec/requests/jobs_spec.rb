@@ -967,6 +967,22 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to include("acme/widgets")
       end
 
+      it "renders the Create More checkbox off by default" do
+        get new_job_path
+        checkbox = Nokogiri::HTML(response.body).at_css('input[type="checkbox"][name="create_more"]')
+
+        expect(checkbox).to be_present
+        expect(checkbox["checked"]).to be_nil
+      end
+
+      it "keeps the Create More checkbox checked when requested" do
+        get new_job_path(create_more: "1")
+        checkbox = Nokogiri::HTML(response.body).at_css('input[type="checkbox"][name="create_more"]')
+
+        expect(checkbox).to be_present
+        expect(checkbox["checked"]).to eq("checked")
+      end
+
       it "pre-selects the repository when repository_id is given in params" do
         repository
         get new_job_path(repository_id: repository.id)
@@ -1081,6 +1097,28 @@ RSpec.describe "Jobs", type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("That agent is not configured.")
+    end
+
+    it "redirects back to the new job form when Create More is checked" do
+      repository
+      expect {
+        post jobs_path, params: {
+          repository_id: repository.id,
+          title: "Bump Ruby version",
+          prompt: "Update the Ruby version in .ruby-version to 3.3.0.",
+          create_more: "1"
+        }
+      }.to change(Job, :count).by(1)
+        .and have_enqueued_job(RunJob)
+
+      expect(response).to redirect_to(new_job_path(repository_id: repository.id, create_more: "1"))
+
+      follow_redirect!
+      checkbox = Nokogiri::HTML(response.body).at_css('input[type="checkbox"][name="create_more"]')
+      selected_repository = Nokogiri::HTML(response.body).at_css("option[selected]")
+
+      expect(checkbox["checked"]).to eq("checked")
+      expect(selected_repository["value"]).to eq(repository.id.to_s)
     end
 
     it "uses 'Ad hoc job' as the default title when none is provided" do
