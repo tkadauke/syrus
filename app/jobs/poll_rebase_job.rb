@@ -64,9 +64,8 @@ class PollRebaseJob < ApplicationJob
 
     # Instantiate a Rebase workflow. Its first step is
     # Steps::AutoRebase, which runs the deterministic AutoRebase
-    # service; if that's clean, it calls cancel_downstream! on
-    # agent_rebase + force_push and the workflow short-circuits to
-    # succeeded. If conflicts remain, the chain advances to the
+    # service; if that's clean, it skips agent_rebase and advances
+    # to force_push. If conflicts remain, the chain advances to the
     # agentic step, then force_push.
     Rails.logger.info("[PollRebaseJob] job #{@job.id} PR ##{pr_number} unmergeable; instantiating Rebase workflow")
     workflow = Workflows::Rebase.instantiate(job: @job)

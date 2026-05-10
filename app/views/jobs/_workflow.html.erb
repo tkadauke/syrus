@@ -2,8 +2,7 @@
     pill, run-of-N counter) and a vertical chain of its Steps. Each
     Step is its own subsection with the kind, state, and inline
     Run(s). Cancelled steps render dimmed since they were skipped via
-    cancel_downstream! (e.g. AutoRebase clean → cancels agent_rebase
-    + force_push). %>
+    chain control (e.g. AutoRebase clean → cancels agent_rebase). %>
 <% steps_array = workflow.steps.to_a %>
 <section class="border border-gray-200 rounded-lg overflow-hidden">
   <header class="bg-gray-50 px-4 py-3 flex items-center justify-between">

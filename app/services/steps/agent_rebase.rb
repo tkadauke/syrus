@@ -3,9 +3,9 @@ module Steps
   # Prompts::Rebase to resolve the conflicts that AutoRebase
   # couldn't.
   #
-  # Note: this handler ONLY runs when reached. AutoRebase calls
-  # cancel_downstream! on a clean rebase, so the dispatcher
-  # advances past this step in that case and we never get here.
+  # Note: this handler ONLY runs when reached. AutoRebase cancels
+  # this step on a clean rebase, so the dispatcher advances to
+  # ForcePush in that case and we never get here.
   class AgentRebase < Base
     def call
       workspace.setup

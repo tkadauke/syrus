@@ -2,10 +2,9 @@ module Steps
   # Final step of Rebase workflow. Non-agentic. Force-pushes the
   # rebased branch to origin.
   #
-  # Note: only runs when reached. AutoRebase calls
-  # cancel_downstream! on a clean rebase (it already pushed), so
-  # the dispatcher advances past this step in that case and we
-  # never get here.
+  # Note: for clean auto-rebases this still runs after AgentRebase is
+  # skipped, keeping "rebase succeeded" and "branch was pushed" as
+  # separate workflow facts.
   class ForcePush < Base
     def call
       workspace.setup

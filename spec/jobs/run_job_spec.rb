@@ -210,7 +210,7 @@ RSpec.describe RunJob do
         .and_return(Struct.new(:merged).new(false))
     end
 
-    it "auto_rebase clean → cancels downstream → workflow succeeds" do
+    it "auto_rebase clean → skips agent_rebase, force_pushes, and succeeds" do
       # The deterministic AutoRebase service will succeed cleanly
       # since the branch tip is already up to date with main.
       wf = Workflows::Rebase.instantiate(job: job)
@@ -223,7 +223,7 @@ RSpec.describe RunJob do
       kinds_states = wf.steps.pluck(:kind, :state)
       expect(kinds_states[0]).to eq([ "auto_rebase",  "succeeded" ])
       expect(kinds_states[1]).to eq([ "agent_rebase", "cancelled" ])
-      expect(kinds_states[2]).to eq([ "force_push",   "cancelled" ])
+      expect(kinds_states[2]).to eq([ "force_push",   "succeeded" ])
     end
   end
 
