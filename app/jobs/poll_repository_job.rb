@@ -16,11 +16,13 @@ class PollRepositoryJob < ApplicationJob
     repository.update_columns(last_poll_started_at: Time.current, last_poll_status: nil, last_poll_error: nil)
 
     begin
-      issues = GithubClient.for(repository: repository, user: repository.user)
-                           .issues_with_label(repository.slug, repository.trigger_label)
+      client = GithubClient.for(repository: repository, user: repository.user)
+      trigger_config = RepoTriggerConfig.fetch(repository, github_client: client)
+      bot_login = client.authenticated_login if trigger_config.mentions? || trigger_config.assignments?
+      issues = client.list_all_issues(repository.slug, state: "open")
 
       issues.each do |issue|
-        ingest(issue, repository)
+        ingest(issue, repository, client: client, bot_login: bot_login, trigger_config: trigger_config)
       end
       repository.jobs.open_threads.find_each(&:start_pending_workflows_if_dependencies_satisfied!)
 
@@ -33,8 +35,13 @@ class PollRepositoryJob < ApplicationJob
 
   private
 
-  def ingest(issue, repository)
-    decision = IngestPolicy.evaluate(issue, repository)
+  def ingest(issue, repository, client:, bot_login:, trigger_config:)
+    policy = IngestPolicy.new(issue, repository, bot_login: bot_login, trigger_config: trigger_config, comments: [])
+    if policy.needs_comments?
+      policy = policy.with_comments(client.issue_comments(repository.slug, issue.number))
+    end
+
+    decision = policy.evaluate
     unless decision.allow
       Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} skipped: #{decision.reason}")
       return
@@ -52,7 +59,7 @@ class PollRepositoryJob < ApplicationJob
     # immediately. Skip only fully-closed Jobs (they're terminal and
     # the lookup would be wasted).
     needs_lookup = prior.nil? || prior.open?
-    linked = needs_lookup ? GithubClient.for(repository: repository, user: repository.user).linked_open_pr_for_issue(repository.slug, issue.number) : nil
+    linked = needs_lookup ? client.linked_open_pr_for_issue(repository.slug, issue.number) : nil
     # Filter out our OWN PR — `closedByPullRequestsReferences` returns
     # every PR that closes this issue, including the one Syrus opened.
     # If the linked PR is ours, it's not "external preemption", just us.

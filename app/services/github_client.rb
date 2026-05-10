@@ -134,6 +134,13 @@ class GithubClient
     raise
   end
 
+  def authenticated_login
+    track_rate_limits { @client.user.login }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited fetching authenticated user: #{e.message}")
+    raise
+  end
+
   def create_pull_request(repo_slug, base:, head:, title:, body:)
     track_rate_limits { @client.create_pull_request(repo_slug, base, head, title, body) }
   rescue Octokit::TooManyRequests => e
@@ -465,6 +472,13 @@ class GithubClient
     track_rate_limits { @client.add_comment(repo_slug, issue_number, body) }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited adding comment on #{repo_slug}##{issue_number}: #{e.message}")
+    raise
+  end
+
+  def issue_comments(repo_slug, issue_number)
+    track_rate_limits { @client.issue_comments(repo_slug, issue_number) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing comments on #{repo_slug}##{issue_number}: #{e.message}")
     raise
   end
 

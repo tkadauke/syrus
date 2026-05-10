@@ -6,25 +6,35 @@ RSpec.describe PollRepositoryJob do
   let(:repository) do
     Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus", polling_enabled: true)
   end
+  let(:default_issues) { [ issue(number: 42), issue(number: 46) ] }
 
-  def issue(number: 42, labels: [ "syrus" ], body: "")
-    OpenStruct.new(
+  PollRepositoryIssue = Struct.new(:number, :state, :title, :body, :labels, :pull_request, :assignees, keyword_init: true)
+  PollRepositoryLabel = Struct.new(:name)
+  PollRepositoryAssignee = Struct.new(:login)
+  PollRepositoryComment = Struct.new(:body)
+
+  def issue(number: 42, state: "open", labels: %w[syrus], title: "Issue #{number}", body: "", assignees: [], pull_request: nil)
+    PollRepositoryIssue.new(
       number: number,
-      state: "open",
-      pull_request: nil,
-      title: "Issue #{number}",
+      state: state,
+      title: title,
       body: body,
-      labels: labels.map { |name| Struct.new(:name, keyword_init: true).new(name: name) }
+      labels: labels.map { |name| PollRepositoryLabel.new(name) },
+      pull_request: pull_request,
+      assignees: assignees.map { |login| PollRepositoryAssignee.new(login) }
     )
   end
 
   describe "#perform with per-issue controls" do
     before do
+      allow_any_instance_of(GithubClient).to receive(:file_content_at).and_return(nil)
+      allow_any_instance_of(GithubClient).to receive(:authenticated_login).and_return("syrus-bot")
+      allow_any_instance_of(GithubClient).to receive(:issue_comments).and_return([])
       allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
     end
 
     it "creates an initial workflow whose first step is implement when the skip-prepare label is present" do
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_return([ issue(labels: [ "syrus", Workflows::SKIP_PREPARE_LABEL ]) ])
 
       described_class.perform_now(repository.id)
@@ -43,7 +53,7 @@ RSpec.describe PollRepositoryJob do
         { "name" => "syrus" },
         { name: Workflows::SKIP_PREPARE_LABEL }
       ]
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_return([ github_issue ])
 
       described_class.perform_now(repository.id)
@@ -66,7 +76,7 @@ RSpec.describe PollRepositoryJob do
     end
 
     it "keeps the initial workflow starting with prepare when the skip-prepare label is absent" do
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_return([ issue(labels: [ "syrus" ]) ])
 
       described_class.perform_now(repository.id)
@@ -235,7 +245,7 @@ RSpec.describe PollRepositoryJob do
     end
 
     it "emits a system log entry when prepare is skipped" do
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_return([ issue(labels: [ "syrus", Workflows::SKIP_PREPARE_LABEL ]) ])
 
       described_class.perform_now(repository.id)
@@ -324,11 +334,17 @@ RSpec.describe PollRepositoryJob do
     end
   end
 
-  describe "#perform", vcr: { cassette_name: "poll_repository_job/lists_issues" } do
+  describe "#perform" do
     # Default: pretend GitHub reports no linked PR for these issues.
     # Tests covering the preempted path (below) override this stub to
     # return a real linked PR.
-    before { allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil) }
+    before do
+      allow_any_instance_of(GithubClient).to receive(:file_content_at).and_return(nil)
+      allow_any_instance_of(GithubClient).to receive(:authenticated_login).and_return("syrus-bot")
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return(default_issues)
+      allow_any_instance_of(GithubClient).to receive(:issue_comments).and_return([])
+      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+    end
 
     it "creates a Job for each issue that passes IngestPolicy and isn't dedup'd" do
       # Pre-seed: issue 46 already has a Job, must be dedup'd.
@@ -497,10 +513,82 @@ RSpec.describe PollRepositoryJob do
         expect(prior.reload.external_pr_number).to be_nil   # still nil — it's our own PR
       end
     end
+
+    it "creates a Job for an issue that mentions the authenticated bot in the body" do
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([
+        issue(number: 12, labels: %w[bug], body: "Can @syrus-bot take this?")
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(1)
+
+      expect(Job.last.issue_number).to eq(12)
+    end
+
+    it "creates a Job for an issue that mentions the authenticated bot in a comment" do
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([
+        issue(number: 13, labels: %w[bug], body: "No trigger here.")
+      ])
+      allow_any_instance_of(GithubClient).to receive(:issue_comments).with("acme/widgets", 13).and_return([
+        PollRepositoryComment.new("@syrus-bot please handle this")
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(1)
+
+      expect(Job.last.issue_number).to eq(13)
+    end
+
+    it "creates a Job for an issue assigned to the authenticated bot" do
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([
+        issue(number: 14, labels: %w[bug], assignees: %w[syrus-bot])
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(1)
+
+      expect(Job.last.issue_number).to eq(14)
+    end
+
+    it "dedups mixed trigger matches into one Job" do
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([
+        issue(number: 15, labels: %w[syrus bug], body: "@syrus-bot", assignees: %w[syrus-bot])
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(1)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change(Job, :count)
+    end
+
+    it "skips mention and assignment triggers opted out via .syrus.yml" do
+      allow_any_instance_of(GithubClient).to receive(:file_content_at).and_return(
+        { content: "triggers:\n  mentions: false\n  assignments: false\n", size: 54 }
+      )
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([
+        issue(number: 16, labels: %w[bug], body: "@syrus-bot", assignees: %w[syrus-bot])
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change(Job, :count)
+    end
   end
 
-  describe "poll status tracking", vcr: { cassette_name: "poll_repository_job/lists_issues" } do
-    before { allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil) }
+  describe "poll status tracking" do
+    before do
+      allow_any_instance_of(GithubClient).to receive(:file_content_at).and_return(nil)
+      allow_any_instance_of(GithubClient).to receive(:authenticated_login).and_return("syrus-bot")
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return(default_issues)
+      allow_any_instance_of(GithubClient).to receive(:issue_comments).and_return([])
+      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+    end
 
     it "sets last_poll_status to 'ok' and records last_poll_started_at after a successful poll" do
       freeze_time do
@@ -513,7 +601,7 @@ RSpec.describe PollRepositoryJob do
     end
 
     it "sets last_poll_status to 'failed' with the error message when GitHub raises" do
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_raise(RuntimeError, "401 Bad credentials")
 
       expect {
