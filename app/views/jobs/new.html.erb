@@ -33,6 +33,23 @@
       <% end %>
     </div>
 
+    <% if @configured_agent_providers.size > 1 %>
+      <% selected_repo = @repositories.detect { |repo| repo.id.to_s == @selected_repository_id.to_s } %>
+      <% default_agent = selected_repo&.effective_agent_provider || Current.user.agent_provider %>
+      <% default_label = JobsHelper::AGENT_PROVIDER_LABELS[default_agent] || default_agent.to_s.titleize %>
+      <div>
+        <label for="agent_provider" class="block text-sm font-medium text-gray-700 mb-1">Agent</label>
+        <select name="agent_provider" id="agent_provider"
+                class="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <option value="" <%= "selected" if @selected_agent_provider.blank? %>>Repository default (<%= default_label %>)</option>
+          <% @configured_agent_providers.each do |provider| %>
+            <% label = JobsHelper::AGENT_PROVIDER_LABELS[provider] || provider.titleize %>
+            <option value="<%= provider %>" <%= "selected" if provider == @selected_agent_provider %>><%= label %></option>
+          <% end %>
+        </select>
+      </div>
+    <% end %>
+
     <div data-controller="prompt-template"
          data-prompt-template-templates-value="<%= @prompt_templates.map { |t| { id: t.id, name: t.name, prompt: t.prompt } }.to_json %>">
 

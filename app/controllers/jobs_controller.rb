@@ -7,6 +7,8 @@ class JobsController < ApplicationController
   def new
     @repositories       = Current.user.repositories.active.order(:owner, :name)
     @selected_repository_id = params[:repository_id]
+    @configured_agent_providers = Current.user.configured_agent_providers
+    @selected_agent_provider = params[:agent_provider].to_s.presence
     @prompt_templates   = PromptTemplate.all
   end
 
@@ -16,11 +18,22 @@ class JobsController < ApplicationController
   # the agent receives it verbatim when RunJob starts.
   def create
     @repositories     = Current.user.repositories.active.order(:owner, :name)
+    @configured_agent_providers = Current.user.configured_agent_providers
     @prompt_templates = PromptTemplate.all
 
     repository = Current.user.repositories.active.find_by(id: params[:repository_id])
+    @selected_repository_id = params[:repository_id]
+    agent_provider = params[:agent_provider].to_s.presence
+    @selected_agent_provider = agent_provider
+
     unless repository
       flash.now[:alert] = "Repository not found or not active."
+      render :new, status: :unprocessable_entity
+      return
+    end
+
+    if agent_provider.present? && !Current.user.agent_provider_configured?(agent_provider)
+      flash.now[:alert] = "That agent is not configured."
       render :new, status: :unprocessable_entity
       return
     end
@@ -29,7 +42,6 @@ class JobsController < ApplicationController
     prompt_text = params[:prompt].to_s.strip
 
     if prompt_text.blank?
-      @selected_repository_id = params[:repository_id]
       flash.now[:alert] = "Prompt can't be blank."
       render :new, status: :unprocessable_entity
       return
@@ -44,11 +56,12 @@ class JobsController < ApplicationController
       issue_number: nil,
       issue_title: title,
       issue_body: prompt_text,
+      agent_provider: agent_provider || repository.effective_agent_provider,
       priority: priority
     )
 
     rendered_prompt = Prompts::AdhocJob.new(prompt: prompt_text).to_s
-    workflow = Workflows::Initial.instantiate(job: job)
+    workflow = Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
     StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
 
     redirect_to job_path(job), notice: "Ad hoc job created."

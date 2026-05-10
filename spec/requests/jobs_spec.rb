@@ -974,6 +974,26 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to include(repository.id.to_s)
       end
 
+      it "offers an agent picker for users with multiple configured agents" do
+        user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+        repository.update!(agent_provider: "codex")
+
+        get new_job_path(repository_id: repository.id)
+
+        expect(response.body).to include("Agent")
+        expect(response.body).to include("Repository default (Codex)")
+        expect(response.body).to include('option value="claude"')
+        expect(response.body).to include('option value="codex"')
+      end
+
+      it "hides the agent picker unless multiple agents are configured" do
+        user.update!(claude_oauth_token: "oat-test")
+
+        get new_job_path(repository_id: repository.id)
+
+        expect(response.body).not_to include('id="agent_provider"')
+      end
+
       it "renders the prompt template picker with all built-in templates" do
         get new_job_path
         PromptTemplate.all.each do |template|
@@ -1013,6 +1033,54 @@ RSpec.describe "Jobs", type: :request do
       expect(new_job.runs.count).to eq(1)
       expect(new_job.runs.first.trigger_kind).to eq("initial")
       expect(response).to redirect_to(job_path(new_job))
+    end
+
+    it "uses an explicitly selected configured agent for the job, workflow, and run" do
+      user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      repository.update!(agent_provider: "claude")
+
+      post jobs_path, params: {
+        repository_id: repository.id,
+        agent_provider: "codex",
+        prompt: "Do something."
+      }
+
+      new_job = Job.order(:created_at).last
+      workflow = new_job.workflows.order(:created_at).last
+      expect(new_job.agent_provider).to eq("codex")
+      expect(workflow.agent_provider).to eq("codex")
+      expect(new_job.runs.first.agent_provider).to eq("codex")
+    end
+
+    it "defaults ad hoc jobs to the repository's effective agent" do
+      user.update!(agent_provider: "claude", claude_oauth_token: "oat-test",
+                   codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      repository.update!(agent_provider: "codex")
+
+      post jobs_path, params: {
+        repository_id: repository.id,
+        prompt: "Do something."
+      }
+
+      new_job = Job.order(:created_at).last
+      expect(new_job.agent_provider).to eq("codex")
+      expect(new_job.workflows.order(:created_at).last.agent_provider).to eq("codex")
+      expect(new_job.runs.first.agent_provider).to eq("codex")
+    end
+
+    it "rejects an explicitly selected agent that is not configured" do
+      user.update!(claude_oauth_token: "oat-test")
+
+      expect {
+        post jobs_path, params: {
+          repository_id: repository.id,
+          agent_provider: "codex",
+          prompt: "Do something."
+        }
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("That agent is not configured.")
     end
 
     it "uses 'Ad hoc job' as the default title when none is provided" do
