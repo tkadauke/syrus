@@ -158,8 +158,8 @@ class GithubClient
 
   # All check runs for a commit SHA whose conclusion is a "failed-ish"
   # state (failure, timed_out, action_required, cancelled). Returns an
-  # array of { name:, conclusion:, summary:, html_url: } hashes — just
-  # what Prompts::CiFailure needs. In-progress / queued / pending
+  # array of { name:, conclusion:, summary:, log:, html_url: } hashes —
+  # just what Prompts::CiFailure needs. In-progress / queued / pending
   # checks are intentionally excluded; we only act on completed
   # failures so the agent isn't reacting to a half-finished run.
   FAILED_CONCLUSIONS = %w[failure timed_out action_required cancelled stale].freeze
@@ -171,6 +171,7 @@ class GithubClient
         name: cr.name,
         conclusion: cr.conclusion,
         summary: cr.output&.summary,
+        log: cr.output&.text,
         html_url: cr.html_url
       }
     end

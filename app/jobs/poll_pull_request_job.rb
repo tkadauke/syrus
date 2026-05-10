@@ -192,6 +192,7 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def enqueue_ci_failure_run(head_sha, failed_checks)
+    failed_checks = failed_checks.map { |check| enrich_failed_check(check) }
     artifacts = {
       "head_sha"      => head_sha,
       "failed_checks" => failed_checks
@@ -200,5 +201,22 @@ class PollPullRequestJob < ApplicationJob
     StepDispatcher.start_workflow(workflow)
     @job.update!(last_ci_handled_sha: head_sha)
     Rails.logger.info("[PollPullRequestJob] job #{@job.id}: enqueued CiFailure workflow ##{workflow.id} for #{head_sha[0..6]} (#{failed_checks.size} failing)")
+  end
+
+  def enrich_failed_check(check)
+    check = check.to_h
+    name = check[:name] || check["name"]
+    summary = check[:summary] || check["summary"]
+    log = check.delete(:log) || check.delete("log")
+    full_log_url = check[:html_url] || check["html_url"]
+    parser_input = log.presence || summary.to_s
+
+    check.merge(
+      error_context: CiLogParser.new(
+        parser_input,
+        step_name: name,
+        full_log_url: full_log_url
+      ).parse
+    )
   end
 end

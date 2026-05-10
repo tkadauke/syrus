@@ -1,0 +1,9 @@
+Run bin/build
+[00:00] installing packages
+[00:10] compiling assets
+[00:19] writing manifest
+[00:20] Error: Cannot find module '@rollup/rollup-linux-x64-gnu'
+Require stack:
+- /workspace/node_modules/rollup/dist/native.js
+- /workspace/node_modules/rollup/dist/bin/rollup
+Process completed with exit code 1.

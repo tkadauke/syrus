@@ -1,3 +1,5 @@
+require "json"
+
 module Prompts
   # Prompt for `ci_failure` Runs. Tells the agent which checks went red
   # on the current PR head, includes the GitHub-provided summary text,
@@ -6,6 +8,7 @@ module Prompts
   class CiFailure
     MAX_CHECKS = 5
     MAX_SUMMARY_BYTES = 2_000
+    MAX_ERROR_BLOCK_BYTES = 6_000
 
     def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:)
       @issue        = issue
@@ -31,8 +34,9 @@ module Prompts
 
         # How to act
 
-        - Read each failing check's summary above. The summary is what
-          GitHub showed in the PR's "Checks" tab.
+        - Read each failing check's structured error context above. It
+          is extracted from the failing CI log when available, with the
+          full log URL included for deeper investigation.
         - Reproduce the failure locally where possible (run the test,
           run the linter, run the build). The repo is checked out at
           the failing commit.
@@ -55,17 +59,54 @@ module Prompts
     end
 
     def render_check(check)
-      summary = check[:summary].to_s.strip
+      summary = value(check, :summary).to_s.strip
       summary = "(no summary provided)" if summary.empty?
       summary = "#{summary[0, MAX_SUMMARY_BYTES]}\n…[truncated]" if summary.bytesize > MAX_SUMMARY_BYTES
+      context = structured_context(check)
 
       <<~BLOCK.strip
-        ## #{check[:name]} — #{check[:conclusion]}
-        URL: #{check[:html_url]}
+        ## #{value(check, :name)} — #{value(check, :conclusion)}
+        Full log: #{value(check, :html_url)}
 
-        Summary:
+        GitHub summary:
         #{summary}
+
+        Structured error context:
+        ```json
+        #{JSON.pretty_generate(context)}
+        ```
       BLOCK
+    end
+
+    def structured_context(check)
+      context = value(check, :error_context)
+      context = context.to_h if context.respond_to?(:to_h)
+      context = {} unless context.is_a?(Hash)
+      context = context.deep_stringify_keys
+
+      if context.blank?
+        fallback_summary = value(check, :summary).to_s
+        fallback_summary = "#{fallback_summary[0, MAX_SUMMARY_BYTES]}\n…[truncated]" if fallback_summary.bytesize > MAX_SUMMARY_BYTES
+        context = {
+          "failing_step" => value(check, :name),
+          "parser" => "github_summary",
+          "error_summary" => fallback_summary.presence || "No summary provided.",
+          "failing_tests" => [],
+          "offenses" => [],
+          "error_block" => fallback_summary,
+          "full_log_url" => value(check, :html_url)
+        }
+      end
+
+      error_block = context["error_block"].to_s
+      if error_block.bytesize > MAX_ERROR_BLOCK_BYTES
+        context["error_block"] = "#{error_block.byteslice(0, MAX_ERROR_BLOCK_BYTES)}\n...[truncated]"
+      end
+      context
+    end
+
+    def value(hash, key)
+      hash[key] || hash[key.to_s]
     end
   end
 end

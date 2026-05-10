@@ -1,0 +1,12 @@
+Run bundle exec rubocop
+Inspecting 2 files
+C.
+
+Offenses:
+
+app/models/greeting.rb:3:7: C: [Correctable] Style/StringLiterals: Prefer single-quoted strings when you don't need string interpolation or special symbols.
+  say "hello"
+      ^^^^^^^
+app/models/greeting.rb:7:1: C: Layout/TrailingWhitespace: Trailing whitespace detected.
+
+2 files inspected, 2 offenses detected, 1 offense autocorrectable

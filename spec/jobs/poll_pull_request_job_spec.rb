@@ -207,10 +207,11 @@ RSpec.describe PollPullRequestJob do
     end
 
     it "instantiates a CiFailure workflow with failed_checks + head_sha as artifacts" do
+      rspec_log = Rails.root.join("spec/fixtures/ci_logs/rspec_failure.log").read
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "failure",
           html_url: "https://github.com/acme/widgets/runs/100",
-          output: { summary: "RSpec: 2 examples, 1 failure (greet_spec.rb:14)" } },
+          output: { summary: "RSpec: 2 examples, 1 failure (greet_spec.rb:14)", text: rspec_log } },
         { name: "lint", status: "completed", conclusion: "success",
           html_url: "https://github.com/acme/widgets/runs/101", output: { summary: "0 issues" } }
       ])
@@ -227,8 +228,15 @@ RSpec.describe PollPullRequestJob do
       # hash with symbol keys (we don't translate them — the Steps::
       # AnalyzeAndFix handler reads them as-is). Tolerate both.
       first = failed.first.to_h.transform_keys(&:to_s)
+      context = first["error_context"].to_h.transform_keys(&:to_s)
       expect(first["name"]).to eq("test")
       expect(first["conclusion"]).to eq("failure")
+      expect(first).not_to have_key("log")
+      expect(context["parser"]).to eq("rspec")
+      expect(context["error_summary"]).to eq("12 examples, 1 failure")
+      expect(context["failing_tests"]).to include("GreetingHelper#greet returns the user's name")
+      expect(context["error_block"]).not_to include("................................................................")
+      expect(context["full_log_url"]).to eq("https://github.com/acme/widgets/runs/100")
       expect(wf.artifact("head_sha")).to eq(sha)
       expect(job.reload.last_ci_handled_sha).to eq(sha)
     end
