@@ -94,6 +94,17 @@ RSpec.describe "Repository issues browser", type: :request do
         expect(response.body).to include("Delegate")
       end
 
+      it "shows bulk issue controls" do
+        issues = [ fake_issue(number: 9, title: "Needs work") ]
+        stub_github_client(instance_double(GithubClient, list_all_issues: issues))
+
+        get issues_repository_path(repo)
+
+        expect(response.body).to include("Close selected")
+        expect(response.body).to include("Delegate selected")
+        expect(response.body).to include("issue_numbers[]")
+      end
+
       it "shows an empty state message when there are no issues" do
         stub_github_client(instance_double(GithubClient, list_all_issues: []))
 
@@ -216,6 +227,77 @@ RSpec.describe "Repository issues browser", type: :request do
 
         post delegate_issue_repository_path(foreign),
              params: { issue_number: 1 }
+
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    describe "POST /repositories/:id/bulk_issues" do
+      it "adds the trigger label to each selected issue" do
+        client = instance_double(GithubClient)
+        expect(client).to receive(:add_label_to_issue).with("acme/widgets", 4, "syrus")
+        expect(client).to receive(:add_label_to_issue).with("acme/widgets", 8, "syrus")
+        stub_github_client(client)
+
+        post bulk_issues_repository_path(repo),
+             params: { issue_numbers: %w[4 8], bulk_action: "delegate", state: "open" }
+
+        expect(response).to redirect_to(issues_repository_path(repo, state: "open"))
+        expect(flash[:notice]).to eq("2 issues delegated to Syrus.")
+      end
+
+      it "closes each selected issue" do
+        client = instance_double(GithubClient)
+        expect(client).to receive(:close_issue).with("acme/widgets", 4)
+        expect(client).to receive(:close_issue).with("acme/widgets", 8)
+        stub_github_client(client)
+
+        post bulk_issues_repository_path(repo),
+             params: { issue_numbers: %w[4 8], bulk_action: "close", state: "open" }
+
+        expect(response).to redirect_to(issues_repository_path(repo, state: "open"))
+        expect(flash[:notice]).to eq("2 issues closed.")
+      end
+
+      it "deduplicates selected issue numbers" do
+        client = instance_double(GithubClient)
+        expect(client).to receive(:close_issue).once.with("acme/widgets", 4)
+        stub_github_client(client)
+
+        post bulk_issues_repository_path(repo),
+             params: { issue_numbers: %w[4 4 not-a-number], bulk_action: "close", state: "open" }
+
+        expect(response).to redirect_to(issues_repository_path(repo, state: "open"))
+        expect(flash[:notice]).to eq("1 issue closed.")
+      end
+
+      it "redirects with an alert when no issues are selected" do
+        stub_github_client(instance_double(GithubClient))
+
+        post bulk_issues_repository_path(repo),
+             params: { bulk_action: "delegate", state: "open" }
+
+        expect(response).to redirect_to(issues_repository_path(repo, state: "open"))
+        expect(flash[:alert]).to match(/Select/)
+      end
+
+      it "redirects with an alert when GitHub raises" do
+        client = instance_double(GithubClient)
+        allow(client).to receive(:add_label_to_issue).and_raise(Octokit::UnprocessableEntity)
+        stub_github_client(client)
+
+        post bulk_issues_repository_path(repo),
+             params: { issue_numbers: [ "4" ], bulk_action: "delegate", state: "open" }
+
+        expect(response).to redirect_to(issues_repository_path(repo, state: "open"))
+        expect(flash[:alert]).to match(/Failed to delegate issues/)
+      end
+
+      it "returns 404 for another user's repository" do
+        foreign = Factories.repository(user: other)
+
+        post bulk_issues_repository_path(foreign),
+             params: { issue_numbers: [ "1" ], bulk_action: "close" }
 
         expect(response).to have_http_status(:not_found)
       end

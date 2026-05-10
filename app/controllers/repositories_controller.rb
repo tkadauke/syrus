@@ -1,5 +1,8 @@
 class RepositoriesController < ApplicationController
-  before_action :load_repository, only: %i[ show edit update poll archive unarchive retry_failed_jobs issues comment_issue close_issue delegate_issue ]
+  before_action :load_repository, only: %i[
+    show edit update poll archive unarchive retry_failed_jobs
+    issues comment_issue close_issue delegate_issue bulk_issues
+  ]
 
   PER_PAGE = 20
 
@@ -183,6 +186,23 @@ class RepositoriesController < ApplicationController
     redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to delegate issue: #{e.message}"
   end
 
+  def bulk_issues
+    issue_numbers = selected_issue_numbers
+    if issue_numbers.empty?
+      redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Select at least one issue."
+      return
+    end
+
+    case params[:bulk_action]
+    when "delegate"
+      bulk_delegate_issues(issue_numbers)
+    when "close"
+      bulk_close_issues(issue_numbers)
+    else
+      redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Choose a bulk action."
+    end
+  end
+
   private
 
   def load_repository
@@ -202,5 +222,35 @@ class RepositoriesController < ApplicationController
 
   def repository_params
     params.expect(repository: [ :owner, :name, :default_branch, :trigger_label, :polling_enabled, :agent_provider ])
+  end
+
+  def selected_issue_numbers
+    Array(params[:issue_numbers]).filter_map do |number|
+      Integer(number, exception: false)
+    end.select(&:positive?).uniq
+  end
+
+  def bulk_delegate_issues(issue_numbers)
+    client = GithubClient.for(Current.user)
+    issue_numbers.each do |issue_number|
+      client.add_label_to_issue(@repository.slug, issue_number, @repository.trigger_label)
+    end
+
+    redirect_to issues_repository_path(@repository, state: params[:state]),
+                notice: "#{helpers.pluralize(issue_numbers.size, 'issue')} delegated to Syrus."
+  rescue => e
+    redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to delegate issues: #{e.message}"
+  end
+
+  def bulk_close_issues(issue_numbers)
+    client = GithubClient.for(Current.user)
+    issue_numbers.each do |issue_number|
+      client.close_issue(@repository.slug, issue_number)
+    end
+
+    redirect_to issues_repository_path(@repository, state: params[:state]),
+                notice: "#{helpers.pluralize(issue_numbers.size, 'issue')} closed."
+  rescue => e
+    redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to close issues: #{e.message}"
   end
 end

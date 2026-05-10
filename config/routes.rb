@@ -76,6 +76,7 @@ Rails.application.routes.draw do
       post :comment_issue
       post :close_issue
       post :delegate_issue
+      post :bulk_issues
     end
     resources :scheduled_tasks, only: %i[ new create ]
   end

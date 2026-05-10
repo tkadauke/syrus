@@ -275,6 +275,28 @@
       </div>
 
       <% if @issues&.any? %>
+        <%= form_with url: bulk_issues_repository_path(@repository),
+              method: :post,
+              id: "repository_bulk_issues",
+              class: "mb-3 flex items-center justify-end gap-2" do %>
+          <input type="hidden" name="state" value="<%= @state %>">
+          <% if @state == "open" %>
+            <button type="submit"
+                    name="bulk_action"
+                    value="close"
+                    class="rounded px-3 py-1.5 text-sm font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 cursor-pointer"
+                    data-turbo-confirm="Close the selected issues?">
+              Close selected
+            </button>
+          <% end %>
+          <button type="submit"
+                  name="bulk_action"
+                  value="delegate"
+                  class="rounded px-3 py-1.5 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-pointer"
+                  data-turbo-confirm="Add the '<%= @repository.trigger_label %>' label to the selected issues?">
+            Delegate selected
+          </button>
+        <% end %>
         <%# Two-column layout: identity block (number + title + labels +
             author + age + body excerpt) on the left, vertical action
             stack on the right. Was five columns (# · Title · Labels ·
@@ -284,6 +306,9 @@
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
+                <th class="px-4 py-2 text-left w-10">
+                  <span class="sr-only">Select</span>
+                </th>
                 <th class="px-4 py-2 text-left">Issue</th>
                 <th class="px-4 py-2 text-right w-32">Actions</th>
               </tr>
@@ -292,6 +317,13 @@
               <% @issues.each do |issue| %>
                 <% has_trigger_label = issue.labels.any? { |l| l.name == @repository.trigger_label } %>
                 <tr>
+                  <td class="px-4 py-3 align-top">
+                    <input type="checkbox"
+                           form="repository_bulk_issues"
+                           name="issue_numbers[]"
+                           value="<%= issue.number %>"
+                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                  </td>
                   <td class="px-4 py-3 align-top">
                     <%# Single inline group: issue number, label chips, then
                         title. flex-wrap lets the line break onto multiple
