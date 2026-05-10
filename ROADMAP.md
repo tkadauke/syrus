@@ -533,3 +533,210 @@ that controls Syrus on their behalf — "rerun the last job on issue 42
 with extra context", "cancel everything on the foo repo", "show me jobs
 that failed this week". A conversational front-end to the same actions
 the REST/MCP/CLI surfaces expose.
+
+---
+
+## Competitive scan, May 2026
+
+These items came out of the May-2026 competitive scan in
+[`docs/competitive-landscape-2026-05-10.md`](docs/competitive-landscape-2026-05-10.md).
+The full doc surveys the field (Composio AO, Archon, OpenHands, Sweep
+AI, Anthropic claude-code-action, GitHub Copilot Coding Agent, Devin,
+Gru.ai, Etienne, Claude Squad, etc.) and concludes that nothing has
+the same shape as Syrus today. The items below are the *learnings*:
+what to steal outright, what to adapt, what to push past the field on,
+and what to consciously not do.
+
+### Steal and ship — clear wins, low design cost
+
+- **`@syrus` mention + issue-assignment as triggers, alongside
+  labels.** Anthropic's `claude-code-action` and Copilot Coding Agent
+  both support `@`-mention and "assign issue to bot user" as triggers.
+  Labels work but are unfamiliar to people coming from those tools.
+  Cheap to add — same poller path with extra predicates. Lowers
+  onboarding friction.
+- **GitHub "suggested change" auto-apply.** When a reviewer leaves a
+  native suggested-change block on a Syrus PR, apply it directly with
+  no agent invocation. Skip burning tokens on stuff GitHub already
+  structured for you. Trivial to detect, big UX improvement on the
+  PR-comment loop.
+- **`triage` as a first-class Step kind, default-on.** Gru.ai's
+  15-step pipeline starts with triage; Devin v3 does dynamic planning.
+  A 1-turn `triage` Step that just answers "is this ready, does it
+  have enough info, should we ask for clarification?" prevents the
+  most expensive failure mode — wasted full implement runs on
+  under-specified issues. New `Step.kind`, opt-out per repo. Output
+  feeds the `implement` Step's prompt or short-circuits the Workflow
+  with a `needs_clarification` outcome.
+- **CI-failure context enrichment.** Today the CI-failure trigger
+  hands the agent the failure context it can find. Could be much more
+  useful: parse the failed step's log, extract the actual error block
+  (not the whole 50k-line log), pass that as structured context. Saves
+  tokens, raises fix quality. Pure prep-side work; no agent change.
+- **Local-dev / no-GitHub mode.** A `bin/syrus dev <local-path>` that
+  runs the harness against a local checkout without GitHub. Useful for
+  dogfooding Syrus changes; useful for users who want to try Syrus
+  before deploying. No new infra — workspace cloning already supports
+  any source. Distinct from the bigger
+  [`syrus-as-dev-environment`](docs/plans/syrus-as-dev-environment.md)
+  plan, which is about Syrus *being* the dev environment; this is just
+  a way to drive the existing harness without GitHub round-trips.
+
+### Steal and adapt — good ideas, need Syrus-specific design
+
+- **Supervisor / ambient-awareness agent.** Distinct from the existing
+  [In-UI agent chat](#in-ui-agent-chat) entry, which is *passive*
+  (operator initiates conversation). Composio AO's pattern is
+  **active**: the supervisor watches every running Job, every PR,
+  every CI status, and pings the operator only when there's a real
+  decision. Long-running Run subscribed to ActiveRecord changes,
+  posting to Slack/UI when something needs attention. Pairs with the
+  rate-limiting/budget work as a natural overlay. The chat surface
+  becomes one input *into* the supervisor, not the supervisor itself.
+- **Codebase-intelligence prepass on repo registration.** OpenHands'
+  "Large Codebase SDK" maps cross-file dependencies before the agent
+  touches anything. Syrus today re-discovers the codebase shape on
+  every Run. Pre-compute a *cheap* symbol/dependency map per repo
+  (cached, refreshed on push), pass it as agent context. Big win on
+  first-Run latency and quality. Critically not Sweep-style heavy
+  indexing — just enough to answer "what files reference symbol X."
+  Pairs naturally with the [free-PRs onboarding](#offer-infra-quality-free-prs-on-repository-onboarding)
+  entry — same prepass, more output kinds.
+- **Helm chart for self-hosters.** OpenHands-Cloud ships via Helm.
+  Syrus's deployable today is "your-K3s-deploy-config." Productizing
+  as a Helm chart turns the deploy from a project into a `helm install`
+  command — directly widens the addressable user base for the
+  small-team-self-host niche (which is the moat). Pair with a sample
+  `values.yaml` and a one-page "deploy on your own k8s" guide.
+- **Slack as a first-class bidirectional surface.** The
+  [Non-GitHub task sources](#non-github-task-sources) entry mentions
+  Slack as an *ingest* path. The bigger lever is *bidirectional*:
+  comment in Slack → spawn Job; Job needs review → ping in Slack with
+  one-click approve/deny; Job finishes → post the diff. Slack becomes
+  the operator's mobile interface to Syrus when away from a desk.
+  Probably the single highest-leverage external surface.
+- **Dynamic re-planning escape hatch as a per-Step retry policy.**
+  Devin v3's headline feature. The
+  [agent-authored test plans](#agent-authored-test-plans-for-visual-graders)
+  entry already includes the "repeat failures → new session" idea.
+  Generalize it: every Step declares its retry strategy
+  (`same`, `incremental`, `fresh-eyes`). After N failures with the
+  same approach, force a fresh session prompted explicitly to *try a
+  different approach* rather than incrementally fixing. Different
+  Steps get different policies — `implement` benefits from fresh-eyes
+  resets; `pr_open` does not.
+- **Per-Step retry/backoff policy.** Today retries live at the
+  Workflow / Run level. Per-Step policy unlocks: graders retry
+  differently from `implement`; `pr_open` uses longer backoff than
+  `agent_rebase`; `test_run` retries failed sub-tests, not the full
+  plan. Schema change: `Step.retry_policy` JSON column. Small,
+  high-leverage. Prerequisite for the dynamic-replanning entry above.
+- **First-class `verification` attribute on every Step.** Archon's
+  organizing principle is that every workflow node declares whether
+  it is deterministic-verified or AI-judged. Syrus has both kinds
+  (deterministic: `git_clone`, `pr_open`; AI-judged: `implement`,
+  `summarize`) but doesn't model the distinction. Make it explicit:
+  `Step.verification = :deterministic | :ai_judged | :grader_panel | :human_required`.
+  Lets the UI color them differently and lets the dispatcher reason
+  about retries / budgets / graders uniformly. Pairs naturally with
+  the [graders](#quality-graders-before-pr-submission) entry.
+
+### Push past the field — original or rare, moat-deepening
+
+- **Cross-repo coordination as a first-class concept.** Almost no one
+  ships this. Composio AO is single-fleet/single-codebase; OpenHands'
+  Large Codebase SDK is single-repo. The play: when an agent touches
+  a shared library that lives in a separate registered repo, Syrus
+  knows and can either (a) fan out a follow-up Job to update
+  consumers, (b) warn the user that downstream repos will need
+  follow-ups, or (c) block the merge until a consumer compatibility
+  check passes. This is the natural endpoint of "multi-repo
+  orchestrator" — and it's nearly empty territory in the field.
+- **Visual graders shipped before anyone else.** The
+  [Quality graders](#quality-graders-before-pr-submission) and
+  [agent-authored test plans](#agent-authored-test-plans-for-visual-graders)
+  entries already cover the design. The competitive scan finding: nobody
+  else ships this. Multimodal-screenshot-as-grader paired with
+  vision-model rubrics is genuinely novel. Worth pulling forward in
+  the priority order — a competitor can't easily catch up because it
+  requires the whole grader+test-plan+follow-up loop, not just one
+  piece. *Reads as a priority signal on existing roadmap entries, not a
+  new entry.*
+- **Cost transparency as a marketing surface, not just a setting.**
+  The [budget thresholds](#claude-usage-budgets-and-thresholds) entry
+  is the operator-side. The *user-side*: every Job page shows actual
+  cost. Every PR description includes "this Job cost $0.23 across 4
+  turns." Becomes a sales argument vs Devin's $2.25-per-ACU opacity:
+  "you can see what you paid; we don't markup." Surface in the
+  dashboard, in PR bodies, and in the (eventual) Slack notifications.
+- **Public benchmark / leaderboard.** SWE-bench is the canonical eval.
+  Run Syrus end-to-end against SWE-bench-style task subsets, publish
+  the score *and* the cost. Composio AO doesn't, OpenHands does only
+  informally. Concrete numbers are the only credible answer to "is it
+  better than just Copilot?" Investment is real but the result is
+  durable. CI job that runs nightly against a fixed task set, posts
+  results to a public dashboard.
+- **Workflow templates as first-class shareable artifacts.**
+  Per-trigger Workflow classes are Ruby today. Make them serializable
+  artifacts (YAML/JSON) shareable across Syrus instances. "Here's the
+  Rails-app-with-RSpec workflow template" → drop into `.syrus.yml` in
+  your repo. Ecosystem play; nobody else has it because nobody else
+  has the Workflow → Step → Run abstraction at all.
+- **Cross-job context awareness in the agent prompt.** When the
+  `implement` Step starts, the prompt today sees: the issue, the repo.
+  It could also see: "there are 2 other Jobs running in this repo
+  right now (#142 touching `user_model.rb`, #145 touching
+  `auth_controller.rb`). Avoid stomping their changes." Cheap context;
+  prevents merge conflicts the agent could have foreseen. Pairs with
+  the existing per-repo concurrency cap and the cross-repo
+  coordination entry above.
+
+### Skip — popular elsewhere, wrong for Syrus
+
+These are deliberate non-goals captured here so they don't drift back
+in under feature-comparison pressure later.
+
+- **Multi-Git-provider (GitLab, Gitea, Bitbucket) before traction.**
+  OpenHands has it; Devin has it. Tempting, but adding the abstraction
+  now is premature optimization, and it dilutes focus on the niche
+  Syrus actually serves. Defer until a real user asks for it — most
+  self-host users are on GitHub anyway.
+- **Voice interface.** Devin shipped one. Niche, low ROI for a
+  self-hosted multi-user tool.
+- **Building our own agent loop.** OpenHands does this; Devin does
+  this. Syrus's "thin orchestrator around `claude-code` CLI" is a
+  strategic *advantage* — Anthropic's roadmap becomes Syrus's roadmap
+  for free. Resist any temptation to "we should write our own agent
+  runner." Provider abstraction across CLIs (which is partly already
+  in flight) is fine; replacing the CLI with a homemade agent loop is
+  not.
+- **Webhook-based triggers as a v2 add-on.** `README.md` and
+  `ARCHITECTURE.md` say polling-only is deliberate. Stay disciplined.
+  The operational simplification is a feature; webhooks would force
+  us to deal with delivery retries, signature validation, and a
+  deploy-boundary problem. Don't fold under user pressure.
+- **DAG v2 (parallel branches) before v3 (agent-authored edges).**
+  Already noted in the [Job as execution DAG: v2 + v3](#job-as-execution-dag-v2--v3)
+  entry. Reinforced by the scan: v2 needs a step dispatcher, fan-in
+  semantics, partial-failure handling — heavy machinery for "graders
+  run in parallel." v3 is where the *interesting* moat is. Land v3
+  directly when the graders need it.
+
+### Highest-leverage cluster
+
+If picking three to push next from this list, the cluster that takes
+Syrus from "an issue→PR bot" to "a teammate you can interrupt from
+your phone" without requiring graders/sandboxing to land first:
+
+1. **`triage` Step** (steal-and-ship) — kills the worst failure mode
+   for ~$0.01 per Job.
+2. **Per-Step retry policy + dynamic re-planning escape hatch**
+   (steal-and-adapt) — turns failed Runs from "give up" into "try
+   differently."
+3. **Slack bidirectional surface** (steal-and-adapt) — moves the
+   operator out of the kubectl-and-browser loop.
+
+All three are independently shippable, give compounding leverage on
+existing flows rather than waiting on heavier roadmap items, and don't
+conflict with the planned graders/DAG-v3/sandboxing work — they make
+that work more valuable when it lands.
