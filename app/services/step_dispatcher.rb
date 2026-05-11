@@ -51,7 +51,7 @@ class StepDispatcher
     when "repository_configuration"
       "prepare skipped via repository configuration"
     when "issue_label"
-      "prepare skipped via issue label"
+      "prepare skipped via '#{Workflows::SKIP_PREPARE_LABEL}' label"
     else
       "prepare skipped"
     end
