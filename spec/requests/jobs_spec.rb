@@ -6,6 +6,11 @@ RSpec.describe "Jobs", type: :request do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) { Factories.job(repository: repository, issue_number: 42) }
 
+  def github_issue_with_labels(*names)
+    labels = names.map { |name| Struct.new(:name, keyword_init: true).new(name: name) }
+    Struct.new(:labels, keyword_init: true).new(labels: labels)
+  end
+
   describe "GET /jobs/:id" do
     it "requires authentication" do
       get job_path(job)
@@ -173,6 +178,22 @@ RSpec.describe "Jobs", type: :request do
       expect(workflow.artifacts).to be_nil
     end
 
+    it "refreshes the source issue label before choosing the retry steps" do
+      user.update!(github_token: "ghp_test_token")
+      job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(user).and_return(client)
+      allow(client).to receive(:fetch_issue)
+        .with("acme/widgets", 42)
+        .and_return(github_issue_with_labels("syrus", Workflows::SKIP_PREPARE_LABEL))
+
+      post run_again_job_path(job)
+
+      workflow = job.reload.workflows.where(trigger_kind: "retry").last
+      expect(job).to be_skip_prepare
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+    end
+
     it "retries with an explicitly selected alternate configured agent" do
       user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
       job.initial_run.update!(
@@ -276,6 +297,22 @@ RSpec.describe "Jobs", type: :request do
       expect {
         post restart_job_path(job)
       }.to change(Job, :count).by(1)
+    end
+
+    it "refreshes the source issue label before creating the replacement Job" do
+      user.update!(github_token: "ghp_test_token")
+      job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(user).and_return(client)
+      allow(client).to receive(:fetch_issue)
+        .with("acme/widgets", 42)
+        .and_return(github_issue_with_labels("syrus", Workflows::SKIP_PREPARE_LABEL))
+
+      post restart_job_path(job)
+
+      new_job = Job.where(repository_id: repository.id, issue_number: 42).order(:created_at).last
+      expect(new_job).to be_skip_prepare
+      expect(new_job.workflows.first.steps.order(:position).pluck(:kind)).to eq(%w[ implement summarize pr_open ])
     end
   end
 

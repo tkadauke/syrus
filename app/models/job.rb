@@ -204,6 +204,15 @@ class Job < ApplicationRecord
     runs.active.exists?
   end
 
+  def sync_skip_prepare_from_source!
+    return skip_prepare? unless issue? && issue_number.present? && user.github_token.present?
+
+    issue = GithubClient.for(user).fetch_issue(repository.slug, issue_number)
+    skip = Workflows.label_names(issue.labels).include?(Workflows::SKIP_PREPARE_LABEL)
+    update!(skip_prepare: skip) if skip_prepare? != skip
+    skip
+  end
+
   # Called by RunJob after a non-rebase run fails. Increments the
   # failure counter and auto-closes the job if the configured threshold
   # is reached, preventing further polling from scheduling new runs

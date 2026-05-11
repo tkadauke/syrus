@@ -97,6 +97,7 @@ class JobsController < ApplicationController
       return
     end
     @job.switch_agent_provider!(agent_provider) if agent_provider.present?
+    @job.sync_skip_prepare_from_source!
 
     workflow = Workflows::Retry.instantiate(job: @job, artifacts: artifacts, agent_provider: agent_provider)
     StepDispatcher.start_workflow(workflow)
@@ -110,9 +111,11 @@ class JobsController < ApplicationController
   # but left untouched on GitHub.
   def restart
     @job.cancel_active_runs_and_close!("replaced") if @job.open?
+    skip_prepare = @job.sync_skip_prepare_from_source!
     new_job = Current.user.jobs.create!(
       repository: @job.repository,
-      issue_number: @job.issue_number
+      issue_number: @job.issue_number,
+      skip_prepare: skip_prepare
     )
     redirect_to job_path(new_job), notice: "Started over — new branch and PR will be created."
   end

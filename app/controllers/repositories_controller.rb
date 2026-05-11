@@ -133,6 +133,7 @@ class RepositoriesController < ApplicationController
     agent_provider = @repository.effective_agent_provider
     eligible.each do |job|
       job.switch_agent_provider!(agent_provider)
+      job.sync_skip_prepare_from_source!
       workflow = Workflows::Retry.instantiate(job: job, agent_provider: agent_provider)
       StepDispatcher.start_workflow(workflow)
     end

@@ -87,6 +87,7 @@ class HomeController < ApplicationController
       next if job.closed? || job.any_active_run?
 
       job.switch_agent_provider!(agent_provider) if agent_provider.present?
+      job.sync_skip_prepare_from_source!
       workflow = Workflows::Retry.instantiate(job: job, agent_provider: agent_provider)
       StepDispatcher.start_workflow(workflow)
       retried += 1
