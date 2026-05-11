@@ -10,6 +10,7 @@ RSpec.describe "website about page" do
   it "emphasizes Publilius Syrus as a durable writer before historical context" do
     expect(content).to include("1st-century-BCE Roman writer")
     expect(content).to include("schoolbook material for more than a millennium")
+    expect(content).to include("legal, moral, and common-sense English still quote")
     expect(content).to include("two thousand years later")
     expect(content).to include("small, durable text that compounds")
 

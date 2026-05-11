@@ -21,9 +21,10 @@ first occasion. Some of them became phrases that now feel older than
 attribution itself: "honor among thieves," "the end justifies the means,"
 "necessity knows no law," and "a rolling stone gathers no moss" are all
 tied to him. However messy the chain of translation and reuse, that is
-real literary gravity. It is one thing to write a clever line. It is
-another for ordinary English to still carry pieces of that line roughly
-two thousand years later.
+real literary gravity: legal, moral, and common-sense English still quote
+him even when the speaker no longer knows the source. It is one thing to
+write a clever line. It is another for ordinary English to still carry
+pieces of that line roughly two thousand years later.
 
 That is the part the project borrows. Syrus exists to take a short issue,
 review comment, or scheduled prompt and turn it into a pull request that
