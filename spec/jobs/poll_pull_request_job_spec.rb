@@ -108,7 +108,7 @@ RSpec.describe PollPullRequestJob do
       stub_check_runs("deadbeef0000000000000000000000000000beef", [])
     end
 
-    it "instantiates a PrFeedback workflow, stashes comments as artifacts, advances the watermark" do
+    it "instantiates a PrFeedback workflow and stashes comments as artifacts" do
       stub_issue_comments([
         { id: 1, body: "Could you also handle empty strings?",
           user: { login: "reviewer" }, created_at: t1.iso8601 }
@@ -130,7 +130,41 @@ RSpec.describe PollPullRequestJob do
         "Could you also handle empty strings?", "Breaks on nil"
       )
       expect(comments.find { |c| c["path"] == "lib/greet.rb" }["line"]).to eq(5)
-      expect(job.reload.last_seen_comment_at.utc).to be_within(1.second).of(t2)
+      expect(job.reload.last_feedback_addressed_at).to be_nil
+    end
+
+    it "does not schedule feedback that was already addressed successfully" do
+      job.update!(last_feedback_addressed_at: t2)
+      stub_issue_comments([
+        { id: 1, body: "old feedback",
+          user: { login: "reviewer" }, created_at: t1.iso8601 },
+        { id: 2, body: "addressed feedback",
+          user: { login: "reviewer" }, created_at: t2.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+    end
+
+    it "only schedules comments newer than the addressed feedback watermark" do
+      t3 = Time.parse("2026-05-02 05:10:00 UTC")
+      job.update!(last_feedback_addressed_at: t2)
+      stub_issue_comments([
+        { id: 1, body: "old feedback",
+          user: { login: "reviewer" }, created_at: t1.iso8601 },
+        { id: 2, body: "fresh feedback",
+          user: { login: "reviewer" }, created_at: t3.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.artifact("pr_comments").map { |c| c["body"] }).to eq([ "fresh feedback" ])
     end
 
     it "uses an explicitly selected agent provider for PR feedback workflows" do

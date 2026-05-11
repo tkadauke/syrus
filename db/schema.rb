@@ -92,6 +92,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_130000) do
     t.string "issue_title"
     t.string "kind", default: "issue", null: false
     t.string "last_ci_handled_sha"
+    t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
     t.boolean "pr_mergeable"
     t.datetime "pr_mergeable_checked_at"

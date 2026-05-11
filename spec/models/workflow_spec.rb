@@ -60,6 +60,47 @@ RSpec.describe Workflow do
     end
   end
 
+  describe "feedback addressed watermark" do
+    it "records the newest feedback comment time when a pr_comment workflow succeeds" do
+      older = Time.parse("2026-05-02 05:00:00 UTC")
+      newer = Time.parse("2026-05-02 05:05:00 UTC")
+      wf = described_class.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        artifacts: {
+          "pr_comments" => [
+            { "body" => "first", "created_at" => older.iso8601 },
+            { "body" => "second", "created_at" => newer.iso8601 }
+          ]
+        }
+      )
+
+      wf.start!
+      wf.succeed!
+      wf.save!
+
+      expect(job.reload.last_feedback_addressed_at.utc).to be_within(1.second).of(newer)
+    end
+
+    it "does not move the addressed watermark for failed pr_comment workflows" do
+      wf = described_class.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        artifacts: {
+          "pr_comments" => [
+            { "body" => "still broken", "created_at" => Time.parse("2026-05-02 05:00:00 UTC").iso8601 }
+          ]
+        }
+      )
+
+      wf.start!
+      wf.fail!
+      wf.save!
+
+      expect(job.reload.last_feedback_addressed_at).to be_nil
+    end
+  end
+
   describe "#cancel cascades to active descendants" do
     let(:wf) { described_class.create!(job: job, trigger_kind: "ci_failure") }
 

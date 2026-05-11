@@ -146,6 +146,13 @@ class Job < ApplicationRecord
     close!
   end
 
+  def mark_feedback_addressed!(addressed_at)
+    return if addressed_at.blank?
+    return if last_feedback_addressed_at && last_feedback_addressed_at >= addressed_at
+
+    update!(last_feedback_addressed_at: addressed_at)
+  end
+
   # Cancels every active Run on this Job and closes the thread. Used by
   # both the Cancel button (reason: "cancelled") and Restart (reason:
   # "replaced"). Idempotent on already-closed Jobs.

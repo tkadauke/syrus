@@ -70,7 +70,7 @@ class PollPullRequestJob < ApplicationJob
 
   def any_new_approval?
     reviews = @client.pr_reviews(@slug, @job.pr_number)
-    cutoff = @job.last_seen_comment_at
+    cutoff = feedback_cutoff
     reviews.any? do |r|
       r.state == "APPROVED" && (cutoff.nil? || (r.submitted_at && r.submitted_at > cutoff))
     end
@@ -105,9 +105,12 @@ class PollPullRequestJob < ApplicationJob
   # own bot identity (separate GitHub account or App), add a configurable
   # skip-by-login filter back here.
   def fetch_new_comments
-    issue_comments = @client.pr_issue_comments(@slug, @job.pr_number, since: @job.last_seen_comment_at)
-    review_comments = @client.pr_review_comments(@slug, @job.pr_number, since: @job.last_seen_comment_at)
-    (issue_comments + review_comments).sort_by(&:created_at)
+    cutoff = feedback_cutoff
+    issue_comments = @client.pr_issue_comments(@slug, @job.pr_number, since: cutoff)
+    review_comments = @client.pr_review_comments(@slug, @job.pr_number, since: cutoff)
+    (issue_comments + review_comments)
+      .select { |comment| cutoff.nil? || (comment.created_at && comment.created_at > cutoff) }
+      .sort_by(&:created_at)
   end
 
   def enqueue_followup_run(new_comments)
@@ -120,9 +123,10 @@ class PollPullRequestJob < ApplicationJob
     }
     workflow = Workflows::PrFeedback.instantiate(job: @job, artifacts: artifacts, agent_provider: @agent_provider)
     StepDispatcher.start_workflow(workflow)
+  end
 
-    latest = new_comments.map(&:created_at).max
-    @job.update!(last_seen_comment_at: latest) if latest
+  def feedback_cutoff
+    [ @job.last_seen_comment_at, @job.last_feedback_addressed_at ].compact.max
   end
 
   # Octokit returns Sawyer::Resource objects; serialize to a plain

@@ -43,6 +43,7 @@ class Workflow < ApplicationRecord
       transitions from: :running, to: :succeeded, after: -> {
         self.finished_at = Time.current
         cleanup_workspace!
+        record_addressed_feedback!
       }
     end
 
@@ -188,6 +189,21 @@ class Workflow < ApplicationRecord
   end
 
   private
+
+  def record_addressed_feedback!
+    return unless trigger_kind == "pr_comment"
+
+    addressed_at = Array(artifact("pr_comments")).filter_map do |comment|
+      parse_comment_time(comment["created_at"])
+    end.max
+    job.mark_feedback_addressed!(addressed_at)
+  end
+
+  def parse_comment_time(value)
+    Time.iso8601(value.to_s)
+  rescue ArgumentError
+    nil
+  end
 
   # Write a JobLog entry on the latest run so cleanup activity is
   # visible in the transcript UI. Best-effort — failure here must
