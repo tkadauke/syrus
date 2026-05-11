@@ -4,6 +4,7 @@ RSpec.describe IngestPolicy do
   let(:repository) { Factories.repository(trigger_label: "syrus") }
 
   IngestPolicyIssue = Struct.new(:number, :state, :labels, :pull_request, :body, :assignees, keyword_init: true)
+  IngestPolicyIssueWithComments = Struct.new(:number, :state, :labels, :pull_request, :body, :assignees, :comments, keyword_init: true)
   IngestPolicyLabel = Struct.new(:name)
   IngestPolicyAssignee = Struct.new(:login)
   IngestPolicyComment = Struct.new(:body)
@@ -65,6 +66,33 @@ RSpec.describe IngestPolicy do
   it "allows assignment to the authenticated bot login" do
     result = IngestPolicy.evaluate(issue(labels: %w[bug], assignees: %w[syrus-bot]), repository, bot_login: "syrus-bot")
     expect(result.allow).to be true
+  end
+
+  it "allows assignment when GitHub returns hash-shaped assignees" do
+    issue = issue(labels: %w[bug])
+    issue.assignees = [
+      { "login" => "someone-else" },
+      { login: "syrus-bot" }
+    ]
+
+    result = IngestPolicy.evaluate(issue, repository, bot_login: "syrus-bot")
+
+    expect(result.allow).to be true
+  end
+
+  it "fetches comments when the comments count is unknown" do
+    issue = IngestPolicyIssueWithComments.new(
+      number: 1,
+      state: "open",
+      labels: [ IngestPolicyLabel.new("bug") ],
+      pull_request: nil,
+      body: nil,
+      assignees: [],
+      comments: nil
+    )
+    policy = described_class.new(issue, repository, bot_login: "syrus-bot", trigger_config: RepoTriggerConfig.new, comments: [])
+
+    expect(policy.needs_comments?).to be true
   end
 
   it "respects .syrus.yml opt-out for mention triggers" do

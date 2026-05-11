@@ -82,13 +82,23 @@ class IngestPolicy
     return false unless @issue.respond_to?(:assignees)
 
     Array(@issue.assignees).any? do |assignee|
-      login = assignee.respond_to?(:login) ? assignee.login : assignee.to_s
+      login = assignee_login(assignee)
       login.casecmp?(@bot_login)
     end
   end
 
+  def assignee_login(assignee)
+    if assignee.respond_to?(:login)
+      assignee.login
+    elsif assignee.respond_to?(:[])
+      assignee[:login] || assignee["login"]
+    else
+      assignee.to_s
+    end
+  end
+
   def comments_count_known_zero?
-    @issue.respond_to?(:comments) && @issue.comments.to_i.zero?
+    @issue.respond_to?(:comments) && !@issue.comments.nil? && @issue.comments.to_i.zero?
   end
 
   def body_text(object)
