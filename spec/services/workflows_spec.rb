@@ -9,6 +9,7 @@ RSpec.describe Workflows do
       expect(described_class.for(trigger_kind: "pr_comment")).to eq(Workflows::PrFeedback)
       expect(described_class.for(trigger_kind: "ci_failure")).to eq(Workflows::CiFailure)
       expect(described_class.for(trigger_kind: "rebase")).to     eq(Workflows::Rebase)
+      expect(described_class.for(trigger_kind: "auto_merge")).to eq(Workflows::AutoMerge)
       expect(described_class.for(trigger_kind: "retry")).to      eq(Workflows::Retry)
       expect(described_class.for(trigger_kind: "manual")).to     eq(Workflows::Manual)
       expect(described_class.for(trigger_kind: "resume")).to     eq(Workflows::Resume)
@@ -68,6 +69,11 @@ RSpec.describe Workflows do
     it "instantiates Rebase with auto_rebase → agent_rebase → force_push" do
       wf = Workflows::Rebase.instantiate(job: job)
       expect(wf.steps.pluck(:kind)).to eq(%w[ auto_rebase agent_rebase force_push ])
+    end
+
+    it "instantiates AutoMerge with apply_suggestions → auto_merge" do
+      wf = Workflows::AutoMerge.instantiate(job: job)
+      expect(wf.steps.pluck(:kind)).to eq(%w[ apply_suggestions auto_merge ])
     end
 
     it "instantiates Manual with a single 'manual' step" do

@@ -1,6 +1,14 @@
 require "rails_helper"
 
 RSpec.describe PollAllRebasesJob do
+  around do |example|
+    old = ENV["SYRUS_UNIFIED_MERGE_POLLER"]
+    ENV["SYRUS_UNIFIED_MERGE_POLLER"] = nil
+    example.run
+  ensure
+    ENV["SYRUS_UNIFIED_MERGE_POLLER"] = old
+  end
+
   it "fans out to PollRebaseJob for every Job with a PR (Syrus or external), regardless of state" do
     syrus_pr   = Factories.job(pr_number: 7, branch_name: "syrus/issue-1-1")
     external   = Factories.job
@@ -34,5 +42,12 @@ RSpec.describe PollAllRebasesJob do
       # Sanity: the archived Job did NOT get enqueued.
       described_class.perform_now
     }.not_to have_enqueued_job(PollRebaseJob).with(archived_job.id)
+  end
+
+  it "is inert when the unified merge poller is enabled" do
+    ENV["SYRUS_UNIFIED_MERGE_POLLER"] = "true"
+    Factories.job(pr_number: 7, branch_name: "syrus/x")
+
+    expect { described_class.perform_now }.not_to have_enqueued_job(PollRebaseJob)
   end
 end

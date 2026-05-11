@@ -76,6 +76,11 @@ RSpec.describe Run do
       expect(r).to be_valid
     end
 
+    it "accepts 'auto_merge' as a valid trigger" do
+      r = Run.new(job: job, trigger_kind: "auto_merge")
+      expect(r).to be_valid
+    end
+
     it "validates agent_provider" do
       r = Run.new(job: job, trigger_kind: "initial", agent_provider: "oracle")
       expect(r).not_to be_valid

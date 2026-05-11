@@ -114,6 +114,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_093000) do
   create_table "repositories", force: :cascade do |t|
     t.string "agent_provider"
     t.datetime "archived_at"
+    t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
     t.text "last_poll_error"

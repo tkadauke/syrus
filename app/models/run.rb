@@ -1,7 +1,7 @@
 class Run < ApplicationRecord
   include AASM
 
-  TRIGGER_KINDS = %w[ initial pr_comment ci_failure retry manual rebase resume local_dev ].freeze
+  TRIGGER_KINDS = %w[ initial pr_comment ci_failure retry manual rebase auto_merge resume local_dev ].freeze
 
   belongs_to :job
   # Step is optional during the migration window: existing Runs

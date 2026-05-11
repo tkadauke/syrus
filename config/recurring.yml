@@ -19,6 +19,9 @@ default: &default
   poll_rebases:
     class: PollAllRebasesJob
     schedule: every 5 minutes
+  poll_merge_states:
+    class: PollAllMergeStatesJob
+    schedule: every 5 minutes
   poll_scheduled_tasks:
     class: PollScheduledTasksJob
     schedule: every minute

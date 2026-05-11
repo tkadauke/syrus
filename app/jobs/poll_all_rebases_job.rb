@@ -10,6 +10,8 @@ class PollAllRebasesJob < ApplicationJob
   # branch, the human just owns the PR.
   def perform
     return if AppSetting.polling_paused?
+    return if ActiveModel::Type::Boolean.new.cast(ENV["SYRUS_UNIFIED_MERGE_POLLER"])
+
     Job.joins(:repository)
        .merge(Repository.active)
        .where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL")

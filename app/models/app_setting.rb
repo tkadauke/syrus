@@ -23,4 +23,8 @@ class AppSetting < ApplicationRecord
   def self.runs_paused?
     current.runs_paused
   end
+
+  def self.auto_merge_paused?
+    ActiveModel::Type::Boolean.new.cast(ENV["SYRUS_AUTO_MERGE_DISABLED"])
+  end
 end

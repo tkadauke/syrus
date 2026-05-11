@@ -3,6 +3,7 @@ class Repository < ApplicationRecord
 
   attribute :polling_enabled, :boolean, default: true
   attribute :pr_cost_footer_enabled, :boolean, default: true
+  attribute :auto_merge_enabled, :boolean, default: false
 
   belongs_to :user
   has_many :jobs, dependent: :destroy

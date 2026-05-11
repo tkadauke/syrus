@@ -11,6 +11,7 @@ module Workflows
     "pr_comment" => :PrFeedback,
     "ci_failure" => :CiFailure,
     "rebase"     => :Rebase,
+    "auto_merge" => :AutoMerge,
     "retry"      => :Retry,
     "manual"     => :Manual,
     "resume"     => :Resume,

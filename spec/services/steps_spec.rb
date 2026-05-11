@@ -19,6 +19,8 @@ RSpec.describe Steps do
       expect(described_class.handler_for("auto_rebase")).to eq(Steps::AutoRebase)
       expect(described_class.handler_for("agent_rebase")).to eq(Steps::AgentRebase)
       expect(described_class.handler_for("force_push")).to eq(Steps::ForcePush)
+      expect(described_class.handler_for("apply_suggestions")).to eq(Steps::ApplySuggestions)
+      expect(described_class.handler_for("auto_merge")).to eq(Steps::AutoMerge)
       expect(described_class.handler_for("manual")).to eq(Steps::Manual)
     end
 

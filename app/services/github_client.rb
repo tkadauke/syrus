@@ -91,6 +91,21 @@ class GithubClient
     raise
   end
 
+  def merge_pull_request(repo_slug, pr_number, commit_title:, merge_method:)
+    track_rate_limits do
+      @client.merge_pull_request(
+        repo_slug,
+        pr_number,
+        nil,
+        commit_title: commit_title,
+        merge_method: merge_method
+      )
+    end
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited merging #{repo_slug}##{pr_number}: #{e.message}")
+    raise
+  end
+
   def update_pull_request_body(repo_slug, pr_number, body)
     track_rate_limits { @client.update_pull_request(repo_slug, pr_number, body: body) }
   rescue Octokit::TooManyRequests => e
@@ -160,6 +175,13 @@ class GithubClient
     track_rate_limits { @client.pull_request_reviews(repo_slug, pr_number) }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} PR ##{pr_number} reviews: #{e.message}")
+    raise
+  end
+
+  def pr_commits(repo_slug, pr_number)
+    track_rate_limits { @client.pull_request_commits(repo_slug, pr_number) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} PR ##{pr_number} commits: #{e.message}")
     raise
   end
 

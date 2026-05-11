@@ -14,6 +14,8 @@ module Steps
     "auto_rebase"     => :AutoRebase,
     "agent_rebase"    => :AgentRebase,
     "force_push"      => :ForcePush,
+    "apply_suggestions" => :ApplySuggestions,
+    "auto_merge"      => :AutoMerge,
     "manual"          => :Manual
   }.freeze
 
