@@ -17,23 +17,23 @@ Syrus is named after [Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_S
 the 1st-century-BCE Roman writer whose *Sententiae* were copied, taught,
 and reused as schoolbook material for more than a millennium. He wrote
 compact maxims: small pieces of text built to travel farther than their
-first occasion. Some of them became phrases that now feel older than
-attribution itself: "honor among thieves," "the end justifies the means,"
-"necessity knows no law," and "a rolling stone gathers no moss" are all
-tied to him. However messy the chain of translation and reuse, that is
-real literary gravity: legal, moral, and common-sense English still quote
-him even when the speaker no longer knows the source. It is one thing to
-write a clever line. It is another for ordinary English to still carry
-pieces of that line roughly two thousand years later.
+first occasion. A surprising amount of ordinary English still carries his
+shape: "honor among thieves," "the end justifies the means,"
+"necessity knows no law," and "a rolling stone gathers no moss" are all tied to him.
+However messy the chain of translation and reuse, that is real literary
+gravity: legal, moral, and common-sense English still quote him even when
+the speaker no longer knows the source. It is one thing to write a clever
+line. It is another for ordinary language, schoolbooks, and arguments to
+still carry pieces of that line roughly two thousand years later.
 
 That is the part the project borrows. Syrus exists to take a short issue,
 review comment, or scheduled prompt and turn it into a pull request that
 keeps its value after the agent turn is over. Publilius Syrus was enslaved
-before he became known as a writer; the usual account is that his wit and
-genius caught the attention of his master, who educated him and freed him
-because of it. That history belongs in the account, but it is context
-rather than the pitch. The pitch is the writerly one from the README:
-small, durable text that compounds.
+before he became known as a writer, and the traditional account says his
+wit and genius caught the attention of his master, who educated him and
+freed him because of it. That history belongs in the account, but it is
+context rather than the pitch. The pitch is the writerly one from the
+README: small, durable text that compounds.
 
 ## How It Started
 
