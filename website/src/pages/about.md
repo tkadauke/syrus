@@ -17,8 +17,9 @@ Syrus is named after [Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_S
 the 1st-century-BCE Roman writer whose *Sententiae* were copied, taught,
 and reused as schoolbook material for more than a millennium. He wrote
 compact maxims: small pieces of text built to travel farther than their
-first occasion. Phrases commonly credited to him still turn up in ordinary
-English: "honor among thieves," "the end justifies the means,"
+first occasion. Phrases he coined, or that are commonly credited to him,
+still turn up in ordinary English: "honor among thieves," "the end
+justifies the means,"
 "necessity knows no law," "a rolling stone gathers no moss," and
 "a good reputation is more valuable than money." However tangled the chain
 of translation, attribution, and reuse, that is real literary gravity, not
@@ -34,7 +35,7 @@ review comment, or scheduled prompt and turn it into a pull request that
 keeps its value after the agent turn is over. Publilius Syrus was enslaved
 before he became known as a writer; the traditional account says his wit
 and genius caught the attention of his master, who educated him and freed
-him because of that talent. That history belongs in the account, but it is
+him because of it. That history belongs in the account, but it is
 context rather than the pitch. The pitch is the writerly one from the README:
 small, durable text that compounds.
 

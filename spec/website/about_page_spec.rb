@@ -21,8 +21,9 @@ RSpec.describe "website about page" do
   end
 
   it "mentions his famous maxims and the traditional account of his manumission" do
+    expect(normalized_content).to include("Phrases he coined, or that are commonly credited to him")
     expect(content).to include("honor among thieves")
-    expect(content).to include("the end justifies the means")
+    expect(normalized_content).to include("the end justifies the means")
     expect(content).to include("necessity knows no law")
     expect(normalized_content).to include("a rolling stone gathers no moss")
     expect(normalized_content).to include("his wit and genius caught the attention of his master")
