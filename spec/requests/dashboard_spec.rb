@@ -63,6 +63,39 @@ RSpec.describe "Dashboard", type: :request do
       expect(row.css("td").first.text).to include("$1.23")
     end
 
+    it "shows the latest workflow type next to the status for open jobs" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repo, issue_number: 7)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "queued",
+        created_at: 1.minute.from_now
+      )
+
+      get root_path
+
+      document = Nokogiri::HTML(response.body)
+      status_cell = document.at_css("tbody tr td")
+      expect(status_cell["class"]).not_to include("hidden")
+      expect(status_cell.text).to include("queued")
+      expect(status_cell.text).to include("pr_comment")
+    end
+
+    it "does not show the latest workflow type next to closed job status" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repo, issue_number: 7)
+      job.close!
+      job.save!
+
+      get root_path
+
+      document = Nokogiri::HTML(response.body)
+      status_cell = document.at_css("tbody tr td")
+      expect(status_cell.text).to include("closed")
+      expect(status_cell.text).not_to include("initial")
+    end
+
     describe "Workflows tab" do
       it "renders the empty state when no workflows exist" do
         get root_path(tab: "workflows")
