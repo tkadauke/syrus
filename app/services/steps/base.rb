@@ -29,6 +29,8 @@ module Steps
     # output) and by Prepare#stream_buffered (shell command output).
     LOG_FLUSH_BYTES    = 16 * 1024
     LOG_FLUSH_INTERVAL = 1.0
+    LOG_FLUSH_MIN_GAP  = 0.2
+    LOG_FLUSH_MAX_BUF  = 1.megabyte
 
     attr_reader :run, :step, :workflow, :job, :repository
 
@@ -68,8 +70,9 @@ module Steps
 
     # Returns [sink, flush] — a buffering wrapper around #log. The sink
     # lambda accumulates chunks and flushes to one JobLog row when either
-    # LOG_FLUSH_BYTES or LOG_FLUSH_INTERVAL elapses. Flush also triggers
-    # on kind change so different-typed chunks stay in separate rows.
+    # LOG_FLUSH_BYTES or LOG_FLUSH_INTERVAL elapses, but never more often
+    # than LOG_FLUSH_MIN_GAP unless LOG_FLUSH_MAX_BUF is reached. Flush also
+    # triggers on kind change so different-typed chunks stay in separate rows.
     # Caller must call flush.call after the stream ends to drain any
     # trailing partial buffer.
     def buffered_log_sink
@@ -90,11 +93,18 @@ module Steps
         flush.call if !buffer.empty? && kind != last_kind
         last_kind = kind
         buffer << text
-        elapsed = Time.current - last_flush
-        flush.call if buffer.bytesize >= LOG_FLUSH_BYTES || elapsed >= LOG_FLUSH_INTERVAL
+        flush.call if log_flush_ready?(buffer, last_flush)
       end
 
       [ sink, flush ]
+    end
+
+    def log_flush_ready?(buffer, last_flush)
+      elapsed = Time.current - last_flush
+      flush_due = buffer.bytesize >= LOG_FLUSH_BYTES || elapsed >= LOG_FLUSH_INTERVAL
+      rate_ok = elapsed >= LOG_FLUSH_MIN_GAP || buffer.bytesize >= LOG_FLUSH_MAX_BUF
+
+      flush_due && rate_ok
     end
 
     # ---- Agentic helpers (used by agent-spawning handlers) ----

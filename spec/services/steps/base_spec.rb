@@ -142,10 +142,67 @@ RSpec.describe Steps::Base do
       expect(run.job_logs.first.chunk).to eq("hello world")
     end
 
-    it "flushes immediately when buffer exceeds LOG_FLUSH_BYTES" do
+    it "waits for LOG_FLUSH_MIN_GAP before flushing byte-threshold bursts" do
+      now = Time.zone.local(2026, 5, 11, 12, 0, 0)
+      allow(Time).to receive(:current) { now }
       sink, _flush = handler.buffered_log_sink
       sink.call("x" * (Steps::Base::LOG_FLUSH_BYTES + 1), kind: "assistant_text")
+      expect(run.job_logs.count).to eq(0)
+
+      now += Steps::Base::LOG_FLUSH_MIN_GAP + 0.01
+      sink.call("y", kind: "assistant_text")
+
       expect(run.job_logs.count).to eq(1)
+      expect(run.job_logs.first.chunk).to eq(("x" * (Steps::Base::LOG_FLUSH_BYTES + 1)) + "y")
+    end
+
+    it "limits a 640 KB burst to one drain flush when it ends inside the minimum gap" do
+      now = Time.zone.local(2026, 5, 11, 12, 0, 0)
+      allow(Time).to receive(:current) { now }
+      sink, flush = handler.buffered_log_sink
+
+      40.times do |i|
+        sink.call(i.to_s.rjust(4, "0") + ("x" * (16 * 1024 - 4)), kind: "assistant_text")
+        now += 0.0025
+      end
+
+      expect(run.job_logs.count).to eq(0)
+
+      flush.call
+
+      logs = run.job_logs.order(:sequence)
+      expect(logs.count).to eq(1)
+      expect(logs.first.chunk.bytesize).to be > 600.kilobytes
+      expect(logs.first.chunk).to start_with("0000")
+      expect(logs.first.chunk).to include("0039")
+    end
+
+    it "flushes at most five times per second for sustained byte-threshold output" do
+      now = Time.zone.local(2026, 5, 11, 12, 0, 0)
+      allow(Time).to receive(:current) { now }
+      sink, flush = handler.buffered_log_sink
+
+      100.times do |i|
+        sink.call(i.to_s.rjust(4, "0") + ("x" * (16 * 1024 - 4)), kind: "assistant_text")
+        now += 0.01
+      end
+      flush.call
+
+      logs = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(logs.count).to be <= 6 # five rate-limited flushes plus final drain
+      expect(logs.join).to start_with("0000")
+      expect(logs.join).to include("0099")
+    end
+
+    it "flushes immediately at LOG_FLUSH_MAX_BUF even inside the minimum gap" do
+      now = Time.zone.local(2026, 5, 11, 12, 0, 0)
+      allow(Time).to receive(:current) { now }
+      sink, _flush = handler.buffered_log_sink
+
+      sink.call("x" * (Steps::Base::LOG_FLUSH_MAX_BUF + 1), kind: "assistant_text")
+
+      expect(run.job_logs.count).to eq(1)
+      expect(run.job_logs.first.chunk.bytesize).to eq(Steps::Base::LOG_FLUSH_MAX_BUF + 1)
     end
 
     it "flushes when LOG_FLUSH_INTERVAL has elapsed since last flush" do

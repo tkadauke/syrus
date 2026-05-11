@@ -84,12 +84,11 @@ module Steps
       end
     end
 
-    # Read `io` until EOF, batching writes into JobLog. Flush triggers:
-    # buffer crosses LOG_FLUSH_BYTES, OR LOG_FLUSH_INTERVAL has elapsed
-    # since the last flush — whichever comes first. The IO.select
-    # timeout shrinks toward zero as the deadline approaches, so a
-    # single line that arrives 5ms after a flush still makes it out
-    # within ~1s even if no more data follows.
+    # Read `io` until EOF, batching writes into JobLog. Flush becomes due
+    # when the buffer crosses LOG_FLUSH_BYTES or LOG_FLUSH_INTERVAL elapses,
+    # but is rate-limited by LOG_FLUSH_MIN_GAP unless LOG_FLUSH_MAX_BUF is
+    # reached. The IO.select timeout shrinks toward the next eligible flush
+    # deadline, so quiet streams still flush promptly.
     def stream_buffered(io)
       buffer = +""
       last_flush = Time.current
@@ -102,13 +101,11 @@ module Steps
       end
 
       loop do
-        timeout = LOG_FLUSH_INTERVAL - (Time.current - last_flush)
-        timeout = 0 if timeout < 0
+        timeout = next_log_flush_timeout(buffer, last_flush)
         ready, = IO.select([ io ], nil, nil, timeout)
 
         unless ready
-          flush.call
-          last_flush = Time.current
+          flush.call if log_flush_ready?(buffer, last_flush)
           next
         end
 
@@ -120,10 +117,18 @@ module Steps
           break
         end
 
-        flush.call if buffer.bytesize >= LOG_FLUSH_BYTES
+        flush.call if log_flush_ready?(buffer, last_flush)
       end
     ensure
       flush&.call
+    end
+
+    def next_log_flush_timeout(buffer, last_flush)
+      elapsed = Time.current - last_flush
+      deadlines = [ LOG_FLUSH_INTERVAL ]
+      deadlines << LOG_FLUSH_MIN_GAP if buffer.bytesize >= LOG_FLUSH_BYTES
+      timeout = deadlines.min - elapsed
+      timeout.positive? ? timeout : 0
     end
 
     def kill_tree(pid)

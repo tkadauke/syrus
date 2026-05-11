@@ -74,4 +74,41 @@ RSpec.describe Steps::Prepare do
     YAML
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /exit 7/)
   end
+
+  describe "#stream_buffered" do
+    it "coalesces a 640 KB burst instead of flushing each byte-threshold chunk" do
+      data = 40.times.map { |i| i.to_s.rjust(4, "0") + ("x" * (16 * 1024 - 4)) }.join
+
+      stream(data)
+
+      logs = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(logs.count).to be <= 2
+      expect(logs.join).to eq(data)
+    end
+
+    it "forces flushes at LOG_FLUSH_MAX_BUF during sustained high-rate output" do
+      data = 3.times.map { |i| i.to_s.rjust(4, "0") + ("x" * (Steps::Base::LOG_FLUSH_MAX_BUF - 4)) }.join
+
+      stream(data)
+
+      logs = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(logs.count).to eq(3)
+      expect(logs.all? { |chunk| chunk.bytesize >= Steps::Base::LOG_FLUSH_MAX_BUF }).to be(true)
+      expect(logs.join).to eq(data)
+    end
+
+    def stream(data)
+      reader, writer = IO.pipe
+      writer_thread = Thread.new do
+        writer.write(data)
+        writer.close
+      end
+
+      handler.send(:stream_buffered, reader)
+      writer_thread.join
+    ensure
+      reader&.close unless reader&.closed?
+      writer&.close unless writer&.closed?
+    end
+  end
 end
