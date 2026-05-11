@@ -7,7 +7,6 @@ module Steps
     "implement"       => :Implement,
     "summarize"       => :Summarize,
     "pr_open"         => :PrOpen,
-    "apply_suggestions" => :ApplySuggestions,
     "respond"         => :Respond,
     "summarize_amend" => :SummarizeAmend,
     "push"            => :Push,
