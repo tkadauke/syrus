@@ -255,7 +255,7 @@ RSpec.describe PollRepositoryJob do
       run = job.runs.first
       expect(run.job_logs.pluck(:kind, :chunk)).to include([
         "system",
-        "prepare skipped via '#{Workflows::SKIP_PREPARE_LABEL}' label"
+        "prepare skipped via issue label"
       ])
     end
 
@@ -371,7 +371,7 @@ RSpec.describe PollRepositoryJob do
           label.new(Job::PREPARE_SKIP_LABEL)
         ]
       )
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue ])
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([ issue ])
 
       described_class.perform_now(repository.id)
 
