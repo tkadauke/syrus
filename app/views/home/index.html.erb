@@ -47,7 +47,7 @@
       <% select_classes = "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" %>
 
       <%= f.select :state,
-            options_for_select([["All states", ""], ["Open", "open"], ["Closed", "closed"]], params[:state]),
+            options_for_select([["All states", ""], ["Open", "open"], ["Failed", "failed"], ["Succeeded", "succeeded"], ["Closed", "closed"]], params[:state]),
             {},
             class: select_classes, data: { action: "change->auto-submit#submit" } %>
 

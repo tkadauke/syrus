@@ -276,6 +276,52 @@ RSpec.describe "Dashboard", type: :request do
           expect(response.body).to include("#1")
           expect(response.body).to include("#2")
         end
+
+        it "shows only open jobs whose latest workflow failed when state=failed" do
+          failed = Factories.job(repository: repo, issue_number: 1)
+          failed.latest_workflow.update!(state: "failed", created_at: 3.minutes.ago)
+
+          older_failure = Factories.job(repository: repo, issue_number: 2)
+          older_failure.latest_workflow.update!(state: "failed", created_at: 3.minutes.ago)
+          Workflow.create!(
+            job: older_failure,
+            trigger_kind: "pr_comment",
+            state: "succeeded",
+            created_at: 1.minute.ago
+          )
+
+          closed_failed = Factories.job(repository: repo, issue_number: 3)
+          closed_failed.latest_workflow.update!(state: "failed", created_at: 3.minutes.ago)
+          closed_failed.close!; closed_failed.save!
+
+          get root_path, params: { state: "failed" }
+          expect(response.body).to include("#1")
+          expect(response.body).not_to include("#2")
+          expect(response.body).not_to include("#3")
+        end
+
+        it "shows only open jobs whose latest workflow succeeded when state=succeeded" do
+          succeeded = Factories.job(repository: repo, issue_number: 1)
+          succeeded.latest_workflow.update!(state: "succeeded", created_at: 3.minutes.ago)
+
+          latest_failure = Factories.job(repository: repo, issue_number: 2)
+          latest_failure.latest_workflow.update!(state: "succeeded", created_at: 3.minutes.ago)
+          Workflow.create!(
+            job: latest_failure,
+            trigger_kind: "pr_comment",
+            state: "failed",
+            created_at: 1.minute.ago
+          )
+
+          closed_succeeded = Factories.job(repository: repo, issue_number: 3)
+          closed_succeeded.latest_workflow.update!(state: "succeeded", created_at: 3.minutes.ago)
+          closed_succeeded.close!; closed_succeeded.save!
+
+          get root_path, params: { state: "succeeded" }
+          expect(response.body).to include("#1")
+          expect(response.body).not_to include("#2")
+          expect(response.body).not_to include("#3")
+        end
       end
 
       describe "repository filter" do

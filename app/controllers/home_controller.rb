@@ -19,7 +19,12 @@ class HomeController < ApplicationController
     # and runs for the per-row cost rollup.
     @jobs = Current.user.jobs.where(repository_id: active_repo_ids)
                              .includes(:repository, :runs, workflows: :steps)
-    @jobs = @jobs.where(state: params[:state]) if params[:state].present?
+    case params[:state]
+    when "open", "closed"
+      @jobs = @jobs.where(state: params[:state])
+    when "failed", "succeeded"
+      @jobs = @jobs.open_threads.where(id: latest_workflow_job_ids(params[:state]))
+    end
     @jobs = @jobs.where(repository_id: params[:repository_id]) if params[:repository_id].present?
 
     case params[:pr]
@@ -111,5 +116,19 @@ class HomeController < ApplicationController
       redirect_back fallback_location: root_path,
                     notice: "#{helpers.pluralize(closed, 'job')} closed."
     end
+  end
+
+  def latest_workflow_job_ids(state)
+    Workflow.where(state: state)
+            .where(<<~SQL.squish)
+              workflows.id = (
+                SELECT latest_workflows.id
+                FROM workflows latest_workflows
+                WHERE latest_workflows.job_id = workflows.job_id
+                ORDER BY latest_workflows.created_at DESC, latest_workflows.id DESC
+                LIMIT 1
+              )
+            SQL
+            .select(:job_id)
   end
 end
