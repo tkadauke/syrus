@@ -6,6 +6,58 @@ RSpec.describe PollRepositoryJob do
     Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus", polling_enabled: true)
   end
 
+  def issue(number: 42, labels: [ "syrus" ])
+    Struct.new(:number, :state, :labels, :pull_request, keyword_init: true).new(
+      number: number,
+      state: "open",
+      pull_request: nil,
+      labels: labels.map { |name| Struct.new(:name, keyword_init: true).new(name: name) }
+    )
+  end
+
+  describe "#perform with per-issue controls" do
+    before do
+      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+    end
+
+    it "creates an initial workflow whose first step is implement when the skip-prepare label is present" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus", Workflows::SKIP_PREPARE_LABEL ]) ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      workflow = job.workflows.first
+      expect(job).to be_skip_prepare
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(workflow.first_step.kind).to eq("implement")
+    end
+
+    it "keeps the initial workflow starting with prepare when the skip-prepare label is absent" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus" ]) ])
+
+      described_class.perform_now(repository.id)
+
+      workflow = Job.find_by!(repository: repository, issue_number: 42).workflows.first
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement summarize pr_open ])
+      expect(workflow.first_step.kind).to eq("prepare")
+    end
+
+    it "emits a system log entry when prepare is skipped" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus", Workflows::SKIP_PREPARE_LABEL ]) ])
+
+      described_class.perform_now(repository.id)
+
+      run = Job.find_by!(repository: repository, issue_number: 42).runs.first
+      expect(run.job_logs.pluck(:kind, :chunk)).to include([
+        "system",
+        "prepare skipped via '#{Workflows::SKIP_PREPARE_LABEL}' label"
+      ])
+    end
+  end
+
   describe "#perform", vcr: { cassette_name: "poll_repository_job/lists_issues" } do
     # Default: pretend GitHub reports no linked PR for these issues.
     # Tests covering the preempted path (below) override this stub to

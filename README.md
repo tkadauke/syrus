@@ -60,6 +60,13 @@ bin/rspec    # run the test suite
 
 `bin/setup --skip-server` if you want to bootstrap without booting the dev server.
 
+## Per-Issue Controls
+
+Syrus recognizes `syrus-skip-prepare` on a source issue as an escape hatch for
+broken prepare commands. Jobs ingested with that label skip the prepare step and
+start at implementation; removing the label restores the normal prepare-first
+workflow on the next ingest.
+
 ## Naming
 
 Named after [Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_Syrus),

@@ -22,9 +22,11 @@ class StepDispatcher
     first = workflow.first_step
     return unless first
     return if first.runs.any?
-    create_run_and_enqueue(first, workflow,
-                           parent_session_id: parent_session_id,
-                           prompt: prompt)
+    run = create_run_and_enqueue(first, workflow,
+                                 parent_session_id: parent_session_id,
+                                 prompt: prompt)
+    log_prepare_skipped(run) if workflow.artifacts&.fetch("prepare_skipped", false)
+    run
   end
 
   # Single point that creates a Run on a Step. Run's
@@ -38,6 +40,14 @@ class StepDispatcher
       agent_provider: workflow.agent_provider,
       parent_session_id: parent_session_id,
       prompt: prompt
+    )
+  end
+
+  def self.log_prepare_skipped(run)
+    run.job_logs.create!(
+      chunk: "prepare skipped via '#{Workflows::SKIP_PREPARE_LABEL}' label",
+      sequence: (run.job_logs.maximum(:sequence) || -1) + 1,
+      kind: "system"
     )
   end
 
@@ -77,7 +87,7 @@ class StepDispatcher
 
   # Mergeability cached on the Job is now stale post-push (or a
   # PR just opened); badge says "needs rebase" until
-  # PollAllRebasesJob's next 15-min tick. Schedule a focused
+  # PollAllMergeStatesJob's next tick. Schedule a focused
   # PollRebaseJob with a short delay so GitHub has time to
   # recompute, then the cache update broadcasts a refresh and the
   # show page morphs the badge live.

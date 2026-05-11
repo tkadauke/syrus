@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_11_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_11_130000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -99,6 +99,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_120000) do
     t.string "priority", default: "medium", null: false
     t.integer "repository_id", null: false
     t.integer "scheduled_task_id"
+    t.boolean "skip_prepare", default: false, null: false
     t.datetime "started_at"
     t.string "state", default: "open", null: false
     t.datetime "updated_at", null: false

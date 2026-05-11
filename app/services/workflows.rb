@@ -1,4 +1,6 @@
 module Workflows
+  SKIP_PREPARE_LABEL = "syrus-skip-prepare".freeze
+
   # Registry of workflow templates keyed by trigger_kind. Callers
   # don't need to know the individual class names — they ask
   # `Workflows.for(trigger_kind: "pr_comment")` and get the right

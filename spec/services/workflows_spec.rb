@@ -36,6 +36,26 @@ RSpec.describe Workflows do
       ])
     end
 
+    it "omits prepare from Initial when the Job has opted out" do
+      job.update!(skip_prepare: true)
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind, :position)).to eq([
+        [ "implement", 0 ], [ "summarize", 1 ], [ "pr_open", 2 ]
+      ])
+      expect(wf.artifacts).to include("prepare_skipped" => true)
+    end
+
+    it "omits prepare from Retry when the Job has opted out" do
+      job.update!(skip_prepare: true)
+
+      wf = Workflows::Retry.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(wf.trigger_kind).to eq("retry")
+    end
+
     it "records the job's current agent provider on the workflow" do
       job.update!(agent_provider: "codex")
       wf = Workflows::Initial.instantiate(job: job)

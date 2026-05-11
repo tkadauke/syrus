@@ -25,7 +25,7 @@ class PollRebaseJob < ApplicationJob
   limits_concurrency to: 1, key: ->(job_id) { "rebase_poll:#{job_id}" }
 
   # `bypass_cache: true` is set by the on-demand "Check now" button on
-  # Job#show. The periodic poller (PollAllRebasesJob → PollRebaseJob)
+  # Job#show. The periodic poller (PollAllMergeStatesJob → PollMergeStateJob)
   # leaves it false so the conditional-GET / 304 cycle keeps it cheap;
   # operator-initiated checks pay a fresh request to defeat GitHub's
   # eventual-consistency lag on the `mergeable` field.

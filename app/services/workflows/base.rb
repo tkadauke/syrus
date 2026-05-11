@@ -36,16 +36,22 @@ module Workflows
     # from these at run time, so the polling job (or controller)
     # doesn't need to know prompt internals.
     def self.instantiate(job:, artifacts: nil, agent_provider: nil)
-      raise "no steps declared for #{name}" if step_kinds.nil? || step_kinds.empty?
+      kinds = steps_for(job)
+      raise "no steps declared for #{name}" if kinds.nil? || kinds.empty?
+
+      workflow_artifacts = artifacts
+      if prepare_skipped_for?(job)
+        workflow_artifacts = (workflow_artifacts || {}).merge("prepare_skipped" => true)
+      end
 
       Workflow.transaction do
         wf = Workflow.create!(
           job: job,
           trigger_kind: trigger_kind,
           agent_provider: agent_provider || job.agent_provider || job.user.agent_provider,
-          artifacts: artifacts
+          artifacts: workflow_artifacts
         )
-        steps = step_kinds.each_with_index.map do |kind, position|
+        steps = kinds.each_with_index.map do |kind, position|
           Step.create!(workflow: wf, kind: kind, position: position)
         end
         # Wire next_step_id top-down so each step points to its
@@ -53,6 +59,14 @@ module Workflows
         steps.each_cons(2) { |s, nxt| s.update!(next_step_id: nxt.id) }
         wf
       end
+    end
+
+    def self.steps_for(_job)
+      step_kinds
+    end
+
+    def self.prepare_skipped_for?(_job)
+      false
     end
   end
 end

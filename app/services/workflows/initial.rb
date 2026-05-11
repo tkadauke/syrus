@@ -18,5 +18,13 @@ module Workflows
     steps :prepare, :implement, :summarize, :pr_open
 
     def self.trigger_kind = "initial"
+
+    def self.steps_for(job)
+      prepare_skipped_for?(job) ? %w[ implement summarize pr_open ] : step_kinds
+    end
+
+    def self.prepare_skipped_for?(job)
+      job.skip_prepare?
+    end
   end
 end

@@ -57,6 +57,8 @@ class PollRepositoryJob < ApplicationJob
     # Existing Job for this issue → either attach the external PR
     # discovery to it, or just dedup as before.
     if prior
+      sync_skip_prepare!(prior, issue)
+
       if linked && prior.external_pr_number != linked[:number]
         Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} preempt-attach to Job ##{prior.id}: external PR ##{linked[:number]}")
         prior.update!(external_pr_number: linked[:number])
@@ -92,11 +94,25 @@ class PollRepositoryJob < ApplicationJob
     Job.create!(
       user: repository.user,
       repository: repository,
-      issue_number: issue.number
+      issue_number: issue.number,
+      skip_prepare: skip_prepare_label_present?(issue)
     )
   end
 
   def latest_job_for_issue(repository, issue_number)
     Job.where(repository_id: repository.id, issue_number: issue_number).order(:created_at).last
+  end
+
+  def sync_skip_prepare!(job, issue)
+    skip = skip_prepare_label_present?(issue)
+    job.update!(skip_prepare: skip) if job.skip_prepare? != skip
+  end
+
+  def skip_prepare_label_present?(issue)
+    label_names(issue).include?(Workflows::SKIP_PREPARE_LABEL)
+  end
+
+  def label_names(issue)
+    Array(issue.labels).map { |label| label.respond_to?(:name) ? label.name : label.to_s }
   end
 end
