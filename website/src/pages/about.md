@@ -21,13 +21,13 @@ first occasion. Phrases commonly credited to him still turn up in ordinary
 English: "honor among thieves," "the end justifies the means,"
 "necessity knows no law," "a rolling stone gathers no moss," and
 "a good reputation is more valuable than money." However tangled the chain
-of translation, attribution, and reuse, that is real literary gravity, not a footnote. He
-is one of those rare ancient writers whose lines escaped the page and
-became common furniture for everyday thought. Put plainly: legal, moral,
-and common-sense English still quote him, often through people who no
-longer know the source. It is one thing to write a clever line. It is
-another for ordinary language, schoolbooks, and arguments to still carry
-pieces of that line two thousand years later.
+of translation, attribution, and reuse, that is real literary gravity, not
+a footnote. He is one of those rare ancient writers whose lines escaped
+the page and became common furniture for everyday thought. Put plainly:
+legal, moral, and common-sense English still quote him, often through
+people who no longer know the source. It is one thing to write a clever
+line. It is another for ordinary language, schoolbooks, and arguments to
+still carry pieces of that line two thousand years later.
 
 That is the part the project borrows. Syrus exists to take a short issue,
 review comment, or scheduled prompt and turn it into a pull request that
