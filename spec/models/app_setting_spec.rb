@@ -28,6 +28,14 @@ RSpec.describe AppSetting do
     expect(AppSetting.github_app_registered?).to be true
   end
 
+  it "stores GitHub App ids beyond 32-bit integer range" do
+    setting = AppSetting.current
+
+    setting.update!(github_app_id: 9_876_543_210)
+
+    expect(setting.reload.github_app_id).to eq(9_876_543_210)
+  end
+
   it "encrypts GitHub App secrets at rest" do
     setting = AppSetting.current
     setting.update!(

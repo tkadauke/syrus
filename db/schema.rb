@@ -24,7 +24,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140200) do
 
   create_table "app_settings", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.integer "github_app_id"
+    t.bigint "github_app_id"
     t.text "github_app_private_key_pem"
     t.datetime "github_app_registered_at"
     t.string "github_app_slug"
@@ -62,13 +62,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140200) do
   end
 
   create_table "installations", force: :cascade do |t|
-    t.integer "account_id", null: false
+    t.bigint "account_id", null: false
     t.string "account_login", null: false
     t.string "account_type", null: false
     t.text "cached_token"
     t.datetime "cached_token_expires_at"
     t.datetime "created_at", null: false
-    t.integer "github_installation_id", null: false
+    t.bigint "github_installation_id", null: false
     t.datetime "installed_at", null: false
     t.datetime "removed_at"
     t.datetime "updated_at", null: false

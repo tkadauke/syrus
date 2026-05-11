@@ -1,6 +1,6 @@
 class AddGithubAppCredentialsToAppSettings < ActiveRecord::Migration[8.1]
   def change
-    add_column :app_settings, :github_app_id, :integer
+    add_column :app_settings, :github_app_id, :bigint
     add_column :app_settings, :github_app_slug, :string
     add_column :app_settings, :github_app_private_key_pem, :text
     add_column :app_settings, :github_app_webhook_secret, :text
