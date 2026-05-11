@@ -15,7 +15,7 @@ ActiveRecord::Schema[8.1].define(version: 1) do
     t.binary "channel", limit: 1024, null: false
     t.bigint "channel_hash", null: false
     t.datetime "created_at", null: false
-    t.binary "payload", size: :long, null: false
+    t.binary "payload", limit: 4.gigabytes - 1, null: false
     t.index ["channel"], name: "index_solid_cable_messages_on_channel"
     t.index ["channel_hash"], name: "index_solid_cable_messages_on_channel_hash"
     t.index ["created_at"], name: "index_solid_cable_messages_on_created_at"

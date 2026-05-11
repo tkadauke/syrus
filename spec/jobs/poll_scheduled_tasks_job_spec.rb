@@ -25,11 +25,14 @@ RSpec.describe PollScheduledTasksJob do
   end
 
   it "leaves not-yet-due tasks alone" do
-    task = cron_task
-    task.update_columns(last_fired_at: 1.minute.ago)
+    freeze_time do
+      task = cron_task
+      now = Time.current
+      task.update_columns(minute_offset: (now.min + 1) % 60, last_fired_at: 1.minute.ago)
 
-    expect_any_instance_of(ScheduledTaskFire).not_to receive(:call)
-    described_class.perform_now
+      expect_any_instance_of(ScheduledTaskFire).not_to receive(:call)
+      described_class.perform_now
+    end
   end
 
   it "skips paused tasks" do
