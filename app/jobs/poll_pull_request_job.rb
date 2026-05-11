@@ -123,6 +123,9 @@ class PollPullRequestJob < ApplicationJob
     }
     workflow = Workflows::PrFeedback.instantiate(job: @job, artifacts: artifacts, agent_provider: @agent_provider)
     StepDispatcher.start_workflow(workflow)
+
+    latest = new_comments.map(&:created_at).compact.max
+    @job.update!(last_seen_comment_at: latest) if latest && (@job.last_seen_comment_at.nil? || latest > @job.last_seen_comment_at)
   end
 
   def feedback_cutoff
