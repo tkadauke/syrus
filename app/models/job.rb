@@ -2,6 +2,7 @@ class Job < ApplicationRecord
   include AASM
 
   KINDS = %w[ issue cron adhoc ].freeze
+  PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
 
   PRIORITIES = %w[ high medium low ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
@@ -9,6 +10,7 @@ class Job < ApplicationRecord
   # low (20). The gap of 10 between levels leaves room for future additions
   # without renumbering existing entries.
   PRIORITY_TO_SQ = { "high" => 0, "medium" => 10, "low" => 20 }.freeze
+  attr_accessor :prepare_skip_reason_override
 
   belongs_to :user
   belongs_to :repository
@@ -107,7 +109,7 @@ class Job < ApplicationRecord
   # "preempted" path where Syrus discovered an external PR already
   # targeting this issue and recorded the Job for the operator's
   # awareness without scheduling any agent work.
-  after_create_commit :create_initial_run, if: -> { open? && issue? }
+  after_create :create_initial_run, if: -> { open? && issue? }
 
   # Trigger a Turbo morph-refresh on the Job's show page on any change.
   # Combined with turbo_refreshes_with method: :morph in the layout,
@@ -128,6 +130,15 @@ class Job < ApplicationRecord
 
   def solid_queue_priority
     PRIORITY_TO_SQ.fetch(priority.to_s, PRIORITY_TO_SQ["medium"])
+  end
+
+  def prepare_skip_reason
+    return "repository_configuration" unless repository.effective_prepare_enabled
+    return "issue_label" if prepare_skip_reason_override == "issue_label"
+    return "issue_label" if skip_prepare?
+    return "issue_label" if Workflow.where(job_id: id).any? { |workflow| workflow.artifact("prepare_skipped_reason") == "issue_label" }
+
+    nil
   end
 
   def close_with_reason!(reason)
@@ -247,8 +258,9 @@ class Job < ApplicationRecord
 
   # Issue Jobs auto-instantiate Workflows::Initial on create. The
   # workflow lays out the implement → summarize → pr_open chain;
-  # StepDispatcher.start_workflow creates the first Run, which
-  # auto-enqueues RunJob via Run's after_create_commit. Same
+  # StepDispatcher.start_workflow creates the first Run. RunJob still
+  # auto-enqueues via Run's after_create_commit, so background work
+  # waits for the surrounding transaction to commit. Same
   # observable behavior as the v0 single-Run flow, but each
   # phase is now its own attemptable step.
   def create_initial_run

@@ -95,7 +95,8 @@ class PollRepositoryJob < ApplicationJob
       user: repository.user,
       repository: repository,
       issue_number: issue.number,
-      skip_prepare: skip_prepare_label_present?(issue)
+      skip_prepare: skip_prepare_label_present?(issue),
+      prepare_skip_reason_override: prepare_skip_reason(issue)
     )
   end
 
@@ -114,5 +115,9 @@ class PollRepositoryJob < ApplicationJob
 
   def label_names(issue)
     Workflows.label_names(issue.labels)
+  end
+
+  def prepare_skip_reason(issue)
+    "issue_label" if label_names(issue).include?(Job::PREPARE_SKIP_LABEL)
   end
 end

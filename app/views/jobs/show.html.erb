@@ -24,6 +24,9 @@
         <%= pluralize(@job.workflows.size, "workflow") %> ·
         <%= pluralize(@job.runs.size, "run") %> ·
         <span class="font-medium text-gray-700"><%= cost_caption(@job.total_cost_usd) %></span>
+        <% if (prepare_label = prepare_skip_label(@job)) %>
+          · <span class="font-medium text-amber-700"><%= prepare_label %></span>
+        <% end %>
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-3">

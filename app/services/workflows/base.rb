@@ -39,9 +39,14 @@ module Workflows
       kinds = steps_for(job)
       raise "no steps declared for #{name}" if kinds.nil? || kinds.empty?
 
-      workflow_artifacts = artifacts
-      if prepare_skipped_for?(job)
-        workflow_artifacts = (workflow_artifacts || {}).merge("prepare_skipped" => true)
+      effective_artifacts = artifacts
+      effective_steps = kinds
+      if (skip_reason = job.prepare_skip_reason)
+        effective_steps = effective_steps.reject { |kind| kind == "prepare" }
+        effective_artifacts = (effective_artifacts || {}).merge(
+          "prepare_skipped" => true,
+          "prepare_skipped_reason" => skip_reason
+        )
       end
 
       Workflow.transaction do
@@ -49,9 +54,9 @@ module Workflows
           job: job,
           trigger_kind: trigger_kind,
           agent_provider: agent_provider || job.agent_provider || job.user.agent_provider,
-          artifacts: workflow_artifacts
+          artifacts: effective_artifacts
         )
-        steps = kinds.each_with_index.map do |kind, position|
+        steps = effective_steps.each_with_index.map do |kind, position|
           Step.create!(workflow: wf, kind: kind, position: position)
         end
         # Wire next_step_id top-down so each step points to its

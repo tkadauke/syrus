@@ -120,6 +120,16 @@ module JobsHelper
       job.runs.reorder(created_at: :desc).limit(1).pick(:agent_provider)
   end
 
+  def prepare_skip_label(job)
+    reason = job.workflows.to_a.filter_map { |workflow| workflow.artifact("prepare_skipped_reason") }.last
+    case reason
+    when "repository_configuration"
+      "Prepare skipped (per-repo setting)"
+    when "issue_label"
+      "Prepare skipped (issue label)"
+    end
+  end
+
   def cost_caption(amount)
     format("$%.2f", amount.to_d)
   end

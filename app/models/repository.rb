@@ -2,6 +2,7 @@ class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
 
   attribute :polling_enabled, :boolean, default: true
+  attribute :prepare_enabled, :boolean, default: true
   attribute :pr_cost_footer_enabled, :boolean, default: true
   attribute :auto_merge_enabled, :boolean, default: false
 
@@ -43,6 +44,10 @@ class Repository < ApplicationRecord
 
   def effective_agent_provider
     agent_provider.presence || user.agent_provider
+  end
+
+  def effective_prepare_enabled
+    prepare_enabled?
   end
 
   # Anonymous URL — safe to bake into a saved clone's remote.

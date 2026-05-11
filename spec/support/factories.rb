@@ -37,11 +37,18 @@ module Factories
 
   def job(**attrs)
     repo = attrs[:repository] || repository
-    Job.create!({
+    job = Job.create!({
       user: repo.user,
       repository: repo,
       issue_number: 42
     }.merge(attrs))
+    if job.open? && job.issue? && job.workflows.none?
+      workflow = Workflows::Initial.instantiate(job: job)
+      StepDispatcher.start_workflow(workflow)
+    end
+    job.association(:workflows).reset
+    job.association(:runs).reset
+    job
   end
 
   # Returns the auto-created initial Run on a fresh Job, or builds an

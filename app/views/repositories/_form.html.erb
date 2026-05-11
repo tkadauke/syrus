@@ -73,6 +73,11 @@
   </div>
 
   <div class="flex items-center gap-2">
+    <%= form.check_box :prepare_enabled, class: "rounded border-gray-400" %>
+    <%= form.label :prepare_enabled, "Run prepare step on this repository's Workflows", class: "text-sm text-gray-700" %>
+  </div>
+
+  <div class="flex items-center gap-2">
     <%= form.check_box :pr_cost_footer_enabled, class: "rounded border-gray-400" %>
     <%= form.label :pr_cost_footer_enabled, "Add Syrus cost footer to PR descriptions", class: "text-sm text-gray-700" %>
   </div>

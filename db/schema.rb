@@ -125,6 +125,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_130000) do
     t.string "owner", null: false
     t.boolean "polling_enabled", default: true, null: false
     t.boolean "pr_cost_footer_enabled", default: true, null: false
+    t.boolean "prepare_enabled", default: true, null: false
     t.string "trigger_label", default: "syrus", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false

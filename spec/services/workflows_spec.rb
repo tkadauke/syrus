@@ -56,6 +56,53 @@ RSpec.describe Workflows do
       expect(wf.trigger_kind).to eq("retry")
     end
 
+    it "keeps prepare as the first step when repository prepare is enabled" do
+      job.repository.update!(prepare_enabled: true)
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.order(:position).first.kind).to eq("prepare")
+    end
+
+    it "skips prepare when repository prepare is disabled" do
+      job.repository.update!(prepare_enabled: false)
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(wf.artifact("prepare_skipped_reason")).to eq("repository_configuration")
+    end
+
+    it "skips prepare when the issue requested it by label" do
+      job.prepare_skip_reason_override = "issue_label"
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(wf.artifact("prepare_skipped_reason")).to eq("issue_label")
+    end
+
+    it "skips prepare when either the issue label or repository setting requests it" do
+      job.repository.update!(prepare_enabled: false)
+      job.prepare_skip_reason_override = "issue_label"
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind)).not_to include("prepare")
+      expect(wf.artifact("prepare_skipped_reason")).to eq("repository_configuration")
+    end
+
+    it "writes a system log when prepare is skipped by repository configuration" do
+      job.repository.update!(prepare_enabled: false)
+      wf = Workflows::Initial.instantiate(job: job)
+
+      run = StepDispatcher.start_workflow(wf)
+
+      expect(run.job_logs.pluck(:kind, :chunk)).to include(
+        [ "system", "prepare skipped via repository configuration" ]
+      )
+    end
+
     it "records the job's current agent provider on the workflow" do
       job.update!(agent_provider: "codex")
       wf = Workflows::Initial.instantiate(job: job)

@@ -26,11 +26,12 @@ RSpec.describe "Repositories", type: :request do
       expect {
         post repositories_path, params: { repository: {
           owner: "acme", name: "widgets", default_branch: "main",
-          trigger_label: "syrus", polling_enabled: "1", agent_provider: "codex"
+          trigger_label: "syrus", polling_enabled: "1", prepare_enabled: "0", agent_provider: "codex"
         } }
       }.to change(user.repositories, :count).by(1)
       expect(response).to redirect_to(repositories_path)
       expect(user.repositories.last.agent_provider).to eq("codex")
+      expect(user.repositories.last.prepare_enabled).to be(false)
     end
 
     it "updates the repository default agent and shows it on the index" do
@@ -38,11 +39,12 @@ RSpec.describe "Repositories", type: :request do
 
       patch repository_path(mine), params: { repository: {
         owner: "acme", name: "widgets", default_branch: "main",
-        trigger_label: "syrus", polling_enabled: "1", agent_provider: "codex"
+        trigger_label: "syrus", polling_enabled: "1", prepare_enabled: "0", agent_provider: "codex"
       } }
 
       expect(response).to redirect_to(repositories_path)
       expect(mine.reload.agent_provider).to eq("codex")
+      expect(mine.prepare_enabled).to be(false)
 
       follow_redirect!
       expect(response.body).to include("agent Codex")

@@ -93,6 +93,26 @@ RSpec.describe PollRepositoryJob do
       expect(created.runs.first.state).to eq("queued")
     end
 
+    it "creates a Job whose workflow skips prepare when the issue has the prepare-skip label" do
+      label = Struct.new(:name)
+      issue = Struct.new(:number, :state, :pull_request, :labels).new(
+        99,
+        "open",
+        nil,
+        [
+          label.new("syrus"),
+          label.new(Job::PREPARE_SKIP_LABEL)
+        ]
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue ])
+
+      described_class.perform_now(repository.id)
+
+      workflow = Job.find_by!(repository: repository, issue_number: 99).latest_workflow
+      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(workflow.artifact("prepare_skipped_reason")).to eq("issue_label")
+    end
+
     it "dedups against any prior Job (open or closed) — prevents the duplicate-PR loop" do
       # Pre-seed: issue 46 has a Job whose initial run already succeeded
       # (PR is open and the thread is alive); issue 42 has a Job that

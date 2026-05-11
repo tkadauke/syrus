@@ -25,7 +25,7 @@ class StepDispatcher
     run = create_run_and_enqueue(first, workflow,
                                  parent_session_id: parent_session_id,
                                  prompt: prompt)
-    log_prepare_skipped(run) if workflow.artifacts&.fetch("prepare_skipped", false)
+    log_prepare_skip(run, workflow)
     run
   end
 
@@ -43,9 +43,20 @@ class StepDispatcher
     )
   end
 
-  def self.log_prepare_skipped(run)
+  def self.log_prepare_skip(run, workflow)
+    reason = workflow.artifact("prepare_skipped_reason")
+    return unless reason
+
+    message = case reason
+              when "repository_configuration"
+                "prepare skipped via repository configuration"
+              when "issue_label"
+                "prepare skipped via issue label"
+              else
+                "prepare skipped"
+              end
     run.job_logs.create!(
-      chunk: "prepare skipped via '#{Workflows::SKIP_PREPARE_LABEL}' label",
+      chunk: message,
       sequence: (run.job_logs.maximum(:sequence) || -1) + 1,
       kind: "system"
     )
