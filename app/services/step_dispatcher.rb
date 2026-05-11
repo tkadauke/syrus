@@ -48,13 +48,13 @@ class StepDispatcher
     return unless reason
 
     message = case reason
-              when "repository_configuration"
-                "prepare skipped via repository configuration"
-              when "issue_label"
-                "prepare skipped via issue label"
-              else
-                "prepare skipped"
-              end
+    when "repository_configuration"
+      "prepare skipped via repository configuration"
+    when "issue_label"
+      "prepare skipped via issue label"
+    else
+      "prepare skipped"
+    end
     run.job_logs.create!(
       chunk: message,
       sequence: (run.job_logs.maximum(:sequence) || -1) + 1,
