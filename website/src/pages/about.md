@@ -1,29 +1,55 @@
 ---
 title: About Syrus
-description: How Syrus got its name, and how it got built.
+description: The naming story, project history, and maintainer behind Syrus.
 ---
-
-<!-- STUB. Implementation issue: "About page."
-
-     Content brief:
-     - Naming story: Publilius Syrus, the 1st-century-BCE Roman
-       writer. Mention the slave-origin honestly but lead with the
-       writer angle (see README.md for the existing framing).
-     - Project history: sketched on a plane 2026-05-01, repo
-       created same evening, working on itself since day 2.
-     - Mention the recursion explicitly — Syrus shipped auto-rebase
-       via Syrus running auto-rebase, etc.
-     - The maintainer + how to get in touch.
-     - Link back to the home page CTAs.
--->
 
 # About
 
-Syrus is named after [Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_Syrus),
-the 1st-century-BCE Roman writer whose *Sententiae* — a collection
-of one-line maxims — were schoolbook material for over a
-millennium. Small, durable text that compounds. That's the
-aspiration.
+Syrus is a project about turning small pieces of written intent into
+durable changes in code. For the technical version of what it is, start
+with [the concepts guide](/docs/concepts). This page is the other version:
+where the name came from, how the project started, and who to ask when
+something looks interesting or broken.
 
-<!-- TODO: project history, maintainer, recursion-of-self-hosting
-     angle, contact info -->
+## The Name
+
+Syrus is named after [Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_Syrus),
+the 1st-century-BCE Roman writer whose *Sententiae* were copied, taught,
+and reused as schoolbook material for centuries. He wrote compact maxims:
+small pieces of text built to travel farther than their first occasion.
+Some of them are still recognizable roughly two thousand years later.
+
+That is the part the project borrows. Syrus exists to take a short issue,
+review comment, or scheduled prompt and turn it into a pull request that
+keeps its value after the agent turn is over. Publilius Syrus was enslaved
+before he became known as a writer; that history belongs in the account,
+but it is context rather than the pitch. The pitch is the writerly one:
+small, durable text that compounds.
+
+## How It Started
+
+Syrus was sketched on a plane on May 1, 2026, then created as a repository
+that same evening. The first goal was narrow: replace a pile of per-repo
+automation scripts with one Rails app that owned the boring mechanics of
+clones, branches, pull requests, cleanup, and retries.
+
+By day two, Syrus was already working on itself. That early recursion has
+stayed central to the project: if Syrus is supposed to make issue-to-PR
+work dependable, it should be able to carry its own maintenance work too.
+The public website was planned as Syrus jobs. The auto-rebase feature was
+itself shipped through Syrus running auto-rebase. The tool keeps eating the
+same work it promises to make easier.
+
+## Who Maintains It
+
+Syrus is maintained by [Thomas Kadauke](https://github.com/tkadauke).
+GitHub is the best contact path for now: open an issue, start a discussion,
+or mention `@tkadauke` on a pull request if the context belongs in the
+project.
+
+If you are evaluating Syrus for a team and need a private contact route,
+Thomas can add the preferred email or social link here before launch.
+
+---
+
+[Back to home](/) | [GitHub](https://github.com/tkadauke/syrus) | [Try Syrus locally](/evaluate)
