@@ -18,17 +18,17 @@ the 1st-century-BCE Roman writer whose *Sententiae* were copied, taught,
 and reused as schoolbook material for more than a millennium. He wrote
 compact maxims: small pieces of text built to travel farther than their
 first occasion. A surprising amount of ordinary English still carries his
-shape. "honor among thieves" and "the end justifies the means" are the
-headline examples; "necessity knows no law"; "a rolling stone gathers no moss";
-and "a good reputation is more valuable than money" all run through the long
-afterlife of his sayings too. However messy the chain of translation,
-attribution, and reuse, that is real literary gravity, not a footnote. He is
-one of those rare ancient writers whose lines escaped the page and became
-common furniture for everyday thought. Put plainly:
-legal, moral, and common-sense English still quote him, often through
-people who no longer know the source. It is one thing to write a clever
-line. It is another for ordinary language, schoolbooks, and arguments to
-still carry pieces of that line two thousand years later.
+shape: "honor among thieves" and "the end justifies the means" are the
+headline examples, with "necessity knows no law," "a rolling stone gathers
+no moss," and "a good reputation is more valuable than money" nearby in
+the long afterlife of his sayings. However messy the chain of translation,
+attribution, and reuse, that is real literary gravity, not a footnote. He
+is one of those rare ancient writers whose lines escaped the page and
+became common furniture for everyday thought. Put plainly: legal, moral,
+and common-sense English still quote him, often through people who no
+longer know the source. It is one thing to write a clever line. It is
+another for ordinary language, schoolbooks, and arguments to still carry
+pieces of that line two thousand years later.
 
 That is the part the project borrows. Syrus exists to take a short issue,
 review comment, or scheduled prompt and turn it into a pull request that
