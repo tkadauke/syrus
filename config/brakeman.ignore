@@ -38,8 +38,24 @@
       "user_input": "ClaudeSession.canonical_path_for(:home => ENV.fetch(\"HOME\"), :cwd => workspace.path, :session_id => normalized_session_id(result.session_id))",
       "confidence": "Medium",
       "note": "session_id is emitted by the Claude agent process and is rejected unless it matches SESSION_ID_PATTERN before path construction."
+    },
+    {
+      "warning_type": "Unmaintained Dependency",
+      "warning_code": 121,
+      "fingerprint": "edf687f759ec9765bd5db185dbc615c80af77d6e7e19386fc42934e7a80307af",
+      "check_name": "EOLRuby",
+      "message": "Support for Ruby 3.2.3 ended on 2026-03-31",
+      "file": ".ruby-version",
+      "line": 1,
+      "link": "https://brakemanscanner.org/docs/warning_types/unmaintained_dependency/",
+      "code": null,
+      "render_path": null,
+      "location": null,
+      "user_input": null,
+      "confidence": "High",
+      "note": "Temporary waiver until the application runtime moves off Ruby 3.2.x; CI also excludes EOLRuby explicitly."
     }
   ],
-  "updated": "2026-05-08 05:23:00 +0000",
+  "updated": "2026-05-11 20:12:00 +0000",
   "brakeman_version": "8.0.4"
 }
