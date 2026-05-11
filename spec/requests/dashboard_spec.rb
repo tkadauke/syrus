@@ -48,7 +48,7 @@ RSpec.describe "Dashboard", type: :request do
       row = document.at_css("tbody tr")
       expect(document.at_css("thead").text).to include("Workflows")
       expect(document.at_css("thead").text).not_to include("Runs")
-      expect(row.css("td")[4].text.strip).to eq("1")
+      expect(row.css("td")[5].text.strip).to eq("1")
       expect(row.text).to include("1 workflow")
     end
 
@@ -63,13 +63,13 @@ RSpec.describe "Dashboard", type: :request do
       expect(row.css("td")[1].text).to include("$1.23")
     end
 
-    it "shows the latest workflow type next to the status for open jobs" do
+    it "shows the latest workflow type and status in a desktop-only column" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       job = Factories.job(repository: repo, issue_number: 7)
       Workflow.create!(
         job: job,
         trigger_kind: "pr_comment",
-        state: "queued",
+        state: "failed",
         created_at: 1.minute.from_now
       )
 
@@ -77,12 +77,18 @@ RSpec.describe "Dashboard", type: :request do
 
       document = Nokogiri::HTML(response.body)
       status_cell = document.css("tbody tr td")[1]
+      latest_cell = document.css("tbody tr td")[4]
+
+      expect(document.at_css("thead").text).to include("Latest")
       expect(status_cell["class"]).not_to include("hidden")
-      expect(status_cell.text).to include("queued")
-      expect(status_cell.text).to include("pr_comment")
+      expect(status_cell.text).not_to include("failed")
+      expect(status_cell.text).not_to include("pr_comment")
+      expect(latest_cell["class"]).to include("hidden sm:table-cell")
+      expect(latest_cell.text).to include("failed")
+      expect(latest_cell.text).to include("pr_comment")
     end
 
-    it "does not show the latest workflow type next to closed job status" do
+    it "shows the latest workflow for closed jobs without mixing it into job status" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       job = Factories.job(repository: repo, issue_number: 7)
       job.close!
@@ -92,8 +98,12 @@ RSpec.describe "Dashboard", type: :request do
 
       document = Nokogiri::HTML(response.body)
       status_cell = document.css("tbody tr td")[1]
+      latest_cell = document.css("tbody tr td")[4]
+
       expect(status_cell.text).to include("closed")
       expect(status_cell.text).not_to include("initial")
+      expect(latest_cell.text).to include("initial")
+      expect(latest_cell.text).to include("queued")
     end
 
     describe "bulk job actions" do

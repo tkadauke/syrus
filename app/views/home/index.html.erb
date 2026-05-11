@@ -107,6 +107,7 @@
                 <th class="px-4 py-2 text-left">State</th>
                 <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
                 <th class="px-4 py-2 text-left">Issue</th>
+                <th class="hidden sm:table-cell px-4 py-2 text-left">Latest</th>
                 <th class="hidden sm:table-cell px-4 py-2 text-left">Workflows</th>
                 <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
                 <th class="hidden sm:table-cell px-4 py-2"></th>
@@ -125,9 +126,6 @@
                   </td>
                   <td class="px-4 py-3 align-top">
                     <%= state_pill(job_summary_state(job)) %>
-                    <% if latest_workflow && !job.closed? %>
-                      <%= trigger_pill(latest_workflow.trigger_kind) %>
-                    <% end %>
                     <% if job.priority != "medium" %>
                       <%= priority_pill(job.priority) %>
                     <% end %>
@@ -165,6 +163,16 @@
                       <span>·</span>
                       <span><%= relative_timestamp(job.started_at) %></span>
                     </div>
+                  </td>
+                  <td class="hidden sm:table-cell px-4 py-3 align-top">
+                    <% if latest_workflow %>
+                      <div class="flex flex-wrap items-center gap-1">
+                        <%= trigger_pill(latest_workflow.trigger_kind) %>
+                        <%= state_pill(latest_workflow.state) %>
+                      </div>
+                    <% else %>
+                      <span class="text-gray-400">—</span>
+                    <% end %>
                   </td>
                   <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= job.workflows.size %></td>
                   <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
