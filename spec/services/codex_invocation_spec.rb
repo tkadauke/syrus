@@ -54,7 +54,7 @@ RSpec.describe CodexInvocation do
         rd, wr = IO.pipe
         wr.write({ type: "thread.started", thread_id: "019e-test" }.to_json + "\n")
         wr.write({ type: "item.completed", item: { type: "agent_message", text: "done" } }.to_json + "\n")
-        wr.write({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2, reasoning_output_tokens: 0 } }.to_json + "\n")
+        wr.write({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2, reasoning_output_tokens: 0, cached_input_tokens: 3 } }.to_json + "\n")
         wr.close
         fake_wait = Struct.new(:value, :pid).new(Struct.new(:exitstatus).new(0), 0)
         blk.call($stdin, rd, fake_wait)
@@ -177,6 +177,10 @@ RSpec.describe CodexInvocation do
         expect(result.turns).to eq(1)
         expect(result.outcome).to eq("success")
         expect(result.final_text).to eq("done")
+        expect(result.input_tokens).to eq(1)
+        expect(result.output_tokens).to eq(2)
+        expect(result.cache_creation_input_tokens).to be_nil
+        expect(result.cache_read_input_tokens).to eq(3)
         expect(result).to be_success
       end
     end

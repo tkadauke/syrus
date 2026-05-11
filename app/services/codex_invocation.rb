@@ -181,7 +181,7 @@ class CodexInvocation
         .merge(
           input_tokens: usage["input_tokens"],
           output_tokens: usage["output_tokens"],
-          cache_creation_input_tokens: usage["cached_input_tokens"],
+          cache_creation_input_tokens: nil,
           cache_read_input_tokens: usage["cached_input_tokens"]
         )
     when "turn.failed"
