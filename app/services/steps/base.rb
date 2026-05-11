@@ -125,12 +125,18 @@ module Steps
       agent_adapter.record_result!(result, log: ->(message) { log(message) })
 
       raise StepFailed, "agent timed out"                            if result.timed_out
-      raise StepFailed, "agent reported #{result.outcome || 'error'}" if result.is_error
+      raise StepFailed, agent_error_message(result)                  if result.is_error
       raise StepFailed, "agent exited #{result.exit_status}"          unless result.success?
 
       result
     rescue AgentProviders::ConfigurationError => e
       raise StepFailed, e.message
+    end
+
+    def agent_error_message(result)
+      message = "agent reported #{result.outcome || 'error'}"
+      details = result.final_text.to_s.strip
+      details.present? ? "#{message}: #{details}" : message
     end
 
     def agent_provider

@@ -34,6 +34,13 @@ test:
   <<: *default
   database: storage/test.sqlite3
 
+# Eval-only container image used by `bin/syrus dev`.
+# It runs synchronously against a bind-mounted local checkout and has no
+# production service dependencies.
+eval:
+  <<: *default
+  database: storage/eval.sqlite3
+
 # Connection URLs / env-driven config can override these — see
 # https://guides.rubyonrails.org/configuring.html#configuring-a-database
 production:

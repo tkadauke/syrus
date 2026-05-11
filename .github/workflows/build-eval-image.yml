@@ -1,0 +1,99 @@
+name: Build eval image
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - docker/Dockerfile.eval
+      - docker/README.md
+      - Gemfile
+      - Gemfile.lock
+      - bin/syrus
+      - app/services/local_dev_runner.rb
+      - app/services/agent_invocation.rb
+      - config/database.yml
+      - config/cable.yml
+      - config/cache.yml
+      - config/queue.yml
+      - config/environments/eval.rb
+      - .github/workflows/build-eval-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/tkadauke/syrus
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Ruby version
+        id: ruby
+        run: echo "version=$(cat .ruby-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Build smoke-test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.eval
+          load: true
+          tags: syrus:eval-smoke
+          build-args: |
+            RUBY_VERSION=${{ steps.ruby.outputs.version }}
+
+      - name: Smoke test fake Anthropic key path
+        run: |
+          set -euo pipefail
+          fixture="$(mktemp -d)"
+          git -C "$fixture" init -q -b main
+          printf "fixture\n" > "$fixture/README.md"
+          git -C "$fixture" add README.md
+          git -C "$fixture" -c user.name=Test -c user.email=test@example.com commit -q -m initial
+
+          set +e
+          output="$(
+            docker run --rm \
+              -v "$fixture":/work \
+              -e ANTHROPIC_API_KEY=fake \
+              syrus:eval-smoke dev /work --prompt "hi" 2>&1
+          )"
+          status=$?
+          set -e
+
+          printf "%s\n" "$output"
+          test "$status" -ne 0
+          printf "%s\n" "$output" | grep -Eiq "api key|auth|unauthorized|authentication|invalid"
+          ! printf "%s\n" "$output" | grep -Eiq "bundler|bundle install|sqlite|LoadError|cannot load such file"
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.eval
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          build-args: |
+            RUBY_VERSION=${{ steps.ruby.outputs.version }}

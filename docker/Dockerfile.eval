@@ -1,0 +1,61 @@
+# syntax=docker/dockerfile:1
+# check=error=true
+
+ARG RUBY_VERSION=3.2.3
+FROM docker.io/library/ruby:${RUBY_VERSION}-slim AS base
+
+WORKDIR /syrus
+
+ARG NODE_MAJOR=22
+ARG CLAUDE_CODE_VERSION=2.1.126
+
+ENV RAILS_ENV=eval \
+    BUNDLE_DEPLOYMENT=1 \
+    BUNDLE_PATH=/usr/local/bundle \
+    BUNDLE_WITHOUT=development:test \
+    RAILS_LOG_TO_STDOUT=1 \
+    SYRUS_DATA_ROOT=/home/syrus/.syrus
+
+RUN groupadd --system --gid 1000 syrus && \
+    useradd syrus --uid 1000 --gid 1000 --create-home --shell /bin/bash
+
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+      ca-certificates curl git gnupg libmariadb3 libvips sqlite3 && \
+    curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
+    apt-get install --no-install-recommends -y nodejs && \
+    npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && \
+    git config --system --add safe.directory '*' && \
+    npm cache clean --force && \
+    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+FROM base AS build
+
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+      build-essential default-libmysqlclient-dev git libsqlite3-dev libvips libyaml-dev pkg-config && \
+    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+COPY Gemfile Gemfile.lock ./
+RUN bundle install && \
+    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
+    bundle exec bootsnap precompile -j 1 --gemfile
+
+COPY . .
+RUN bundle exec bootsnap precompile -j 1 app/ lib/
+
+RUN mkdir -p storage tmp log && \
+    SECRET_KEY_BASE_DUMMY=1 bundle exec rails db:prepare && \
+    rm -f log/*.log tmp/pids/* && \
+    chown -R 1000:1000 /syrus /usr/local/bundle /home/syrus
+
+FROM base AS eval
+
+USER 1000:1000
+
+COPY --chown=syrus:syrus --from=build /usr/local/bundle /usr/local/bundle
+COPY --chown=syrus:syrus --from=build /syrus /syrus
+
+WORKDIR /work
+
+ENTRYPOINT ["/syrus/bin/syrus"]

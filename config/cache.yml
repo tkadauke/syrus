@@ -11,6 +11,9 @@ development:
 test:
   <<: *default
 
+eval:
+  <<: *default
+
 production:
   database: cache
   <<: *default

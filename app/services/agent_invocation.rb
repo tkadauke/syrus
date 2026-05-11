@@ -181,6 +181,7 @@ class AgentInvocation
     HOSTNAME
     TMPDIR
     SHELL
+    ANTHROPIC_API_KEY
   ].freeze
 
   def agent_env(oauth_token:, workspace_path:)

@@ -14,7 +14,7 @@ RSpec.describe Steps::Base do
     Class.new(described_class) do
       def call; nil; end
       public :log, :parent_session_id, :buffered_log_sink, :agent_provider,
-             :agent_adapter
+             :agent_adapter, :run_agent
     end
   end
   let(:handler) { handler_class.new(run) }
@@ -128,6 +128,27 @@ RSpec.describe Steps::Base do
     it "builds the adapter for the resolved provider" do
       run.update!(agent_provider: "codex")
       expect(handler.agent_adapter).to be_a(AgentProviders::Codex)
+    end
+  end
+
+  describe "#run_agent" do
+    it "includes the agent final text when an error result carries useful details" do
+      result = AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 1,
+        timed_out: false,
+        is_error: true,
+        outcome: "success",
+        final_text: "Invalid API key",
+        session_id: nil
+      )
+      adapter = instance_double(AgentProviders::Claude)
+      allow(adapter).to receive(:run).and_return(result)
+      allow(adapter).to receive(:record_result!)
+      allow(handler).to receive(:agent_adapter).and_return(adapter)
+
+      expect { handler.run_agent(prompt: "hi") }
+        .to raise_error(Steps::Base::StepFailed, /agent reported success: Invalid API key/)
     end
   end
 

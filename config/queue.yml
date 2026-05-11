@@ -27,5 +27,8 @@ development:
 test:
   <<: *default
 
+eval:
+  <<: *default
+
 production:
   <<: *default

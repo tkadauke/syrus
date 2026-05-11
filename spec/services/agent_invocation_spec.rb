@@ -276,7 +276,8 @@ RSpec.describe AgentInvocation do
         # Allowlisted vars Syrus should FORWARD:
         "HOME"                    => "/home/rails",
         "PATH"                    => "/usr/local/bin:/usr/bin:/bin",
-        "LANG"                    => "C.UTF-8"
+        "LANG"                    => "C.UTF-8",
+        "ANTHROPIC_API_KEY"       => "sk-ant-test"
       }
     end
 
@@ -320,6 +321,12 @@ RSpec.describe AgentInvocation do
       invocation = described_class.new("/tmp", prompt: "P", oauth_token: "oat-secret")
       result = with_capturing_popen { invocation.run }
       expect(result[:env]["CLAUDE_CODE_OAUTH_TOKEN"]).to eq("oat-secret")
+    end
+
+    it "forwards ANTHROPIC_API_KEY for the eval image local-dev path" do
+      invocation = described_class.new("/tmp", prompt: "P", oauth_token: nil)
+      result = with_capturing_popen { invocation.run }
+      expect(result[:env]["ANTHROPIC_API_KEY"]).to eq("sk-ant-test")
     end
 
     it "forwards a curated allowlist of basic shell vars" do
