@@ -3,6 +3,22 @@ require "rails_helper"
 RSpec.describe Run do
   let(:job) { Factories.job }
 
+  describe "agent diff storage" do
+    it "uses MEDIUMTEXT-sized storage for captured diffs" do
+      expect(described_class.columns_hash.fetch("agent_diff").limit).to eq(16.megabytes - 1)
+    end
+
+    it "persists diffs larger than MySQL TEXT" do
+      large_diff = +"diff --git a/big.txt b/big.txt\n"
+      large_diff << "+#{'x' * 70.kilobytes}\n"
+
+      run = job.initial_run
+      run.update!(agent_diff: large_diff)
+
+      expect(run.reload.agent_diff.bytesize).to eq(large_diff.bytesize)
+    end
+  end
+
   describe "AASM state machine (was Job's)" do
     it "starts queued" do
       expect(job.initial_run).to be_queued

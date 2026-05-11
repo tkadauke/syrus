@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_11_093000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_11_120000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -177,7 +177,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_093000) do
   end
 
   create_table "runs", force: :cascade do |t|
-    t.text "agent_diff"
+    t.text "agent_diff", limit: 16777215
     t.string "agent_outcome"
     t.text "agent_pr_body"
     t.string "agent_pr_title"
