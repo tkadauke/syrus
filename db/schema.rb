@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_11_130200) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_11_140200) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -24,11 +24,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_130200) do
 
   create_table "app_settings", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.integer "github_app_id"
+    t.text "github_app_private_key_pem"
+    t.datetime "github_app_registered_at"
+    t.string "github_app_slug"
+    t.text "github_app_webhook_secret"
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "polling_paused", default: false, null: false
     t.boolean "runs_paused", default: false, null: false
     t.boolean "signups_open", default: false, null: false
     t.datetime "updated_at", null: false
+    t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
   end
 
   create_table "claude_sessions", force: :cascade do |t|
@@ -53,6 +59,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_130200) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["user_id"], name: "index_cron_templates_on_user_id"
+  end
+
+  create_table "installations", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.string "account_login", null: false
+    t.string "account_type", null: false
+    t.text "cached_token"
+    t.datetime "cached_token_expires_at"
+    t.datetime "created_at", null: false
+    t.integer "github_installation_id", null: false
+    t.datetime "installed_at", null: false
+    t.datetime "removed_at"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["github_installation_id"], name: "index_installations_on_github_installation_id", unique: true
+    t.index ["user_id"], name: "index_installations_on_user_id"
   end
 
   create_table "invitations", force: :cascade do |t|
@@ -119,6 +141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_130200) do
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
+    t.integer "installation_id"
     t.text "last_poll_error"
     t.datetime "last_poll_started_at"
     t.string "last_poll_status"
@@ -131,6 +154,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_130200) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
+    t.index ["installation_id"], name: "index_repositories_on_installation_id"
     t.index ["user_id", "owner", "name"], name: "index_repositories_on_user_id_and_owner_and_name", unique: true
     t.index ["user_id"], name: "index_repositories_on_user_id"
   end
@@ -307,11 +331,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_130200) do
   add_foreign_key "admin_actions", "users"
   add_foreign_key "claude_sessions", "runs"
   add_foreign_key "cron_templates", "users"
+  add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
   add_foreign_key "job_logs", "runs"
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"
+  add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_health_snapshots", "runs"

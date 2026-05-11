@@ -149,7 +149,13 @@ Rails.application.routes.draw do
     post "console/pause_runs",         to: "console#pause_runs",        as: :pause_runs
     post "console/unpause_runs",       to: "console#unpause_runs",      as: :unpause_runs
     post "console/clear_github_cache", to: "console#clear_github_cache", as: :clear_github_cache
+
+    get "github_app/register", to: "github_app#register", as: :github_app_register
+    get "github_app/callback", to: "github_app#callback", as: :github_app_callback
+    get "github_app/confirm",  to: "github_app#confirm",  as: :github_app_confirm
   end
+
+  post "github_app/webhook", to: "github_app_webhooks#create", as: :github_app_webhook
 
   post "dashboard/jobs/bulk", to: "home#bulk_jobs", as: :bulk_dashboard_jobs
   root "home#index"

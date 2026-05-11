@@ -1,0 +1,35 @@
+<div class="space-y-6">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <h1 class="font-bold text-2xl">GitHub App registration</h1>
+      <p class="text-sm text-gray-500 mt-1">
+        Register the singleton Syrus GitHub App. Runtime GitHub calls still use personal access tokens until the next phase.
+      </p>
+    </div>
+    <%= render "admin/nav" %>
+  </div>
+
+  <section class="bg-white border border-gray-200 rounded-lg p-4">
+    <h2 class="font-medium text-gray-900">Current status</h2>
+    <p class="text-sm mt-2">
+      <% if @settings.github_app_registered? %>
+        <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-mono uppercase">registered</span>
+        <span class="text-gray-600 ml-2"><%= @settings.github_app_slug.presence || "GitHub App ##{@settings.github_app_id}" %></span>
+      <% else %>
+        <span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-mono uppercase">not registered</span>
+      <% end %>
+    </p>
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-lg p-4">
+    <h2 class="font-medium text-gray-900">Register with GitHub</h2>
+    <p class="text-xs text-gray-600 mt-1 max-w-prose">
+      GitHub will create the App from the manifest, then redirect back here with temporary credentials.
+    </p>
+    <%= form_with url: @github_manifest_url, method: :post, local: true, data: { turbo: false }, class: "mt-4" do %>
+      <%= hidden_field_tag :manifest, @manifest %>
+      <%= submit_tag(@settings.github_app_registered? ? "Re-register GitHub App" : "Register GitHub App",
+            class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer") %>
+    <% end %>
+  </section>
+</div>

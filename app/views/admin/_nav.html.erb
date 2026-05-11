@@ -21,6 +21,8 @@
     <span class="text-gray-300">·</span>
     <%= link_to "Console",      admin_console_path,        class: "text-blue-600 underline hover:no-underline" %>
     <span class="text-gray-300">·</span>
+    <%= link_to "GitHub App",   admin_github_app_register_path, class: "text-blue-600 underline hover:no-underline" %>
+    <span class="text-gray-300">·</span>
     <%= link_to "App settings", edit_settings_path,        class: "text-blue-600 underline hover:no-underline" %>
     <span class="text-gray-300">·</span>
     <%= link_to "Invitations",  invitations_path,          class: "text-blue-600 underline hover:no-underline" %>
@@ -39,6 +41,7 @@
       <%= link_to "Users",        admin_users_path,           class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
       <%= link_to "Queue",        admin_queue_path("active"), class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
       <%= link_to "Console",      admin_console_path,         class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
+      <%= link_to "GitHub App",   admin_github_app_register_path, class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
       <%= link_to "App settings", edit_settings_path,         class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
       <%= link_to "Invitations",  invitations_path,           class: "block px-4 py-2 text-gray-700 hover:bg-gray-50" %>
     </div>

@@ -50,6 +50,20 @@ RSpec.describe Repository do
     expect(twin).to be_valid
   end
 
+  it "links to an active GitHub App installation for the owner" do
+    installation = Installation.create!(
+      user: owner,
+      github_installation_id: 987,
+      account_login: "Acme",
+      account_id: 123,
+      account_type: "Organization",
+      installed_at: Time.current
+    )
+
+    repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
+    expect(repo.installation).to eq(installation)
+  end
+
   it "exposes a slug" do
     repo = Repository.new(owner: "acme", name: "widgets")
     expect(repo.slug).to eq("acme/widgets")

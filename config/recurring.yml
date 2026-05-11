@@ -37,6 +37,9 @@ default: &default
   sync_agent_skills:
     class: SyncAgentSkillsJob
     schedule: every hour
+  sync_installations:
+    class: SyncInstallationsJob
+    schedule: every 5 minutes
 
 development:
   <<: *default

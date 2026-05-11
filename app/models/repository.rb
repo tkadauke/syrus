@@ -7,6 +7,7 @@ class Repository < ApplicationRecord
   attribute :auto_merge_enabled, :boolean, default: false
 
   belongs_to :user
+  belongs_to :installation, optional: true
   has_many :jobs, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
 
@@ -18,6 +19,7 @@ class Repository < ApplicationRecord
   validates :owner, uniqueness: { scope: [ :user_id, :name ], case_sensitive: false }
 
   before_validation :normalize_agent_provider
+  before_save :link_installation_from_owner
 
   scope :active,   -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
@@ -65,5 +67,10 @@ class Repository < ApplicationRecord
 
   def normalize_agent_provider
     self.agent_provider = nil if agent_provider.blank?
+  end
+
+  def link_installation_from_owner
+    return unless will_save_change_to_owner? || installation_id.blank?
+    self.installation = InstallationLinker.find_for_owner(owner)
   end
 end

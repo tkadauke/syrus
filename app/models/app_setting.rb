@@ -1,4 +1,7 @@
 class AppSetting < ApplicationRecord
+  encrypts :github_app_private_key_pem
+  encrypts :github_app_webhook_secret
+
   # Singleton row. .current returns the only record, creating it if missing.
   def self.current
     first || create!
@@ -26,5 +29,13 @@ class AppSetting < ApplicationRecord
 
   def self.auto_merge_paused?
     ActiveModel::Type::Boolean.new.cast(ENV["SYRUS_AUTO_MERGE_DISABLED"])
+  end
+
+  def self.github_app_registered?
+    current.github_app_registered?
+  end
+
+  def github_app_registered?
+    github_app_id.present?
   end
 end
