@@ -79,7 +79,7 @@ initial:     prepare → implement → summarize → pr_open
 pr_comment:  prepare → respond → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
 retry:       prepare → implement → summarize → pr_open
-rebase:      auto_rebase → force_push
+rebase:      auto_rebase → agent_rebase → force_push
 resume:      agent_rebase → summarize_amend → push
 ```
 
@@ -102,6 +102,8 @@ Key steps:
   promotes artifacts directly — saving a full agent turn.
 - **`pr_open`** / **`push`** / **`auto_rebase`** / **`force_push`** —
   Non-agentic: run service code (`PullRequestOpener`, `git push`, etc.).
+  In `rebase`, a clean `auto_rebase` cancels only `agent_rebase`; `force_push`
+  still runs so "rebased" and "pushed" remain separate workflow facts.
 
 **MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over stdio
 via a per-step `mcp.json` tempfile. Exposes one tool,
@@ -156,6 +158,11 @@ Dev mode uses `solid_cable` (NOT `async`) so cross-process broadcasts work.
 The transcript element on the show page uses `data-turbo-permanent` to
 preserve scroll position across morphs.
 
+Forms get generic browser-validation feedback from the global Stimulus
+`form-validation` controller mounted on `<body>`; keep fields
+browser-validatable (`required`, native input types) instead of adding
+one-off invalid-submit JavaScript.
+
 ## Conventions
 
 - **Prompts** all live under `app/services/prompts/` as PORO classes
@@ -182,10 +189,12 @@ preserve scroll position across morphs.
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
   per-run 30-minute timeout still bounds runaway loops). Threaded through
   RunJob → AgentInvocation for both regular and rebase runs.
-- **Agent provider selection** — `User#agent_provider` defaults new Jobs
-  and repository-level bulk retries. Per-Job actions can switch
-  `Job#agent_provider`; always pass the chosen provider through to the
-  new Workflow/Run instead of relying on later inference.
+- **Agent provider selection** — `Repository#effective_agent_provider`
+  (`repository.agent_provider` or `User#agent_provider`) defaults new Jobs
+  and repository-level bulk retries. Ad hoc jobs may explicitly choose any
+  configured provider. Per-Job actions can switch `Job#agent_provider`;
+  always pass the chosen provider through to the new Workflow/Run instead
+  of relying on later inference.
 - **Per-user scheduling pause** — `User#scheduling_paused` (boolean).
   `PollScheduledTasksJob` skips paused users entirely. Operator can toggle
   via admin UI; user can toggle in `/credentials/edit`.
