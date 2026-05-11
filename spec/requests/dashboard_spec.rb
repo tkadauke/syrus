@@ -48,7 +48,7 @@ RSpec.describe "Dashboard", type: :request do
       row = document.at_css("tbody tr")
       expect(document.at_css("thead").text).to include("Workflows")
       expect(document.at_css("thead").text).not_to include("Runs")
-      expect(row.css("td")[3].text.strip).to eq("1")
+      expect(row.css("td")[4].text.strip).to eq("1")
       expect(row.text).to include("1 workflow")
     end
 
@@ -60,7 +60,7 @@ RSpec.describe "Dashboard", type: :request do
       get root_path
 
       row = Nokogiri::HTML(response.body).at_css("tbody tr")
-      expect(row.css("td").first.text).to include("$1.23")
+      expect(row.css("td")[1].text).to include("$1.23")
     end
 
     it "shows the latest workflow type next to the status for open jobs" do
@@ -76,7 +76,7 @@ RSpec.describe "Dashboard", type: :request do
       get root_path
 
       document = Nokogiri::HTML(response.body)
-      status_cell = document.at_css("tbody tr td")
+      status_cell = document.css("tbody tr td")[1]
       expect(status_cell["class"]).not_to include("hidden")
       expect(status_cell.text).to include("queued")
       expect(status_cell.text).to include("pr_comment")
@@ -91,9 +91,126 @@ RSpec.describe "Dashboard", type: :request do
       get root_path
 
       document = Nokogiri::HTML(response.body)
-      status_cell = document.at_css("tbody tr td")
+      status_cell = document.css("tbody tr td")[1]
       expect(status_cell.text).to include("closed")
       expect(status_cell.text).not_to include("initial")
+    end
+
+    describe "bulk job actions" do
+      let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+
+      def finish_initial_work(job, provider: "claude")
+        job.initial_run.update!(
+          state: "succeeded",
+          started_at: 2.minutes.ago,
+          finished_at: 1.minute.ago,
+          agent_provider: provider
+        )
+        job.latest_workflow.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      end
+
+      it "renders row checkboxes, a select-all checkbox, and hidden bulk actions" do
+        job = Factories.job(repository: repo, issue_number: 7)
+
+        get root_path
+
+        document = Nokogiri::HTML(response.body)
+        expect(document.at_css("form[action='#{bulk_dashboard_jobs_path}'][data-controller='bulk-jobs']")).to be_present
+        expect(document.at_css("input[aria-label='Select all jobs'][data-bulk-jobs-target='selectAll']")).to be_present
+        expect(document.at_css("input[name='job_ids[]'][value='#{job.id}'][data-bulk-jobs-target='checkbox']")).to be_present
+        expect(document.at_css("[data-bulk-jobs-target='actions']")["class"]).to include("hidden")
+        expect(response.body).to include("Bulk actions")
+        expect(response.body).to include("Retry")
+        expect(response.body).to include("Close")
+      end
+
+      it "renders all configured agent retry choices when more than one agent is configured" do
+        user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+        Factories.job(repository: repo, issue_number: 7)
+
+        get root_path
+
+        expect(response.body).to include("Retry with Claude")
+        expect(response.body).to include("Retry with Codex")
+      end
+
+      it "does not render agent-specific retry choices with only one configured agent" do
+        user.update!(claude_oauth_token: "oat-test", codex_api_key: nil)
+        Factories.job(repository: repo, issue_number: 7)
+
+        get root_path
+
+        expect(response.body).not_to include("Retry with Claude")
+        expect(response.body).not_to include("Retry with Codex")
+      end
+
+      it "bulk retries selected open idle jobs using each job's current agent by default" do
+        first = Factories.job(repository: repo, issue_number: 1, agent_provider: "claude")
+        second = Factories.job(repository: repo, issue_number: 2, agent_provider: "codex")
+        finish_initial_work(first, provider: "claude")
+        finish_initial_work(second, provider: "codex")
+
+        expect {
+          post bulk_dashboard_jobs_path, params: { job_ids: [ first.id, second.id ], bulk_action: "retry" }
+        }.to change { Workflow.where(trigger_kind: "retry").count }.by(2)
+
+        expect(first.reload.latest_workflow.agent_provider).to eq("claude")
+        expect(second.reload.latest_workflow.agent_provider).to eq("codex")
+        expect(flash[:notice]).to match(/Retry enqueued for 2 jobs/)
+      end
+
+      it "bulk retries with a selected configured agent and updates the jobs" do
+        user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+        first = Factories.job(repository: repo, issue_number: 1, agent_provider: "claude")
+        second = Factories.job(repository: repo, issue_number: 2, agent_provider: "claude")
+        finish_initial_work(first)
+        finish_initial_work(second)
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ first.id, second.id ], bulk_action: "retry:codex" }
+
+        expect(first.reload.agent_provider).to eq("codex")
+        expect(second.reload.agent_provider).to eq("codex")
+        expect(first.latest_workflow.agent_provider).to eq("codex")
+        expect(second.latest_workflow.agent_provider).to eq("codex")
+        expect(flash[:notice]).to match(/with Codex/)
+      end
+
+      it "does not retry closed or active selected jobs" do
+        idle = Factories.job(repository: repo, issue_number: 1)
+        closed = Factories.job(repository: repo, issue_number: 2)
+        active = Factories.job(repository: repo, issue_number: 3)
+        finish_initial_work(idle)
+        closed.close_with_reason!("manual")
+
+        expect {
+          post bulk_dashboard_jobs_path, params: { job_ids: [ idle.id, closed.id, active.id ], bulk_action: "retry" }
+        }.to change { idle.reload.workflows.where(trigger_kind: "retry").count }.by(1)
+          .and change { closed.reload.workflows.where(trigger_kind: "retry").count }.by(0)
+          .and change { active.reload.workflows.where(trigger_kind: "retry").count }.by(0)
+      end
+
+      it "bulk closes selected open jobs and cancels active runs" do
+        open_job = Factories.job(repository: repo, issue_number: 1)
+        active_job = Factories.job(repository: repo, issue_number: 2)
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ open_job.id, active_job.id ], bulk_action: "close" }
+
+        expect(open_job.reload).to be_closed
+        expect(active_job.reload).to be_closed
+        expect(active_job.initial_run.reload).to be_cancelled
+        expect(flash[:notice]).to match(/2 jobs closed/)
+      end
+
+      it "does not bulk mutate another user's jobs" do
+        mine = Factories.job(repository: repo, issue_number: 1)
+        their_repo = Factories.repository(user: other, owner: "globex", name: "things")
+        theirs = Factories.job(repository: their_repo, issue_number: 2)
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ mine.id, theirs.id ], bulk_action: "close" }
+
+        expect(mine.reload).to be_closed
+        expect(theirs.reload).to be_open
+      end
     end
 
     describe "Workflows tab" do

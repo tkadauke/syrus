@@ -151,6 +151,7 @@ Rails.application.routes.draw do
     post "console/clear_github_cache", to: "console#clear_github_cache", as: :clear_github_cache
   end
 
+  post "dashboard/jobs/bulk", to: "home#bulk_jobs", as: :bulk_dashboard_jobs
   root "home#index"
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

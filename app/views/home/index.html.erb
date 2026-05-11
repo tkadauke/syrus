@@ -74,75 +74,109 @@
 
     <% if @jobs.any? || @page > 1 %>
       <% jobs_total_pages = (@jobs_total.to_f / HomeController::PER_PAGE).ceil %>
-      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500">
-            <tr>
-              <th class="px-4 py-2 text-left">State</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
-              <th class="px-4 py-2 text-left">Issue</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Workflows</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
-              <th class="hidden sm:table-cell px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100 text-sm">
-            <% @jobs.each do |job| %>
-              <% latest_workflow = job.latest_workflow %>
-              <tr>
-                <td class="px-4 py-3 align-top">
-                  <%= state_pill(job_summary_state(job)) %>
-                  <% if latest_workflow && !job.closed? %>
-                    <%= trigger_pill(latest_workflow.trigger_kind) %>
-                  <% end %>
-                  <% if job.priority != "medium" %>
-                    <%= priority_pill(job.priority) %>
-                  <% end %>
-                  <div class="mt-1 text-xs text-gray-500"><%= cost_caption(job.total_cost_usd) %></div>
-                </td>
-                <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
-                  <%= link_to job.repository.slug, repository_path(job.repository), class: "text-gray-700 hover:underline" %>
-                </td>
-                <td class="px-4 py-3">
-                  <div class="sm:hidden text-xs font-mono text-gray-500 mb-0.5">
-                    <%= link_to job.repository.slug, repository_path(job.repository), class: "hover:underline" %>
-                  </div>
-                  <%= job_source_label_html(job) %>
-                  <% if job.issue_title.present? %>
-                    <%= link_to job.issue_title, job_path(job), class: "ml-1 text-gray-700 hover:underline" %>
-                  <% end %>
-                  <% if job.pr_number %>
-                    <span class="ml-1 text-xs text-indigo-700">
-                      →
-                      <%= link_to "PR ##{job.pr_number}", job_pr_url(job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
-                    </span>
-                  <% end %>
-                  <% if job.external_pr_number %>
-                    <span class="ml-1 text-xs text-violet-700">
-                      ↪
-                      <%= link_to "PR ##{job.external_pr_number}", external_pr_url(job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
-                    </span>
-                  <% end %>
-                  <% caption = current_step_caption(job) %>
-                  <% if caption %>
-                    <div class="text-xs text-gray-500 italic mt-0.5"><%= caption %></div>
-                  <% end %>
-                  <div class="sm:hidden text-xs text-gray-400 mt-1 flex items-center gap-1.5">
-                    <span><%= pluralize(job.workflows.size, "workflow") %></span>
-                    <span>·</span>
-                    <span><%= relative_timestamp(job.started_at) %></span>
-                  </div>
-                </td>
-                <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= job.workflows.size %></td>
-                <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
-                <td class="hidden sm:table-cell px-4 py-3 text-right">
-                  <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>
-                </td>
-              </tr>
+      <%= form_with url: bulk_dashboard_jobs_path, method: :post,
+            data: { controller: "bulk-jobs" },
+            class: "space-y-3" do %>
+        <div data-bulk-jobs-target="actions"
+             class="hidden flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+          <span class="text-gray-600">Bulk actions</span>
+          <%= button_tag "Retry", name: :bulk_action, value: "retry",
+                class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
+          <% if @configured_agent_providers.size > 1 %>
+            <% @configured_agent_providers.each do |provider| %>
+              <%= button_tag "Retry with #{provider.titleize}", name: :bulk_action, value: "retry:#{provider}",
+                    class: "rounded-md px-3 py-1.5 border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 font-medium cursor-pointer" %>
             <% end %>
-          </tbody>
-        </table>
-      </div>
+          <% end %>
+          <%= button_tag "Close", name: :bulk_action, value: "close",
+                class: "rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-medium cursor-pointer",
+                data: { turbo_confirm: "Cancel active runs and close the selected jobs?" } %>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+              <tr>
+                <th class="px-4 py-2 text-left w-10">
+                  <input type="checkbox"
+                         data-bulk-jobs-target="selectAll"
+                         data-action="bulk-jobs#toggleAll"
+                         aria-label="Select all jobs"
+                         class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                </th>
+                <th class="px-4 py-2 text-left">State</th>
+                <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
+                <th class="px-4 py-2 text-left">Issue</th>
+                <th class="hidden sm:table-cell px-4 py-2 text-left">Workflows</th>
+                <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
+                <th class="hidden sm:table-cell px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 text-sm">
+              <% @jobs.each do |job| %>
+                <% latest_workflow = job.latest_workflow %>
+                <tr>
+                  <td class="px-4 py-3 align-top">
+                    <%= check_box_tag "job_ids[]", job.id, false,
+                          id: "bulk_job_#{job.id}",
+                          data: { bulk_jobs_target: "checkbox", action: "bulk-jobs#sync" },
+                          aria: { label: "Select job #{job.id}" },
+                          class: "rounded border-gray-300 text-blue-600 focus:ring-blue-500" %>
+                  </td>
+                  <td class="px-4 py-3 align-top">
+                    <%= state_pill(job_summary_state(job)) %>
+                    <% if latest_workflow && !job.closed? %>
+                      <%= trigger_pill(latest_workflow.trigger_kind) %>
+                    <% end %>
+                    <% if job.priority != "medium" %>
+                      <%= priority_pill(job.priority) %>
+                    <% end %>
+                    <div class="mt-1 text-xs text-gray-500"><%= cost_caption(job.total_cost_usd) %></div>
+                  </td>
+                  <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
+                    <%= link_to job.repository.slug, repository_path(job.repository), class: "text-gray-700 hover:underline" %>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="sm:hidden text-xs font-mono text-gray-500 mb-0.5">
+                      <%= link_to job.repository.slug, repository_path(job.repository), class: "hover:underline" %>
+                    </div>
+                    <%= job_source_label_html(job) %>
+                    <% if job.issue_title.present? %>
+                      <%= link_to job.issue_title, job_path(job), class: "ml-1 text-gray-700 hover:underline" %>
+                    <% end %>
+                    <% if job.pr_number %>
+                      <span class="ml-1 text-xs text-indigo-700">
+                        →
+                        <%= link_to "PR ##{job.pr_number}", job_pr_url(job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
+                      </span>
+                    <% end %>
+                    <% if job.external_pr_number %>
+                      <span class="ml-1 text-xs text-violet-700">
+                        ↪
+                        <%= link_to "PR ##{job.external_pr_number}", external_pr_url(job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
+                      </span>
+                    <% end %>
+                    <% caption = current_step_caption(job) %>
+                    <% if caption %>
+                      <div class="text-xs text-gray-500 italic mt-0.5"><%= caption %></div>
+                    <% end %>
+                    <div class="sm:hidden text-xs text-gray-400 mt-1 flex items-center gap-1.5">
+                      <span><%= pluralize(job.workflows.size, "workflow") %></span>
+                      <span>·</span>
+                      <span><%= relative_timestamp(job.started_at) %></span>
+                    </div>
+                  </td>
+                  <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= job.workflows.size %></td>
+                  <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
+                  <td class="hidden sm:table-cell px-4 py-3 text-right">
+                    <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
       <% if jobs_total_pages > 1 %>
         <% first_item = (@page - 1) * HomeController::PER_PAGE + 1 %>
         <% last_item = [@page * HomeController::PER_PAGE, @jobs_total].min %>

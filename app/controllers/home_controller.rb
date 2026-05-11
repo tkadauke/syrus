@@ -11,6 +11,7 @@ class HomeController < ApplicationController
     # want to look back at them.
     active_repo_ids = Current.user.repositories.active.pluck(:id)
     @repositories   = Current.user.repositories.active.order(:owner, :name)
+    @configured_agent_providers = Current.user.configured_agent_providers
     @active_tab     = params[:tab] == "workflows" ? "workflows" : "jobs"
     @page           = [ params[:page].to_i, 1 ].max
 
@@ -42,5 +43,73 @@ class HomeController < ApplicationController
                          .includes(:steps, job: :repository)
     @workflows_total = @workflows.count
     @workflows = @workflows.order(created_at: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+  end
+
+  def bulk_jobs
+    job_ids = Array(params[:job_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
+    if job_ids.empty?
+      redirect_back fallback_location: root_path, alert: "Select at least one job."
+      return
+    end
+
+    jobs = Current.user.jobs.joins(:repository)
+                       .where(repositories: { archived_at: nil })
+                       .where(id: job_ids)
+                       .includes(:runs, :workflows)
+
+    case params[:bulk_action].to_s
+    when "retry"
+      bulk_retry_jobs(jobs)
+    when /\Aretry:(.+)\z/
+      bulk_retry_jobs(jobs, agent_provider: Regexp.last_match(1))
+    when "close"
+      bulk_close_jobs(jobs)
+    else
+      redirect_back fallback_location: root_path, alert: "Choose a bulk action."
+    end
+  end
+
+  private
+
+  def bulk_retry_jobs(jobs, agent_provider: nil)
+    if agent_provider.present? && !Current.user.agent_provider_configured?(agent_provider)
+      redirect_back fallback_location: root_path, alert: "That agent is not available for retry."
+      return
+    end
+
+    retried = 0
+    jobs.find_each do |job|
+      next if job.closed? || job.any_active_run?
+
+      job.switch_agent_provider!(agent_provider) if agent_provider.present?
+      workflow = Workflows::Retry.instantiate(job: job, agent_provider: agent_provider)
+      StepDispatcher.start_workflow(workflow)
+      retried += 1
+    end
+
+    if retried.zero?
+      redirect_back fallback_location: root_path, alert: "No selected jobs were eligible for retry."
+    else
+      agent_suffix = agent_provider.present? ? " with #{agent_provider.titleize}" : ""
+      redirect_back fallback_location: root_path,
+                    notice: "Retry enqueued for #{helpers.pluralize(retried, 'job')}#{agent_suffix}."
+    end
+  end
+
+  def bulk_close_jobs(jobs)
+    closed = 0
+    jobs.find_each do |job|
+      next if job.closed?
+
+      job.cancel_active_runs_and_close!("cancelled")
+      closed += 1
+    end
+
+    if closed.zero?
+      redirect_back fallback_location: root_path, alert: "No selected jobs were open."
+    else
+      redirect_back fallback_location: root_path,
+                    notice: "#{helpers.pluralize(closed, 'job')} closed."
+    end
   end
 end
