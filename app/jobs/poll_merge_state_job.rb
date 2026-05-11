@@ -6,12 +6,18 @@ class PollMergeStateJob < ApplicationJob
 
   def perform(job_id)
     @job = Job.find_by(id: job_id)
-    return unless @job&.pr_number.present?
+    return unless @job
+
+    # Cover both Syrus-authored PRs and external PRs owned by the
+    # current user (the preempted-Job ingest path) — same scope as
+    # the per-Job rebase worker uses.
+    pr_number = @job.pr_number || @job.external_pr_number
+    return unless pr_number
     return if @job.repository.archived?
     return if @job.workflows.active.exists?
 
     @client = GithubClient.for(@job.user)
-    @pr = @client.pull_request(@job.repository.slug, @job.pr_number, bypass_cache: true)
+    @pr = @client.pull_request(@job.repository.slug, pr_number, bypass_cache: true)
     persist_mergeable(@pr.mergeable)
 
     return if @pr.merged

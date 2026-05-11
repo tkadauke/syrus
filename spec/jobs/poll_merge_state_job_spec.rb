@@ -56,4 +56,17 @@ RSpec.describe PollMergeStateJob do
       described_class.perform_now(job.id)
     }.not_to change(Workflow, :count)
   end
+
+  it "uses external_pr_number when the Job has no Syrus-authored PR" do
+    external = Factories.job(user: user, repository: repository, pr_number: nil)
+    external.update!(state: "closed", closure_reason: "preempted",
+                     external_pr_number: 99, finished_at: Time.current)
+    external.workflows.update_all(state: "succeeded")
+    expect_any_instance_of(GithubClient)
+      .to receive(:pull_request)
+      .with("acme/widgets", 99, bypass_cache: true)
+      .and_return(pr)
+
+    described_class.perform_now(external.id)
+  end
 end
