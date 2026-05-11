@@ -79,7 +79,7 @@ initial:     prepare → implement → summarize → pr_open
 pr_comment:  prepare → respond → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
 retry:       prepare → implement → summarize → pr_open
-rebase:      auto_rebase → force_push
+rebase:      auto_rebase → agent_rebase → force_push
 resume:      agent_rebase → summarize_amend → push
 ```
 
@@ -94,13 +94,17 @@ Key steps:
   invoke the Workflow's configured `AgentProviders::*` adapter. Claude uses
   `AgentInvocation`/`claude --print`; Codex uses `CodexInvocation`/`codex exec`.
   Pluggable `runner:` for tests.
+- **`auto_rebase`** / **`agent_rebase`** / **`force_push`** — Rebase chain:
+  first try deterministic `git rebase`; if clean, cancel only `agent_rebase`
+  and still `force_push`. On conflict, `agent_rebase` resolves it, then
+  `force_push` updates the PR branch.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   `--resume`s the prior session and asks the agent to call `submit_summary`.
   The session JSONL is on disk in the shared workspace — no DB roundtrip.
   If the implement step already called `submit_summary` (artifacts contain
   `agent_pr_title`), the summarize step skips the agent call entirely and
   promotes artifacts directly — saving a full agent turn.
-- **`pr_open`** / **`push`** / **`auto_rebase`** / **`force_push`** —
+- **`pr_open`** / **`push`** —
   Non-agentic: run service code (`PullRequestOpener`, `git push`, etc.).
 
 **MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over stdio
@@ -183,9 +187,17 @@ preserve scroll position across morphs.
   per-run 30-minute timeout still bounds runaway loops). Threaded through
   RunJob → AgentInvocation for both regular and rebase runs.
 - **Agent provider selection** — `User#agent_provider` defaults new Jobs
-  and repository-level bulk retries. Per-Job actions can switch
-  `Job#agent_provider`; always pass the chosen provider through to the
-  new Workflow/Run instead of relying on later inference.
+  and ad hoc Jobs; `Repository#agent_provider` overrides it for that repo
+  and drives repository-level bulk retries. Per-Job actions and new ad hoc
+  Jobs can explicitly choose a configured provider. Always pass the chosen
+  provider through to the new Workflow/Run instead of relying on later inference.
+- **GitHub issue actions** — Repository pages can list GitHub issues and
+  comment, close, delegate (add the trigger label), or bulk delegate/close
+  them through `GithubClient`. Keep single and bulk paths in sync.
+- **Form validation UI** — `form-validation` is mounted globally on
+  `<body>`. Prefer native HTML validity attributes (`required`, etc.); the
+  Stimulus controller renders inline errors, summary alerts, focus, and
+  `aria-invalid`/`aria-describedby`.
 - **Per-user scheduling pause** — `User#scheduling_paused` (boolean).
   `PollScheduledTasksJob` skips paused users entirely. Operator can toggle
   via admin UI; user can toggle in `/credentials/edit`.
