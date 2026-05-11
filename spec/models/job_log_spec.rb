@@ -3,6 +3,10 @@ require "rails_helper"
 RSpec.describe JobLog do
   let(:run) { Factories.run }
 
+  it "allows chunks at least as large as the step log buffer cap" do
+    expect(described_class.columns_hash.fetch("chunk").limit).to be >= Steps::Base::LOG_FLUSH_MAX_BUF
+  end
+
   it "appends chunks ordered by sequence" do
     JobLog.create!(run: run, chunk: "second", sequence: 1)
     JobLog.create!(run: run, chunk: "first",  sequence: 0)
