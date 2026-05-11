@@ -1,6 +1,16 @@
 require "rails_helper"
 
 RSpec.describe Prompts::GitSafety do
+  it "briefly explains Syrus and repo setup" do
+    text = described_class::TEXT
+    expect(text).to include("Syrus is the automation harness")
+    expect(text).to include("GitHub issues, PR")
+    expect(text).to include("scheduled tasks")
+    expect(text).to include("`.syrus.yml`")
+    expect(text).to include("prepare:")
+    expect(text).to include("auto-detects one setup command")
+  end
+
   it "names the destructive ops it forbids" do
     text = described_class::TEXT
     expect(text).to include("git checkout --orphan")

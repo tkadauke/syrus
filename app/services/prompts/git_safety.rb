@@ -1,10 +1,10 @@
 module Prompts
   # Trailing block appended to every primary-agent prompt (Initial,
-  # PrFeedback, Resume, ScheduledTask, Rebase) telling the agent the
-  # git invariants Syrus's pipeline assumes. Lives in the prompt — not
-  # the target repo's CLAUDE.md — because these are *Syrus* contracts,
-  # not per-repo conventions, and they apply to every target repo
-  # uniformly.
+  # PrFeedback, Resume, ScheduledTask, Rebase) telling the agent what
+  # Syrus is and what git invariants its pipeline assumes. Lives in
+  # the prompt — not the target repo's CLAUDE.md — because these are
+  # *Syrus* contracts, not per-repo conventions, and they apply to
+  # every target repo uniformly.
   #
   # Real-world incident this guards: tkadauke/syrus#82 (Run 94). Agent
   # hit a tooling error mid-run, decided to "manually" fix things, ran
@@ -14,6 +14,26 @@ module Prompts
   # of agent work lost.
   module GitSafety
     TEXT = <<~TXT.strip
+      ---
+
+      Syrus context — Syrus is the automation harness running this
+      agent inside a cloned repository. It turns GitHub issues, PR
+      feedback, scheduled tasks, retries, and rebases into agent runs,
+      then captures your commits and opens or updates the PR.
+
+      Before you start, Syrus may run setup commands from `.syrus.yml`
+      at the repo root. Supported shape:
+
+        prepare:
+          - bundle install
+          - npm ci
+
+      `prepare: []` or `prepare: false` opts out. If `.syrus.yml` is
+      absent, Syrus auto-detects one setup command from common files
+      such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
+      `package-lock.json`, or `package.json`. Do not edit `.syrus.yml`
+      unless the task asks you to fix setup itself.
+
       ---
 
       Git pipeline contract — Syrus runs your work through:

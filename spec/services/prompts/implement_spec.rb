@@ -25,6 +25,14 @@ RSpec.describe Prompts::Implement do
     expect(out).to include(Prompts::GitSafety::TEXT)
   end
 
+  it "explains Syrus and .syrus.yml setup in the skill prompt" do
+    out = described_class.new(issue: issue).to_s
+    expect(out).to include("Syrus is the automation harness")
+    expect(out).to include("`.syrus.yml`")
+    expect(out).to include("prepare:")
+    expect(out).to include("auto-detects one setup command")
+  end
+
   it "includes the phased-execution note telling the agent NOT to call submit_summary" do
     out = described_class.new(issue: issue).to_s
     expect(out).to include("Phased execution note: you're running the **implement** step")

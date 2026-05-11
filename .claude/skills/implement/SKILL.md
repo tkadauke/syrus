@@ -7,6 +7,26 @@ $ARGUMENTS
 
 ---
 
+Syrus context — Syrus is the automation harness running this
+agent inside a cloned repository. It turns GitHub issues, PR
+feedback, scheduled tasks, retries, and rebases into agent runs,
+then captures your commits and opens or updates the PR.
+
+Before you start, Syrus may run setup commands from `.syrus.yml`
+at the repo root. Supported shape:
+
+  prepare:
+    - bundle install
+    - npm ci
+
+`prepare: []` or `prepare: false` opts out. If `.syrus.yml` is
+absent, Syrus auto-detects one setup command from common files
+such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
+`package-lock.json`, or `package.json`. Do not edit `.syrus.yml`
+unless the task asks you to fix setup itself.
+
+---
+
 Git pipeline contract — Syrus runs your work through:
 
   commit_agent_changes  →  git diff <default_branch>...HEAD  →  push  →  open PR
