@@ -1,7 +1,8 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+# If running the Rails server then create or migrate existing database.
+# Keep this tolerant of server flags such as `-b 0.0.0.0 -p 80`.
+if printf '%s\n' "$*" | grep -Eq '(^|[[:space:]])(\./bin/rails|bin/rails|rails)[[:space:]]+server([[:space:]]|$)'; then
   ./bin/rails db:prepare
 fi
 
