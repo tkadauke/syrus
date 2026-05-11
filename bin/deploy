@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the current HEAD as two linux/amd64 images — `syrus` (web pod,
-# Dockerfile target=app) and `syrus-worker-dev` (worker pod, target=
+# docker/Dockerfile target=app) and `syrus-worker-dev` (worker pod, target=
 # worker-dev with mise + multi-language tooling) — push both to GHCR
 # with :<sha> and :latest tags, and rollout-restart staging +
 # production K3s deployments. Uses a shared registry-backed buildx
@@ -130,6 +130,7 @@ if [ "$SKIP_BUILD" = false ]; then
   echo "→ ${REGISTRY}:${SHA} build+push (linux/amd64, target=app)"
   docker buildx build \
     --platform linux/amd64 \
+    -f docker/Dockerfile \
     --target app \
     --build-arg "GIT_SHA=${SHA}" \
     --cache-from "type=registry,ref=${CACHE_REF}" \
@@ -144,6 +145,7 @@ if [ "$SKIP_BUILD" = false ]; then
   echo "→ ${WORKER_DEV_REGISTRY}:${SHA} build+push (linux/amd64, target=worker-dev)"
   docker buildx build \
     --platform linux/amd64 \
+    -f docker/Dockerfile \
     --target worker-dev \
     --build-arg "GIT_SHA=${SHA}" \
     --cache-from "type=registry,ref=${CACHE_REF}" \

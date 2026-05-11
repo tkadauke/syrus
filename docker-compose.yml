@@ -1,0 +1,92 @@
+name: syrus
+
+x-app-env: &app-env
+  RAILS_ENV: production
+  RAILS_LOG_TO_STDOUT: "1"
+  RAILS_SERVE_STATIC_FILES: "1"
+  RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:?RAILS_MASTER_KEY is required}
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE is required}
+  DB_HOST: db
+  SYRUS_DATABASE_PASSWORD: ${SYRUS_DATABASE_PASSWORD:?SYRUS_DATABASE_PASSWORD is required}
+  SYRUS_DATA_ROOT: ${SYRUS_DATA_ROOT:-/home/rails/.syrus}
+  JOB_CONCURRENCY: ${JOB_CONCURRENCY:-3}
+  TZ: ${TZ:-UTC}
+
+x-app-image: &app-image
+  image: ${SYRUS_IMAGE:-ghcr.io/tkadauke/syrus:full}
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+    target: full
+
+services:
+  web:
+    <<: *app-image
+    command: ["./bin/thrust", "./bin/rails", "server", "-b", "0.0.0.0", "-p", "80"]
+    environment:
+      <<: *app-env
+    ports:
+      - "${SYRUS_WEB_PORT:-3000}:80"
+    volumes:
+      - syrus_data:${SYRUS_DATA_ROOT:-/home/rails/.syrus}
+      - syrus_storage:/rails/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/up >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  worker:
+    <<: *app-image
+    command: ["./bin/jobs"]
+    environment:
+      <<: *app-env
+    volumes:
+      - syrus_data:${SYRUS_DATA_ROOT:-/home/rails/.syrus}
+      - syrus_storage:/rails/storage
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          ./bin/rails runner
+          'exit(SolidQueue::Process.where("last_heartbeat_at > ?", 2.minutes.ago).exists? ? 0 : 1)'
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 90s
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_USER: syrus
+      MYSQL_PASSWORD: ${SYRUS_DATABASE_PASSWORD:?SYRUS_DATABASE_PASSWORD is required}
+      MYSQL_DATABASE: syrus_production
+      TZ: ${TZ:-UTC}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init-databases.sh:/docker-entrypoint-initdb.d/10-syrus-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  syrus_data:
+  syrus_storage:
