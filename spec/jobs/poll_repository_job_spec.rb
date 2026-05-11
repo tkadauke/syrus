@@ -33,6 +33,21 @@ RSpec.describe PollRepositoryJob do
       expect(workflow.first_step.kind).to eq("implement")
     end
 
+    it "recognizes hash-shaped skip-prepare labels" do
+      github_issue = issue(labels: [])
+      github_issue.labels = [
+        { "name" => "syrus" },
+        { name: Workflows::SKIP_PREPARE_LABEL }
+      ]
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ github_issue ])
+
+      described_class.perform_now(repository.id)
+
+      workflow = Job.find_by!(repository: repository, issue_number: 42).workflows.first
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+    end
+
     it "keeps the initial workflow starting with prepare when the skip-prepare label is absent" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(labels: [ "syrus" ]) ])

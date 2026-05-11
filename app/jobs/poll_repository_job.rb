@@ -113,6 +113,6 @@ class PollRepositoryJob < ApplicationJob
   end
 
   def label_names(issue)
-    Array(issue.labels).map { |label| label.respond_to?(:name) ? label.name : label.to_s }
+    Workflows.label_names(issue.labels)
   end
 end

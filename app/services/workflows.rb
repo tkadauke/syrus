@@ -1,6 +1,18 @@
 module Workflows
   SKIP_PREPARE_LABEL = "syrus-skip-prepare".freeze
 
+  def self.label_names(labels)
+    Array(labels).map do |label|
+      if label.respond_to?(:name)
+        label.name
+      elsif label.respond_to?(:[])
+        label[:name] || label["name"] || label.to_s
+      else
+        label.to_s
+      end
+    end
+  end
+
   # Registry of workflow templates keyed by trigger_kind. Callers
   # don't need to know the individual class names — they ask
   # `Workflows.for(trigger_kind: "pr_comment")` and get the right

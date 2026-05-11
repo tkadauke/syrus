@@ -31,7 +31,7 @@ class IngestPolicy
   end
 
   def label_names
-    Array(@issue.labels).map { |l| l.respond_to?(:name) ? l.name : l.to_s }
+    Workflows.label_names(@issue.labels)
   end
 
   def opted_out?
