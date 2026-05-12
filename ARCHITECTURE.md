@@ -282,7 +282,7 @@ job rows in batches.
 
 ```
 PollRepositoryJob (per repo, serialized via SolidQueue concurrency key)
-  → GithubClient.for(user).issues_with_label(slug, trigger_label)
+  → GithubClient.for(repository:, user:).issues_with_label(slug, trigger_label)
   → IngestPolicy filters (skip closed issues, PRs, syrus-skip label)
   → For each surviving issue:
       Job.find_or_create_by(repository, issue_number, state: open)

@@ -11,10 +11,10 @@ RSpec.describe Steps::Push do
   it "replaces the managed PR cost footer after follow-up pushes" do
     job.initial_run.update!(cost_usd: 0.10)
     run.update!(cost_usd: 0.20)
-    client = instance_double(GithubClient)
+    client = instance_double(GithubClient, access_token: "ghp_test")
     existing_body = PrCostFooter.apply("Original body", job)
 
-    allow(GithubClient).to receive(:for).with(user).and_return(client)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
     allow(client).to receive(:pull_request)
       .with("acme/widgets", 9, bypass_cache: true)
       .and_return(Struct.new(:body).new(existing_body))

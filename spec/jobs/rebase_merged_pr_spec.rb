@@ -11,7 +11,7 @@ RSpec.describe "Workflow merged PR guard" do
 
   it "succeeds a new workflow and closes the job when the PR already merged" do
     client = instance_double(GithubClient)
-    allow(GithubClient).to receive(:for).with(user).and_return(client)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
     expect(client).to receive(:pull_request)
       .with(repository.slug, 7, hash_including(bypass_cache: true))
       .and_return(OpenStruct.new(merged: true))
@@ -36,7 +36,7 @@ RSpec.describe "Workflow merged PR guard" do
 
   it "succeeds the rebase workflow without rebasing when the PR already merged" do
     client = instance_double(GithubClient)
-    allow(GithubClient).to receive(:for).with(user).and_return(client)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
     expect(client).to receive(:pull_request)
       .with(repository.slug, 7, hash_including(bypass_cache: true))
       .and_return(OpenStruct.new(merged: true))

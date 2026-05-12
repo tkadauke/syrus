@@ -8,7 +8,7 @@ class AutoMergeGate
     def approved? = approved
   end
 
-  def initialize(job:, client: GithubClient.for(job.user), bypass_cache: false, pr: nil)
+  def initialize(job:, client: GithubClient.for(repository: job.repository, user: job.user), bypass_cache: false, pr: nil)
     @job = job
     @repository = job.repository
     @client = client

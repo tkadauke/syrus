@@ -1,7 +1,7 @@
 module Steps
   class AutoMerge < Base
     def call
-      client = GithubClient.for(job.user)
+      client = GithubClient.for(repository: repository, user: job.user)
       gate = AutoMergeGate.new(job: job, client: client, bypass_cache: true).evaluate
 
       if gate.closed?

@@ -339,12 +339,12 @@ class JobsController < ApplicationController
   # Rendered inside a lazy Turbo Frame on the Job show page — the GitHub API
   # is only hit when the Source tab is first activated.
   def source
-    unless Current.user.github_token.present?
+    unless @job.repository.installation&.active? || Current.user.github_token.present?
       @source_error = "GitHub token not configured. Add one in Settings to browse source."
       return
     end
 
-    github       = GithubClient.for(Current.user)
+    github       = GithubClient.for(repository: @job.repository, user: Current.user)
     repo_slug    = @job.repository.slug
     default_ref  = @job.repository.default_branch
     branch       = @job.branch_name

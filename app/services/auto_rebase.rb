@@ -70,7 +70,8 @@ class AutoRebase
   end
 
   def authenticated_url
-    @job.repository.authenticated_push_url(@job.user.github_token)
+    token = GithubClient.for(repository: @job.repository, user: @job.user).access_token
+    @job.repository.authenticated_push_url(token)
   end
 
   def base_branch

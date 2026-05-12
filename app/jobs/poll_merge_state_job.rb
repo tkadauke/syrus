@@ -16,7 +16,7 @@ class PollMergeStateJob < ApplicationJob
     return if @job.repository.archived?
     return if @job.workflows.active.exists?
 
-    @client = GithubClient.for(@job.user)
+    @client = GithubClient.for(repository: @job.repository, user: @job.user)
     @pr = @client.pull_request(@job.repository.slug, pr_number, bypass_cache: true)
     persist_mergeable(@pr.mergeable)
 

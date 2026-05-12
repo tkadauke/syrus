@@ -223,9 +223,9 @@ class Job < ApplicationRecord
   end
 
   def sync_skip_prepare_from_source!
-    return skip_prepare? unless issue? && issue_number.present? && user.github_token.present?
+    return skip_prepare? unless issue? && issue_number.present? && (repository.installation&.active? || user.github_token.present?)
 
-    issue = GithubClient.for(user).fetch_issue(repository.slug, issue_number)
+    issue = GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, issue_number)
     skip = Workflows.label_names(issue.labels).include?(Workflows::SKIP_PREPARE_LABEL)
     update!(skip_prepare: skip) if skip_prepare? != skip
     skip

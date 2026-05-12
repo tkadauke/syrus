@@ -206,7 +206,7 @@ RSpec.describe "Repositories", type: :request do
 
     describe "GET /repositories/owners" do
       it "returns user and orgs when token is present" do
-        allow(GithubClient).to receive(:for).and_return(
+        allow(GithubClient).to receive(:for_user).and_return(
           instance_double(GithubClient, accessible_owners: { user: "john", orgs: %w[org-a] })
         )
         get owners_repositories_path, headers: { "Accept" => "application/json" }
@@ -217,7 +217,7 @@ RSpec.describe "Repositories", type: :request do
       end
 
       it "returns no_token error when user has no github token" do
-        allow(GithubClient).to receive(:for).and_raise(ArgumentError)
+        allow(GithubClient).to receive(:for_user).and_raise(ArgumentError)
         get owners_repositories_path, headers: { "Accept" => "application/json" }
         expect(JSON.parse(response.body)["error"]).to eq("no_token")
       end
@@ -225,7 +225,7 @@ RSpec.describe "Repositories", type: :request do
 
     describe "GET /repositories/repos" do
       it "returns sorted repo names for a valid owner" do
-        allow(GithubClient).to receive(:for).and_return(
+        allow(GithubClient).to receive(:for_user).and_return(
           instance_double(GithubClient, owner_repos: %w[alpha beta])
         )
         get repos_repositories_path, params: { owner: "john", owner_type: "user" },
@@ -241,7 +241,7 @@ RSpec.describe "Repositories", type: :request do
       end
 
       it "returns not_found error when GitHub returns 404" do
-        allow(GithubClient).to receive(:for).and_return(
+        allow(GithubClient).to receive(:for_user).and_return(
           instance_double(GithubClient).tap { |d| allow(d).to receive(:owner_repos).and_raise(Octokit::NotFound) }
         )
         get repos_repositories_path, params: { owner: "ghost" },

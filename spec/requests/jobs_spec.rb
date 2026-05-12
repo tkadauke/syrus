@@ -182,7 +182,7 @@ RSpec.describe "Jobs", type: :request do
       user.update!(github_token: "ghp_test_token")
       job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
       client = instance_double(GithubClient)
-      allow(GithubClient).to receive(:for).with(user).and_return(client)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
       allow(client).to receive(:fetch_issue)
         .with("acme/widgets", 42)
         .and_return(github_issue_with_labels("syrus", Workflows::SKIP_PREPARE_LABEL))
@@ -303,7 +303,7 @@ RSpec.describe "Jobs", type: :request do
       user.update!(github_token: "ghp_test_token")
       job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
       client = instance_double(GithubClient)
-      allow(GithubClient).to receive(:for).with(user).and_return(client)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
       allow(client).to receive(:fetch_issue)
         .with("acme/widgets", 42)
         .and_return(github_issue_with_labels("syrus", Workflows::SKIP_PREPARE_LABEL))

@@ -23,7 +23,7 @@ module Steps
     private
 
     def compose_prompt
-      issue = job.issue? ? GithubClient.for(job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
+      issue = job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
       failed = workflow.artifact("failed_checks") || []
       head_sha = workflow.artifact("head_sha")
       Prompts::CiFailure.new(

@@ -27,7 +27,7 @@ module Steps
 
     def compose_prompt
       comments = workflow.artifact("pr_comments") || []
-      issue = job.issue? ? GithubClient.for(job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
+      issue = job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
       Prompts::PrFeedback.new(issue: issue, comments: hydrate_comments(comments)).to_s
     end
 

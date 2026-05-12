@@ -143,7 +143,8 @@ class WorkflowWorkspace
   # .git/config indefinitely; subsequent operations pass the
   # authenticated URL transiently in argv (same pattern push uses).
   def authenticated_url
-    @repository.authenticated_push_url(@job.user.github_token)
+    token = GithubClient.for(repository: @repository, user: @job.user).access_token
+    @repository.authenticated_push_url(token)
   end
 
   def clone_and_checkout

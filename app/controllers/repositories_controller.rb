@@ -42,7 +42,7 @@ class RepositoriesController < ApplicationController
   end
 
   def owners
-    result = GithubClient.for(Current.user).accessible_owners
+    result = GithubClient.for_user(Current.user).accessible_owners
     render json: result
   rescue ArgumentError
     render json: { error: "no_token" }
@@ -56,7 +56,7 @@ class RepositoriesController < ApplicationController
     owner = params[:owner].to_s.strip
     return render json: { error: "missing_params" } if owner.blank?
     owner_type = params[:owner_type].to_s.strip
-    result = GithubClient.for(Current.user).owner_repos(owner, owner_type: owner_type)
+    result = GithubClient.for_user(Current.user).owner_repos(owner, owner_type: owner_type)
     render json: { repos: result }
   rescue ArgumentError
     render json: { error: "no_token" }
@@ -72,7 +72,7 @@ class RepositoriesController < ApplicationController
     if owner.blank? || name.blank?
       render json: { error: "missing_params" } and return
     end
-    result = GithubClient.for(Current.user).repo_branches("#{owner}/#{name}")
+    result = GithubClient.for_user(Current.user).repo_branches("#{owner}/#{name}")
     render json: result
   rescue Octokit::NotFound, Octokit::Unauthorized, Octokit::Forbidden
     render json: { error: "not_found" }
@@ -149,7 +149,7 @@ class RepositoriesController < ApplicationController
 
   def issues
     @state = params.fetch(:state, "open").presence_in(%w[open closed]) || "open"
-    @issues = GithubClient.for(Current.user).list_all_issues(@repository.slug, state: @state).first(50)
+    @issues = GithubClient.for(repository: @repository, user: Current.user).list_all_issues(@repository.slug, state: @state).first(50)
   rescue ArgumentError
     @issues = []
     flash.now[:alert] = "No GitHub token configured — add one in Settings."
@@ -165,7 +165,7 @@ class RepositoriesController < ApplicationController
       redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Comment cannot be blank."
       return
     end
-    GithubClient.for(Current.user).add_issue_comment(@repository.slug, issue_number, body)
+    GithubClient.for(repository: @repository, user: Current.user).add_issue_comment(@repository.slug, issue_number, body)
     redirect_to issues_repository_path(@repository, state: params[:state]), notice: "Comment added to ##{issue_number}."
   rescue => e
     redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to add comment: #{e.message}"
@@ -173,7 +173,7 @@ class RepositoriesController < ApplicationController
 
   def close_issue
     issue_number = params.require(:issue_number).to_i
-    GithubClient.for(Current.user).close_issue(@repository.slug, issue_number)
+    GithubClient.for(repository: @repository, user: Current.user).close_issue(@repository.slug, issue_number)
     redirect_to issues_repository_path(@repository, state: params[:state]), notice: "Issue ##{issue_number} closed."
   rescue => e
     redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to close issue: #{e.message}"
@@ -181,7 +181,7 @@ class RepositoriesController < ApplicationController
 
   def delegate_issue
     issue_number = params.require(:issue_number).to_i
-    GithubClient.for(Current.user).add_label_to_issue(@repository.slug, issue_number, @repository.trigger_label)
+    GithubClient.for(repository: @repository, user: Current.user).add_label_to_issue(@repository.slug, issue_number, @repository.trigger_label)
     redirect_to issues_repository_path(@repository, state: params[:state]), notice: "Issue ##{issue_number} delegated to Syrus."
   rescue => e
     redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to delegate issue: #{e.message}"
@@ -212,7 +212,7 @@ class RepositoriesController < ApplicationController
 
   def load_github_issues
     @state = params.fetch(:state, "open").presence_in(%w[open closed]) || "open"
-    @issues = GithubClient.for(Current.user).list_all_issues(@repository.slug, state: @state).first(50)
+    @issues = GithubClient.for(repository: @repository, user: Current.user).list_all_issues(@repository.slug, state: @state).first(50)
   rescue ArgumentError
     @issues = []
     flash.now[:alert] = "No GitHub token configured — add one in Settings."
@@ -232,7 +232,7 @@ class RepositoriesController < ApplicationController
   end
 
   def bulk_delegate_issues(issue_numbers)
-    client = GithubClient.for(Current.user)
+    client = GithubClient.for(repository: @repository, user: Current.user)
     issue_numbers.each do |issue_number|
       client.add_label_to_issue(@repository.slug, issue_number, @repository.trigger_label)
     end
@@ -244,7 +244,7 @@ class RepositoriesController < ApplicationController
   end
 
   def bulk_close_issues(issue_numbers)
-    client = GithubClient.for(Current.user)
+    client = GithubClient.for(repository: @repository, user: Current.user)
     issue_numbers.each do |issue_number|
       client.close_issue(@repository.slug, issue_number)
     end

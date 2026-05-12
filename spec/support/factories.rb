@@ -25,6 +25,17 @@ module Factories
     }.merge(attrs))
   end
 
+  def installation(**attrs)
+    Installation.create!({
+      user: attrs[:user] || user,
+      github_installation_id: SecureRandom.random_number(1_000_000_000),
+      account_login: "acme",
+      account_id: SecureRandom.random_number(1_000_000_000),
+      account_type: "Organization",
+      installed_at: Time.current
+    }.merge(attrs))
+  end
+
   def cron_template(**attrs)
     CronTemplate.create!({
       user: attrs[:user] || user,

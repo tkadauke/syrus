@@ -47,7 +47,7 @@ module Steps
 
     def fetch_issue
       return job.synthetic_issue if job.cron? || job.adhoc?
-      GithubClient.for(job.user).fetch_issue(repository.slug, job.issue_number)
+      GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number)
     end
 
     # Same logic as RunJob#commit_agent_changes — agent edits

@@ -1,18 +1,62 @@
 class GithubClient
   USER_AGENT = "Syrus/0.1 (+https://github.com/tkadauke/syrus)".freeze
 
-  def self.for(user)
-    new(user)
+  attr_reader :access_token
+
+  def self.for(repository:, user: nil)
+    raise ArgumentError, "repository is required" unless repository
+
+    installation = repository.installation
+    actor = user || repository.user
+
+    if installation&.active?
+      begin
+        return new(repository: repository, user: actor, installation: installation, access_token: installation.fresh_token, auth_source: :installation)
+      rescue Octokit::Unauthorized, Octokit::NotFound => e
+        mark_installation_removed!(installation, e)
+      end
+    end
+
+    for_user(actor, repository: repository)
   end
 
-  def initialize(user)
-    raise ArgumentError, "user must have a github_token" if user.github_token.blank?
+  def self.for_user(user, repository: nil)
+    raise ArgumentError, "user must have a github_token" if user.blank? || user.github_token.blank?
+
+    new(repository: repository, user: user, access_token: user.github_token, auth_source: :pat)
+  end
+
+  def self.mark_installation_removed!(installation, error)
+    installation.update!(removed_at: Time.current) if installation.removed_at.blank?
+    message = "[GithubClient] GitHub App installation #{installation.github_installation_id} for #{installation.account_login} detected as removed: #{error.class}: #{error.message}"
+    Rails.logger.warn(message)
+    if (run = Thread.current[:syrus_current_run])
+      next_seq = (run.job_logs.maximum(:sequence) || -1) + 1
+      run.job_logs.create!(chunk: message, sequence: next_seq, kind: "github_installation_removed")
+    end
+  rescue => e
+    Rails.logger.warn("[GithubClient] installation removal audit failed: #{e.message}")
+  end
+
+  def initialize(user_arg = nil, user: nil, repository: nil, access_token: nil, installation: nil, auth_source: nil)
+    user ||= user_arg
+    if user && access_token.nil?
+      raise ArgumentError, "user must have a github_token" if user.github_token.blank?
+      access_token = user.github_token
+      auth_source = :pat
+    end
+    raise ArgumentError, "GitHub token is required" if access_token.blank?
+
     @user = user
+    @repository = repository
+    @installation = installation
+    @auth_source = auth_source || :pat
+    @access_token = access_token
     @client = Octokit::Client.new(
-      access_token: user.github_token,
+      access_token: access_token,
       user_agent: USER_AGENT,
       auto_paginate: true,
-      middleware: self.class.middleware_stack(user)
+      middleware: self.class.middleware_stack(cache_namespace)
     )
   end
 
@@ -22,8 +66,8 @@ class GithubClient
   # 304 Not Modified responses are served from cache without counting
   # against the GH rate limit. Cache is namespaced per user to keep
   # one user's authenticated view from leaking into another's.
-  def self.middleware_stack(user)
-    cache_store = UserScopedCache.new(user.id)
+  def self.middleware_stack(namespace)
+    cache_store = ScopedCache.new(namespace)
     Faraday::RackBuilder.new do |builder|
       # HTTP cache must run BEFORE RaiseError so 304s are converted back
       # to cached 200s and never bubble up as exceptions.
@@ -45,9 +89,9 @@ class GithubClient
   # entries from one user can't be served to another. Implements the
   # subset of the cache interface faraday-http-cache calls: read, write,
   # delete.
-  class UserScopedCache
-    def initialize(user_id)
-      @prefix = "github_etag/u#{user_id}/".freeze
+  class ScopedCache
+    def initialize(namespace)
+      @prefix = "github_etag/#{namespace}/".freeze
     end
 
     def read(key)
@@ -129,8 +173,8 @@ class GithubClient
   # one rate-limit token but is the only way to surface the new
   # value reliably. Periodic pollers stay on the cached path.
   def pull_request(repo_slug, pr_number, bypass_cache: false)
-    client = bypass_cache ? uncached_client : @client
-    track_rate_limits { client.pull_request(repo_slug, pr_number) }
+    client = -> { bypass_cache ? uncached_client : @client }
+    track_rate_limits(response_client: client) { client.call.pull_request(repo_slug, pr_number) }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited on #{repo_slug} PR ##{pr_number}: #{e.message}")
     raise
@@ -141,7 +185,7 @@ class GithubClient
   # token + user-agent as @client.
   def uncached_client
     @uncached_client ||= Octokit::Client.new(
-      access_token: @user.github_token,
+      access_token: @access_token,
       user_agent: USER_AGENT,
       auto_paginate: true
     )
@@ -377,9 +421,15 @@ class GithubClient
   # response carries (every GitHub API response includes them for free). On
   # TooManyRequests, persists the headers from the error response and writes
   # a JobLog against the current run if one is active on this thread.
-  def track_rate_limits
+  def track_rate_limits(response_client: -> { @client })
     result = yield
-    persist_rate_limit_headers!(@client.last_response&.headers)
+    persist_rate_limit_headers!(response_client.call.last_response&.headers)
+    result
+  rescue Octokit::Unauthorized, Octokit::NotFound => e
+    raise unless installation_auth?
+    handle_removed_installation!(e)
+    result = yield
+    persist_rate_limit_headers!(response_client.call.last_response&.headers)
     result
   rescue Octokit::TooManyRequests => e
     persist_rate_limit_headers!(e.response_headers)
@@ -387,8 +437,34 @@ class GithubClient
     raise
   end
 
+  def installation_auth?
+    @auth_source == :installation && @installation.present?
+  end
+
+  def handle_removed_installation!(error)
+    self.class.mark_installation_removed!(@installation, error)
+    fallback_user = @user || @repository&.user
+    raise ArgumentError, "GitHub App installation was removed and no fallback github_token is available" if fallback_user.blank? || fallback_user.github_token.blank?
+
+    @auth_source = :pat
+    @installation = nil
+    @user = fallback_user
+    @access_token = fallback_user.github_token
+    @client = Octokit::Client.new(
+      access_token: @access_token,
+      user_agent: USER_AGENT,
+      auto_paginate: true,
+      middleware: self.class.middleware_stack(cache_namespace)
+    )
+    @uncached_client = nil
+  end
+
+  def cache_namespace
+    installation_auth? ? "i#{@installation.id}" : "u#{@user.id}"
+  end
+
   def persist_rate_limit_headers!(headers)
-    return unless headers
+    return unless headers && @user
     remaining = headers["x-ratelimit-remaining"]
     return unless remaining
     @user.update_columns(

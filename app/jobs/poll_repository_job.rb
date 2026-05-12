@@ -16,7 +16,7 @@ class PollRepositoryJob < ApplicationJob
     repository.update_columns(last_poll_started_at: Time.current, last_poll_status: nil, last_poll_error: nil)
 
     begin
-      issues = GithubClient.for(repository.user)
+      issues = GithubClient.for(repository: repository, user: repository.user)
                            .issues_with_label(repository.slug, repository.trigger_label)
 
       issues.each do |issue|
@@ -48,7 +48,7 @@ class PollRepositoryJob < ApplicationJob
     # immediately. Skip only fully-closed Jobs (they're terminal and
     # the lookup would be wasted).
     needs_lookup = prior.nil? || prior.open?
-    linked = needs_lookup ? GithubClient.for(repository.user).linked_open_pr_for_issue(repository.slug, issue.number) : nil
+    linked = needs_lookup ? GithubClient.for(repository: repository, user: repository.user).linked_open_pr_for_issue(repository.slug, issue.number) : nil
     # Filter out our OWN PR — `closedByPullRequestsReferences` returns
     # every PR that closes this issue, including the one Syrus opened.
     # If the linked PR is ours, it's not "external preemption", just us.

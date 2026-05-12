@@ -13,7 +13,7 @@ class PushPendingCommitsJob < ApplicationJob
     return unless path.exist?
 
     job       = workflow.job
-    push_url  = job.repository.authenticated_push_url(job.user.github_token)
+    push_url  = job.repository.authenticated_push_url(GithubClient.for(repository: job.repository, user: job.user).access_token)
     git       = GitRunner.new
     push_env  = { "GIT_TERMINAL_PROMPT" => "0" }
     commit_env = {

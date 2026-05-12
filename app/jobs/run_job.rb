@@ -219,7 +219,7 @@ class RunJob < ApplicationJob
     pr_number = @job.pr_number.presence || @job.external_pr_number.presence
     return nil if pr_number.blank?
 
-    pr = GithubClient.for(@job.user).pull_request(@job.repository.slug, pr_number, bypass_cache: true)
+    pr = GithubClient.for(repository: @job.repository, user: @job.user).pull_request(@job.repository.slug, pr_number, bypass_cache: true)
     return nil unless pr.merged == true
 
     {

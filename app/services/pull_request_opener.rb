@@ -1,7 +1,7 @@
 class PullRequestOpener
   def initialize(repository, client: nil)
     @repository = repository
-    @client = client || GithubClient.for(@repository.user)
+    @client = client || GithubClient.for(repository: @repository, user: @repository.user)
   end
 
   # Returns the new PR number.
