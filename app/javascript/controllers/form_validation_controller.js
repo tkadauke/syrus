@@ -5,10 +5,14 @@ export default class extends Controller {
     this.submittedForms = new WeakSet()
     this.boundInvalid = this.invalid.bind(this)
     this.boundSubmit = this.submit.bind(this)
+    this.boundSubmitAttempt = this.submitAttempt.bind(this)
+    this.boundKeydown = this.keydown.bind(this)
     this.boundInput = this.input.bind(this)
 
     this.element.addEventListener("invalid", this.boundInvalid, true)
     this.element.addEventListener("submit", this.boundSubmit, true)
+    this.element.addEventListener("click", this.boundSubmitAttempt, true)
+    this.element.addEventListener("keydown", this.boundKeydown, true)
     this.element.addEventListener("input", this.boundInput, true)
     this.element.addEventListener("change", this.boundInput, true)
   }
@@ -16,6 +20,8 @@ export default class extends Controller {
   disconnect() {
     this.element.removeEventListener("invalid", this.boundInvalid, true)
     this.element.removeEventListener("submit", this.boundSubmit, true)
+    this.element.removeEventListener("click", this.boundSubmitAttempt, true)
+    this.element.removeEventListener("keydown", this.boundKeydown, true)
     this.element.removeEventListener("input", this.boundInput, true)
     this.element.removeEventListener("change", this.boundInput, true)
   }
@@ -32,6 +38,26 @@ export default class extends Controller {
 
     this.showFormErrors(form)
     this.focusFirstInvalidField(form)
+  }
+
+  submitAttempt(event) {
+    const submitter = event.target
+    if (!this.submitterElement(submitter)) return
+
+    const form = submitter.form
+    if (!form || form.noValidate || submitter.formNoValidate) return
+
+    this.submittedForms.add(form)
+  }
+
+  keydown(event) {
+    if (event.key !== "Enter") return
+
+    const field = event.target
+    if (!this.validatableField(field) || field instanceof HTMLTextAreaElement) return
+    if (!field.form || field.form.noValidate) return
+
+    this.submittedForms.add(field.form)
   }
 
   invalid(event) {
@@ -129,6 +155,12 @@ export default class extends Controller {
       field instanceof HTMLSelectElement ||
       field instanceof HTMLTextAreaElement
     return isField && field.willValidate
+  }
+
+  submitterElement(element) {
+    if (element instanceof HTMLButtonElement) return element.type === "submit"
+    if (element instanceof HTMLInputElement) return [ "submit", "image" ].includes(element.type)
+    return false
   }
 
   validationMessage(field) {

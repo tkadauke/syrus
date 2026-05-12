@@ -150,13 +150,30 @@ class FieldElement extends FakeElement {
   }
 }
 
+class TextAreaElement extends FieldElement {
+  constructor(options) {
+    super(options)
+    this.tagName = "textarea"
+  }
+}
+
+class SubmitButtonElement extends FakeElement {
+  constructor({ form, type = "submit", formNoValidate = false }) {
+    super("button")
+    this.form = form
+    this.type = type
+    this.formNoValidate = formNoValidate
+  }
+}
+
 globalThis.document = {
   createElement: (tagName) => new FakeElement(tagName)
 }
+globalThis.HTMLButtonElement = SubmitButtonElement
 globalThis.HTMLFormElement = HTMLFormElement
 globalThis.HTMLInputElement = FieldElement
 globalThis.HTMLSelectElement = FieldElement
-globalThis.HTMLTextAreaElement = FieldElement
+globalThis.HTMLTextAreaElement = TextAreaElement
 
 function buildController(Controller) {
   const controller = new Controller()
@@ -183,25 +200,32 @@ test("renders invalid fields and the summary after a submit attempt", async () =
   const controller = buildController(Controller)
   const repository = new FieldElement({ id: "repository_id", name: "repository_id", label: "Repository" })
   const form = new HTMLFormElement([repository])
-  let prevented = false
-  let stopped = false
+  const submitter = new SubmitButtonElement({ form })
 
-  controller.submit({
-    target: form,
-    submitter: null,
-    preventDefault: () => { prevented = true },
-    stopPropagation: () => { stopped = true }
-  })
+  controller.submitAttempt({ target: submitter })
+  controller.invalid({ target: repository })
+  await Promise.resolve()
 
-  assert.equal(prevented, true)
-  assert.equal(stopped, true)
   assert.equal(repository.getAttribute("aria-invalid"), "true")
   assert.equal(repository.classList.contains("border-red-500"), true)
-  assert.equal(repository.focused, true)
 
   const error = form.querySelectorAll("[data-form-validation-error-for]")[0]
   assert.equal(error.textContent, "Repository is required.")
   assert.equal(form.querySelector(":scope > [data-form-validation-summary]").textContent, "Fix the highlighted field before continuing.")
+})
+
+test("renders invalid fields after an implicit Enter-key submit attempt", async () => {
+  const { default: Controller } = await loadController()
+  const controller = buildController(Controller)
+  const repository = new FieldElement({ id: "repository_id", name: "repository_id", label: "Repository" })
+  const form = new HTMLFormElement([repository])
+
+  controller.keydown({ target: repository, key: "Enter" })
+  controller.invalid({ target: repository })
+  await Promise.resolve()
+
+  assert.equal(repository.getAttribute("aria-invalid"), "true")
+  assert.equal(form.querySelectorAll("[data-form-validation-error-for]")[0].textContent, "Repository is required.")
 })
 
 test("clears errors after a submitted field becomes valid", async () => {
