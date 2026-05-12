@@ -8,8 +8,6 @@ on:
 jobs:
   scan_ruby:
     runs-on: ubuntu-24.04
-    env:
-      BUNDLE_WITHOUT: production
 
     steps:
       - name: Checkout code
@@ -19,7 +17,6 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-          cache-version: bot-identity-20260512
 
       - name: Scan for common Rails security vulnerabilities using static analysis
         # TODO: drop --except once we upgrade Ruby off 3.2.x (EOL 2026-03-31)
@@ -30,8 +27,6 @@ jobs:
 
   scan_js:
     runs-on: ubuntu-24.04
-    env:
-      BUNDLE_WITHOUT: production
 
     steps:
       - name: Checkout code
@@ -41,7 +36,6 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-          cache-version: bot-identity-20260512
 
       - name: Scan for security vulnerabilities in JavaScript dependencies
         run: bin/importmap audit
@@ -49,7 +43,6 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     env:
-      BUNDLE_WITHOUT: production
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:
       - name: Checkout code
@@ -59,7 +52,6 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-          cache-version: bot-identity-20260512
 
       - name: Prepare RuboCop cache
         uses: actions/cache@v4
@@ -79,12 +71,12 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.4
+        image: mysql
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: true
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=10 --health-start-period=20s
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
       - name: Install packages
@@ -97,7 +89,6 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-          cache-version: bot-identity-20260512
 
       - name: Run RSpec against MySQL
         # db/schema.rb is dumped from SQLite where every integer column
