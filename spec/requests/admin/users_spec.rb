@@ -21,6 +21,19 @@ RSpec.describe "Admin users", type: :request do
       expect(response.body).to include("low@example.com")
     end
 
+    it "uses display names in the user link with email fallback" do
+      sign_in_as(admin)
+      named = Factories.user(email_address: "ada@example.com", name: "Ada Lovelace")
+      fallback = Factories.user(email_address: "fallback@example.com")
+
+      get "/admin/users"
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.at_css("a[href='#{admin_user_path(named)}']").text).to eq("Ada Lovelace")
+      expect(document.at_css("a[href='#{admin_user_path(fallback)}']").text).to eq("fallback@example.com")
+      expect(response.body).to include("ada@example.com")
+    end
+
     it "honors ?gh_rate=low filter" do
       sign_in_as(admin)
       ok_user  = Factories.user(email_address: "ok@example.com",
@@ -58,15 +71,25 @@ RSpec.describe "Admin users", type: :request do
     it "renders user detail with token presence indicators (no plaintext)" do
       sign_in_as(admin)
       target = Factories.user(email_address: "target@example.com",
+                              name: "Target User",
+                              github_handle: "@target-handle",
                               github_token: "ghp_secretvalue",
                               claude_oauth_token: "co_secretvalue",
                               agent_provider: "codex",
                               codex_auth_mode: "chatgpt_login",
                               codex_api_key: "sk_codex_secretvalue",
                               codex_auth_json: Factories.codex_auth_json(access_token: "codex_access_secretvalue"))
+      target.mark_gh_api_blocked!("Resource not accessible by personal access token")
+
       get "/admin/users/#{target.id}"
+
+      document = Nokogiri::HTML(response.body)
       expect(response).to be_successful
+      expect(document.at_css("h1").text).to eq("Target User")
       expect(response.body).to include("target@example.com")
+      expect(response.body).to include("@target-handle")
+      expect(response.body).to include("GitHub API blocked")
+      expect(response.body).to include("Resource not accessible by personal access token")
       expect(response.body).to include("codex")
       expect(response.body).to include("chatgpt_login")
       expect(response.body).to include("set")        # token presence indicator
@@ -74,6 +97,16 @@ RSpec.describe "Admin users", type: :request do
       expect(response.body).not_to include("co_secretvalue")
       expect(response.body).not_to include("sk_codex_secretvalue")
       expect(response.body).not_to include("codex_access_secretvalue")
+    end
+
+    it "falls back to email as the title when display name is blank" do
+      sign_in_as(admin)
+      target = Factories.user(email_address: "fallback-title@example.com")
+
+      get "/admin/users/#{target.id}"
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.at_css("h1").text).to eq("fallback-title@example.com")
     end
 
     it "404s on unknown id" do

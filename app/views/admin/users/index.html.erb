@@ -64,9 +64,11 @@
     <table class="min-w-full divide-y divide-gray-200 text-sm">
       <thead class="bg-gray-50 text-xs uppercase text-gray-500">
         <tr>
-          <th class="px-4 py-2 text-left">Email</th>
+          <th class="px-4 py-2 text-left">User</th>
+          <th class="px-4 py-2 text-left">GitHub</th>
           <th class="px-4 py-2 text-left">Admin</th>
           <th class="px-4 py-2 text-left">Agent</th>
+          <th class="px-4 py-2 text-left">Scheduling</th>
           <th class="px-4 py-2 text-left">GH token</th>
           <th class="px-4 py-2 text-left">Claude token</th>
           <th class="px-4 py-2 text-left">Codex auth</th>
@@ -76,7 +78,7 @@
       </thead>
       <tbody class="divide-y divide-gray-100">
         <% if @users.empty? %>
-          <tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">No users match these filters.</td></tr>
+          <tr><td colspan="10" class="px-4 py-6 text-center text-gray-500">No users match these filters.</td></tr>
         <% end %>
         <% @users.each do |user| %>
           <% pct = if user.gh_rate_limit_limit.to_i > 0
@@ -84,10 +86,15 @@
                   end %>
           <tr class="hover:bg-gray-50">
             <td class="px-4 py-2">
-              <%= link_to user.email_address, admin_user_path(user), class: "text-blue-600 hover:underline" %>
+              <%= link_to user.display_name, admin_user_path(user), class: "text-blue-600 hover:underline" %>
+              <% if user.display_name != user.email_address %>
+                <div class="text-xs text-gray-500"><%= user.email_address %></div>
+              <% end %>
             </td>
+            <td class="px-4 py-2"><%= user.github_handle.present? ? "@#{user.github_handle}" : "—" %></td>
             <td class="px-4 py-2"><%= user.admin? ? "yes" : "—" %></td>
             <td class="px-4 py-2"><%= user.agent_provider %></td>
+            <td class="px-4 py-2"><%= user.scheduling_paused? ? "paused" : "active" %></td>
             <td class="px-4 py-2"><%= user.github_token.present? ? "✓" : "—" %></td>
             <td class="px-4 py-2"><%= user.claude_oauth_token.present? ? "✓" : "—" %></td>
             <td class="px-4 py-2">

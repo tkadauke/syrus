@@ -45,6 +45,10 @@ class User < ApplicationRecord
     admin
   end
 
+  def display_name
+    name.presence || email_address
+  end
+
   def configured_agent_providers
     AGENT_PROVIDERS.select { |provider| agent_provider_configured?(provider) }
   end

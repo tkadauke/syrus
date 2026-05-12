@@ -1,8 +1,9 @@
 <div class="space-y-6">
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="font-bold text-2xl"><%= @user.email_address %></h1>
+      <h1 class="font-bold text-2xl"><%= @user.display_name %></h1>
       <div class="text-xs text-gray-500 mt-1">
+        <%= @user.email_address %> ·
         Created <%= @user.created_at.strftime("%Y-%m-%d") %>
         <% if @user.admin? %>
           <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">admin</span>
@@ -13,6 +14,51 @@
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <%# Identity & access %>
+    <div class="bg-white border border-gray-200 rounded-lg p-4">
+      <h2 class="font-semibold text-sm uppercase text-gray-500 mb-3">Identity & access</h2>
+      <dl class="text-sm space-y-2">
+        <div class="flex justify-between gap-4">
+          <dt class="text-gray-600">Display name</dt>
+          <dd class="text-right"><%= @user.name.presence || "—" %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-gray-600">Email</dt>
+          <dd class="text-right"><%= @user.email_address %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-gray-600">GitHub handle</dt>
+          <dd class="text-right"><%= @user.github_handle.present? ? "@#{@user.github_handle}" : "—" %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-gray-600">Admin</dt>
+          <dd class="text-right"><%= @user.admin? ? "yes" : "no" %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-gray-600">GitHub API blocked</dt>
+          <dd class="text-right"><%= @user.gh_api_blocked? ? "yes" : "no" %></dd>
+        </div>
+        <% if @user.gh_api_blocked? %>
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-600">Blocked at</dt>
+            <dd class="text-right"><%= @user.gh_api_blocked_at.strftime("%Y-%m-%d %H:%M %Z") %></dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-600">Blocked reason</dt>
+            <dd class="text-right"><%= @user.gh_api_blocked_reason.presence || "—" %></dd>
+          </div>
+        <% end %>
+        <div class="flex justify-between gap-4">
+          <dt class="text-gray-600">Created</dt>
+          <dd class="text-right"><%= @user.created_at.strftime("%Y-%m-%d %H:%M %Z") %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-gray-600">Updated</dt>
+          <dd class="text-right"><%= @user.updated_at.strftime("%Y-%m-%d %H:%M %Z") %></dd>
+        </div>
+      </dl>
+    </div>
+
     <%# Tokens & settings %>
     <div class="bg-white border border-gray-200 rounded-lg p-4">
       <h2 class="font-semibold text-sm uppercase text-gray-500 mb-3">Tokens & settings</h2>
