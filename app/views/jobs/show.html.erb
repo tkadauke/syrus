@@ -150,163 +150,6 @@
     </div>
   </div>
 
-  <% unsatisfied_dependencies = @job.unsatisfied_dependencies %>
-  <% if unsatisfied_dependencies.any? %>
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <span class="font-medium">This Job is waiting on <%= pluralize(unsatisfied_dependencies.size, "dependency") %>.</span>
-          <span>
-            <%= safe_join(unsatisfied_dependencies.map { |dependency|
-                  dep_job = dependency.depends_on_job
-                  link_to("##{dep_job.issue_number || dep_job.id} #{dep_job.repository.slug} (#{job_summary_state(dep_job)})",
-                          job_path(dep_job),
-                          class: "underline hover:no-underline")
-                }, ", ".html_safe) %>
-          </span>
-        </div>
-        <% if Current.user&.admin? %>
-          <%= button_to "Override and force-run", override_dependencies_job_path(@job), method: :post,
-                class: "rounded-md px-3 py-1.5 bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium cursor-pointer",
-                form: { class: "inline", data: { turbo_confirm: "Bypass dependency checks for this Job?" } } %>
-        <% end %>
-      </div>
-    </div>
-  <% end %>
-
-  <div class="bg-white border border-gray-200 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
-    <div>
-      <div class="text-xs uppercase text-gray-500">Priority</div>
-      <div><%= priority_pill(@job.priority) %></div>
-    </div>
-    <div>
-      <div class="text-xs uppercase text-gray-500">Branch</div>
-      <div class="font-mono text-gray-700"><%= @job.branch_name || "—" %></div>
-    </div>
-    <div>
-      <div class="text-xs uppercase text-gray-500">Pull request</div>
-      <div class="space-y-1">
-        <% if @job.pr_number %>
-          <div class="flex items-center gap-2">
-            <%= link_to "##{@job.pr_number}", job_pr_url(@job), target: "_blank", rel: "noopener", class: "text-blue-600 underline hover:no-underline" %>
-            <span class="text-gray-500 text-xs">(Syrus)</span>
-            <%= mergeable_pill(@job) %>
-          </div>
-        <% end %>
-        <% if @job.external_pr_number %>
-          <div class="flex items-center gap-2">
-            <%= link_to "##{@job.external_pr_number}", external_pr_url(@job), target: "_blank", rel: "noopener", class: "text-violet-700 underline hover:no-underline" %>
-            <span class="text-gray-500 text-xs">(external)</span>
-            <% if @job.pr_number.nil? %><%= mergeable_pill(@job) %><% end %>
-          </div>
-        <% end %>
-        <% if @job.pr_number.nil? && @job.external_pr_number.nil? %>
-          <span class="text-gray-400">—</span>
-        <% end %>
-        <% if @job.pr_number || @job.external_pr_number %>
-          <div class="text-xs text-gray-400 flex items-center gap-2">
-            <% if @job.pr_mergeable_checked_at %>
-              <span>checked <%= relative_timestamp(@job.pr_mergeable_checked_at) %></span>
-              <span class="text-gray-300">·</span>
-            <% end %>
-            <%= button_to "Check now", check_mergeability_job_path(@job), method: :post,
-                  class: "text-blue-500 underline hover:no-underline cursor-pointer",
-                  form: { class: "inline" } %>
-          </div>
-        <% end %>
-      </div>
-    </div>
-    <div>
-      <div class="text-xs uppercase text-gray-500">Total cost</div>
-      <div class="text-gray-900 font-medium"><%= cost_caption(@job.total_cost_usd) %></div>
-      <div class="text-xs text-gray-500"><%= pluralize(@job.billed_runs_count, "billed run") %></div>
-    </div>
-    <div>
-      <div class="text-xs uppercase text-gray-500">Started</div>
-      <div class="text-gray-700"><%= relative_timestamp(@job.started_at) %></div>
-    </div>
-    <div>
-      <div class="text-xs uppercase text-gray-500">Closed</div>
-      <div class="text-gray-700">
-        <% if @job.closed? %>
-          <%= relative_timestamp(@job.finished_at) %>
-          <span class="ml-1 text-gray-500 text-xs">(<%= @job.closure_reason || "unspecified" %>)</span>
-        <% else %>
-          <span class="text-gray-400">still open</span>
-        <% end %>
-      </div>
-    </div>
-  </div>
-
-  <div class="grid gap-4 lg:grid-cols-2">
-    <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="font-semibold text-gray-900">Dependencies</h2>
-        <% if @job.dependencies_overridden_at.present? %>
-          <span class="text-xs text-amber-700">overridden <%= relative_timestamp(@job.dependencies_overridden_at) %></span>
-        <% end %>
-      </div>
-      <% if @job.dependencies.any? %>
-        <ul class="divide-y divide-gray-100">
-          <% @job.dependencies.each do |dependency| %>
-            <% dep_job = dependency.depends_on_job %>
-            <li class="py-2 flex items-center justify-between gap-3">
-              <div>
-                <%= link_to "#{dep_job.repository.slug} #{job_source_label_html(dep_job)}", job_path(dep_job),
-                      class: "text-blue-600 underline hover:no-underline" %>
-                <span class="ml-2"><%= state_pill(job_summary_state(dep_job)) %></span>
-                <span class="ml-2 text-xs text-gray-400"><%= dependency.source %></span>
-              </div>
-              <% if dependency.manual? %>
-                <%= button_to "Remove", dependency_job_path(@job, dependency), method: :delete,
-                      class: "text-red-600 underline hover:no-underline cursor-pointer",
-                      form: { class: "inline", data: { turbo_confirm: "Remove this dependency?" } } %>
-              <% end %>
-            </li>
-          <% end %>
-        </ul>
-      <% else %>
-        <p class="text-gray-400">No dependencies.</p>
-      <% end %>
-
-      <%= form_with url: dependencies_job_path(@job), method: :post, class: "flex flex-wrap items-end gap-2 pt-2 border-t border-gray-100" do |f| %>
-        <div class="min-w-0 flex-1">
-          <%= f.label :dependency_target, "Dependency", class: "block text-xs uppercase text-gray-500" %>
-          <%= f.select :dependency_target,
-                @dependency_target_options,
-                { prompt: "Select a Job or issue" },
-                required: true,
-                class: "w-full min-w-64 border border-gray-300 rounded px-2 py-1" %>
-        </div>
-        <%= f.submit "Add", class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer" %>
-      <% end %>
-    </div>
-
-    <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
-      <h2 class="font-semibold text-gray-900"><%= pluralize(@job.dependent_links.size, "other Job") %> depend on this one</h2>
-      <% if @job.dependent_links.any? %>
-        <ul class="divide-y divide-gray-100">
-          <% @job.dependent_links.each do |dependency| %>
-            <% dependent_job = dependency.job %>
-            <li class="py-2">
-              <%= link_to "#{dependent_job.repository.slug} #{job_source_label_html(dependent_job)}", job_path(dependent_job),
-                    class: "text-blue-600 underline hover:no-underline" %>
-              <span class="ml-2"><%= state_pill(job_summary_state(dependent_job)) %></span>
-            </li>
-          <% end %>
-        </ul>
-      <% else %>
-        <p class="text-gray-400">No dependent Jobs.</p>
-      <% end %>
-    </div>
-  </div>
-
-  <% if AppSetting.github_app_registered? && @job.repository.installation&.active? %>
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      Bot-authored commits are unsigned and may show as unverified on GitHub. Repositories with required signed commits should exempt Syrus branches until GraphQL commit signing support lands.
-    </div>
-  <% end %>
-
   <%# Two streams: refreshes (Job + Run state changes morph the page)
       + targeted log appends (live transcript). %>
   <%= turbo_stream_from @job %>
@@ -316,8 +159,7 @@
   <% workflows = @job.workflows.includes(steps: { runs: :job_logs }).to_a %>
   <% summary_run = runs.select { |r| r.agent_summary.present? }.last %>
   <% timeline_events = Jobs::Timeline.for(@job) %>
-
-  <%= render "timeline", events: timeline_events %>
+  <% unsatisfied_dependencies = @job.unsatisfied_dependencies %>
 
   <% content_for :head do %>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
@@ -344,8 +186,165 @@
       </button>
     </div>
 
-    <%# Summary panel — always present; shows issue body and/or agent summary %>
+    <%# Summary panel — always present; keeps overview, dependency controls,
+        issue body, agent summary, and timeline behind the first tab. %>
     <div data-tabs-target="panel" class="space-y-4 pt-4">
+      <% if unsatisfied_dependencies.any? %>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <span class="font-medium">This Job is waiting on <%= pluralize(unsatisfied_dependencies.size, "dependency") %>.</span>
+              <span>
+                <%= safe_join(unsatisfied_dependencies.map { |dependency|
+                      dep_job = dependency.depends_on_job
+                      link_to("##{dep_job.issue_number || dep_job.id} #{dep_job.repository.slug} (#{job_summary_state(dep_job)})",
+                              job_path(dep_job),
+                              class: "underline hover:no-underline")
+                    }, ", ".html_safe) %>
+              </span>
+            </div>
+            <% if Current.user&.admin? %>
+              <%= button_to "Override and force-run", override_dependencies_job_path(@job), method: :post,
+                    class: "rounded-md px-3 py-1.5 bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium cursor-pointer",
+                    form: { class: "inline", data: { turbo_confirm: "Bypass dependency checks for this Job?" } } %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <div class="bg-white border border-gray-200 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <div class="text-xs uppercase text-gray-500">Priority</div>
+          <div><%= priority_pill(@job.priority) %></div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-gray-500">Branch</div>
+          <div class="font-mono text-gray-700"><%= @job.branch_name || "—" %></div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-gray-500">Pull request</div>
+          <div class="space-y-1">
+            <% if @job.pr_number %>
+              <div class="flex items-center gap-2">
+                <%= link_to "##{@job.pr_number}", job_pr_url(@job), target: "_blank", rel: "noopener", class: "text-blue-600 underline hover:no-underline" %>
+                <span class="text-gray-500 text-xs">(Syrus)</span>
+                <%= mergeable_pill(@job) %>
+              </div>
+            <% end %>
+            <% if @job.external_pr_number %>
+              <div class="flex items-center gap-2">
+                <%= link_to "##{@job.external_pr_number}", external_pr_url(@job), target: "_blank", rel: "noopener", class: "text-violet-700 underline hover:no-underline" %>
+                <span class="text-gray-500 text-xs">(external)</span>
+                <% if @job.pr_number.nil? %><%= mergeable_pill(@job) %><% end %>
+              </div>
+            <% end %>
+            <% if @job.pr_number.nil? && @job.external_pr_number.nil? %>
+              <span class="text-gray-400">—</span>
+            <% end %>
+            <% if @job.pr_number || @job.external_pr_number %>
+              <div class="text-xs text-gray-400 flex items-center gap-2">
+                <% if @job.pr_mergeable_checked_at %>
+                  <span>checked <%= relative_timestamp(@job.pr_mergeable_checked_at) %></span>
+                  <span class="text-gray-300">·</span>
+                <% end %>
+                <%= button_to "Check now", check_mergeability_job_path(@job), method: :post,
+                      class: "text-blue-500 underline hover:no-underline cursor-pointer",
+                      form: { class: "inline" } %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-gray-500">Total cost</div>
+          <div class="text-gray-900 font-medium"><%= cost_caption(@job.total_cost_usd) %></div>
+          <div class="text-xs text-gray-500"><%= pluralize(@job.billed_runs_count, "billed run") %></div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-gray-500">Started</div>
+          <div class="text-gray-700"><%= relative_timestamp(@job.started_at) %></div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-gray-500">Closed</div>
+          <div class="text-gray-700">
+            <% if @job.closed? %>
+              <%= relative_timestamp(@job.finished_at) %>
+              <span class="ml-1 text-gray-500 text-xs">(<%= @job.closure_reason || "unspecified" %>)</span>
+            <% else %>
+              <span class="text-gray-400">still open</span>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-4 lg:grid-cols-2">
+        <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="font-semibold text-gray-900">Dependencies</h2>
+            <% if @job.dependencies_overridden_at.present? %>
+              <span class="text-xs text-amber-700">overridden <%= relative_timestamp(@job.dependencies_overridden_at) %></span>
+            <% end %>
+          </div>
+          <% if @job.dependencies.any? %>
+            <ul class="divide-y divide-gray-100">
+              <% @job.dependencies.each do |dependency| %>
+                <% dep_job = dependency.depends_on_job %>
+                <li class="py-2 flex items-center justify-between gap-3">
+                  <div>
+                    <%= link_to "#{dep_job.repository.slug} #{job_source_label_html(dep_job)}", job_path(dep_job),
+                          class: "text-blue-600 underline hover:no-underline" %>
+                    <span class="ml-2"><%= state_pill(job_summary_state(dep_job)) %></span>
+                    <span class="ml-2 text-xs text-gray-400"><%= dependency.source %></span>
+                  </div>
+                  <% if dependency.manual? %>
+                    <%= button_to "Remove", dependency_job_path(@job, dependency), method: :delete,
+                          class: "text-red-600 underline hover:no-underline cursor-pointer",
+                          form: { class: "inline", data: { turbo_confirm: "Remove this dependency?" } } %>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-gray-400">No dependencies.</p>
+          <% end %>
+
+          <%= form_with url: dependencies_job_path(@job), method: :post, class: "flex flex-wrap items-end gap-2 pt-2 border-t border-gray-100" do |f| %>
+            <div class="min-w-0 flex-1">
+              <%= f.label :dependency_target, "Dependency", class: "block text-xs uppercase text-gray-500" %>
+              <%= f.select :dependency_target,
+                    @dependency_target_options,
+                    { prompt: "Select a Job or issue" },
+                    required: true,
+                    class: "w-full min-w-64 border border-gray-300 rounded px-2 py-1" %>
+            </div>
+            <%= f.submit "Add", class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer" %>
+          <% end %>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
+          <h2 class="font-semibold text-gray-900"><%= pluralize(@job.dependent_links.size, "other Job") %> depend on this one</h2>
+          <% if @job.dependent_links.any? %>
+            <ul class="divide-y divide-gray-100">
+              <% @job.dependent_links.each do |dependency| %>
+                <% dependent_job = dependency.job %>
+                <li class="py-2">
+                  <%= link_to "#{dependent_job.repository.slug} #{job_source_label_html(dependent_job)}", job_path(dependent_job),
+                        class: "text-blue-600 underline hover:no-underline" %>
+                  <span class="ml-2"><%= state_pill(job_summary_state(dependent_job)) %></span>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-gray-400">No dependent Jobs.</p>
+          <% end %>
+        </div>
+      </div>
+
+      <% if AppSetting.github_app_registered? && @job.repository.installation&.active? %>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Bot-authored commits are unsigned and may show as unverified on GitHub. Repositories with required signed commits should exempt Syrus branches until GraphQL commit signing support lands.
+        </div>
+      <% end %>
+
       <% if @job.issue_body.present? %>
         <div>
           <div class="text-xs uppercase text-gray-500 mb-1">Issue</div>
@@ -360,6 +359,8 @@
       <% elsif @job.issue_body.blank? %>
         <p class="text-sm text-gray-400">No summary yet.</p>
       <% end %>
+
+      <%= render "timeline", events: timeline_events %>
     </div>
 
     <%# Workflows panel %>

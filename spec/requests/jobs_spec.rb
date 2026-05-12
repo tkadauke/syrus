@@ -1268,6 +1268,22 @@ RSpec.describe "Jobs", type: :request do
       expect(response.body).to include("1 other Job depend on this one")
     end
 
+    it "renders tabs before the summary overview and dependency controls" do
+      target = Job.create!(user: user, repository: repository, issue_number: 42, branch_name: "syrus/42")
+
+      get job_path(target)
+
+      document = Nokogiri::HTML(response.body)
+      tabs = document.at_css("[data-controller='tabs']")
+      summary_panel = document.css("[data-tabs-target='panel']").first
+
+      expect(response.body.index("data-controller=\"tabs\"")).to be < response.body.index("Priority")
+      expect(response.body.index("data-controller=\"tabs\"")).to be < response.body.index("Dependencies")
+      expect(summary_panel.text).to include("Priority", "Branch", "Dependencies", "Dependency")
+      expect(summary_panel.at_css("select[name='dependency_target']")).to be_present
+      expect(tabs.text).to include("Summary", "Workflows", "Source")
+    end
+
     it "renders dependency targets as a deduplicated dropdown" do
       older_issue_job = Job.create!(
         user: user,
