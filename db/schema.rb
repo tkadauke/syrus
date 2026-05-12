@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_11_140200) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_11_140300) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -303,7 +303,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140200) do
     t.integer "gh_rate_limit_remaining"
     t.datetime "gh_rate_limit_reset_at"
     t.string "gh_rate_limit_resource", limit: 32
+    t.string "github_handle"
     t.string "github_token"
+    t.string "name"
     t.string "password_digest", null: false
     t.boolean "scheduling_paused", default: false, null: false
     t.datetime "updated_at", null: false

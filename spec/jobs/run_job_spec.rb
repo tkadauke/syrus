@@ -10,7 +10,7 @@ require "fileutils"
 # the ground truth for "did the agent's work make it to origin?".
 RSpec.describe RunJob do
   let(:bare_remote_dir) { Pathname.new(Dir.mktmpdir("syrus-bare")) }
-  let(:user) { Factories.user(github_token: "ghp_test_token", claude_oauth_token: "oat-test") }
+  let(:user) { Factories.user(name: "Ada Lovelace", github_handle: "ada", email_address: "ada@example.com", github_token: "ghp_test_token", claude_oauth_token: "oat-test") }
   let(:repository) do
     Factories.repository(user: user, owner: "acme", name: "widgets",
                          default_branch: "main", trigger_label: "syrus", polling_enabled: true)
@@ -98,6 +98,34 @@ RSpec.describe RunJob do
       expect(full).to include("Closes #42")
     end
 
+    it "authors commits as the User in PAT mode" do
+      job; drain_workflow!(job)
+
+      author = `git --git-dir=#{bare_remote_dir} log -1 --format='%an <%ae>' #{job.branch_name}`.strip
+
+      expect(author).to eq("Ada Lovelace <ada@example.com>")
+    end
+
+    it "authors commits as the App bot when the App is registered and installed" do
+      AppSetting.current.update!(github_app_id: 12_345, github_app_slug: "tkadauke-syrus")
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository.update!(installation: installation)
+      allow_any_instance_of(Installation).to receive(:fresh_token).and_return("ghs_installation")
+
+      job; drain_workflow!(job)
+
+      author = `git --git-dir=#{bare_remote_dir} log -1 --format='%an <%ae>' #{job.branch_name}`.strip
+
+      expect(author).to eq("tkadauke-syrus[bot] <tkadauke-syrus[bot]@users.noreply.github.com>")
+    end
+
+    it "adds a Co-Authored-By trailer for issue-triggered jobs" do
+      job; drain_workflow!(job)
+      full = `git --git-dir=#{bare_remote_dir} log -1 --format='%B' #{job.branch_name}`.strip
+
+      expect(full).to include("Co-Authored-By: Ada Lovelace <ada@example.com>")
+    end
+
     it "tears down the workspace when the Workflow succeeds" do
       job; drain_workflow!(job)
       wf = job.workflows.last
@@ -147,6 +175,23 @@ RSpec.describe RunJob do
       # consumes the queue. Instead spy on the API call.
       expect(PollRebaseJob).to receive(:set).with(hash_including(:wait)).and_return(double(perform_later: true))
       job; drain_workflow!(job)
+    end
+
+    it "adds human trigger attribution to ad hoc PR descriptions" do
+      adhoc = user.jobs.create!(
+        repository: repository,
+        kind: "adhoc",
+        issue_title: "Manual tidy",
+        issue_body: "Clean up the docs."
+      )
+      workflow = Workflows::Initial.instantiate(job: adhoc, agent_provider: adhoc.agent_provider)
+      StepDispatcher.start_workflow(workflow, prompt: Prompts::AdhocJob.new(prompt: adhoc.issue_body).to_s)
+
+      drain_workflow!(adhoc)
+
+      expect(a_request(:post, "https://api.github.com/repos/acme/widgets/pulls").with(
+        body: hash_including("body" => including("Triggered by @ada"))
+      )).to have_been_made
     end
   end
 
@@ -253,6 +298,16 @@ RSpec.describe RunJob do
       expect(wf.state).to eq("succeeded")
       expect(job.pr_number).to eq(123)
       expect(job.branch_name).to start_with("syrus/scheduled-#{scheduled_task.id}-")
+    end
+
+    it "does not add a Co-Authored-By trailer for cron jobs" do
+      result = ScheduledTaskFire.new(scheduled_task).call
+      job = result.job
+
+      drain_workflow!(job)
+      full = `git --git-dir=#{bare_remote_dir} log -1 --format='%B' #{job.branch_name}`.strip
+
+      expect(full).not_to include("Co-Authored-By:")
     end
 
     it "no-changes path: agent surveys, finds nothing → Run fails (implement step), Workflow + Job fail" do

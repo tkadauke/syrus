@@ -61,10 +61,8 @@ module Steps
       return if title.blank?
 
       body    = workflow.artifact("pr_body")
-      message = build_pr_commit_message(title, body)
+      message = BotIdentity.for(job).append_co_authored_by(build_pr_commit_message(title, body))
       streaming_git.run(
-        "-c", "user.name=Syrus",
-        "-c", "user.email=syrus@noreply.invalid",
         "commit", "--amend", "-m", message,
         chdir: workspace.path.to_s
       )

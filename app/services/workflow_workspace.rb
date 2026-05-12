@@ -17,8 +17,6 @@ require "fileutils"
 # share a path.
 class WorkflowWorkspace
   CLONE_DEPTH = 50
-  GIT_AUTHOR_NAME = "Syrus".freeze
-  GIT_AUTHOR_EMAIL = "syrus@noreply.invalid".freeze
 
   attr_reader :path, :branch_name
 
@@ -219,7 +217,8 @@ class WorkflowWorkspace
   end
 
   def configure_git_author
-    @git.run("config", "--local", "user.name", GIT_AUTHOR_NAME, chdir: path.to_s)
-    @git.run("config", "--local", "user.email", GIT_AUTHOR_EMAIL, chdir: path.to_s)
+    identity = BotIdentity.for(@job)
+    @git.run("config", "--local", "user.name", identity.git_name, chdir: path.to_s)
+    @git.run("config", "--local", "user.email", identity.git_email, chdir: path.to_s)
   end
 end

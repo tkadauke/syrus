@@ -3,7 +3,7 @@ require "tmpdir"
 
 RSpec.describe WorkflowWorkspace do
   let(:bare_remote_dir) { Pathname.new(Dir.mktmpdir("syrus-wfws-bare")) }
-  let(:user) { Factories.user(github_token: "ghp_test_token") }
+  let(:user) { Factories.user(name: "Ada Lovelace", github_handle: "ada", email_address: "ada@example.com", github_token: "ghp_test_token") }
   let(:repository) do
     Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main")
   end
@@ -54,15 +54,31 @@ RSpec.describe WorkflowWorkspace do
         expect(`git -C #{ws.path} log --oneline | wc -l`.strip.to_i).to be >= 1
       end
 
-      it "configures a repository-local Git author for agent commits" do
+      it "configures the repository-local Git author for PAT-backed agent commits" do
         ws = described_class.new(workflow)
         ws.setup
 
         name = `git -C #{ws.path} config --local user.name`.strip
         email = `git -C #{ws.path} config --local user.email`.strip
 
-        expect(name).to eq("Syrus")
-        expect(email).to eq("syrus@noreply.invalid")
+        expect(name).to eq("Ada Lovelace")
+        expect(email).to eq("ada@example.com")
+      end
+
+      it "configures the repository-local Git author as the App bot when installation auth is active" do
+        AppSetting.current.update!(github_app_id: 12_345, github_app_slug: "tkadauke-syrus")
+        installation = Factories.installation(user: user, account_login: "acme")
+        repository.update!(installation: installation)
+        allow_any_instance_of(Installation).to receive(:fresh_token).and_return("ghs_installation")
+
+        ws = described_class.new(workflow)
+        ws.setup
+
+        name = `git -C #{ws.path} config --local user.name`.strip
+        email = `git -C #{ws.path} config --local user.email`.strip
+
+        expect(name).to eq("tkadauke-syrus[bot]")
+        expect(email).to eq("tkadauke-syrus[bot]@users.noreply.github.com")
       end
 
       it "checks out an existing branch when one is on origin (follow-up workflow on the same Job)" do

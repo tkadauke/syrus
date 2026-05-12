@@ -165,7 +165,12 @@ class RepositoriesController < ApplicationController
       redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Comment cannot be blank."
       return
     end
-    GithubClient.for(repository: @repository, user: Current.user).add_issue_comment(@repository.slug, issue_number, body)
+    GithubClient.for(repository: @repository, user: Current.user).add_issue_comment(
+      @repository.slug,
+      issue_number,
+      body,
+      on_behalf_of: Current.user
+    )
     redirect_to issues_repository_path(@repository, state: params[:state]), notice: "Comment added to ##{issue_number}."
   rescue => e
     redirect_to issues_repository_path(@repository, state: params[:state]), alert: "Failed to add comment: #{e.message}"

@@ -3,7 +3,9 @@ require "tmpdir"
 require "open3"
 
 RSpec.describe Steps::SummarizeAmend do
-  let(:job)      { Factories.job }
+  let(:user)     { Factories.user(name: "Ada Lovelace", email_address: "ada@example.com") }
+  let(:repository) { Factories.repository(user: user) }
+  let(:job)      { Factories.job(repository: repository) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "pr_comment") }
   let(:step)     { Step.create!(workflow: workflow, kind: "summarize_amend", position: 0) }
   let(:run)      do
@@ -26,6 +28,8 @@ RSpec.describe Steps::SummarizeAmend do
       "GIT_COMMITTER_EMAIL" => "test@test.com"
     }
     sh(git_env, "git -c init.defaultBranch=main init -q #{@ws_path}")
+    sh(git_env, "git -C #{@ws_path} config user.name 'Ada Lovelace'")
+    sh(git_env, "git -C #{@ws_path} config user.email 'ada@example.com'")
     File.write(@ws_path.join("feature.rb"), "def greet = 'hello'\n")
     sh(git_env, "git -C #{@ws_path} add feature.rb")
     sh(git_env, "git -C #{@ws_path} commit -q -m 'Syrus respond step placeholder'")
@@ -58,10 +62,10 @@ RSpec.describe Steps::SummarizeAmend do
       expect(commit_message).to include("Tightened the docs.")
     end
 
-    it "uses only the subject when body is blank" do
+    it "uses the subject plus human co-author trailer when body is blank" do
       stub_agent(title: "Address review feedback: tighten docstring", body: nil)
       handler.call
-      expect(commit_message).to eq("Address review feedback: tighten docstring")
+      expect(commit_message).to eq("Address review feedback: tighten docstring\n\nCo-Authored-By: Ada Lovelace <ada@example.com>")
     end
 
     it "does not add 'Closes #N' (follow-up commit, not a PR opener)" do

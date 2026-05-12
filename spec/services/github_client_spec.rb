@@ -193,6 +193,33 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#add_issue_comment" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+
+    it "prepends on-behalf-of attribution when a user triggered the comment" do
+      user.update!(github_handle: "ada")
+      stub = stub_request(:post, "https://api.github.com/repos/acme/widgets/issues/42/comments")
+        .with(body: { body: "Syrus on behalf of @ada\n\nLooks good." }.to_json)
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" },
+                   body: { id: 1, body: "ok" }.to_json)
+
+      client.add_issue_comment("acme/widgets", 42, "Looks good.", on_behalf_of: user)
+
+      expect(stub).to have_been_requested
+    end
+
+    it "does not add attribution for autonomous comments" do
+      stub = stub_request(:post, "https://api.github.com/repos/acme/widgets/issues/42/comments")
+        .with(body: { body: "Lifecycle update." }.to_json)
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" },
+                   body: { id: 1, body: "ok" }.to_json)
+
+      client.add_issue_comment("acme/widgets", 42, "Lifecycle update.")
+
+      expect(stub).to have_been_requested
+    end
+  end
+
   describe "#linked_open_pr_for_issue" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 

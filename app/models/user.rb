@@ -20,6 +20,7 @@ class User < ApplicationRecord
   encrypts :api_token, deterministic: true
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
+  normalizes :github_handle, with: ->(h) { h.to_s.delete_prefix("@").strip.presence }
 
   # Per-user ceiling on `claude --max-turns`. The agent is given this
   # many tool-use turns before the run terminates with

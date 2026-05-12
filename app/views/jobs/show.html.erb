@@ -213,6 +213,12 @@
     </div>
   </div>
 
+  <% if AppSetting.github_app_registered? && @job.repository.installation&.active? %>
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      Bot-authored commits are unsigned and may show as unverified on GitHub. Repositories with required signed commits should exempt Syrus branches until GraphQL commit signing support lands.
+    </div>
+  <% end %>
+
   <%# Two streams: refreshes (Job + Run state changes morph the page)
       + targeted log appends (live transcript). %>
   <%= turbo_stream_from @job %>

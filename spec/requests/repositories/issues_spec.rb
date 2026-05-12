@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "Repository issues browser", type: :request do
-  let(:user)  { Factories.user }
+  let(:user)  { Factories.user(github_handle: "ada") }
   let(:other) { Factories.user }
   let(:repo)  { Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus") }
 
@@ -132,7 +132,7 @@ RSpec.describe "Repository issues browser", type: :request do
     describe "POST /repositories/:id/comment_issue" do
       it "calls add_issue_comment and redirects with a notice" do
         client = instance_double(GithubClient, add_issue_comment: nil)
-        expect(client).to receive(:add_issue_comment).with("acme/widgets", 7, "Looks good to me")
+        expect(client).to receive(:add_issue_comment).with("acme/widgets", 7, "Looks good to me", on_behalf_of: user)
         stub_github_client(client)
 
         post comment_issue_repository_path(repo),

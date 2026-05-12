@@ -324,7 +324,8 @@ class GithubClient
     raise
   end
 
-  def add_issue_comment(repo_slug, issue_number, body)
+  def add_issue_comment(repo_slug, issue_number, body, on_behalf_of: nil)
+    body = BotIdentity.prefix_comment(body, on_behalf_of: on_behalf_of)
     track_rate_limits { @client.add_comment(repo_slug, issue_number, body) }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited adding comment on #{repo_slug}##{issue_number}: #{e.message}")

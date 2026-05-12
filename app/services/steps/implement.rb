@@ -63,8 +63,6 @@ module Steps
 
       git.run("add", "-A", chdir: chdir)
       git.run(
-        "-c", "user.name=Syrus",
-        "-c", "user.email=syrus@noreply.invalid",
         "commit", "-m", "Syrus implement step (will be rewritten by summarize)",
         chdir: chdir
       )

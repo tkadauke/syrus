@@ -86,6 +86,10 @@ module Steps
       parts << "Closes ##{job.issue_number}" if job.issue?
       parts << "" if job.issue?
       parts << body
+      if job.adhoc? && (handle = BotIdentity.github_handle(job.user))
+        parts << ""
+        parts << "Triggered by @#{handle}"
+      end
       parts << ""
       parts << "---"
       implement_run = workflow.steps.where(kind: "implement").last&.latest_run

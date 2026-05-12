@@ -41,8 +41,8 @@ module Steps
 
       body    = workflow.artifact("amend_commit_body")
       message = body.present? ? [ subject, "", body ].join("\n") : subject
+      message = BotIdentity.for(job).append_co_authored_by(message)
       streaming_git.run(
-        "-c", "user.name=Syrus", "-c", "user.email=syrus@noreply.invalid",
         "commit", "--amend", "-m", message,
         chdir: workspace.path.to_s
       )

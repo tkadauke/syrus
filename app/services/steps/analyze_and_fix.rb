@@ -43,7 +43,6 @@ module Steps
       return if status.strip.empty?
       git.run("add", "-A", chdir: chdir)
       git.run(
-        "-c", "user.name=Syrus", "-c", "user.email=syrus@noreply.invalid",
         "commit", "-m", "Syrus analyze_and_fix step (will be rewritten by summarize_amend)",
         chdir: chdir
       )
