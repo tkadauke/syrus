@@ -1,10 +1,17 @@
 require "rails_helper"
+require "fileutils"
 require "open3"
+require "tmpdir"
 
 RSpec.describe "turbo reconnect JavaScript" do
   it "resubscribes stale Turbo cable stream sources when the tab is visible" do
-    script = <<~JS
+    Dir.mktmpdir("turbo-reconnect") do |dir|
+      module_path = File.join(dir, "turbo_reconnect.mjs")
+      FileUtils.cp Rails.root.join("app/javascript/turbo_reconnect.js"), module_path
+
+      script = <<~JS
       import assert from "node:assert/strict"
+      import { pathToFileURL } from "node:url"
 
       const listeners = { document: {}, window: {} }
       let sources = []
@@ -26,7 +33,7 @@ RSpec.describe "turbo reconnect JavaScript" do
         }
       }
 
-      const mod = await import("file://#{Rails.root.join("app/javascript/turbo_reconnect.js")}")
+      const mod = await import(pathToFileURL(#{module_path.to_json}).href)
 
       const stale = {
         subscription: {},
@@ -88,10 +95,11 @@ RSpec.describe "turbo reconnect JavaScript" do
       assert.equal(typeof listeners.document.visibilitychange, "function")
       assert.equal(typeof listeners.window.focus, "function")
       assert.equal(typeof listeners.window.pageshow, "function")
-    JS
+      JS
 
-    _stdout, stderr, status = Open3.capture3("node", "--input-type=module", stdin_data: script)
+      _stdout, stderr, status = Open3.capture3("node", "--input-type=module", stdin_data: script)
 
-    expect(status).to be_success, stderr
+      expect(status).to be_success, stderr
+    end
   end
 end
