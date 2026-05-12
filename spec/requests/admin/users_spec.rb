@@ -21,6 +21,21 @@ RSpec.describe "Admin users", type: :request do
       expect(response.body).to include("low@example.com")
     end
 
+    it "shows current user credential and API status fields" do
+      sign_in_as(admin)
+      target = Factories.user(email_address: "status@example.com", api_token: "syrus_secret")
+      target.mark_gh_api_blocked!("Resource not accessible by personal access token")
+
+      get "/admin/users"
+
+      document = Nokogiri::HTML(response.body)
+      row = document.at_css("a[href='#{admin_user_path(target)}']").ancestors("tr").first
+      expect(row.text).to include("status@example.com")
+      expect(row.text).to include("blocked")
+      expect(row.text).to include("✓")
+      expect(response.body).not_to include("syrus_secret")
+    end
+
     it "uses display names in the user link with email fallback" do
       sign_in_as(admin)
       named = Factories.user(email_address: "ada@example.com", name: "Ada Lovelace")

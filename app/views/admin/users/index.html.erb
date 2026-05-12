@@ -72,13 +72,15 @@
           <th class="px-4 py-2 text-left">GH token</th>
           <th class="px-4 py-2 text-left">Claude token</th>
           <th class="px-4 py-2 text-left">Codex auth</th>
+          <th class="px-4 py-2 text-left">API token</th>
+          <th class="px-4 py-2 text-left">GH API</th>
           <th class="px-4 py-2 text-left">Max turns</th>
           <th class="px-4 py-2 text-left">GH rate</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
         <% if @users.empty? %>
-          <tr><td colspan="10" class="px-4 py-6 text-center text-gray-500">No users match these filters.</td></tr>
+          <tr><td colspan="12" class="px-4 py-6 text-center text-gray-500">No users match these filters.</td></tr>
         <% end %>
         <% @users.each do |user| %>
           <% pct = if user.gh_rate_limit_limit.to_i > 0
@@ -101,6 +103,8 @@
               <%= user.codex_auth_mode %>
               <%= (user.codex_api_key.present? || user.codex_auth_json.present?) ? "✓" : "—" %>
             </td>
+            <td class="px-4 py-2"><%= user.api_token.present? ? "✓" : "—" %></td>
+            <td class="px-4 py-2"><%= user.gh_api_blocked? ? "blocked" : "ok" %></td>
             <td class="px-4 py-2"><%= user.agent_max_turns %></td>
             <td class="px-4 py-2">
               <% if pct.nil? %>
