@@ -1310,6 +1310,29 @@ RSpec.describe "Jobs", type: :request do
       expect(option_text).to include("One-off cleanup")
     end
 
+    it "does not offer duplicate attempts for the current issue as dependency targets" do
+      previous_attempt = Job.create!(user: user, repository: repository, issue_number: 41)
+      target = Job.create!(user: user, repository: repository, issue_number: 41)
+
+      get job_path(target)
+
+      document = Nokogiri::HTML(response.body)
+      option_values = document.css("select[name='dependency_target'] option").map { |option| option["value"] }
+
+      expect(option_values).not_to include("issue:#{repository.id}:41", "job:#{previous_attempt.id}")
+    end
+
+    it "does not resolve a selected issue target back to the current job" do
+      target = Job.create!(user: user, repository: repository, issue_number: 41)
+
+      post dependencies_job_path(target), params: { dependency_target: "issue:#{repository.id}:41" }
+
+      expect(response).to redirect_to(job_path(target))
+      follow_redirect!
+      expect(response.body).to include("Dependency Job not found.")
+      expect(target.reload.dependencies).to be_empty
+    end
+
     it "lets admins override dependency gates" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
       target = Job.create!(user: user, repository: repository, issue_number: 42, issue_body: "Depends-on: #41")

@@ -506,7 +506,7 @@ class JobsController < ApplicationController
       Current.user.jobs.find_by(id: first)
     when "issue"
       repository = Current.user.repositories.find_by(id: first)
-      repository&.jobs&.where(kind: "issue", issue_number: second)&.order(created_at: :desc, id: :desc)&.first
+      repository&.jobs&.where(kind: "issue", issue_number: second)&.where.not(id: @job.id)&.order(created_at: :desc, id: :desc)&.first
     end
   end
 
@@ -517,9 +517,11 @@ class JobsController < ApplicationController
                        .order(created_at: :desc, id: :desc)
 
     seen_issues = {}
+    current_issue_key = @job.issue? && @job.issue_number.present? ? [ @job.repository_id, @job.issue_number ] : nil
     jobs.each_with_object([]) do |job, options|
       if job.issue? && job.issue_number.present?
         issue_key = [ job.repository_id, job.issue_number ]
+        next if issue_key == current_issue_key
         next if seen_issues[issue_key]
 
         seen_issues[issue_key] = true
