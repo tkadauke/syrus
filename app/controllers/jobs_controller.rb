@@ -489,10 +489,24 @@ class JobsController < ApplicationController
   end
 
   def find_dependency_target
-    if params[:dependency_job_id].present?
+    if params[:dependency_target].present?
+      find_dependency_target_from_select(params[:dependency_target])
+    elsif params[:dependency_job_id].present?
       Current.user.jobs.find_by(id: params[:dependency_job_id])
     elsif params[:dependency_issue_number].present?
       @job.repository.jobs.where(issue_number: params[:dependency_issue_number]).order(:created_at).last
+    end
+  end
+
+  def find_dependency_target_from_select(value)
+    type, first, second = value.to_s.split(":", 3)
+
+    case type
+    when "job"
+      Current.user.jobs.find_by(id: first)
+    when "issue"
+      repository = Current.user.repositories.find_by(id: first)
+      repository&.jobs&.where(kind: "issue", issue_number: second)&.order(created_at: :desc, id: :desc)&.first
     end
   end
 
@@ -509,9 +523,10 @@ class JobsController < ApplicationController
         next if seen_issues[issue_key]
 
         seen_issues[issue_key] = true
+        options << [ dependency_target_label(job), "issue:#{job.repository_id}:#{job.issue_number}" ]
+      else
+        options << [ dependency_target_label(job), "job:#{job.id}" ]
       end
-
-      options << [ dependency_target_label(job), job.id ]
     end
   end
 

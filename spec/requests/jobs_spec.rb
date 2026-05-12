@@ -1233,7 +1233,7 @@ RSpec.describe "Jobs", type: :request do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
       target = Job.create!(user: user, repository: repository, issue_number: 42)
 
-      post dependencies_job_path(target), params: { dependency_job_id: prerequisite.id }
+      post dependencies_job_path(target), params: { dependency_target: "issue:#{repository.id}:41" }
       dependency = target.reload.dependencies.first
 
       expect(dependency.depends_on_job).to eq(prerequisite)
@@ -1242,6 +1242,15 @@ RSpec.describe "Jobs", type: :request do
 
       delete dependency_job_path(target, dependency)
       expect(target.reload.dependencies).to be_empty
+    end
+
+    it "keeps accepting legacy dependency job id posts" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+      target = Job.create!(user: user, repository: repository, issue_number: 42)
+
+      post dependencies_job_path(target), params: { dependency_job_id: prerequisite.id }
+
+      expect(target.reload.dependencies.first.depends_on_job).to eq(prerequisite)
     end
 
     it "renders dependency and dependent panels" do
@@ -1286,7 +1295,7 @@ RSpec.describe "Jobs", type: :request do
       get job_path(target)
 
       document = Nokogiri::HTML(response.body)
-      select = document.at_css("select[name='dependency_job_id']")
+      select = document.at_css("select[name='dependency_target']")
       option_values = select.css("option").map { |option| option["value"] }
       option_text = select.css("option").map(&:text).join("\n")
 
@@ -1294,8 +1303,8 @@ RSpec.describe "Jobs", type: :request do
       expect(select["required"]).to be_present
       expect(document.at_css("input[type='number'][name='dependency_job_id']")).to be_nil
       expect(document.at_css("input[type='number'][name='dependency_issue_number']")).to be_nil
-      expect(option_values).to include(newer_issue_job.id.to_s, ad_hoc_job.id.to_s)
-      expect(option_values).not_to include(older_issue_job.id.to_s, target.id.to_s)
+      expect(option_values).to include("issue:#{repository.id}:41", "job:#{ad_hoc_job.id}")
+      expect(option_values).not_to include("job:#{older_issue_job.id}", "issue:#{repository.id}:42")
       expect(option_text.scan("#41").size).to eq(1)
       expect(option_text).to include("Latest attempt")
       expect(option_text).to include("One-off cleanup")

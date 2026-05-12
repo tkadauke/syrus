@@ -271,8 +271,8 @@
 
       <%= form_with url: dependencies_job_path(@job), method: :post, class: "flex flex-wrap items-end gap-2 pt-2 border-t border-gray-100" do |f| %>
         <div class="min-w-0 flex-1">
-          <%= f.label :dependency_job_id, "Dependency", class: "block text-xs uppercase text-gray-500" %>
-          <%= f.select :dependency_job_id,
+          <%= f.label :dependency_target, "Dependency", class: "block text-xs uppercase text-gray-500" %>
+          <%= f.select :dependency_target,
                 @dependency_target_options,
                 { prompt: "Select a Job or issue" },
                 required: true,
