@@ -172,6 +172,9 @@ FROM base AS worker-deps
 
 USER root
 
+ARG POETRY_VERSION=2.3.4
+ARG UV_VERSION=0.11.7
+
 # Native build deps + DB clients (no servers) + CLI tooling. Each tool
 # justified in greenacres#16 / syrus#114; ripgrep+fd in particular speed
 # up the agent dramatically when exploring code. The lib*-dev deps are
@@ -203,7 +206,9 @@ RUN chown -R 1000:1000 /opt/mise
 RUN npm install -g yarn pnpm && npm cache clean --force && \
     python3 -m venv /opt/python-tools && \
     /opt/python-tools/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/python-tools/bin/pip install --no-cache-dir poetry uv && \
+    /opt/python-tools/bin/pip install --no-cache-dir \
+      poetry==${POETRY_VERSION} \
+      uv==${UV_VERSION} && \
     ln -s /opt/python-tools/bin/poetry /usr/local/bin/poetry && \
     ln -s /opt/python-tools/bin/uv /usr/local/bin/uv
 

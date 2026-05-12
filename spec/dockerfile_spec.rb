@@ -12,9 +12,12 @@ RSpec.describe "Dockerfile" do
   it "installs Poetry as an executable worker tool" do
     stage = worker_deps_stage
 
+    expect(stage).to include("ARG POETRY_VERSION=")
+    expect(stage).to include("ARG UV_VERSION=")
     expect(stage).to include("python3 python3-pip python3-venv")
     expect(stage).to include("python3 -m venv /opt/python-tools")
-    expect(stage).to include("/opt/python-tools/bin/pip install --no-cache-dir poetry uv")
+    expect(stage).to include("poetry==${POETRY_VERSION}")
+    expect(stage).to include("uv==${UV_VERSION}")
     expect(stage).to include("ln -s /opt/python-tools/bin/poetry /usr/local/bin/poetry")
     expect(stage).to include("PATH=\"/opt/python-tools/bin:/opt/mise/shims:${PATH}\"")
   end
