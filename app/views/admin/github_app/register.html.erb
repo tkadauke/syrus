@@ -26,7 +26,8 @@
     <p class="text-xs text-gray-600 mt-1 max-w-prose">
       GitHub will create the App from the manifest, then redirect back here with temporary credentials.
     </p>
-    <%= form_with url: @github_manifest_url, method: :post, local: true, data: { turbo: false }, class: "mt-4" do %>
+    <%= form_with url: @github_manifest_url, method: :post, local: true, data: { turbo: false },
+          html: { target: "_blank", rel: "noopener", class: "mt-4" } do %>
       <%= hidden_field_tag :manifest, @manifest %>
       <%= submit_tag(@settings.github_app_registered? ? "Re-register GitHub App" : "Register GitHub App",
             class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer") %>
