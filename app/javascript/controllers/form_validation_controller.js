@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   connect() {
+    this.submittedForms = new WeakSet()
     this.boundInvalid = this.invalid.bind(this)
     this.boundSubmit = this.submit.bind(this)
     this.boundInput = this.input.bind(this)
@@ -22,6 +23,8 @@ export default class extends Controller {
   submit(event) {
     const form = event.target
     if (!(form instanceof HTMLFormElement) || form.noValidate || event.submitter?.formNoValidate) return
+
+    this.submittedForms.add(form)
     if (form.checkValidity()) return
 
     event.preventDefault()
@@ -34,6 +37,7 @@ export default class extends Controller {
   invalid(event) {
     const field = event.target
     if (!this.validatableField(field)) return
+    if (!field.form || !this.submittedForms.has(field.form)) return
 
     this.showFieldError(field)
     const form = field.form
@@ -43,6 +47,7 @@ export default class extends Controller {
   input(event) {
     const field = event.target
     if (!this.validatableField(field)) return
+    if (!field.form || !this.submittedForms.has(field.form)) return
 
     if (field.validity.valid) {
       this.clearFieldError(field)

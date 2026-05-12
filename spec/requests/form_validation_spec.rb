@@ -33,4 +33,12 @@ RSpec.describe "Form validation feedback", type: :request do
     expect(controller_source).to include("this.showSummary(form)")
     expect(controller_source).not_to include("repository_id")
   end
+
+  it "waits for a submit attempt before rendering validation errors" do
+    controller_source = Rails.root.join("app/javascript/controllers/form_validation_controller.js").read
+
+    expect(controller_source).to include("this.submittedForms = new WeakSet()")
+    expect(controller_source).to include("this.submittedForms.add(form)")
+    expect(controller_source).to include("!this.submittedForms.has(field.form)")
+  end
 end
