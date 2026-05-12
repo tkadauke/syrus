@@ -197,12 +197,17 @@ COPY --from=runtime-cache /opt/mise /opt/mise
 COPY --from=runtime-cache /usr/local/bin/mise /usr/local/bin/mise
 RUN chown -R 1000:1000 /opt/mise
 
-# Package managers that don't ship with their default runtime.
-# --break-system-packages is required on Debian's PEP-668-protected python.
+# Package managers that don't ship with their default runtime. Python
+# tools live in an isolated venv so `poetry` stays executable without
+# relying on Debian's PEP-668-protected system site-packages.
 RUN npm install -g yarn pnpm && npm cache clean --force && \
-    pip3 install --break-system-packages poetry uv
+    python3 -m venv /opt/python-tools && \
+    /opt/python-tools/bin/pip install --no-cache-dir --upgrade pip && \
+    /opt/python-tools/bin/pip install --no-cache-dir poetry uv && \
+    ln -s /opt/python-tools/bin/poetry /usr/local/bin/poetry && \
+    ln -s /opt/python-tools/bin/uv /usr/local/bin/uv
 
-ENV PATH="/opt/mise/shims:${PATH}" \
+ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
     MISE_DATA_DIR=/opt/mise
 
 # ============================================================================
