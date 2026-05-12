@@ -3,30 +3,51 @@
 require "spec_helper"
 
 RSpec.describe "website home page" do
-  subject(:content) { File.read(File.expand_path("../../website/src/pages/index.md", __dir__)) }
+  subject(:content) { File.read(File.expand_path("../../website/src/pages/index.astro", __dir__)) }
 
-  let(:normalized_content) { content.gsub(/\s+/, " ") }
+  it "uses a custom Astro page instead of the markdown stub" do
+    markdown_stub = File.expand_path("../../website/src/pages/index.md", __dir__)
 
-  it "explains Syrus as a self-hosted harness for GitHub-to-PR agent work" do
-    expect(normalized_content).to include("self-hosted automation harness for agentic coding work")
-    expect(normalized_content).to include("turns GitHub issues, PR feedback, scheduled tasks, retries, and rebases into agent runs")
-    expect(normalized_content).to include("captures the commits and opens or updates the pull request")
-    expect(normalized_content).to include("The agent writes code; Syrus handles the job control around it.")
+    expect(File).not_to exist(markdown_stub)
+    expect(content).to include("<StarlightPage")
+    expect(content).to include("template: \"splash\"")
   end
 
-  it "makes the issue-to-PR flow understandable without internal context" do
-    expect(content).to include("GitHub issue or task")
-    expect(content).to include("-> Syrus poller")
-    expect(content).to include("-> prepared workspace")
-    expect(content).to include("-> commit, push, pull request")
-    expect(normalized_content).to include("not just an agent prompt, but the machinery around the prompt")
+  it "includes the planned home page sections and links" do
+    expect(content).to include("Bis dat qui cito dat.")
+    expect(content).to include("Try it locally ->")
+    expect(content).to include("Star on GitHub")
+    expect(content).to include("What is Syrus?")
+    expect(content).to include("Why Syrus")
+    expect(content).to include("Show the work")
+    expect(content).to include("Honest status")
+    expect(content).to include("Deploy with Docker Compose")
+    expect(content).to include("Run on Kubernetes")
+    expect(content).to include("/about")
   end
 
-  it "uses real current pages for primary calls to action" do
-    expect(content).to include("[Try it locally](/docs/deployment/try-it-locally)")
-    expect(content).to include("[Read the docs](/docs/getting-started)")
-    expect(content).to include("[Docker Compose guide](/docs/deployment/docker-compose)")
-    expect(content).to include("[Kubernetes guide](/docs/deployment/kubernetes)")
-    expect(content).to include("[Star on GitHub](https://github.com/tkadauke/syrus)")
+  it "anchors the visual proof in a real Syrus pull request" do
+    expect(content).to include("https://github.com/tkadauke/syrus/pull/165")
+    expect(content).to include("PR #165")
+    expect(content).to include("competitive landscape scan")
+  end
+
+  it "embeds the issue to pull request flow diagram as svg" do
+    expect(content).to include("<svg class=\"flow\"")
+    expect(content).to include("issue")
+    expect(content).to include("poller")
+    expect(content).to include("agent")
+    expect(content).to include("PR")
+  end
+
+  it "references committed redacted screenshot assets" do
+    %w[job-page dashboard].each do |name|
+      asset = File.expand_path("../../website/public/screenshots/#{name}.svg", __dir__)
+
+      expect(File).to exist(asset)
+      expect(content).to include("/screenshots/#{name}.svg")
+      expect(File.read(asset)).to include("width=\"1440\" height=\"900\"")
+      expect(File.read(asset)).to include("REDACTED")
+    end
   end
 end

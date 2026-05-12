@@ -19,6 +19,8 @@
 !.bundle/config
 vendor/bundle/
 node_modules/
+/website/.astro/
+/website/dist/
 .byebug_history
 
 # Go CLI build output
