@@ -51,6 +51,7 @@ RSpec.describe Steps::ApplySuggestions do
           "path" => "lib/greet.rb",
           "start_line" => 2,
           "line" => 2,
+          "diff_hunk" => "@@ -1,3 +1,3 @@\n def greet(name)\n+  \"Hello, \#{name}!\"\n end\n",
           "created_at" => Time.current.iso8601
         }
       ]
@@ -125,6 +126,31 @@ RSpec.describe Steps::ApplySuggestions do
         expect(workflow.reload.artifact("suggestion_conflicts").first["reason"]).to include("overlaps")
         expect(workflow.steps.find_by!(kind: "respond")).to be_queued
         expect(workflow.artifact("applied_suggestions")).to be_nil
+      end
+    end
+
+    context "when the reviewed line no longer matches the diff hunk" do
+      let(:comments) do
+        [
+          {
+            "id" => 203,
+            "author" => "reviewer",
+            "body" => "```suggestion\n  \"Ave, \#{name}!\"\n```",
+            "path" => "lib/greet.rb",
+            "start_line" => 2,
+            "line" => 2,
+            "diff_hunk" => "@@ -1,3 +1,3 @@\n def greet(name)\n+  \"Good morning, \#{name}!\"\n end\n",
+            "created_at" => Time.current.iso8601
+          }
+        ]
+      end
+
+      it "records a conflict and leaves the file unchanged" do
+        handler.call
+
+        expect(File.read(@ws_path.join("lib/greet.rb"))).to eq("def greet(name)\n  \"Hello, \#{name}!\"\nend\n")
+        expect(workflow.reload.artifact("suggestion_conflicts").first["reason"]).to include("no longer matches")
+        expect(workflow.steps.find_by!(kind: "respond")).to be_queued
       end
     end
 

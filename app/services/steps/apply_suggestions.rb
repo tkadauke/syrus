@@ -48,6 +48,7 @@ module Steps
           path: comment["path"],
           start_line: (comment["start_line"].presence || comment["line"]).to_i,
           line: comment["line"].to_i,
+          diff_hunk: comment["diff_hunk"],
           replacement: content
         }
       end
@@ -72,14 +73,58 @@ module Steps
       suggestions.group_by { |suggestion| suggestion[:path] }.each do |path, path_suggestions|
         file = workspace.path.join(path)
         next unless file.file?
-        line_count = File.readlines(file).size
+        lines = File.readlines(file, chomp: true)
+        line_count = lines.size
         path_suggestions.each do |suggestion|
-          next if suggestion[:line] <= line_count
-          conflicts << conflict_for(suggestion, "comment line #{suggestion[:line]} is past end of file (#{line_count} lines)")
+          if suggestion[:line] > line_count
+            conflicts << conflict_for(suggestion, "comment line #{suggestion[:line]} is past end of file (#{line_count} lines)")
+            next
+          end
+
+          expected = expected_lines_from_diff_hunk(suggestion)
+          next unless expected
+
+          actual = lines[(suggestion[:start_line] - 1)..(suggestion[:line] - 1)]
+          if actual != expected
+            conflicts << conflict_for(suggestion, "comment range no longer matches the reviewed diff")
+          end
         end
       end
 
       conflicts
+    end
+
+    def expected_lines_from_diff_hunk(suggestion)
+      diff_hunk = suggestion[:diff_hunk].to_s
+      return nil if diff_hunk.blank?
+
+      current_line = nil
+      expected = []
+
+      diff_hunk.each_line do |line|
+        if (match = line.match(/\A@@ -\d+(?:,\d+)? \+(?<start>\d+)(?:,\d+)? @@/))
+          current_line = match[:start].to_i
+          next
+        end
+        next unless current_line
+        next if line.start_with?("\\")
+
+        marker = line[0]
+        body = line[1..]&.delete_suffix("\n")
+        case marker
+        when " ", "+"
+          if current_line.between?(suggestion[:start_line], suggestion[:line])
+            expected << body
+          end
+          current_line += 1
+        when "-"
+          next
+        end
+      end
+
+      return nil if expected.empty?
+
+      expected
     end
 
     def conflict_for(suggestion, reason)
