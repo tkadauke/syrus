@@ -2,6 +2,7 @@ class JobsController < ApplicationController
   before_action :load_job, except: %i[ new create ]
 
   def show
+    @dependency_target_options = dependency_target_options
   end
 
   def new
@@ -492,6 +493,36 @@ class JobsController < ApplicationController
       Current.user.jobs.find_by(id: params[:dependency_job_id])
     elsif params[:dependency_issue_number].present?
       @job.repository.jobs.where(issue_number: params[:dependency_issue_number]).order(:created_at).last
+    end
+  end
+
+  def dependency_target_options
+    jobs = Current.user.jobs
+                       .includes(:repository)
+                       .where.not(id: @job.id)
+                       .order(updated_at: :desc, id: :desc)
+
+    seen_issues = {}
+    jobs.each_with_object([]) do |job, options|
+      if job.issue? && job.issue_number.present?
+        issue_key = [ job.repository_id, job.issue_number ]
+        next if seen_issues[issue_key]
+
+        seen_issues[issue_key] = true
+      end
+
+      options << [ dependency_target_label(job), job.id ]
+    end
+  end
+
+  def dependency_target_label(job)
+    if job.issue? && job.issue_number.present?
+      title = job.issue_title.to_s.strip
+      title = " — #{title}" if title.present?
+      "#{job.repository.slug} ##{job.issue_number}#{title} (Job ##{job.id})"
+    else
+      title = job.issue_title.to_s.strip.presence || job.kind.titleize
+      "#{job.repository.slug} Job ##{job.id} — #{title}"
     end
   end
 

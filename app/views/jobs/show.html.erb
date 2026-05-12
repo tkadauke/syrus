@@ -270,13 +270,13 @@
       <% end %>
 
       <%= form_with url: dependencies_job_path(@job), method: :post, class: "flex flex-wrap items-end gap-2 pt-2 border-t border-gray-100" do |f| %>
-        <div>
-          <%= f.label :dependency_job_id, "Job ID", class: "block text-xs uppercase text-gray-500" %>
-          <%= f.number_field :dependency_job_id, min: 1, class: "w-28 border border-gray-300 rounded px-2 py-1" %>
-        </div>
-        <div>
-          <%= f.label :dependency_issue_number, "Issue #", class: "block text-xs uppercase text-gray-500" %>
-          <%= f.number_field :dependency_issue_number, min: 1, class: "w-28 border border-gray-300 rounded px-2 py-1" %>
+        <div class="min-w-0 flex-1">
+          <%= f.label :dependency_job_id, "Dependency", class: "block text-xs uppercase text-gray-500" %>
+          <%= f.select :dependency_job_id,
+                @dependency_target_options,
+                { prompt: "Select a Job or issue" },
+                required: true,
+                class: "w-full min-w-64 border border-gray-300 rounded px-2 py-1" %>
         </div>
         <%= f.submit "Add", class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer" %>
       <% end %>

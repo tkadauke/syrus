@@ -1233,7 +1233,7 @@ RSpec.describe "Jobs", type: :request do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
       target = Job.create!(user: user, repository: repository, issue_number: 42)
 
-      post dependencies_job_path(target), params: { dependency_issue_number: 41 }
+      post dependencies_job_path(target), params: { dependency_job_id: prerequisite.id }
       dependency = target.reload.dependencies.first
 
       expect(dependency.depends_on_job).to eq(prerequisite)
@@ -1253,10 +1253,51 @@ RSpec.describe "Jobs", type: :request do
 
       expect(response.body).to include("Dependencies")
       expect(response.body).to include("waiting on 1 dependency")
-      expect(response.body).to include("Issue #")
+      expect(response.body).to include("Dependency")
 
       get job_path(prerequisite)
       expect(response.body).to include("1 other Job depend on this one")
+    end
+
+    it "renders dependency targets as a deduplicated dropdown" do
+      older_issue_job = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 41,
+        issue_title: "Old attempt"
+      )
+      newer_issue_job = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 41,
+        issue_title: "Latest attempt"
+      )
+      ad_hoc_job = Job.create!(
+        user: user,
+        repository: repository,
+        kind: "adhoc",
+        issue_number: nil,
+        issue_title: "One-off cleanup",
+        issue_body: "Tidy the thing."
+      )
+      target = Job.create!(user: user, repository: repository, issue_number: 42)
+
+      get job_path(target)
+
+      document = Nokogiri::HTML(response.body)
+      select = document.at_css("select[name='dependency_job_id']")
+      option_values = select.css("option").map { |option| option["value"] }
+      option_text = select.css("option").map(&:text).join("\n")
+
+      expect(select).to be_present
+      expect(select["required"]).to be_present
+      expect(document.at_css("input[type='number'][name='dependency_job_id']")).to be_nil
+      expect(document.at_css("input[type='number'][name='dependency_issue_number']")).to be_nil
+      expect(option_values).to include(newer_issue_job.id.to_s, ad_hoc_job.id.to_s)
+      expect(option_values).not_to include(older_issue_job.id.to_s, target.id.to_s)
+      expect(option_text.scan("#41").size).to eq(1)
+      expect(option_text).to include("Latest attempt")
+      expect(option_text).to include("One-off cleanup")
     end
 
     it "lets admins override dependency gates" do
