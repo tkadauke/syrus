@@ -9,6 +9,7 @@ RSpec.describe Steps::Respond do
   let(:step) { workflow.steps.find_by(kind: "respond") }
   let(:run) { step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider) }
   let(:handler) { described_class.new(run) }
+  let(:issue) { Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.") }
   let(:artifacts) do
     {
       "pr_comments" => [
@@ -37,8 +38,8 @@ RSpec.describe Steps::Respond do
     allow(handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(handler).to receive(:head_sha).and_return("abc123")
 
-    issue = Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.")
-    allow_any_instance_of(GithubClient).to receive(:fetch_issue).and_return(issue)
+    client = instance_double(GithubClient, fetch_issue: issue)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
   end
 
   it "uses the shared agentic change path to commit and capture the diff" do
@@ -98,6 +99,7 @@ RSpec.describe Steps::Respond do
     allow(new_handler).to receive(:assert_branch_history_intact!)
     allow(new_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(new_handler).to receive(:head_sha).and_return("abc456")
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(instance_double(GithubClient, fetch_issue: issue))
 
     new_handler.call
 

@@ -7,7 +7,7 @@ module Steps
       applied = Array(workflow.artifact("applied_suggestions"))
       return log("reply_suggestions: no auto-applied suggestions to acknowledge") if applied.empty?
 
-      client = GithubClient.for(job.user)
+      client = GithubClient.for(repository: repository, user: job.user)
       applied.each do |suggestion|
         comment_id = suggestion["comment_id"]
         next if comment_id.blank?
