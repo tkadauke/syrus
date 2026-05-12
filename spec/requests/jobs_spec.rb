@@ -1281,6 +1281,7 @@ RSpec.describe "Jobs", type: :request do
         issue_body: "Tidy the thing."
       )
       target = Job.create!(user: user, repository: repository, issue_number: 42)
+      older_issue_job.touch
 
       get job_path(target)
 

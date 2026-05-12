@@ -500,7 +500,7 @@ class JobsController < ApplicationController
     jobs = Current.user.jobs
                        .includes(:repository)
                        .where.not(id: @job.id)
-                       .order(updated_at: :desc, id: :desc)
+                       .order(created_at: :desc, id: :desc)
 
     seen_issues = {}
     jobs.each_with_object([]) do |job, options|
