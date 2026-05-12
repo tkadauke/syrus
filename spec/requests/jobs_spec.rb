@@ -1214,6 +1214,67 @@ RSpec.describe "Jobs", type: :request do
       expect(run.prompt).to include("Do something useful.")
     end
 
+    it "parses dependencies from the ad hoc prompt and waits to dispatch" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+
+      expect {
+        post jobs_path, params: {
+          repository_id: repository.id,
+          prompt: "Do something useful.\nDepends-on: #41"
+        }
+      }.to change(Job, :count).by(1)
+
+      new_job = Job.order(:created_at).last
+      expect(new_job.dependencies.first.depends_on_job).to eq(prerequisite)
+      expect(new_job.runs).to be_empty
+    end
+
+    it "adds and removes manual dependencies from the job page" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+      target = Job.create!(user: user, repository: repository, issue_number: 42)
+
+      post dependencies_job_path(target), params: { dependency_issue_number: 41 }
+      dependency = target.reload.dependencies.first
+
+      expect(dependency.depends_on_job).to eq(prerequisite)
+      expect(dependency.source).to eq("manual")
+      expect(response).to redirect_to(job_path(target))
+
+      delete dependency_job_path(target, dependency)
+      expect(target.reload.dependencies).to be_empty
+    end
+
+    it "renders dependency and dependent panels" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+      target = Job.create!(user: user, repository: repository, issue_number: 42)
+      JobDependency.create!(job: target, depends_on_job: prerequisite, source: "manual")
+
+      get job_path(target)
+
+      expect(response.body).to include("Dependencies")
+      expect(response.body).to include("waiting on 1 dependency")
+      expect(response.body).to include("Issue #")
+
+      get job_path(prerequisite)
+      expect(response.body).to include("1 other Job depend on this one")
+    end
+
+    it "lets admins override dependency gates" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+      target = Job.create!(user: user, repository: repository, issue_number: 42, issue_body: "Depends-on: #41")
+      user.update!(admin: true)
+
+      expect(target.runs).to be_empty
+
+      expect {
+        post override_dependencies_job_path(target)
+      }.to have_enqueued_job(RunJob)
+
+      expect(target.reload.dependencies_overridden_by_user).to eq(user)
+      expect(target.runs.count).to eq(1)
+      expect(prerequisite).to be_present
+    end
+
     it "re-renders the form with an error when the prompt is blank" do
       expect {
         post jobs_path, params: { repository_id: repository.id, prompt: "  " }

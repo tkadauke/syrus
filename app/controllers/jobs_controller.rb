@@ -405,6 +405,51 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: "Diagnostic queued — snapshot will appear shortly."
   end
 
+  def add_dependency
+    target = find_dependency_target
+    unless target
+      redirect_to job_path(@job), alert: "Dependency Job not found."
+      return
+    end
+
+    dependency = @job.dependencies.find_or_initialize_by(depends_on_job: target)
+    dependency.source ||= "manual"
+    dependency.created_by_user ||= Current.user
+
+    if dependency.save
+      redirect_to job_path(@job), notice: "Dependency added."
+    else
+      redirect_to job_path(@job), alert: dependency.errors.full_messages.to_sentence
+    end
+  end
+
+  def remove_dependency
+    dependency = @job.dependencies.find_by(id: params[:dependency_id])
+    unless dependency
+      redirect_to job_path(@job), alert: "Dependency not found."
+      return
+    end
+
+    unless dependency.manual?
+      redirect_to job_path(@job), alert: "Parsed dependencies are kept for audit."
+      return
+    end
+
+    dependency.destroy!
+    @job.start_pending_workflows_if_dependencies_satisfied!
+    redirect_to job_path(@job), notice: "Dependency removed."
+  end
+
+  def override_dependencies
+    unless Current.user.admin?
+      redirect_to job_path(@job), alert: "Only admins can override dependencies."
+      return
+    end
+
+    @job.force_run_dependencies!(user: Current.user)
+    redirect_to job_path(@job), notice: "Dependency gate overridden."
+  end
+
   private
 
   def create_more?
@@ -433,8 +478,21 @@ class JobsController < ApplicationController
 
   def load_job
     @job = Current.user.jobs
-                  .includes(:repository, runs: [ :job_logs, :run_health_snapshots ])
+                  .includes(
+                    :repository,
+                    dependencies: [ :created_by_user, depends_on_job: :repository ],
+                    dependent_links: [ job: :repository ],
+                    runs: [ :job_logs, :run_health_snapshots ]
+                  )
                   .find(params[:id])
+  end
+
+  def find_dependency_target
+    if params[:dependency_job_id].present?
+      Current.user.jobs.find_by(id: params[:dependency_job_id])
+    elsif params[:dependency_issue_number].present?
+      @job.repository.jobs.where(issue_number: params[:dependency_issue_number]).order(:created_at).last
+    end
   end
 
   # Converts a flat list of {path:, size:} items into a nested hash

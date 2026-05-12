@@ -351,6 +351,60 @@ RSpec.describe Job do
     end
   end
 
+  describe "dependencies" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+
+    it "seeds parsed dependencies from issue_body when a matching Job exists" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
+
+      job = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        issue_body: "Depends-on: #42"
+      )
+
+      expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
+      expect(job.dependencies.first.source).to eq("parsed")
+    end
+
+    it "resolves cross-repo parsed dependencies" do
+      other_repo = Factories.repository(user: user, owner: "tkadauke", name: "raytracer")
+      prerequisite = Job.create!(user: user, repository: other_repo, issue_number: 102)
+
+      job = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        issue_body: "Depends-on: tkadauke/raytracer#102"
+      )
+
+      expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
+    end
+
+    it "skips parsed references that do not have a Syrus Job" do
+      job = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        issue_body: "Depends-on: #999"
+      )
+
+      expect(job.dependencies).to be_empty
+    end
+
+    it "is unsatisfied until every dependency has a successful closure reason" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
+      job = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #42")
+
+      expect(job).not_to be_dependencies_satisfied
+
+      prerequisite.close_with_reason!("pr_merged")
+      expect(job.reload).to be_dependencies_satisfied
+    end
+  end
+
   describe "preempted creation (state: closed at create time)" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }

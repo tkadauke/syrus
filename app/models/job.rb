@@ -11,11 +11,12 @@ class Job < ApplicationRecord
   # low (20). The gap of 10 between levels leaves room for future additions
   # without renumbering existing entries.
   PRIORITY_TO_SQ = { "high" => 0, "medium" => 10, "low" => 20 }.freeze
-  attr_accessor :prepare_skip_reason_override
+  attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings
 
   belongs_to :user
   belongs_to :repository
   belongs_to :scheduled_task, optional: true
+  belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
   # direct has_many :runs is a convenience accessor, NOT a cascade
@@ -24,6 +25,17 @@ class Job < ApplicationRecord
   # in views and queries.
   has_many :runs, -> { order(:created_at) }
   has_many :job_logs, through: :runs
+  has_many :dependencies,
+           class_name: "JobDependency",
+           dependent: :destroy,
+           inverse_of: :job
+  has_many :depends_on_jobs, through: :dependencies, source: :depends_on_job
+  has_many :dependent_links,
+           class_name: "JobDependency",
+           foreign_key: :depends_on_job_id,
+           dependent: :destroy,
+           inverse_of: :depends_on_job
+  has_many :dependents, through: :dependent_links, source: :job
 
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
@@ -112,6 +124,7 @@ class Job < ApplicationRecord
   # "preempted" path where Syrus discovered an external PR already
   # targeting this issue and recorded the Job for the operator's
   # awareness without scheduling any agent work.
+  after_create :seed_parsed_dependencies
   after_create :create_initial_run, if: -> { open? && issue? }
 
   # Trigger a Turbo morph-refresh on the Job's show page on any change.
@@ -225,6 +238,63 @@ class Job < ApplicationRecord
     runs.active.exists?
   end
 
+  SUCCESSFUL_CLOSURE_REASONS = %w[
+    pr_merged
+    external_pr_merged
+    pr_approved
+    no_changes
+  ].freeze
+
+  def dependencies_satisfied?
+    return true if dependencies_overridden_at.present?
+
+    dependencies.includes(:depends_on_job).all? do |dependency|
+      dependency.depends_on_job.dependency_succeeded?
+    end
+  end
+
+  def unsatisfied_dependencies
+    dependencies.includes(depends_on_job: :repository).reject do |dependency|
+      dependency.depends_on_job.dependency_succeeded?
+    end
+  end
+
+  def dependency_succeeded?
+    closed? && SUCCESSFUL_CLOSURE_REASONS.include?(closure_reason)
+  end
+
+  def force_run_dependencies!(user:)
+    update!(
+      dependencies_overridden_at: Time.current,
+      dependencies_overridden_by_user: user
+    )
+    log_dependency_override!(user)
+    start_pending_workflows_if_dependencies_satisfied!
+  end
+
+  def start_pending_workflows_if_dependencies_satisfied!
+    return false unless dependencies_satisfied?
+
+    workflows.where(state: "queued").find_each do |workflow|
+      StepDispatcher.start_workflow(workflow)
+    end
+    true
+  end
+
+  def log_pending_dependency_warnings!
+    return if pending_dependency_warnings.blank?
+
+    run = current_run
+    return unless run
+
+    next_sequence = (run.job_logs.maximum(:sequence) || -1) + 1
+    pending_dependency_warnings.each do |warning|
+      run.job_logs.create!(chunk: warning, sequence: next_sequence, kind: "system")
+      next_sequence += 1
+    end
+    self.pending_dependency_warnings = []
+  end
+
   def sync_skip_prepare_from_source!
     return skip_prepare? unless issue? && issue_number.present? && (repository.installation&.active? || user.github_token.present?)
 
@@ -276,6 +346,37 @@ class Job < ApplicationRecord
   def create_initial_run
     workflow = Workflows::Initial.instantiate(job: self)
     StepDispatcher.start_workflow(workflow)
+  end
+
+  def seed_parsed_dependencies
+    text = issue_body.to_s
+    return if text.blank?
+
+    JobDependencyParser.parse(text: text, default_repository: repository).each do |reference|
+      referenced_repository = user.repositories.find_by(owner: reference.owner, name: reference.repo)
+      depends_on_job = referenced_repository&.jobs&.where(issue_number: reference.number)&.order(:created_at)&.last
+      unless depends_on_job
+        message = "Depends-on: #{reference.owner}/#{reference.repo}##{reference.number} — no Syrus Job exists for that issue; dependency not enforced"
+        self.pending_dependency_warnings = Array(pending_dependency_warnings) + [ message ]
+        Rails.logger.info("[JobDependency] job ##{id}: #{message}")
+        next
+      end
+
+      dependencies.find_or_create_by!(depends_on_job: depends_on_job) do |dependency|
+        dependency.source = "parsed"
+      end
+    end
+  end
+
+  def log_dependency_override!(user)
+    run = current_run
+    return unless run
+
+    run.job_logs.create!(
+      chunk: "dependencies: #{user.email_address} overrode unsatisfied dependencies",
+      sequence: (run.job_logs.maximum(:sequence) || -1) + 1,
+      kind: "system"
+    )
   end
 
   def default_agent_provider

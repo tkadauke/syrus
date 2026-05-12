@@ -40,6 +40,25 @@ RSpec.describe StepDispatcher do
       expect(run.parent_session_id).to eq("S-prior")
       expect(run.prompt).to eq("carry-over")
     end
+
+    it "does not create a Run while dependencies are unsatisfied" do
+      prerequisite = Factories.job(repository: job.repository, issue_number: 99)
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { Run.count }
+    end
+
+    it "starts once dependencies are satisfied" do
+      prerequisite = Factories.job(repository: job.repository, issue_number: 99)
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+      prerequisite.close_with_reason!("pr_merged")
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.to change { s1.runs.count }.by(1)
+    end
   end
 
   describe ".advance_from" do

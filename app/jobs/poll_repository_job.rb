@@ -22,6 +22,7 @@ class PollRepositoryJob < ApplicationJob
       issues.each do |issue|
         ingest(issue, repository)
       end
+      repository.jobs.open_threads.find_each(&:start_pending_workflows_if_dependencies_satisfied!)
 
       repository.update_columns(last_poll_status: "ok", last_poll_error: nil)
     rescue => e
@@ -83,6 +84,8 @@ class PollRepositoryJob < ApplicationJob
         user: repository.user,
         repository: repository,
         issue_number: issue.number,
+        issue_title: issue_title(issue),
+        issue_body: issue_body(issue),
         state: "closed",
         closure_reason: "preempted",
         external_pr_number: linked[:number],
@@ -95,6 +98,8 @@ class PollRepositoryJob < ApplicationJob
       user: repository.user,
       repository: repository,
       issue_number: issue.number,
+      issue_title: issue_title(issue),
+      issue_body: issue_body(issue),
       skip_prepare: skip_prepare_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue)
     )
@@ -119,5 +124,13 @@ class PollRepositoryJob < ApplicationJob
 
   def prepare_skip_reason(issue)
     "issue_label" if label_names(issue).include?(Job::PREPARE_SKIP_LABEL)
+  end
+
+  def issue_title(issue)
+    issue.respond_to?(:title) ? issue.title : nil
+  end
+
+  def issue_body(issue)
+    issue.respond_to?(:body) ? issue.body : nil
   end
 end

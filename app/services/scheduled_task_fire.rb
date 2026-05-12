@@ -36,6 +36,8 @@ class ScheduledTaskFire
       repository: @task.repository,
       kind: "cron",
       scheduled_task: @task,
+      issue_title: "Scheduled task: #{@task.name}",
+      issue_body: rendered_prompt,
       issue_number: nil
     )
     # Job#after_create_commit only auto-instantiates the Initial

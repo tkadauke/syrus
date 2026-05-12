@@ -106,6 +106,9 @@ Rails.application.routes.draw do
       post :push_commits   # push uncommitted/committed local changes from a failed Workflow's workspace
       get  :source         # browse the repo source at any branch commit or merge base
       post :diagnose       # capture a RunHealthSnapshot for an active Run
+      post :dependencies, action: :add_dependency
+      delete "dependencies/:dependency_id", action: :remove_dependency, as: :dependency
+      post :override_dependencies
     end
   end
 

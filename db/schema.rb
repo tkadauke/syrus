@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_11_140500) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_12_000100) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -90,6 +90,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140500) do
     t.index ["token"], name: "index_invitations_on_token", unique: true
   end
 
+  create_table "job_dependencies", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "created_by_user_id"
+    t.integer "depends_on_job_id", null: false
+    t.integer "job_id", null: false
+    t.string "source", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_user_id"], name: "index_job_dependencies_on_created_by_user_id"
+    t.index ["depends_on_job_id"], name: "index_job_dependencies_on_depends_on_job_id"
+    t.index ["job_id", "depends_on_job_id"], name: "index_job_dependencies_on_job_id_and_depends_on_job_id", unique: true
+    t.index ["job_id"], name: "index_job_dependencies_on_job_id"
+  end
+
   create_table "job_logs", force: :cascade do |t|
     t.text "chunk", limit: 16777215, null: false
     t.datetime "created_at", null: false
@@ -107,6 +120,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140500) do
     t.string "closure_reason"
     t.datetime "created_at", null: false
     t.string "credential_mode", default: "pat", null: false
+    t.datetime "dependencies_overridden_at"
+    t.integer "dependencies_overridden_by_user_id"
     t.integer "external_pr_number"
     t.integer "failure_count", default: 0, null: false
     t.datetime "finished_at"
@@ -129,6 +144,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140500) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["credential_mode"], name: "index_jobs_on_credential_mode"
+    t.index ["dependencies_overridden_by_user_id"], name: "index_jobs_on_dependencies_overridden_by_user_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
@@ -341,10 +357,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140500) do
   add_foreign_key "cron_templates", "users"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
+  add_foreign_key "job_dependencies", "jobs"
+  add_foreign_key "job_dependencies", "jobs", column: "depends_on_job_id"
+  add_foreign_key "job_dependencies", "users", column: "created_by_user_id"
   add_foreign_key "job_logs", "runs"
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"
+  add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "run_diagnostics", "runs"

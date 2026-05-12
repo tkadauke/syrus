@@ -20,6 +20,7 @@ class AutoMergeGate
     return blocked("auto-merge is globally disabled") if AppSetting.auto_merge_paused?
     return blocked("repository has not enabled auto-merge") unless @repository.auto_merge_enabled?
     return blocked("job has no Syrus PR") unless @job.pr_number.present?
+    return blocked("job has unsatisfied dependencies") unless @job.dependencies_satisfied?
 
     pr = @pr || @client.pull_request(@repository.slug, @job.pr_number, bypass_cache: @bypass_cache)
     return Result.new(merge_ready: false, closed: true, approved: false, reason: "PR is closed", pr: pr) if pr.state == "closed"

@@ -22,9 +22,12 @@ class StepDispatcher
     first = workflow.first_step
     return unless first
     return if first.runs.any?
+    return unless workflow.job.dependencies_satisfied?
+
     run = create_run_and_enqueue(first, workflow,
                                  parent_session_id: parent_session_id,
                                  prompt: prompt)
+    workflow.job.log_pending_dependency_warnings!
     log_prepare_skip(run, workflow)
     run
   end

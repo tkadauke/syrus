@@ -35,6 +35,16 @@ RSpec.describe ScheduledTaskFire do
       expect(run.prompt).to include("Write missing tests")
     end
 
+    it "parses dependencies from the rendered prompt at fire time" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
+      task.update!(prompt: "Write missing tests.\nDepends-on: #42")
+
+      result = described_class.new(task).call
+
+      expect(result.job.dependencies.first.depends_on_job).to eq(prerequisite)
+      expect(result.job.runs).to be_empty
+    end
+
     it "stamps last_fired_at on the task" do
       freeze_time do
         described_class.new(task).call

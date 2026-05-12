@@ -1,4 +1,5 @@
 require "rails_helper"
+require "ostruct"
 
 RSpec.describe PollRepositoryJob do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
@@ -6,11 +7,13 @@ RSpec.describe PollRepositoryJob do
     Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus", polling_enabled: true)
   end
 
-  def issue(number: 42, labels: [ "syrus" ])
-    Struct.new(:number, :state, :labels, :pull_request, keyword_init: true).new(
+  def issue(number: 42, labels: [ "syrus" ], body: "")
+    OpenStruct.new(
       number: number,
       state: "open",
       pull_request: nil,
+      title: "Issue #{number}",
+      body: body,
       labels: labels.map { |name| Struct.new(:name, keyword_init: true).new(name: name) }
     )
   end
@@ -70,6 +73,50 @@ RSpec.describe PollRepositoryJob do
         "system",
         "prepare skipped via '#{Workflows::SKIP_PREPARE_LABEL}' label"
       ])
+    end
+
+    it "parses Depends-on from the ingested issue body and waits to dispatch" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+      prerequisite.close_with_reason!("cancelled")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42, body: "Depends-on: #41") ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to have_enqueued_job(RunJob)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
+      expect(job.runs).to be_empty
+    end
+
+    it "starts a dependency-waiting workflow on a later poll once the dependency succeeds" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42, body: "Depends-on: #41") ])
+
+      described_class.perform_now(repository.id)
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.runs).to be_empty
+
+      prerequisite.close_with_reason!("pr_merged")
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to have_enqueued_job(RunJob)
+      expect(job.reload.runs.count).to eq(1)
+    end
+
+    it "logs dangling dependency references on the first Run and keeps going" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42, body: "Depends-on: #999") ])
+
+      described_class.perform_now(repository.id)
+
+      run = Job.find_by!(repository: repository, issue_number: 42).runs.first
+      expect(run.job_logs.pluck(:chunk)).to include(
+        "Depends-on: acme/widgets#999 — no Syrus Job exists for that issue; dependency not enforced"
+      )
     end
   end
 

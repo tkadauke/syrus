@@ -94,4 +94,15 @@ RSpec.describe AutoMergeGate do
     expect(result).not_to be_merge_ready
     expect(result.reason).to include("repository")
   end
+
+  it "blocks until dependencies are satisfied" do
+    prerequisite = Factories.job(user: user, repository: repository, issue_number: 99)
+    JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+
+    result = described_class.new(job: job, client: client).evaluate
+
+    expect(result).not_to be_merge_ready
+    expect(result.reason).to include("dependencies")
+  end
 end
