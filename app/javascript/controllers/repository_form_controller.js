@@ -5,6 +5,7 @@ export default class extends Controller {
     "ownerText", "ownerSelect", "ownerManualLink",
     "nameText", "nameSelect", "nameManualLink",
     "branchText", "branchSelect",
+    "githubRepositoryId", "githubOwnerId",
     "repoError"
   ]
 
@@ -102,18 +103,26 @@ export default class extends Controller {
     const text   = this.nameTextTarget
     const select = this.nameSelectTarget
     const current = text.value.trim()
+    this.repoMetadata = {}
 
     select.innerHTML =
       '<option value="">Select repository…</option>' +
-      repos.map(r =>
-        `<option value="${this.esc(r)}"${r === current ? " selected" : ""}>${this.esc(r)}</option>`
+      repos.map(repo => {
+        const name = typeof repo === "string" ? repo : repo.name
+        this.repoMetadata[name] = {
+          githubRepositoryId: repo.github_repository_id,
+          githubOwnerId: repo.github_owner_id
+        }
+        return `<option value="${this.esc(name)}"${name === current ? " selected" : ""}>${this.esc(name)}</option>`
+      }
       ).join("")
 
     this.showSelect(text, select)
     this.nameManualLinkTarget.classList.remove("hidden")
 
     // Edit form: name already set — fetch branches
-    if (current && repos.includes(current)) {
+    if (current && this.repoMetadata[current]) {
+      this.setGithubIds(current)
       this.doFetchBranches(owner, current)
     }
   }
@@ -121,6 +130,7 @@ export default class extends Controller {
   nameSelected() {
     const name = this.nameSelectTarget.value
     this.nameTextTarget.value = name
+    this.setGithubIds(name)
     this.resetBranchField()
     this.hideRepoError()
     if (!name) return
@@ -132,10 +142,12 @@ export default class extends Controller {
     event.preventDefault()
     this.showText(this.nameTextTarget, this.nameSelectTarget)
     this.nameManualLinkTarget.classList.add("hidden")
+    this.clearGithubIds()
     this.resetBranchField()
   }
 
   nameTextChanged() {
+    this.clearGithubIds()
     this.resetBranchField()
     this.scheduleBranchFetch()
   }
@@ -196,6 +208,7 @@ export default class extends Controller {
     text.disabled = false
     text.classList.remove("hidden")
     if (this.hasNameManualLinkTarget) this.nameManualLinkTarget.classList.add("hidden")
+    this.clearGithubIds()
   }
 
   resetBranchField() {
@@ -218,6 +231,17 @@ export default class extends Controller {
   showRepoError(message) {
     this.repoErrorTarget.textContent = message
     this.repoErrorTarget.classList.remove("hidden")
+  }
+
+  setGithubIds(name) {
+    const metadata = this.repoMetadata?.[name]
+    this.githubRepositoryIdTarget.value = metadata?.githubRepositoryId || ""
+    this.githubOwnerIdTarget.value = metadata?.githubOwnerId || ""
+  }
+
+  clearGithubIds() {
+    this.githubRepositoryIdTarget.value = ""
+    this.githubOwnerIdTarget.value = ""
   }
 
   // ── Utilities ─────────────────────────────────────────────────────────────

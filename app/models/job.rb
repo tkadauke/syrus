@@ -2,6 +2,7 @@ class Job < ApplicationRecord
   include AASM
 
   KINDS = %w[ issue cron adhoc ].freeze
+  CREDENTIAL_MODES = %w[ app pat ].freeze
   PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
 
   PRIORITIES = %w[ high medium low ].freeze
@@ -25,6 +26,7 @@ class Job < ApplicationRecord
   has_many :job_logs, through: :runs
 
   validates :kind, presence: true, inclusion: { in: KINDS }
+  validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
   validates :issue_number,
@@ -35,6 +37,7 @@ class Job < ApplicationRecord
   validate  :issue_number_blank_for_cron, if: :cron?
   validate  :issue_number_blank_for_adhoc, if: :adhoc?
   before_validation :default_agent_provider, on: :create
+  before_validation :default_credential_mode, on: :create
 
   scope :open_threads, -> { where(state: "open") }
   scope :closed_threads, -> { where(state: "closed") }
@@ -277,6 +280,10 @@ class Job < ApplicationRecord
 
   def default_agent_provider
     self.agent_provider ||= repository&.effective_agent_provider || user&.agent_provider
+  end
+
+  def default_credential_mode
+    self.credential_mode = repository&.credential_mode || "pat"
   end
 
   def issue_number_blank_for_cron

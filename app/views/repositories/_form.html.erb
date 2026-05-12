@@ -1,4 +1,7 @@
 <%= form_with model: repository, data: { controller: "repository-form" }, class: "space-y-5" do |form| %>
+  <%= form.hidden_field :github_repository_id, data: { repository_form_target: "githubRepositoryId" } %>
+  <%= form.hidden_field :github_owner_id, data: { repository_form_target: "githubOwnerId" } %>
+
   <% if repository.errors.any? %>
     <ul class="text-sm text-red-600 list-disc pl-5">
       <% repository.errors.full_messages.each do |msg| %>
@@ -65,6 +68,11 @@
           { include_blank: "Use my default (#{Current.user.agent_provider.titleize})" },
           class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full bg-white" %>
     <p class="text-xs text-gray-500 mt-1">New jobs for this repository use this agent unless a job already has its own agent.</p>
+  </div>
+
+  <div>
+    <h2 class="text-sm font-semibold text-gray-900 mb-2">Credential mode tradeoffs</h2>
+    <%= render "shared/credential_mode_comparison" %>
   </div>
 
   <div class="flex items-center gap-2">

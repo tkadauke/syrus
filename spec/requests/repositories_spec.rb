@@ -26,12 +26,15 @@ RSpec.describe "Repositories", type: :request do
       expect {
         post repositories_path, params: { repository: {
           owner: "acme", name: "widgets", default_branch: "main",
-          trigger_label: "syrus", polling_enabled: "1", prepare_enabled: "0", agent_provider: "codex"
+          trigger_label: "syrus", polling_enabled: "1", prepare_enabled: "0", agent_provider: "codex",
+          github_owner_id: "123", github_repository_id: "456"
         } }
       }.to change(user.repositories, :count).by(1)
       expect(response).to redirect_to(repositories_path)
       expect(user.repositories.last.agent_provider).to eq("codex")
       expect(user.repositories.last.prepare_enabled).to be(false)
+      expect(user.repositories.last.github_owner_id).to eq(123)
+      expect(user.repositories.last.github_repository_id).to eq(456)
     end
 
     it "updates the repository default agent and shows it on the index" do
@@ -54,6 +57,64 @@ RSpec.describe "Repositories", type: :request do
       post repositories_path, params: { repository: { owner: "bad owner", name: "" } }
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("can")  # error messages present
+    end
+
+    describe "credential mode banner" do
+      it "shows installed App status without a warning banner" do
+        AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+        installation = Factories.installation(user: user, account_login: "acme")
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets", installation: installation)
+
+        get repository_path(repo)
+
+        expect(response.body).to include("✓ Syrus App installed (via acme)")
+        expect(response.body).not_to include("This repository is using personal-token fallback.")
+      end
+
+      it "shows a one-click install link when the App is registered but not installed" do
+        AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+        repo = Factories.repository(
+          user: user,
+          owner: "acme",
+          name: "widgets",
+          github_owner_id: 100,
+          github_repository_id: 200
+        )
+
+        get repository_path(repo)
+
+        expect(response.body).to include("This repository is using personal-token fallback.")
+        expect(response.body).to include(
+          "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=100&amp;repository_ids[]=200"
+        )
+      end
+
+      it "shows the manifest CTA when the App is not registered" do
+        repo = Factories.repository(user: user)
+
+        get repository_path(repo)
+
+        expect(response.body).to include("Syrus App is not registered.")
+        expect(response.body).to include("Register Syrus App")
+      end
+
+      it "shows PAT fallback when the recorded installation was removed" do
+        AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+        installation = Factories.installation(user: user, account_login: "acme", removed_at: Time.current)
+        repo = Factories.repository(
+          user: user,
+          owner: "acme",
+          name: "widgets",
+          github_owner_id: 100,
+          github_repository_id: 200
+        )
+        repo.update_column(:installation_id, installation.id)
+
+        get repository_path(repo)
+
+        expect(response.body).to include("Its previous installation was removed.")
+        expect(response.body).to include("Install Syrus App on this repository")
+      end
     end
 
     it "scopes edit/update to the current user's repos" do

@@ -346,7 +346,7 @@ class GithubClient
     raise
   end
 
-  # Returns sorted repo names for the given owner. owner_type "user" fetches
+  # Returns sorted repo metadata for the given owner. owner_type "user" fetches
   # the authenticated user's own repos; anything else fetches org repos.
   def owner_repos(owner, owner_type:)
     repos = if owner_type == "user"
@@ -354,7 +354,13 @@ class GithubClient
     else
       track_rate_limits { @client.org_repos(owner) }
     end
-    repos.map(&:name).sort
+    repos.map { |repo|
+      {
+        name: repo.name,
+        github_repository_id: repo.id,
+        github_owner_id: repo.owner&.id
+      }
+    }.sort_by { |repo| repo[:name].to_s.downcase }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited on #{owner} repos: #{e.message}")
     raise

@@ -1,0 +1,94 @@
+<div class="space-y-6">
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h1 class="font-bold text-2xl">GitHub App installations</h1>
+      <p class="mt-1 text-sm text-gray-600">Repository credential mode across Syrus.</p>
+    </div>
+    <%= render "admin/nav" %>
+  </div>
+
+  <% unless @settings.github_app_registered? %>
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <div class="font-semibold">Syrus App is not registered yet.</div>
+      <p class="mt-1">Register the GitHub App before installing it on repositories.</p>
+      <%= link_to "Run manifest flow", admin_github_app_register_path,
+            class: "inline-block mt-3 rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium" %>
+    </div>
+  <% end %>
+
+  <div>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-lg">Why App mode is preferred</h2>
+      <%= button_to "Refresh installation list", admin_installations_refresh_path, method: :post,
+            class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
+            form: { class: "inline" } %>
+    </div>
+    <%= render "shared/credential_mode_comparison" %>
+  </div>
+
+  <% if @settings.github_app_registered? && @pat_repositories_by_owner.any? %>
+    <div class="space-y-3">
+      <h2 class="font-semibold text-lg">Install App on PAT-only repositories</h2>
+      <div class="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
+        <% @pat_repositories_by_owner.each do |owner, repositories| %>
+          <div class="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="font-mono text-sm text-gray-900"><%= owner %></div>
+              <div class="text-xs text-gray-500"><%= pluralize(repositories.size, "PAT-only repository") %></div>
+            </div>
+            <% if (url = github_app_install_url_for(repositories)) %>
+              <%= link_to "Install on all PAT-only repos in this account", url,
+                    target: "_blank", rel: "noopener",
+                    class: "rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium" %>
+            <% else %>
+              <span class="text-xs text-gray-500">GitHub IDs missing; re-select these repos from the registration form.</span>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <div>
+    <h2 class="font-semibold text-lg mb-3">Repositories</h2>
+    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+          <tr>
+            <th class="px-4 py-2 text-left">Repository</th>
+            <th class="px-4 py-2 text-left">App</th>
+            <th class="px-4 py-2 text-left">PAT</th>
+            <th class="px-4 py-2 text-left">Account</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <% @repositories.each do |repository| %>
+            <tr>
+              <td class="px-4 py-3 font-mono"><%= repository.slug %></td>
+              <td class="px-4 py-3">
+                <% if repository.app_credential_active? %>
+                  <span class="text-emerald-700 font-medium">Active</span>
+                <% else %>
+                  <span class="text-gray-400">—</span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3">
+                <% if repository.app_credential_active? %>
+                  <span class="text-gray-400">—</span>
+                <% else %>
+                  <span class="text-amber-800 font-medium">Fallback</span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-gray-600">
+                <%= repository.installation&.account_login || repository.owner %>
+                <% if repository.installation&.removed_at.present? %>
+                  <span class="ml-1 text-xs text-amber-700">(removed)</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

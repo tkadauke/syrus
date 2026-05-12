@@ -53,6 +53,13 @@
           </span>
         <% end %>
         <span>Added: <%= @repository.created_at.to_fs(:long) %></span>
+        <span>
+          <% if @repository.app_credential_active? %>
+            <span class="text-emerald-700 font-medium">✓ Syrus App installed (via <%= @repository.installation.account_login %>)</span>
+          <% else %>
+            <span class="text-amber-800 font-medium">PAT fallback</span>
+          <% end %>
+        </span>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -81,6 +88,35 @@
             form: { class: "inline", data: { turbo_confirm: "Archive #{@repository.slug}? Polling stops; jobs and history are kept." } } %>
     </div>
   </div>
+
+  <% unless @repository.app_credential_active? %>
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <% if AppSetting.github_app_registered? %>
+        <div class="font-semibold">This repository is using personal-token fallback.</div>
+        <p class="mt-1">
+          Syrus can read and write through the operator PAT, but App mode gives this repo bot attribution,
+          independent rate limits, and normal PR approval behavior.
+          <% if @repository.installation&.removed_at.present? %>
+            Its previous installation was removed.
+          <% end %>
+        </p>
+        <% if (install_url = github_app_install_url_for(@repository)) %>
+          <%= link_to "Install Syrus App on this repository", install_url,
+                target: "_blank", rel: "noopener",
+                class: "inline-block mt-3 rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium" %>
+        <% else %>
+          <p class="mt-2 text-xs">GitHub numeric IDs are missing; edit this repository and select it from the GitHub-backed picker to generate a one-click install link.</p>
+        <% end %>
+      <% else %>
+        <div class="font-semibold">Syrus App is not registered.</div>
+        <p class="mt-1">This repository is using personal-token fallback until an admin registers the GitHub App and installs it here.</p>
+        <% if Current.user.admin? %>
+          <%= link_to "Register Syrus App", admin_github_app_register_path,
+                class: "inline-block mt-3 rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium" %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
 
   <%# Tabs %>
   <div class="flex border-b border-gray-200">

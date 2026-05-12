@@ -227,7 +227,12 @@ class RepositoriesController < ApplicationController
   end
 
   def repository_params
-    params.expect(repository: [ :owner, :name, :default_branch, :trigger_label, :polling_enabled, :prepare_enabled, :agent_provider, :pr_cost_footer_enabled, :auto_merge_enabled ])
+    params.expect(repository: [
+      :owner, :name, :default_branch, :trigger_label,
+      :polling_enabled, :prepare_enabled, :agent_provider,
+      :pr_cost_footer_enabled, :auto_merge_enabled,
+      :github_repository_id, :github_owner_id
+    ])
   end
 
   def selected_issue_numbers

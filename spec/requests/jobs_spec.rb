@@ -59,6 +59,24 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*Codex/m)
       end
 
+      it "shows the credential mode in the job header" do
+        get job_path(job)
+
+        expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*PAT/m)
+      end
+
+      it "shows the credential mode captured when the job was created" do
+        AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+        installation = Factories.installation(user: user, account_login: "acme")
+        repository.update!(installation: installation)
+        app_job = Factories.job(repository: repository, issue_number: 99)
+        repository.update!(installation: nil)
+
+        get job_path(app_job)
+
+        expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*App/m)
+      end
+
       it "shows aggregate cost in the header and per-run cost details" do
         run = job.initial_run
         run.update!(

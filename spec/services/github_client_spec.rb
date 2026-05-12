@@ -297,7 +297,10 @@ RSpec.describe GithubClient do
                    body: [ { name: "repo-b" }, { name: "repo-a" } ].to_json)
 
       result = client.owner_repos("john", owner_type: "user")
-      expect(result).to eq(%w[repo-a repo-b])
+      expect(result).to eq([
+        { name: "repo-a", github_repository_id: nil, github_owner_id: nil },
+        { name: "repo-b", github_repository_id: nil, github_owner_id: nil }
+      ])
     end
 
     it "fetches org repos when owner_type is 'org'" do
@@ -307,7 +310,10 @@ RSpec.describe GithubClient do
                    body: [ { name: "z-repo" }, { name: "a-repo" } ].to_json)
 
       result = client.owner_repos("my-org", owner_type: "org")
-      expect(result).to eq(%w[a-repo z-repo])
+      expect(result).to eq([
+        { name: "a-repo", github_repository_id: nil, github_owner_id: nil },
+        { name: "z-repo", github_repository_id: nil, github_owner_id: nil }
+      ])
     end
   end
 

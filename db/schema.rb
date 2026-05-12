@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_11_140300) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_11_140500) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -106,6 +106,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140300) do
     t.string "branch_name"
     t.string "closure_reason"
     t.datetime "created_at", null: false
+    t.string "credential_mode", default: "pat", null: false
     t.integer "external_pr_number"
     t.integer "failure_count", default: 0, null: false
     t.datetime "finished_at"
@@ -127,6 +128,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140300) do
     t.string "state", default: "open", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.index ["credential_mode"], name: "index_jobs_on_credential_mode"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
@@ -141,6 +143,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140300) do
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
+    t.bigint "github_owner_id"
+    t.bigint "github_repository_id"
     t.integer "installation_id"
     t.text "last_poll_error"
     t.datetime "last_poll_started_at"
@@ -154,6 +158,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_11_140300) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
+    t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
+    t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
     t.index ["installation_id"], name: "index_repositories_on_installation_id"
     t.index ["user_id", "owner", "name"], name: "index_repositories_on_user_id_and_owner_and_name", unique: true
     t.index ["user_id"], name: "index_repositories_on_user_id"

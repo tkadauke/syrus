@@ -52,6 +52,14 @@ class Repository < ApplicationRecord
     prepare_enabled?
   end
 
+  def app_credential_active?
+    AppSetting.github_app_registered? && installation&.active?
+  end
+
+  def credential_mode
+    app_credential_active? ? "app" : "pat"
+  end
+
   # Anonymous URL — safe to bake into a saved clone's remote.
   def remote_url
     "https://github.com/#{owner}/#{name}.git"

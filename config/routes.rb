@@ -129,6 +129,9 @@ Rails.application.routes.draw do
     # nearing prune. See Admin::StuckItems for the definition.
     get "stuck", to: "stuck#index", as: :stuck
 
+    get  "installations",         to: "installations#index",   as: :installations
+    post "installations/refresh", to: "installations#refresh", as: :installations_refresh
+
     # User directory — filterable list + per-user detail page.
     # Drilled into from the GH rate-limits tile on /admin (with
     # `?gh_rate=low`); also supports `?admin=true|false`,
