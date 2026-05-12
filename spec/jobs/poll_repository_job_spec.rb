@@ -262,7 +262,7 @@ RSpec.describe PollRepositoryJob do
     it "parses Depends-on from the ingested issue body and waits to dispatch" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
       prerequisite.close_with_reason!("cancelled")
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_return([ issue(number: 42, body: "Depends-on: #41") ])
 
       expect {
@@ -277,7 +277,7 @@ RSpec.describe PollRepositoryJob do
 
     it "starts a dependency-waiting workflow on a later poll once the dependency succeeds" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_return([ issue(number: 42, body: "Depends-on: #41") ])
 
       described_class.perform_now(repository.id)
@@ -294,7 +294,7 @@ RSpec.describe PollRepositoryJob do
     end
 
     it "records unresolved dependency references as pending and waits to dispatch" do
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_return([ issue(number: 42, body: "Depends-on: #999") ])
 
       expect {
@@ -316,7 +316,7 @@ RSpec.describe PollRepositoryJob do
     end
 
     it "starts a dangling dependency workflow on a later poll once the dependency appears and succeeds" do
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
         .and_return([ issue(number: 42, body: "Depends-on: #999") ])
 
       described_class.perform_now(repository.id)
