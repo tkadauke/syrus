@@ -8,6 +8,8 @@ on:
 jobs:
   scan_ruby:
     runs-on: ubuntu-24.04
+    env:
+      BUNDLE_WITHOUT: production
 
     steps:
       - name: Checkout code
@@ -27,6 +29,8 @@ jobs:
 
   scan_js:
     runs-on: ubuntu-24.04
+    env:
+      BUNDLE_WITHOUT: production
 
     steps:
       - name: Checkout code
@@ -43,6 +47,7 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     env:
+      BUNDLE_WITHOUT: production
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:
       - name: Checkout code
@@ -71,12 +76,12 @@ jobs:
 
     services:
       mysql:
-        image: mysql
+        image: mysql:8.4
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: true
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=10 --health-start-period=20s
 
     steps:
       - name: Install packages
