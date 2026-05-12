@@ -19,6 +19,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+          cache-version: bot-identity-20260512
 
       - name: Scan for common Rails security vulnerabilities using static analysis
         # TODO: drop --except once we upgrade Ruby off 3.2.x (EOL 2026-03-31)
@@ -40,6 +41,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+          cache-version: bot-identity-20260512
 
       - name: Scan for security vulnerabilities in JavaScript dependencies
         run: bin/importmap audit
@@ -57,6 +59,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+          cache-version: bot-identity-20260512
 
       - name: Prepare RuboCop cache
         uses: actions/cache@v4
@@ -94,6 +97,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+          cache-version: bot-identity-20260512
 
       - name: Run RSpec against MySQL
         # db/schema.rb is dumped from SQLite where every integer column
