@@ -5,10 +5,18 @@ class RepoTriggerConfig
 
   def self.fetch(repository, github_client:)
     content = github_client.file_content_at(repository.slug, CONFIG_FILE, repository.default_branch)
-    from_yaml(content&.fetch(:content, nil))
+    from_yaml(file_content_body(content))
   rescue Psych::SyntaxError => e
     Rails.logger.info("[RepoTriggerConfig] #{repository.slug} ignored invalid #{CONFIG_FILE}: #{e.message}")
     new
+  end
+
+  def self.file_content_body(content)
+    return nil unless content
+    return content.content if content.respond_to?(:content)
+    return content[:content] || content["content"] if content.respond_to?(:[])
+
+    nil
   end
 
   def self.from_yaml(content)

@@ -1,6 +1,22 @@
 require "rails_helper"
 
 RSpec.describe RepoTriggerConfig do
+  describe ".fetch" do
+    let(:repository) { Factories.repository(owner: "acme", name: "widgets", default_branch: "main") }
+
+    it "accepts string-keyed file content hashes" do
+      github_client = instance_double(GithubClient)
+      allow(github_client).to receive(:file_content_at)
+        .with("acme/widgets", ".syrus.yml", "main")
+        .and_return({ "content" => "triggers:\n  mentions: false\n" })
+
+      config = described_class.fetch(repository, github_client: github_client)
+
+      expect(config.mentions?).to be false
+      expect(config.assignments?).to be true
+    end
+  end
+
   describe ".from_yaml" do
     it "enables mention and assignment triggers by default" do
       config = described_class.from_yaml(nil)
