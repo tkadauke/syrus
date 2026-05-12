@@ -89,7 +89,10 @@ Key steps:
   or auto-detects from lockfiles. Env is scrubbed to a safe forward list
   so the worker's Bundler config doesn't pollute the target repo's install.
   Per-command timeout: 10 minutes. Succeeds with "nothing to do" if the
-  repo has no setup commands — chain shape stays uniform.
+  repo has no setup commands — chain shape stays uniform. `Repository#prepare_enabled`
+  can disable the step for all workflows on that repo; the
+  `syrus-skip-prepare` issue label disables it for that Job. Skips are
+  recorded in Workflow artifacts and logged on the first Run.
 - **`implement`** / **`respond`** / **`analyze_and_fix`** — Agentic steps:
   invoke the Workflow's configured `AgentProviders::*` adapter. Claude uses
   `AgentInvocation`/`claude --print`; Codex uses `CodexInvocation`/`codex exec`.
@@ -123,6 +126,11 @@ to invoke a tool name that doesn't exist. See `app/services/syrus_mcp/`.
 **Diff capture** uses `git diff <default_branch>...HEAD` (three-dot — what
 GitHub's "Files changed" tab shows) to avoid pollution when the base branch
 moves forward while the syrus branch is open.
+
+**PR feedback watermarking** tracks both `last_seen_comment_at` and
+`last_feedback_addressed_at`; successful `pr_comment` workflows mark the
+newest addressed comment, and future polls use the later timestamp as the
+cutoff so already-handled feedback is not re-enqueued.
 
 ### Scheduled tasks
 
