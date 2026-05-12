@@ -159,8 +159,16 @@ module Steps
     # `git diff <default>...HEAD` for what THIS branch contributed
     # since it diverged from default. Three-dot — what GitHub's
     # "Files changed" tab shows.
+    #
+    # Uses a non-streaming GitRunner: the diff is captured as the
+    # return value (stored on Run#agent_diff and rendered on the Job
+    # page's dedicated diff panel). Streaming the output through the
+    # log_sink would also dump the entire diff into the transcript,
+    # which (a) bloats JobLog rows on large changes and (b) duplicates
+    # data that already lives in Run#agent_diff. Mirror the same
+    # capture-only pattern head_sha uses below.
     def diff_against_default
-      streaming_git.run("diff", "#{repository.default_branch}...HEAD",
+      GitRunner.new.run("diff", "#{repository.default_branch}...HEAD",
                        chdir: workspace.path.to_s)
     end
 
@@ -181,7 +189,10 @@ module Steps
 
     def assert_branch_history_intact!
       base = repository.default_branch
-      streaming_git.run("merge-base", base, "HEAD", chdir: workspace.path.to_s)
+      # Non-streaming: we only care about success-or-raise here. The
+      # merge-base SHA (the only output of this command) isn't useful
+      # in the transcript and just adds noise above the agent_diff.
+      GitRunner.new.run("merge-base", base, "HEAD", chdir: workspace.path.to_s)
     rescue GitRunner::GitError
       run.update!(agent_outcome: "git_state_corrupt")
       raise AgentBrokeGitState,
