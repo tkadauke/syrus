@@ -166,6 +166,18 @@ class SubmitButtonElement extends FakeElement {
   }
 }
 
+class SubmitButtonChildElement extends FakeElement {
+  constructor(button) {
+    super("span")
+    this.button = button
+  }
+
+  closest(selector) {
+    assert.equal(selector, "button, input")
+    return this.button
+  }
+}
+
 globalThis.document = {
   createElement: (tagName) => new FakeElement(tagName)
 }
@@ -212,6 +224,21 @@ test("renders invalid fields and the summary after a submit attempt", async () =
   const error = form.querySelectorAll("[data-form-validation-error-for]")[0]
   assert.equal(error.textContent, "Repository is required.")
   assert.equal(form.querySelector(":scope > [data-form-validation-summary]").textContent, "Fix the highlighted field before continuing.")
+})
+
+test("treats clicks inside a submit button as submit attempts", async () => {
+  const { default: Controller } = await loadController()
+  const controller = buildController(Controller)
+  const repository = new FieldElement({ id: "repository_id", name: "repository_id", label: "Repository" })
+  const form = new HTMLFormElement([repository])
+  const submitter = new SubmitButtonElement({ form })
+
+  controller.submitAttempt({ target: new SubmitButtonChildElement(submitter) })
+  controller.invalid({ target: repository })
+  await Promise.resolve()
+
+  assert.equal(repository.getAttribute("aria-invalid"), "true")
+  assert.equal(form.querySelectorAll("[data-form-validation-error-for]")[0].textContent, "Repository is required.")
 })
 
 test("renders invalid fields after an implicit Enter-key submit attempt", async () => {

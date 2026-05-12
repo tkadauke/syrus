@@ -41,7 +41,7 @@ export default class extends Controller {
   }
 
   submitAttempt(event) {
-    const submitter = event.target
+    const submitter = this.closestSubmitter(event.target)
     if (!this.submitterElement(submitter)) return
 
     const form = submitter.form
@@ -161,6 +161,11 @@ export default class extends Controller {
     if (element instanceof HTMLButtonElement) return element.type === "submit"
     if (element instanceof HTMLInputElement) return [ "submit", "image" ].includes(element.type)
     return false
+  }
+
+  closestSubmitter(element) {
+    if (this.submitterElement(element)) return element
+    return element?.closest?.("button, input")
   }
 
   validationMessage(field) {
