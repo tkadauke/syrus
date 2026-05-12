@@ -17,6 +17,8 @@
 .bundle/
 vendor/bundle/
 node_modules/
+/website/.astro/
+/website/dist/
 .byebug_history
 
 # Secrets

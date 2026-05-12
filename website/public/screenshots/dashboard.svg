@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">Redacted Syrus dashboard screenshot</title>
+  <desc id="desc">A redacted Syrus dashboard showing queue health, repositories, recent jobs, workflow states, and user ownership.</desc>
+  <rect width="1440" height="900" fill="#101418"/>
+  <rect x="32" y="30" width="1376" height="70" rx="14" fill="#151b20" stroke="#2c343c"/>
+  <text x="62" y="74" fill="#f4f7f8" font-family="Inter, ui-sans-serif, system-ui" font-size="25" font-weight="700">Syrus</text>
+  <text x="1204" y="73" fill="#87929c" font-family="Inter, ui-sans-serif, system-ui" font-size="18">admin@redacted</text>
+
+  <g font-family="Inter, ui-sans-serif, system-ui">
+    <rect x="48" y="132" width="310" height="150" rx="12" fill="#151b20" stroke="#2c343c"/>
+    <text x="78" y="176" fill="#a9b4bd" font-size="17">Open jobs</text>
+    <text x="78" y="238" fill="#f4f7f8" font-size="54" font-weight="800">14</text>
+    <rect x="390" y="132" width="310" height="150" rx="12" fill="#151b20" stroke="#2c343c"/>
+    <text x="420" y="176" fill="#a9b4bd" font-size="17">Running workflows</text>
+    <text x="420" y="238" fill="#f4f7f8" font-size="54" font-weight="800">3</text>
+    <rect x="732" y="132" width="310" height="150" rx="12" fill="#151b20" stroke="#2c343c"/>
+    <text x="762" y="176" fill="#a9b4bd" font-size="17">Queue depth</text>
+    <text x="762" y="238" fill="#f4f7f8" font-size="54" font-weight="800">7</text>
+    <rect x="1074" y="132" width="318" height="150" rx="12" fill="#151b20" stroke="#2c343c"/>
+    <text x="1104" y="176" fill="#a9b4bd" font-size="17">Rate limit</text>
+    <text x="1104" y="238" fill="#f4f7f8" font-size="54" font-weight="800">82%</text>
+  </g>
+
+  <rect x="48" y="322" width="854" height="522" rx="12" fill="#151b20" stroke="#2c343c"/>
+  <text x="78" y="370" fill="#f4f7f8" font-family="Inter, ui-sans-serif, system-ui" font-size="25" font-weight="700">Recent jobs</text>
+  <g font-family="Inter, ui-sans-serif, system-ui" font-size="17">
+    <rect x="78" y="410" width="794" height="72" rx="10" fill="#1b2229"/>
+    <rect x="96" y="436" width="110" height="20" rx="6" fill="#3a424a"/>
+    <rect x="232" y="436" width="286" height="20" rx="6" fill="#3a424a"/>
+    <rect x="666" y="428" width="142" height="34" rx="17" fill="#0f3a35" stroke="#2dd4bf"/>
+    <text x="697" y="451" fill="#99f6e4" font-weight="700">succeeded</text>
+    <rect x="78" y="504" width="794" height="72" rx="10" fill="#1b2229"/>
+    <rect x="96" y="530" width="110" height="20" rx="6" fill="#3a424a"/>
+    <rect x="232" y="530" width="338" height="20" rx="6" fill="#3a424a"/>
+    <rect x="666" y="522" width="142" height="34" rx="17" fill="#312a12" stroke="#facc15"/>
+    <text x="708" y="545" fill="#fde68a" font-weight="700">running</text>
+    <rect x="78" y="598" width="794" height="72" rx="10" fill="#1b2229"/>
+    <rect x="96" y="624" width="110" height="20" rx="6" fill="#3a424a"/>
+    <rect x="232" y="624" width="304" height="20" rx="6" fill="#3a424a"/>
+    <rect x="666" y="616" width="142" height="34" rx="17" fill="#1c2a44" stroke="#60a5fa"/>
+    <text x="710" y="639" fill="#bfdbfe" font-weight="700">queued</text>
+    <rect x="78" y="692" width="794" height="72" rx="10" fill="#1b2229"/>
+    <rect x="96" y="718" width="110" height="20" rx="6" fill="#3a424a"/>
+    <rect x="232" y="718" width="264" height="20" rx="6" fill="#3a424a"/>
+    <rect x="666" y="710" width="142" height="34" rx="17" fill="#3b1717" stroke="#ef4444"/>
+    <text x="722" y="733" fill="#fecaca" font-weight="700">failed</text>
+  </g>
+
+  <rect x="934" y="322" width="458" height="522" rx="12" fill="#151b20" stroke="#2c343c"/>
+  <text x="964" y="370" fill="#f4f7f8" font-family="Inter, ui-sans-serif, system-ui" font-size="25" font-weight="700">Repositories</text>
+  <g font-family="Inter, ui-sans-serif, system-ui">
+    <rect x="964" y="414" width="368" height="22" rx="7" fill="#3a424a"/>
+    <rect x="964" y="462" width="312" height="22" rx="7" fill="#2f3740"/>
+    <rect x="964" y="510" width="342" height="22" rx="7" fill="#3a424a"/>
+    <rect x="964" y="558" width="276" height="22" rx="7" fill="#2f3740"/>
+    <rect x="964" y="644" width="186" height="38" rx="19" fill="#0f3a35" stroke="#2dd4bf"/>
+    <text x="990" y="669" fill="#99f6e4" font-size="17" font-weight="700">polling enabled</text>
+    <rect x="964" y="716" width="220" height="38" rx="19" fill="#1c2a44" stroke="#60a5fa"/>
+    <text x="990" y="741" fill="#bfdbfe" font-size="17" font-weight="700">GitHub App ready</text>
+  </g>
+
+  <g opacity="0.88">
+    <rect x="1134" y="38" width="220" height="46" rx="10" fill="#1f2933"/>
+    <text x="1170" y="67" fill="#f4f7f8" font-family="Inter, ui-sans-serif, system-ui" font-size="15" font-weight="700">SENSITIVE REDACTED</text>
+  </g>
+</svg>
