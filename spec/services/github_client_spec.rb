@@ -374,6 +374,20 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#reply_to_pr_review_comment" do
+    let(:client) { GithubClient.for_user(user) }
+
+    it "posts to GitHub's review-comment reply endpoint" do
+      stub = stub_request(:post, "https://api.github.com/repos/acme/widgets/pulls/comments/123/replies")
+        .with(body: { body: "Applied suggested change in abcdef1." }.to_json)
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" }, body: {}.to_json)
+
+      client.reply_to_pr_review_comment("acme/widgets", 7, 123, "Applied suggested change in abcdef1.")
+
+      expect(stub).to have_been_requested
+    end
+  end
+
   describe "rate limit tracking" do
     let(:client) { GithubClient.for_user(user) }
     let(:reset_epoch) { 1_714_944_000 }
