@@ -11,6 +11,8 @@ RSpec.describe "website home page" do
     expect(File).not_to exist(markdown_stub)
     expect(content).to include("<StarlightPage")
     expect(content).to include("template: \"splash\"")
+    expect(content).to include("<div class=\"home\">")
+    expect(content).not_to include("<main class=\"home\">")
   end
 
   it "includes the planned home page sections and links" do
