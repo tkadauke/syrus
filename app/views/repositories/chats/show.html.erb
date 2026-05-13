@@ -43,6 +43,7 @@
 
   <% if @chat_session %>
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_messages" %>
+    <%= turbo_stream_from "chat_session_#{@chat_session.id}_controls" %>
   <% end %>
 
   <section class="relative bg-white border border-gray-200 rounded-lg">

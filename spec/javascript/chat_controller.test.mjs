@@ -53,17 +53,20 @@ function buildController(Controller, { scrollTop = 700, scrollHeight = 1000, cli
   const pill = { classList: new ClassList(["hidden"]) }
   const textarea = { disabled: false }
   const sendButton = { disabled: false }
+  const stopButton = { disabled: false, value: "Stop", textContent: "Stop" }
   const controller = new Controller()
   controller.streamTarget = stream
   controller.newMessagesPillTarget = pill
   controller.textareaTarget = textarea
   controller.sendButtonTarget = sendButton
+  controller.stopButtonTarget = stopButton
   controller.hasStreamTarget = true
   controller.hasNewMessagesPillTarget = true
   controller.hasTextareaTarget = true
   controller.hasSendButtonTarget = true
+  controller.hasStopButtonTarget = true
   controller.turnInFlightValue = inFlight
-  return { controller, stream, pill, textarea, sendButton }
+  return { controller, stream, pill, textarea, sendButton, stopButton }
 }
 
 test("auto-scrolls when messages arrive while the user is at the bottom", async () => {
@@ -109,4 +112,15 @@ test("disables compose controls while a turn is in flight", async () => {
 
   assert.equal(textarea.disabled, true)
   assert.equal(sendButton.disabled, true)
+})
+
+test("stop disables the stop button and flips its label immediately", async () => {
+  const { default: Controller } = await loadController()
+  const { controller, stopButton } = buildController(Controller)
+
+  controller.stop()
+
+  assert.equal(stopButton.disabled, true)
+  assert.equal(stopButton.value, "Stopping…")
+  assert.equal(stopButton.textContent, "Stopping…")
 })

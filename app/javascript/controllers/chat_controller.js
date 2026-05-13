@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["stream", "newMessagesPill", "textarea", "sendButton"]
+  static targets = ["stream", "newMessagesPill", "textarea", "sendButton", "stopButton"]
   static values = { turnInFlight: Boolean }
 
   connect() {
@@ -45,6 +45,14 @@ export default class extends Controller {
     const disabled = this.turnInFlightValue
     if (this.hasTextareaTarget) this.textareaTarget.disabled = disabled
     if (this.hasSendButtonTarget) this.sendButtonTarget.disabled = disabled
+  }
+
+  stop() {
+    if (!this.hasStopButtonTarget) return
+
+    this.stopButtonTarget.disabled = true
+    this.stopButtonTarget.value = "Stopping…"
+    this.stopButtonTarget.textContent = "Stopping…"
   }
 
   isNearBottom() {

@@ -4,7 +4,7 @@ class Repositories::ChatsController < ApplicationController
   }.freeze
 
   before_action :load_repository
-  before_action :load_chat_session, only: :message
+  before_action :load_chat_session, only: %i[ message stop refresh reset ]
 
   def show
     @chat_session = current_chat_session unless new_chat?
@@ -51,6 +51,22 @@ class Repositories::ChatsController < ApplicationController
     redirect_to repository_chats_path(@repository), notice: "Message sent."
   end
 
+  def stop
+    @chat_session.update!(stop_requested_at: Time.current)
+    broadcast_controls_update
+    redirect_to repository_chats_path(@repository), notice: "Stop requested."
+  end
+
+  def refresh
+    ChatWorkspaceJob.perform_later(@repository.id, action: :refresh)
+    redirect_to repository_chats_path(@repository), notice: "Repository refresh queued."
+  end
+
+  def reset
+    ChatWorkspaceJob.perform_later(@repository.id, action: :reset)
+    redirect_to repository_chats_path(@repository), notice: "Workspace reset queued."
+  end
+
   private
 
   def load_repository
@@ -80,5 +96,18 @@ class Repositories::ChatsController < ApplicationController
     CHAT_TEMPLATES.fetch(template_key).new(repository: @repository).to_s.strip
   rescue KeyError
     ""
+  end
+
+  def broadcast_controls_update
+    Turbo::StreamsChannel.broadcast_replace_later_to(
+      "chat_session_#{@chat_session.id}_controls",
+      target: "chat_session_#{@chat_session.id}_controls",
+      partial: "repositories/chats/compose",
+      locals: {
+        repository: @repository,
+        chat_session: @chat_session,
+        turn_in_flight: @chat_session.turn_in_flight?
+      }
+    )
   end
 end

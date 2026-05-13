@@ -37,6 +37,8 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("12,400 in")
       expect(response.body).to include("3,200 out")
       expect(response.body).to include("chat_session_#{newer.id}_messages")
+      expect(response.body).to include("Refresh repo")
+      expect(response.body).to include("Reset workspace")
     end
 
     it "disables compose while the latest user message has no response" do
@@ -47,6 +49,7 @@ RSpec.describe "Repository chats", type: :request do
 
       expect(response.body).to include('data-chat-turn-in-flight-value="true"')
       expect(response.body).to include("disabled")
+      expect(response.body).to include("Stop")
     end
 
     it "renders tool rows with proposal links" do
@@ -138,6 +141,44 @@ RSpec.describe "Repository chats", type: :request do
 
       expect(response).to redirect_to(repository_chats_path(repo))
       expect(flash[:alert]).to eq("Message cannot be blank.")
+    end
+  end
+
+  describe "POST /repositories/:repository_id/chats/:id/stop" do
+    it "sets the stop flag on the chat session" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+
+      post repository_chat_stop_path(repo, chat)
+
+      expect(chat.reload.stop_requested_at).to be_present
+      expect(response).to redirect_to(repository_chats_path(repo))
+      expect(flash[:notice]).to eq("Stop requested.")
+    end
+  end
+
+  describe "POST /repositories/:repository_id/chats/:id/refresh" do
+    it "enqueues a refresh workspace job" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+
+      expect {
+        post repository_chat_refresh_path(repo, chat)
+      }.to have_enqueued_job(ChatWorkspaceJob).with(repo.id, action: :refresh)
+
+      expect(response).to redirect_to(repository_chats_path(repo))
+      expect(flash[:notice]).to eq("Repository refresh queued.")
+    end
+  end
+
+  describe "POST /repositories/:repository_id/chats/:id/reset" do
+    it "enqueues a reset workspace job" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+
+      expect {
+        post repository_chat_reset_path(repo, chat)
+      }.to have_enqueued_job(ChatWorkspaceJob).with(repo.id, action: :reset)
+
+      expect(response).to redirect_to(repository_chats_path(repo))
+      expect(flash[:notice]).to eq("Workspace reset queued.")
     end
   end
 end
