@@ -10,6 +10,7 @@ RSpec.describe ChatTemplates::Triage do
     expect(prompt).to include("duplicate or near-duplicate issues")
     expect(prompt).to include("Suggest labels or closures")
     expect(prompt).to include("propose_issue")
+    expect(prompt).not_to include("stale pull requests")
   end
 
   it "builds an open-PR triage prompt" do
@@ -18,6 +19,7 @@ RSpec.describe ChatTemplates::Triage do
     expect(prompt).to include("Triage acme/widgets's open PRs.")
     expect(prompt).to include("stale pull requests")
     expect(prompt).to include("draft pull requests")
+    expect(prompt).not_to include("duplicate or near-duplicate issues")
   end
 
   it "rejects unknown targets" do
