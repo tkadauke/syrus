@@ -1,4 +1,5 @@
 require "rails_helper"
+require "open3"
 
 RSpec.describe "Dashboard", type: :request do
   let(:user)  { Factories.user }
@@ -436,6 +437,44 @@ RSpec.describe "Dashboard", type: :request do
     describe "filter memory controller" do
       let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
+      def run_filter_memory_controller(search:, stored: "pr=has_pr")
+        script = <<~JS
+          import fs from "node:fs"
+
+          const source = fs.readFileSync("#{Rails.root.join('app/javascript/controllers/filter_memory_controller.js')}", "utf8")
+            .replace('import { Controller } from "@hotwired/stimulus"', 'class Controller {}')
+          const url = `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
+          const mod = await import(url)
+          const events = []
+          let stored = #{stored.to_json}
+
+          globalThis.window = {
+            location: {
+              search: #{search.to_json},
+              replace: (url) => events.push(["replace", url])
+            }
+          }
+          globalThis.sessionStorage = {
+            getItem: () => stored,
+            setItem: (_key, value) => {
+              stored = value
+              events.push(["set", value])
+            },
+            removeItem: () => {
+              stored = null
+              events.push(["remove"])
+            }
+          }
+
+          new mod.default().connect()
+          console.log(JSON.stringify({ events, stored }))
+        JS
+
+        stdout, stderr, status = Open3.capture3("node", "--input-type=module", "-e", script)
+        expect(status).to be_success, stderr
+        JSON.parse(stdout)
+      end
+
       it "attaches filter-memory controller to the jobs filter form" do
         get root_path
         expect(response.body).to include('data-controller="auto-submit filter-memory"')
@@ -450,6 +489,20 @@ RSpec.describe "Dashboard", type: :request do
       it "does not render the Clear link (or its action) when no filters are active" do
         get root_path
         expect(response.body).not_to include("filter-memory#clear")
+      end
+
+      it "clears remembered filters when the filter form submits blank filter params" do
+        result = run_filter_memory_controller(search: "?state=&repository_id=&pr=&age=")
+
+        expect(result["events"]).to eq([ [ "remove" ] ])
+        expect(result["stored"]).to be_nil
+      end
+
+      it "restores remembered filters only when no filter params were submitted" do
+        result = run_filter_memory_controller(search: "")
+
+        expect(result["events"]).to eq([ [ "replace", "/?pr=has_pr" ] ])
+        expect(result["stored"]).to eq("pr=has_pr")
       end
     end
 
