@@ -81,6 +81,23 @@ RSpec.describe WorkflowWorkspace do
         expect(email).to eq("tkadauke-syrus[bot]@users.noreply.github.com")
       end
 
+      it "writes .syrus/ into the git info exclude file" do
+        ws = described_class.new(workflow)
+        ws.setup
+
+        exclude_entries = ws.path.join(".git", "info", "exclude").read.lines.map(&:chomp)
+        expect(exclude_entries).to include(".syrus/")
+      end
+
+      it "ignores files under .syrus/" do
+        ws = described_class.new(workflow)
+        ws.setup
+        FileUtils.mkdir_p(ws.path.join(".syrus"))
+        File.write(ws.path.join(".syrus", "foo.log"), "grade output\n")
+
+        expect(sh("git -C #{ws.path} status --porcelain")).to be_empty
+      end
+
       it "checks out an existing branch when one is on origin (follow-up workflow on the same Job)" do
         first_workflow_dir = Pathname.new(@data_root).join("workflows", "_setup")
         sh("git clone -q file://#{bare_remote_dir} #{first_workflow_dir}")
@@ -109,6 +126,15 @@ RSpec.describe WorkflowWorkspace do
         ws.setup
         after_log = `git -C #{ws.path} log --oneline`
         expect(after_log).to eq(before_log)
+      end
+
+      it "does not duplicate the .syrus/ git info exclude entry" do
+        ws = described_class.new(workflow)
+        ws.setup
+        ws.setup
+
+        exclude_entries = ws.path.join(".git", "info", "exclude").read.lines.map(&:chomp)
+        expect(exclude_entries.count(".syrus/")).to eq(1)
       end
 
       it "restores the working tree on retry-after-crash (uncommitted edits get blown away)" do

@@ -17,6 +17,7 @@ require "fileutils"
 # share a path.
 class WorkflowWorkspace
   CLONE_DEPTH = 50
+  EXCLUDE_ENTRY = ".syrus/".freeze
 
   attr_reader :path, :branch_name
 
@@ -106,9 +107,11 @@ class WorkflowWorkspace
   # edits don't. Same contract as Resume Runs today.
   def setup
     if path.exist?
+      ensure_exclude_entry
       ensure_clean_working_tree
     else
       clone_and_checkout
+      ensure_exclude_entry
     end
     configure_git_author
   end
@@ -220,5 +223,9 @@ class WorkflowWorkspace
     identity = BotIdentity.for(@job)
     @git.run("config", "--local", "user.name", identity.git_name, chdir: path.to_s)
     @git.run("config", "--local", "user.email", identity.git_email, chdir: path.to_s)
+  end
+
+  def ensure_exclude_entry
+    GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
   end
 end

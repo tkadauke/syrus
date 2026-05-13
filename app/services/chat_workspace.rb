@@ -49,7 +49,7 @@ class ChatWorkspace
       env: @env
     )
     @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: @path.to_s)
-    ensure_exclude_entry
+    GitInfoExclude.ensure_entry!(@path, EXCLUDE_ENTRY)
     @path
   end
 
@@ -69,16 +69,5 @@ class ChatWorkspace
   def authenticated_url
     token = GithubClient.for(repository: @repository, user: @repository.user).access_token
     @repository.authenticated_push_url(token)
-  end
-
-  def ensure_exclude_entry
-    exclude_path = @path.join(".git", "info", "exclude")
-    lines = exclude_path.exist? ? exclude_path.read.lines.map(&:chomp) : []
-    return if lines.include?(EXCLUDE_ENTRY)
-
-    File.open(exclude_path, "a") do |file|
-      file.write("\n") unless exclude_path.zero?
-      file.puts(EXCLUDE_ENTRY)
-    end
   end
 end
