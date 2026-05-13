@@ -1,6 +1,8 @@
 class ChatWorkspaceJob < ApplicationJob
   queue_as :runs
-  limits_concurrency to: 1, key: ->(repository_id, _options = {}) { "chat:#{repository_id}" }
+  limits_concurrency to: 1,
+                     group: ChatTurnJob::CONCURRENCY_GROUP,
+                     key: ->(repository_id, **) { "chat:#{repository_id}" }
 
   def perform(repository_id, action:)
     repository = Repository.find(repository_id)

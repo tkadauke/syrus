@@ -5,6 +5,16 @@ RSpec.describe ChatWorkspaceJob, type: :job do
   let(:repository) { Factories.repository(user: user, default_branch: "main") }
   let!(:chat_session) { ChatSession.create!(repository: repository, user: user, last_message_at: 1.hour.ago) }
 
+  it "serializes with chat turns for the same repository" do
+    user_message = chat_session.messages.create!(role: "user", content: { "text" => "Refresh after this" })
+
+    turn_job = ChatTurnJob.new(chat_session.id, user_message.id)
+    workspace_job = described_class.new(repository.id, action: :refresh)
+
+    expect(workspace_job.concurrency_key).to eq(turn_job.concurrency_key)
+    expect(workspace_job.concurrency_key).to eq("repository_chat/chat:#{repository.id}")
+  end
+
   describe "#perform" do
     it "refreshes the workspace and records the fetched default-branch head" do
       path = Rails.root
