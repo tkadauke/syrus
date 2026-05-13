@@ -39,4 +39,66 @@ RSpec.describe JobDependency do
     expect(dependency).not_to be_valid
     expect(dependency.errors[:depends_on_job]).to include("would create a cycle")
   end
+
+  describe "pending (unresolved) rows" do
+    it "accepts a row with unresolved fields and no depends_on_job" do
+      job = issue_job(1)
+      dep = described_class.new(job: job, unresolved_owner: "acme",
+                                unresolved_repo: "widgets", unresolved_number: 42,
+                                source: "parsed")
+      expect(dep).to be_valid
+      dep.save!
+      expect(dep).to be_pending
+      expect(dep.unresolved_slug).to eq("acme/widgets#42")
+    end
+
+    it "rejects a row with neither depends_on_job nor unresolved fields" do
+      job = issue_job(1)
+      dep = described_class.new(job: job, source: "parsed")
+      expect(dep).not_to be_valid
+    end
+
+    it "rejects a row with both depends_on_job and unresolved fields" do
+      a = issue_job(1)
+      b = issue_job(2)
+      dep = described_class.new(job: a, depends_on_job: b,
+                                unresolved_owner: "x", unresolved_repo: "y", unresolved_number: 3,
+                                source: "parsed")
+      expect(dep).not_to be_valid
+    end
+
+    it "rejects a pending row with partial unresolved fields" do
+      job = issue_job(1)
+      dep = described_class.new(job: job, unresolved_owner: "acme", source: "parsed")
+      expect(dep).not_to be_valid
+    end
+
+    it "promotes a pending row to resolved via #resolve!" do
+      job = issue_job(1)
+      target = issue_job(42)
+      dep = described_class.create!(job: job, unresolved_owner: repository.owner,
+                                    unresolved_repo: repository.name, unresolved_number: 42,
+                                    source: "parsed")
+
+      dep.resolve!(depends_on_job: target)
+      expect(dep.reload).to be_resolved
+      expect(dep.depends_on_job).to eq(target)
+      expect(dep.unresolved_owner).to be_nil
+      expect(dep.unresolved_number).to be_nil
+    end
+
+    it "scopes pending vs resolved correctly" do
+      a = issue_job(1)
+      b = issue_job(2)
+      resolved = described_class.create!(job: a, depends_on_job: b, source: "manual")
+      pending = described_class.create!(job: a, unresolved_owner: "x",
+                                        unresolved_repo: "y", unresolved_number: 99,
+                                        source: "parsed")
+
+      expect(described_class.resolved).to include(resolved)
+      expect(described_class.resolved).not_to include(pending)
+      expect(described_class.pending).to include(pending)
+      expect(described_class.pending).not_to include(resolved)
+    end
+  end
 end

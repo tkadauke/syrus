@@ -196,10 +196,16 @@
               <span class="font-medium">This Job is waiting on <%= pluralize(unsatisfied_dependencies.size, "dependency") %>.</span>
               <span>
                 <%= safe_join(unsatisfied_dependencies.map { |dependency|
-                      dep_job = dependency.depends_on_job
-                      link_to("##{dep_job.issue_number || dep_job.id} #{dep_job.repository.slug} (#{job_summary_state(dep_job)})",
-                              job_path(dep_job),
-                              class: "underline hover:no-underline")
+                      if dependency.pending?
+                        content_tag(:span,
+                          "#{dependency.unresolved_slug} (pending — no Syrus Job yet)",
+                          class: "italic")
+                      else
+                        dep_job = dependency.depends_on_job
+                        link_to("##{dep_job.issue_number || dep_job.id} #{dep_job.repository.slug} (#{job_summary_state(dep_job)})",
+                                job_path(dep_job),
+                                class: "underline hover:no-underline")
+                      end
                     }, ", ".html_safe) %>
               </span>
             </div>
@@ -287,14 +293,22 @@
           <% if @job.dependencies.any? %>
             <ul class="divide-y divide-gray-100">
               <% @job.dependencies.each do |dependency| %>
-                <% dep_job = dependency.depends_on_job %>
                 <li class="py-2 flex items-center justify-between gap-3">
-                  <div>
-                    <%= link_to "#{dep_job.repository.slug} #{job_source_label_html(dep_job)}", job_path(dep_job),
-                          class: "text-blue-600 underline hover:no-underline" %>
-                    <span class="ml-2"><%= state_pill(job_summary_state(dep_job)) %></span>
-                    <span class="ml-2 text-xs text-gray-400"><%= dependency.source %></span>
-                  </div>
+                  <% if dependency.pending? %>
+                    <div>
+                      <span class="italic text-gray-600"><%= dependency.unresolved_slug %></span>
+                      <span class="ml-2 text-xs text-amber-700">pending — no Syrus Job yet</span>
+                      <span class="ml-2 text-xs text-gray-400"><%= dependency.source %></span>
+                    </div>
+                  <% else %>
+                    <% dep_job = dependency.depends_on_job %>
+                    <div>
+                      <%= link_to "#{dep_job.repository.slug} #{job_source_label_html(dep_job)}", job_path(dep_job),
+                            class: "text-blue-600 underline hover:no-underline" %>
+                      <span class="ml-2"><%= state_pill(job_summary_state(dep_job)) %></span>
+                      <span class="ml-2 text-xs text-gray-400"><%= dependency.source %></span>
+                    </div>
+                  <% end %>
                   <% if dependency.manual? %>
                     <%= button_to "Remove", dependency_job_path(@job, dependency), method: :delete,
                           class: "text-red-600 underline hover:no-underline cursor-pointer",

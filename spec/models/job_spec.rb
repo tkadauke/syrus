@@ -383,7 +383,7 @@ RSpec.describe Job do
       expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
     end
 
-    it "skips parsed references that do not have a Syrus Job" do
+    it "records pending dependencies when the referenced Job does not exist yet" do
       job = Job.create!(
         user: user,
         repository: repository,
@@ -391,7 +391,80 @@ RSpec.describe Job do
         issue_body: "Depends-on: #999"
       )
 
-      expect(job.dependencies).to be_empty
+      expect(job.dependencies.size).to eq(1)
+      pending = job.dependencies.first
+      expect(pending).to be_pending
+      expect(pending.unresolved_owner).to eq("acme")
+      expect(pending.unresolved_repo).to eq("widgets")
+      expect(pending.unresolved_number).to eq(999)
+      expect(pending.depends_on_job_id).to be_nil
+    end
+
+    it "treats pending dependencies as unsatisfied" do
+      job = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        issue_body: "Depends-on: #999"
+      )
+
+      expect(job).not_to be_dependencies_satisfied
+      expect(job.unsatisfied_dependencies.size).to eq(1)
+      expect(job.unsatisfied_dependencies.first).to be_pending
+    end
+
+    it "promotes pending dependencies to resolved when the target Job is later created" do
+      dependent = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        issue_body: "Depends-on: #42"
+      )
+      expect(dependent.dependencies.first).to be_pending
+
+      target = Job.create!(user: user, repository: repository, issue_number: 42)
+
+      dependent.reload
+      resolved = dependent.dependencies.first
+      expect(resolved).to be_resolved
+      expect(resolved.depends_on_job).to eq(target)
+      expect(resolved.unresolved_owner).to be_nil
+    end
+
+    it "promotes pending cross-repo dependencies when the target Job lands" do
+      other_repo = Factories.repository(user: user, owner: "tkadauke", name: "raytracer")
+      dependent = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        issue_body: "Depends-on: tkadauke/raytracer#102"
+      )
+      expect(dependent.dependencies.first).to be_pending
+
+      target = Job.create!(user: user, repository: other_repo, issue_number: 102)
+
+      dependent.reload
+      expect(dependent.dependencies.first.depends_on_job).to eq(target)
+    end
+
+    it "handles reverse-order bulk ingest where later-numbered issues are seen first" do
+      # Reproduces the 2026-05-13 bug: GitHub's API often returns issues
+      # newest-first. If issue #100 with `Depends-on: #99` is ingested
+      # before #99, the parser used to silently drop the dep. With
+      # deferred resolution, #100's dep is pending; when #99 lands, the
+      # pending row is promoted.
+      late = Job.create!(user: user, repository: repository, issue_number: 100,
+                         issue_body: "Depends-on: #99")
+      expect(late.dependencies.first).to be_pending
+      expect(late).not_to be_dependencies_satisfied
+
+      early = Job.create!(user: user, repository: repository, issue_number: 99)
+
+      late.reload
+      expect(late.dependencies.first.depends_on_job).to eq(early)
+      expect(late).not_to be_dependencies_satisfied  # still unsatisfied because target is open
+      early.close_with_reason!("pr_merged")
+      expect(late.reload).to be_dependencies_satisfied
     end
 
     it "is unsatisfied until every dependency has a successful closure reason" do

@@ -125,6 +125,7 @@ class Job < ApplicationRecord
   # targeting this issue and recorded the Job for the operator's
   # awareness without scheduling any agent work.
   after_create :seed_parsed_dependencies
+  after_create :resolve_pending_dependencies_targeting_self
   after_create :create_initial_run, if: -> { open? && issue? }
 
   # Trigger a Turbo morph-refresh on the Job's show page on any change.
@@ -249,13 +250,17 @@ class Job < ApplicationRecord
     return true if dependencies_overridden_at.present?
 
     dependencies.includes(:depends_on_job).all? do |dependency|
+      # Pending (unresolved) deps are always treated as unsatisfied —
+      # we don't know yet whether the referenced issue's Job will
+      # succeed, so we have to assume it won't.
+      next false if dependency.pending?
       dependency.depends_on_job.dependency_succeeded?
     end
   end
 
   def unsatisfied_dependencies
     dependencies.includes(depends_on_job: :repository).reject do |dependency|
-      dependency.depends_on_job.dependency_succeeded?
+      dependency.resolved? && dependency.depends_on_job.dependency_succeeded?
     end
   end
 
@@ -355,16 +360,62 @@ class Job < ApplicationRecord
     JobDependencyParser.parse(text: text, default_repository: repository).each do |reference|
       referenced_repository = user.repositories.find_by(owner: reference.owner, name: reference.repo)
       depends_on_job = referenced_repository&.jobs&.where(issue_number: reference.number)&.order(:created_at)&.last
-      unless depends_on_job
-        message = "Depends-on: #{reference.owner}/#{reference.repo}##{reference.number} — no Syrus Job exists for that issue; dependency not enforced"
-        self.pending_dependency_warnings = Array(pending_dependency_warnings) + [ message ]
-        Rails.logger.info("[JobDependency] job ##{id}: #{message}")
-        next
-      end
 
-      dependencies.find_or_create_by!(depends_on_job: depends_on_job) do |dependency|
-        dependency.source = "parsed"
+      if depends_on_job
+        dependencies.find_or_create_by!(depends_on_job: depends_on_job) do |dependency|
+          dependency.source = "parsed"
+        end
+      else
+        # Target Job doesn't exist yet. Persist a pending row; when the
+        # referenced issue is later ingested as a Job, the after_create
+        # hook on that Job (resolve_pending_dependencies_targeting_self)
+        # promotes this row to a resolved dependency.
+        dependencies.find_or_create_by!(
+          unresolved_owner: reference.owner,
+          unresolved_repo: reference.repo,
+          unresolved_number: reference.number
+        ) do |dependency|
+          dependency.source = "parsed"
+        end
+        Rails.logger.info(
+          "[JobDependency] job ##{id}: Depends-on: " \
+          "#{reference.owner}/#{reference.repo}##{reference.number} — " \
+          "no Syrus Job exists yet; recorded as pending"
+        )
       end
+    end
+  end
+
+  # After this Job is created, look for any existing pending dependencies
+  # whose unresolved reference points at this Job's (owner, repo,
+  # issue_number) triple and promote them to resolved rows. This is the
+  # "deferred resolution" half of the fix for bulk-ingest order problems:
+  # a Job filed earlier with `Depends-on: #this_issue` gets its
+  # placeholder row converted to a real dependency now that the target
+  # Job exists.
+  def resolve_pending_dependencies_targeting_self
+    return unless issue? && issue_number.present?
+
+    candidates = JobDependency.pending.where(
+      unresolved_owner: repository.owner,
+      unresolved_repo: repository.name,
+      unresolved_number: issue_number
+    )
+
+    candidates.find_each do |dependency|
+      # Only resolve for dependents owned by the same user as this Job
+      # (matches the user.repositories scope used when seeding).
+      next unless dependency.job.user_id == user_id
+
+      dependency.resolve!(depends_on_job: self)
+      Rails.logger.info(
+        "[JobDependency] resolved pending dep on job ##{dependency.job_id}: " \
+        "Depends-on: #{repository.owner}/#{repository.name}##{issue_number} -> job ##{id}"
+      )
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.warn(
+        "[JobDependency] failed to resolve pending dep on job ##{dependency.job_id}: #{e.message}"
+      )
     end
   end
 

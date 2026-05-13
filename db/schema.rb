@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_12_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_000000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -93,14 +93,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_12_000100) do
   create_table "job_dependencies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "created_by_user_id"
-    t.integer "depends_on_job_id", null: false
+    t.integer "depends_on_job_id"
     t.integer "job_id", null: false
     t.string "source", null: false
+    t.string "unresolved_owner"
+    t.string "unresolved_repo"
+    t.integer "unresolved_number"
     t.datetime "updated_at", null: false
     t.index ["created_by_user_id"], name: "index_job_dependencies_on_created_by_user_id"
     t.index ["depends_on_job_id"], name: "index_job_dependencies_on_depends_on_job_id"
     t.index ["job_id", "depends_on_job_id"], name: "index_job_dependencies_on_job_id_and_depends_on_job_id", unique: true
+    t.index ["job_id", "unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unique_unresolved_per_job", unique: true
     t.index ["job_id"], name: "index_job_dependencies_on_job_id"
+    t.index ["unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unresolved_reference"
   end
 
   create_table "job_logs", force: :cascade do |t|
