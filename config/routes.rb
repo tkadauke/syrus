@@ -78,6 +78,7 @@ Rails.application.routes.draw do
       post :delegate_issue
       post :bulk_issues
     end
+    resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals"
     resources :scheduled_tasks, only: %i[ new create ]
   end
 

@@ -1,0 +1,37 @@
+<dialog open class="w-full max-w-2xl rounded-lg border border-gray-200 p-0 shadow-xl backdrop:bg-gray-900/30">
+  <div class="border-b border-gray-200 px-5 py-4">
+    <h2 class="font-semibold text-lg">Edit proposal</h2>
+    <p class="mt-1 text-sm text-gray-600"><span class="font-mono"><%= proposal.slug %></span></p>
+  </div>
+
+  <%= form_with model: proposal, url: repository_proposal_path(repository, proposal), method: :patch, class: "space-y-4 px-5 py-4" do |form| %>
+    <% if proposal.errors.any? %>
+      <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <%= proposal.errors.full_messages.to_sentence %>
+      </div>
+    <% end %>
+
+    <div>
+      <%= form.label :title, class: "block text-sm font-medium text-gray-700" %>
+      <%= form.text_field :title, required: true, class: "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" %>
+    </div>
+
+    <div>
+      <%= form.label :body, class: "block text-sm font-medium text-gray-700" %>
+      <%= form.text_area :body, required: true, rows: 10, class: "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono" %>
+    </div>
+
+    <div>
+      <%= form.label :labels, class: "block text-sm font-medium text-gray-700" %>
+      <%= form.text_field :labels, class: "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono", placeholder: "bug, enhancement" %>
+    </div>
+
+    <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
+      <%= link_to "Cancel",
+            repository_proposals_path(repository, include_resolved: ("1" if include_resolved)),
+            class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium" %>
+      <%= form.submit "Save",
+            class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer" %>
+    </div>
+  <% end %>
+</dialog>
