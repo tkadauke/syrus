@@ -5,6 +5,7 @@ module JobsHelper
     "succeeded" => "bg-green-100 text-green-700",
     "failed"    => "bg-red-100 text-red-700",
     "cancelled" => "bg-amber-100 text-amber-700",
+    "awaiting_operator" => "bg-fuchsia-100 text-fuchsia-700",
     "open"      => "bg-emerald-100 text-emerald-700",
     "closed"    => "bg-gray-200 text-gray-800",
     "preempted" => "bg-violet-100 text-violet-700",

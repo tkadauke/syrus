@@ -120,6 +120,7 @@ Rails.application.routes.draw do
       post :stop_run       # cancel a single active Run without closing the thread
       post :retry_step     # re-run the failed step in a failed Workflow (keeps the existing workspace)
       post :push_commits   # push uncommitted/committed local changes from a failed Workflow's workspace
+      post :operator_response # answer an ask_operator question and resume the Run
       get  :source         # browse the repo source at any branch commit or merge base
       post :diagnose       # capture a RunHealthSnapshot for an active Run
       post :dependencies, action: :add_dependency

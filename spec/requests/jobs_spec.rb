@@ -155,12 +155,111 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to include('loading="lazy"')
       end
 
+      it "shows a pending operator-question banner and inline reply form" do
+        run = job.initial_run
+        run.step.start!; run.step.save!
+        run.start!; run.await_operator!; run.save!
+        question = OperatorQuestion.create!(
+          job: job,
+          workflow: run.workflow,
+          run: run,
+          text: "Which deployment target should I use for the checksum repair?",
+          context: { "file" => "config/deploy.yml", "choices" => [ "staging", "production" ] },
+          asked_at: Time.zone.parse("2026-05-13 10:00:00")
+        )
+
+        get job_path(job)
+
+        expect(response.body).to include("Agent is waiting for your response")
+        expect(response.body).to include("Which deployment target should I use")
+        expect(response.body).to include("#operator-question-#{question.id}")
+        expect(response.body).to include("config/deploy.yml")
+        expect(response.body).to include("Send response")
+        expect(response.body).to include("sm:flex-row")
+      end
+
+      it "renders operator Q&A history chronologically for the Run" do
+        run = job.initial_run
+        run.step.start!; run.step.save!
+        run.start!; run.await_operator!; run.save!
+        first = OperatorQuestion.create!(
+          job: job,
+          workflow: run.workflow,
+          run: run,
+          text: "First question?",
+          asked_at: Time.zone.parse("2026-05-13 10:00:00")
+        )
+        first.record_response!(text: "First answer.", responded_at: Time.zone.parse("2026-05-13 10:01:00"))
+        second = OperatorQuestion.create!(
+          job: job,
+          workflow: run.workflow,
+          run: run,
+          text: "Second question?",
+          asked_at: Time.zone.parse("2026-05-13 10:02:00")
+        )
+        second.record_response!(text: "Second answer.", responded_at: Time.zone.parse("2026-05-13 10:03:00"))
+
+        get job_path(job)
+
+        expect(response.body).to match(/First question\?.*First answer\..*Second question\?.*Second answer\./m)
+      end
+
       it "404s for another user's job" do
         foreign_repo = Factories.repository(user: other)
         foreign_job = Factories.job(repository: foreign_repo, issue_number: 1)
         get job_path(foreign_job)
         expect(response).to have_http_status(:not_found)
       end
+    end
+  end
+
+  describe "POST /jobs/:id/operator_response" do
+    before { sign_in_as(user) }
+
+    it "persists the response and resumes the awaiting Run" do
+      run = job.initial_run
+      run.step.start!; run.step.save!
+      run.start!; run.await_operator!; run.save!
+      question = OperatorQuestion.create!(
+        job: job,
+        workflow: run.workflow,
+        run: run,
+        text: "Which file should I edit?"
+      )
+
+      expect {
+        post operator_response_job_path(job), params: {
+          operator_question_id: question.id,
+          text: "Use app/models/run.rb."
+        }
+      }.to change(OperatorResponse, :count).by(1)
+        .and have_enqueued_job(RunJob).with(run.id)
+
+      expect(question.operator_responses.last.text).to eq("Use app/models/run.rb.")
+      expect(run.reload.state).to eq("queued")
+      expect(response).to redirect_to(job_path(job, anchor: "operator-question-#{question.id}"))
+    end
+
+    it "does not accept a blank response" do
+      run = job.initial_run
+      run.step.start!; run.step.save!
+      run.start!; run.await_operator!; run.save!
+      question = OperatorQuestion.create!(
+        job: job,
+        workflow: run.workflow,
+        run: run,
+        text: "Which branch?"
+      )
+
+      expect {
+        post operator_response_job_path(job), params: {
+          operator_question_id: question.id,
+          text: " "
+        }
+      }.not_to change(OperatorResponse, :count)
+
+      expect(run.reload.state).to eq("awaiting_operator")
+      expect(response).to redirect_to(job_path(job, anchor: "operator-question-#{question.id}"))
     end
   end
 

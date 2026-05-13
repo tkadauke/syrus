@@ -3,6 +3,11 @@ class JobsController < ApplicationController
 
   def show
     @dependency_target_options = dependency_target_options
+    @pending_operator_question = @job.operator_questions
+                                     .joins(:run)
+                                     .merge(Run.where(state: "awaiting_operator"))
+                                     .order(asked_at: :desc, created_at: :desc)
+                                     .first
   end
 
   def new
@@ -313,6 +318,26 @@ class JobsController < ApplicationController
 
     PushPendingCommitsJob.perform_later(workflow.id)
     redirect_to job_path(@job), notice: "Pushing commits to GitHub…"
+  end
+
+  def operator_response
+    question = @job.operator_questions.includes(:run).find_by(id: params[:operator_question_id])
+    unless question
+      redirect_to job_path(@job), alert: "Operator question not found."
+      return
+    end
+
+    text = params[:text].to_s.strip
+    if text.blank?
+      redirect_to job_path(@job, anchor: "operator-question-#{question.id}"), alert: "Response can't be blank."
+      return
+    end
+
+    question.record_response!(text: text)
+    run = question.run
+    run.resume_after_operator_response! if run.awaiting_operator?
+
+    redirect_to job_path(@job, anchor: "operator-question-#{question.id}"), notice: "Response sent."
   end
 
   # Undo a close. The next poll cycle may immediately re-close the
