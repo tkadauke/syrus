@@ -28,6 +28,9 @@ default: &default
   reap_awaiting_operator_runs:
     class: ReapAwaitingOperatorRunsJob
     schedule: every hour
+  nudge_awaiting_operator_runs:
+    class: OperatorQuestionNudgeJob
+    schedule: every hour
   prune_claude_sessions:
     class: ClaudeSessionPruneJob
     schedule: every day at 3:00am

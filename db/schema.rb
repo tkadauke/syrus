@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_110000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -335,6 +335,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_100000) do
     t.integer "iteration", default: 1, null: false
     t.integer "job_id", null: false
     t.datetime "last_heartbeat_at"
+    t.boolean "nudge_sent", default: false, null: false
     t.integer "output_tokens"
     t.string "parent_session_id"
     t.text "prompt"
@@ -347,6 +348,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_100000) do
     t.index ["job_id"], name: "index_runs_on_job_id"
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
+    t.index ["state", "nudge_sent", "created_at"], name: "index_runs_on_operator_nudge_window"
     t.index ["step_id"], name: "index_runs_on_step_id"
   end
 

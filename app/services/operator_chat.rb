@@ -13,18 +13,21 @@ module OperatorChat
     raise Disabled, "operator chat is disabled for #{repository.slug}" if channel == "disabled"
 
     klass_name = CHANNELS.fetch(channel) { raise DeliveryError, "unknown operator chat channel: #{channel}" }
+    workflow = run.workflow
+    raise DeliveryError, "run must belong to a Workflow" unless workflow
+
     record = nil
 
     OperatorQuestion.transaction do
       record = OperatorQuestion.create!(
-        repository: repository,
         job: run.job,
+        workflow: workflow,
         run: run,
-        channel: channel,
-        question: question,
+        text: question,
         context: context,
-        sent_at: Time.current
+        asked_at: Time.current
       )
+      record.channel = channel
 
       klass_name.constantize.deliver!(record)
     end

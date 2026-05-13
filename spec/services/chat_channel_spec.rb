@@ -7,6 +7,12 @@ RSpec.describe ChatChannel do
     expect(described_class.for(repository)).to be_a(ChatChannel::InSyrus)
   end
 
+  it "routes telegram repository config to the Telegram channel" do
+    repository = Factories.repository(allow_operator_chat: "telegram")
+
+    expect(described_class.for(repository)).to be_a(ChatChannel::Telegram)
+  end
+
   it "rejects disabled operator chat" do
     repository = Factories.repository(allow_operator_chat: "disabled")
 

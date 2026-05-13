@@ -2,7 +2,8 @@ module ChatChannel
   class ConfigurationError < StandardError; end
 
   CHANNELS = {
-    "in_syrus" => -> { ChatChannel::InSyrus }
+    "in_syrus" => -> { ChatChannel::InSyrus },
+    "telegram" => -> { ChatChannel::Telegram }
   }.freeze
 
   def self.for(repository)

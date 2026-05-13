@@ -10,4 +10,14 @@ RSpec.describe "recurring job configuration" do
       "schedule" => "every hour"
     )
   end
+
+  it "runs OperatorQuestionNudgeJob hourly" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+    task = config.fetch("default").fetch("nudge_awaiting_operator_runs")
+
+    expect(task).to include(
+      "class" => "OperatorQuestionNudgeJob",
+      "schedule" => "every hour"
+    )
+  end
 end

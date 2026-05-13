@@ -1,4 +1,6 @@
 class OperatorQuestion < ApplicationRecord
+  attr_accessor :channel
+
   belongs_to :job
   belongs_to :workflow
   belongs_to :run
@@ -19,8 +21,21 @@ class OperatorQuestion < ApplicationRecord
     text
   end
 
+  def question=(value)
+    self.text = value
+  end
+
   def sent_at
     asked_at
+  end
+
+  def sent_at=(value)
+    self.asked_at = value
+  end
+
+  def repository=(_value)
+    # Legacy writer kept for tests and older dispatch seams. Repository
+    # is derived from the owning Job.
   end
 
   def state
@@ -34,6 +49,8 @@ class OperatorQuestion < ApplicationRecord
   private
 
   def set_defaults
+    self.workflow ||= run&.workflow
+    self.job ||= run&.job
     self.context = {} if context.nil?
     self.asked_at ||= Time.current
   end

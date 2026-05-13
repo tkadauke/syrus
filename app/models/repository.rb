@@ -1,6 +1,6 @@
 class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
-  OPERATOR_CHAT_CHANNELS = %w[ disabled in_syrus ].freeze
+  OPERATOR_CHAT_CHANNELS = %w[ disabled in_syrus telegram ].freeze
 
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
@@ -13,7 +13,7 @@ class Repository < ApplicationRecord
   has_many :jobs, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
-  has_many :operator_questions, dependent: :destroy
+  has_many :operator_questions, through: :jobs
 
   validates :owner, presence: true, format: { with: GITHUB_NAME }
   validates :name, presence: true, format: { with: GITHUB_NAME }
