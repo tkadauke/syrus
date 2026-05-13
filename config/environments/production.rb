@@ -21,8 +21,11 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  # Store uploaded files in the in-cluster MinIO via S3-compatible API.
+  # See config/storage.yml#minio. Env vars (S3_ENDPOINT, S3_BUCKET,
+  # S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY) are injected by the
+  # green_acres pod spec for both web and worker pods.
+  config.active_storage.service = :minio
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   # config.assume_ssl = true

@@ -82,6 +82,11 @@ end
 group :production do
   # MySQL adapter for production
   gem "mysql2", "~> 0.5"
+
+  # S3-compatible object storage adapter for Active Storage. Production
+  # uses an in-cluster MinIO (deployed by green_acres) as the storage
+  # service for Job attachments — see config/storage.yml#minio.
+  gem "aws-sdk-s3", require: false
 end
 
 group :test do

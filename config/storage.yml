@@ -6,22 +6,17 @@ local:
   service: Disk
   root: <%= Rails.root.join("storage") %>
 
-# Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
-# amazon:
-#   service: S3
-#   access_key_id: <%= Rails.application.credentials.dig(:aws, :access_key_id) %>
-#   secret_access_key: <%= Rails.application.credentials.dig(:aws, :secret_access_key) %>
-#   region: us-east-1
-#   bucket: your_own_bucket-<%= Rails.env %>
-
-# Remember not to checkin your GCS keyfile to a repository
-# google:
-#   service: GCS
-#   project: your_project
-#   credentials: <%= Rails.root.join("path/to/gcs.keyfile") %>
-#   bucket: your_own_bucket-<%= Rails.env %>
-
-# mirror:
-#   service: Mirror
-#   primary: local
-#   mirrors: [ amazon, google, microsoft ]
+# S3-compatible object storage for production. Points at the in-cluster
+# MinIO that green_acres deploys (see apps/minio.py + apps/syrus.py).
+# Env vars are injected by the Syrus pod spec — the syrus-minio Secret
+# in the Syrus namespace holds the access key + secret. Bucket and
+# endpoint come from the deployment (e.g. syrus-prod-attachments
+# against http://minio.minio.svc.cluster.local:9000).
+minio:
+  service: S3
+  access_key_id: <%= ENV["S3_ACCESS_KEY_ID"] %>
+  secret_access_key: <%= ENV["S3_SECRET_ACCESS_KEY"] %>
+  region: <%= ENV.fetch("S3_REGION", "us-east-1") %>
+  bucket: <%= ENV["S3_BUCKET"] %>
+  endpoint: <%= ENV["S3_ENDPOINT"] %>
+  force_path_style: true
