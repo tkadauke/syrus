@@ -31,6 +31,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     Workflow.where(state: %w[ succeeded cancelled ])
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", sc_cutoff)
+            .where.not(id: awaiting_operator_workflow_ids)
             .find_each do |wf|
       WorkflowWorkspace.cleanup_for(wf)
       n += 1

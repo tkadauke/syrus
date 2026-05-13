@@ -52,6 +52,18 @@ RSpec.describe WorkflowWorkspacePruneJob do
     described_class.perform_now
   end
 
+  it "db_sweep preserves succeeded workflows while a run is awaiting operator input" do
+    wf = make_workflow(
+      state: "succeeded",
+      finished_at: (described_class::RETAIN_AFTER_SUCCESS_OR_CANCEL + 1.minute).ago
+    )
+    step = Step.create!(workflow: wf, kind: "implement", position: 0, state: "running")
+    Run.create!(job: wf.job, step: step, trigger_kind: "initial", state: "awaiting_operator")
+
+    expect(WorkflowWorkspace).not_to receive(:cleanup_for).with(wf)
+    described_class.perform_now
+  end
+
   # ---- db_sweep: failed uses long retention -----------------------
 
   it "db_sweep cleans failed workflows past RETAIN_AFTER_FAILURE" do
