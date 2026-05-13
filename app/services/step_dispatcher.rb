@@ -129,9 +129,9 @@ class StepDispatcher
 
     Step.transaction do
       loop_step_count = loop_node.fetch("steps").size
-      @workflow.steps.where(position: insertion_position..).order(position: :desc).each do |step|
-        step.update!(position: step.position + loop_step_count)
-      end
+      @workflow.steps.where("position >= ?", insertion_position).update_all(
+        [ "position = position + ?", loop_step_count ]
+      )
 
       previous = current_grade
       new_steps = loop_node.fetch("steps").map.with_index do |kind, index|
