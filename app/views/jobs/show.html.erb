@@ -303,8 +303,9 @@
                   <% else %>
                     <% dep_job = dependency.depends_on_job %>
                     <div>
-                      <%= link_to "#{dep_job.repository.slug} #{job_source_label_html(dep_job)}", job_path(dep_job),
+                      <%= link_to dep_job.repository.slug, job_path(dep_job),
                             class: "text-blue-600 underline hover:no-underline" %>
+                      <%= job_source_label_html(dep_job) %>
                       <span class="ml-2"><%= state_pill(job_summary_state(dep_job)) %></span>
                       <span class="ml-2 text-xs text-gray-400"><%= dependency.source %></span>
                     </div>
@@ -341,8 +342,9 @@
               <% @job.dependent_links.each do |dependency| %>
                 <% dependent_job = dependency.job %>
                 <li class="py-2">
-                  <%= link_to "#{dependent_job.repository.slug} #{job_source_label_html(dependent_job)}", job_path(dependent_job),
+                  <%= link_to dependent_job.repository.slug, job_path(dependent_job),
                         class: "text-blue-600 underline hover:no-underline" %>
+                  <%= job_source_label_html(dependent_job) %>
                   <span class="ml-2"><%= state_pill(job_summary_state(dependent_job)) %></span>
                 </li>
               <% end %>

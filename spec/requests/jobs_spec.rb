@@ -1260,12 +1260,20 @@ RSpec.describe "Jobs", type: :request do
 
       get job_path(target)
 
+      document = Nokogiri::HTML(response.body)
+
       expect(response.body).to include("Dependencies")
       expect(response.body).to include("waiting on 1 dependency")
       expect(response.body).to include("Dependency")
+      expect(response.body).not_to include("&lt;a")
+      expect(document.at_css("a[href='https://github.com/acme/widgets/issues/41']").text).to eq("#41")
 
       get job_path(prerequisite)
+      document = Nokogiri::HTML(response.body)
+
       expect(response.body).to include("1 other Job depend on this one")
+      expect(response.body).not_to include("&lt;a")
+      expect(document.at_css("a[href='https://github.com/acme/widgets/issues/42']").text).to eq("#42")
     end
 
     it "renders tabs before the summary overview and dependency controls" do
