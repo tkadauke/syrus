@@ -60,6 +60,15 @@ RSpec.describe "Repositories", type: :request do
     end
 
     describe "credential mode banner" do
+      it "shows the docs maintenance chat entry point" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+        get repository_path(repo)
+
+        expect(response.body).to include("Review ROADMAP + plans")
+        expect(response.body).to include("docs_maintenance")
+      end
+
       it "shows installed App status without a warning banner" do
         AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
         installation = Factories.installation(user: user, account_login: "acme")

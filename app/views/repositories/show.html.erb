@@ -78,6 +78,11 @@
       <% end %>
       <%= link_to "Edit", edit_repository_path(@repository),
             class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium" %>
+      <%= button_to "Review ROADMAP + plans",
+            repository_chats_path(@repository),
+            params: { chat_template: "docs_maintenance" },
+            class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium cursor-pointer",
+            form: { class: "inline" } %>
       <%# Archive is the soft-stop action — flips polling off and
           surfaces the repo under "Archived" on the index. Reversible.
           Hard delete still lives on the index page next to the

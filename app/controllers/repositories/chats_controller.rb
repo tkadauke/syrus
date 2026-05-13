@@ -1,4 +1,8 @@
 class Repositories::ChatsController < ApplicationController
+  CHAT_TEMPLATES = {
+    "docs_maintenance" => ChatTemplates::DocsMaintenance
+  }.freeze
+
   before_action :load_repository
   before_action :load_chat_session, only: :message
 
@@ -66,6 +70,15 @@ class Repositories::ChatsController < ApplicationController
   end
 
   def message_text
-    params.dig(:chat_message, :text).to_s.strip
+    template_text.presence || params.dig(:chat_message, :text).to_s.strip
+  end
+
+  def template_text
+    template_key = params[:chat_template].to_s
+    return "" if template_key.blank?
+
+    CHAT_TEMPLATES.fetch(template_key).new(repository: @repository).to_s.strip
+  rescue KeyError
+    ""
   end
 end

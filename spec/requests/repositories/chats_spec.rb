@@ -96,6 +96,22 @@ RSpec.describe "Repository chats", type: :request do
       expect(message.content).to eq("text" => "Map the auth flow")
       expect(response).to redirect_to(repository_chats_path(repo))
     end
+
+    it "creates a seeded docs-maintenance chat from a template" do
+      expect {
+        post repository_chats_path(repo), params: { chat_template: "docs_maintenance" }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      chat = repo.chat_sessions.last
+      message = chat.messages.last
+      expect(chat.title).to include("Review ROADMAP.md")
+      expect(message.content.fetch("text")).to include("ROADMAP.md")
+      expect(message.content.fetch("text")).to include("docs/plans/complete/")
+      expect(message.content.fetch("text")).to include("propose_issue")
+      expect(response).to redirect_to(repository_chats_path(repo))
+    end
   end
 
   describe "POST /repositories/:repository_id/chats/:id/message" do
