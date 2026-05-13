@@ -164,5 +164,18 @@ RSpec.describe RunJob, "step-dispatch path" do
       expect(run.reload.state).to eq("failed")
       expect(run.agent_outcome).to eq("worker_died")
     end
+
+    it "leaves an awaiting_operator Run parked" do
+      StepDispatcher.start_workflow(workflow)
+      run = s_implement.runs.last
+      run.update!(state: "awaiting_operator", started_at: 1.hour.ago)
+
+      expect(Steps).not_to receive(:handler_for)
+      described_class.perform_now(run.id)
+
+      expect(run.reload.state).to eq("awaiting_operator")
+      expect(s_implement.reload.state).to eq("queued")
+      expect(workflow.reload.state).to eq("queued")
+    end
   end
 end

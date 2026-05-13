@@ -35,7 +35,7 @@ class Run < ApplicationRecord
   # reads, broad greps, multi-file edits).
   STALE_HEARTBEAT_THRESHOLD = 30.minutes
 
-  scope :active, -> { where(state: %w[ queued running ]) }
+  scope :active, -> { where(state: %w[ queued running awaiting_operator ]) }
   scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
   scope :ordered, -> { order(:created_at) }
   scope :stale, -> {
@@ -46,7 +46,7 @@ class Run < ApplicationRecord
 
   aasm column: :state, whiny_transitions: false do
     state :queued, initial: true
-    state :running, :succeeded, :failed, :cancelled
+    state :running, :awaiting_operator, :succeeded, :failed, :cancelled
 
     event :start do
       transitions from: :queued, to: :running, after: -> { self.started_at = Time.current }
@@ -57,11 +57,15 @@ class Run < ApplicationRecord
     end
 
     event :fail do
-      transitions from: [ :queued, :running ], to: :failed, after: -> { self.finished_at = Time.current }
+      transitions from: [ :queued, :running, :awaiting_operator ], to: :failed, after: -> { self.finished_at = Time.current }
     end
 
     event :cancel do
-      transitions from: [ :queued, :running ], to: :cancelled, after: -> { self.finished_at = Time.current }
+      transitions from: [ :queued, :running, :awaiting_operator ], to: :cancelled, after: -> { self.finished_at = Time.current }
+    end
+
+    event :await_operator do
+      transitions from: :running, to: :awaiting_operator
     end
   end
 

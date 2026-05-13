@@ -25,6 +25,9 @@ default: &default
   reap_stale_runs:
     class: ReapStaleRunsJob
     schedule: every minute
+  reap_awaiting_operator_runs:
+    class: ReapAwaitingOperatorRunsJob
+    schedule: every hour
   prune_claude_sessions:
     class: ClaudeSessionPruneJob
     schedule: every day at 3:00am
