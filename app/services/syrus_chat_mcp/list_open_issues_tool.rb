@@ -15,7 +15,7 @@ module SyrusChatMcp
 
     input_schema(
       properties: {
-        state: { type: "string", enum: %w[open closed], description: "Issue state. Defaults to open." },
+        state: { type: "string", description: "Issue state: open or closed. Defaults to open." },
         label: { type: "string", description: "Optional GitHub label filter." },
         limit: { type: "integer", description: "Maximum issues to return. Defaults to 20, max 100." }
       }

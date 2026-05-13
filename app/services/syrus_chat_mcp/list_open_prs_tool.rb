@@ -15,7 +15,7 @@ module SyrusChatMcp
 
     input_schema(
       properties: {
-        state: { type: "string", enum: %w[open closed merged], description: "Pull request state. Defaults to open." },
+        state: { type: "string", description: "Pull request state: open, closed, or merged. Defaults to open." },
         limit: { type: "integer", description: "Maximum PRs to return. Defaults to 20, max 100." }
       }
     )
