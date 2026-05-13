@@ -245,6 +245,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_190100) do
     t.index ["unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unresolved_reference"
   end
 
+  create_table "job_attachments", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "content_type", null: false
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.integer "job_id", null: false
+    t.string "source_url", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "source_url"], name: "index_job_attachments_on_job_id_and_source_url", unique: true
+    t.index ["job_id"], name: "index_job_attachments_on_job_id"
+  end
+
   create_table "job_logs", force: :cascade do |t|
     t.text "chunk", limit: 16777215, null: false
     t.datetime "created_at", null: false
@@ -607,6 +619,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_190100) do
   add_foreign_key "job_dependencies", "jobs"
   add_foreign_key "job_dependencies", "jobs", column: "depends_on_job_id"
   add_foreign_key "job_dependencies", "users", column: "created_by_user_id"
+  add_foreign_key "job_attachments", "jobs"
   add_foreign_key "job_logs", "runs"
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"

@@ -105,6 +105,8 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def enqueue_followup_run(new_comments)
+    ingest_comment_images(new_comments)
+
     # Stash the comment payload on the workflow as a structured
     # artifact; Steps::Respond reads it at run time and composes
     # the Prompts::PrFeedback prompt itself. Polling job stays
@@ -117,6 +119,12 @@ class PollPullRequestJob < ApplicationJob
 
     latest = new_comments.map(&:created_at).compact.max
     @job.update!(last_seen_comment_at: latest) if latest && (@job.last_seen_comment_at.nil? || latest > @job.last_seen_comment_at)
+  end
+
+  def ingest_comment_images(new_comments)
+    new_comments.each do |comment|
+      JobImageAttachmentIngestor.ingest_markdown_images(job: @job, markdown: comment.body)
+    end
   end
 
   def feedback_cutoff

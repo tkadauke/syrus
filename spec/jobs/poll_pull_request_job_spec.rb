@@ -187,6 +187,34 @@ RSpec.describe PollPullRequestJob do
       expect(job.reload.last_feedback_addressed_at).to be_nil
     end
 
+    it "attaches markdown images from PR feedback comments to the Job" do
+      image_body = "\x89PNG\r\n\x1A\nreview-image".b
+      stub_request(:get, "https://uploads.example.com/state.png").to_return(
+        status: 200,
+        headers: { "Content-Type" => "image/png", "Content-Length" => image_body.bytesize.to_s },
+        body: image_body
+      )
+      stub_issue_comments([
+        { id: 1, body: "Broken state: ![screenshot](https://uploads.example.com/state.png)",
+          user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([
+        { id: 2, body: "Same image inline: ![again](https://uploads.example.com/state.png)",
+          path: "app/views/widgets/show.html.erb", line: 12,
+          user: { login: "reviewer" }, created_at: t2.iso8601, pull_request_review_id: nil }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.job_attachments.count }.by(1)
+        .and change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      attachment = job.job_attachments.last
+      expect(attachment.source_url).to eq("https://uploads.example.com/state.png")
+      expect(attachment.file).to be_attached
+      expect(attachment.file.download).to eq(image_body)
+    end
+
     it "does not schedule feedback that was already addressed successfully" do
       job.update!(last_feedback_addressed_at: t2)
       stub_issue_comments([
