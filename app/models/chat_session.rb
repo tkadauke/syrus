@@ -1,18 +1,4 @@
-require "bigdecimal"
-
 class ChatSession < ApplicationRecord
-  COST_PER_TOKEN = {
-    claude_sonnet: {
-      input: BigDecimal("0.000003"),
-      output: BigDecimal("0.000015")
-    },
-    claude_opus: {
-      input: BigDecimal("0.000015"),
-      output: BigDecimal("0.000075")
-    }
-  }.freeze
-  DEFAULT_COST_PROFILE = :claude_sonnet
-
   belongs_to :repository
   belongs_to :user
 
@@ -20,12 +6,14 @@ class ChatSession < ApplicationRecord
   has_many :proposals, class_name: "ChatProposal", dependent: :destroy
   has_one :claude_session, as: :resumable, dependent: :destroy
 
-  after_update_commit :broadcast_header, if: :cumulative_tokens_previously_changed?
+  after_update_commit :broadcast_header, if: :cumulative_usage_previously_changed?
 
   validates :cumulative_input_tokens,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :cumulative_output_tokens,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :cumulative_cost_usd,
+            numericality: { greater_than_or_equal_to: 0 }
 
   def turn_in_flight?
     latest_user_message = messages.where(role: "user").order(:created_at, :id).last
@@ -40,16 +28,24 @@ class ChatSession < ApplicationRecord
       .none?
   end
 
-  def cumulative_cost(cost_profile = DEFAULT_COST_PROFILE)
-    rates = COST_PER_TOKEN.fetch(cost_profile.to_sym)
-    (cumulative_input_tokens * rates.fetch(:input)) +
-      (cumulative_output_tokens * rates.fetch(:output))
+  def cumulative_cost
+    cumulative_cost_usd.to_d
+  end
+
+  def record_turn_usage!(result)
+    updates = {}
+    updates[:cumulative_input_tokens] = cumulative_input_tokens + result.input_tokens.to_i if result.input_tokens
+    updates[:cumulative_output_tokens] = cumulative_output_tokens + result.output_tokens.to_i if result.output_tokens
+    updates[:cumulative_cost_usd] = cumulative_cost + result.cost_usd.to_d if result.cost_usd
+    update!(updates) if updates.any?
   end
 
   private
 
-  def cumulative_tokens_previously_changed?
-    saved_change_to_cumulative_input_tokens? || saved_change_to_cumulative_output_tokens?
+  def cumulative_usage_previously_changed?
+    saved_change_to_cumulative_input_tokens? ||
+      saved_change_to_cumulative_output_tokens? ||
+      saved_change_to_cumulative_cost_usd?
   end
 
   def broadcast_header

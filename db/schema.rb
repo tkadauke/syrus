@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_110100) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -84,6 +84,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110100) do
 
   create_table "chat_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.decimal "cumulative_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.integer "cumulative_input_tokens", default: 0, null: false
     t.integer "cumulative_output_tokens", default: 0, null: false
     t.datetime "last_message_at"

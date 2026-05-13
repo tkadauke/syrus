@@ -15,7 +15,7 @@
     <p class="mt-2 text-sm text-gray-600">
       Tokens:
       <%= input_label %>k in /
-      <%= output_label %>k out · <%= number_to_currency(cost) %>
+      <%= output_label %>k out · <%= number_to_currency(cost, precision: 4) %>
     </p>
   </div>
   <% if local_assigns.fetch(:chat_available, true) %>

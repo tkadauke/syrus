@@ -9,6 +9,7 @@ RSpec.describe ChatSession do
     expect(session).to be_persisted
     expect(session.cumulative_input_tokens).to eq(0)
     expect(session.cumulative_output_tokens).to eq(0)
+    expect(session.cumulative_cost).to eq(0)
   end
 
   it "requires a repository" do
@@ -25,20 +26,22 @@ RSpec.describe ChatSession do
     expect(session.errors[:user]).to be_present
   end
 
-  it "rejects negative token counts" do
+  it "rejects negative usage totals" do
     session = described_class.new(
       repository: repo,
       user: repo.user,
       cumulative_input_tokens: -1,
-      cumulative_output_tokens: -1
+      cumulative_output_tokens: -1,
+      cumulative_cost_usd: -0.01
     )
 
     expect(session).not_to be_valid
     expect(session.errors[:cumulative_input_tokens]).to be_present
     expect(session.errors[:cumulative_output_tokens]).to be_present
+    expect(session.errors[:cumulative_cost_usd]).to be_present
   end
 
-  it "calculates cumulative Claude Sonnet token cost" do
+  it "reports the cumulative cost supplied by Claude CLI" do
     session = described_class.new(
       repository: repo,
       user: repo.user,
@@ -46,7 +49,35 @@ RSpec.describe ChatSession do
       cumulative_output_tokens: 3_200
     )
 
-    expect(session.cumulative_cost).to eq(BigDecimal("0.0852"))
+    expect(session.cumulative_cost).to eq(0)
+  end
+
+  it "records turn usage from Claude CLI results without deriving price from tokens" do
+    session = described_class.create!(
+      repository: repo,
+      user: repo.user,
+      cumulative_input_tokens: 12_400,
+      cumulative_output_tokens: 3_200,
+      cumulative_cost_usd: 0.01
+    )
+    result = AgentInvocation::Result.new(
+      turns: 1,
+      exit_status: 0,
+      timed_out: false,
+      is_error: false,
+      outcome: "success",
+      final_text: "Done",
+      session_id: "claude-session",
+      cost_usd: 0.004321,
+      input_tokens: 100,
+      output_tokens: 25
+    )
+
+    session.record_turn_usage!(result)
+
+    expect(session.reload.cumulative_input_tokens).to eq(12_500)
+    expect(session.cumulative_output_tokens).to eq(3_225)
+    expect(session.cumulative_cost).to eq(BigDecimal("0.014321"))
   end
 
   it "destroys messages with the session" do

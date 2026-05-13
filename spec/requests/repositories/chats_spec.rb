@@ -57,6 +57,7 @@ RSpec.describe "Repository chats", type: :request do
         user: user,
         cumulative_input_tokens: 12_400,
         cumulative_output_tokens: 3_200,
+        cumulative_cost_usd: 0.012345,
         last_message_at: 1.hour.ago
       )
       newer.messages.create!(role: "assistant", content: { "text" => "Newest answer" })
@@ -67,7 +68,7 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).not_to include("Old answer")
       expect(response.body).to include("12.4k in")
       expect(response.body).to include("3.2k out")
-      expect(response.body).to include("$0.09")
+      expect(response.body).to include("$0.0123")
       expect(response.body).to include("chat_session_#{newer.id}_messages")
       expect(response.body).to include("Refresh repo")
       expect(response.body).to include("Reset workspace")
