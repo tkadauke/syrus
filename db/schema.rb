@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_010300) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -35,6 +35,65 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_000000) do
     t.boolean "signups_open", default: false, null: false
     t.datetime "updated_at", null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
+  end
+
+  create_table "chat_messages", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.json "content", null: false
+    t.datetime "created_at", null: false
+    t.integer "proposal_id"
+    t.string "role", null: false
+    t.string "tool_name"
+    t.string "tool_use_id"
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
+    t.index ["chat_session_id"], name: "index_chat_messages_on_chat_session_id"
+    t.index ["proposal_id"], name: "index_chat_messages_on_proposal_id"
+  end
+
+  create_table "chat_proposal_dependencies", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "depends_on_id", null: false
+    t.integer "proposal_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["depends_on_id"], name: "index_chat_proposal_dependencies_on_depends_on_id"
+    t.index ["proposal_id", "depends_on_id"], name: "index_chat_prop_deps_on_proposal_and_depends_on", unique: true
+    t.index ["proposal_id"], name: "index_chat_proposal_dependencies_on_proposal_id"
+  end
+
+  create_table "chat_proposals", force: :cascade do |t|
+    t.text "body", null: false
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "discarded_at"
+    t.datetime "filed_at"
+    t.integer "github_issue_number"
+    t.integer "job_id"
+    t.string "kind", default: "syrus_issue", null: false
+    t.string "labels"
+    t.string "slug", null: false
+    t.string "state", default: "pending", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "slug"], name: "index_chat_proposals_on_chat_session_id_and_slug", unique: true
+    t.index ["chat_session_id", "state"], name: "index_chat_proposals_on_chat_session_id_and_state"
+    t.index ["chat_session_id"], name: "index_chat_proposals_on_chat_session_id"
+    t.index ["job_id"], name: "index_chat_proposals_on_job_id"
+  end
+
+  create_table "chat_sessions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "cumulative_input_tokens", default: 0, null: false
+    t.integer "cumulative_output_tokens", default: 0, null: false
+    t.datetime "last_message_at"
+    t.integer "repository_id", null: false
+    t.datetime "stop_requested_at"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["repository_id", "last_message_at"], name: "index_chat_sessions_on_repository_id_and_last_message_at"
+    t.index ["repository_id"], name: "index_chat_sessions_on_repository_id"
+    t.index ["user_id"], name: "index_chat_sessions_on_user_id"
   end
 
   create_table "claude_sessions", force: :cascade do |t|
@@ -358,6 +417,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_000000) do
   end
 
   add_foreign_key "admin_actions", "users"
+  add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
+  add_foreign_key "chat_messages", "chat_sessions"
+  add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "depends_on_id"
+  add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "proposal_id"
+  add_foreign_key "chat_proposals", "chat_sessions"
+  add_foreign_key "chat_proposals", "jobs"
+  add_foreign_key "chat_sessions", "repositories"
+  add_foreign_key "chat_sessions", "users"
   add_foreign_key "claude_sessions", "runs"
   add_foreign_key "cron_templates", "users"
   add_foreign_key "installations", "users"
