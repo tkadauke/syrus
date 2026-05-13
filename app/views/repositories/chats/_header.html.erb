@@ -19,10 +19,18 @@
     </p>
   </div>
   <% if local_assigns.fetch(:chat_available, true) %>
-    <%= button_to "New chat",
-          repository_chats_path(repository),
-          method: :post,
-          class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium cursor-pointer",
-          form: { data: { chat_target: "newChatForm" } } %>
+    <div class="flex flex-wrap gap-2">
+      <button type="button"
+              class="rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium cursor-pointer"
+              data-chat-layout-target="canvasToggle"
+              data-action="chat-layout#toggleCanvas">
+        <span data-chat-layout-target="canvasToggleLabel">Hide canvas</span>
+      </button>
+      <%= button_to "New chat",
+            repository_chats_path(repository),
+            method: :post,
+            class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium cursor-pointer",
+            form: { data: { chat_target: "newChatForm" } } %>
+    </div>
   <% end %>
 </div>

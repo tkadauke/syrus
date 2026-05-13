@@ -3,6 +3,10 @@
 <div class="space-y-6"
      data-controller="<%= chat_available ? "chat chat-layout" : "chat" %>"
      data-chat-layout-storage-key-value="syrus.user.<%= Current.user.id %>.repository.<%= @repository.id %>.chat_split"
+     <% if @chat_session %>
+       data-chat-layout-canvas-storage-key-value="syrus.chat.canvas.<%= @chat_session.id %>"
+     <% end %>
+     data-chat-layout-whiteboard-enabled-value="<%= @chat_session.present? %>"
      data-chat-turn-in-flight-value="<%= @turn_in_flight %>">
   <div class="space-y-3">
     <%= render "header", repository: @repository, chat_session: @chat_session, chat_available: chat_available %>
@@ -80,7 +84,6 @@
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_header" %>
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_whiteboard" %>
   <% end %>
-  <%= turbo_stream_from @repository, "whiteboard" %>
 
   <% if Current.user.agent_provider == "codex" %>
     <div class="bg-white border border-amber-200 rounded-lg p-6 text-sm text-amber-900">
@@ -139,13 +142,18 @@
     </div>
 
     <section class="h-[32rem] min-h-[24rem] overflow-hidden rounded-lg border border-gray-200 bg-white sm:h-full"
-             data-controller="whiteboard"
-             data-whiteboard-url-value="<%= repository_whiteboard_path(@repository) %>"
+             <% if @chat_session %>
+               data-whiteboard-url-value="<%= repository_chat_whiteboard_path(@repository, @chat_session) %>"
+             <% end %>
              data-chat-layout-target="canvasPane">
       <div class="h-full w-full"
            data-whiteboard-target="mount"></div>
-      <%= render "repositories/whiteboards/broadcast",
-            whiteboard: @repository.repository_whiteboard || RepositoryWhiteboard.new(repository: @repository) %>
+      <% if @chat_session&.whiteboard %>
+        <div id="chat_session_<%= @chat_session.id %>_whiteboard_broadcast"
+             data-whiteboard-target="broadcast"
+             data-version="<%= @chat_session.whiteboard.version %>"
+             data-elements-json="<%= json_escape(@chat_session.whiteboard.elements.to_json) %>"></div>
+      <% end %>
     </section>
 
     <section class="flex min-h-[32rem] min-w-0 flex-col gap-3 sm:h-full"
