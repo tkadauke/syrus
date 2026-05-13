@@ -116,8 +116,11 @@ RSpec.describe PollRepositoryJob do
       }.not_to have_enqueued_job(RunJob)
 
       job = Job.find_by!(repository: repository, issue_number: 42)
+      dependency = job.dependencies.first
       expect(job.runs).to be_empty
-      expect(job.dependencies.first).to have_attributes(
+      expect(dependency).to be_pending
+      expect(dependency.unresolved_slug).to eq("acme/widgets#999")
+      expect(dependency).to have_attributes(
         depends_on_job: nil,
         unresolved_owner: "acme",
         unresolved_repo: "widgets",
