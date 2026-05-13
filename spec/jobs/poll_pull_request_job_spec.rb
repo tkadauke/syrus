@@ -130,6 +130,23 @@ RSpec.describe PollPullRequestJob do
       expect { described_class.perform_now(job.id) }.to change { job.reload.state }.to("closed")
       expect(job.closure_reason).to eq("pr_merged")
     end
+
+    it "keeps the Job open on a new APPROVED review when auto-merge is disabled" do
+      stub_pr
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, user: { login: "reviewer" } }
+      ])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.reload.state }
+
+      expect(job).to be_open
+      expect(job.closure_reason).to be_nil
+    end
   end
 
   describe "follow-up dispatch" do
