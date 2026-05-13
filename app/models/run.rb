@@ -178,6 +178,37 @@ class Run < ApplicationRecord
     trigger_kind == "resume"
   end
 
+  def resume_after_operator_response!(response_text: operator_chat_response)
+    text = response_text.to_s.strip
+    return false if text.blank?
+
+    session = claude_session
+    return false unless session
+
+    self.operator_chat_response = text if has_attribute?(:operator_chat_response)
+
+    if awaiting_operator? && may_fail?
+      self.agent_outcome = "operator_responded"
+      fail!
+      save!
+
+      if step&.may_fail?
+        step.fail!
+        step.save!
+      end
+    end
+    save! if changed?
+
+    prompt = [
+      Prompts::Resume.new.to_s,
+      "The operator replied to your clarification question:",
+      text
+    ].join("\n\n")
+
+    workflow = Workflows::Resume.instantiate(job: job, agent_provider: session.provider)
+    StepDispatcher.start_workflow(workflow, parent_session_id: session.session_id, prompt: prompt)
+  end
+
   def terminal?
     succeeded? || failed? || cancelled?
   end

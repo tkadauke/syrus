@@ -51,6 +51,10 @@ class OperatorQuestion < ApplicationRecord
     context.is_a?(Hash) ? context["channel"] : nil
   end
 
+  def thread_id
+    context.is_a?(Hash) ? context["thread_id"] : nil
+  end
+
   def state
     "sent"
   end

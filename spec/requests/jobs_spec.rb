@@ -282,6 +282,7 @@ RSpec.describe "Jobs", type: :request do
         run: run,
         text: "Which file should I edit?"
       )
+      ClaudeSession.create!(resumable: run, session_id: "operator-session-1", transcript_jsonl: "{}\n")
 
       expect {
         post operator_response_job_path(job), params: {
@@ -289,10 +290,20 @@ RSpec.describe "Jobs", type: :request do
           text: "Use app/models/run.rb."
         }
       }.to change(OperatorResponse, :count).by(1)
-        .and have_enqueued_job(RunJob).with(run.id)
+        .and change { job.workflows.where(trigger_kind: "resume").count }.by(1)
 
+      resume_run = job.reload.current_run
       expect(question.operator_responses.last.text).to eq("Use app/models/run.rb.")
-      expect(run.reload.state).to eq("queued")
+      expect(run.reload).to have_attributes(
+        state: "failed",
+        operator_chat_response: "Use app/models/run.rb."
+      )
+      expect(resume_run).to have_attributes(
+        trigger_kind: "resume",
+        parent_session_id: "operator-session-1"
+      )
+      expect(resume_run.prompt).to include("Use app/models/run.rb.")
+      expect(RunJob).to have_been_enqueued.with(resume_run.id)
       expect(response).to redirect_to(job_path(job, anchor: "operator-question-#{question.id}"))
     end
 

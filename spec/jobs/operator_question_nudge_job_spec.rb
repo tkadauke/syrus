@@ -88,9 +88,10 @@ RSpec.describe OperatorQuestionNudgeJob do
     freeze_time do
       run = parked_run(created_at: (described_class::NUDGE_AT + 10.minutes).ago, allow_operator_chat: "telegram")
 
-      expect(OperatorChat::Channels::Telegram).to receive(:deliver!) do |question|
+      expect_any_instance_of(ChatChannel::Telegram).to receive(:deliver_question) do |_channel, question|
         expect(question.run).to eq(run)
         expect(question.text).to eq("Job #42 has been awaiting your response for 27 days; will auto-fail in 3 days if no reply.")
+        question
       end
 
       expect {

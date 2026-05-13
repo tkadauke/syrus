@@ -1,8 +1,10 @@
 module OperatorChat
   module Channels
     class Telegram
-      def self.deliver!(_operator_question)
-        raise OperatorChat::DeliveryError, "Telegram operator chat is not configured"
+      def self.deliver!(operator_question)
+        ChatChannel::Telegram.new.deliver_question(operator_question)
+      rescue ChatChannel::ConfigurationError, ChatChannel::DeliveryError => e
+        raise OperatorChat::DeliveryError, e.message
       end
     end
   end

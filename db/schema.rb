@@ -34,6 +34,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
     t.boolean "polling_paused", default: false, null: false
     t.boolean "runs_paused", default: false, null: false
     t.boolean "signups_open", default: false, null: false
+    t.text "telegram_bot_token"
+    t.text "telegram_webhook_secret"
     t.datetime "updated_at", null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
   end
@@ -367,6 +369,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
     t.datetime "last_heartbeat_at"
     t.boolean "nudge_sent", default: false, null: false
     t.integer "output_tokens"
+    t.text "operator_chat_response"
+    t.string "operator_chat_thread_id"
     t.string "parent_session_id"
     t.text "prompt"
     t.datetime "started_at"
@@ -376,6 +380,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
     t.datetime "updated_at", null: false
     t.index ["job_id", "state"], name: "index_runs_on_job_id_and_state"
     t.index ["job_id"], name: "index_runs_on_job_id"
+    t.index ["operator_chat_thread_id"], name: "index_runs_on_operator_chat_thread_id"
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
     t.index ["state", "nudge_sent", "created_at"], name: "index_runs_on_operator_nudge_window"
@@ -457,6 +462,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
     t.string "name"
     t.string "password_digest", null: false
     t.boolean "scheduling_paused", default: false, null: false
+    t.text "telegram_chat_id"
     t.datetime "updated_at", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["email_address"], name: "index_users_on_email_address", unique: true

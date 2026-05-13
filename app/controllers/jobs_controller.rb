@@ -336,7 +336,7 @@ class JobsController < ApplicationController
 
     question.record_response!(text: text)
     run = question.run
-    run.resume_after_operator_response! if run.awaiting_operator?
+    run.resume_after_operator_response!(response_text: text) if run.awaiting_operator?
 
     redirect_to job_path(@job, anchor: "operator-question-#{question.id}"), notice: "Response sent."
   end

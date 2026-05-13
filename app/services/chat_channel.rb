@@ -1,5 +1,6 @@
 module ChatChannel
   class ConfigurationError < StandardError; end
+  class DeliveryError < StandardError; end
 
   CHANNELS = {
     "in_syrus" => -> { ChatChannel::InSyrus },
