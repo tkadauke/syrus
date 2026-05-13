@@ -91,6 +91,8 @@ Rails.application.routes.draw do
     delete "chats/:chat_id/pending_actions/:id",
            to: "repositories/chat_pending_actions#destroy",
            as: :chat_pending_action
+    get  "chats/:chat_id/whiteboard",   to: "repositories/whiteboards#show",   as: :chat_whiteboard
+    patch "chats/:chat_id/whiteboard",  to: "repositories/whiteboards#update"
     resources :notes, only: %i[ create destroy ], controller: "repositories/notes"
     resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals" do
       member do

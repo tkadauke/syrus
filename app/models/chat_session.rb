@@ -5,6 +5,7 @@ class ChatSession < ApplicationRecord
   has_many :messages, class_name: "ChatMessage", dependent: :destroy
   has_many :proposals, class_name: "ChatProposal", dependent: :destroy
   has_one :claude_session, as: :resumable, dependent: :destroy
+  has_one :whiteboard, dependent: :destroy
 
   after_update_commit :broadcast_header, if: :cumulative_usage_previously_changed?
 
