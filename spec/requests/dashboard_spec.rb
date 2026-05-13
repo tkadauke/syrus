@@ -234,13 +234,13 @@ RSpec.describe "Dashboard", type: :request do
         repo = Factories.repository(user: user, owner: "acme", name: "widgets")
         Factories.job(repository: repo, issue_number: 7)
         # Job's after_create_commit instantiated a Workflows::Initial
-        # — prepare → implement → summarize → pr_open. Show that on
+        # — prepare → loop(implement, grade) → summarize → pr_open. Show that on
         # the Workflows tab.
         get root_path(tab: "workflows")
         expect(response.body).to include("acme/widgets")
         expect(response.body).to include("initial")              # trigger pill
         expect(response.body).to include("Prepare workspace")    # human-readable step kind label (first step now)
-        expect(response.body).to include("(1/4)")                # step counter
+        expect(response.body).to include("(1/5)")                # step counter
       end
 
       it "scopes to the current user (no leakage)" do

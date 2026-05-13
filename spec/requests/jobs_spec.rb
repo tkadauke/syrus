@@ -330,7 +330,7 @@ RSpec.describe "Jobs", type: :request do
 
       new_job = Job.where(repository_id: repository.id, issue_number: 42).order(:created_at).last
       expect(new_job).to be_skip_prepare
-      expect(new_job.workflows.first.steps.order(:position).pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(new_job.workflows.first.steps.order(:position).pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
     end
   end
 

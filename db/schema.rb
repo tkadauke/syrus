@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_110000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -29,6 +29,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_100000) do
     t.datetime "github_app_registered_at"
     t.string "github_app_slug"
     t.text "github_app_webhook_secret"
+    t.integer "grade_max_iterations", default: 5, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "polling_paused", default: false, null: false
     t.boolean "runs_paused", default: false, null: false

@@ -47,6 +47,10 @@ class StepDispatcher
     )
   end
 
+  def self.handle_failed_step(step)
+    new(step.workflow, advancing_from: step).handle_failed_step
+  end
+
   def self.log_prepare_skip(run, workflow)
     reason = workflow.artifact("prepare_skipped_reason")
     return unless reason
@@ -80,7 +84,90 @@ class StepDispatcher
     end
   end
 
+  def handle_failed_step
+    return false unless loop_grade_step?(@from_step)
+
+    loop_node = loop_node_for(@from_step)
+    return false unless loop_node
+
+    if @from_step.iteration < loop_max_iterations(loop_node)
+      enqueue_next_loop_iteration!(loop_node)
+    else
+      exhaust_loop!
+    end
+    true
+  end
+
   private
+
+  def loop_grade_step?(step)
+    step&.loop_id.present? && step.kind == "grade"
+  end
+
+  def loop_node_for(step)
+    loop_kinds = @workflow.steps.where(loop_id: step.loop_id, iteration: step.iteration)
+                          .order(:position).pluck(:kind)
+
+    Array(@workflow.chain_template).find do |node|
+      node["type"] == "loop" && Array(node["steps"]).map(&:to_s) == loop_kinds
+    end
+  end
+
+  def loop_max_iterations(loop_node)
+    loop_node["max_iterations"].presence || AppSetting.grade_max_iterations
+  end
+
+  def enqueue_next_loop_iteration!(loop_node)
+    current_grade = @from_step
+    continuation = current_grade.next_step
+    insertion_position = current_grade.position + 1
+    next_iteration = current_grade.iteration + 1
+    next_run = nil
+
+    Step.transaction do
+      @workflow.steps.where("position >= ?", insertion_position).update_all("position = position + #{loop_node.fetch("steps").size}")
+
+      previous = current_grade
+      new_steps = loop_node.fetch("steps").map.with_index do |kind, index|
+        Step.create!(
+          workflow: @workflow,
+          kind: kind,
+          position: insertion_position + index,
+          iteration: next_iteration,
+          loop_id: current_grade.loop_id
+        )
+      end
+
+      ([ previous ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+      new_steps.last.update!(next_step_id: continuation&.id)
+
+      next_run = self.class.create_run_and_enqueue(new_steps.first, @workflow, parent_session_id: prior_iteration_session_id)
+    end
+
+    enqueue_loop_run_after_inline_failure(next_run)
+  end
+
+  def exhaust_loop!
+    @workflow.set_artifact!("failure_reason", "loop_exhausted")
+    return unless @workflow.may_fail?
+
+    @workflow.fail!
+    @workflow.save!
+  end
+
+  def enqueue_loop_run_after_inline_failure(run)
+    return unless run && Thread.current[:syrus_in_run_job]
+
+    RunJob.set(priority: @workflow.job.solid_queue_priority).perform_later(run.id)
+  end
+
+  def prior_iteration_session_id
+    @workflow.steps.find_by(
+      loop_id: @from_step.loop_id,
+      iteration: @from_step.iteration,
+      kind: "implement"
+    )&.latest_run&.claude_session&.session_id
+  end
 
   # Linear chain walk: starting at `@from_step.next_step`, find
   # the first step in `queued` state. Skips cancelled / succeeded /

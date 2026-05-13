@@ -1,7 +1,7 @@
 module Workflows
   # Issue → PR.
   #
-  #   prepare → implement → summarize → pr_open
+  #   prepare → loop(implement, grade) → summarize → pr_open
   #
   # prepare reads `.syrus.yml` (or auto-detects from lockfiles)
   # and runs deterministic setup like `bundle install` so the
@@ -15,12 +15,18 @@ module Workflows
   # non-agentic — it reads workflow.artifacts["pr_title"]/["pr_body"]
   # and runs PullRequestOpener.
   class Initial < Base
-    steps :prepare, :implement, :summarize, :pr_open
+    steps :prepare, Workflows::Loop.new(steps: [ :implement, :grade ]), :summarize, :pr_open
 
     def self.trigger_kind = "initial"
 
     def self.steps_for(job)
-      prepare_skipped_for?(job) ? %w[ implement summarize pr_open ] : step_kinds
+      chain = [
+        "prepare",
+        Workflows::Loop.new(max_iterations: AppSetting.grade_max_iterations, steps: [ :implement, :grade ]),
+        "summarize",
+        "pr_open"
+      ]
+      prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
     end
 
     def self.prepare_skipped_for?(job)

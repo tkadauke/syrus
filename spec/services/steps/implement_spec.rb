@@ -35,6 +35,29 @@ RSpec.describe Steps::Implement do
       handler.call
       expect(run.reload.prompt).to include("Add greeting helper")
       expect(run.reload.prompt).to include("Phased execution note: you're running the **implement** step")
+      expect(run.reload.prompt).not_to include("quality graders flagged issues")
+    end
+
+    it "appends grade failure feedback on later loop iterations" do
+      workflow.set_artifact!("iterations", [
+        [
+          {
+            "name" => "tests",
+            "status" => "failed",
+            "required" => true,
+            "exit_code" => 1,
+            "log_path" => ".syrus/grade-output/iteration-1/tests.log"
+          }
+        ]
+      ])
+      run.update!(iteration: 2)
+
+      handler.call
+
+      expect(run.reload.prompt).to include("Add greeting helper")
+      expect(run.reload.prompt).to include("The previous iteration's quality graders flagged issues")
+      expect(run.reload.prompt).to include("Iteration 1")
+      expect(run.reload.prompt).to include("tests (exit 1)")
     end
 
     it "skips prompt rebuild when run.prompt is already set" do

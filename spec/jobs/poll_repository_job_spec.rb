@@ -32,7 +32,7 @@ RSpec.describe PollRepositoryJob do
       job = Job.find_by!(repository: repository, issue_number: 42)
       workflow = job.workflows.first
       expect(job).to be_skip_prepare
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
       expect(workflow.first_step.kind).to eq("implement")
     end
 
@@ -48,7 +48,7 @@ RSpec.describe PollRepositoryJob do
       described_class.perform_now(repository.id)
 
       workflow = Job.find_by!(repository: repository, issue_number: 42).workflows.first
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
     end
 
     it "keeps the initial workflow starting with prepare when the skip-prepare label is absent" do
@@ -58,7 +58,7 @@ RSpec.describe PollRepositoryJob do
       described_class.perform_now(repository.id)
 
       workflow = Job.find_by!(repository: repository, issue_number: 42).workflows.first
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement summarize pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement grade summarize pr_open ])
       expect(workflow.first_step.kind).to eq("prepare")
     end
 
@@ -162,7 +162,7 @@ RSpec.describe PollRepositoryJob do
       described_class.perform_now(repository.id)
 
       workflow = Job.find_by!(repository: repository, issue_number: 99).latest_workflow
-      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
       expect(workflow.artifact("prepare_skipped_reason")).to eq("issue_label")
     end
 

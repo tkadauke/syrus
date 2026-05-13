@@ -20,7 +20,7 @@ module Steps
         issue = fetch_issue
         job.update!(issue_title: issue.title, issue_body: issue.body) if job.issue?
         ctx = workflow.artifacts&.dig("replay_context")
-        run.update!(prompt: Prompts::Implement.new(issue: issue, replay_context: ctx).to_s)
+        run.update!(prompt: implement_prompt(issue: issue, replay_context: ctx))
       end
 
       target_label = if job.issue?
@@ -48,6 +48,18 @@ module Steps
     def fetch_issue
       return job.synthetic_issue if job.cron? || job.adhoc?
       GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number)
+    end
+
+    def implement_prompt(issue:, replay_context:)
+      prompt = Prompts::Implement.new(issue: issue, replay_context: replay_context).to_s
+      return prompt unless run.iteration > 1
+
+      [
+        prompt,
+        Prompts::GradeFailureFeedback.new(
+          iterations: workflow.artifacts.fetch("iterations", [])
+        ).to_s
+      ].join("\n\n")
     end
 
     # Same logic as RunJob#commit_agent_changes — agent edits

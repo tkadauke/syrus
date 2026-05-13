@@ -174,8 +174,12 @@ class RunJob < ApplicationJob
     if @step&.may_fail?
       @step.fail!
       @step.save!
-      @workflow&.record_run_failure!
+      @workflow&.record_run_failure! unless loop_controlled_grade_failure?
     end
+  end
+
+  def loop_controlled_grade_failure?
+    @step&.kind == "grade" && @step.loop_id.present?
   end
 
   # The handler's WorkflowWorkspace, only when the handler had a

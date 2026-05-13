@@ -68,6 +68,7 @@ RSpec.describe RunJob do
       expect(wf.steps.pluck(:kind, :state)).to eq([
         [ "prepare",   "succeeded" ],
         [ "implement", "succeeded" ],
+        [ "grade",     "succeeded" ],
         [ "summarize", "succeeded" ],
         [ "pr_open",   "succeeded" ]
       ])
@@ -78,6 +79,69 @@ RSpec.describe RunJob do
 
       branches = `git --git-dir=#{bare_remote_dir} branch --list 'syrus/*'`.split("\n").map(&:strip)
       expect(branches).to include(job.branch_name)
+    end
+
+    it "loops implement + grade until graders pass, then opens the PR" do
+      AppSetting.current.update!(grade_max_iterations: 2)
+      commit_file_to_remote(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: test -f grade-pass
+      YAML
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        current = Run.last
+        file = File.join(workspace_path, "feature.rb")
+        if current.step.kind == "implement"
+          File.write(file, "def greet = 'hello'\n")
+          File.write(File.join(workspace_path, "grade-pass"), "ok\n") if current.iteration >= 2
+        elsif current.step.kind == "summarize"
+          current.update!(
+            agent_pr_title: "Add greeting helper",
+            agent_pr_body: "Adds a tiny greet helper used by the welcome page.",
+            agent_summary: "Implemented greet."
+          )
+        end
+        AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
+                                    outcome: "success", final_text: nil, session_id: "S-#{current.iteration}",
+                                    transcript_jsonl: "{}\n")
+      }
+
+      job
+      drain_workflow!(job)
+
+      wf = job.workflows.last
+      expect(wf.reload.state).to eq("succeeded")
+      expect(wf.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 2 ])
+      expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
+        [ 1, "failed" ],
+        [ 2, "succeeded" ]
+      ])
+      expect(wf.steps.find_by(kind: "implement", iteration: 2).runs.first.parent_session_id).to eq("S-1")
+      expect(job.reload.pr_number).to eq(123)
+      expect(@pr_stub).to have_been_requested
+    end
+
+    it "fails with loop_exhausted when grade never passes and does not open a PR" do
+      AppSetting.current.update!(grade_max_iterations: 2)
+      commit_file_to_remote(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: "false"
+      YAML
+
+      job
+      drain_workflow!(job)
+
+      wf = job.workflows.last
+      expect(wf.reload.state).to eq("failed")
+      expect(wf.artifact("failure_reason")).to eq("loop_exhausted")
+      expect(wf.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 2 ])
+      expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
+        [ 1, "failed" ],
+        [ 2, "failed" ]
+      ])
+      expect(wf.steps.where(kind: "pr_open").first.runs).to be_empty
+      expect(@pr_stub).not_to have_been_requested
     end
 
     it "rewrites implement's placeholder commit message via summarize's `git commit --amend`" do
@@ -515,6 +579,18 @@ RSpec.describe RunJob do
       sh("git -C #{seed} commit --allow-empty -q -m 'initial'")
       FileUtils.mkdir_p(bare_path.dirname)
       sh("git clone -q --bare #{seed} #{bare_path}")
+    end
+  end
+
+  def commit_file_to_remote(path, content)
+    Dir.mktmpdir("syrus-seed-update") do |seed|
+      sh("git clone -q #{bare_remote_dir} #{seed}")
+      full_path = File.join(seed, path)
+      FileUtils.mkdir_p(File.dirname(full_path))
+      File.write(full_path, content)
+      sh("git -C #{seed} add #{path}")
+      sh("git -C #{seed} commit -q -m 'add #{path}'")
+      sh("git -C #{seed} push -q origin main")
     end
   end
 

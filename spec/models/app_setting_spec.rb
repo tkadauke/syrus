@@ -19,6 +19,14 @@ RSpec.describe AppSetting do
     expect(AppSetting.signups_open?).to be true
   end
 
+  it ".grade_max_iterations defaults to 5 and reflects the setting" do
+    expect(AppSetting.grade_max_iterations).to eq(5)
+
+    AppSetting.current.update!(grade_max_iterations: 2)
+
+    expect(AppSetting.grade_max_iterations).to eq(2)
+  end
+
   it "reports whether a GitHub App has been registered" do
     setting = AppSetting.current
     expect(setting.github_app_registered?).to be false
