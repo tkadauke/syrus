@@ -1,0 +1,28 @@
+<div id="<%= chat_session ? "chat_session_#{chat_session.id}_header" : "new_chat_header" %>"
+     class="flex flex-wrap items-start justify-between gap-3">
+  <div>
+    <h1 class="font-bold text-3xl">
+      Chat — Repository
+      <%= link_to repository.slug,
+            repository_path(repository),
+            class: "font-mono hover:underline" %>
+    </h1>
+    <% input_tokens = chat_session&.cumulative_input_tokens.to_i %>
+    <% output_tokens = chat_session&.cumulative_output_tokens.to_i %>
+    <% input_label = number_with_precision(input_tokens / 1000.0, precision: 1, strip_insignificant_zeros: true) %>
+    <% output_label = number_with_precision(output_tokens / 1000.0, precision: 1, strip_insignificant_zeros: true) %>
+    <% cost = chat_session&.cumulative_cost || 0 %>
+    <p class="mt-2 text-sm text-gray-600">
+      Tokens:
+      <%= input_label %>k in /
+      <%= output_label %>k out · <%= number_to_currency(cost) %>
+    </p>
+  </div>
+  <% if local_assigns.fetch(:chat_available, true) %>
+    <%= button_to "New chat",
+          repository_chats_path(repository),
+          method: :post,
+          class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium cursor-pointer",
+          form: { data: { chat_target: "newChatForm" } } %>
+  <% end %>
+</div>

@@ -38,6 +38,17 @@ RSpec.describe ChatSession do
     expect(session.errors[:cumulative_output_tokens]).to be_present
   end
 
+  it "calculates cumulative Claude Sonnet token cost" do
+    session = described_class.new(
+      repository: repo,
+      user: repo.user,
+      cumulative_input_tokens: 12_400,
+      cumulative_output_tokens: 3_200
+    )
+
+    expect(session.cumulative_cost).to eq(BigDecimal("0.0852"))
+  end
+
   it "destroys messages with the session" do
     session = described_class.create!(repository: repo, user: repo.user)
     message = session.messages.create!(role: "user", content: { "text" => "Ave" })

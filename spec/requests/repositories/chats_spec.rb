@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "Repository chats", type: :request do
-  let(:user) { Factories.user }
+  let(:user) { Factories.user(claude_oauth_token: "oat-test") }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
   before { sign_in_as(user) }
@@ -16,6 +16,37 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("Chat — Repository")
       expect(response.body).to include("Start a chat with this repository.")
       expect(response.body).to include("Tokens:")
+    end
+
+    it "renders the Claude-only provider notice for Codex users" do
+      user.update!(
+        agent_provider: "codex",
+        codex_auth_mode: "api_key",
+        codex_api_key: "sk-test"
+      )
+
+      get repository_chats_path(repo)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Chat requires Claude.")
+      expect(response.body).to include("v1 is Claude-only")
+      expect(response.body).to include(edit_credentials_path)
+      expect(response.body).not_to include("Start a chat with this repository.")
+      expect(response.body).not_to include("New chat")
+      expect(response.body).not_to include("name=\"chat_message[text]\"")
+    end
+
+    it "renders the Claude credential onboarding notice when the token is missing" do
+      user.update!(claude_oauth_token: nil)
+
+      get repository_chats_path(repo)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Claude credentials are required.")
+      expect(response.body).to include(edit_credentials_path)
+      expect(response.body).not_to include("Start a chat with this repository.")
+      expect(response.body).not_to include("New chat")
+      expect(response.body).not_to include("name=\"chat_message[text]\"")
     end
 
     it "renders the newest chat by last_message_at" do
@@ -34,8 +65,9 @@ RSpec.describe "Repository chats", type: :request do
 
       expect(response.body).to include("Newest answer")
       expect(response.body).not_to include("Old answer")
-      expect(response.body).to include("12,400 in")
-      expect(response.body).to include("3,200 out")
+      expect(response.body).to include("12.4k in")
+      expect(response.body).to include("3.2k out")
+      expect(response.body).to include("$0.09")
       expect(response.body).to include("chat_session_#{newer.id}_messages")
       expect(response.body).to include("Refresh repo")
       expect(response.body).to include("Reset workspace")
