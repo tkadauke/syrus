@@ -129,6 +129,23 @@ RSpec.describe PollRepositoryJob do
       expect(job.dependencies.first).to be_pending
       expect(job.dependencies.first.unresolved_slug).to eq("acme/widgets#999")
     end
+
+    it "starts a dangling dependency workflow on a later poll once the dependency appears and succeeds" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42, body: "Depends-on: #999") ])
+
+      described_class.perform_now(repository.id)
+      job = Job.find_by!(repository: repository, issue_number: 42)
+
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 999)
+      prerequisite.close_with_reason!("pr_merged")
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to have_enqueued_job(RunJob)
+      expect(job.reload.dependencies.first.depends_on_job).to eq(prerequisite)
+      expect(job.runs.count).to eq(1)
+    end
   end
 
   describe "#perform", vcr: { cassette_name: "poll_repository_job/lists_issues" } do
