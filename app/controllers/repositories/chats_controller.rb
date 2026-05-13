@@ -5,6 +5,7 @@ class Repositories::ChatsController < ApplicationController
 
   before_action :load_repository
   before_action :load_chat_session, only: %i[ message stop refresh reset ]
+  before_action :load_pending_action, only: %i[ confirm_pending_action destroy_pending_action ]
 
   def show
     @chat_session = current_chat_session unless new_chat?
@@ -91,6 +92,37 @@ class Repositories::ChatsController < ApplicationController
     redirect_to repository_chats_path(@repository), notice: "Workspace reset queued."
   end
 
+  def confirm_pending_action
+    result = @pending_action.confirm!(user: Current.user)
+    if result
+      notice = result.respond_to?(:label) ? "Recurring task scheduled: #{result.label}." : "Pending action confirmed."
+      redirect_to repository_chats_path(@repository), notice: notice
+    else
+      redirect_to repository_chats_path(@repository), alert: "Pending action is no longer active."
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    message = e.record.errors.full_messages.to_sentence.presence || "Pending action could not be confirmed."
+    redirect_to repository_chats_path(@repository), alert: message
+  rescue ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to repository_chats_path(@repository), alert: e.message
+  end
+
+  def destroy_pending_action
+    result = if @pending_action.action_type == "schedule_recurring"
+      @pending_action.cancel!(user: Current.user)
+    else
+      @pending_action.reject!
+    end
+
+    if result
+      redirect_to repository_chats_path(@repository), notice: "Pending action cancelled."
+    else
+      redirect_to repository_chats_path(@repository), alert: "Pending action is no longer active."
+    end
+  rescue ActiveRecord::RecordNotFound => e
+    redirect_to repository_chats_path(@repository), alert: e.message
+  end
+
   private
 
   def load_repository
@@ -99,6 +131,10 @@ class Repositories::ChatsController < ApplicationController
 
   def load_chat_session
     @chat_session = @repository.chat_sessions.find(params[:id])
+  end
+
+  def load_pending_action
+    @pending_action = ChatPendingAction.where(repository: @repository, user: Current.user).find(params[:id])
   end
 
   def current_chat_session

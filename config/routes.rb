@@ -85,8 +85,8 @@ Rails.application.routes.draw do
     post "chats/:id/stop",    to: "repositories/chats#stop",    as: :chat_stop
     post "chats/:id/refresh", to: "repositories/chats#refresh", as: :chat_refresh
     post "chats/:id/reset",   to: "repositories/chats#reset",   as: :chat_reset
-    post "chat_pending_actions/:id/confirm", to: "repositories/chat_pending_actions#confirm", as: :chat_pending_action_confirm
-    delete "chat_pending_actions/:id", to: "repositories/chat_pending_actions#destroy", as: :chat_pending_action
+    post "chat_pending_actions/:id/confirm", to: "repositories/chats#confirm_pending_action", as: :chat_pending_action_confirm
+    delete "chat_pending_actions/:id", to: "repositories/chats#destroy_pending_action", as: :chat_pending_action
     get  "chats/:chat_id/whiteboard",   to: "repositories/whiteboards#show",   as: :chat_whiteboard
     patch "chats/:chat_id/whiteboard",  to: "repositories/whiteboards#update"
     resource :whiteboard, only: %i[ show update ], controller: "repositories/whiteboards"
