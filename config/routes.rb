@@ -178,6 +178,7 @@ Rails.application.routes.draw do
   end
 
   post "github_app/webhook", to: "github_app_webhooks#create", as: :github_app_webhook
+  post "telegram/webhook", to: "telegram_webhooks#create", as: :telegram_webhook
 
   post "dashboard/jobs/bulk", to: "home#bulk_jobs", as: :bulk_dashboard_jobs
   root "home#index"

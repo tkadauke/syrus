@@ -126,6 +126,18 @@ RSpec.describe "Credentials", type: :request do
       expect(user.reload.agent_max_turns).to eq(500)
     end
 
+    it "updates telegram_chat_id when provided" do
+      patch credentials_path, params: { user: { telegram_chat_id: " 123456 " } }
+      expect(response).to redirect_to(edit_credentials_path)
+      expect(user.reload.telegram_chat_id).to eq("123456")
+    end
+
+    it "rejects a non-numeric telegram_chat_id" do
+      patch credentials_path, params: { user: { telegram_chat_id: "not-a-chat" } }
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(user.reload.telegram_chat_id).to be_nil
+    end
+
     it "rejects an out-of-range agent_max_turns" do
       original = user.agent_max_turns
       patch credentials_path, params: { user: { agent_max_turns: "9999" } }

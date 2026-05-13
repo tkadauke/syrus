@@ -43,6 +43,9 @@
             user default (<%= @repository.effective_agent_provider.titleize %>)
           <% end %>
         </span>
+        <span>
+          Operator chat: <%= @repository.allow_operator_chat.to_s.tr("_", " ").titleize %>
+        </span>
         <% repo_user = @repository.user %>
         <% if repo_user.gh_rate_limit_observed_at %>
           <span>

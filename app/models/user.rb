@@ -15,6 +15,7 @@ class User < ApplicationRecord
   encrypts :codex_api_key
   encrypts :codex_auth_json
   encrypts :github_token
+  encrypts :telegram_chat_id
   # `deterministic: true` so we can WHERE on the encrypted column
   # for the API auth lookup. Same plaintext always encrypts to the
   # same ciphertext under deterministic mode.
@@ -22,6 +23,7 @@ class User < ApplicationRecord
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
   normalizes :github_handle, with: ->(h) { h.to_s.delete_prefix("@").strip.presence }
+  normalizes :telegram_chat_id, with: ->(id) { id.to_s.strip.presence }
 
   # Per-user ceiling on `claude --max-turns`. The agent is given this
   # many tool-use turns before the run terminates with
@@ -39,6 +41,9 @@ class User < ApplicationRecord
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
   validates :agent_provider, presence: true, inclusion: { in: AGENT_PROVIDERS }
   validates :codex_auth_mode, presence: true, inclusion: { in: CODEX_AUTH_MODES }
+  validates :telegram_chat_id,
+            format: { with: /\A-?\d+\z/, message: "must be a numeric Telegram chat id" },
+            allow_blank: true
 
   before_create :promote_first_user_to_admin
 
