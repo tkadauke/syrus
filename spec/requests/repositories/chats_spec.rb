@@ -106,6 +106,22 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("Proposal ##{proposal.id} created (pending)")
       expect(response.body).to include(repository_proposals_path(repo))
     end
+
+    it "renders pending confirmation cards" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      action = chat.pending_actions.create!(
+        tool_name: "cancel_job",
+        params: { "job_id" => 123, "reason" => "operator chat" }
+      )
+
+      get repository_chats_path(repo)
+
+      expect(response.body).to include("operator confirmation")
+      expect(response.body).to include("cancel_job")
+      expect(response.body).to include("Job #123")
+      expect(response.body).to include(repository_chat_pending_action_confirm_path(repo, chat, action))
+      expect(response.body).to include(repository_chat_pending_action_decline_path(repo, chat, action))
+    end
   end
 
   describe "POST /repositories/:repository_id/chats" do
