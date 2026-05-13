@@ -163,6 +163,46 @@ RSpec.describe RunJob, "step-dispatch path" do
       expect(diag.error_class).to eq("Steps::Base::StepFailed")
       expect(diag.error_message).to include("agent broke")
     end
+
+    it "continues inline when a failed grade step has loop budget remaining" do
+      loop_wf = Workflow.create!(
+        job: job,
+        trigger_kind: "manual",
+        chain_template: [
+          { "type" => "loop", "max_iterations" => 2, "steps" => %w[ implement grade ] },
+          { "type" => "step", "kind" => "summarize" },
+          { "type" => "step", "kind" => "pr_open" }
+        ]
+      )
+      implement = Step.create!(workflow: loop_wf, kind: "implement", position: 0, loop_id: "loop-a")
+      grade = Step.create!(workflow: loop_wf, kind: "grade", position: 1, loop_id: "loop-a")
+      summarize = Step.create!(workflow: loop_wf, kind: "summarize", position: 2)
+      pr_open = Step.create!(workflow: loop_wf, kind: "pr_open", position: 3)
+      implement.update!(next_step_id: grade.id)
+      grade.update!(next_step_id: summarize.id)
+      summarize.update!(next_step_id: pr_open.id)
+
+      grade_attempts = 0
+      handler_class = Class.new(Steps::Base) do
+        define_method(:call) do
+          if step.kind == "implement"
+            ClaudeSession.create!(run: run, session_id: "S-#{run.iteration}", transcript_jsonl: "{}\n")
+          elsif step.kind == "grade"
+            grade_attempts += 1
+            raise Steps::Base::StepFailed, "grade failed" if grade_attempts == 1
+          end
+        end
+      end
+      allow(Steps).to receive(:handler_for).and_return(handler_class)
+
+      StepDispatcher.start_workflow(loop_wf)
+      described_class.perform_now(implement.runs.last.id)
+
+      second_implement = loop_wf.reload.steps.find_by!(kind: "implement", iteration: 2)
+      expect(second_implement.runs.last.parent_session_id).to eq("S-1")
+      expect(loop_wf).to be_succeeded
+      expect(grade_attempts).to eq(2)
+    end
   end
 
   describe "guards" do
