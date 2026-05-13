@@ -106,8 +106,9 @@ RSpec.describe "Repository chats", type: :request do
 
       chat = repo.chat_sessions.last
       message = chat.messages.last
-      expect(chat.title).to include("Review ROADMAP.md")
+      expect(chat.title).to include("Review roadmap and planning documentation")
       expect(message.content.fetch("text")).to include("ROADMAP.md")
+      expect(message.content.fetch("text")).to include("Discover Markdown files across the repository")
       expect(message.content.fetch("text")).to include("docs/plans/complete/")
       expect(message.content.fetch("text")).to include("propose_issue")
       expect(response).to redirect_to(repository_chats_path(repo))
