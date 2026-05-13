@@ -61,8 +61,8 @@ class RepoPrepPlan
   end
 
   def from_config
-    yaml = YAML.safe_load(@path.join(CONFIG_FILE).read) || {}
-    raw  = yaml["prepare"]
+    config = SyrusYml.load_repo(@path)
+    raw = config.prepare
 
     case raw
     when Array
@@ -76,9 +76,9 @@ class RepoPrepPlan
       Result.new(commands: [], source: ".syrus.yml",
                  note: "prepare: must be an array of strings (got #{raw.class})")
     end
-  rescue Psych::SyntaxError => e
+  rescue SyrusYml::ParseError => e
     Result.new(commands: [], source: ".syrus.yml",
-               note: "YAML parse error: #{e.message}")
+               note: e.message)
   end
 
   def from_auto_detect

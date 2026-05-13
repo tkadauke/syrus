@@ -27,6 +27,14 @@ RSpec.describe AppSetting do
     expect(AppSetting.grade_max_iterations).to eq(2)
   end
 
+  it "rejects grade_max_iterations above 10" do
+    setting = AppSetting.current
+    setting.grade_max_iterations = 11
+
+    expect(setting).not_to be_valid
+    expect(setting.errors[:grade_max_iterations]).to include("must be less than or equal to 10")
+  end
+
   it "reports whether a GitHub App has been registered" do
     setting = AppSetting.current
     expect(setting.github_app_registered?).to be false
