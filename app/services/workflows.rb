@@ -5,7 +5,7 @@ module Workflows
     Array(labels).map do |label|
       if label.respond_to?(:name)
         label.name
-      elsif label.respond_to?(:[])
+      elsif label.is_a?(Hash)
         label[:name] || label["name"] || label.to_s
       else
         label.to_s

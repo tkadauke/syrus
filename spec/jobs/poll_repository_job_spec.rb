@@ -51,6 +51,17 @@ RSpec.describe PollRepositoryJob do
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
     end
 
+    it "recognizes string-shaped operator-chat opt-out labels" do
+      github_issue = issue(labels: [])
+      github_issue.labels = [ "syrus", Job::OPERATOR_CHAT_OPT_OUT_LABEL ]
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ github_issue ])
+
+      described_class.perform_now(repository.id)
+
+      expect(Job.find_by!(repository: repository, issue_number: 42)).to be_operator_chat_disabled
+    end
+
     it "keeps the initial workflow starting with prepare when the skip-prepare label is absent" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(labels: [ "syrus" ]) ])
