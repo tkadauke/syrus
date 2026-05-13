@@ -1,0 +1,124 @@
+<turbo-frame id="repository_<%= @repository.id %>_documents" class="block h-full">
+  <div class="flex h-full flex-col overflow-y-auto bg-white">
+    <div class="border-b border-gray-200 px-4 py-3">
+      <h2 class="text-sm font-semibold text-gray-900">Documentation</h2>
+    </div>
+
+    <div class="flex-1 space-y-5 p-4">
+      <% if flash[:notice].present? %>
+        <div class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><%= flash[:notice] %></div>
+      <% end %>
+      <% if flash[:alert].present? %>
+        <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900"><%= flash[:alert] %></div>
+      <% end %>
+
+      <section>
+        <% if @documents.any? %>
+          <ul class="divide-y divide-gray-100">
+            <% @documents.each do |document| %>
+              <li class="py-3 first:pt-0">
+                <div class="flex items-start gap-3">
+                  <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-sm font-semibold text-gray-600">
+                    <% if document.google_doc? %>
+                      <span aria-label="Google Docs">G</span>
+                    <% elsif document.content_type.to_s.start_with?("image/") %>
+                      <span aria-label="Image file">IMG</span>
+                    <% elsif document.content_type == "application/pdf" %>
+                      <span aria-label="PDF file">PDF</span>
+                    <% else %>
+                      <span aria-label="File">DOC</span>
+                    <% end %>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="break-words text-sm font-medium text-gray-900"><%= document.title %></div>
+                    <div class="mt-1 break-all text-xs text-gray-500">
+                      <% if document.file? && document.file.attached? %>
+                        <%= document.file.filename %> · <%= number_to_human_size(document.file.byte_size) %>
+                      <% elsif document.file? %>
+                        No file attached
+                      <% else %>
+                        <%= document.google_docs_url %>
+                      <% end %>
+                    </div>
+                    <div class="mt-1 text-xs text-gray-500">
+                      <%= document.user.display_name %> · <%= time_ago_in_words(document.created_at) %> ago
+                    </div>
+                  </div>
+                  <%= button_to "Delete",
+                        document_path(document, frame: params[:frame]),
+                        method: :delete,
+                        class: "rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer",
+                        form: { class: "shrink-0", data: { turbo_confirm: "Delete this document?" } } %>
+                </div>
+              </li>
+            <% end %>
+          </ul>
+        <% else %>
+          <div class="rounded-md border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-600">
+            No supporting documents yet. Upload a file or link a Google Doc to give the agent extra context.
+          </div>
+        <% end %>
+      </section>
+
+      <section class="space-y-3 border-t border-gray-200 pt-4">
+        <h3 class="text-sm font-semibold text-gray-900">Upload a file</h3>
+        <%= form_with model: [ @repository, RepositoryDocument.new(kind: "file") ],
+              url: repository_documents_path(@repository, frame: params[:frame]),
+              method: :post,
+              multipart: true,
+              class: "space-y-3" do |form| %>
+          <%= form.hidden_field :kind, value: "file" %>
+          <div>
+            <%= form.label :title, "Title", class: "block text-xs font-medium text-gray-700" %>
+            <%= form.text_field :title,
+                  placeholder: "Optional; defaults to filename",
+                  class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" %>
+          </div>
+          <div class="block rounded-md border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center hover:bg-gray-100"
+               data-controller="document-upload"
+               data-action="dragover->document-upload#dragOver dragleave->document-upload#dragLeave drop->document-upload#drop">
+            <span class="block text-sm font-medium text-gray-900">Drop a file here or choose one</span>
+            <span class="mt-1 block text-xs text-gray-500">PDF, text, Office documents, and common image formats up to 20 MB.</span>
+            <%= form.file_field :file,
+                  required: true,
+                  data: { document_upload_target: "input", action: "change->document-upload#updateName" },
+                  class: "sr-only" %>
+            <button type="button"
+                    class="mt-3 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+                    data-action="document-upload#choose">
+              Choose file
+            </button>
+            <span class="mt-2 block text-xs text-gray-500" data-document-upload-target="filename">No file selected</span>
+          </div>
+          <%= form.submit "Upload",
+                class: "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+        <% end %>
+      </section>
+
+      <section class="space-y-3 border-t border-gray-200 pt-4">
+        <h3 class="text-sm font-semibold text-gray-900">Link a Google Doc</h3>
+        <%= form_with model: [ @repository, RepositoryDocument.new(kind: "google_doc") ],
+              url: repository_documents_path(@repository, frame: params[:frame]),
+              method: :post,
+              class: "space-y-3" do |form| %>
+          <%= form.hidden_field :kind, value: "google_doc" %>
+          <div>
+            <%= form.label :google_docs_url, "URL", class: "block text-xs font-medium text-gray-700" %>
+            <%= form.url_field :google_docs_url,
+                  required: true,
+                  placeholder: "https://docs.google.com/document/...",
+                  class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" %>
+          </div>
+          <div>
+            <%= form.label :title, "Title", class: "block text-xs font-medium text-gray-700" %>
+            <%= form.text_field :title,
+                  placeholder: "Optional",
+                  class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" %>
+          </div>
+          <%= form.submit "Add Google Doc",
+                class: "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+        <% end %>
+      </section>
+    </div>
+  </div>
+</turbo-frame>

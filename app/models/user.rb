@@ -5,6 +5,7 @@ class User < ApplicationRecord
   has_many :installations, dependent: :destroy
   has_many :jobs, dependent: :destroy
   has_many :chat_sessions
+  has_many :repository_documents, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy
   has_many :recurring_tasks, dependent: :destroy
   has_many :cron_templates, dependent: :destroy

@@ -15,6 +15,7 @@ class Repository < ApplicationRecord
   has_many :recurring_tasks, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
   has_many :repository_notes, dependent: :destroy
+  has_many :repository_documents, dependent: :destroy
   has_one :repository_whiteboard, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy
   has_many :operator_questions, through: :jobs

@@ -91,6 +91,7 @@ Rails.application.routes.draw do
     patch "chats/:chat_id/whiteboard",  to: "repositories/whiteboards#update"
     resource :whiteboard, only: %i[ show update ], controller: "repositories/whiteboards"
     resources :notes, only: %i[ create destroy ], controller: "repositories/notes"
+    resources :documents, only: %i[ index create destroy ], controller: "repositories/documents", shallow: true
     resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals" do
       member do
         get :file
