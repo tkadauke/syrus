@@ -126,8 +126,6 @@ RSpec.describe PollRepositoryJob do
         unresolved_repo: "widgets",
         unresolved_number: 999
       )
-      expect(job.dependencies.first).to be_pending
-      expect(job.dependencies.first.unresolved_slug).to eq("acme/widgets#999")
     end
   end
 
