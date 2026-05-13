@@ -41,7 +41,7 @@ class PollPullRequestJob < ApplicationJob
     return close_with("pr_merged") if @pr.merged
     return close_with("pr_closed") if @pr.state == "closed"
     return close_with("syrus_stop") if has_label?(@pr, "syrus-stop")
-    return close_with("pr_approved") if any_new_approval?
+    return close_with("pr_approved") if @job.repository.auto_merge_enabled? && any_new_approval?
 
     react_to_pr_comments
     react_to_ci_failures

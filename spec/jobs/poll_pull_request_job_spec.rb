@@ -87,12 +87,42 @@ RSpec.describe PollPullRequestJob do
     end
 
     it "closes the Job with reason=pr_approved on a new APPROVED review" do
+      repository.update!(auto_merge_enabled: true)
       stub_pr
       stub_reviews([
         { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, user: { login: "reviewer" } }
       ])
       described_class.perform_now(job.id)
       expect(job.reload.closure_reason).to eq("pr_approved")
+    end
+
+    it "leaves the Job open on a new APPROVED review when auto-merge is disabled" do
+      repository.update!(auto_merge_enabled: false)
+      stub_pr
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, user: { login: "reviewer" } }
+      ])
+      stub_issue_comments([
+        { id: 1, body: "please address this before manual merge",
+          user: { login: "reviewer" }, created_at: 1.minute.ago.iso8601 }
+      ])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      expect(job.reload).to be_open
+      expect(job.closure_reason).to be_nil
+    end
+
+    it "closes with reason=pr_merged after a manually merged approved PR when auto-merge is disabled" do
+      repository.update!(auto_merge_enabled: false)
+      stub_pr(state: "closed", merged: true)
+
+      expect { described_class.perform_now(job.id) }.to change { job.reload.state }.to("closed")
+      expect(job.closure_reason).to eq("pr_merged")
     end
   end
 
