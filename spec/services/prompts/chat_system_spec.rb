@@ -17,7 +17,7 @@ RSpec.describe Prompts::ChatSystem do
 
     expect(out).to include("draft\nSyrus Jobs — NOT to make code changes yourself.")
     expect(out).to match(/No\s+commit or push tool is available to you here\./)
-    expect(out).to include("You are a drafter, not a dispatcher.")
+    expect(out).to include("Recommend; don't decide.")
   end
 
   it "renders active repository notes near the top" do
@@ -50,13 +50,15 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to match(/Run `git fetch`\s+\(or use the `repo_info` tool\)/)
   end
 
-  it "captures the proposal contract that should not regress" do
+  it "captures the durable chat artifact contract that should not regress" do
     out = described_class.new(repository: repo).to_s
 
-    expect(out).to include("The only durable products of this session are the proposals")
+    expect(out).to include("The durable products of this session are proposals")
+    expect(out).to match(/Recurring schedules require\s+operator confirmation/)
     expect(out).to include("Use unique, stable, descriptive `slug`s")
     expect(out).to include("Express dependencies between proposals when they exist")
     expect(out).to include("Default `kind: \"syrus_issue\"`")
+    expect(out).to include("Use `schedule_recurring(cron_expression, label, prompt)` only")
   end
 
   it "captures the helpfulness guidance that should not regress" do

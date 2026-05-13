@@ -55,17 +55,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_175254) do
   end
 
   create_table "chat_pending_actions", force: :cascade do |t|
-    t.string "action", null: false
+    t.string "action"
+    t.string "action_type"
+    t.datetime "cancelled_at"
     t.integer "chat_session_id", null: false
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
     t.json "payload", null: false
     t.datetime "rejected_at"
     t.string "requested_by", default: "agent", null: false
+    t.integer "repository_id", null: false
+    t.bigint "result_id"
+    t.string "result_type"
     t.string "state", default: "pending", null: false
     t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["chat_session_id", "state"], name: "index_chat_pending_actions_on_chat_session_id_and_state"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
     t.index ["chat_session_id"], name: "index_chat_pending_actions_on_chat_session_id"
+    t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
+    t.index ["result_type", "result_id"], name: "index_chat_pending_actions_on_result_type_and_result_id"
+    t.index ["user_id"], name: "index_chat_pending_actions_on_user_id"
   end
 
   create_table "chat_proposal_dependencies", force: :cascade do |t|
@@ -281,6 +291,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_175254) do
     t.datetime "updated_at", null: false
     t.index ["operator_question_id", "responded_at"], name: "index_operator_responses_on_question_and_responded_at"
     t.index ["operator_question_id"], name: "index_operator_responses_on_operator_question_id"
+  end
+
+  create_table "recurring_tasks", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "cron_expression", null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "label", null: false
+    t.datetime "next_fire_at", null: false
+    t.text "prompt", null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["enabled", "next_fire_at"], name: "index_recurring_tasks_on_enabled_and_next_fire_at"
+    t.index ["repository_id"], name: "index_recurring_tasks_on_repository_id"
+    t.index ["user_id"], name: "index_recurring_tasks_on_user_id"
   end
 
   create_table "repositories", force: :cascade do |t|
@@ -521,6 +546,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_175254) do
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_pending_actions", "chat_sessions"
+  add_foreign_key "chat_pending_actions", "repositories"
+  add_foreign_key "chat_pending_actions", "users"
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "depends_on_id"
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_proposals", "chat_sessions"
@@ -545,6 +572,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_175254) do
   add_foreign_key "operator_questions", "runs"
   add_foreign_key "operator_questions", "workflows"
   add_foreign_key "operator_responses", "operator_questions"
+  add_foreign_key "recurring_tasks", "repositories"
+  add_foreign_key "recurring_tasks", "users"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "repository_notes", "repositories"

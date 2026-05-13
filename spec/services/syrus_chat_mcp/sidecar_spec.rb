@@ -26,7 +26,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::MoveElementTool,
         SyrusChatMcp::DeleteElementTool,
         SyrusChatMcp::ClearCanvasTool,
-        SyrusChatMcp::UpdateSceneTool
+        SyrusChatMcp::UpdateSceneTool,
+        SyrusChatMcp::ScheduleRecurringTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -79,6 +80,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         delete_element
         clear_canvas
         update_scene
+        schedule_recurring
       ])
     end
   end

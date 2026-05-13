@@ -46,7 +46,8 @@ module SyrusChatMcp
           MoveElementTool,
           DeleteElementTool,
           ClearCanvasTool,
-          UpdateSceneTool
+          UpdateSceneTool,
+          ScheduleRecurringTool
         ],
         server_context: { chat_session: @chat_session }
       )

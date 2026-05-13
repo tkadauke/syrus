@@ -1,0 +1,64 @@
+require "mcp"
+
+module SyrusChatMcp
+  class ScheduleRecurringTool < MCP::Tool
+    tool_name "schedule_recurring"
+
+    description <<~DESC
+      Request creation of a recurring task for this repository. The task is
+      not created immediately; Syrus returns a pending_confirmation_id and
+      waits for the operator to confirm the pending action.
+    DESC
+
+    input_schema(
+      properties: {
+        cron_expression: { type: "string", description: "Five-field cron expression, interpreted in UTC." },
+        label: { type: "string", description: "Short operator-facing label for this recurring task." },
+        prompt: { type: "string", description: "Prompt to run as an ad hoc Job each time the schedule fires." }
+      },
+      required: %w[cron_expression label prompt]
+    )
+
+    class << self
+      def call(cron_expression:, label:, prompt:, server_context:)
+        chat_session = server_context.fetch(:chat_session)
+        cron_expression = cron_expression.to_s.strip
+        label = label.to_s.strip
+        prompt = prompt.to_s.strip
+
+        return SyrusChatMcp.invalid("cron_expression is required") if cron_expression.empty?
+        return SyrusChatMcp.invalid("label is required") if label.empty?
+        return SyrusChatMcp.invalid("prompt is required") if prompt.empty?
+
+        preview = RecurringTask.new(
+          user: chat_session.user,
+          repository: chat_session.repository,
+          cron_expression: cron_expression,
+          label: label,
+          prompt: prompt
+        )
+        return SyrusChatMcp.invalid(preview.errors.full_messages.to_sentence) unless preview.valid?
+
+        action = ChatPendingAction.create!(
+          chat_session: chat_session,
+          user: chat_session.user,
+          repository: chat_session.repository,
+          action_type: "schedule_recurring",
+          payload: {
+            "cron_expression" => cron_expression,
+            "label" => label,
+            "prompt" => prompt,
+            "next_fire_at" => preview.next_fire_at.iso8601
+          }
+        )
+
+        SyrusChatMcp.success(
+          pending_confirmation_id: action.id,
+          next_fire_at: preview.next_fire_at.iso8601
+        )
+      rescue ActiveRecord::RecordInvalid => e
+        SyrusChatMcp.invalid(e.record.errors.full_messages.to_sentence)
+      end
+    end
+  end
+end

@@ -118,4 +118,57 @@ RSpec.describe ChatPendingAction do
     expect(action.confirm!).to be false
     expect(job.reload).to be_open
   end
+
+  def pending_action(**payload)
+    described_class.create!(
+      user: user,
+      repository: repository,
+      chat_session: chat_session,
+      action_type: "schedule_recurring",
+      payload: {
+        "cron_expression" => "0 9 * * *",
+        "label" => "Daily review",
+        "prompt" => "Review the project."
+      }.merge(payload)
+    )
+  end
+
+  it "confirms a schedule_recurring action into a RecurringTask" do
+    action = pending_action
+
+    expect {
+      action.confirm!(user: user)
+    }.to change { RecurringTask.count }.by(1)
+
+    task = RecurringTask.last
+    expect(task).to have_attributes(
+      user: user,
+      repository: repository,
+      label: "Daily review",
+      prompt: "Review the project.",
+      cron_expression: "0 9 * * *"
+    )
+    expect(action.reload).to be_confirmed
+    expect(action.result).to eq(task)
+  end
+
+  it "does not create the RecurringTask before confirmation" do
+    pending_action
+
+    expect(RecurringTask.count).to eq(0)
+  end
+
+  it "rejects mismatched repository and chat session" do
+    other_repo = Factories.repository(user: user)
+    action = described_class.new(
+      user: user,
+      repository: other_repo,
+      chat_session: chat_session,
+      action_type: "schedule_recurring",
+      payload: { "cron_expression" => "0 9 * * *", "label" => "x", "prompt" => "y" }
+    )
+
+    expect(action).not_to be_valid
+    expect(action.errors[:repository]).to be_present
+  end
 end

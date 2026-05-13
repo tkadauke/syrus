@@ -20,4 +20,14 @@ RSpec.describe "recurring job configuration" do
       "schedule" => "every hour"
     )
   end
+
+  it "runs RecurringTaskTickJob every minute" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+    task = config.fetch("default").fetch("recurring_task_tick")
+
+    expect(task).to include(
+      "class" => "RecurringTaskTickJob",
+      "schedule" => "every minute"
+    )
+  end
 end

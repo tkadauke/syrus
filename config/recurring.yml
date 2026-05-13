@@ -22,6 +22,9 @@ default: &default
   poll_scheduled_tasks:
     class: PollScheduledTasksJob
     schedule: every minute
+  recurring_task_tick:
+    class: RecurringTaskTickJob
+    schedule: every minute
   reap_stale_runs:
     class: ReapStaleRunsJob
     schedule: every minute

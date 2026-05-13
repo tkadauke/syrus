@@ -6,27 +6,45 @@ class ChatPendingAction < ApplicationRecord
     retry_job
     rebase_job
   ].freeze
-  STATES = %w[ pending confirmed rejected ].freeze
+  ACTION_TYPES = %w[ schedule_recurring ].freeze
+  STATES = %w[ pending confirmed rejected cancelled ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
 
   attribute :payload, :json, default: -> { {} }
 
   belongs_to :chat_session
+  belongs_to :repository
+  belongs_to :user
+  belongs_to :result, polymorphic: true, optional: true
 
   enum :state, STATES.index_with(&:itself), validate: true
 
-  validates :action, presence: true, inclusion: { in: ACTIONS }
-  validates :requested_by, presence: true, inclusion: { in: REQUESTED_BY }
-  validate :payload_matches_action
+  before_validation :derive_owner_from_chat_session
 
-  def confirm!
+  validates :action, inclusion: { in: ACTIONS }, allow_nil: true
+  validates :action_type, inclusion: { in: ACTION_TYPES }, allow_nil: true
+  validates :requested_by, presence: true, inclusion: { in: REQUESTED_BY }, if: :note_action?
+  validates :payload, presence: true
+  validate :known_action
+  validate :payload_matches_action
+  validate :repository_matches_chat_session
+  validate :user_matches_chat_session
+
+  def confirm!(user: nil)
+    raise ActiveRecord::RecordNotFound, "pending action belongs to another user" if user && self.user != user
+
     with_lock do
       return false unless pending?
 
+      record = nil
       ApplicationRecord.transaction do
-        apply!
-        update!(state: "confirmed", confirmed_at: Time.current)
+        record = apply!
+        updates = { state: "confirmed", confirmed_at: Time.current }
+        updates[:result] = record if record
+        update!(updates)
       end
+
+      record || true
     end
   end
 
@@ -38,10 +56,32 @@ class ChatPendingAction < ApplicationRecord
     end
   end
 
+  def cancel!(user:)
+    raise ActiveRecord::RecordNotFound, "pending action belongs to another user" unless self.user == user
+    return unless pending?
+
+    update!(state: "cancelled", cancelled_at: Time.current)
+  end
+
   private
 
+  def derive_owner_from_chat_session
+    return unless chat_session
+
+    self.repository ||= chat_session.repository
+    self.user ||= chat_session.user
+  end
+
+  def note_action?
+    action.present?
+  end
+
+  def action_key
+    action.presence || action_type
+  end
+
   def apply!
-    case action
+    case action_key
     when "add_repo_note"
       chat_session.repository.repository_notes.create!(
         body: payload.fetch("body").to_s,
@@ -75,19 +115,43 @@ class ChatPendingAction < ApplicationRecord
       workflow = Workflows::Rebase.instantiate(job: job)
       StepDispatcher.start_workflow(workflow)
     else
-      raise ArgumentError, "unknown pending action: #{action}"
+      RecurringTask.create!(
+        user: user,
+        repository: repository,
+        cron_expression: payload.fetch("cron_expression"),
+        label: payload.fetch("label"),
+        prompt: payload.fetch("prompt")
+      )
     end
   end
 
+  def known_action
+    errors.add(:base, "unknown pending action") if action.blank? && action_type.blank?
+  end
+
   def payload_matches_action
-    case action
+    case action_key
     when "add_repo_note"
       errors.add(:payload, "body is required") if payload["body"].to_s.strip.blank?
     when "remove_repo_note"
       errors.add(:payload, "id is required") unless payload["id"].present?
     when "cancel_job", "retry_job", "rebase_job"
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
+    when "schedule_recurring"
+      errors.add(:payload, "cron_expression is required") if payload["cron_expression"].to_s.strip.blank?
+      errors.add(:payload, "label is required") if payload["label"].to_s.strip.blank?
+      errors.add(:payload, "prompt is required") if payload["prompt"].to_s.strip.blank?
     end
+  end
+
+  def repository_matches_chat_session
+    return unless chat_session && repository
+    errors.add(:repository, "must match chat session") if repository_id != chat_session.repository_id
+  end
+
+  def user_matches_chat_session
+    return unless chat_session && user
+    errors.add(:user, "must match chat session") if user_id != chat_session.user_id
   end
 
   def action_job
