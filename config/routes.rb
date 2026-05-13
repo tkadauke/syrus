@@ -78,6 +78,9 @@ Rails.application.routes.draw do
       post :delegate_issue
       post :bulk_issues
     end
+    get  "chats",             to: "repositories/chats#show",    as: :chats
+    post "chats",             to: "repositories/chats#create"
+    post "chats/:id/message", to: "repositories/chats#message", as: :chat_message
     resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals"
     resources :scheduled_tasks, only: %i[ new create ]
   end

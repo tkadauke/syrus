@@ -1,0 +1,73 @@
+<div class="space-y-6"
+     data-controller="chat"
+     data-chat-turn-in-flight-value="<%= @turn_in_flight %>">
+  <div class="space-y-3">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="font-bold text-3xl">
+          Chat — Repository
+          <%= link_to @repository.slug,
+                repository_path(@repository),
+                class: "font-mono hover:underline" %>
+        </h1>
+        <% input_tokens = @chat_session&.cumulative_input_tokens.to_i %>
+        <% output_tokens = @chat_session&.cumulative_output_tokens.to_i %>
+        <p class="mt-2 text-sm text-gray-600">
+          Tokens:
+          <%= number_with_delimiter(input_tokens) %> in /
+          <%= number_with_delimiter(output_tokens) %> out · $0.00
+        </p>
+      </div>
+      <%= button_to "New chat",
+            repository_chats_path(@repository),
+            method: :post,
+            class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium cursor-pointer",
+            form: { data: { chat_target: "newChatForm" } } %>
+    </div>
+  </div>
+
+  <div class="flex border-b border-gray-200">
+    <%= link_to "Overview",
+          repository_path(@repository),
+          class: "px-4 py-2 text-sm font-medium border-b-2 -mb-px border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300" %>
+    <%= link_to "GitHub Issues",
+          repository_path(@repository, tab: "github_issues"),
+          class: "px-4 py-2 text-sm font-medium border-b-2 -mb-px border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300" %>
+    <%= link_to "Chats",
+          repository_chats_path(@repository),
+          class: "px-4 py-2 text-sm font-medium border-b-2 -mb-px border-blue-600 text-blue-600" %>
+    <%= link_to "Proposals",
+          repository_proposals_path(@repository),
+          class: "px-4 py-2 text-sm font-medium border-b-2 -mb-px border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300" %>
+  </div>
+
+  <% if @chat_session %>
+    <%= turbo_stream_from "chat_session_#{@chat_session.id}_messages" %>
+  <% end %>
+
+  <section class="relative bg-white border border-gray-200 rounded-lg">
+    <div id="<%= @chat_session ? "chat_session_#{@chat_session.id}_messages" : "new_chat_messages" %>"
+         class="h-[28rem] overflow-y-auto p-4 space-y-4"
+         data-chat-target="stream"
+         data-action="scroll->chat#scroll">
+      <% if @messages.any? %>
+        <%= render partial: "repositories/chats/message",
+              collection: @messages,
+              as: :message,
+              locals: { repository: @repository } %>
+      <% else %>
+        <div class="h-full flex items-center justify-center text-sm text-gray-500">
+          Start a chat with this repository.
+        </div>
+      <% end %>
+    </div>
+    <button type="button"
+            class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100"
+            data-chat-target="newMessagesPill"
+            data-action="chat#scrollToBottom">
+      New messages ↓
+    </button>
+  </section>
+
+  <%= render "compose", repository: @repository, chat_session: @chat_session, turn_in_flight: @turn_in_flight %>
+</div>

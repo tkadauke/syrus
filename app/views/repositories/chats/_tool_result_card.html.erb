@@ -1,0 +1,18 @@
+<% content_hash = message.content.is_a?(Hash) ? message.content : {} %>
+<% tool_name = message.tool_name.presence || content_hash["name"].presence || "tool_result" %>
+<% proposal_tool = tool_name.to_s.include?("proposal") || tool_name.to_s.include?("propose_issue") %>
+<% payload = content_hash.presence || { "content" => message.content } %>
+
+<details <%= "open" if proposal_tool %> class="rounded-md border border-emerald-200 bg-emerald-50 text-xs">
+  <summary class="flex cursor-pointer items-center gap-2 px-3 py-2 select-none">
+    <span class="rounded bg-emerald-100 px-1.5 py-0.5 font-mono uppercase text-emerald-800">result</span>
+    <span class="font-mono text-gray-800"><%= tool_name %></span>
+    <% if message.proposal %>
+      <span class="text-gray-500">→</span>
+      <%= link_to "Proposal ##{message.proposal.id} created (#{message.proposal.state})",
+            repository_proposals_path(repository),
+            class: "text-blue-700 underline hover:no-underline" %>
+    <% end %>
+  </summary>
+  <pre class="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words"><%= JSON.pretty_generate(payload) %></pre>
+</details>

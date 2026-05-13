@@ -45,6 +45,18 @@ RSpec.describe ChatSession do
     expect { session.destroy }.to change { ChatMessage.where(id: message.id).count }.by(-1)
   end
 
+  it "reports a turn in flight until a non-user response follows the latest user message" do
+    session = described_class.create!(repository: repo, user: repo.user)
+
+    expect(session).not_to be_turn_in_flight
+
+    session.messages.create!(role: "user", content: { "text" => "Ave" })
+    expect(session).to be_turn_in_flight
+
+    session.messages.create!(role: "assistant", content: { "text" => "Salve" })
+    expect(session).not_to be_turn_in_flight
+  end
+
   it "is destroyed with its repository" do
     session = described_class.create!(repository: repo, user: repo.user)
 

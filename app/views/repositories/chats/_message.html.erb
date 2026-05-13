@@ -1,0 +1,24 @@
+<% text = message.content.is_a?(Hash) ? message.content["text"].to_s : message.content.to_s %>
+<% dom_id = "chat_message_#{message.id}" %>
+
+<div id="<%= dom_id %>" class="chat-message" data-chat-target="message">
+  <% case message.role
+     when "user" %>
+    <div class="flex justify-end">
+      <div class="max-w-[min(42rem,85%)] rounded-lg bg-blue-600 px-4 py-2 text-sm text-white whitespace-pre-wrap break-words"><%= text %></div>
+    </div>
+  <% when "assistant" %>
+    <div class="max-w-3xl rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <div class="mb-1 text-xs uppercase text-gray-500">assistant</div>
+      <div class="prose prose-sm max-w-none text-gray-800">
+        <%= simple_format(h(text)) %>
+      </div>
+    </div>
+  <% when "tool_use" %>
+    <%= render "repositories/chats/tool_use_card", message: message, repository: repository %>
+  <% when "tool_result" %>
+    <%= render "repositories/chats/tool_result_card", message: message, repository: repository %>
+  <% when "system" %>
+    <p class="text-center text-sm italic text-gray-500"><%= text %></p>
+  <% end %>
+</div>
