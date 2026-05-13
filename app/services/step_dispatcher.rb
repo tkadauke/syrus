@@ -125,7 +125,7 @@ class StepDispatcher
     next_run = nil
 
     Step.transaction do
-      @workflow.steps.where("position >= ?", insertion_position).update_all("position = position + #{loop_node.fetch("steps").size}")
+      @workflow.steps.where(position: insertion_position..).update_counters(position: loop_node.fetch("steps").size)
 
       previous = current_grade
       new_steps = loop_node.fetch("steps").map.with_index do |kind, index|
