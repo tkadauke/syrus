@@ -20,6 +20,28 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("You are a drafter, not a dispatcher.")
   end
 
+  it "renders active repository notes near the top" do
+    repo.repository_notes.create!(body: "Use the App credential path for this repo.", author: "operator")
+    repo.repository_notes.create!(body: "Removed context.", author: "agent", removed_at: Time.current)
+
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("Pinned context for this repository:")
+    expect(out).to include("- Use the App credential path for this repo.")
+    expect(out).not_to include("Removed context.")
+    expect(out.index("Pinned context for this repository:")).to be < out.index("Your environment:")
+  end
+
+  it "caps rendered repository note body text" do
+    repo.repository_notes.create!(body: "x" * 2_100, author: "operator")
+
+    out = described_class.new(repository: repo).to_s
+
+    pinned = out[/Pinned context for this repository:\n(?<body>.*?)\n\nYour environment:/m, :body]
+    expect(pinned.length).to be <= 2.kilobytes + 10
+    expect(pinned).to end_with("...")
+  end
+
   it "captures the workspace expectations that should not regress" do
     out = described_class.new(repository: repo).to_s
 

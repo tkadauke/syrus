@@ -206,6 +206,35 @@ RSpec.describe "Repositories", type: :request do
       end
     end
 
+    describe "repository notes" do
+      it "lets the operator add and remove a note from the repository page" do
+        mine = Factories.repository(user: user)
+
+        expect {
+          post repository_notes_path(mine), params: { repository_note: { body: "Use staging for smoke tests." } }
+        }.to change { mine.repository_notes.active.count }.by(1)
+
+        note = mine.repository_notes.active.last
+        expect(note.author).to eq("operator")
+        expect(response).to redirect_to(repository_path(mine))
+
+        expect {
+          delete repository_note_path(mine, note)
+        }.to change { mine.repository_notes.active.count }.from(1).to(0)
+        expect(note.reload).to be_removed
+      end
+
+      it "does not allow managing another user's note" do
+        foreign = Factories.repository(user: other)
+        note = foreign.repository_notes.create!(body: "Private.", author: "operator")
+
+        delete repository_note_path(foreign, note)
+
+        expect(response).to have_http_status(:not_found)
+        expect(note.reload).not_to be_removed
+      end
+    end
+
     describe "POST /repositories/:id/retry_failed_jobs" do
       let(:repo) { Factories.repository(user: user) }
 
@@ -340,6 +369,19 @@ RSpec.describe "Repositories", type: :request do
         get repository_path(mine)
         expect(response).to have_http_status(:ok)
         expect(response.body).to include("acme/widgets")
+      end
+
+      it "renders active repository notes on the overview tab" do
+        mine = Factories.repository(user: user)
+        mine.repository_notes.create!(body: "Pinned deployment context.", author: "operator")
+        mine.repository_notes.create!(body: "Removed context.", author: "agent", removed_at: Time.current)
+
+        get repository_path(mine)
+
+        expect(response.body).to include("Notes")
+        expect(response.body).to include("Pinned deployment context.")
+        expect(response.body).not_to include("Removed context.")
+        expect(response.body).to include("Add note")
       end
 
       it "shows the repository default agent on the show page" do

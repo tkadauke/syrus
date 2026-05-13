@@ -9,6 +9,7 @@ class Repositories::ChatsController < ApplicationController
   def show
     @chat_session = current_chat_session unless new_chat?
     @messages = @chat_session&.messages&.includes(:proposal)&.order(:created_at, :id) || []
+    @pending_actions = @chat_session&.pending_actions&.pending&.order(:created_at, :id) || []
     @turn_in_flight = @chat_session&.turn_in_flight? || false
   end
 

@@ -11,6 +11,9 @@ module Prompts
         operator inspect the code, think through changes, and draft
         Syrus Jobs — NOT to make code changes yourself.
 
+        Pinned context for this repository:
+        #{pinned_context}
+
         Your environment:
 
           - Your cwd is a persistent local checkout of the repository.
@@ -55,6 +58,24 @@ module Prompts
             operator references past work or when you suspect a
             proposal duplicates something already in flight.
       PROMPT
+    end
+
+    private
+
+    def pinned_context
+      notes = @repository.repository_notes.active.order(:created_at, :id)
+      return "  - (none)" if notes.empty?
+
+      remaining = 2.kilobytes
+      notes.map do |note|
+        body = note.body.to_s.squish
+        next if body.empty? || remaining <= 0
+
+        clipped = body.first(remaining)
+        remaining -= clipped.length
+        suffix = clipped.length < body.length ? "..." : ""
+        "  - #{clipped}#{suffix}"
+      end.compact.join("\n")
     end
   end
 end

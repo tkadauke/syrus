@@ -84,6 +84,13 @@ Rails.application.routes.draw do
     post "chats/:id/stop",    to: "repositories/chats#stop",    as: :chat_stop
     post "chats/:id/refresh", to: "repositories/chats#refresh", as: :chat_refresh
     post "chats/:id/reset",   to: "repositories/chats#reset",   as: :chat_reset
+    post "chats/:chat_id/pending_actions/:id/confirm",
+         to: "repositories/chat_pending_actions#confirm",
+         as: :chat_pending_action_confirm
+    delete "chats/:chat_id/pending_actions/:id",
+           to: "repositories/chat_pending_actions#destroy",
+           as: :chat_pending_action
+    resources :notes, only: %i[ create destroy ], controller: "repositories/notes"
     resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals" do
       member do
         get :file

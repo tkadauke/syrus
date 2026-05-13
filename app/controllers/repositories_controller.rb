@@ -25,6 +25,7 @@ class RepositoriesController < ApplicationController
       .offset((@page - 1) * PER_PAGE)
     @total_jobs = @repository.jobs.count
     @total_pages = [ (@total_jobs / PER_PAGE.to_f).ceil, 1 ].max
+    @repository_notes = @repository.repository_notes.active.order(created_at: :desc, id: :desc)
 
     @running_count = @repository.jobs.joins(:runs).where(runs: { state: "running" }).distinct.count
     @queued_count  = @repository.jobs.joins(:runs).where(runs: { state: "queued" }).distinct.count

@@ -47,6 +47,15 @@ module SyrusChatMcp
     }
   end
 
+  def self.repository_note_payload(note)
+    {
+      id: note.id,
+      body: note.body,
+      author: note.author,
+      created_at: note.created_at.iso8601
+    }
+  end
+
   def self.labels_for(proposal)
     raw = proposal.labels
     return [] if raw.blank?

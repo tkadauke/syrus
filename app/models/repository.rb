@@ -13,6 +13,7 @@ class Repository < ApplicationRecord
   has_many :jobs, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
+  has_many :repository_notes, dependent: :destroy
   has_many :operator_questions, through: :jobs
 
   validates :owner, presence: true, format: { with: GITHUB_NAME }
