@@ -5,43 +5,45 @@ module SyrusMcp
     tool_name "ask_operator"
 
     description <<~DESC
-      Ask the Syrus operator a question when progress is blocked on human input.
-      The selected repository operator-chat channel receives the question and
-      Syrus records it against the current Run, Workflow, and Job.
+      Ask the human Syrus operator a clarifying question and then stop.
+      Use this sparingly when ambiguity materially affects the design or
+      implementation direction. Style preferences, plausible defaults, and
+      reversible choices should be decided by the agent instead.
     DESC
 
     input_schema(
       properties: {
-        text: {
+        question: {
           type: "string",
-          description: "The question for the operator. Include the exact decision or information needed."
+          description: "A concise question for the operator."
         },
         context: {
-          type: "object",
-          description: "Optional structured context for Syrus to render with the question."
+          type: "string",
+          description: "Brief context explaining what is ambiguous and why it affects the implementation."
         }
       },
-      required: %w[text]
+      required: %w[question context]
     )
 
     class << self
-      def call(text:, server_context:, context: {})
+      def call(question:, context:, server_context:)
         run = server_context[:run].reload
-        question_text = text.to_s.strip
-        return invalid("text is required") if question_text.empty?
+        question = question.to_s.strip
+        context = context.to_s.strip
 
-        question = ChatChannel.for(run.job.repository).send_message(
+        return invalid("question is required") if question.empty?
+        return invalid("context is required") if context.empty?
+
+        operator_question = ChatChannel.for(run.job.repository).send_message(
           run: run,
-          text: question_text,
-          context: context || {}
+          text: question,
+          context: { "context" => context }
         )
+        SyrusMcp.write_log(run, "[mcp] ask_operator recorded OperatorQuestion ##{operator_question.id}: #{question.inspect}")
 
-        SyrusMcp.write_log(run, "[mcp] ask_operator recorded OperatorQuestion ##{question.id}")
-        MCP::Tool::Response.new([
-          { type: "text", text: "Question recorded in Syrus as ##{question.id}." }
-        ])
+        MCP::Tool::Response.new([ { type: "text", text: "Question sent. End your turn now so Syrus can wait for the operator." } ])
       rescue ChatChannel::ConfigurationError => e
-        invalid(e.message)
+        invalid("#{e.message}. Mark this run failed with category `needs_clarification` instead.")
       end
 
       private

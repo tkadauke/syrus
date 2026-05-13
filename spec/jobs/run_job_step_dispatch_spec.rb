@@ -77,6 +77,32 @@ RSpec.describe RunJob, "step-dispatch path" do
     }.not_to have_enqueued_job(RunJob)
   end
 
+  it "marks the Run outcome awaiting_operator after an ask_operator question" do
+    s_implement.update!(next_step_id: nil)
+    asking_handler = Class.new(Steps::Base) do
+      def call
+        OperatorQuestion.create!(
+          repository: repository,
+          job: job,
+          run: run,
+          channel: "in_syrus",
+          question: "Which API should this use?",
+          context: "The prompt names two plausible APIs.",
+          sent_at: Time.current
+        )
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(asking_handler)
+
+    run = StepDispatcher.start_workflow(workflow)
+    described_class.perform_now(run.id)
+
+    expect(run.reload).to have_attributes(
+      state: "succeeded",
+      agent_outcome: "awaiting_operator"
+    )
+  end
+
   describe "failure handling" do
     let(:failing_handler_class) do
       Class.new(Steps::Base) do

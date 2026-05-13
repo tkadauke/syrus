@@ -56,6 +56,17 @@ are also fine — they preserve history.
 
 ---
 
+If you encounter ambiguity that materially affects design (not
+style), you may call `ask_operator(question:, context:)` to pause
+and ask. Use sparingly — operator time is more expensive than
+yours. Style preferences, plausible defaults, and reversible
+decisions should NOT use this; pick a reasonable answer and
+proceed. If operator chat is disabled and the tool returns an
+error, mark the run failed with category `needs_clarification`
+instead.
+
+---
+
 Phased execution note: you're running the **implement** step.
 Make the code changes; commit them locally; that's it. DO NOT
 call `submit_summary` here. A separate, short follow-up step

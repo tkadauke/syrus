@@ -39,6 +39,14 @@ RSpec.describe Prompts::Implement do
     expect(out).to match(/DO NOT\s+call `submit_summary`/m)
   end
 
+  it "allows sparing operator clarification through ask_operator" do
+    out = described_class.new(issue: issue).to_s
+
+    expect(out).to include("ask_operator(question:, context:)")
+    expect(out).to include("materially affects design")
+    expect(out).to include("needs_clarification")
+  end
+
   it "does NOT append the SubmitSummaryInstructions block" do
     out = described_class.new(issue: issue).to_s
     expect(out).not_to include(Prompts::SubmitSummaryInstructions::TEXT)

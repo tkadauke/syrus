@@ -36,6 +36,10 @@ RSpec.describe Prompts::CiFailure do
     expect(out).to match(/submit_summary/)
   end
 
+  it "includes the operator clarification instruction" do
+    expect(build.to_s).to include(Prompts::OperatorClarificationInstructions::TEXT)
+  end
+
   it "shows '(no summary provided)' when GitHub omits a summary" do
     out = build(failed_checks: [ { name: "vague", conclusion: "failure", html_url: "u", summary: nil } ]).to_s
     expect(out).to include("(no summary provided)")

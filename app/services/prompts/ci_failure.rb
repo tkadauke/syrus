@@ -49,6 +49,8 @@ module Prompts
           will re-run. If you can't fix the failure (e.g. it's a flake
           or an environment issue outside the diff's scope), say so
           in `submit_summary` instead of pushing a noop.
+
+        #{OperatorClarificationInstructions::TEXT}
       PROMPT
     end
 

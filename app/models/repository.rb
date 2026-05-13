@@ -13,11 +13,13 @@ class Repository < ApplicationRecord
   has_many :jobs, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
+  has_many :operator_questions, dependent: :destroy
 
   validates :owner, presence: true, format: { with: GITHUB_NAME }
   validates :name, presence: true, format: { with: GITHUB_NAME }
   validates :default_branch, presence: true
   validates :trigger_label, presence: true
+  validates :allow_operator_chat, presence: true, inclusion: { in: OPERATOR_CHAT_CHANNELS }
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
   validates :allow_operator_chat, presence: true, inclusion: { in: OPERATOR_CHAT_CHANNELS }
   validates :owner, uniqueness: { scope: [ :user_id, :name ], case_sensitive: false }

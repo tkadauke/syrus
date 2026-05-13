@@ -11,7 +11,7 @@ RSpec.describe SyrusMcp::Sidecar do
   def server_for(run)
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
-      tools: [ SyrusMcp::SubmitSummaryTool ],
+      tools: [ SyrusMcp::SubmitSummaryTool, SyrusMcp::AskOperatorTool ],
       server_context: { run: run }
     )
   end
@@ -33,7 +33,7 @@ RSpec.describe SyrusMcp::Sidecar do
       _ = jsonrpc(server_for(run), "initialize", id: 0)
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
-      expect(tool_names).to eq(%w[submit_summary])
+      expect(tool_names).to eq(%w[submit_summary ask_operator])
     end
   end
 

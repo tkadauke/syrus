@@ -147,6 +147,7 @@ class RunJob < ApplicationJob
     @handler = Steps.handler_for(@step.kind).new(@run)
     @handler.call
 
+    @run.agent_outcome = "awaiting_operator" if @run.operator_questions.exists?
     @run.succeed!
     @run.save!
     @step.succeed!

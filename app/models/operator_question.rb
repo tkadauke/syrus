@@ -15,6 +15,22 @@ class OperatorQuestion < ApplicationRecord
     operator_responses.create!(text: text, responded_at: responded_at)
   end
 
+  def question
+    text
+  end
+
+  def sent_at
+    asked_at
+  end
+
+  def state
+    "sent"
+  end
+
+  def repository
+    job.repository
+  end
+
   private
 
   def set_defaults

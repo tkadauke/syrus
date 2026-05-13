@@ -263,6 +263,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_100000) do
     t.string "trigger_label", default: "syrus", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.index ["allow_operator_chat"], name: "index_repositories_on_allow_operator_chat"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
