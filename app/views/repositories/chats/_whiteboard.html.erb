@@ -1,3 +1,17 @@
-<div id="chat_session_<%= whiteboard.chat_session_id %>_whiteboard"
-     data-whiteboard-version="<%= whiteboard.version %>"
-     data-whiteboard-scene="<%= json_escape(whiteboard.scene_json.to_json) %>"></div>
+<% chat_session ||= whiteboard.chat_session %>
+<% scene_json = whiteboard&.scene_json || { "elements" => [] } %>
+<% version = whiteboard&.version || 0 %>
+<% elements = scene_json.fetch("elements", []) %>
+
+<div id="chat_session_<%= chat_session.id %>_whiteboard"
+     class="relative h-72 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden"
+     data-chat-target="whiteboard"
+     data-action="whiteboard:change->chat#whiteboardChanged"
+     data-whiteboard-version="<%= version %>"
+     data-whiteboard-scene="<%= json_escape(scene_json.to_json) %>">
+  <div class="h-full w-full"></div>
+  <div class="<%= elements.empty? ? "" : "hidden" %> pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-gray-400"
+       data-chat-target="whiteboardPlaceholder">
+    Empty canvas — start sketching, or ask the agent to draw something.
+  </div>
+</div>

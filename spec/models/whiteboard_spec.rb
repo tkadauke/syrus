@@ -30,6 +30,16 @@ RSpec.describe Whiteboard do
     expect(non_array_elements.errors[:scene_json]).to include("must include an elements array")
   end
 
+  it "caps the scene element count" do
+    whiteboard = described_class.new(
+      chat_session: chat_session,
+      scene_json: { "elements" => Array.new(described_class::MAX_ELEMENTS + 1) { |index| { "id" => "shape-#{index}" } } }
+    )
+
+    expect(whiteboard).not_to be_valid
+    expect(whiteboard.errors[:scene_json]).to include(described_class.element_limit_message)
+  end
+
   it "is destroyed with its chat session" do
     whiteboard = described_class.create!(chat_session: chat_session)
 

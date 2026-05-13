@@ -1,13 +1,14 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["stream", "newMessagesPill", "textarea", "sendButton", "stopButton"]
+  static targets = ["stream", "newMessagesPill", "textarea", "sendButton", "stopButton", "whiteboard", "whiteboardPlaceholder"]
   static values = { turnInFlight: Boolean }
 
   connect() {
     this.wasNearBottom = true
     this.scrollToBottom()
     this.updateCompose()
+    this.syncWhiteboardPlaceholder()
     this.observer = new MutationObserver(() => this.messagesChanged())
     this.observer.observe(this.streamTarget, { childList: true })
   }
@@ -18,6 +19,10 @@ export default class extends Controller {
 
   turnInFlightValueChanged() {
     this.updateCompose()
+  }
+
+  whiteboardTargetConnected() {
+    this.syncWhiteboardPlaceholder()
   }
 
   scroll() {
@@ -55,6 +60,23 @@ export default class extends Controller {
     this.stopButtonTarget.textContent = "Stopping…"
   }
 
+  whiteboardChanged(event) {
+    const elements = event.detail?.elements || []
+    this.setWhiteboardPlaceholderVisible(elements.length === 0)
+  }
+
+  syncWhiteboardPlaceholder() {
+    if (!this.hasWhiteboardTarget) return
+
+    try {
+      const scene = JSON.parse(this.whiteboardTarget.dataset.whiteboardScene || "{}")
+      const elements = Array.isArray(scene.elements) ? scene.elements : []
+      this.setWhiteboardPlaceholderVisible(elements.length === 0)
+    } catch {
+      this.setWhiteboardPlaceholderVisible(true)
+    }
+  }
+
   isNearBottom() {
     if (!this.hasStreamTarget) return true
 
@@ -67,5 +89,9 @@ export default class extends Controller {
 
   hideNewMessagesPill() {
     if (this.hasNewMessagesPillTarget) this.newMessagesPillTarget.classList.add("hidden")
+  }
+
+  setWhiteboardPlaceholderVisible(visible) {
+    if (this.hasWhiteboardPlaceholderTarget) this.whiteboardPlaceholderTarget.classList.toggle("hidden", !visible)
   }
 }

@@ -25,6 +25,7 @@
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_messages" %>
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_controls" %>
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_header" %>
+    <%= turbo_stream_from "chat_session_#{@chat_session.id}_whiteboard" %>
   <% end %>
 
   <% if Current.user.agent_provider == "codex" %>
@@ -85,6 +86,10 @@
         New messages ↓
       </button>
     </section>
+
+    <% if @chat_session %>
+      <%= render "whiteboard", chat_session: @chat_session, whiteboard: @chat_session.whiteboard %>
+    <% end %>
 
     <%= render "compose", repository: @repository, chat_session: @chat_session, turn_in_flight: @turn_in_flight %>
   <% end %>

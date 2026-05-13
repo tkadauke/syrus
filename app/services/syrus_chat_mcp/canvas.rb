@@ -1,5 +1,7 @@
 module SyrusChatMcp
   module Canvas
+    class ElementLimitExceeded < StandardError; end
+
     SHAPE_TYPES = %w[rectangle ellipse diamond sticky].freeze
     ELEMENT_TYPES = (SHAPE_TYPES + %w[text arrow]).freeze
     DEFAULT_COLOR = "#f8fafc"
@@ -22,6 +24,7 @@ module SyrusChatMcp
         whiteboard = find_or_create_whiteboard(chat_session).lock!
         elements = deep_dup_elements(whiteboard.elements)
         result = yield(elements)
+        ensure_within_element_limit!(elements)
 
         whiteboard.scene_json = { "elements" => elements }
         whiteboard.version += 1
@@ -113,6 +116,7 @@ module SyrusChatMcp
 
     def validate_elements!(elements)
       raise ArgumentError, "elements must be an array" unless elements.is_a?(Array)
+      ensure_within_element_limit!(elements)
 
       elements.each do |element|
         raise ArgumentError, "each element must be an object" unless element.is_a?(Hash)
@@ -121,6 +125,14 @@ module SyrusChatMcp
         raise ArgumentError, "element type is required" if type.empty?
         raise ArgumentError, "unsupported element type: #{type}" unless ELEMENT_TYPES.include?(type)
       end
+    end
+
+    def ensure_can_append_element!(elements)
+      raise ElementLimitExceeded, Whiteboard.element_limit_message if elements.size >= Whiteboard::MAX_ELEMENTS
+    end
+
+    def ensure_within_element_limit!(elements)
+      raise ElementLimitExceeded, Whiteboard.element_limit_message if elements.size > Whiteboard::MAX_ELEMENTS
     end
 
     def find_element(elements, id)

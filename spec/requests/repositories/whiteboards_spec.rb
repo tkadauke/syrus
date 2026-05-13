@@ -8,6 +8,7 @@ RSpec.describe "Repository whiteboards", type: :request do
   before { sign_in_as(user) }
 
   def parse_body = JSON.parse(response.body)
+  def element(id) = { "id" => id, "type" => "rectangle" }
 
   describe "GET /repositories/:repository_id/chats/:chat_id/whiteboard" do
     it "returns the empty default state without creating a whiteboard" do
@@ -74,6 +75,21 @@ RSpec.describe "Repository whiteboards", type: :request do
       expect(parse_body).to eq("elements" => elements, "version" => 15)
       expect(whiteboard.reload.scene_json).to eq("elements" => elements)
       expect(whiteboard.version).to eq(15)
+    end
+
+    it "rejects updates beyond the element limit" do
+      elements = Array.new(Whiteboard::MAX_ELEMENTS + 1) { |index| element("shape-#{index}") }
+
+      expect(Turbo::StreamsChannel).not_to receive(:broadcast_stream_to)
+
+      expect {
+        patch repository_chat_whiteboard_path(repo, chat),
+              params: { elements: elements, expected_version: 0 },
+              as: :json
+      }.not_to change(Whiteboard, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(parse_body).to eq("error" => Whiteboard.element_limit_message)
     end
 
     it "returns conflict and the current state when the expected version is stale" do

@@ -46,6 +46,10 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     call_tool("draw_shape", { type: type, x: x, y: y, width: width, height: height }.merge(attrs))
   end
 
+  def minimal_element(index)
+    { "id" => "shape-#{index}", "type" => "rectangle" }
+  end
+
   it "read_scene returns the empty scene without rasterization or mutation logging" do
     response = call_tool("read_scene")
 
@@ -156,6 +160,37 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     expect(response[:result][:isError]).to be_falsey
     expect(chat_session.reload.whiteboard.elements).to eq(replacement)
     expect(chat_session.messages.last).to have_attributes(role: "tool_use", tool_name: "update_scene")
+  end
+
+  it "rejects append tools when the whiteboard is at the element limit" do
+    chat_session.create_whiteboard!(
+      scene_json: { "elements" => Array.new(Whiteboard::MAX_ELEMENTS) { |index| minimal_element(index) } }
+    )
+
+    responses = [
+      draw_shape,
+      call_tool("draw_text", content: "Blocked", x: 1, y: 2),
+      call_tool("draw_arrow", from_id: "shape-0", to_id: "shape-1")
+    ]
+
+    responses.each do |response|
+      expect(response[:result][:isError]).to be(true)
+      expect(response[:result][:content].first[:text]).to eq(Whiteboard.element_limit_message)
+    end
+    expect(chat_session.reload.whiteboard.elements.size).to eq(Whiteboard::MAX_ELEMENTS)
+    expect(chat_session.messages).to be_empty
+  end
+
+  it "rejects raw scene replacements beyond the element limit" do
+    response = call_tool(
+      "update_scene",
+      elements: Array.new(Whiteboard::MAX_ELEMENTS + 1) { |index| minimal_element(index) }
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to eq(Whiteboard.element_limit_message)
+    expect(chat_session.reload.whiteboard).to be_nil
+    expect(chat_session.messages).to be_empty
   end
 
   it "drives a high-level sequence from read to mutation and back to read" do

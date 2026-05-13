@@ -26,6 +26,26 @@ class ClassList {
     this.values.delete(value)
   }
 
+  toggle(value, force) {
+    if (force === undefined) {
+      if (this.values.has(value)) {
+        this.values.delete(value)
+        return false
+      }
+
+      this.values.add(value)
+      return true
+    }
+
+    if (force) {
+      this.values.add(value)
+    } else {
+      this.values.delete(value)
+    }
+
+    return force
+  }
+
   contains(value) {
     return this.values.has(value)
   }
@@ -54,19 +74,25 @@ function buildController(Controller, { scrollTop = 700, scrollHeight = 1000, cli
   const textarea = { disabled: false }
   const sendButton = { disabled: false }
   const stopButton = { disabled: false, value: "Stop", textContent: "Stop" }
+  const whiteboard = { dataset: { whiteboardScene: JSON.stringify({ elements: [] }) } }
+  const whiteboardPlaceholder = { classList: new ClassList(["hidden"]) }
   const controller = new Controller()
   controller.streamTarget = stream
   controller.newMessagesPillTarget = pill
   controller.textareaTarget = textarea
   controller.sendButtonTarget = sendButton
   controller.stopButtonTarget = stopButton
+  controller.whiteboardTarget = whiteboard
+  controller.whiteboardPlaceholderTarget = whiteboardPlaceholder
   controller.hasStreamTarget = true
   controller.hasNewMessagesPillTarget = true
   controller.hasTextareaTarget = true
   controller.hasSendButtonTarget = true
   controller.hasStopButtonTarget = true
+  controller.hasWhiteboardTarget = true
+  controller.hasWhiteboardPlaceholderTarget = true
   controller.turnInFlightValue = inFlight
-  return { controller, stream, pill, textarea, sendButton, stopButton }
+  return { controller, stream, pill, textarea, sendButton, stopButton, whiteboard, whiteboardPlaceholder }
 }
 
 test("auto-scrolls when messages arrive while the user is at the bottom", async () => {
@@ -123,4 +149,24 @@ test("stop disables the stop button and flips its label immediately", async () =
   assert.equal(stopButton.disabled, true)
   assert.equal(stopButton.value, "Stopping…")
   assert.equal(stopButton.textContent, "Stopping…")
+})
+
+test("shows the whiteboard empty state for an empty scene", async () => {
+  const { default: Controller } = await loadController()
+  const { controller, whiteboardPlaceholder } = buildController(Controller)
+
+  controller.syncWhiteboardPlaceholder()
+
+  assert.equal(whiteboardPlaceholder.classList.contains("hidden"), false)
+})
+
+test("hides and restores the whiteboard empty state as elements change", async () => {
+  const { default: Controller } = await loadController()
+  const { controller, whiteboardPlaceholder } = buildController(Controller)
+
+  controller.whiteboardChanged({ detail: { elements: [{ id: "shape-1" }] } })
+  assert.equal(whiteboardPlaceholder.classList.contains("hidden"), true)
+
+  controller.whiteboardChanged({ detail: { elements: [] } })
+  assert.equal(whiteboardPlaceholder.classList.contains("hidden"), false)
 })

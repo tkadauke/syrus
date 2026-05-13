@@ -24,6 +24,8 @@ module SyrusChatMcp
         end
 
         SyrusChatMcp.success(result)
+      rescue Canvas::ElementLimitExceeded => e
+        SyrusChatMcp.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
         SyrusChatMcp.invalid(e.message)
       end

@@ -70,8 +70,24 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("3.2k out")
       expect(response.body).to include("$0.0123")
       expect(response.body).to include("chat_session_#{newer.id}_messages")
+      expect(response.body).to include("chat_session_#{newer.id}_whiteboard")
+      expect(response.body).to include("Empty canvas — start sketching, or ask the agent to draw something.")
       expect(response.body).to include("Refresh repo")
       expect(response.body).to include("Reset workspace")
+    end
+
+    it "hides the whiteboard empty state when elements are present" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      chat.create_whiteboard!(
+        scene_json: { "elements" => [ { "id" => "box-1", "type" => "rectangle" } ] },
+        version: 1
+      )
+
+      get repository_chats_path(repo)
+
+      expect(response.body).to include("chat_session_#{chat.id}_whiteboard")
+      expect(response.body).to include('data-whiteboard-version="1"')
+      expect(response.body).to include('hidden pointer-events-none absolute')
     end
 
     it "disables compose while the latest user message has no response" do

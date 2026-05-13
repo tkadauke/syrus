@@ -29,12 +29,15 @@ module SyrusChatMcp
         }.compact
 
         result = Canvas.mutate(server_context.fetch(:chat_session), tool_name, args) do |elements|
+          Canvas.ensure_can_append_element!(elements)
           element = Canvas.text_element(**args.symbolize_keys)
           elements << element
           { id: element.fetch("id") }
         end
 
         SyrusChatMcp.success(result)
+      rescue Canvas::ElementLimitExceeded => e
+        SyrusChatMcp.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
         SyrusChatMcp.invalid(e.message)
       end

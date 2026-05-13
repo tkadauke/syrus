@@ -8,6 +8,11 @@ class Repositories::WhiteboardsController < ApplicationController
 
   def update
     elements = whiteboard_elements
+    if elements.size > Whiteboard::MAX_ELEMENTS
+      render json: { "error" => Whiteboard.element_limit_message }, status: 422
+      return
+    end
+
     expected_version = params.fetch(:expected_version).to_i
 
     whiteboard = nil
