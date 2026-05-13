@@ -16,12 +16,17 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("Chat — Repository")
       expect(response.body).to include("Start a chat with this repository.")
       expect(response.body).to include("Tokens:")
-      expect(response.body).to include('data-controller="chat chat-layout"')
+      expect(response.body).to include('data-controller="chat chat-layout chat-side-panel"')
       expect(response.body).to include("data-chat-layout-storage-key-value=\"syrus.user.#{user.id}.repository.#{repo.id}.chat_split\"")
       expect(response.body).to include('data-chat-layout-whiteboard-enabled-value="false"')
+      expect(response.body).to include("data-chat-side-panel-repository-id-value=\"#{repo.id}\"")
+      expect(response.body).to include("data-chat-side-panel-documentation-url-value=\"/repositories/#{repo.id}/documents?frame=1\"")
       expect(response.body).to include('data-chat-layout-target="divider"')
       expect(response.body).to include("Hide canvas")
-      expect(response.body).to include("Canvas")
+      expect(response.body).to include("Whiteboard")
+      expect(response.body).to include("Documentation")
+      expect(response.body).to include('data-chat-side-panel-target="documentationFrame"')
+      expect(response.body).not_to include("<turbo-frame id=\"repository_#{repo.id}_documents\" src=")
       expect(response.body).not_to include('data-controller="whiteboard"')
       expect(response.body).not_to include(repository_whiteboard_path(repo))
     end
@@ -84,7 +89,7 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("Reset workspace")
     end
 
-    it "renders the chat whiteboard inside the layout canvas pane without eager-loading Excalidraw" do
+    it "renders the chat whiteboard inside the layout side panel without eager-loading Excalidraw" do
       chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
       chat.create_whiteboard!(
         scene_json: { "elements" => [ { "id" => "box-1", "type" => "rectangle" } ] },
@@ -94,6 +99,8 @@ RSpec.describe "Repository chats", type: :request do
       get repository_chats_path(repo)
 
       expect(response.body).to include('data-chat-layout-target="canvasPane"')
+      expect(response.body).to include('aria-label="Chat side panel"')
+      expect(response.body).to include('data-chat-side-panel-target="whiteboardPanel"')
       expect(response.body).to include('data-whiteboard-url-value="' + repository_chat_whiteboard_path(repo, chat) + '"')
       expect(response.body).not_to include('data-controller="whiteboard"')
       expect(response.body).to include("chat_session_#{chat.id}_whiteboard_broadcast")

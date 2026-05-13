@@ -1,12 +1,14 @@
 <% chat_available = Current.user.agent_provider != "codex" && Current.user.claude_oauth_token.present? %>
 
 <div class="space-y-6"
-     data-controller="<%= chat_available ? "chat chat-layout" : "chat" %>"
+     data-controller="<%= chat_available ? "chat chat-layout chat-side-panel" : "chat" %>"
      data-chat-layout-storage-key-value="syrus.user.<%= Current.user.id %>.repository.<%= @repository.id %>.chat_split"
      <% if @chat_session %>
        data-chat-layout-canvas-storage-key-value="syrus.chat.canvas.<%= @chat_session.id %>"
      <% end %>
      data-chat-layout-whiteboard-enabled-value="<%= @chat_session.present? %>"
+     data-chat-side-panel-repository-id-value="<%= @repository.id %>"
+     data-chat-side-panel-documentation-url-value="/repositories/<%= @repository.to_param %>/documents?frame=1"
      data-chat-turn-in-flight-value="<%= @turn_in_flight %>">
   <div class="space-y-3">
     <%= render "header", repository: @repository, chat_session: @chat_session, chat_available: chat_available %>
@@ -118,42 +120,82 @@
       <button type="button"
               class="px-4 py-2 text-sm font-medium border-b-2 -mb-px"
               role="tab"
-              data-chat-layout-target="canvasTab"
-              data-action="chat-layout#showCanvas">
-        Canvas
+              data-chat-layout-target="sidePanelTab"
+              data-chat-side-panel-target="whiteboardTab"
+              data-action="chat-layout#showCanvas chat-side-panel#showWhiteboard">
+        Whiteboard
+      </button>
+      <button type="button"
+              class="px-4 py-2 text-sm font-medium border-b-2 -mb-px"
+              role="tab"
+              data-chat-layout-target="sidePanelTab"
+              data-chat-side-panel-target="documentationTab"
+              data-action="chat-layout#showCanvas chat-side-panel#showDocumentation">
+        Documentation
       </button>
     </div>
 
     <div class="sm:grid sm:min-h-[34rem] sm:items-stretch"
          data-chat-layout-target="grid"
          data-action="touchstart->chat-layout#swipeStart touchend->chat-layout#swipeEnd">
-      <div class="hidden min-w-0 sm:block" data-chat-layout-target="desktopCanvasSlot"></div>
+      <div class="hidden min-w-0 sm:block" data-chat-layout-target="desktopChatSlot"></div>
       <div class="hidden sm:flex cursor-col-resize items-stretch justify-center"
            role="separator"
            aria-orientation="vertical"
-           aria-label="Resize chat canvas"
+           aria-label="Resize chat side panel"
            tabindex="0"
            data-chat-layout-target="divider"
            data-action="pointerdown->chat-layout#startDrag">
         <div class="w-px bg-gray-200"></div>
       </div>
-      <div class="hidden min-w-0 sm:block" data-chat-layout-target="desktopChatSlot"></div>
+      <div class="hidden min-w-0 sm:block" data-chat-layout-target="desktopCanvasSlot"></div>
       <div class="sm:hidden" data-chat-layout-target="mobileSlot"></div>
     </div>
 
-    <section class="h-[32rem] min-h-[24rem] overflow-hidden rounded-lg border border-gray-200 bg-white sm:h-full"
+    <section class="flex h-[32rem] min-h-[24rem] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white sm:h-full"
              <% if @chat_session %>
                data-whiteboard-url-value="<%= repository_chat_whiteboard_path(@repository, @chat_session) %>"
              <% end %>
              data-chat-layout-target="canvasPane">
-      <div class="h-full w-full"
-           data-whiteboard-target="mount"></div>
-      <% if @chat_session&.whiteboard %>
-        <div id="chat_session_<%= @chat_session.id %>_whiteboard_broadcast"
-             data-whiteboard-target="broadcast"
-             data-version="<%= @chat_session.whiteboard.version %>"
-             data-elements-json="<%= json_escape(@chat_session.whiteboard.elements.to_json) %>"></div>
-      <% end %>
+      <div class="hidden border-b border-gray-200 sm:flex"
+           role="tablist"
+           aria-label="Chat side panel">
+        <button type="button"
+                class="px-4 py-2 text-sm font-medium border-b-2 -mb-px"
+                role="tab"
+                data-chat-side-panel-target="whiteboardTab"
+                data-action="chat-side-panel#showWhiteboard">
+          Whiteboard
+        </button>
+        <button type="button"
+                class="px-4 py-2 text-sm font-medium border-b-2 -mb-px"
+                role="tab"
+                data-chat-side-panel-target="documentationTab"
+                data-action="chat-side-panel#showDocumentation">
+          Documentation
+        </button>
+      </div>
+
+      <div class="min-h-0 flex-1"
+           data-chat-side-panel-target="whiteboardPanel">
+        <div class="h-full w-full"
+             data-whiteboard-target="mount"></div>
+        <% if @chat_session&.whiteboard %>
+          <div id="chat_session_<%= @chat_session.id %>_whiteboard_broadcast"
+               data-whiteboard-target="broadcast"
+               data-version="<%= @chat_session.whiteboard.version %>"
+               data-elements-json="<%= json_escape(@chat_session.whiteboard.elements.to_json) %>"></div>
+        <% end %>
+      </div>
+
+      <div class="hidden min-h-0 flex-1"
+           data-chat-side-panel-target="documentationPanel">
+        <turbo-frame id="repository_<%= @repository.id %>_documents"
+                     class="block h-full"
+                     data-chat-side-panel-target="documentationFrame">
+          <div class="h-full"></div>
+        </turbo-frame>
+      </div>
     </section>
 
     <section class="flex min-h-[32rem] min-w-0 flex-col gap-3 sm:h-full"

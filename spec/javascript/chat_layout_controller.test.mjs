@@ -136,19 +136,20 @@ function buildController(Controller, { desktop = true, canvasStorageKey = null, 
   controller.gridTarget = new Element()
   controller.dividerTarget = new Element()
   controller.chatTabTarget = new Element()
-  controller.canvasTabTarget = new Element()
   controller.canvasToggleTarget = new Element()
   controller.canvasToggleLabelTarget = new Element()
+  controller.sidePanelTabTargets = [new Element(), new Element()]
+  controller.sidePanelTabTarget = controller.sidePanelTabTargets[0]
   controller.hasGridTarget = true
   controller.hasChatTabTarget = true
-  controller.hasCanvasTabTarget = true
   controller.hasCanvasToggleTarget = true
   controller.hasCanvasToggleLabelTarget = true
+  controller.hasSidePanelTabTarget = true
 
   return controller
 }
 
-test("desktop mounts both panes and applies the default split", async () => {
+test("desktop mounts both panes with chat on the left and side panel on the right", async () => {
   const { default: Controller } = await loadController()
   const controller = buildController(Controller)
 
@@ -159,7 +160,7 @@ test("desktop mounts both panes and applies the default split", async () => {
   assert.equal(controller.canvasToggleLabelTarget.textContent, "Hide canvas")
   assert.equal(
     controller.gridTarget.style.gridTemplateColumns,
-    "minmax(0, 60%) 0.75rem minmax(20rem, 40%)"
+    "minmax(20rem, 60%) 0.75rem minmax(0, 40%)"
   )
 })
 
@@ -169,11 +170,11 @@ test("desktop drag resizes the grid and persists the ratio", async () => {
 
   controller.connect()
   controller.startDrag({ pointerType: "mouse", pointerId: 1, preventDefault() {} })
-  controller.drag({ clientX: 700 })
+  controller.drag({ clientX: 300 })
 
   assert.equal(
     controller.gridTarget.style.gridTemplateColumns,
-    "minmax(0, 70%) 0.75rem minmax(20rem, 30%)"
+    "minmax(20rem, 30%) 0.75rem minmax(0, 70%)"
   )
   assert.equal(window.localStorage.getItem("syrus.repository.1.chat_split"), "0.700")
 })
@@ -191,7 +192,8 @@ test("mobile mounts only the active pane and switches tabs", async () => {
 
   assert.equal(controller.canvasPaneTarget.parentNode, controller.mobileSlotTarget)
   assert.equal(controller.chatPaneTarget.parentNode, controller.desktopChatSlotTarget)
-  assert.equal(controller.canvasTabTarget.attributes["aria-selected"], "true")
+  assert.equal(controller.sidePanelTabTargets[0].attributes["aria-selected"], "true")
+  assert.equal(controller.sidePanelTabTargets[1].attributes["aria-selected"], "true")
 })
 
 test("mobile swipe switches between chat and canvas tabs", async () => {
@@ -268,5 +270,6 @@ test("mobile hidden canvas removes the canvas tab", async () => {
   assert.equal(controller.activeTabValue, "chat")
   assert.equal(controller.chatPaneTarget.parentNode, controller.mobileSlotTarget)
   assert.equal(controller.canvasPaneTarget.parentNode, controller.detachedSlot)
-  assert.equal(controller.canvasTabTarget.classList.contains("hidden"), true)
+  assert.equal(controller.sidePanelTabTargets[0].classList.contains("hidden"), true)
+  assert.equal(controller.sidePanelTabTargets[1].classList.contains("hidden"), true)
 })

@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 const DESKTOP_QUERY = "(min-width: 640px)"
-const DEFAULT_CANVAS_RATIO = 0.6
+const DEFAULT_CANVAS_RATIO = 0.4
 const MIN_CANVAS_RATIO = 0.3
 const MAX_CANVAS_RATIO = 0.75
 
@@ -15,9 +15,9 @@ export default class extends Controller {
     "grid",
     "divider",
     "chatTab",
-    "canvasTab",
     "canvasToggle",
-    "canvasToggleLabel"
+    "canvasToggleLabel",
+    "sidePanelTab"
   ]
   static values = {
     activeTab: { type: String, default: "chat" },
@@ -50,8 +50,8 @@ export default class extends Controller {
 
     if (this.isDesktop()) {
       this.showDesktopSlots()
-      this.desktopCanvasSlotTarget.appendChild(this.canvasPane)
       this.desktopChatSlotTarget.appendChild(this.chatPane)
+      this.desktopCanvasSlotTarget.appendChild(this.canvasPane)
       this.applyRatio()
     } else if (this.activeTabValue === "canvas") {
       this.mobileSlotTarget.appendChild(this.canvasPane)
@@ -140,7 +140,7 @@ export default class extends Controller {
     if (!this.dragging) return
 
     const rect = this.gridTarget.getBoundingClientRect()
-    const ratio = (event.clientX - rect.left) / rect.width
+    const ratio = (rect.left + rect.width - event.clientX) / rect.width
     this.canvasRatio = this.clampRatio(ratio)
     this.applyRatio()
     this.persistRatio()
@@ -165,7 +165,7 @@ export default class extends Controller {
 
     const canvasPercent = this.formatPercent(this.canvasRatio)
     const chatPercent = this.formatPercent(1 - this.canvasRatio)
-    this.gridTarget.style.gridTemplateColumns = `minmax(0, ${canvasPercent}) 0.75rem minmax(20rem, ${chatPercent})`
+    this.gridTarget.style.gridTemplateColumns = `minmax(20rem, ${chatPercent}) 0.75rem minmax(0, ${canvasPercent})`
   }
 
   storedRatio() {
@@ -207,11 +207,13 @@ export default class extends Controller {
   }
 
   updateTabs() {
-    if (!this.hasChatTabTarget || !this.hasCanvasTabTarget) return
+    if (!this.hasChatTabTarget || !this.hasSidePanelTabTarget) return
 
-    this.canvasTabTarget.classList.toggle("hidden", this.canvasHidden)
     this.updateTab(this.chatTabTarget, this.activeTabValue === "chat")
-    this.updateTab(this.canvasTabTarget, this.activeTabValue === "canvas")
+    this.sidePanelTabTargets.forEach((tab) => {
+      tab.classList.toggle("hidden", this.canvasHidden)
+      this.updateTab(tab, this.activeTabValue === "canvas")
+    })
   }
 
   updateTab(tab, active) {
