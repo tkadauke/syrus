@@ -1,0 +1,88 @@
+<div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+  <section class="bg-white border border-gray-200 rounded-lg p-4 space-y-4 text-sm">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="font-semibold text-gray-900">Attachments</h2>
+      <span class="text-xs text-gray-500"><%= @job.job_attachments.size %> / <%= JobAttachment::MAX_ATTACHMENTS_PER_JOB %></span>
+    </div>
+
+    <% if @job.job_attachments.any? %>
+      <ul class="divide-y divide-gray-100">
+        <% @job.job_attachments.each do |attachment| %>
+          <li class="flex items-center justify-between gap-3 py-3">
+            <div class="min-w-0 flex items-center gap-3">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500">
+                <%= attachment.uploaded_file? ? attachment_icon_label(attachment) : "URL" %>
+              </span>
+              <div class="min-w-0">
+                <% if attachment.google_doc_link? %>
+                  <%= link_to attachment.google_doc_url,
+                        attachment.google_doc_url,
+                        target: "_blank",
+                        rel: "noopener",
+                        class: "block truncate text-blue-600 underline hover:no-underline" %>
+                  <div class="text-xs text-gray-500">Google Doc link</div>
+                <% else %>
+                  <div class="truncate font-medium text-gray-900"><%= attachment.file.filename %></div>
+                  <div class="text-xs text-gray-500">
+                    <%= attachment.file.blob.content_type %> · <%= number_to_human_size(attachment.file.blob.byte_size) %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+            <%= button_to "Delete",
+                  job_attachment_path(@job, attachment),
+                  method: :delete,
+                  class: "rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 cursor-pointer",
+                  form: { data: { turbo_confirm: "Delete this attachment?" } } %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <div class="rounded-md border border-dashed border-gray-300 px-4 py-8 text-center text-gray-500">
+        No attachments yet.
+      </div>
+    <% end %>
+  </section>
+
+  <aside class="space-y-4">
+    <%= form_with url: job_attachments_path(@job),
+          method: :post,
+          multipart: true,
+          class: "bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm",
+          data: { controller: "attachment-drop" } do |f| %>
+      <h3 class="font-semibold text-gray-900">Upload files</h3>
+      <div data-attachment-drop-target="dropzone"
+           data-action="dragover->attachment-drop#dragover dragleave->attachment-drop#dragleave drop->attachment-drop#drop click->attachment-drop#browse"
+           class="cursor-pointer rounded-md border border-dashed border-gray-300 px-4 py-8 text-center text-gray-500 transition-colors">
+        <div class="font-medium text-gray-700">Drop files here</div>
+        <div class="mt-1 text-xs">PNG, JPG, GIF, WebP, PDF, text, or Markdown. 20 MB max.</div>
+      </div>
+      <%= file_field_tag "job_attachment[files][]",
+            multiple: true,
+            accept: JobAttachment::ALLOWED_CONTENT_TYPES.join(","),
+            class: "hidden",
+            data: {
+              attachment_drop_target: "input",
+              action: "change->attachment-drop#upload"
+            } %>
+      <button type="button"
+              data-action="attachment-drop#browse"
+              class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+        Choose files
+      </button>
+    <% end %>
+
+    <%= form_with url: job_attachments_path(@job),
+          method: :post,
+          class: "bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm" do |f| %>
+      <h3 class="font-semibold text-gray-900">Google Doc</h3>
+      <%= f.url_field :google_doc_url,
+            name: "job_attachment[google_doc_url]",
+            required: true,
+            placeholder: "https://docs.google.com/...",
+            class: "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" %>
+      <%= f.submit "Add link",
+            class: "w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+    <% end %>
+  </aside>
+</div>

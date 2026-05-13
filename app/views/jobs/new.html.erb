@@ -100,6 +100,40 @@
       </select>
     </div>
 
+    <div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4"
+         data-controller="attachment-drop">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900">Attachments</h2>
+        <p class="mt-1 text-xs text-gray-500">Optional files and Google Doc links are passed to the agent as Job context.</p>
+      </div>
+
+      <div data-attachment-drop-target="dropzone"
+           data-action="dragover->attachment-drop#dragover dragleave->attachment-drop#dragleave drop->attachment-drop#drop click->attachment-drop#browse"
+           class="cursor-pointer rounded-md border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 transition-colors">
+        <div class="font-medium text-gray-700">Drop files here</div>
+        <div class="mt-1 text-xs">PNG, JPG, GIF, WebP, PDF, text, or Markdown. 20 MB max.</div>
+      </div>
+      <%= file_field_tag "job_attachment[files][]",
+            multiple: true,
+            accept: JobAttachment::ALLOWED_CONTENT_TYPES.join(","),
+            class: "hidden",
+            data: { attachment_drop_target: "input" } %>
+      <button type="button"
+              data-action="attachment-drop#browse"
+              class="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+        Choose files
+      </button>
+
+      <div>
+        <label for="job_attachment_google_doc_url" class="block text-sm font-medium text-gray-700 mb-1">Google Doc URL</label>
+        <input type="url"
+               name="job_attachment[google_doc_url]"
+               id="job_attachment_google_doc_url"
+               placeholder="https://docs.google.com/..."
+               class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+      </div>
+    </div>
+
     <div class="flex items-center gap-2">
       <%= f.check_box :create_more,
             checked: @create_more,

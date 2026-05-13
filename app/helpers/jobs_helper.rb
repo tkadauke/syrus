@@ -120,6 +120,15 @@ module JobsHelper
     colored_pill(priority, classes: PRIORITY_STYLES[priority.to_s] || ApplicationHelper::PILL_FALLBACK_CLASSES)
   end
 
+  def attachment_icon_label(attachment)
+    content_type = attachment.file.blob.content_type.to_s
+    return "IMG" if content_type.start_with?("image/")
+    return "PDF" if content_type == "application/pdf"
+    return "MD" if content_type.include?("markdown")
+
+    "TXT"
+  end
+
   def job_agent_pill(job)
     provider = job_agent_provider(job)
     label = AGENT_PROVIDER_LABELS[provider] || "Syrus"

@@ -200,6 +200,10 @@
               class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 -mb-px">
         Workflows (<%= workflows.size %>)
       </button>
+      <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="attachments"
+              class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 -mb-px">
+        Attachments (<%= @job.job_attachments.size %>)
+      </button>
       <button type="button" data-tabs-target="tab" data-action="click->tabs#switch" data-tab-id="source"
               class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 -mb-px">
         Source
@@ -402,6 +406,11 @@
     <%# Workflows panel %>
     <div data-tabs-target="panel" class="hidden space-y-6 pt-4">
       <%= render "workflows", workflows: workflows, job: @job %>
+    </div>
+
+    <%# Attachments panel %>
+    <div data-tabs-target="panel" class="hidden pt-4">
+      <%= render "attachments", job: @job %>
     </div>
 
     <%# Source panel — lazy Turbo Frame; GitHub API is only called when this

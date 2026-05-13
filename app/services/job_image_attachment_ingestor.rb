@@ -66,6 +66,7 @@ class JobImageAttachmentIngestor
     return false unless download
 
     attachment = @job.job_attachments.build(
+      attachment_type: "uploaded_file",
       source_url: source_url,
       filename: download.filename,
       content_type: download.content_type,

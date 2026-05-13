@@ -69,6 +69,14 @@ class JobsController < ApplicationController
       priority: priority
     )
 
+    attachment_errors = attach_initial_job_attachments(job)
+    if attachment_errors.any?
+      job.destroy!
+      flash.now[:alert] = attachment_errors.to_sentence
+      render :new, status: :unprocessable_entity
+      return
+    end
+
     rendered_prompt = Prompts::AdhocJob.new(prompt: prompt_text).to_s
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
     StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
@@ -532,6 +540,7 @@ class JobsController < ApplicationController
     @job = Current.user.jobs
                   .includes(
                     :repository,
+                    job_attachments: { file_attachment: :blob },
                     dependencies: [ :created_by_user, depends_on_job: :repository ],
                     dependent_links: [ job: :repository ],
                     runs: [ :job_logs, :run_health_snapshots ]
@@ -592,6 +601,27 @@ class JobsController < ApplicationController
       title = job.issue_title.to_s.strip.presence || job.kind.titleize
       "#{job.repository.slug} Job ##{job.id} — #{title}"
     end
+  end
+
+  def attach_initial_job_attachments(job)
+    errors = []
+
+    Array(params.dig(:job_attachment, :files)).compact_blank.each do |file|
+      attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+      attachment.file.attach(file)
+      errors.concat(attachment.errors.full_messages) unless attachment.save
+    end
+
+    google_doc_url = params.dig(:job_attachment, :google_doc_url).to_s.strip
+    if google_doc_url.present?
+      attachment = job.job_attachments.build(
+        attachment_type: "google_doc_link",
+        google_doc_url: google_doc_url
+      )
+      errors.concat(attachment.errors.full_messages) unless attachment.save
+    end
+
+    errors
   end
 
   # Converts a flat list of {path:, size:} items into a nested hash

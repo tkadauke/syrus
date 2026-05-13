@@ -246,13 +246,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_190100) do
   end
 
   create_table "job_attachments", force: :cascade do |t|
-    t.bigint "byte_size", null: false
-    t.string "content_type", null: false
+    t.string "attachment_type", null: false
+    t.bigint "byte_size"
+    t.string "content_type"
     t.datetime "created_at", null: false
-    t.string "filename", null: false
+    t.string "filename"
+    t.string "google_doc_url"
     t.integer "job_id", null: false
-    t.string "source_url", null: false
+    t.string "source_url"
     t.datetime "updated_at", null: false
+    t.index ["job_id", "created_at"], name: "index_job_attachments_on_job_id_and_created_at"
     t.index ["job_id", "source_url"], name: "index_job_attachments_on_job_id_and_source_url", unique: true
     t.index ["job_id"], name: "index_job_attachments_on_job_id"
   end
