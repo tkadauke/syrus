@@ -26,6 +26,7 @@ module JobsHelper
     "summarize_amend" => "Summarize",
     "push"            => "Push",
     "analyze_and_fix" => "Fix CI failures",
+    "grade"           => "Grade",
     "auto_rebase"     => "Auto-rebase",
     "agent_rebase"    => "Agent rebase",
     "force_push"      => "Force-push",
@@ -82,6 +83,17 @@ module JobsHelper
     else
       colored_pill(state, classes: style, extra: classes)
     end
+  end
+
+  def iteration_tab_classes(state, active: false)
+    palette = case state.to_s
+              when "succeeded" then "border-green-300 text-green-700 bg-green-50"
+              when "failed"    then "border-red-300 text-red-700 bg-red-50"
+              when "running"   then "border-blue-400 text-blue-700 bg-blue-50 animate-pulse"
+              else                  "border-gray-300 text-gray-600 bg-white"
+              end
+    active_ring = active ? "ring-2 ring-blue-500 ring-offset-1" : "hover:bg-gray-50"
+    "px-3 py-1 rounded-full border text-xs font-medium #{palette} #{active_ring}"
   end
 
   def trigger_pill(trigger_kind)

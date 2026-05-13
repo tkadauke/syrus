@@ -1,0 +1,36 @@
+<% if grade_run && results.any? %>
+  <div class="px-4 py-3 bg-gray-50 border-t border-gray-100">
+    <div class="space-y-2">
+      <% results.each do |result| %>
+        <% status = result["status"].to_s %>
+        <% status_classes = case status
+                            when "passed" then "bg-green-100 text-green-700"
+                            when "failed" then "bg-red-100 text-red-700"
+                            when "skipped" then "bg-amber-100 text-amber-700"
+                            else "bg-gray-100 text-gray-700"
+                            end %>
+        <div class="flex flex-wrap items-center gap-3 text-sm">
+          <span class="font-mono text-gray-800"><%= result["name"] %></span>
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium <%= status_classes %>"><%= status.presence || "unknown" %></span>
+          <% if result["duration_s"] %>
+            <span class="text-xs text-gray-500"><%= result["duration_s"] %>s</span>
+          <% end %>
+          <% if result["required"] == false %>
+            <span class="text-xs text-gray-500">advisory</span>
+          <% end %>
+          <% if result["reason"].present? %>
+            <span class="text-xs text-gray-500"><%= result["reason"] %></span>
+          <% end %>
+          <%= link_to "Show log",
+                run_grade_log_job_path(job, run_id: grade_run.id, name: result["name"]),
+                target: "_blank",
+                rel: "noopener",
+                class: "text-xs text-blue-600 underline hover:no-underline" %>
+          <% if result["log_bytes"] %>
+            <span class="text-xs text-gray-400"><%= number_to_human_size(result["log_bytes"]) %></span>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

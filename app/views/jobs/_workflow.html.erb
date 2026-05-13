@@ -32,11 +32,24 @@
     </div>
   </header>
 
+  <% multi_iteration_loop_ids = steps_array.group_by(&:loop_id).select { |loop_id, steps| loop_id.present? && steps.map(&:iteration).uniq.size > 1 }.keys %>
+  <% rendered_loop_ids = [] %>
   <div class="divide-y divide-gray-100">
     <% steps_array.each_with_index do |step, idx| %>
-      <%= render "step",
-            step: step, step_number: idx + 1, total_steps: steps_array.size,
-            workflow: workflow, workflow_is_latest: is_latest, job: job %>
+      <% if multi_iteration_loop_ids.include?(step.loop_id) %>
+        <% next if rendered_loop_ids.include?(step.loop_id) %>
+        <% rendered_loop_ids << step.loop_id %>
+        <%= render "iteration_switcher",
+              loop_steps: steps_array.select { |candidate| candidate.loop_id == step.loop_id },
+              steps_array: steps_array,
+              workflow: workflow,
+              workflow_is_latest: is_latest,
+              job: job %>
+      <% else %>
+        <%= render "step",
+              step: step, step_number: idx + 1, total_steps: steps_array.size,
+              workflow: workflow, workflow_is_latest: is_latest, job: job %>
+      <% end %>
     <% end %>
   </div>
 

@@ -1,5 +1,5 @@
 class JobsController < ApplicationController
-  before_action :load_job, except: %i[ new create ]
+  before_action :load_job, except: %i[ new create grade_log ]
 
   def show
     @dependency_target_options = dependency_target_options
@@ -430,6 +430,31 @@ class JobsController < ApplicationController
 
     DiagnoseRunJob.perform_later(run.id)
     redirect_to job_path(@job), notice: "Diagnostic queued — snapshot will appear shortly."
+  end
+
+  def grade_log
+    @job = Job.find(params[:id])
+    unless @job.user == Current.user || Current.user&.admin?
+      head :forbidden
+      return
+    end
+
+    run = @job.runs.find_by(id: params[:run_id])
+    unless run&.step&.kind == "grade"
+      render plain: "Grade log is not available for this run.", status: :not_found
+      return
+    end
+
+    contents = WorkflowWorkspace.grade_log_for(run, params[:name].to_s)
+    unless contents
+      render plain: "Grade log is no longer available. The workflow workspace may have been pruned.", status: :not_found
+      return
+    end
+
+    send_data contents,
+              type: "text/plain; charset=utf-8",
+              disposition: "inline",
+              filename: "#{params[:name]}.log"
   end
 
   def add_dependency

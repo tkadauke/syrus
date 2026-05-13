@@ -6,6 +6,16 @@ RSpec.describe "Jobs", type: :request do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) { Factories.job(repository: repository, issue_number: 42) }
 
+  around do |example|
+    old_data_root = ENV["SYRUS_DATA_ROOT"]
+    data_root = Dir.mktmpdir("syrus-jobs-spec")
+    ENV["SYRUS_DATA_ROOT"] = data_root
+    example.run
+  ensure
+    ENV["SYRUS_DATA_ROOT"] = old_data_root
+    FileUtils.rm_rf(data_root) if data_root
+  end
+
   def github_issue_with_labels(*names)
     labels = names.map { |name| Struct.new(:name, keyword_init: true).new(name: name) }
     Struct.new(:labels, keyword_init: true).new(labels: labels)
@@ -116,6 +126,52 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to include("Workflows (")
         expect(response.body).to include("Source")
         expect(response.body).to include('data-controller="tabs"')
+      end
+
+      it "leaves a single-iteration workflow on the existing step display" do
+        get job_path(job, tab: "workflows")
+
+        expect(response.body).not_to include('data-controller="iteration-tabs"')
+        expect(response.body).to include("Step 1/")
+      end
+
+      it "renders iteration tabs and grader rows for a multi-iteration loop" do
+        workflow = job.latest_workflow
+        workflow.steps.destroy_all
+        loop_id = SecureRandom.uuid
+
+        workflow.update!(state: "succeeded")
+        implement1 = Step.create!(workflow: workflow, kind: "implement", position: 0, iteration: 1, loop_id: loop_id, state: "succeeded")
+        grade1 = Step.create!(workflow: workflow, kind: "grade", position: 1, iteration: 1, loop_id: loop_id, state: "failed")
+        implement2 = Step.create!(workflow: workflow, kind: "implement", position: 2, iteration: 2, loop_id: loop_id, state: "succeeded")
+        grade2 = Step.create!(workflow: workflow, kind: "grade", position: 3, iteration: 2, loop_id: loop_id, state: "succeeded")
+        Step.create!(workflow: workflow, kind: "summarize", position: 4, state: "succeeded")
+        Step.create!(workflow: workflow, kind: "pr_open", position: 5, state: "succeeded")
+        Run.create!(job: job, step: implement1, trigger_kind: "initial", iteration: 1, state: "succeeded", agent_turns: 23)
+        grade_run1 = Run.create!(job: job, step: grade1, trigger_kind: "initial", iteration: 1, state: "failed")
+        Run.create!(job: job, step: implement2, trigger_kind: "initial", iteration: 2, state: "succeeded", agent_turns: 5)
+        grade_run2 = Run.create!(job: job, step: grade2, trigger_kind: "initial", iteration: 2, state: "succeeded")
+        workflow.set_artifact!("iterations", [
+          [
+            { "name" => "tests", "required" => true, "status" => "failed", "duration_s" => 1.2, "log_bytes" => 99 }
+          ],
+          [
+            { "name" => "tests", "required" => true, "status" => "passed", "duration_s" => 0.8, "log_bytes" => 12 },
+            { "name" => "lint", "required" => false, "status" => "passed", "duration_s" => 0.1, "log_bytes" => 4 }
+          ]
+        ])
+
+        get job_path(job, tab: "workflows")
+
+        expect(response.body).to include('data-controller="iteration-tabs"')
+        expect(response.body).to include("Iteration 1")
+        expect(response.body).to include("Iteration 2")
+        expect(response.body).to include("tests")
+        expect(response.body).to include("lint")
+        expect(response.body).to include(run_grade_log_job_path(job, run_id: grade_run1.id, name: "tests"))
+        expect(response.body).to include(run_grade_log_job_path(job, run_id: grade_run2.id, name: "lint"))
+        expect(response.body).to include("border-red-300")
+        expect(response.body).to include("border-green-300")
       end
 
       it "shows agent_summary inside the Summary tab when a run has one" do
@@ -260,6 +316,68 @@ RSpec.describe "Jobs", type: :request do
 
       expect(run.reload.state).to eq("awaiting_operator")
       expect(response).to redirect_to(job_path(job, anchor: "operator-question-#{question.id}"))
+    end
+  end
+
+  describe "GET /jobs/:id/runs/:run_id/grade_log" do
+    let(:workflow) { job.latest_workflow }
+    let(:grade_step) { workflow.steps.find_by!(kind: "grade") }
+    let(:grade_run) { Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "failed") }
+
+    def write_grade_log(run, name, contents)
+      path = WorkflowWorkspace.path_for(run.workflow).join(".syrus", "grade-output", "iteration-#{run.iteration}", "#{name}.log")
+      FileUtils.mkdir_p(path.dirname)
+      path.write(contents)
+    end
+
+    it "requires authentication" do
+      get run_grade_log_job_path(job, run_id: grade_run.id, name: "tests")
+
+      expect(response).to redirect_to(new_session_path)
+    end
+
+    it "streams the requested grade log for the job owner" do
+      sign_in_as(user)
+      write_grade_log(grade_run, "tests", "rspec output\n")
+
+      get run_grade_log_job_path(job, run_id: grade_run.id, name: "tests")
+
+      expect(response).to be_successful
+      expect(response.media_type).to eq("text/plain")
+      expect(response.body).to eq("rspec output\n")
+    end
+
+    it "allows admins to stream another user's grade log" do
+      admin = user
+      foreign_repo = Factories.repository(user: other)
+      foreign_job = Factories.job(repository: foreign_repo, issue_number: 7)
+      foreign_grade_step = foreign_job.latest_workflow.steps.find_by!(kind: "grade")
+      foreign_grade_run = Run.create!(job: foreign_job, step: foreign_grade_step, trigger_kind: "initial", iteration: 1, state: "failed")
+      write_grade_log(foreign_grade_run, "tests", "foreign output\n")
+      sign_in_as(admin)
+
+      get run_grade_log_job_path(foreign_job, run_id: foreign_grade_run.id, name: "tests")
+
+      expect(response).to be_successful
+      expect(response.body).to eq("foreign output\n")
+    end
+
+    it "403s for a signed-in non-owner who is not an admin" do
+      user
+      sign_in_as(other)
+
+      get run_grade_log_job_path(job, run_id: grade_run.id, name: "tests")
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "renders a fallback when the workspace log has been pruned" do
+      sign_in_as(user)
+
+      get run_grade_log_job_path(job, run_id: grade_run.id, name: "tests")
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.body).to include("no longer available")
     end
   end
 

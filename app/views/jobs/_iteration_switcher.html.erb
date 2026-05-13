@@ -1,0 +1,60 @@
+<% iterations = loop_steps.group_by(&:iteration).sort_by { |iteration, _| iteration } %>
+<% active_iteration = if workflow.running?
+     loop_steps.select { |step| %w[queued running].include?(step.state) }.map(&:iteration).max
+   end %>
+<% active_iteration ||= iterations.last.first %>
+<% active_index = iterations.index { |iteration, _| iteration == active_iteration } || iterations.size - 1 %>
+<% iteration_results = Array(workflow.artifact("iterations")) %>
+
+<div class="bg-white"
+     data-controller="iteration-tabs"
+     data-iteration-tabs-active-index-value="<%= active_index %>">
+  <div class="px-4 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-2">
+    <% iterations.each_with_index do |(iteration, steps), index| %>
+      <% state = if steps.any?(&:running?)
+           "running"
+         elsif steps.any?(&:failed?)
+           "failed"
+         elsif steps.all?(&:succeeded?)
+           "succeeded"
+         else
+           steps.map(&:state).compact.last || "queued"
+         end %>
+      <% mark = case state
+                when "succeeded" then "✓"
+                when "failed" then "✗"
+                when "running" then "…"
+                else "·"
+                end %>
+      <button type="button"
+              data-iteration-tabs-target="tab"
+              data-action="click->iteration-tabs#select"
+              data-iteration-tabs-index-value="<%= index %>"
+              aria-selected="<%= index == active_index ? "true" : "false" %>"
+              class="<%= iteration_tab_classes(state, active: index == active_index) %>">
+        Iteration <%= iteration %> <%= mark %>
+      </button>
+    <% end %>
+  </div>
+
+  <% iterations.each_with_index do |(iteration, steps), index| %>
+    <div data-iteration-tabs-target="panel"
+         class="<%= "hidden" unless index == active_index %> divide-y divide-gray-100">
+      <% steps.sort_by(&:position).each do |step| %>
+        <%= render "step",
+              step: step,
+              step_number: steps_array.index(step) + 1,
+              total_steps: steps_array.size,
+              workflow: workflow,
+              workflow_is_latest: workflow_is_latest,
+              job: job %>
+        <% if step.kind == "grade" %>
+          <%= render "grade_results",
+                job: job,
+                grade_run: step.latest_run,
+                results: Array(iteration_results[iteration - 1]) %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

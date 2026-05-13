@@ -123,6 +123,7 @@ Rails.application.routes.draw do
       post :operator_response # answer an ask_operator question and resume the Run
       get  :source         # browse the repo source at any branch commit or merge base
       post :diagnose       # capture a RunHealthSnapshot for an active Run
+      get  "runs/:run_id/grade_log", action: :grade_log, as: :run_grade_log
       post :dependencies, action: :add_dependency
       delete "dependencies/:dependency_id", action: :remove_dependency, as: :dependency
       post :override_dependencies

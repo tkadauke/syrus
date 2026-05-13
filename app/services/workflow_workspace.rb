@@ -55,6 +55,19 @@ class WorkflowWorkspace
     nil
   end
 
+  def self.grade_log_for(run, name)
+    return nil unless run&.workflow
+    return nil unless name.to_s.match?(RepoGradePlan::NAME_PATTERN)
+
+    path = path_for(run.workflow).join(".syrus", "grade-output", "iteration-#{run.iteration}", "#{name}.log")
+    return nil unless path.file?
+
+    path.binread
+  rescue StandardError => e
+    Rails.logger.warn("[WorkflowWorkspace] grade_log_for failed for Run ##{run&.id}: #{e.class}: #{e.message}")
+    nil
+  end
+
   # Class-level cleanup so the Workflow's AASM terminal-transition
   # callback can fire it without instantiating the full workspace.
   # Best-effort: if the path is gone or unreadable, swallow. Stamps
