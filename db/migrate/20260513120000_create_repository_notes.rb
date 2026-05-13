@@ -8,6 +8,6 @@ class CreateRepositoryNotes < ActiveRecord::Migration[8.1]
       t.datetime :created_at, null: false
     end
 
-    add_index :repository_notes, [ :repository_id, :removed_at, :created_at ]
+    add_index :repository_notes, [ :repository_id, :removed_at, :created_at ], name: "index_repo_notes_on_active_order"
   end
 end

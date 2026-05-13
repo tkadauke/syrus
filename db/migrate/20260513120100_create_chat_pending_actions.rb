@@ -11,6 +11,6 @@ class CreateChatPendingActions < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :chat_pending_actions, [ :chat_session_id, :state, :created_at ]
+    add_index :chat_pending_actions, [ :chat_session_id, :state, :created_at ], name: "index_chat_pending_actions_on_session_state"
   end
 end
