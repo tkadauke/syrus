@@ -30,7 +30,8 @@ Step (one per step):        queued → running → succeeded | failed | cancelle
 Run (one per step):         queued → running → succeeded | failed | cancelled
 ```
 
-`Job` carries the GitHub identifiers (issue + PR numbers, branch name).
+`Job` carries the GitHub identifiers (issue + PR numbers, branch name) and
+the credential mode captured at creation time (`app` or `pat`).
 `Workflow` is the top-level unit for a single attempt; it owns a chain of
 `Step`s and a shared workspace at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`.
 Each `Step` dispatches to a `Steps::` handler and owns one `Run`. `Run`
@@ -127,6 +128,14 @@ to invoke a tool name that doesn't exist. See `app/services/syrus_mcp/`.
 GitHub's "Files changed" tab shows) to avoid pollution when the base branch
 moves forward while the syrus branch is open.
 
+**Dependency gating** — issue bodies can include lines like
+`Depends-on: #123` / `Blocked-by: owner/repo#456`. `JobDependencyParser`
+resolves those to existing Syrus Jobs for the same user, creates parsed
+`JobDependency` rows, and blocks `StepDispatcher.start_workflow` until every
+dependency closes successfully (`pr_merged`, `external_pr_merged`,
+`pr_approved`, or `no_changes`). Operators can add/remove manual dependencies;
+parsed dependencies are kept for audit, and only admins can override the gate.
+
 **PR feedback watermarking** tracks both `last_seen_comment_at` and
 `last_feedback_addressed_at`; successful `pr_comment` workflows mark the
 newest addressed comment, and future polls use the later timestamp as the
@@ -199,6 +208,11 @@ preserve scroll position across morphs.
   and drives repository-level bulk retries. Per-Job actions and new ad hoc
   Jobs can explicitly choose a configured provider. Always pass the chosen
   provider through to the new Workflow/Run instead of relying on later inference.
+- **GitHub credentials** — repositories prefer an active GitHub App
+  `Installation`; `GithubClient.for` falls back to the user's PAT if the
+  installation is removed or absent. Repository owner changes relink through
+  `InstallationLinker`; Jobs persist the resulting `credential_mode` for
+  operator visibility.
 - **GitHub issue actions** — Repository pages can list GitHub issues and
   comment, close, delegate (add the trigger label), or bulk delegate/close
   them through `GithubClient`. Keep single and bulk paths in sync.
@@ -475,6 +489,9 @@ app/services/workflow_workspace.rb           # per-Workflow clone lifecycle (rep
 app/services/agent_invocation.rb             # claude subprocess + stream-json parser
 app/services/git_runner.rb                   # streaming git wrapper
 app/services/admin/job_state_serializer.rb   # shared Workflow→Step→Run serializer for admin API
+app/services/github_app_installation_syncer.rb # sync GitHub App installations
+app/services/installation_linker.rb          # links repositories to installations by owner
+app/services/job_dependency_parser.rb        # parses Depends-on / Blocked-by issue lines
 app/services/syrus_mcp/sidecar.rb            # MCP::Server boot + SIGTERM trap
 app/services/syrus_mcp/submit_summary_tool.rb # the one MCP tool (writes to Workflow#artifacts)
 app/services/prompts/                        # all agent prompts (PORO)
@@ -485,6 +502,7 @@ app/jobs/workflow_workspace_prune_job.rb     # daily sweep of old terminal works
 app/jobs/claude_session_prune_job.rb         # drops old ClaudeSession rows daily
 app/models/{job,run,workflow,step}.rb        # core models + AASM
 app/models/{repository,user}.rb             # repo + user (user has api_token, cron_templates)
+app/models/{installation,job_dependency}.rb  # GitHub App installs + Job DAG edges
 app/models/scheduled_task.rb                 # cron/one-shot task attached to a repo
 app/models/cron_template.rb                 # per-user reusable schedule+prompt template
 app/models/claude_session.rb                 # captured JSONL for --resume flows
