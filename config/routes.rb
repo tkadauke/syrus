@@ -81,7 +81,16 @@ Rails.application.routes.draw do
     get  "chats",             to: "repositories/chats#show",    as: :chats
     post "chats",             to: "repositories/chats#create"
     post "chats/:id/message", to: "repositories/chats#message", as: :chat_message
-    resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals"
+    resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals" do
+      member do
+        get :file
+        post :file
+      end
+      collection do
+        get :file_bulk
+        post :file_bulk
+      end
+    end
     resources :scheduled_tasks, only: %i[ new create ]
   end
 

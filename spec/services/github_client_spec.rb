@@ -287,6 +287,22 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#create_issue" do
+    let(:client) { GithubClient.for_user(user) }
+
+    it "creates an issue with labels" do
+      stub = stub_request(:post, "https://api.github.com/repos/acme/widgets/issues")
+        .with(body: hash_including("title" => "New work", "body" => "Do it.", "labels" => %w[bug syrus]))
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" },
+                   body: { number: 77, title: "New work" }.to_json)
+
+      issue = client.create_issue("acme/widgets", title: "New work", body: "Do it.", labels: %w[bug syrus])
+
+      expect(issue.number).to eq(77)
+      expect(stub).to have_been_requested
+    end
+  end
+
   describe "#owner_repos" do
     let(:client) { GithubClient.for_user(user) }
 

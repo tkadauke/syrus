@@ -1,0 +1,71 @@
+<dialog open class="w-full max-w-3xl rounded-lg border border-gray-200 p-0 shadow-xl backdrop:bg-gray-900/30">
+  <div class="border-b border-gray-200 px-5 py-4">
+    <h2 class="font-semibold text-lg">File proposals</h2>
+    <p class="mt-1 text-sm text-gray-600">
+      Review the upstream cascade before creating Jobs or GitHub issues.
+    </p>
+  </div>
+
+  <div class="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4 text-sm text-gray-700">
+    <% Array(warnings).each do |warning| %>
+      <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+        <%= warning %>
+      </div>
+    <% end %>
+
+    <ol class="space-y-3">
+      <% proposals.each_with_index do |proposal, index| %>
+        <li class="rounded-md border border-gray-200 bg-white p-3">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div class="text-xs uppercase tracking-wide text-gray-500">Step <%= index + 1 %></div>
+              <div class="mt-1 font-medium text-gray-900"><%= proposal.title %></div>
+              <div class="mt-1 text-xs text-gray-500">
+                <span class="font-mono"><%= proposal.slug %></span>
+                &middot; <%= proposal.kind.humanize %>
+                <% if proposal.dependencies.any? %>
+                  &middot; depends on
+                  <%= proposal.dependencies.map { |dependency| dependency.slug }.join(", ") %>
+                <% end %>
+              </div>
+            </div>
+            <% unless proposal.pending? %>
+              <span class="inline-block rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= proposal.state %></span>
+            <% end %>
+          </div>
+          <details class="mt-3">
+            <summary class="cursor-pointer text-gray-600">Review body</summary>
+            <div class="mt-2 whitespace-pre-wrap rounded-md bg-gray-50 p-3 text-gray-800"><%= proposal.body %></div>
+          </details>
+        </li>
+      <% end %>
+    </ol>
+  </div>
+
+  <div class="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 px-5 py-4">
+    <%= link_to "Cancel",
+          repository_proposals_path(repository),
+          class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium" %>
+    <% if file_all %>
+      <%= button_to "Confirm filing",
+            file_bulk_repository_proposals_path(repository),
+            method: :post,
+            params: { all: "1" },
+            class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
+            form: { class: "inline" } %>
+    <% elsif selected_ids.one? %>
+      <%= button_to "Confirm filing",
+            file_repository_proposal_path(repository, selected_ids.first),
+            method: :post,
+            class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
+            form: { class: "inline" } %>
+    <% else %>
+      <%= button_to "Confirm filing",
+            file_bulk_repository_proposals_path(repository),
+            method: :post,
+            params: { proposal_ids: selected_ids },
+            class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
+            form: { class: "inline" } %>
+    <% end %>
+  </div>
+</dialog>

@@ -1,6 +1,6 @@
 class Repositories::ProposalsController < ApplicationController
   before_action :load_repository
-  before_action :load_proposal, only: %i[ update destroy ]
+  before_action :load_proposal, only: %i[ update destroy file ]
 
   def index
     load_index
@@ -29,6 +29,32 @@ class Repositories::ProposalsController < ApplicationController
 
     redirect_to repository_proposals_path(@repository),
                 notice: "Discarded #{helpers.pluralize(discarded.size, 'proposal')}."
+  end
+
+  def file
+    if request.post?
+      file_selected!([ @proposal ])
+    else
+      load_index
+      load_file_preview([ @proposal ])
+      render :index
+    end
+  end
+
+  def file_bulk
+    selected = selected_bulk_proposals
+    if selected.empty?
+      redirect_to repository_proposals_path(@repository), alert: "Select at least one proposal to file."
+      return
+    end
+
+    if request.post?
+      file_selected!(selected)
+    else
+      load_index
+      load_file_preview(selected)
+      render :index
+    end
   end
 
   private
@@ -63,6 +89,37 @@ class Repositories::ProposalsController < ApplicationController
 
   def proposals_scope
     ChatProposal.joins(:chat_session).where(chat_sessions: { repository_id: @repository.id })
+  end
+
+  def selected_bulk_proposals
+    return proposals_scope.pending.order(:created_at, :id).to_a if params[:all].present?
+
+    ids = Array(params[:proposal_ids]).compact_blank
+    return [] if ids.empty?
+
+    proposals_scope.pending.where(id: ids).order(:created_at, :id).to_a
+  end
+
+  def load_file_preview(selected)
+    @file_selected_ids = selected.map(&:id)
+    @file_all = params[:all].present?
+    @file_proposals = ChatProposalFiler.ordered_closure(selected)
+    @file_warnings = ChatProposalFiler.warnings_for(@file_proposals)
+  end
+
+  def file_selected!(selected)
+    result = ChatProposalFiler.new(user: Current.user, repository: @repository).file!(selected)
+    redirect_to repository_proposals_path(@repository), notice: file_notice(result)
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to repository_proposals_path(@repository), alert: "Could not file proposals: #{e.record.errors.full_messages.to_sentence}"
+  end
+
+  def file_notice(result)
+    job_links = result.jobs.map { |job| helpers.link_to("Job ##{job.id}", job_path(job)) }
+    parts = [ "Filed #{helpers.pluralize(result.filed_count, 'proposal')}." ]
+    parts << "Created #{helpers.pluralize(result.jobs.size, 'Job')}: #{job_links.to_sentence}." if job_links.any?
+    parts << "GitHub issues will be picked up by polling." if result.github_issue_numbers.any?
+    parts.join(" ").html_safe
   end
 
   def find_visible_proposal(id, ordered)

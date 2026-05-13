@@ -123,6 +123,13 @@ class GithubClient
     raise
   end
 
+  def create_issue(repo_slug, title:, body:, labels: [])
+    track_rate_limits { @client.create_issue(repo_slug, title, body, labels: labels) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited creating issue on #{repo_slug}: #{e.message}")
+    raise
+  end
+
   # Closes a PR without merging. Used by the scheduled-task
   # pr_pileup_policy=replace path to retire the previous tick's PR
   # before opening this tick's. Octokit's update_pull_request takes
