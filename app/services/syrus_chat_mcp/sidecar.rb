@@ -28,7 +28,15 @@ module SyrusChatMcp
     def run
       server = MCP::Server.new(
         name: "syrus-chat-sidecar",
-        tools: [ ProposeIssueTool, ListProposalsTool, DeleteProposalTool ],
+        tools: [
+          ProposeIssueTool,
+          ListProposalsTool,
+          DeleteProposalTool,
+          ReadJobTool,
+          ListJobsTool,
+          ReadPrTool,
+          RepoInfoTool
+        ],
         server_context: { chat_session: @chat_session }
       )
       transport = MCP::Server::Transports::StdioTransport.new(server)

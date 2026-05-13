@@ -180,6 +180,49 @@ class GithubClient
     raise
   end
 
+  def pull_request_diff(repo_slug, pr_number)
+    track_rate_limits do
+      @client.get(
+        "repos/#{repo_slug}/pulls/#{pr_number}",
+        accept: "application/vnd.github.v3.diff"
+      ).to_s
+    end
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited on #{repo_slug} PR ##{pr_number} diff: #{e.message}")
+    raise
+  end
+
+  def repo_info(repo_slug, default_branch:)
+    branches = track_rate_limits { @client.branches(repo_slug) }.map do |branch|
+      {
+        name: branch.name,
+        sha: branch.commit&.sha
+      }
+    end
+
+    commits = track_rate_limits do
+      @client.get(
+        "repos/#{repo_slug}/commits",
+        sha: default_branch,
+        per_page: 10
+      )
+    end.map do |commit|
+      {
+        sha: commit.sha,
+        subject: commit.commit&.message.to_s.lines.first.to_s.strip
+      }
+    end
+
+    {
+      default_branch: default_branch,
+      recent_commits: commits,
+      branches: branches
+    }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited inspecting #{repo_slug}: #{e.message}")
+    raise
+  end
+
   # Bare Octokit client — Octokit defaults only, NO faraday-http-cache.
   # Memoized so we don't rebuild the Faraday stack on every call. Same
   # token + user-agent as @client.

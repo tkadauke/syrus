@@ -11,7 +11,11 @@ RSpec.describe SyrusChatMcp::Sidecar do
       tools: [
         SyrusChatMcp::ProposeIssueTool,
         SyrusChatMcp::ListProposalsTool,
-        SyrusChatMcp::DeleteProposalTool
+        SyrusChatMcp::DeleteProposalTool,
+        SyrusChatMcp::ReadJobTool,
+        SyrusChatMcp::ListJobsTool,
+        SyrusChatMcp::ReadPrTool,
+        SyrusChatMcp::RepoInfoTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -45,7 +49,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       response = jsonrpc(server, "tools/list", id: 1)
 
       tool_names = response[:result][:tools].map { |tool| tool[:name] }
-      expect(tool_names).to eq(%w[propose_issue list_proposals delete_proposal])
+      expect(tool_names).to eq(%w[propose_issue list_proposals delete_proposal read_job list_jobs read_pr repo_info])
     end
   end
 
