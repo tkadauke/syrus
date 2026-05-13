@@ -87,7 +87,7 @@ class RunJob < ApplicationJob
     end
   rescue StandardError => e
     handle_failure(e)
-    raise
+    raise unless loop_controlled_grade_failure?
   ensure
     Thread.current[:syrus_current_run] = nil
     Thread.current[:syrus_in_run_job] = nil

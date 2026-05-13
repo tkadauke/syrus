@@ -121,6 +121,34 @@ RSpec.describe RunJob do
       expect(@pr_stub).to have_been_requested
     end
 
+    it "does not raise the RunJob when a grade failure schedules another loop iteration" do
+      AppSetting.current.update!(grade_max_iterations: 2)
+      commit_file_to_remote(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: test -f grade-pass
+      YAML
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        current = Run.last
+        File.write(File.join(workspace_path, "feature.rb"), "def greet = 'hello'\n") if current.step.kind == "implement"
+        AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
+                                    outcome: "success", final_text: nil, session_id: "S-#{current.iteration}",
+                                    transcript_jsonl: "{}\n")
+      }
+
+      job
+
+      expect { RunJob.perform_now(job.initial_run.id) }.not_to raise_error
+
+      wf = job.workflows.last
+      expect(wf.reload.state).to eq("running")
+      expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
+        [ 1, "failed" ],
+        [ 2, "queued" ]
+      ])
+      expect(wf.steps.find_by(kind: "implement", iteration: 2).runs.first).to be_queued
+    end
+
     it "fails with loop_exhausted when grade never passes and does not open a PR" do
       AppSetting.current.update!(grade_max_iterations: 2)
       commit_file_to_remote(".syrus.yml", <<~YAML)
