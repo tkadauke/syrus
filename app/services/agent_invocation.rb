@@ -52,7 +52,8 @@ class AgentInvocation
                  timeout: DEFAULT_TIMEOUT_SECONDS,
                  max_turns: DEFAULT_MAX_TURNS,
                  mcp_config: nil,
-                 resume_session_id: nil)
+                 resume_session_id: nil,
+                 stop_requested: -> { false })
     @workspace_path = workspace_path.to_s
     @prompt = prompt
     @oauth_token = oauth_token
@@ -62,6 +63,7 @@ class AgentInvocation
     @max_turns = max_turns
     @mcp_config = mcp_config
     @resume_session_id = resume_session_id
+    @stop_requested = stop_requested
   end
 
   def run
@@ -73,7 +75,8 @@ class AgentInvocation
       timeout: @timeout,
       max_turns: @max_turns,
       mcp_config: @mcp_config,
-      resume_session_id: @resume_session_id
+      resume_session_id: @resume_session_id,
+      stop_requested: @stop_requested
     )
   end
 
@@ -88,7 +91,7 @@ class AgentInvocation
   # --dangerously-skip-permissions is intentional: the agent runs in an
   # isolated per-job worktree, never against the operator's checkout. Same
   # trust posture as letting a human dev pair on a branch.
-  def default_runner(workspace_path:, prompt:, oauth_token:, log_sink:, timeout:, max_turns:, mcp_config: nil, resume_session_id: nil)
+  def default_runner(workspace_path:, prompt:, oauth_token:, log_sink:, timeout:, max_turns:, mcp_config: nil, resume_session_id: nil, stop_requested: -> { false })
     env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path)
     cmd = [ "claude", "--print" ]
     # `--mcp-config <configs...>` is variadic — claude keeps consuming
@@ -139,6 +142,10 @@ class AgentInvocation
       output.each_line do |line|
         update = process_event(line, log_sink)
         metadata.merge!(update.compact) if update
+        if stop_requested.call
+          kill_tree(wait_thread.pid)
+          break
+        end
       end
 
       killer.kill

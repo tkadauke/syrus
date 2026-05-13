@@ -2,9 +2,13 @@ class ClaudeSession < ApplicationRecord
   belongs_to :resumable, polymorphic: true
 
   before_validation :mirror_run_id_for_run_resumables
+  belongs_to :run, optional: true
 
   validates :session_id, presence: true
   validates :provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
+  validates :resumable, presence: true
+
+  before_validation :default_resumable_from_run
 
   # Keep sessions for diagnostics for two weeks after the parent Run
   # reaches a terminal state. After that, ClaudeSessionPruneJob deletes
@@ -49,5 +53,9 @@ class ClaudeSession < ApplicationRecord
 
   def mirror_run_id_for_run_resumables
     self.run_id = resumable_id if resumable_type == "Run" && resumable_id.present?
+  end
+
+  def default_resumable_from_run
+    self.resumable ||= run if run
   end
 end

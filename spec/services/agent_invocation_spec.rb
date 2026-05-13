@@ -23,6 +23,7 @@ RSpec.describe AgentInvocation do
       expect(received[:timeout]).to eq(60)
       expect(received[:max_turns]).to eq(7)
       expect(received[:mcp_config]).to be_nil
+      expect(received[:stop_requested].call).to eq(false)
       expect(result.turns).to eq(2)
       expect(result).to be_success
     end

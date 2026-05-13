@@ -9,6 +9,10 @@ class ChatMessage < ApplicationRecord
   validates :role, presence: true, inclusion: { in: ROLES }
   validate :content_is_present
 
+  broadcasts_to ->(message) { "chat_session_#{message.chat_session_id}_messages" },
+                inserts_by: :append,
+                target: ->(message) { "chat_session_#{message.chat_session_id}_messages" }
+
   private
 
   def content_is_present

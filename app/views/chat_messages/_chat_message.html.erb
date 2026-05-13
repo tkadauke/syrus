@@ -1,0 +1,3 @@
+<div id="<%= dom_id(chat_message) %>" data-chat-message-role="<%= chat_message.role %>">
+  <%= chat_message.content["text"].presence || chat_message.content.to_json %>
+</div>
