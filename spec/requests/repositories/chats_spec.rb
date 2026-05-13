@@ -167,6 +167,43 @@ RSpec.describe "Repository chats", type: :request do
     end
   end
 
+  describe "POST /repositories/:repository_id/chats/triage" do
+    it "starts a seeded open-issues triage chat and enqueues a turn" do
+      expect {
+        post repository_chat_triage_path(repo), params: { target: "issues" }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      chat = repo.chat_sessions.last
+      expect(chat.title).to eq("Triage open issues")
+      expect(chat.messages.last.content.fetch("text")).to include("Triage acme/widgets's open issues.")
+      expect(response).to redirect_to(repository_chats_path(repo))
+    end
+
+    it "starts a seeded open-PR triage chat and enqueues a turn" do
+      expect {
+        post repository_chat_triage_path(repo), params: { target: "prs" }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      chat = repo.chat_sessions.last
+      expect(chat.title).to eq("Triage open PRs")
+      expect(chat.messages.last.content.fetch("text")).to include("Triage acme/widgets's open PRs.")
+      expect(response).to redirect_to(repository_chats_path(repo))
+    end
+
+    it "rejects unknown triage targets" do
+      expect {
+        post repository_chat_triage_path(repo), params: { target: "branches" }
+      }.not_to change(ChatSession, :count)
+
+      expect(response).to redirect_to(repository_path(repo))
+      expect(flash[:alert]).to match(/target must be issues or prs/)
+    end
+  end
+
   describe "POST /repositories/:repository_id/chats/:id/message" do
     it "appends a user message to an existing chat and enqueues a turn" do
       chat = ChatSession.create!(repository: repo, user: user, last_message_at: 1.day.ago)

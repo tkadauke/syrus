@@ -39,6 +39,25 @@ class Repositories::ChatsController < ApplicationController
     redirect_to repository_chats_path(@repository), notice: "Message sent."
   end
 
+  def triage
+    text = ChatTemplates::Triage.new(repository: @repository, target: params[:target]).to_s
+    chat_session = nil
+    user_message = nil
+    ApplicationRecord.transaction do
+      chat_session = @repository.chat_sessions.create!(
+        user: Current.user,
+        title: "Triage open #{params[:target] == 'prs' ? 'PRs' : 'issues'}",
+        last_message_at: Time.current
+      )
+      user_message = chat_session.messages.create!(role: "user", content: { "text" => text })
+    end
+
+    ChatTurnJob.perform_later(chat_session.id, user_message.id)
+    redirect_to repository_chats_path(@repository), notice: "Triage chat started."
+  rescue ArgumentError => e
+    redirect_to repository_path(@repository), alert: e.message
+  end
+
   def message
     text = message_text
     if text.blank?

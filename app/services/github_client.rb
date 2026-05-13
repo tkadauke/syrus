@@ -374,6 +374,37 @@ class GithubClient
     raise
   end
 
+  def list_issues_for_triage(repo_slug, state: "open", label: nil, limit: 20)
+    options = { state: state }
+    options[:labels] = label if label.present?
+    track_rate_limits { @client.list_issues(repo_slug, options) }
+      .reject { |i| i.respond_to?(:pull_request) && i.pull_request }
+      .first(limit)
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing triage issues on #{repo_slug}: #{e.message}")
+    raise
+  end
+
+  def list_pull_requests_for_triage(repo_slug, state: "open", limit: 20)
+    list_state = state == "merged" ? "closed" : state
+    pulls = track_rate_limits { @client.pull_requests(repo_slug, state: list_state) }.first(limit)
+    detailed_pulls = pulls.map do |pull|
+      track_rate_limits { @client.pull_request(repo_slug, pull.number) }
+    end
+
+    case state
+    when "merged"
+      detailed_pulls.select { |pull| pull.merged_at.present? }
+    when "closed"
+      detailed_pulls.reject { |pull| pull.merged_at.present? }
+    else
+      detailed_pulls
+    end
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing triage PRs on #{repo_slug}: #{e.message}")
+    raise
+  end
+
   def add_issue_comment(repo_slug, issue_number, body, on_behalf_of: nil)
     body = BotIdentity.prefix_comment(body, on_behalf_of: on_behalf_of)
     track_rate_limits { @client.add_comment(repo_slug, issue_number, body) }

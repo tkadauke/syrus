@@ -161,6 +161,16 @@ RSpec.describe "Repositories", type: :request do
       expect(flash[:notice]).to match(/Polling/)
     end
 
+    it "shows triage entry points on the repository page" do
+      mine = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+      get repository_path(mine)
+
+      expect(response.body).to include("Triage open issues")
+      expect(response.body).to include("Triage open PRs")
+      expect(response.body).to include(repository_chat_triage_path(mine))
+    end
+
     describe "archive / unarchive" do
       it "archive stamps archived_at + flips polling off" do
         mine = Factories.repository(user: user, polling_enabled: true)
