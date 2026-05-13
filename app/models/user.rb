@@ -4,6 +4,7 @@ class User < ApplicationRecord
   has_many :repositories, dependent: :destroy
   has_many :installations, dependent: :destroy
   has_many :jobs, dependent: :destroy
+  has_many :chat_sessions
   has_many :cron_templates, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
 
