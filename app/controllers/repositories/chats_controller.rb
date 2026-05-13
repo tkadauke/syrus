@@ -14,7 +14,8 @@ class Repositories::ChatsController < ApplicationController
   end
 
   def create
-    text = message_text
+    template = chat_template
+    text = template&.user_message || message_text
     if text.blank?
       redirect_to repository_chats_path(@repository, new_chat: "1")
       return
@@ -25,9 +26,12 @@ class Repositories::ChatsController < ApplicationController
     ApplicationRecord.transaction do
       chat_session = @repository.chat_sessions.create!(
         user: Current.user,
-        title: text.truncate(80),
+        title: template&.title || text.truncate(80),
         last_message_at: Time.current
       )
+      if template&.system_message.present?
+        chat_session.messages.create!(role: "system", content: { "text" => template.system_message })
+      end
       user_message = chat_session.messages.create!(role: "user", content: { "text" => text })
     end
 
@@ -110,5 +114,12 @@ class Repositories::ChatsController < ApplicationController
         turn_in_flight: @chat_session.turn_in_flight?
       }
     )
+  end
+
+  def chat_template
+    case params[:chat_template].to_s
+    when "walkthrough"
+      ChatTemplates::Walkthrough.new(repository: @repository)
+    end
   end
 end
