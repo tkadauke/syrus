@@ -14,6 +14,7 @@ class Step < ApplicationRecord
     auto_rebase
     agent_rebase
     force_push
+    grade
     apply_suggestions
     auto_merge
     manual
