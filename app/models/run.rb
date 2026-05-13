@@ -67,7 +67,17 @@ class Run < ApplicationRecord
     event :await_operator do
       transitions from: :running, to: :awaiting_operator
     end
+
+    event :resume_after_operator_response do
+      transitions from: :awaiting_operator, to: :queued, after: -> {
+        self.started_at = nil
+        self.finished_at = nil
+      }
+    end
   end
+
+  after_update_commit :enqueue_run_job_on_resume,
+                      if: :saved_change_to_state_to_queued_from_awaiting_operator?
 
   after_create_commit :enqueue_run_job
 
@@ -92,6 +102,16 @@ class Run < ApplicationRecord
 
   def saved_change_to_state_to_succeeded?
     saved_change_to_state? && state == "succeeded"
+  end
+
+  def saved_change_to_state_to_queued_from_awaiting_operator?
+    saved_change_to_state? &&
+      state == "queued" &&
+      saved_change_to_state&.first == "awaiting_operator"
+  end
+
+  def enqueue_run_job_on_resume
+    RunJob.set(priority: job.solid_queue_priority).perform_later(id)
   end
 
   def cascade_cancel_to_workflow!

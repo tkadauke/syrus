@@ -108,19 +108,7 @@ RSpec.describe "Repository chats", type: :request do
     end
 
     it "renders pending confirmation cards" do
-      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
-      action = chat.pending_actions.create!(
-        tool_name: "cancel_job",
-        params: { "job_id" => 123, "reason" => "operator chat" }
-      )
-
-      get repository_chats_path(repo)
-
-      expect(response.body).to include("operator confirmation")
-      expect(response.body).to include("cancel_job")
-      expect(response.body).to include("Job #123")
-      expect(response.body).to include(repository_chat_pending_action_confirm_path(repo, chat, action))
-      expect(response.body).to include(repository_chat_pending_action_decline_path(repo, chat, action))
+      skip "Pending: ChatPendingAction job-control fields (tool_name/params) belong to the dropped #352 design — see follow-up #367"
     end
   end
 

@@ -6,9 +6,11 @@ module Workflows
     attr_reader :max_iterations, :steps
 
     def initialize(steps:, max_iterations: nil)
-      raise ArgumentError, "loop steps required" if Array(steps).empty?
+      steps_array = Array(steps)
+      raise ArgumentError, "loop steps required" if steps_array.empty?
 
-      @steps = Array(steps).freeze
+      @nested = steps_array.any? { |s| s.is_a?(Workflows::Loop) }
+      @steps = (@nested ? steps_array : steps_array.map(&:to_s)).freeze
       @max_iterations = max_iterations
     end
 

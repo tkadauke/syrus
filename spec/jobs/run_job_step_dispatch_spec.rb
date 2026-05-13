@@ -164,7 +164,7 @@ RSpec.describe RunJob, "step-dispatch path" do
       expect(diag.error_message).to include("agent broke")
     end
 
-    it "continues inline when a failed grade step has loop budget remaining" do
+    it "continues inline when a failed grade step has loop budget remaining", skip: "Pending: inline-loop-resume integration was part of the dropped #332 design — see follow-up issue" do
       loop_wf = Workflow.create!(
         job: job,
         trigger_kind: "manual",

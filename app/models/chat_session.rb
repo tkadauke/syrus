@@ -4,6 +4,7 @@ class ChatSession < ApplicationRecord
 
   has_many :messages, class_name: "ChatMessage", dependent: :destroy
   has_many :proposals, class_name: "ChatProposal", dependent: :destroy
+  has_many :pending_actions, class_name: "ChatPendingAction", dependent: :destroy
   has_one :claude_session, as: :resumable, dependent: :destroy
   has_one :whiteboard, dependent: :destroy
 
