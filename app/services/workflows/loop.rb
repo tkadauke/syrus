@@ -6,9 +6,13 @@ module Workflows
     attr_reader :max_iterations, :steps
 
     def initialize(steps:, max_iterations: nil)
+      raise ArgumentError, "loop steps required" if Array(steps).empty?
+
       @steps = Array(steps).freeze
       @max_iterations = max_iterations
     end
+
+    def loop? = true
 
     def step_kinds
       steps.map(&:to_s)
