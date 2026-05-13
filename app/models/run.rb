@@ -83,11 +83,17 @@ class Run < ApplicationRecord
   # succeeded/failed/cancelled), so this is a no-op there.
   after_update_commit :cascade_cancel_to_workflow!,
                        if: :saved_change_to_state_to_cancelled?
+  after_update_commit :cascade_failure_to_step!,
+                       if: :saved_change_to_state_to_failed?
   after_update_commit :clear_transcript_on_success!,
                        if: :saved_change_to_state_to_succeeded?
 
   def saved_change_to_state_to_cancelled?
     saved_change_to_state? && state == "cancelled"
+  end
+
+  def saved_change_to_state_to_failed?
+    saved_change_to_state? && state == "failed"
   end
 
   def saved_change_to_state_to_succeeded?
@@ -105,6 +111,15 @@ class Run < ApplicationRecord
       wf.cancel!
       wf.save!
     end
+  end
+
+  def cascade_failure_to_step!
+    return unless step
+    if step.may_fail?
+      step.fail!
+      step.save!
+    end
+    StepDispatcher.fail_from(step.reload) if step.failed?
   end
 
   # State changes (queued → running → succeeded/failed/cancelled) and

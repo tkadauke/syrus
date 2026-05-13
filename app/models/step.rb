@@ -111,10 +111,7 @@ class Step < ApplicationRecord
   end
 
   def fail_workflow!
-    return if StepDispatcher.handle_failed_step(self)
-    return unless workflow.may_fail?
-    workflow.fail!
-    workflow.save!
+    StepDispatcher.fail_from(self)
   end
 
   # The most recently created Run on this Step — i.e. the latest

@@ -422,6 +422,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
     t.integer "iteration", default: 1, null: false
     t.string "kind", null: false
     t.string "loop_id"
+    t.string "cancellation_reason"
     t.bigint "next_step_id"
     t.integer "position", default: 0, null: false
     t.datetime "started_at"
@@ -480,6 +481,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
     t.datetime "created_at", null: false
     t.integer "failure_count", default: 0, null: false
     t.datetime "finished_at"
+    t.string "failure_reason"
     t.integer "job_id", null: false
     t.datetime "started_at"
     t.string "state", default: "queued", null: false

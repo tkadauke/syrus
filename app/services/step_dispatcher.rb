@@ -47,8 +47,8 @@ class StepDispatcher
     )
   end
 
-  def self.handle_failed_step(step)
-    new(step.workflow, advancing_from: step).handle_failed_step
+  def self.fail_from(step)
+    new(step.workflow, advancing_from: step).fail!
   end
 
   def self.log_prepare_skip(run, workflow)
@@ -84,18 +84,19 @@ class StepDispatcher
     end
   end
 
-  def handle_failed_step
-    return false unless loop_grade_step?(@from_step)
+  def fail!
+    return if @workflow.terminal?
+
+    return hard_fail_workflow! unless loop_grade_step?(@from_step)
 
     loop_node = loop_node_for(@from_step)
-    return false unless loop_node
+    return hard_fail_workflow! unless loop_node
 
     if @from_step.iteration < loop_max_iterations(loop_node)
       enqueue_next_loop_iteration!(loop_node)
     else
       exhaust_loop!
     end
-    true
   end
 
   private
@@ -119,6 +120,8 @@ class StepDispatcher
 
   def enqueue_next_loop_iteration!(loop_node)
     current_grade = @from_step
+    return if next_loop_iteration_already_materialized?(current_grade)
+
     continuation = current_grade.next_step
     insertion_position = current_grade.position + 1
     next_iteration = current_grade.iteration + 1
@@ -150,8 +153,34 @@ class StepDispatcher
     enqueue_loop_run_after_inline_failure(next_run)
   end
 
+  def next_loop_iteration_already_materialized?(current_grade)
+    next_step = current_grade.next_step
+    next_step&.loop_id == current_grade.loop_id &&
+      next_step.iteration == current_grade.iteration + 1
+  end
+
   def exhaust_loop!
-    @workflow.set_artifact!("failure_reason", "loop_exhausted")
+    cancel_post_loop_steps!("loop_exhausted")
+    hard_fail_workflow!("loop_exhausted")
+  end
+
+  def cancel_post_loop_steps!(reason)
+    cursor = @from_step.next_step
+    while cursor
+      if cursor.may_cancel?
+        cursor.cancellation_reason = reason
+        cursor.cancel!
+        cursor.save!
+      end
+      cursor = cursor.next_step
+    end
+  end
+
+  def hard_fail_workflow!(reason = nil)
+    if reason
+      @workflow.failure_reason = reason
+      @workflow.artifacts = (@workflow.artifacts || {}).merge("failure_reason" => reason)
+    end
     return unless @workflow.may_fail?
 
     @workflow.fail!

@@ -270,6 +270,19 @@ RSpec.describe Run do
     end
   end
 
+  describe "failure dispatch" do
+    it "routes failed Runs through StepDispatcher.fail_from" do
+      workflow = Workflow.create!(job: job, trigger_kind: "initial")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+
+      expect(StepDispatcher).to receive(:fail_from).with(step).at_least(:once)
+
+      run.fail!
+      run.save!
+    end
+  end
+
   describe "#terminal?" do
     it "is false for queued and running" do
       run = job.initial_run

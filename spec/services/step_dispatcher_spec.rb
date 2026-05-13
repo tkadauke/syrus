@@ -165,7 +165,7 @@ RSpec.describe StepDispatcher do
     end
   end
 
-  describe "#handle_failed_step" do
+  describe ".fail_from" do
     it "inserts the next loop iteration before continuation steps" do
       workflow_class = Class.new(Workflows::Base) do
         steps Workflows::Loop.new(max_iterations: 2, steps: [ :implement, :grade ]),
@@ -178,7 +178,7 @@ RSpec.describe StepDispatcher do
       implement, grade, summarize, pr_open = loop_workflow.steps.order(:position)
 
       expect {
-        described_class.new(loop_workflow, advancing_from: grade).handle_failed_step
+        described_class.fail_from(grade)
       }.to change { Run.count }.by(1)
 
       loop_id = implement.loop_id

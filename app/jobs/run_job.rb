@@ -45,10 +45,10 @@ class RunJob < ApplicationJob
   #      perform_later — the loop below picks the new Run up
   #      directly so the worker drives the entire Workflow chain
   #      depth-first instead of bouncing through SQ between steps).
-  #   6. On failure: capture a diagnostic, fail Run + Step (which
-  #      triggers Workflow.fail via Step's after_update_commit, so
-  #      the workspace cleans up via Workflow's terminal-state
-  #      callback).
+  #   6. On failure: capture a diagnostic and fail the Run. Run's
+  #      after_update_commit cascades into StepDispatcher.fail_from,
+  #      which either continues a grade loop or hard-fails the
+  #      Workflow.
   # When the operator console pauses runs, fresh perform-attempts
   # re-enqueue themselves with a delay rather than starting work.
   # The Run stays in `queued` (or whatever state it was in); the
@@ -87,7 +87,11 @@ class RunJob < ApplicationJob
     end
   rescue StandardError => e
     handle_failure(e)
-    raise unless loop_controlled_grade_failure?
+    if loop_controlled_grade_failure?
+      continue_inline_after_controlled_failure
+    else
+      raise
+    end
   ensure
     Thread.current[:syrus_current_run] = nil
     Thread.current[:syrus_in_run_job] = nil
@@ -160,8 +164,8 @@ class RunJob < ApplicationJob
     log("step #{@step.kind} done (workflow ##{@workflow.id})")
   end
 
-  # Snapshot the diagnostic, fail the Run + Step, and let Step's
-  # after_update_commit fail the Workflow (which fires its own
+  # Snapshot the diagnostic, fail the Run, and let Run/Step
+  # after_update_commit fail the Step/Workflow (which fires its own
   # workspace cleanup callback). Failure accounting is per-Workflow;
   # a flaky CiFailure burst doesn't pull a Job's clean Initial down
   # with it.
@@ -177,15 +181,30 @@ class RunJob < ApplicationJob
       @run.save!
     end
 
-    if @step&.may_fail?
-      @step.fail!
-      @step.save!
-      @workflow&.record_run_failure! unless loop_controlled_grade_failure?
-    end
+    @workflow&.record_run_failure! unless loop_controlled_grade_failure?
   end
 
   def loop_controlled_grade_failure?
     @step&.kind == "grade" && @step.loop_id.present?
+  end
+
+  def continue_inline_after_controlled_failure
+    loop do
+      next_run = next_inline_run
+      break unless next_run
+
+      @run = next_run
+      @step = @run.step
+      @handler = nil
+      Thread.current[:syrus_current_run] = @run
+
+      begin
+        perform_step
+      rescue StandardError => e
+        handle_failure(e)
+        raise unless loop_controlled_grade_failure?
+      end
+    end
   end
 
   # The handler's WorkflowWorkspace, only when the handler had a
