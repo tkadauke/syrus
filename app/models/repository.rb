@@ -20,6 +20,7 @@ class Repository < ApplicationRecord
 
   before_validation :normalize_agent_provider
   before_save :link_installation_from_owner
+  before_destroy :destroy_chat_workspace
 
   scope :active,   -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
@@ -80,5 +81,9 @@ class Repository < ApplicationRecord
   def link_installation_from_owner
     return unless will_save_change_to_owner? || installation_id.blank?
     self.installation = InstallationLinker.find_for_owner(owner)
+  end
+
+  def destroy_chat_workspace
+    ChatWorkspace.destroy!(self)
   end
 end
