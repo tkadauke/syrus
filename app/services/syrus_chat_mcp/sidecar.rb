@@ -35,7 +35,15 @@ module SyrusChatMcp
           ReadJobTool,
           ListJobsTool,
           ReadPrTool,
-          RepoInfoTool
+          RepoInfoTool,
+          ReadSceneTool,
+          DrawShapeTool,
+          DrawTextTool,
+          DrawArrowTool,
+          MoveElementTool,
+          DeleteElementTool,
+          ClearCanvasTool,
+          UpdateSceneTool
         ],
         server_context: { chat_session: @chat_session }
       )

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_175254) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -112,6 +112,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
     t.index ["repository_id", "last_message_at"], name: "index_chat_sessions_on_repository_id_and_last_message_at"
     t.index ["repository_id"], name: "index_chat_sessions_on_repository_id"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
+  end
+
+  create_table "chat_whiteboards", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "last_edited_at"
+    t.json "scene_json", null: false
+    t.datetime "updated_at", null: false
+    t.integer "version", default: 0, null: false
+    t.index ["chat_session_id"], name: "index_chat_whiteboards_on_chat_session_id", unique: true
   end
 
   create_table "claude_sessions", force: :cascade do |t|
@@ -508,6 +518,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
   add_foreign_key "chat_proposals", "jobs"
   add_foreign_key "chat_sessions", "repositories"
   add_foreign_key "chat_sessions", "users"
+  add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"
   add_foreign_key "cron_templates", "users"
   add_foreign_key "installations", "users"

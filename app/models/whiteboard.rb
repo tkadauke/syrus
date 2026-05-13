@@ -15,6 +15,10 @@ class Whiteboard < ApplicationRecord
     }
   end
 
+  def elements
+    scene_json.fetch("elements")
+  end
+
   def replace_elements!(elements)
     update!(
       scene_json: { "elements" => elements },
