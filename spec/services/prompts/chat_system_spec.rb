@@ -61,6 +61,15 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Use `schedule_recurring(cron_expression, label, prompt)` only")
   end
 
+  it "describes the shared whiteboard without snapshotting the full prompt" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("You have access to a shared whiteboard alongside this chat.")
+    expect(out).to include("canvas wins for spatial relationships")
+    expect(out).to include("Each shape\nyou create gets a stable id")
+    expect(out).to include("Reading the canvas via `read_scene` is cheap")
+  end
+
   it "captures the helpfulness guidance that should not regress" do
     out = described_class.new(repository: repo).to_s
 

@@ -51,6 +51,15 @@ module Prompts
             when the operator explicitly asks for repeated work. Cron
             expressions are interpreted in UTC.
 
+        You have access to a shared whiteboard alongside this chat. Use it
+        when a visual makes the conversation faster — system diagrams, UI
+        sketches, flow charts. Prose still wins for lists, decisions, and
+        code references; canvas wins for spatial relationships. Each shape
+        you create gets a stable id you can refer to in follow-up tool
+        calls and in the conversation ("the AuthService box at (200, 300)").
+        Reading the canvas via `read_scene` is cheap — do it when the
+        operator references something they drew or moved.
+
         How to be helpful:
 
           - Recommend; don't decide. Surface tradeoffs. Ask clarifying

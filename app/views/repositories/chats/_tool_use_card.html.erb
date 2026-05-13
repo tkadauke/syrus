@@ -1,9 +1,8 @@
 <% content_hash = message.content.is_a?(Hash) ? message.content : {} %>
 <% tool_name = message.tool_name.presence || content_hash["name"].presence || "tool_use" %>
-<% proposal_tool = tool_name.to_s.include?("proposal") || tool_name.to_s.include?("propose_issue") %>
 <% payload = content_hash.presence || { "content" => message.content } %>
 
-<details <%= "open" if proposal_tool %> class="rounded-md border border-amber-200 bg-amber-50 text-xs">
+<details <%= "open" if message.tool_use_default_open? %> class="rounded-md border border-amber-200 bg-amber-50 text-xs">
   <summary class="flex cursor-pointer items-center gap-2 px-3 py-2 select-none">
     <span class="rounded bg-amber-100 px-1.5 py-0.5 font-mono uppercase text-amber-800">tool</span>
     <span class="font-mono text-gray-800"><%= tool_name %></span>
