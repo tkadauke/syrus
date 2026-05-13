@@ -281,7 +281,7 @@ RSpec.describe RunJob do
 
   # ----- PrFeedback workflow -------------------------------------
 
-  describe "PrFeedback workflow (pr_comment → respond → summarize_amend → push)" do
+  describe "PrFeedback workflow (pr_comment → respond → grade → summarize_amend → push)" do
     before do
       # Initial workflow first so the branch exists on origin.
       job; drain_workflow!(job)
@@ -302,6 +302,7 @@ RSpec.describe RunJob do
       expect(wf.steps.pluck(:kind, :state)).to eq([
         [ "prepare",         "succeeded" ],
         [ "respond",         "succeeded" ],
+        [ "grade",           "succeeded" ],
         [ "summarize_amend", "succeeded" ],
         [ "push",            "succeeded" ]
       ])
@@ -310,6 +311,164 @@ RSpec.describe RunJob do
       # Branch on origin should now have one extra commit
       log = `git --git-dir=#{bare_remote_dir} log --oneline #{job.branch_name}`.split("\n")
       expect(log.size).to be >= 2
+    end
+
+    it "loops respond + grade until graders pass, then summarizes and pushes" do
+      AppSetting.current.update!(grade_max_iterations: 2)
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        current = Run.last
+        case current.step.kind
+        when "respond"
+          File.write(File.join(workspace_path, ".syrus.yml"), <<~YAML)
+            grade:
+              - name: tests
+                run: test -f grade-pass
+          YAML
+          File.open(File.join(workspace_path, "feature.rb"), "a") { |f| f.puts "# addressed feedback iteration #{current.iteration}" }
+          File.write(File.join(workspace_path, "grade-pass"), "ok\n") if current.iteration >= 2
+        when "summarize_amend"
+          current.update!(
+            agent_pr_title: "Address review feedback",
+            agent_pr_body: "Tightens the review-requested behavior.",
+            agent_summary: "Addressed feedback."
+          )
+        end
+        AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
+                                    outcome: "success", final_text: nil, session_id: "R-#{current.iteration}",
+                                    transcript_jsonl: "{}\n")
+      }
+      wf = Workflows::PrFeedback.instantiate(
+        job: job,
+        artifacts: { "pr_comments" => [ { "author" => "reviewer", "body" => "tighten the docstring", "created_at" => Time.current.iso8601 } ] }
+      )
+      StepDispatcher.start_workflow(wf)
+
+      drain_workflow!(job)
+
+      expect(wf.reload.state).to eq("succeeded")
+      expect(wf.steps.where(kind: "respond").pluck(:iteration)).to eq([ 1, 2 ])
+      expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
+        [ 1, "failed" ],
+        [ 2, "succeeded" ]
+      ])
+      expect(wf.steps.find_by(kind: "respond", iteration: 2).runs.first.parent_session_id).to eq("R-1")
+      expect(wf.steps.find_by(kind: "summarize_amend").runs.first).to be_succeeded
+      expect(wf.steps.find_by(kind: "push").runs.first).to be_succeeded
+    end
+
+    it "fails with loop_exhausted when review feedback grading never passes" do
+      AppSetting.current.update!(grade_max_iterations: 2)
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        current = Run.last
+        if current.step.kind == "respond"
+          File.write(File.join(workspace_path, ".syrus.yml"), <<~YAML)
+            grade:
+              - name: tests
+                run: "false"
+          YAML
+          File.open(File.join(workspace_path, "feature.rb"), "a") { |f| f.puts "# attempted feedback iteration #{current.iteration}" }
+        end
+        AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
+                                    outcome: "success", final_text: nil, session_id: "R-#{current.iteration}",
+                                    transcript_jsonl: "{}\n")
+      }
+      wf = Workflows::PrFeedback.instantiate(
+        job: job,
+        artifacts: { "pr_comments" => [ { "author" => "reviewer", "body" => "tighten the docstring", "created_at" => Time.current.iso8601 } ] }
+      )
+      StepDispatcher.start_workflow(wf)
+
+      drain_workflow!(job)
+
+      expect(wf.reload.state).to eq("failed")
+      expect(wf.artifact("failure_reason")).to eq("loop_exhausted")
+      expect(wf.steps.where(kind: "respond").pluck(:iteration)).to eq([ 1, 2 ])
+      expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
+        [ 1, "failed" ],
+        [ 2, "failed" ]
+      ])
+      expect(wf.steps.where(kind: "push").first.runs).to be_empty
+    end
+  end
+
+  # ----- Retry workflow ------------------------------------------
+
+  describe "Retry workflow (retry → implement → grade → summarize → pr_open)" do
+    before do
+      # Initial workflow first so retry reuses a real existing branch.
+      job; drain_workflow!(job)
+      WebMock.reset_executed_requests!
+    end
+
+    it "loops implement + grade until graders pass, then summarizes and reaches pr_open" do
+      AppSetting.current.update!(grade_max_iterations: 2)
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        current = Run.last
+        case current.step.kind
+        when "implement"
+          File.write(File.join(workspace_path, ".syrus.yml"), <<~YAML)
+            grade:
+              - name: tests
+                run: test -f grade-pass
+          YAML
+          File.write(File.join(workspace_path, "retry_feature.rb"), "def retry_iteration = #{current.iteration}\n")
+          File.write(File.join(workspace_path, "grade-pass"), "ok\n") if current.iteration >= 2
+        when "summarize"
+          current.update!(
+            agent_pr_title: "Retry greeting helper",
+            agent_pr_body: "Retries the greeting helper implementation.",
+            agent_summary: "Retried implementation."
+          )
+        end
+        AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
+                                    outcome: "success", final_text: nil, session_id: "I-#{current.iteration}",
+                                    transcript_jsonl: "{}\n")
+      }
+      wf = Workflows::Retry.instantiate(job: job)
+      StepDispatcher.start_workflow(wf)
+
+      drain_workflow!(job)
+
+      expect(wf.reload.state).to eq("succeeded")
+      expect(wf.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 2 ])
+      expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
+        [ 1, "failed" ],
+        [ 2, "succeeded" ]
+      ])
+      expect(wf.steps.find_by(kind: "implement", iteration: 2).runs.first.parent_session_id).to eq("I-1")
+      expect(wf.steps.find_by(kind: "summarize").runs.first).to be_succeeded
+      expect(wf.steps.find_by(kind: "pr_open").runs.first).to be_succeeded
+    end
+
+    it "fails with loop_exhausted when retry grading never passes" do
+      AppSetting.current.update!(grade_max_iterations: 2)
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        current = Run.last
+        if current.step.kind == "implement"
+          File.write(File.join(workspace_path, ".syrus.yml"), <<~YAML)
+            grade:
+              - name: tests
+                run: "false"
+          YAML
+          File.write(File.join(workspace_path, "retry_feature.rb"), "def retry_iteration = #{current.iteration}\n")
+        end
+        AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
+                                    outcome: "success", final_text: nil, session_id: "I-#{current.iteration}",
+                                    transcript_jsonl: "{}\n")
+      }
+      wf = Workflows::Retry.instantiate(job: job)
+      StepDispatcher.start_workflow(wf)
+
+      drain_workflow!(job)
+
+      expect(wf.reload.state).to eq("failed")
+      expect(wf.artifact("failure_reason")).to eq("loop_exhausted")
+      expect(wf.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 2 ])
+      expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
+        [ 1, "failed" ],
+        [ 2, "failed" ]
+      ])
+      expect(wf.steps.where(kind: "pr_open").first.runs).to be_empty
     end
   end
 

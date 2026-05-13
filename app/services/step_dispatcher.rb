@@ -165,11 +165,21 @@ class StepDispatcher
   end
 
   def prior_iteration_session_id
+    prior_iteration_agent_step&.latest_run&.claude_session&.session_id
+  end
+
+  def prior_iteration_agent_step
+    loop_node = loop_node_for(@from_step)
+    agent_step_kind = Array(loop_node&.fetch("steps", [])).find do |kind|
+      Step::AGENTIC_KINDS.include?(kind.to_s)
+    end
+    return nil unless agent_step_kind
+
     @workflow.steps.find_by(
       loop_id: @from_step.loop_id,
       iteration: @from_step.iteration,
-      kind: "implement"
-    )&.latest_run&.claude_session&.session_id
+      kind: agent_step_kind
+    )
   end
 
   # Linear chain walk: starting at `@from_step.next_step`, find

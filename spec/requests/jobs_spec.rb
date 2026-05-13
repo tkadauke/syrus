@@ -308,7 +308,7 @@ RSpec.describe "Jobs", type: :request do
 
       workflow = job.reload.workflows.where(trigger_kind: "retry").last
       expect(job).to be_skip_prepare
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
     end
 
     it "retries with an explicitly selected alternate configured agent" do

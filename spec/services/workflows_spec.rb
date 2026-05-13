@@ -56,7 +56,8 @@ RSpec.describe Workflows do
 
       wf = Workflows::Retry.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement summarize pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ implement grade ])
       expect(wf.trigger_kind).to eq("retry")
     end
 
@@ -202,9 +203,13 @@ RSpec.describe Workflows do
       ])
     end
 
-    it "instantiates PrFeedback with respond → summarize_amend → push" do
+    it "instantiates PrFeedback with respond → grade → summarize_amend → push" do
       wf = Workflows::PrFeedback.instantiate(job: job)
-      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond summarize_amend push ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grade summarize_amend push ])
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond grade ])
+      expect(wf.chain_template).to include(
+        { "type" => "loop", "max_iterations" => AppSetting.grade_max_iterations, "steps" => %w[ respond grade ] }
+      )
     end
 
     it "instantiates CiFailure with analyze_and_fix → summarize_amend → push" do

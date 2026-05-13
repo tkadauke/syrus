@@ -28,7 +28,15 @@ module Steps
     def compose_prompt
       comments = workflow.artifact("pr_comments") || []
       issue = job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
-      Prompts::PrFeedback.new(issue: issue, comments: hydrate_comments(comments)).to_s
+      prompt = Prompts::PrFeedback.new(issue: issue, comments: hydrate_comments(comments)).to_s
+      return prompt unless run.iteration > 1
+
+      [
+        prompt,
+        Prompts::GradeFailureFeedback.new(
+          iterations: workflow.artifacts.fetch("iterations", [])
+        ).to_s
+      ].join("\n\n")
     end
 
     # The polling job stashes raw comment data on the workflow
