@@ -21,6 +21,12 @@ class Workflow < ApplicationRecord
   # in the Steps::* handler code where it belongs.
   serialize :artifacts, coder: JSON
 
+  # JSON-serialized workflow chain declaration used to reconstruct
+  # loop nodes after instantiation. Shape:
+  #   [{ "type" => "step", "kind" => "prepare" },
+  #    { "type" => "loop", "max_iterations" => 5, "steps" => ["implement", "grade"] }]
+  serialize :chain_template, coder: JSON
+
   scope :active, -> { where(state: %w[ queued running ]) }
   scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
   scope :ordered, -> { order(:created_at) }

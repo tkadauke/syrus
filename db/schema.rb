@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_083522) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_090000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -406,6 +406,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_083522) do
   create_table "workflows", force: :cascade do |t|
     t.string "agent_provider", default: "claude", null: false
     t.text "artifacts"
+    t.text "chain_template"
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false
     t.integer "failure_count", default: 0, null: false

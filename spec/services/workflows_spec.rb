@@ -123,6 +123,80 @@ RSpec.describe Workflows do
       expect(d.next_step).to be_nil
     end
 
+    it "materializes the first iteration of a loop node inside the chain" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps :prepare,
+              Workflows::Loop.new(max_iterations: 5, steps: [ :implement, :summarize ]),
+              :pr_open
+
+        def self.trigger_kind = "manual"
+      end
+
+      wf = workflow_class.instantiate(job: job)
+      steps = wf.steps.order(:position).to_a
+      loop_ids = steps.map(&:loop_id)
+
+      expect(steps.map { |step| [ step.kind, step.position, step.iteration ] }).to eq([
+        [ "prepare", 0, 1 ],
+        [ "implement", 1, 1 ],
+        [ "summarize", 2, 1 ],
+        [ "pr_open", 3, 1 ]
+      ])
+      expect(loop_ids[0]).to be_nil
+      expect(loop_ids[1]).to be_present
+      expect(loop_ids[2]).to eq(loop_ids[1])
+      expect(loop_ids[3]).to be_nil
+
+      next_wf = workflow_class.instantiate(job: job)
+      expect(next_wf.steps.where(kind: "implement").pick(:loop_id)).not_to eq(loop_ids[1])
+    end
+
+    it "allows two non-nested loop nodes in one chain with distinct loop ids" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps :prepare,
+              Workflows::Loop.new(steps: [ :implement ]),
+              Workflows::Loop.new(steps: [ :summarize ]),
+              :pr_open
+
+        def self.trigger_kind = "manual"
+      end
+
+      wf = workflow_class.instantiate(job: job)
+      loop_steps = wf.steps.where.not(loop_id: nil).order(:position)
+
+      expect(loop_steps.pluck(:kind)).to eq(%w[ implement summarize ])
+      expect(loop_steps.pluck(:loop_id).uniq.size).to eq(2)
+    end
+
+    it "rejects nested loop declarations" do
+      expect do
+        Class.new(Workflows::Base) do
+          steps Workflows::Loop.new(
+            max_iterations: 3,
+            steps: [ Workflows::Loop.new(max_iterations: 2, steps: [ :implement ]) ]
+          )
+        end
+      end.to raise_error(ArgumentError, /nested Workflows::Loop/)
+    end
+
+    it "stores the effective chain template on the workflow for later reconstruction" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps :prepare,
+              Workflows::Loop.new(max_iterations: 5, steps: [ :implement, :summarize ]),
+              :pr_open
+
+        def self.trigger_kind = "manual"
+      end
+
+      wf = workflow_class.instantiate(job: job)
+
+      expect(wf.chain_template).to eq([
+        { "type" => "step", "kind" => "prepare" },
+        { "type" => "loop", "max_iterations" => 5, "steps" => %w[ implement summarize ] },
+        { "type" => "step", "kind" => "pr_open" }
+      ])
+    end
+
     it "instantiates PrFeedback with respond → summarize_amend → push" do
       wf = Workflows::PrFeedback.instantiate(job: job)
       expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond summarize_amend push ])
