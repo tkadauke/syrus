@@ -108,7 +108,70 @@ RSpec.describe "Repository chats", type: :request do
     end
 
     it "renders pending confirmation cards" do
-      skip "Pending: ChatPendingAction job-control fields (tool_name/params) belong to the dropped #352 design — see follow-up #367"
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      job = Factories.job(repository: repo)
+      action = chat.pending_actions.create!(
+        action: "cancel_job",
+        payload: { "job_id" => job.id }
+      )
+
+      get repository_chats_path(repo)
+
+      expect(response.body).to include("Pending actions")
+      expect(response.body).to include("Cancel Job")
+      expect(response.body).to include("Job ##{job.id}")
+      expect(response.body).to include(repository_chat_pending_action_confirm_path(repo, chat, action))
+      expect(response.body).to include(repository_chat_pending_action_path(repo, chat, action))
+    end
+  end
+
+  describe "pending action confirmation" do
+    it "confirms a pending job-control action" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      job = Factories.job(repository: repo)
+      action = chat.pending_actions.create!(
+        action: "cancel_job",
+        payload: { "job_id" => job.id }
+      )
+
+      post repository_chat_pending_action_confirm_path(repo, chat, action)
+
+      expect(response).to redirect_to(repository_chats_path(repo))
+      expect(flash[:notice]).to eq("Pending action confirmed.")
+      expect(action.reload).to be_confirmed
+      expect(job.reload).to be_closed
+    end
+
+    it "rejects a pending action without applying it" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      job = Factories.job(repository: repo)
+      action = chat.pending_actions.create!(
+        action: "cancel_job",
+        payload: { "job_id" => job.id }
+      )
+
+      delete repository_chat_pending_action_path(repo, chat, action)
+
+      expect(response).to redirect_to(repository_chats_path(repo))
+      expect(flash[:notice]).to eq("Pending action rejected.")
+      expect(action.reload).to be_rejected
+      expect(job.reload).to be_open
+    end
+
+    it "does not apply an already-rejected stale action" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      job = Factories.job(repository: repo)
+      action = chat.pending_actions.create!(
+        action: "cancel_job",
+        payload: { "job_id" => job.id }
+      )
+      action.reject!
+
+      post repository_chat_pending_action_confirm_path(repo, chat, action)
+
+      expect(response).to redirect_to(repository_chats_path(repo))
+      expect(flash[:alert]).to eq("Pending action is no longer active.")
+      expect(job.reload).to be_open
     end
   end
 
