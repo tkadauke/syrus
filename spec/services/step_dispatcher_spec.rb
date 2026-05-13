@@ -165,6 +165,37 @@ RSpec.describe StepDispatcher do
     end
   end
 
+  describe "#handle_failed_step" do
+    it "inserts the next loop iteration before continuation steps" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps Workflows::Loop.new(max_iterations: 2, steps: [ :implement, :grade ]),
+              :summarize,
+              :pr_open
+
+        def self.trigger_kind = "initial"
+      end
+      loop_workflow = workflow_class.instantiate(job: job)
+      implement, grade, summarize, pr_open = loop_workflow.steps.order(:position)
+
+      expect {
+        described_class.new(loop_workflow, advancing_from: grade).handle_failed_step
+      }.to change { Run.count }.by(1)
+
+      loop_id = implement.loop_id
+      expect(loop_workflow.steps.order(:position).pluck(:kind, :position, :iteration, :loop_id)).to eq([
+        [ "implement", 0, 1, loop_id ],
+        [ "grade", 1, 1, loop_id ],
+        [ "implement", 2, 2, loop_id ],
+        [ "grade", 3, 2, loop_id ],
+        [ "summarize", 4, 1, nil ],
+        [ "pr_open", 5, 1, nil ]
+      ])
+      expect(grade.reload.next_step).to eq(loop_workflow.steps.find_by!(kind: "implement", iteration: 2))
+      expect(loop_workflow.steps.find_by!(kind: "grade", iteration: 2).next_step).to eq(summarize)
+      expect(pr_open.reload.position).to eq(5)
+    end
+  end
+
   describe "Step#after_update_commit advance integration" do
     it "fires StepDispatcher.advance_from when a step transitions to succeeded" do
       run = s1.runs.create!(job: job, trigger_kind: "initial")
