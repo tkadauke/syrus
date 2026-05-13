@@ -1,10 +1,12 @@
 class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
+  OPERATOR_CHAT_CHANNELS = %w[ disabled in_syrus ].freeze
 
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
   attribute :pr_cost_footer_enabled, :boolean, default: true
   attribute :auto_merge_enabled, :boolean, default: false
+  attribute :allow_operator_chat, :string, default: "disabled"
 
   belongs_to :user
   belongs_to :installation, optional: true
@@ -17,6 +19,7 @@ class Repository < ApplicationRecord
   validates :default_branch, presence: true
   validates :trigger_label, presence: true
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
+  validates :allow_operator_chat, presence: true, inclusion: { in: OPERATOR_CHAT_CHANNELS }
   validates :owner, uniqueness: { scope: [ :user_id, :name ], case_sensitive: false }
 
   before_validation :normalize_agent_provider

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_100000) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -217,8 +217,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_090000) do
     t.index ["user_id"], name: "index_jobs_on_user_id"
   end
 
+  create_table "operator_questions", force: :cascade do |t|
+    t.datetime "asked_at", null: false
+    t.json "context", null: false
+    t.datetime "created_at", null: false
+    t.integer "job_id", null: false
+    t.integer "run_id", null: false
+    t.text "text", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id", null: false
+    t.index ["job_id"], name: "index_operator_questions_on_job_id"
+    t.index ["run_id", "asked_at"], name: "index_operator_questions_on_run_id_and_asked_at"
+    t.index ["run_id"], name: "index_operator_questions_on_run_id"
+    t.index ["workflow_id"], name: "index_operator_questions_on_workflow_id"
+  end
+
+  create_table "operator_responses", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "operator_question_id", null: false
+    t.datetime "responded_at", null: false
+    t.text "text", null: false
+    t.datetime "updated_at", null: false
+    t.index ["operator_question_id", "responded_at"], name: "index_operator_responses_on_question_and_responded_at"
+    t.index ["operator_question_id"], name: "index_operator_responses_on_operator_question_id"
+  end
+
   create_table "repositories", force: :cascade do |t|
     t.string "agent_provider"
+    t.string "allow_operator_chat", default: "disabled", null: false
     t.datetime "archived_at"
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "created_at", null: false
@@ -442,6 +468,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_090000) do
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
+  add_foreign_key "operator_questions", "jobs"
+  add_foreign_key "operator_questions", "runs"
+  add_foreign_key "operator_questions", "workflows"
+  add_foreign_key "operator_responses", "operator_questions"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "run_diagnostics", "runs"

@@ -15,6 +15,7 @@ class Run < ApplicationRecord
   has_many :run_health_snapshots, -> { order(:created_at) }, dependent: :destroy
   has_one :claude_session, dependent: :destroy
   has_one :run_diagnostic, dependent: :destroy
+  has_many :operator_questions, dependent: :destroy
 
   # Convenience walk up to Workflow when step is set.
   def workflow

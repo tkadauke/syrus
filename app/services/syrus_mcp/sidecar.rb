@@ -19,7 +19,7 @@ module SyrusMcp
       # Steps::Base#with_mcp_config for the full story.
       server = MCP::Server.new(
         name: "syrus-mcp-sidecar",
-        tools: [ SubmitSummaryTool ],
+        tools: [ SubmitSummaryTool, AskOperatorTool ],
         server_context: { run: @run }
       )
       transport = MCP::Server::Transports::StdioTransport.new(server)

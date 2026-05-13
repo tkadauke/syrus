@@ -229,7 +229,7 @@ class RepositoriesController < ApplicationController
   def repository_params
     params.expect(repository: [
       :owner, :name, :default_branch, :trigger_label,
-      :polling_enabled, :prepare_enabled, :agent_provider,
+      :polling_enabled, :prepare_enabled, :agent_provider, :allow_operator_chat,
       :pr_cost_footer_enabled, :auto_merge_enabled,
       :github_repository_id, :github_owner_id
     ])

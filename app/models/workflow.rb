@@ -8,6 +8,7 @@ class Workflow < ApplicationRecord
 
   belongs_to :job
   has_many :steps, -> { order(:position) }, dependent: :destroy
+  has_many :operator_questions, dependent: :destroy
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
