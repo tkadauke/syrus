@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_120200) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -50,6 +50,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id"], name: "index_chat_messages_on_chat_session_id"
     t.index ["proposal_id"], name: "index_chat_messages_on_proposal_id"
+  end
+
+  create_table "chat_pending_actions", force: :cascade do |t|
+    t.string "action", null: false
+    t.integer "chat_session_id", null: false
+    t.datetime "confirmed_at"
+    t.datetime "created_at", null: false
+    t.json "payload", null: false
+    t.datetime "rejected_at"
+    t.string "requested_by", default: "agent", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
+    t.index ["chat_session_id"], name: "index_chat_pending_actions_on_chat_session_id"
   end
 
   create_table "chat_proposal_dependencies", force: :cascade do |t|
@@ -160,9 +174,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
     t.integer "depends_on_job_id"
     t.integer "job_id", null: false
     t.string "source", null: false
+    t.integer "unresolved_number"
     t.string "unresolved_owner"
     t.string "unresolved_repo"
-    t.integer "unresolved_number"
     t.datetime "updated_at", null: false
     t.index ["created_by_user_id"], name: "index_job_dependencies_on_created_by_user_id"
     t.index ["depends_on_job_id"], name: "index_job_dependencies_on_depends_on_job_id"
@@ -276,6 +290,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
     t.index ["installation_id"], name: "index_repositories_on_installation_id"
     t.index ["user_id", "owner", "name"], name: "index_repositories_on_user_id_and_owner_and_name", unique: true
     t.index ["user_id"], name: "index_repositories_on_user_id"
+  end
+
+  create_table "repository_notes", force: :cascade do |t|
+    t.string "author", null: false
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.datetime "removed_at"
+    t.integer "repository_id", null: false
+    t.index ["repository_id", "removed_at", "created_at"], name: "index_repo_notes_on_active_order"
+    t.index ["repository_id"], name: "index_repository_notes_on_repository_id"
   end
 
   create_table "run_diagnostics", force: :cascade do |t|
@@ -438,6 +462,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  create_table "whiteboards", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "last_edited_at"
+    t.json "scene_json", default: {"elements"=>[]}, null: false
+    t.datetime "updated_at", null: false
+    t.integer "version", default: 0, null: false
+    t.index ["chat_session_id"], name: "index_whiteboards_on_chat_session_id", unique: true
+  end
+
   create_table "workflows", force: :cascade do |t|
     t.string "agent_provider", default: "claude", null: false
     t.text "artifacts"
@@ -459,6 +493,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
   add_foreign_key "admin_actions", "users"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"
+  add_foreign_key "chat_pending_actions", "chat_sessions"
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "depends_on_id"
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_proposals", "chat_sessions"
@@ -483,6 +518,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
   add_foreign_key "operator_responses", "operator_questions"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
+  add_foreign_key "repository_notes", "repositories"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "runs", "jobs"
@@ -493,5 +529,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110200) do
   add_foreign_key "sessions", "users"
   add_foreign_key "steps", "steps", column: "next_step_id"
   add_foreign_key "steps", "workflows"
+  add_foreign_key "whiteboards", "chat_sessions"
   add_foreign_key "workflows", "jobs"
 end
