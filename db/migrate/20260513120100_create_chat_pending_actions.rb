@@ -3,7 +3,7 @@ class CreateChatPendingActions < ActiveRecord::Migration[8.1]
     create_table :chat_pending_actions do |t|
       t.references :chat_session, null: false, foreign_key: true
       t.string :action, null: false
-      t.json :payload, null: false, default: {}
+      t.json :payload, null: false
       t.string :state, null: false, default: "pending"
       t.string :requested_by, null: false, default: "agent"
       t.datetime :confirmed_at

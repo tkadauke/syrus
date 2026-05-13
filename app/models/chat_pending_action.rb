@@ -3,6 +3,8 @@ class ChatPendingAction < ApplicationRecord
   STATES = %w[ pending confirmed rejected ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
 
+  attribute :payload, :json, default: -> { {} }
+
   belongs_to :chat_session
 
   enum :state, STATES.index_with(&:itself), validate: true
