@@ -80,7 +80,7 @@ class PollRepositoryJob < ApplicationJob
     # closed state and don't schedule a Run.
     if linked
       Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} preempted by PR ##{linked[:number]}")
-      Job.create!(
+      job = Job.create!(
         user: repository.user,
         repository: repository,
         issue_number: issue.number,
@@ -92,10 +92,11 @@ class PollRepositoryJob < ApplicationJob
         external_pr_number: linked[:number],
         finished_at: Time.current
       )
+      enqueue_issue_image_ingest(job)
       return
     end
 
-    Job.create!(
+    job = Job.create!(
       user: repository.user,
       repository: repository,
       issue_number: issue.number,
@@ -105,6 +106,7 @@ class PollRepositoryJob < ApplicationJob
       operator_chat_disabled: operator_chat_disabled_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue)
     )
+    enqueue_issue_image_ingest(job)
   end
 
   def latest_job_for_issue(repository, issue_number)
@@ -143,5 +145,11 @@ class PollRepositoryJob < ApplicationJob
 
   def issue_body(issue)
     issue.respond_to?(:body) ? issue.body : nil
+  end
+
+  def enqueue_issue_image_ingest(job)
+    return if IssueImageExtractor.urls(job.issue_body).empty?
+
+    IngestIssueImagesJob.perform_later(job.id)
   end
 end

@@ -17,14 +17,19 @@ class JobAttachment < ApplicationRecord
   belongs_to :job
   has_one_attached :file
 
-  enum :attachment_type, {
+  ATTACHMENT_TYPES = {
     uploaded_file: "uploaded_file",
     google_doc_link: "google_doc_link"
-  }, validate: true
+  }.freeze
+
+  enum :attachment_type, ATTACHMENT_TYPES, validate: true
+
+  before_validation :default_attachment_type
 
   normalizes :google_doc_url, with: ->(url) { url.to_s.strip.presence }
 
   validates :job, presence: true
+  validates :attachment_type, presence: true
   validates :source_url, uniqueness: { scope: :job_id }, allow_blank: true
   validates :byte_size, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :file_required_for_upload
@@ -49,6 +54,10 @@ class JobAttachment < ApplicationRecord
   end
 
   private
+
+  def default_attachment_type
+    self.attachment_type ||= :uploaded_file
+  end
 
   def file_required_for_upload
     return unless uploaded_file?

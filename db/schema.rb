@@ -246,7 +246,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_190100) do
   end
 
   create_table "job_attachments", force: :cascade do |t|
-    t.string "attachment_type", null: false
+    t.string "attachment_type", default: "uploaded_file", null: false
     t.bigint "byte_size"
     t.string "content_type"
     t.datetime "created_at", null: false
@@ -600,9 +600,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_190100) do
     t.index ["job_id"], name: "index_workflows_on_job_id"
   end
 
+  add_foreign_key "admin_actions", "users"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "admin_actions", "users"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_pending_actions", "chat_sessions"

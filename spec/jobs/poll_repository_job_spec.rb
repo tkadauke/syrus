@@ -73,6 +73,24 @@ RSpec.describe PollRepositoryJob do
       expect(workflow.first_step.kind).to eq("prepare")
     end
 
+    it "enqueues issue image ingestion when a new issue body embeds images" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(body: "See ![screen](https://user-images.githubusercontent.com/1/screen.png)") ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to have_enqueued_job(IngestIssueImagesJob).with(kind_of(Integer))
+    end
+
+    it "does not enqueue issue image ingestion when the issue body has no images" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(body: "No screenshots here.") ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to have_enqueued_job(IngestIssueImagesJob)
+    end
+
     it "emits a system log entry when prepare is skipped" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(labels: [ "syrus", Workflows::SKIP_PREPARE_LABEL ]) ])
