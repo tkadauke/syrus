@@ -3,7 +3,7 @@ module AgentProviders
     def self.transcript_for(provider:, session_id:, job:)
       return nil if provider.blank? || session_id.blank? || job.blank?
 
-      ClaudeSession.joins(:run)
+      ClaudeSession.for_runs
                    .where(session_id: session_id, provider: provider, runs: { job_id: job.id })
                    .where.not(transcript_jsonl: nil)
                    .order(created_at: :desc)
@@ -25,7 +25,7 @@ module AgentProviders
       end
 
       ClaudeSession.create!(
-        run: @run,
+        resumable: @run,
         provider: capture.provider,
         session_id: capture.session_id,
         transcript_jsonl: capture.transcript_jsonl

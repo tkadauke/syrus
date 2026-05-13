@@ -51,7 +51,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
                                    started_at: 1.minute.ago, finished_at: Time.current)
       implement.update!(state: "succeeded", finished_at: Time.current)
       wf.update!(state: "succeeded", finished_at: Time.current, cleaned_up_at: Time.current)
-      ClaudeSession.create!(run: run, session_id: "abc-123",
+      ClaudeSession.create!(resumable: run, session_id: "abc-123",
                             transcript_jsonl: "{\"a\":1}\n{\"b\":2}\n")
 
       get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
@@ -88,7 +88,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       job_with = Factories.job(user: admin)
       run = job_with.initial_run
       run.update!(state: "succeeded")
-      ClaudeSession.create!(run: run, session_id: "pruned-1", transcript_jsonl: nil)
+      ClaudeSession.create!(resumable: run, session_id: "pruned-1", transcript_jsonl: nil)
 
       get "/api/v1/admin/jobs/#{job_with.id}", headers: auth(admin_token)
       expect(response).to be_successful

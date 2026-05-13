@@ -39,7 +39,7 @@ RSpec.describe AgentProviders::Codex do
                                state: "failed",
                                started_at: 1.minute.ago,
                                finished_at: Time.current)
-      ClaudeSession.create!(run: source_run,
+      ClaudeSession.create!(resumable: source_run,
                             provider: "codex",
                             session_id: "codex-thread",
                             transcript_jsonl: "{\"type\":\"session_meta\"}\n")

@@ -575,7 +575,7 @@ RSpec.describe "Jobs", type: :request do
     end
 
     it "instantiates a Resume workflow carrying parent_session_id from the source's ClaudeSession" do
-      ClaudeSession.create!(run: failed_run, session_id: "uuid-deadbeef", transcript_jsonl: "{}\n")
+      ClaudeSession.create!(resumable: failed_run, session_id: "uuid-deadbeef", transcript_jsonl: "{}\n")
 
       expect {
         post resume_job_path(job, source_run_id: failed_run.id)
@@ -590,7 +590,7 @@ RSpec.describe "Jobs", type: :request do
 
     it "refuses when the source Run isn't failed/cancelled" do
       open_run = job.initial_run  # state=queued
-      ClaudeSession.create!(run: open_run, session_id: "x", transcript_jsonl: "x")
+      ClaudeSession.create!(resumable: open_run, session_id: "x", transcript_jsonl: "x")
 
       expect {
         post resume_job_path(job, source_run_id: open_run.id)
@@ -609,7 +609,7 @@ RSpec.describe "Jobs", type: :request do
       other_job = Factories.job(repository: repository, issue_number: 99)
       stranger = other_job.initial_run
       stranger.start!; stranger.fail!; stranger.save!
-      ClaudeSession.create!(run: stranger, session_id: "y", transcript_jsonl: "y")
+      ClaudeSession.create!(resumable: stranger, session_id: "y", transcript_jsonl: "y")
 
       post resume_job_path(job, source_run_id: stranger.id)
       expect(flash[:alert]).to match(/not found/)

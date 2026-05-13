@@ -13,7 +13,7 @@ RSpec.describe "API: /api/v1/admin/runs/:run_id/transcript", type: :request do
 
   before do
     ClaudeSession.create!(
-      run: run, session_id: "abc-123",
+      resumable: run, session_id: "abc-123",
       transcript_jsonl: jsonl(
         { "type" => "system", "subtype" => "init", "model" => "claude-sonnet-4-6",
           "cwd" => "/x", "tools" => [ "Bash", "mcp__syrus__submit_summary" ],

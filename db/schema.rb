@@ -100,11 +100,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110100) do
   create_table "claude_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "provider", default: "claude", null: false
-    t.integer "run_id", null: false
+    t.integer "resumable_id"
+    t.string "resumable_type"
+    t.integer "run_id"
     t.string "session_id", null: false
     t.text "transcript_jsonl", limit: 67108864
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_claude_sessions_on_created_at"
+    t.index ["resumable_type", "resumable_id"], name: "index_claude_sessions_on_resumable", unique: true
     t.index ["run_id"], name: "index_claude_sessions_on_run_id", unique: true
   end
 

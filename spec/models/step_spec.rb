@@ -136,7 +136,7 @@ RSpec.describe Step do
     it "returns the latest succeeded run's claude_session.session_id" do
       step_a.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
       run = Run.create!(job: job, step: step_a, trigger_kind: "initial", state: "succeeded")
-      ClaudeSession.create!(run: run, session_id: "S-upstream", transcript_jsonl: "x")
+      ClaudeSession.create!(resumable: run, session_id: "S-upstream", transcript_jsonl: "x")
       expect(step_b.upstream_session_id).to eq("S-upstream")
     end
   end

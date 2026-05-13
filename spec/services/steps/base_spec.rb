@@ -100,7 +100,7 @@ RSpec.describe Steps::Base do
     it "returns the upstream step's last successful run's session_id" do
       upstream_run = Run.create!(job: job, step: upstream_step, trigger_kind: "initial",
                                   state: "succeeded")
-      ClaudeSession.create!(run: upstream_run, session_id: "S-upstream", transcript_jsonl: "x")
+      ClaudeSession.create!(resumable: upstream_run, session_id: "S-upstream", transcript_jsonl: "x")
       upstream_step.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
 
       current_run = Run.create!(job: job, step: current_step, trigger_kind: "initial")

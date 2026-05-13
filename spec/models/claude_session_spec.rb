@@ -1,29 +1,52 @@
 require "rails_helper"
 
+class ClaudeSessionSpecOwner < ApplicationRecord
+  self.table_name = "jobs"
+
+  has_one :claude_session, as: :resumable
+end
+
 RSpec.describe ClaudeSession do
   let(:run) { Factories.job.initial_run }
 
   describe "validations + association" do
     it "requires a session_id" do
-      s = described_class.new(run: run, session_id: "")
+      s = described_class.new(resumable: run, session_id: "")
       expect(s).not_to be_valid
       expect(s.errors[:session_id]).to be_present
     end
 
-    it "requires a run" do
+    it "requires a resumable" do
       s = described_class.new(session_id: "uuid")
       expect(s).not_to be_valid
     end
 
     it "validates provider" do
-      s = described_class.new(run: run, session_id: "uuid", provider: "oracle")
+      s = described_class.new(resumable: run, session_id: "uuid", provider: "oracle")
       expect(s).not_to be_valid
       expect(s.errors[:provider]).to be_present
     end
 
     it "destroys with the parent Run" do
-      s = described_class.create!(run: run, session_id: "uuid", transcript_jsonl: "x")
+      s = described_class.create!(resumable: run, session_id: "uuid", transcript_jsonl: "x")
       expect { run.destroy }.to change { described_class.where(id: s.id).count }.by(-1)
+    end
+
+    it "keeps Run#claude_session working through the polymorphic association" do
+      session = run.create_claude_session!(session_id: "uuid", transcript_jsonl: "x")
+
+      expect(run.reload.claude_session).to eq(session)
+      expect(session.resumable).to eq(run)
+      expect(session.run_id).to eq(run.id)
+    end
+
+    it "allows another model to own a ClaudeSession through the same polymorphic interface" do
+      owner = ClaudeSessionSpecOwner.find(Factories.job.id)
+      session = owner.create_claude_session!(session_id: "uuid", transcript_jsonl: "x")
+
+      expect(owner.reload.claude_session).to eq(session)
+      expect(session.resumable).to eq(owner)
+      expect(session.run_id).to be_nil
     end
   end
 
@@ -52,19 +75,19 @@ RSpec.describe ClaudeSession do
   describe ".with_succeeded_transcript" do
     it "includes succeeded Runs that still have a non-nil transcript_jsonl" do
       succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
-      session = described_class.create!(run: succeeded_run, session_id: "s", transcript_jsonl: "data")
+      session = described_class.create!(resumable: succeeded_run, session_id: "s", transcript_jsonl: "data")
       expect(described_class.with_succeeded_transcript).to include(session)
     end
 
     it "excludes succeeded Runs whose transcript_jsonl is already nil" do
       succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
-      session = described_class.create!(run: succeeded_run, session_id: "s", transcript_jsonl: nil)
+      session = described_class.create!(resumable: succeeded_run, session_id: "s", transcript_jsonl: nil)
       expect(described_class.with_succeeded_transcript).not_to include(session)
     end
 
     it "excludes failed and cancelled Runs regardless of transcript content" do
       failed_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
-      session = described_class.create!(run: failed_run, session_id: "f", transcript_jsonl: "data")
+      session = described_class.create!(resumable: failed_run, session_id: "f", transcript_jsonl: "data")
       expect(described_class.with_succeeded_transcript).not_to include(session)
     end
   end
@@ -74,8 +97,8 @@ RSpec.describe ClaudeSession do
       old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
       new_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
 
-      old_session = described_class.create!(run: old_run, session_id: "old", transcript_jsonl: "x")
-      new_session = described_class.create!(run: new_run, session_id: "new", transcript_jsonl: "x")
+      old_session = described_class.create!(resumable: old_run, session_id: "old", transcript_jsonl: "x")
+      new_session = described_class.create!(resumable: new_run, session_id: "new", transcript_jsonl: "x")
       old_session.update_columns(updated_at: (described_class::RETAIN_AFTER_TERMINAL + 1.day).ago)
 
       expect(described_class.prunable.pluck(:id)).to eq([ old_session.id ])
@@ -84,7 +107,7 @@ RSpec.describe ClaudeSession do
 
     it "excludes sessions whose Run is still active even if old" do
       active_run = Factories.job.initial_run  # state=queued
-      session = described_class.create!(run: active_run, session_id: "active", transcript_jsonl: "x")
+      session = described_class.create!(resumable: active_run, session_id: "active", transcript_jsonl: "x")
       session.update_columns(updated_at: 1.year.ago)
 
       expect(described_class.prunable).not_to include(session)

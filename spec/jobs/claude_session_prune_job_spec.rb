@@ -6,9 +6,9 @@ RSpec.describe ClaudeSessionPruneJob do
     new_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
     active_run = Factories.job.initial_run  # queued
 
-    old_session    = ClaudeSession.create!(run: old_run,    session_id: "old",    transcript_jsonl: "x")
-    new_session    = ClaudeSession.create!(run: new_run,    session_id: "new",    transcript_jsonl: "x")
-    active_session = ClaudeSession.create!(run: active_run, session_id: "active", transcript_jsonl: "x")
+    old_session    = ClaudeSession.create!(resumable: old_run,    session_id: "old",    transcript_jsonl: "x")
+    new_session    = ClaudeSession.create!(resumable: new_run,    session_id: "new",    transcript_jsonl: "x")
+    active_session = ClaudeSession.create!(resumable: active_run, session_id: "active", transcript_jsonl: "x")
     old_session.update_columns(updated_at: (ClaudeSession::RETAIN_AFTER_TERMINAL + 1.day).ago)
     active_session.update_columns(updated_at: 1.year.ago)  # old, but parent is active → keep
 
@@ -23,7 +23,7 @@ RSpec.describe ClaudeSessionPruneJob do
 
   it "clears transcript_jsonl for succeeded Runs within the retention window" do
     succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
-    session = ClaudeSession.create!(run: succeeded_run, session_id: "ok", transcript_jsonl: "payload")
+    session = ClaudeSession.create!(resumable: succeeded_run, session_id: "ok", transcript_jsonl: "payload")
 
     described_class.perform_now
 
@@ -33,7 +33,7 @@ RSpec.describe ClaudeSessionPruneJob do
 
   it "does not clear transcript_jsonl for failed/cancelled Runs within the retention window" do
     failed_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
-    session = ClaudeSession.create!(run: failed_run, session_id: "fail", transcript_jsonl: "payload")
+    session = ClaudeSession.create!(resumable: failed_run, session_id: "fail", transcript_jsonl: "payload")
 
     described_class.perform_now
 

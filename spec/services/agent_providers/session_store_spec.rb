@@ -50,13 +50,13 @@ RSpec.describe AgentProviders::SessionStore do
       newer_run = Run.create!(job: job, step: step, trigger_kind: "initial")
       other_job = Factories.job(user: user, repository: job.repository, issue_number: 43)
 
-      ClaudeSession.create!(run: older_run, provider: "codex",
+      ClaudeSession.create!(resumable: older_run, provider: "codex",
                             session_id: "thread", transcript_jsonl: "older\n",
                             created_at: 2.minutes.ago)
-      ClaudeSession.create!(run: newer_run, provider: "codex",
+      ClaudeSession.create!(resumable: newer_run, provider: "codex",
                             session_id: "thread", transcript_jsonl: "newer\n",
                             created_at: 1.minute.ago)
-      ClaudeSession.create!(run: other_job.initial_run, provider: "codex",
+      ClaudeSession.create!(resumable: other_job.initial_run, provider: "codex",
                             session_id: "thread", transcript_jsonl: "other\n")
 
       expect(described_class.transcript_for(provider: "codex", session_id: "thread", job: job))
