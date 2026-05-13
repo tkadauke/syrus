@@ -107,15 +107,21 @@ RSpec.describe PollRepositoryJob do
       expect(job.reload.runs.count).to eq(1)
     end
 
-    it "logs dangling dependency references on the first Run and keeps going" do
+    it "records unresolved dependency references as pending and waits to dispatch" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(number: 42, body: "Depends-on: #999") ])
 
-      described_class.perform_now(repository.id)
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to have_enqueued_job(RunJob)
 
-      run = Job.find_by!(repository: repository, issue_number: 42).runs.first
-      expect(run.job_logs.pluck(:chunk)).to include(
-        "Depends-on: acme/widgets#999 — no Syrus Job exists for that issue; dependency not enforced"
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.runs).to be_empty
+      expect(job.dependencies.first).to have_attributes(
+        depends_on_job: nil,
+        unresolved_owner: "acme",
+        unresolved_repo: "widgets",
+        unresolved_number: 999
       )
     end
   end
