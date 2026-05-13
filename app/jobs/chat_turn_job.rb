@@ -139,14 +139,12 @@ class ChatTurnJob < ApplicationJob
   def transcript_jsonl_for(result, workspace_path:)
     return result.transcript_jsonl if result.transcript_jsonl.present?
     return File.read(result.transcript_path) if result.transcript_path.present? && File.exist?(result.transcript_path)
-    return unless result.session_id.to_s.match?(AgentProviders::Claude::SESSION_ID_PATTERN)
 
-    path = ClaudeSession.canonical_path_for(
+    ClaudeSession.canonical_transcript_jsonl(
       home: ENV.fetch("HOME"),
       cwd: workspace_path,
       session_id: result.session_id
     )
-    File.read(path) if File.exist?(path)
   end
 
   def increment_usage!(result)

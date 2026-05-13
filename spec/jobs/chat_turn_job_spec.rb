@@ -87,6 +87,30 @@ RSpec.describe ChatTurnJob do
     )
   end
 
+  it "captures Claude's canonical transcript when the result omits transcript data" do
+    Dir.mktmpdir("syrus-chat-home") do |home|
+      saved_home = ENV["HOME"]
+      ENV["HOME"] = home
+      transcript_path = ClaudeSession.canonical_path_for(
+        home: home,
+        cwd: workspace_path,
+        session_id: "chat-session-1"
+      )
+      FileUtils.mkdir_p(File.dirname(transcript_path))
+      File.write(transcript_path, "{\"type\":\"system\"}\n")
+
+      ChatTurnJob.agent_runner = ->(**_) {
+        result_fixture(session_id: "chat-session-1")
+      }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      expect(chat.reload.claude_session.transcript_jsonl).to eq("{\"type\":\"system\"}\n")
+    ensure
+      ENV["HOME"] = saved_home
+    end
+  end
+
   it "writes a system message and skips the agent when Claude credentials are missing" do
     user.update!(claude_oauth_token: nil)
     called = false

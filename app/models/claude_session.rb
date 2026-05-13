@@ -43,10 +43,19 @@ class ClaudeSession < ApplicationRecord
   # Example: cwd "/syrus-home/.syrus/workflows/124" →
   #          "-syrus-home--syrus-workflows-124"
   PATH_ENCODE_PATTERN = %r{[/.]}.freeze
+  SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
 
   def self.canonical_path_for(home:, cwd:, session_id:)
     encoded = cwd.to_s.gsub(PATH_ENCODE_PATTERN, "-")
     File.join(home, ".claude", "projects", encoded, "#{session_id}.jsonl")
+  end
+
+  def self.canonical_transcript_jsonl(home:, cwd:, session_id:)
+    normalized = session_id.to_s
+    return unless normalized.match?(SESSION_ID_PATTERN)
+
+    path = canonical_path_for(home: home, cwd: cwd, session_id: normalized)
+    File.read(path) if File.exist?(path)
   end
 
   private
