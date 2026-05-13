@@ -58,7 +58,7 @@ class PollRepositoryJob < ApplicationJob
     # Existing Job for this issue → either attach the external PR
     # discovery to it, or just dedup as before.
     if prior
-      sync_skip_prepare!(prior, issue)
+      sync_issue_label_state!(prior, issue)
 
       if linked && prior.external_pr_number != linked[:number]
         Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} preempt-attach to Job ##{prior.id}: external PR ##{linked[:number]}")
@@ -86,6 +86,7 @@ class PollRepositoryJob < ApplicationJob
         issue_number: issue.number,
         issue_title: issue_title(issue),
         issue_body: issue_body(issue),
+        operator_chat_disabled: operator_chat_disabled_label_present?(issue),
         state: "closed",
         closure_reason: "preempted",
         external_pr_number: linked[:number],
@@ -101,6 +102,7 @@ class PollRepositoryJob < ApplicationJob
       issue_title: issue_title(issue),
       issue_body: issue_body(issue),
       skip_prepare: skip_prepare_label_present?(issue),
+      operator_chat_disabled: operator_chat_disabled_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue)
     )
   end
@@ -109,13 +111,22 @@ class PollRepositoryJob < ApplicationJob
     Job.where(repository_id: repository.id, issue_number: issue_number).order(:created_at).last
   end
 
-  def sync_skip_prepare!(job, issue)
+  def sync_issue_label_state!(job, issue)
     skip = skip_prepare_label_present?(issue)
-    job.update!(skip_prepare: skip) if job.skip_prepare? != skip
+    no_chat = operator_chat_disabled_label_present?(issue)
+
+    updates = {}
+    updates[:skip_prepare] = skip if job.skip_prepare? != skip
+    updates[:operator_chat_disabled] = no_chat if job.operator_chat_disabled? != no_chat
+    job.update!(updates) if updates.any?
   end
 
   def skip_prepare_label_present?(issue)
     label_names(issue).include?(Workflows::SKIP_PREPARE_LABEL)
+  end
+
+  def operator_chat_disabled_label_present?(issue)
+    label_names(issue).include?(Job::OPERATOR_CHAT_OPT_OUT_LABEL)
   end
 
   def label_names(issue)

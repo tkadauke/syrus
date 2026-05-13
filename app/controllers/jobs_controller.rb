@@ -121,7 +121,8 @@ class JobsController < ApplicationController
     new_job = Current.user.jobs.create!(
       repository: @job.repository,
       issue_number: @job.issue_number,
-      skip_prepare: skip_prepare
+      skip_prepare: skip_prepare,
+      operator_chat_disabled: @job.operator_chat_disabled?
     )
     redirect_to job_path(new_job), notice: "Started over — new branch and PR will be created."
   end

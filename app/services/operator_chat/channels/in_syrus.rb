@@ -14,9 +14,14 @@ module OperatorChat
             "kind" => "operator_question",
             "operator_question_id" => operator_question.id,
             "question" => operator_question.question,
-            "context" => operator_question.context
+            "context" => message_context(operator_question)
           }
         )
+      end
+
+      def self.message_context(operator_question)
+        context = operator_question.context
+        context.is_a?(Hash) ? context.fetch("context", context) : context
       end
     end
   end

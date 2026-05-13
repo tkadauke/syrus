@@ -200,6 +200,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_110100) do
     t.string "last_ci_handled_sha"
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
+    t.boolean "operator_chat_disabled", default: false, null: false
     t.boolean "pr_mergeable"
     t.datetime "pr_mergeable_checked_at"
     t.integer "pr_number"

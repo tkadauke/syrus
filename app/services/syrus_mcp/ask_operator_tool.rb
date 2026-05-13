@@ -31,8 +31,11 @@ module SyrusMcp
         question = question.to_s.strip
         context = context.to_s.strip
 
-        return invalid("question is required") if question.empty?
-        return invalid("context is required") if context.empty?
+        return invalid(run, "question is required") if question.empty?
+        return invalid(run, "context is required") if context.empty?
+
+        policy = OperatorChatPolicy.evaluate(run)
+        return invalid(run, policy.reason) unless policy.allowed
 
         operator_question = ChatChannel.for(run.job.repository).send_message(
           run: run,
@@ -43,12 +46,13 @@ module SyrusMcp
 
         MCP::Tool::Response.new([ { type: "text", text: "Question sent. End your turn now so Syrus can wait for the operator." } ])
       rescue ChatChannel::ConfigurationError => e
-        invalid("#{e.message}. Mark this run failed with category `needs_clarification` instead.")
+        invalid(run, "#{e.message}. Mark this run failed with category `needs_clarification` instead.")
       end
 
       private
 
-      def invalid(reason)
+      def invalid(run, reason)
+        SyrusMcp.write_log(run, "[mcp] ask_operator rejected: #{reason}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{reason}" } ], error: true)
       end
     end

@@ -4,6 +4,7 @@ class Job < ApplicationRecord
   KINDS = %w[ issue cron adhoc ].freeze
   CREDENTIAL_MODES = %w[ app pat ].freeze
   PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
+  OPERATOR_CHAT_OPT_OUT_LABEL = "syrus-no-chat".freeze
 
   PRIORITIES = %w[ high medium low ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
@@ -305,8 +306,15 @@ class Job < ApplicationRecord
     return skip_prepare? unless issue? && issue_number.present? && (repository.installation&.active? || user.github_token.present?)
 
     issue = GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, issue_number)
-    skip = Workflows.label_names(issue.labels).include?(Workflows::SKIP_PREPARE_LABEL)
-    update!(skip_prepare: skip) if skip_prepare? != skip
+    names = Workflows.label_names(issue.labels)
+    skip = names.include?(Workflows::SKIP_PREPARE_LABEL)
+    no_chat = names.include?(OPERATOR_CHAT_OPT_OUT_LABEL)
+
+    updates = {}
+    updates[:skip_prepare] = skip if skip_prepare? != skip
+    updates[:operator_chat_disabled] = no_chat if operator_chat_disabled? != no_chat
+    update!(updates) if updates.any?
+
     skip
   end
 
