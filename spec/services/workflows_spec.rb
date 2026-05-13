@@ -7,7 +7,6 @@ RSpec.describe Workflows do
     it "returns the right template class for each known trigger_kind" do
       expect(described_class.for(trigger_kind: "initial")).to    eq(Workflows::Initial)
       expect(described_class.for(trigger_kind: "pr_comment")).to eq(Workflows::PrFeedback)
-      expect(described_class.for(trigger_kind: "ci_failure")).to eq(Workflows::CiFailure)
       expect(described_class.for(trigger_kind: "rebase")).to     eq(Workflows::Rebase)
       expect(described_class.for(trigger_kind: "auto_merge")).to eq(Workflows::AutoMerge)
       expect(described_class.for(trigger_kind: "retry")).to      eq(Workflows::Retry)
@@ -210,11 +209,6 @@ RSpec.describe Workflows do
       expect(wf.chain_template).to include(
         { "type" => "loop", "max_iterations" => AppSetting.grade_max_iterations, "steps" => %w[ respond grade ] }
       )
-    end
-
-    it "instantiates CiFailure with analyze_and_fix → summarize_amend → push" do
-      wf = Workflows::CiFailure.instantiate(job: job)
-      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare analyze_and_fix summarize_amend push ])
     end
 
     it "instantiates Rebase with auto_rebase → agent_rebase → force_push" do

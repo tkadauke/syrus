@@ -60,6 +60,10 @@ bin/rspec    # run the test suite
 
 `bin/setup --skip-server` if you want to bootstrap without booting the dev server.
 
+## Quality gates
+
+Syrus-native CI runs inside each Workflow as the `grade` step after implementation. Configure repository quality gates in `.syrus.yml`; the in-Syrus grade result is the authoritative signal for whether an agent revision is ready to merge.
+
 ## Per-Issue Controls
 
 Syrus recognizes `syrus-skip-prepare` on a source issue as an escape hatch for

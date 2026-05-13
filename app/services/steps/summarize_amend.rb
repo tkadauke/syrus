@@ -1,5 +1,5 @@
 module Steps
-  # Second step of PrFeedback / CiFailure workflows. Same shape
+  # Summary step for PR follow-up workflows. Same shape
   # as Steps::Summarize: short claude call --resumed against the
   # upstream agentic step's session, calls submit_summary, we
   # promote the result onto Workflow.artifacts and rewrite the

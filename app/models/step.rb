@@ -10,7 +10,6 @@ class Step < ApplicationRecord
     respond
     summarize_amend
     push
-    analyze_and_fix
     auto_rebase
     agent_rebase
     force_push
@@ -27,7 +26,7 @@ class Step < ApplicationRecord
   # push`, etc. — and never invoke an agent.
   AGENTIC_KINDS = %w[
     implement summarize respond summarize_amend
-    analyze_and_fix agent_rebase manual
+    agent_rebase manual
   ].freeze
 
   belongs_to :workflow

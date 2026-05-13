@@ -745,7 +745,7 @@ RSpec.describe RunJob do
     case current.step.kind
     when "implement", "manual"
       File.write(file, "def greet = 'hello'\n")
-    when "respond", "analyze_and_fix"
+    when "respond"
       # Follow-up step on an existing branch — append to the
       # already-committed feature.rb so the diff is non-empty.
       File.open(file, "a") { |f| f.puts "# addressed feedback at #{Time.now.to_f}" }

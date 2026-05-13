@@ -149,11 +149,8 @@ class JobsController < ApplicationController
     return unless valid_configured_agent_provider?(agent_provider)
     @job.switch_agent_provider!(agent_provider) if agent_provider.present?
 
-    # `manual: true` — bypass the pr_comment / ci_failure cap that
-    # exists to defend the autonomous 5-minute poller against
-    # runaway loops. The operator clicking the button is an explicit
-    # override; without this, the click is a silent no-op once a Job
-    # has burned through PR_COMMENT_FOLLOWUP_CAP rounds.
+    # `manual: true` is retained for the job signature; PR-comment
+    # polling is watermark-driven and has no autonomous cap.
     if agent_provider.present?
       PollPullRequestJob.perform_later(@job.id, manual: true, agent_provider: agent_provider)
     else

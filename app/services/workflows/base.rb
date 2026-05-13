@@ -34,8 +34,8 @@ module Workflows
     # Build the Workflow + Steps for the given job. Returns the
     # persisted Workflow with its steps. `artifacts` seeds the
     # workflow with structured input that downstream step handlers
-    # read — PrFeedback wants `pr_comments`, CiFailure wants
-    # `failed_checks` + `head_sha`. Handlers compose their prompts
+    # read — PrFeedback wants `pr_comments`, grade wants
+    # `grade_results`. Handlers compose their prompts
     # from these at run time, so the polling job (or controller)
     # doesn't need to know prompt internals.
     def self.instantiate(job:, artifacts: nil, agent_provider: nil)

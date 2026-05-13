@@ -1,10 +1,9 @@
 class Workflow < ApplicationRecord
   include AASM
 
-  # Trigger kinds the v1 templates handle. The first six map
-  # 1:1 to today's Run.trigger_kind values; once the migration
-  # off Run.trigger_kind lands, this is the canonical list.
-  TRIGGER_KINDS = %w[ initial pr_comment ci_failure rebase auto_merge retry manual resume local_dev ].freeze
+  # Trigger kinds the v1 templates handle. Once the migration off
+  # Run.trigger_kind lands, this is the canonical list.
+  TRIGGER_KINDS = %w[ initial pr_comment rebase auto_merge retry manual resume local_dev ].freeze
 
   belongs_to :job
   has_many :steps, -> { order(:position) }, dependent: :destroy
@@ -170,9 +169,8 @@ class Workflow < ApplicationRecord
   end
 
   # Increment the workflow's failure counter and auto-fail the
-  # workflow if it crosses the threshold. Per-Workflow scope: a
-  # bad CiFailure burst doesn't take down a Job whose Initial was
-  # clean.
+  # workflow if it crosses the threshold. Per-Workflow scope keeps a
+  # bad follow-up attempt from taking down a Job whose Initial was clean.
   def record_run_failure!
     increment!(:failure_count)
     return if state != "running"

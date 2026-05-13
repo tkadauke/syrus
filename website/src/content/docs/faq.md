@@ -120,12 +120,13 @@ pipeline as issue-driven work.
 Scheduled prompts should be conservative. Ask the agent to inspect a
 specific area and explicitly allow "no changes" as a successful result.
 
-## Can Syrus respond to PR feedback and failing CI?
+## Can Syrus respond to PR feedback and run CI?
 
 Yes. For PRs attached to open Syrus Jobs, Syrus polls for new review
-comments and failed GitHub Checks. Review feedback creates a
-`pr_comment` Workflow; failed checks create a `ci_failure` Workflow.
-Both push follow-up commits to the same branch.
+comments; review feedback creates a `pr_comment` Workflow that pushes
+follow-up commits to the same branch. Quality gates run inside Syrus as
+the `grade` Step during implementation, so GitHub Actions check runs are
+not part of the feedback loop.
 
 ## What happens when the agent makes no change?
 

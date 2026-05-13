@@ -102,15 +102,15 @@ RSpec.describe Workflow do
   end
 
   describe "#cancel cascades to active descendants" do
-    let(:wf) { described_class.create!(job: job, trigger_kind: "ci_failure") }
+    let(:wf) { described_class.create!(job: job, trigger_kind: "pr_comment") }
 
     it "cancels every still-queued Step and any active Runs on them" do
       done_step    = Step.create!(workflow: wf, kind: "prepare",         position: 0, state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
       stuck_step_1 = Step.create!(workflow: wf, kind: "summarize_amend", position: 1)  # queued
       stuck_step_2 = Step.create!(workflow: wf, kind: "push",            position: 2)  # queued
 
-      done_run     = Run.create!(job: job, step: done_step, trigger_kind: "ci_failure", state: "succeeded")
-      stuck_run    = Run.create!(job: job, step: stuck_step_1, trigger_kind: "ci_failure")  # queued
+      done_run     = Run.create!(job: job, step: done_step, trigger_kind: "pr_comment", state: "succeeded")
+      stuck_run    = Run.create!(job: job, step: stuck_step_1, trigger_kind: "pr_comment")  # queued
 
       wf.start!
       wf.cancel!

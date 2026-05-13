@@ -78,24 +78,16 @@ Trigger: `bin/syrus dev` against a local checkout. Steps:
 handlers as GitHub-driven work, then stops before summary and PR creation.
 The CLI returns the produced diff to the local caller.
 
-### CiFailure
-
-Trigger: polling sees failed CI checks on an existing Syrus PR. Steps:
-`prepare -> analyze_and_fix -> summarize_amend -> push`. The agent receives
-the failing check payload, diagnoses the failure, commits a fix, and pushes
-the updated branch. A rolling cap prevents endless CI-failure loops on the
-same Job.
-
 ## Step Kinds
 
 | Step | Agentic | Purpose |
 | --- | --- | --- |
 | `prepare` | No | Run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
 | `implement` | Yes | Make the requested code change for Initial, Retry, cron, and ad hoc work |
+| `grade` | No | Run configured Syrus-native quality gates after implementation |
 | `respond` | Yes | Address PR review feedback on an existing branch |
-| `analyze_and_fix` | Yes | Diagnose failed CI checks and commit a fix |
 | `summarize` | Yes | Resume the implementation session and collect PR title/body/summary through MCP |
-| `summarize_amend` | Yes | Produce follow-up commit copy for PR feedback and CI-failure workflows |
+| `summarize_amend` | Yes | Produce follow-up commit copy for PR feedback workflows |
 | `pr_open` | No | Push the branch and open the pull request if one does not already exist |
 | `push` | No | Push commits to an existing PR branch and update the cost footer |
 | `auto_rebase` | No | Try a deterministic rebase before involving an agent |
@@ -118,7 +110,6 @@ Syrus chooses the template from the trigger kind:
 | --- | --- |
 | `initial` | `Workflows::Initial` |
 | `pr_comment` | `Workflows::PrFeedback` |
-| `ci_failure` | `Workflows::CiFailure` |
 | `rebase` | `Workflows::Rebase` |
 | `retry` | `Workflows::Retry` |
 | `manual` | `Workflows::Manual` |

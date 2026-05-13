@@ -77,7 +77,7 @@ class Job < ApplicationRecord
   # use by prompt classes that historically only knew about GitHub
   # issues. For issue Jobs this is delegated to GithubClient by the
   # caller; for cron Jobs we synthesize one from the parent
-  # ScheduledTask so PrFeedback / CiFailure / PrSummarizer prompts
+  # ScheduledTask so PrFeedback / PrSummarizer prompts
   # don't need to special-case kind.
   def synthetic_issue
     if cron? && scheduled_task

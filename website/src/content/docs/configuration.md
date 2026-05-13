@@ -130,8 +130,8 @@ Repository settings are stored in Syrus, not in `.syrus.yml`.
 
 The default workflow is not a free-form per-repo template yet. In the
 current implementation, issue ingestion always starts the `initial`
-workflow; scheduled tasks, PR feedback, CI failures, rebases, retries, and
-manual actions choose their own trigger-specific templates.
+workflow; scheduled tasks, PR feedback, rebases, retries, and manual
+actions choose their own trigger-specific templates.
 
 ## Worker Environment
 

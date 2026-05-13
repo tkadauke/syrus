@@ -23,7 +23,6 @@ module Workflows
   REGISTRY = {
     "initial"    => :Initial,
     "pr_comment" => :PrFeedback,
-    "ci_failure" => :CiFailure,
     "rebase"     => :Rebase,
     "auto_merge" => :AutoMerge,
     "retry"      => :Retry,

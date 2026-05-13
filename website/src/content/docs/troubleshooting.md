@@ -40,24 +40,12 @@ In Docker Compose:
 docker compose logs --tail=300 worker
 ```
 
-## The agent never handles my failing CI check
+## The grade Step failed
 
-Syrus reacts to completed GitHub Check Runs on PRs that belong to open
-Syrus Jobs. It does not react to arbitrary PRs unless they are attached
-to a Syrus Job.
-
-Check:
-
-1. The PR was opened by Syrus or is associated with an open Syrus Job.
-2. The failing CI provider reports GitHub Checks for the PR head SHA.
-3. The check run is completed with a failed conclusion such as `failure`,
-   `timed_out`, `action_required`, `cancelled`, or `stale`.
-4. The user's GitHub token can read check runs.
-5. The Job has not already hit the rolling CI failure cap: three
-   `ci_failure` Workflows per 24 hours.
-
-If the token lacks Checks read access, PR-comment handling may still
-work while CI-failure handling logs a permission warning.
+Syrus-native quality gates run inside the Workflow as the `grade` Step.
+When grade fails, inspect the grade log on the Job page, update the
+implementation or `.syrus.yml` grader configuration, and retry the Job.
+GitHub Actions check runs no longer create follow-up Workflows.
 
 ## The agent ran but produced no diff
 
@@ -134,8 +122,8 @@ stdout.
 ## How do I cancel a Job?
 
 Open the Job and click **Cancel & close**. Syrus cancels any active Runs
-and closes the Job thread. Follow-up polling for PR comments and CI
-failures stops for that Job.
+and closes the Job thread. Follow-up polling for PR comments stops for
+that Job.
 
 If you want to stop one active Run but keep the Job open for a retry or
 resume, use the Run-level stop action on the Job page.

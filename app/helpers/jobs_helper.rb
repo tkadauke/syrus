@@ -25,7 +25,6 @@ module JobsHelper
     "respond"         => "Address feedback",
     "summarize_amend" => "Summarize",
     "push"            => "Push",
-    "analyze_and_fix" => "Fix CI failures",
     "grade"           => "Grade",
     "auto_rebase"     => "Auto-rebase",
     "agent_rebase"    => "Agent rebase",
@@ -45,7 +44,6 @@ module JobsHelper
   WORKFLOW_LABELS = {
     "initial"    => "Initial implementation",
     "pr_comment" => "PR feedback",
-    "ci_failure" => "CI failure",
     "rebase"     => "Rebase",
     "replay"     => "Replay",
     "manual"     => "Manual",
@@ -59,7 +57,6 @@ module JobsHelper
   TRIGGER_STYLES = {
     "initial"     => "bg-purple-100 text-purple-700",
     "pr_comment"  => "bg-cyan-100 text-cyan-700",
-    "ci_failure"  => "bg-red-100 text-red-700",
     "retry"       => "bg-amber-100 text-amber-700",
     "manual"      => "bg-gray-100 text-gray-700",
     "rebase"      => "bg-teal-100 text-teal-700",

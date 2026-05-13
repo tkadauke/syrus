@@ -31,7 +31,7 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
     end
     let!(:run_b) do
       step = job.workflows.last.steps.find_by(kind: "implement")
-      Run.create!(job: job, step: step, trigger_kind: "ci_failure",
+      Run.create!(job: job, step: step, trigger_kind: "pr_comment",
                   state: "failed", started_at: 1.hour.ago, finished_at: 30.minutes.ago)
     end
 
@@ -43,7 +43,7 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
       expect(row).to include(
         "id"           => run_b.id,
         "state"        => "failed",
-        "trigger_kind" => "ci_failure",
+        "trigger_kind" => "pr_comment",
         "job_id"       => job.id,
         "step_kind"    => "implement"
       )
@@ -57,7 +57,7 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
     end
 
     it "filters by trigger_kind" do
-      get "/api/v1/admin/runs", params: { trigger_kind: "ci_failure" }, headers: auth
+      get "/api/v1/admin/runs", params: { trigger_kind: "pr_comment" }, headers: auth
       ids = parse_body["runs"].map { |r| r["id"] }
       expect(ids).to     include(run_b.id)
       expect(ids).not_to include(run_a.id)

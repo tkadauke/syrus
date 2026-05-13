@@ -166,9 +166,7 @@ class RunJob < ApplicationJob
 
   # Snapshot the diagnostic, fail the Run, and let Run/Step
   # after_update_commit fail the Step/Workflow (which fires its own
-  # workspace cleanup callback). Failure accounting is per-Workflow;
-  # a flaky CiFailure burst doesn't pull a Job's clean Initial down
-  # with it.
+  # workspace cleanup callback). Failure accounting is per-Workflow.
   def handle_failure(exception)
     log("FAIL: #{exception.class}: #{exception.message}")
 

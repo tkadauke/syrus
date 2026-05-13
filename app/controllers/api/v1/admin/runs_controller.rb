@@ -8,7 +8,7 @@ module Api
       # walking each Job's nested dump.
       #
       #   GET /api/v1/admin/runs?state=failed&since=2026-05-04T00:00:00Z
-      #   GET /api/v1/admin/runs?trigger_kind=ci_failure&job_id=80
+      #   GET /api/v1/admin/runs?trigger_kind=pr_comment&job_id=80
       class RunsController < BaseController
         DEFAULT_PER = 50
         MAX_PER     = 100

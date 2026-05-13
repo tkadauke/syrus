@@ -15,7 +15,6 @@ RSpec.describe Steps do
       expect(described_class.handler_for("respond")).to eq(Steps::Respond)
       expect(described_class.handler_for("summarize_amend")).to eq(Steps::SummarizeAmend)
       expect(described_class.handler_for("push")).to eq(Steps::Push)
-      expect(described_class.handler_for("analyze_and_fix")).to eq(Steps::AnalyzeAndFix)
       expect(described_class.handler_for("auto_rebase")).to eq(Steps::AutoRebase)
       expect(described_class.handler_for("agent_rebase")).to eq(Steps::AgentRebase)
       expect(described_class.handler_for("force_push")).to eq(Steps::ForcePush)

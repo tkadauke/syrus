@@ -1,15 +1,15 @@
 module Prompts
-  # Summarize-amend prompt for follow-up workflows (PrFeedback,
-  # CiFailure). Same shape as Prompts::Summarize, but the framing
-  # is "you addressed feedback / fixed CI; produce the commit
-  # message for THIS revision (not a fresh PR title)". The PR
+  # Summarize-amend prompt for follow-up workflows. Same shape as
+  # Prompts::Summarize, but the framing is "you addressed feedback;
+  # produce the commit message for THIS revision (not a fresh PR
+  # title)". The PR
   # already exists; pr_title/pr_body in the artifact get used as
   # the commit message for the amendment, not a new PR's copy.
   class SummarizeAmend
     def to_s
       <<~PROMPT.strip
         You just finished addressing the prior step's work on a
-        Syrus run (PR comment, CI failure, or similar). The PR
+        Syrus run (PR comment or similar). The PR
         for this Job already exists; this is a *follow-up
         commit*, not a new PR.
 

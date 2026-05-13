@@ -48,7 +48,7 @@ same Workflow pipeline.
 
 - `initial` — first attempt on a Job (issue → branch → PR)
 - `pr_comment` — review feedback follow-up; reuses the same branch
-- `ci_failure`, `retry`, `manual` — operator-initiated retries
+- `retry`, `manual` — operator-initiated retries
 - `rebase` — maintenance Run that rebases the PR's branch onto base
   when the PR has gone unmergeable. Skips the closed-Job guard (a
   preempted Job's external PR can still need rebases), skips
@@ -75,9 +75,8 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → implement → summarize → pr_open
+initial:     prepare → (implement → grade loop) → summarize → pr_open
 pr_comment:  prepare → respond → summarize_amend → push
-ci_failure:  prepare → analyze_and_fix → summarize_amend → push
 retry:       prepare → implement → summarize → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
 resume:      agent_rebase → summarize_amend → push
@@ -93,10 +92,14 @@ Key steps:
   can disable the step for all workflows on that repo; the
   `syrus-skip-prepare` issue label disables it for that Job. Skips are
   recorded in Workflow artifacts and logged on the first Run.
-- **`implement`** / **`respond`** / **`analyze_and_fix`** — Agentic steps:
+- **`implement`** / **`respond`** — Agentic steps:
   invoke the Workflow's configured `AgentProviders::*` adapter. Claude uses
   `AgentInvocation`/`claude --print`; Codex uses `CodexInvocation`/`codex exec`.
   Pluggable `runner:` for tests.
+- **`grade`** — Syrus-native CI: runs the repository's configured
+  quality gates inside the Workflow after implementation. The grade step is
+  the authoritative pass/fail signal; GitHub Actions check-run polling no
+  longer creates follow-up workflows.
 - **`auto_rebase`** / **`agent_rebase`** / **`force_push`** — Rebase chain:
   first try deterministic `git rebase`; if clean, cancel only `agent_rebase`
   and still `force_push`. On conflict, `agent_rebase` resolves it, then

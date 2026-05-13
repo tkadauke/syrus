@@ -1,11 +1,10 @@
 require "open3"
 
 module Steps
-  # First step in Initial / Replay / PrFeedback / CiFailure
-  # workflows. Runs deterministic setup work in the workspace
-  # BEFORE handing off to the agent — package-manager installs
-  # mostly (`bundle install`, `npm ci`, etc.) so the agent doesn't
-  # burn turns/tokens watching dependencies download.
+  # First step in workflows that need deterministic setup work before
+  # handing off to the agent — package-manager installs mostly
+  # (`bundle install`, `npm ci`, etc.) so the agent doesn't burn
+  # turns/tokens watching dependencies download.
   #
   # Source of commands: RepoPrepPlan reads `.syrus.yml` from the
   # repo root, falls back to auto-detect on common lockfile

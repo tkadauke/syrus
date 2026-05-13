@@ -33,7 +33,7 @@ operator prompt.
 
 :::note
 Think of a Job as the conversation thread. It survives retries,
-review feedback, CI-failure follow-ups, and rebases.
+review feedback, and rebases.
 :::
 
 ## Workflow
@@ -47,7 +47,6 @@ Common trigger kinds are:
 | --- | --- |
 | `initial` | First attempt for a Job. Creates the branch and opens the PR. |
 | `pr_comment` | Follow-up after review or conversation feedback on the PR. |
-| `ci_failure` | Follow-up after failing checks on the PR head SHA. |
 | `rebase` | Maintenance attempt that rebases a controlled branch onto the base branch. |
 | `retry` | Operator asks Syrus to run the normal attempt again. |
 | `manual` | Operator supplies an explicit manual prompt. |
@@ -65,7 +64,8 @@ handler under `app/services/steps/`.
 Examples include:
 
 - `prepare`, which installs dependencies from configured setup commands
-- `implement`, `respond`, and `analyze_and_fix`, which invoke the agent
+- `implement` and `respond`, which invoke the agent
+- `grade`, which runs configured Syrus-native quality gates
 - `summarize` and `summarize_amend`, which collect PR copy
 - `pr_open`, `push`, `auto_rebase`, and `force_push`, which perform
   deterministic service work
@@ -173,7 +173,7 @@ GitHub issue with label
   -> GitHub pull request
 ```
 
-Follow-up comments, failing CI, retries, rebases, and resumes create
+Follow-up comments, retries, rebases, and resumes create
 new Workflows on the same Job instead of creating a second thread.
 
 Next: [Workflows](/docs/workflows) explains how those templates map

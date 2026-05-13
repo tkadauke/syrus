@@ -10,22 +10,17 @@ Syrus to handle. The examples assume you have already registered a
 repository in Syrus, configured credentials, and left repository
 polling enabled.
 
-## How do I get Syrus to handle a failing test?
+## How do I get Syrus to catch a failing test?
 
-Syrus watches open PRs it created. When GitHub Checks report a completed
-failure on the PR head SHA, Syrus creates a `ci_failure` Workflow:
+Configure Syrus-native quality gates in `.syrus.yml`. The `grade` Step
+runs after implementation inside the Workflow and is the authoritative
+pass/fail signal for the agent revision.
 
-```text
-prepare -> analyze_and_fix -> summarize_amend -> push
-```
+The important setup is:
 
-No repo-local trigger config is required. The important setup is:
-
-- The repository has a CI provider that reports GitHub Checks.
-- Your GitHub token can read check runs. A classic token needs `repo`;
-  a fine-grained token needs repository access plus Checks read access.
+- Your repo has useful grade commands for tests, lint, or build checks.
 - Your repo has a useful `.syrus.yml` `prepare` section if dependencies
-  must be installed before tests can run.
+  must be installed before those commands can run.
 
 Example `.syrus.yml` for a Rails app:
 
@@ -34,19 +29,21 @@ prepare:
   - bundle config set --local path vendor/bundle
   - bundle install --jobs 4
   - bin/rails db:prepare
+grade:
+  - name: tests
+    command: bin/rspec
 ```
 
-Then let Syrus open a PR from a labeled issue. If CI fails on that PR,
-the next PR poll, which runs about every five minutes, inspects the
-failed checks and asks the agent to diagnose and fix them. Syrus pushes
-the fix to the same branch, so GitHub reruns CI on the new commit.
+Then let Syrus open a PR from a labeled issue. The initial Workflow runs
+implementation and grade together; if grade fails, Syrus feeds the
+failure back through the loop until it passes or exhausts the configured
+iteration budget.
 
-Expected outcome: the Job page shows a new **CI failure** Workflow, the
-transcript includes the failed check names and parsed error context, and
-the PR receives a follow-up commit.
+Expected outcome: the Job page shows grade results inside the initial
+Workflow, and the PR opens only after the configured gates pass.
 
-Troubleshooting: if no follow-up appears, see
-[The agent never handles my failing CI check](/docs/troubleshooting#the-agent-never-handles-my-failing-ci-check)
+Troubleshooting: if grade does not pass, see
+[The grade Step failed](/docs/troubleshooting#the-grade-step-failed)
 and [PR creation failed](/docs/troubleshooting#pr-creation-failed).
 
 ## How do I get Syrus to respond to PR review comments?
@@ -235,9 +232,8 @@ Today you can use these controls:
   disables the turn cap while the per-run timeout still applies.
 - Keep scheduled tasks on `pr_pileup_policy: skip` unless you explicitly
   want many open PRs from one recurring prompt.
-- Leave the built-in CI failure loop cap in place. Autonomous CI-failure
-  retries are capped at three `ci_failure` Workflows per Job per 24-hour
-  window.
+- Keep grade iteration limits conservative so failing quality gates do
+  not produce unbounded implementation loops.
 - Cancel a Job that is going in the wrong direction.
 
 Expected outcome: max-turns limits reduce runaway agent sessions, and

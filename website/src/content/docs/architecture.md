@@ -25,8 +25,8 @@ flowchart LR
   M --> W
 ```
 
-Pollers watch GitHub issues, pull requests, rebases, CI failures, and
-scheduled tasks. A trigger creates or updates a Job. Each attempt on that
+Pollers watch GitHub issues, pull requests, rebases, and scheduled
+tasks. A trigger creates or updates a Job. Each attempt on that
 Job is a Workflow, each Workflow is a chain of Steps, and each Step has a
 Run that performs the work and records transcript, cost, diff, and session
 metadata.

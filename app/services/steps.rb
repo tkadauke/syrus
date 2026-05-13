@@ -10,7 +10,6 @@ module Steps
     "respond"         => :Respond,
     "summarize_amend" => :SummarizeAmend,
     "push"            => :Push,
-    "analyze_and_fix" => :AnalyzeAndFix,
     "auto_rebase"     => :AutoRebase,
     "agent_rebase"    => :AgentRebase,
     "force_push"      => :ForcePush,

@@ -279,30 +279,6 @@ class GithubClient
     raise
   end
 
-  # All check runs for a commit SHA whose conclusion is a "failed-ish"
-  # state (failure, timed_out, action_required, cancelled). Returns an
-  # array of { name:, conclusion:, summary:, log:, html_url: } hashes —
-  # just what Prompts::CiFailure needs. In-progress / queued / pending
-  # checks are intentionally excluded; we only act on completed
-  # failures so the agent isn't reacting to a half-finished run.
-  FAILED_CONCLUSIONS = %w[failure timed_out action_required cancelled stale].freeze
-
-  def failed_check_runs_for(repo_slug, sha)
-    runs = track_rate_limits { @client.check_runs_for_ref(repo_slug, sha) }
-    Array(runs.check_runs).select { |cr| cr.status == "completed" && FAILED_CONCLUSIONS.include?(cr.conclusion) }.map do |cr|
-      {
-        name: cr.name,
-        conclusion: cr.conclusion,
-        summary: cr.output&.summary,
-        log: cr.output&.text,
-        html_url: cr.html_url
-      }
-    end
-  rescue Octokit::TooManyRequests => e
-    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{sha} check_runs: #{e.message}")
-    raise
-  end
-
   # Returns { number:, url: } of the first OPEN PR that claims to close
   # this issue ("Closes #N" / "Fixes #N" / "Resolves #N" in the body, or
   # the manual GitHub "Linked issues" UI), or nil if there isn't one.

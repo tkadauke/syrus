@@ -1,5 +1,5 @@
 module Steps
-  # Final step of PrFeedback / CiFailure workflows. Non-agentic.
+  # Final step of PR follow-up workflows. Non-agentic.
   # Pushes the existing branch to origin (no PR opening — PR
   # already exists from the original Initial workflow).
   class Push < Base

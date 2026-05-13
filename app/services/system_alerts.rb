@@ -39,16 +39,13 @@ module SystemAlerts
       severity: :alarm,
       title: "GitHub API access is blocked for this account.",
       message: "Syrus tried to read GitHub on your behalf and got back: " \
-               "<code>#{reason}</code>. PR-feedback polling and " \
-               "CI-failure detection are degraded until this is fixed; " \
+               "<code>#{reason}</code>. PR-feedback polling is degraded until this is fixed; " \
                "the banner clears automatically on the next successful API call.",
       action_steps: [
         "Generate a <strong>classic</strong> PAT at " \
           "<a class=\"underline\" href=\"https://github.com/settings/tokens\">github.com/settings/tokens</a> " \
-          "with the <code>repo</code> scope (which covers the entire Syrus surface — clone, push, PRs, comments, check-runs).",
-        "Fine-grained PATs <em>do not work</em> for the full surface today: GitHub doesn't expose a <code>Checks: read</code> permission " \
-          "for fine-grained tokens, so CI-failure detection silently breaks. If you want fine-grained anyway, accept that the " \
-          "<code>check-runs</code> path will keep showing this banner.",
+          "with the <code>repo</code> scope (which covers the Syrus surface — clone, push, PRs, and comments).",
+        "Fine-grained PATs may work for narrower setups, but the token must still be able to read pull requests and review comments.",
         "Paste the new token into <a class=\"underline\" href=\"/credentials/edit\">Settings → Credentials</a> and save. " \
           "The banner clears on the next successful API call."
       ],
