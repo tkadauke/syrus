@@ -26,6 +26,16 @@
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_controls" %>
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_header" %>
   <% end %>
+  <%= turbo_stream_from @repository, "whiteboard" %>
+
+  <section class="bg-white border border-gray-200 rounded-lg p-3"
+           data-controller="whiteboard"
+           data-whiteboard-url-value="<%= repository_whiteboard_path(@repository) %>">
+    <div class="h-[24rem] overflow-hidden rounded-md border border-gray-200 bg-white"
+         data-whiteboard-target="mount"></div>
+    <%= render "repositories/whiteboards/broadcast",
+          whiteboard: @repository.repository_whiteboard || RepositoryWhiteboard.new(repository: @repository) %>
+  </section>
 
   <% if Current.user.agent_provider == "codex" %>
     <div class="bg-white border border-amber-200 rounded-lg p-6 text-sm text-amber-900">

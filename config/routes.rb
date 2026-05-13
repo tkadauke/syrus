@@ -93,6 +93,7 @@ Rails.application.routes.draw do
            as: :chat_pending_action
     get  "chats/:chat_id/whiteboard",   to: "repositories/whiteboards#show",   as: :chat_whiteboard
     patch "chats/:chat_id/whiteboard",  to: "repositories/whiteboards#update"
+    resource :whiteboard, only: %i[ show update ], controller: "repositories/whiteboards"
     resources :notes, only: %i[ create destroy ], controller: "repositories/notes"
     resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals" do
       member do

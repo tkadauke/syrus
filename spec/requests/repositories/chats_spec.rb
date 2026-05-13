@@ -16,6 +16,9 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("Chat — Repository")
       expect(response.body).to include("Start a chat with this repository.")
       expect(response.body).to include("Tokens:")
+      expect(response.body).to include('data-controller="whiteboard"')
+      expect(response.body).to include(repository_whiteboard_path(repo))
+      expect(response.body).to include("repository_#{repo.id}_whiteboard_broadcast")
     end
 
     it "renders the Claude-only provider notice for Codex users" do

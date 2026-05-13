@@ -124,6 +124,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_175254) do
     t.index ["chat_session_id"], name: "index_chat_whiteboards_on_chat_session_id", unique: true
   end
 
+  create_table "repository_whiteboards", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.json "scene_json", null: false
+    t.datetime "updated_at", null: false
+    t.integer "version", default: 0, null: false
+    t.index ["repository_id"], name: "index_repository_whiteboards_on_repository_id", unique: true
+  end
+
   create_table "claude_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "provider", default: "claude", null: false
@@ -530,6 +539,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_175254) do
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"
+  add_foreign_key "repository_whiteboards", "repositories"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "operator_questions", "jobs"
   add_foreign_key "operator_questions", "runs"
