@@ -19,6 +19,21 @@ RSpec.describe Run do
     end
   end
 
+  describe "iteration column" do
+    it "defaults iteration to 1" do
+      expect(job.initial_run.iteration).to eq(1)
+    end
+
+    it "mirrors the step iteration when the dispatcher creates a run" do
+      workflow = Workflow.create!(job: job, trigger_kind: "initial")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, iteration: 3)
+
+      run = StepDispatcher.create_run_and_enqueue(step, workflow)
+
+      expect(run.iteration).to eq(3)
+    end
+  end
+
   describe "AASM state machine (was Job's)" do
     it "starts queued" do
       expect(job.initial_run).to be_queued

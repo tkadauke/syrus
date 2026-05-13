@@ -41,6 +41,7 @@ class StepDispatcher
       job: workflow.job,
       trigger_kind: workflow.trigger_kind,
       agent_provider: workflow.agent_provider,
+      iteration: step.iteration,
       parent_session_id: parent_session_id,
       prompt: prompt
     )

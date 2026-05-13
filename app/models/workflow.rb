@@ -184,6 +184,15 @@ class Workflow < ApplicationRecord
       steps.order(:position).last
   end
 
+  def current_iteration
+    steps.active
+         .where.not(loop_id: nil)
+         .group(:loop_id)
+         .maximum(:iteration)
+         .values
+         .max
+  end
+
   def trigger_kind_humanized
     trigger_kind.tr("_", " ")
   end

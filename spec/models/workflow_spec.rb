@@ -163,6 +163,38 @@ RSpec.describe Workflow do
     end
   end
 
+  describe "#current_iteration" do
+    let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
+
+    it "returns nil when the workflow has no loop steps" do
+      Step.create!(workflow: wf, kind: "implement", position: 0)
+
+      expect(wf.current_iteration).to be_nil
+    end
+
+    it "returns the highest iteration across active loop instances" do
+      Step.create!(workflow: wf, kind: "implement", position: 0, loop_id: "loop-a", iteration: 2, state: "queued")
+      Step.create!(workflow: wf, kind: "summarize", position: 1, loop_id: "loop-b", iteration: 3, state: "running")
+      Step.create!(workflow: wf, kind: "pr_open", position: 2, loop_id: "loop-a", iteration: 1, state: "queued")
+
+      expect(wf.current_iteration).to eq(3)
+    end
+
+    it "ignores completed loop steps" do
+      Step.create!(workflow: wf, kind: "implement", position: 0, loop_id: "loop-a", iteration: 4, state: "succeeded")
+      Step.create!(workflow: wf, kind: "summarize", position: 1, loop_id: "loop-a", iteration: 2, state: "running")
+
+      expect(wf.current_iteration).to eq(2)
+    end
+
+    it "returns nil when all loop steps are completed" do
+      Step.create!(workflow: wf, kind: "implement", position: 0, loop_id: "loop-a", iteration: 1, state: "succeeded")
+      Step.create!(workflow: wf, kind: "summarize", position: 1, loop_id: "loop-a", iteration: 2, state: "failed")
+
+      expect(wf.current_iteration).to be_nil
+    end
+  end
+
   describe "#record_run_failure!" do
     let(:wf) { described_class.create!(job: job, trigger_kind: "initial").tap(&:start!).tap(&:save!) }
 

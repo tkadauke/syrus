@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_010300) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_083522) do
   create_table "admin_actions", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -305,6 +305,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_010300) do
     t.datetime "finished_at"
     t.string "head_sha"
     t.integer "input_tokens"
+    t.integer "iteration", default: 1, null: false
     t.integer "job_id", null: false
     t.datetime "last_heartbeat_at"
     t.integer "output_tokens"
@@ -359,7 +360,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_010300) do
   create_table "steps", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "finished_at"
+    t.integer "iteration", default: 1, null: false
     t.string "kind", null: false
+    t.string "loop_id"
     t.bigint "next_step_id"
     t.integer "position", default: 0, null: false
     t.datetime "started_at"
@@ -367,6 +370,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_010300) do
     t.datetime "updated_at", null: false
     t.integer "workflow_id", null: false
     t.index ["next_step_id"], name: "index_steps_on_next_step_id"
+    t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
   end

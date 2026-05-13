@@ -24,6 +24,23 @@ RSpec.describe Step do
     end
   end
 
+  describe "loop iteration columns" do
+    it "defaults iteration to 1 and loop_id to nil" do
+      step = described_class.create!(workflow: workflow, kind: "implement", position: 0)
+
+      expect(step.iteration).to eq(1)
+      expect(step.loop_id).to be_nil
+    end
+
+    it "has the loop lookup index" do
+      index = ActiveRecord::Base.connection.indexes(:steps).find do |idx|
+        idx.columns == %w[ workflow_id loop_id iteration ]
+      end
+
+      expect(index).to be_present
+    end
+  end
+
   describe "#agentic?" do
     it "is true for kinds that spawn an agent" do
       %w[ implement summarize respond summarize_amend analyze_and_fix agent_rebase manual ].each do |k|
