@@ -9,8 +9,10 @@ export default class extends Controller {
     this.scrollToBottom()
     this.updateCompose()
     this.syncWhiteboardPlaceholder()
-    this.observer = new MutationObserver(() => this.messagesChanged())
-    this.observer.observe(this.streamTarget, { childList: true })
+    if (this.hasStreamTarget) {
+      this.observer = new MutationObserver(() => this.messagesChanged())
+      this.observer.observe(this.streamTarget, { childList: true })
+    }
   }
 
   disconnect() {

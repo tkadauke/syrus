@@ -1,7 +1,9 @@
+<% chat_available = Current.user.agent_provider != "codex" && Current.user.claude_oauth_token.present? %>
+
 <div class="space-y-6"
-     data-controller="chat"
+     data-controller="<%= chat_available ? "chat chat-layout" : "chat" %>"
+     data-chat-layout-storage-key-value="syrus.user.<%= Current.user.id %>.repository.<%= @repository.id %>.chat_split"
      data-chat-turn-in-flight-value="<%= @turn_in_flight %>">
-  <% chat_available = Current.user.agent_provider != "codex" && Current.user.claude_oauth_token.present? %>
   <div class="space-y-3">
     <%= render "header", repository: @repository, chat_session: @chat_session, chat_available: chat_available %>
   </div>
@@ -80,15 +82,6 @@
   <% end %>
   <%= turbo_stream_from @repository, "whiteboard" %>
 
-  <section class="bg-white border border-gray-200 rounded-lg p-3"
-           data-controller="whiteboard"
-           data-whiteboard-url-value="<%= repository_whiteboard_path(@repository) %>">
-    <div class="h-[24rem] overflow-hidden rounded-md border border-gray-200 bg-white"
-         data-whiteboard-target="mount"></div>
-    <%= render "repositories/whiteboards/broadcast",
-          whiteboard: @repository.repository_whiteboard || RepositoryWhiteboard.new(repository: @repository) %>
-  </section>
-
   <% if Current.user.agent_provider == "codex" %>
     <div class="bg-white border border-amber-200 rounded-lg p-6 text-sm text-amber-900">
       <div class="font-semibold">Chat requires Claude.</div>
@@ -109,34 +102,79 @@
       </p>
     </div>
   <% else %>
-    <section class="relative bg-white border border-gray-200 rounded-lg">
-      <div id="<%= @chat_session ? "chat_session_#{@chat_session.id}_messages" : "new_chat_messages" %>"
-           class="h-[28rem] overflow-y-auto p-4 space-y-4"
-           data-chat-target="stream"
-           data-action="scroll->chat#scroll">
-        <% if @messages.any? %>
-          <%= render partial: "repositories/chats/message",
-                collection: @messages,
-                as: :message,
-                locals: { repository: @repository } %>
-        <% else %>
-          <div class="h-full flex items-center justify-center text-sm text-gray-500">
-            Start a chat with this repository.
-          </div>
-        <% end %>
-      </div>
+    <div class="sm:hidden border-b border-gray-200"
+         role="tablist"
+         aria-label="Chat panes">
       <button type="button"
-              class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100"
-              data-chat-target="newMessagesPill"
-              data-action="chat#scrollToBottom">
-        New messages ↓
+              class="px-4 py-2 text-sm font-medium border-b-2 -mb-px"
+              role="tab"
+              data-chat-layout-target="chatTab"
+              data-action="chat-layout#showChat">
+        Chat
       </button>
+      <button type="button"
+              class="px-4 py-2 text-sm font-medium border-b-2 -mb-px"
+              role="tab"
+              data-chat-layout-target="canvasTab"
+              data-action="chat-layout#showCanvas">
+        Canvas
+      </button>
+    </div>
+
+    <div class="sm:grid sm:min-h-[34rem] sm:items-stretch"
+         data-chat-layout-target="grid"
+         data-action="touchstart->chat-layout#swipeStart touchend->chat-layout#swipeEnd">
+      <div class="hidden min-w-0 sm:block" data-chat-layout-target="desktopCanvasSlot"></div>
+      <div class="hidden sm:flex cursor-col-resize items-stretch justify-center"
+           role="separator"
+           aria-orientation="vertical"
+           aria-label="Resize chat canvas"
+           tabindex="0"
+           data-chat-layout-target="divider"
+           data-action="pointerdown->chat-layout#startDrag">
+        <div class="w-px bg-gray-200"></div>
+      </div>
+      <div class="hidden min-w-0 sm:block" data-chat-layout-target="desktopChatSlot"></div>
+      <div class="sm:hidden" data-chat-layout-target="mobileSlot"></div>
+    </div>
+
+    <section class="h-[32rem] min-h-[24rem] overflow-hidden rounded-lg border border-gray-200 bg-white sm:h-full"
+             data-controller="whiteboard"
+             data-whiteboard-url-value="<%= repository_whiteboard_path(@repository) %>"
+             data-chat-layout-target="canvasPane">
+      <div class="h-full w-full"
+           data-whiteboard-target="mount"></div>
+      <%= render "repositories/whiteboards/broadcast",
+            whiteboard: @repository.repository_whiteboard || RepositoryWhiteboard.new(repository: @repository) %>
     </section>
 
-    <% if @chat_session %>
-      <%= render "whiteboard", chat_session: @chat_session, whiteboard: @chat_session.whiteboard %>
-    <% end %>
+    <section class="flex min-h-[32rem] min-w-0 flex-col gap-3 sm:h-full"
+             data-chat-layout-target="chatPane">
+      <div class="relative min-h-0 flex-1 bg-white border border-gray-200 rounded-lg">
+        <div id="<%= @chat_session ? "chat_session_#{@chat_session.id}_messages" : "new_chat_messages" %>"
+             class="h-[24rem] overflow-y-auto p-4 space-y-4 sm:h-full"
+             data-chat-target="stream"
+             data-action="scroll->chat#scroll">
+          <% if @messages.any? %>
+            <%= render partial: "repositories/chats/message",
+                  collection: @messages,
+                  as: :message,
+                  locals: { repository: @repository } %>
+          <% else %>
+            <div class="h-full flex items-center justify-center text-sm text-gray-500">
+              Start a chat with this repository.
+            </div>
+          <% end %>
+        </div>
+        <button type="button"
+                class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100"
+                data-chat-target="newMessagesPill"
+                data-action="chat#scrollToBottom">
+          New messages ↓
+        </button>
+      </div>
 
-    <%= render "compose", repository: @repository, chat_session: @chat_session, turn_in_flight: @turn_in_flight %>
+      <%= render "compose", repository: @repository, chat_session: @chat_session, turn_in_flight: @turn_in_flight %>
+    </section>
   <% end %>
 </div>

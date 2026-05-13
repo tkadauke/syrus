@@ -170,3 +170,14 @@ test("hides and restores the whiteboard empty state as elements change", async (
   controller.whiteboardChanged({ detail: { elements: [] } })
   assert.equal(whiteboardPlaceholder.classList.contains("hidden"), false)
 })
+
+test("connects without a message stream on unavailable chat views", async () => {
+  const { default: Controller } = await loadController()
+  const { controller } = buildController(Controller)
+  controller.hasStreamTarget = false
+  delete controller.streamTarget
+
+  controller.connect()
+
+  assert.equal(controller.observer, undefined)
+})

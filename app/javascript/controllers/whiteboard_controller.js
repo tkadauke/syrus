@@ -20,6 +20,7 @@ export default class extends Controller {
   disconnect() {
     this.stopVisibilityWatch()
     this.clearPendingSave()
+    if (this.pendingElements) void this.savePending()
     if (this.root) this.root.unmount()
   }
 
@@ -90,6 +91,7 @@ export default class extends Controller {
       })
     )
     this.loaded = true
+    this.queueResize()
   }
 
   ensureStylesheet() {
@@ -117,6 +119,7 @@ export default class extends Controller {
     if (this.remoteUpdateInProgress) return
 
     this.pendingElements = elements
+    this.dispatch("change", { detail: { elements } })
     this.clearPendingSave()
     this.saveTimer = window.setTimeout(() => this.savePending(), DEBOUNCE_MS)
   }
@@ -199,5 +202,11 @@ export default class extends Controller {
 
   csrfToken() {
     return document.querySelector("meta[name='csrf-token']")?.content || ""
+  }
+
+  queueResize() {
+    window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"))
+    })
   }
 }

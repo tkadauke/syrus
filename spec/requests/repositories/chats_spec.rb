@@ -16,6 +16,10 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("Chat — Repository")
       expect(response.body).to include("Start a chat with this repository.")
       expect(response.body).to include("Tokens:")
+      expect(response.body).to include('data-controller="chat chat-layout"')
+      expect(response.body).to include("data-chat-layout-storage-key-value=\"syrus.user.#{user.id}.repository.#{repo.id}.chat_split\"")
+      expect(response.body).to include('data-chat-layout-target="divider"')
+      expect(response.body).to include("Canvas")
       expect(response.body).to include('data-controller="whiteboard"')
       expect(response.body).to include(repository_whiteboard_path(repo))
       expect(response.body).to include("repository_#{repo.id}_whiteboard_broadcast")
@@ -73,24 +77,23 @@ RSpec.describe "Repository chats", type: :request do
       expect(response.body).to include("3.2k out")
       expect(response.body).to include("$0.0123")
       expect(response.body).to include("chat_session_#{newer.id}_messages")
-      expect(response.body).to include("chat_session_#{newer.id}_whiteboard")
-      expect(response.body).to include("Empty canvas — start sketching, or ask the agent to draw something.")
+      expect(response.body).to include(repository_whiteboard_path(repo))
       expect(response.body).to include("Refresh repo")
       expect(response.body).to include("Reset workspace")
     end
 
-    it "hides the whiteboard empty state when elements are present" do
+    it "renders the repository whiteboard inside the layout canvas pane" do
       chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
-      chat.create_whiteboard!(
+      repo.create_repository_whiteboard!(
         scene_json: { "elements" => [ { "id" => "box-1", "type" => "rectangle" } ] },
-        version: 1
+        version: 2
       )
 
       get repository_chats_path(repo)
 
-      expect(response.body).to include("chat_session_#{chat.id}_whiteboard")
-      expect(response.body).to include('data-whiteboard-version="1"')
-      expect(response.body).to include('hidden pointer-events-none absolute')
+      expect(response.body).to include('data-chat-layout-target="canvasPane"')
+      expect(response.body).to include('data-whiteboard-url-value="' + repository_whiteboard_path(repo) + '"')
+      expect(response.body).to include('data-version="2"')
     end
 
     it "disables compose while the latest user message has no response" do
