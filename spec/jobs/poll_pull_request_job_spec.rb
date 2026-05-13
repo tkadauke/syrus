@@ -86,14 +86,20 @@ RSpec.describe PollPullRequestJob do
       expect(job.reload.closure_reason).to eq("syrus_stop")
     end
 
-    it "closes the Job with reason=pr_approved on a new APPROVED review" do
+    it "leaves the Job open on a new APPROVED review when auto-merge is enabled" do
       repository.update!(auto_merge_enabled: true)
       stub_pr
       stub_reviews([
         { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, user: { login: "reviewer" } }
       ])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
       described_class.perform_now(job.id)
-      expect(job.reload.closure_reason).to eq("pr_approved")
+
+      expect(job.reload).to be_open
+      expect(job.closure_reason).to be_nil
     end
 
     it "leaves the Job open on a new APPROVED review when auto-merge is disabled" do

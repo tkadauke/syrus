@@ -41,7 +41,6 @@ class PollPullRequestJob < ApplicationJob
     return close_with("pr_merged") if @pr.merged
     return close_with("pr_closed") if @pr.state == "closed"
     return close_with("syrus_stop") if has_label?(@pr, "syrus-stop")
-    return close_with("pr_approved") if @job.repository.auto_merge_enabled? && any_new_approval?
 
     react_to_pr_comments
     react_to_ci_failures
@@ -66,14 +65,6 @@ class PollPullRequestJob < ApplicationJob
 
   def has_label?(pr, name)
     Array(pr.labels).any? { |l| l.name == name }
-  end
-
-  def any_new_approval?
-    reviews = @client.pr_reviews(@slug, @job.pr_number)
-    cutoff = feedback_cutoff
-    reviews.any? do |r|
-      r.state == "APPROVED" && (cutoff.nil? || (r.submitted_at && r.submitted_at > cutoff))
-    end
   end
 
   # ----- pr_comment branch ------------------------------------------------
