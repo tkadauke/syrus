@@ -487,6 +487,66 @@ RSpec.describe "Dashboard", type: :request do
       end
     end
 
+    describe "smart folders" do
+      let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+
+      it "renders built-in attention folders with counts" do
+        failed = Factories.job(repository: repo, issue_number: 1)
+        failed.initial_run.update!(state: "failed", finished_at: Time.current)
+        Factories.job(repository: repo, issue_number: 2)
+
+        get root_path
+
+        document = Nokogiri::HTML(response.body)
+        attention = document.at_css("aside")
+        expect(attention.text).to include("Inbox", "Just failed", "In review", "Stale", "Blocked", "Merged this week")
+        expect(attention.css("a").find { |link| link.text.include?("Just failed") }.text).to include("1")
+      end
+
+      it "applies a built-in smart folder filter" do
+        failed = Factories.job(repository: repo, issue_number: 1)
+        failed.initial_run.update!(state: "failed", finished_at: Time.current)
+        Factories.job(repository: repo, issue_number: 2)
+        SmartFolder.ensure_builtins!
+        just_failed = SmartFolder.find_by!(name: "Just failed")
+
+        get root_path, params: { smart_folder_id: just_failed.id }
+
+        expect(response.body).to include("#1")
+        expect(response.body).not_to include("#2")
+        expect(response.body).to include("Showing smart folder")
+      end
+
+      it "saves the current filters as a user-defined smart folder" do
+        post smart_folders_path, params: {
+          state: "open",
+          pr: "has_pr",
+          smart_folder: { name: "Open PRs" }
+        }
+
+        folder = user.smart_folders.find_by!(name: "Open PRs")
+        expect(folder.filter).to eq("state" => "open", "pr" => "has_pr")
+        expect(response).to redirect_to(root_path(smart_folder_id: folder.id))
+      end
+
+      it "shows and applies user-defined smart folders in the sidebar" do
+        with_pr = Factories.job(repository: repo, issue_number: 1, pr_number: 9)
+        without_pr = Factories.job(repository: repo, issue_number: 2)
+        folder = user.smart_folders.create!(
+          name: "PRs",
+          kind: "user_defined",
+          filter: { "pr" => "has_pr" },
+          position: 0
+        )
+
+        get root_path, params: { smart_folder_id: folder.id }
+
+        expect(response.body).to include("PRs")
+        expect(response.body).to include("#1")
+        expect(response.body).not_to include("#2")
+      end
+    end
+
     describe "filter memory controller" do
       let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
@@ -560,6 +620,13 @@ RSpec.describe "Dashboard", type: :request do
 
       it "does not redirect away from non-filter dashboard views" do
         result = run_filter_memory_controller(search: "?view=pinned")
+
+        expect(result["events"]).to eq([])
+        expect(result["stored"]).to eq("pr=has_pr")
+      end
+
+      it "does not restore remembered filters while viewing a smart folder" do
+        result = run_filter_memory_controller(search: "?smart_folder_id=1")
 
         expect(result["events"]).to eq([])
         expect(result["stored"]).to eq("pr=has_pr")

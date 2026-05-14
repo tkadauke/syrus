@@ -1,0 +1,54 @@
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="font-bold text-3xl">Smart folders</h1>
+      <p class="mt-1 text-sm text-gray-600">Rename, reorder, or delete your saved job filters.</p>
+    </div>
+    <%= link_to "Back to dashboard", root_path, class: "text-sm text-blue-600 underline hover:no-underline" %>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <% if @smart_folders.any? %>
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+          <tr>
+            <th class="px-4 py-2 text-left">Name</th>
+            <th class="px-4 py-2 text-left">Position</th>
+            <th class="px-4 py-2 text-left">Filter</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 text-sm">
+          <% @smart_folders.each do |folder| %>
+            <tr>
+              <%= form_with model: folder, class: "contents" do |form| %>
+                <td class="px-4 py-3">
+                  <%= form.text_field :name, required: true,
+                        class: "w-full max-w-xs text-sm border border-gray-300 rounded-md px-2 py-1.5" %>
+                </td>
+                <td class="px-4 py-3">
+                  <%= form.number_field :position,
+                        class: "w-24 text-sm border border-gray-300 rounded-md px-2 py-1.5" %>
+                </td>
+                <td class="px-4 py-3 text-xs text-gray-600 font-mono">
+                  <%= folder.filter.to_json %>
+                </td>
+                <td class="px-4 py-3 text-right space-x-2">
+                  <%= form.submit "Save",
+                        class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
+                  <%= link_to "Delete", smart_folder_path(folder),
+                        data: { turbo_method: :delete, turbo_confirm: "Delete #{folder.name}?" },
+                        class: "text-red-600 underline hover:no-underline" %>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <div class="p-6 text-sm text-gray-600">
+        No saved smart folders yet.
+      </div>
+    <% end %>
+  </div>
+</div>

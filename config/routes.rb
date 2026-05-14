@@ -113,6 +113,7 @@ Rails.application.routes.draw do
       post :fire_now    # manually fire an active task without waiting for cron
     end
   end
+  resources :smart_folders, only: %i[ index create update destroy ]
   resources :cron_templates
   resources :invitations, only: %i[ index create destroy ]
   resource :settings, only: %i[ show edit update ]

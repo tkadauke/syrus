@@ -1,11 +1,13 @@
 import { Controller } from "@hotwired/stimulus"
 
-const FILTER_KEYS = ["state", "repository_id", "pr", "age"]
+const FILTER_KEYS = ["state", "repository_id", "pr", "age", "attention"]
 const STORAGE_KEY = "dashboard_job_filters"
 
 export default class extends Controller {
   connect() {
     const params = new URLSearchParams(window.location.search)
+    if (params.has("smart_folder_id")) return
+
     const active = {}
     let hasFilters = false
     let hasSubmittedFilterParams = false

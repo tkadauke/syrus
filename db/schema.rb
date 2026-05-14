@@ -519,6 +519,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "smart_folders", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.json "filter", default: {}, null: false
+    t.string "kind", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id"
+    t.index ["kind"], name: "index_smart_folders_on_kind"
+    t.index ["user_id", "name"], name: "index_smart_folders_on_user_id_and_name", unique: true
+    t.index ["user_id", "position"], name: "index_smart_folders_on_user_id_and_position"
+    t.index ["user_id"], name: "index_smart_folders_on_user_id"
+  end
+
   create_table "steps", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "finished_at"
@@ -644,6 +658,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
   add_foreign_key "scheduled_tasks", "repositories"
   add_foreign_key "scheduled_tasks", "users"
   add_foreign_key "sessions", "users"
+  add_foreign_key "smart_folders", "users"
   add_foreign_key "steps", "steps", column: "next_step_id"
   add_foreign_key "steps", "workflows"
   add_foreign_key "whiteboards", "chat_sessions"

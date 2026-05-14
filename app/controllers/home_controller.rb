@@ -15,6 +15,10 @@ class HomeController < ApplicationController
     @active_tab     = params[:tab] == "workflows" ? "workflows" : "jobs"
     @pinned_view    = @active_tab == "jobs" && params[:view] == "pinned"
     @page           = [ params[:page].to_i, 1 ].max
+    SmartFolder.ensure_builtins!
+    @builtin_smart_folders = SmartFolder.builtins
+    @user_smart_folders = SmartFolder.for_user(Current.user)
+    @active_smart_folder = smart_folder_from_params
 
     # Eager-load workflows + their steps for current_step_caption(job),
     # and runs for the per-row cost rollup.
@@ -24,23 +28,10 @@ class HomeController < ApplicationController
       @jobs = @jobs.joins(:job_pins).where(job_pins: { user_id: Current.user.id })
     end
 
-    case params[:state]
-    when "open", "closed"
-      @jobs = @jobs.where(state: params[:state])
-    when "failed", "succeeded"
-      @jobs = @jobs.open_threads.where(id: latest_workflow_job_ids(params[:state]))
-    end
-    @jobs = @jobs.where(repository_id: params[:repository_id]) if params[:repository_id].present?
-
-    case params[:pr]
-    when "has_pr" then @jobs = @jobs.with_pr
-    when "no_pr"  then @jobs = @jobs.without_pr
-    end
-
-    if params[:age].present?
-      cutoff = { "1d" => 1.day.ago, "7d" => 7.days.ago, "30d" => 30.days.ago }[params[:age]]
-      @jobs = @jobs.where(created_at: cutoff..) if cutoff
-    end
+    @job_filter_params = job_filter_params
+    @job_filter = Jobs::Filter.new(@job_filter_params)
+    @jobs = @job_filter.apply(@jobs)
+    @smart_folder_counts = smart_folder_counts(Current.user.jobs.where(repository_id: active_repo_ids))
 
     @jobs_total = @jobs.count
     @jobs = if @pinned_view
@@ -130,17 +121,24 @@ class HomeController < ApplicationController
     end
   end
 
-  def latest_workflow_job_ids(state)
-    Workflow.where(state: state)
-            .where(<<~SQL.squish)
-              workflows.id = (
-                SELECT latest_workflows.id
-                FROM workflows latest_workflows
-                WHERE latest_workflows.job_id = workflows.job_id
-                ORDER BY latest_workflows.created_at DESC, latest_workflows.id DESC
-                LIMIT 1
-              )
-            SQL
-            .select(:job_id)
+  def smart_folder_from_params
+    return if params[:smart_folder_id].blank?
+
+    SmartFolder.builtins.find_by(id: params[:smart_folder_id]) ||
+      SmartFolder.for_user(Current.user).find_by(id: params[:smart_folder_id])
+  end
+
+  def job_filter_params
+    if @active_smart_folder
+      @active_smart_folder.filter
+    else
+      params.permit(:state, :repository_id, :pr, :age, :attention).to_h
+    end
+  end
+
+  def smart_folder_counts(base_scope)
+    (@builtin_smart_folders + @user_smart_folders).to_h do |folder|
+      [ folder.id, Jobs::Filter.new(folder.filter).apply(base_scope).count ]
+    end
   end
 end
