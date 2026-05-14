@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_13_190100) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_13_200000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -269,6 +269,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_190100) do
     t.datetime "updated_at", null: false
     t.index ["run_id", "sequence"], name: "index_job_logs_on_run_id_and_sequence", unique: true
     t.index ["run_id"], name: "index_job_logs_on_run_id"
+  end
+
+  create_table "job_pins", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "job_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["job_id"], name: "index_job_pins_on_job_id"
+    t.index ["user_id", "created_at"], name: "index_job_pins_on_user_id_and_created_at"
+    t.index ["user_id", "job_id"], name: "index_job_pins_on_user_id_and_job_id", unique: true
+    t.index ["user_id"], name: "index_job_pins_on_user_id"
   end
 
   create_table "jobs", force: :cascade do |t|
@@ -624,6 +635,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_13_190100) do
   add_foreign_key "job_dependencies", "users", column: "created_by_user_id"
   add_foreign_key "job_attachments", "jobs"
   add_foreign_key "job_logs", "runs"
+  add_foreign_key "job_pins", "jobs"
+  add_foreign_key "job_pins", "users"
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"

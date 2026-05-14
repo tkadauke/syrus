@@ -26,7 +26,7 @@ export default class extends Controller {
       sessionStorage.setItem(STORAGE_KEY, new URLSearchParams(active).toString())
     } else if (hasSubmittedFilterParams) {
       sessionStorage.removeItem(STORAGE_KEY)
-    } else {
+    } else if (!params.has("view")) {
       const stored = sessionStorage.getItem(STORAGE_KEY)
       if (stored) {
         window.location.replace(`/?${stored}`)

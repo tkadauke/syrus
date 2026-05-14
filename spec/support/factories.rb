@@ -62,6 +62,15 @@ module Factories
     job
   end
 
+  def job_pin(**attrs)
+    pin_user = attrs[:user]
+    pinned_job = attrs[:job] || job(repository: repository(user: pin_user || user))
+    JobPin.create!({
+      user: pin_user || pinned_job.user,
+      job: pinned_job
+    }.merge(attrs))
+  end
+
   # Returns the auto-created initial Run on a fresh Job, or builds an
   # extra Run on an existing Job (use `job:` and pass a different
   # trigger_kind, e.g. trigger_kind: "pr_comment").

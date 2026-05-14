@@ -13,12 +13,17 @@ class HomeController < ApplicationController
     @repositories   = Current.user.repositories.active.order(:owner, :name)
     @configured_agent_providers = Current.user.configured_agent_providers
     @active_tab     = params[:tab] == "workflows" ? "workflows" : "jobs"
+    @pinned_view    = @active_tab == "jobs" && params[:view] == "pinned"
     @page           = [ params[:page].to_i, 1 ].max
 
     # Eager-load workflows + their steps for current_step_caption(job),
     # and runs for the per-row cost rollup.
     @jobs = Current.user.jobs.where(repository_id: active_repo_ids)
                              .includes(:repository, :runs, workflows: :steps)
+    if @pinned_view
+      @jobs = @jobs.joins(:job_pins).where(job_pins: { user_id: Current.user.id })
+    end
+
     case params[:state]
     when "open", "closed"
       @jobs = @jobs.where(state: params[:state])
@@ -38,7 +43,13 @@ class HomeController < ApplicationController
     end
 
     @jobs_total = @jobs.count
-    @jobs = @jobs.order(created_at: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    @jobs = if @pinned_view
+      @jobs.order("job_pins.created_at DESC", created_at: :desc)
+    else
+      @jobs.order(created_at: :desc)
+    end
+    @jobs = @jobs.offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    @pinned_job_ids = Current.user.job_pins.where(job_id: @jobs.map(&:id)).pluck(:job_id)
 
     # Workflows tab — every burst of work, newest first. Eager-load
     # job→repository for the row, plus steps so the "currently"

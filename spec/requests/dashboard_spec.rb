@@ -64,6 +64,59 @@ RSpec.describe "Dashboard", type: :request do
       expect(row.css("td")[1].text).to include("$1.23")
     end
 
+    it "renders a pin toggle on each job row" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repo, issue_number: 7)
+
+      get root_path
+
+      document = Nokogiri::HTML(response.body)
+      pin = document.at_css("a[href='#{job_pin_path(job)}'][aria-label='Pin job']")
+      expect(pin).to be_present
+      expect(pin["data-turbo-method"]).to eq("post")
+    end
+
+    it "shows pinned jobs for the current user sorted by pinned time" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      older = Factories.job(repository: repo, issue_number: 1)
+      newer = Factories.job(repository: repo, issue_number: 2)
+      unpinned = Factories.job(repository: repo, issue_number: 3)
+      other_repo = Factories.repository(user: other, owner: "globex", name: "things")
+      others_pin = Factories.job(repository: other_repo, issue_number: 4)
+
+      Factories.job_pin(user: user, job: older).update!(created_at: 2.hours.ago)
+      Factories.job_pin(user: user, job: newer).update!(created_at: 1.hour.ago)
+      Factories.job_pin(user: other, job: others_pin)
+
+      get root_path, params: { view: "pinned" }
+
+      document = Nokogiri::HTML(response.body)
+      rows = document.css("tbody tr").map(&:text)
+      expect(rows.size).to eq(2)
+      expect(rows[0]).to include("#2")
+      expect(rows[1]).to include("#1")
+      expect(response.body).not_to include("#3")
+      expect(response.body).not_to include("#4")
+      expect(response.body).to include("Pinned")
+      expect(document.at_css("a[href='#{job_pin_path(newer)}'][aria-label='Unpin job']")["data-turbo-method"]).to eq("delete")
+    end
+
+    it "keeps normal filters available in the pinned view" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      open_job = Factories.job(repository: repo, issue_number: 1)
+      closed_job = Factories.job(repository: repo, issue_number: 2)
+      closed_job.close!; closed_job.save!
+      Factories.job_pin(user: user, job: open_job)
+      Factories.job_pin(user: user, job: closed_job)
+
+      get root_path, params: { view: "pinned", state: "closed" }
+
+      expect(response.body).not_to include("#1")
+      expect(response.body).to include("#2")
+      expect(response.body).to include('name="view"')
+      expect(response.body).to include('value="pinned"')
+    end
+
     it "shows the latest workflow type and status in a desktop-only column" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       job = Factories.job(repository: repo, issue_number: 7)
@@ -502,6 +555,13 @@ RSpec.describe "Dashboard", type: :request do
         result = run_filter_memory_controller(search: "")
 
         expect(result["events"]).to eq([ [ "replace", "/?pr=has_pr" ] ])
+        expect(result["stored"]).to eq("pr=has_pr")
+      end
+
+      it "does not redirect away from non-filter dashboard views" do
+        result = run_filter_memory_controller(search: "?view=pinned")
+
+        expect(result["events"]).to eq([])
         expect(result["stored"]).to eq("pr=has_pr")
       end
     end

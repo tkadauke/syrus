@@ -2,6 +2,7 @@ class JobsController < ApplicationController
   before_action :load_job, except: %i[ new create grade_log ]
 
   def show
+    @job_pinned = Current.user.job_pins.exists?(job: @job)
     @dependency_target_options = dependency_target_options
     @pending_operator_question = @job.operator_questions
                                      .joins(:run)

@@ -34,7 +34,9 @@
   <div class="border-b border-gray-200">
     <nav class="-mb-px flex gap-6">
       <%= link_to "Jobs", root_path,
-            class: "pb-3 text-sm font-medium border-b-2 #{@active_tab == 'jobs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}" %>
+            class: "pb-3 text-sm font-medium border-b-2 #{@active_tab == 'jobs' && !@pinned_view ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}" %>
+      <%= link_to "Pinned", root_path(view: "pinned"),
+            class: "pb-3 text-sm font-medium border-b-2 #{@pinned_view ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}" %>
       <%= link_to "Workflows", root_path(tab: "workflows"),
             class: "pb-3 text-sm font-medium border-b-2 #{@active_tab == 'workflows' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}" %>
     </nav>
@@ -44,6 +46,7 @@
     <%= form_with url: root_path, method: :get,
           data: { controller: "auto-submit filter-memory" },
           class: "flex flex-wrap items-center gap-3" do |f| %>
+      <%= f.hidden_field :view, value: "pinned" if @pinned_view %>
       <% select_classes = "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" %>
 
       <%= f.select :state,
@@ -67,7 +70,7 @@
             class: select_classes, data: { action: "change->auto-submit#submit" } %>
 
       <% if params[:state].present? || params[:repository_id].present? || params[:pr].present? || params[:age].present? %>
-        <%= link_to "Clear", root_path, class: "text-sm text-gray-500 hover:text-gray-700 underline",
+        <%= link_to "Clear", (@pinned_view ? root_path(view: "pinned") : root_path), class: "text-sm text-gray-500 hover:text-gray-700 underline",
               data: { action: "click->filter-memory#clear" } %>
       <% end %>
     <% end %>
@@ -138,10 +141,15 @@
                     <div class="sm:hidden text-xs font-mono text-gray-500 mb-0.5">
                       <%= link_to job.repository.slug, repository_path(job.repository), class: "hover:underline" %>
                     </div>
-                    <%= job_source_label_html(job) %>
-                    <% if job.issue_title.present? %>
-                      <%= link_to job.issue_title, job_path(job), class: "ml-1 text-gray-700 hover:underline" %>
-                    <% end %>
+                    <div class="flex items-start gap-2">
+                      <%= job_pin_button(job, pinned: @pinned_job_ids.include?(job.id)) %>
+                      <div class="min-w-0">
+                        <%= job_source_label_html(job) %>
+                        <% if job.issue_title.present? %>
+                          <%= link_to job.issue_title, job_path(job), class: "ml-1 text-gray-700 hover:underline" %>
+                        <% end %>
+                      </div>
+                    </div>
                     <% if job.pr_number %>
                       <span class="ml-1 text-xs text-indigo-700">
                         →
@@ -210,6 +218,8 @@
       <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
         <% if params[:state].present? || params[:repository_id].present? || params[:pr].present? || params[:age].present? %>
           No jobs match the current filters.
+        <% elsif @pinned_view %>
+          No pinned jobs yet.
         <% else %>
           No jobs yet. Add a repository, enable polling, label an issue
           <code class="bg-gray-100 px-1 rounded">syrus</code>, and one will show up here.

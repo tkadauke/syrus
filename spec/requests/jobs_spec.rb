@@ -69,6 +69,17 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*Codex/m)
       end
 
+      it "renders the current user's pin state in the header" do
+        Factories.job_pin(user: user, job: job)
+
+        get job_path(job)
+
+        document = Nokogiri::HTML(response.body)
+        pin = document.at_css("a[href='#{job_pin_path(job)}'][aria-label='Unpin job']")
+        expect(pin).to be_present
+        expect(pin["data-turbo-method"]).to eq("delete")
+      end
+
       it "shows the credential mode in the job header" do
         get job_path(job)
 
@@ -1249,6 +1260,39 @@ RSpec.describe "Jobs", type: :request do
       get job_path(job)
       expect(response.body).not_to include("mergeable")
       expect(response.body).not_to include("Rebase now")
+    end
+  end
+
+  describe "job pins" do
+    context "signed in" do
+      before { sign_in_as(user) }
+
+      it "pins and unpins one of the current user's jobs" do
+        expect {
+          post job_pin_path(job), headers: { "HTTP_REFERER" => root_url(view: "pinned") }
+        }.to change { user.job_pins.where(job: job).count }.by(1)
+
+        expect(response).to redirect_to(root_url(view: "pinned"))
+        expect(flash[:notice]).to eq("Job pinned.")
+
+        expect {
+          delete job_pin_path(job), headers: { "HTTP_REFERER" => root_url(view: "pinned") }
+        }.to change { user.job_pins.where(job: job).count }.by(-1)
+
+        expect(response).to redirect_to(root_url(view: "pinned"))
+        expect(flash[:notice]).to eq("Job unpinned.")
+      end
+
+      it "does not pin another user's job" do
+        other_repo = Factories.repository(user: other, owner: "globex", name: "things")
+        other_job = Factories.job(repository: other_repo, issue_number: 99)
+
+        post job_pin_path(other_job)
+
+        expect(response).to have_http_status(:not_found)
+        expect(other.job_pins.where(job: other_job)).to be_empty
+        expect(user.job_pins.where(job: other_job)).to be_empty
+      end
     end
   end
 

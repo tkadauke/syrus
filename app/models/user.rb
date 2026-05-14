@@ -4,6 +4,8 @@ class User < ApplicationRecord
   has_many :repositories, dependent: :destroy
   has_many :installations, dependent: :destroy
   has_many :jobs, dependent: :destroy
+  has_many :job_pins, dependent: :destroy
+  has_many :pinned_jobs, through: :job_pins, source: :job
   has_many :chat_sessions
   has_many :repository_documents, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy

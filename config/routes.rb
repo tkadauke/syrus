@@ -117,6 +117,7 @@ Rails.application.routes.draw do
   resources :invitations, only: %i[ index create destroy ]
   resource :settings, only: %i[ show edit update ]
   resources :jobs, only: %i[ show new create ] do
+    resource :pin, only: %i[ create destroy ], controller: "job_pins"
     resources :attachments, only: %i[ create destroy ], controller: "job_attachments"
 
     member do

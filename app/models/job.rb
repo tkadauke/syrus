@@ -26,6 +26,8 @@ class Job < ApplicationRecord
   # in views and queries.
   has_many :runs, -> { order(:created_at) }
   has_many :job_logs, through: :runs
+  has_many :job_pins, dependent: :destroy
+  has_many :pinning_users, through: :job_pins, source: :user
   has_many :job_attachments, -> { order(:created_at, :id) }, dependent: :destroy
   has_many :operator_questions, dependent: :destroy
   has_many :dependencies,
