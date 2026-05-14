@@ -1,5 +1,7 @@
 class CreateRepositoryDocuments < ActiveRecord::Migration[8.1]
   def change
+    return if table_exists?(:repository_documents)
+
     create_table :repository_documents do |t|
       t.references :repository, null: false, foreign_key: true
       t.references :user, null: false, foreign_key: true

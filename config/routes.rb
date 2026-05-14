@@ -114,6 +114,7 @@ Rails.application.routes.draw do
     end
   end
   resources :smart_folders, only: %i[ index create update destroy ]
+  resources :tags, only: %i[ index create update destroy ]
   resources :cron_templates
   resources :invitations, only: %i[ index create destroy ]
   resource :settings, only: %i[ show edit update ]
@@ -136,6 +137,8 @@ Rails.application.routes.draw do
       post :retry_step     # re-run the failed step in a failed Workflow (keeps the existing workspace)
       post :push_commits   # push uncommitted/committed local changes from a failed Workflow's workspace
       post :operator_response # answer an ask_operator question and resume the Run
+      post :tags, action: :add_tag
+      delete "tags/:tag_id", action: :remove_tag, as: :tag
       get  :source         # browse the repo source at any branch commit or merge base
       post :diagnose       # capture a RunHealthSnapshot for an active Run
       get  "runs/:run_id/grade_log", action: :grade_log, as: :run_grade_log

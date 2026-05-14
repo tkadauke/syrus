@@ -97,6 +97,16 @@
                 {},
                 class: select_classes, data: { action: "change->auto-submit#submit" } %>
 
+          <% if @tags.any? %>
+            <%= f.select :tag_ids,
+                  options_for_select(@tags.map { |tag| [tag.name, tag.id] }, Array(@job_filter_params["tag_ids"])),
+                  { include_hidden: false },
+                  multiple: true,
+                  size: [[@tags.size, 1].max, 4].min,
+                  class: "#{select_classes} min-w-36",
+                  data: { action: "change->auto-submit#submit" } %>
+          <% end %>
+
           <%= f.select :pr,
                 options_for_select([["Any PR status", ""], ["Has PR", "has_pr"], ["No PR", "no_pr"]], @job_filter_params["pr"]),
                 {},
@@ -151,6 +161,22 @@
           <%= button_tag "Close", name: :bulk_action, value: "close",
                 class: "rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-medium cursor-pointer",
                 data: { turbo_confirm: "Cancel active runs and close the selected jobs?" } %>
+          <div class="flex flex-wrap items-center gap-2 border-l border-gray-200 pl-2">
+            <%= select_tag :tag_id,
+                  options_for_select([["Choose tag", ""]] + @tags.map { |tag| [tag.name, tag.id] }),
+                  class: "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700" %>
+            <%= text_field_tag :tag_name, nil,
+                  placeholder: "or new tag",
+                  list: "bulk-tag-options",
+                  class: "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700 w-36" %>
+            <datalist id="bulk-tag-options">
+              <% @tags.each do |tag| %>
+                <option value="<%= tag.name %>"></option>
+              <% end %>
+            </datalist>
+            <%= button_tag "Apply tag", name: :bulk_action, value: "apply_tag",
+                  class: "rounded-md px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium cursor-pointer" %>
+          </div>
         </div>
 
         <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -222,6 +248,11 @@
                     <% caption = current_step_caption(job) %>
                     <% if caption %>
                       <div class="text-xs text-gray-500 italic mt-0.5"><%= caption %></div>
+                    <% end %>
+                    <% if job.tags.any? %>
+                      <div class="mt-1 flex flex-wrap items-center gap-1">
+                        <%= tag_chip_list(job.tags.to_a, limit: 3) %>
+                      </div>
                     <% end %>
                     <div class="sm:hidden text-xs text-gray-400 mt-1 flex items-center gap-1.5">
                       <span><%= pluralize(job.workflows.size, "workflow") %></span>

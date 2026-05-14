@@ -1,0 +1,76 @@
+<div class="space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="font-bold text-3xl">Tags</h1>
+      <p class="mt-1 text-sm text-gray-500">Global job labels scoped to your account.</p>
+    </div>
+    <%= link_to "Dashboard", root_path, class: "text-sm text-blue-600 underline hover:no-underline" %>
+  </div>
+
+  <section class="bg-white border border-gray-200 rounded-lg p-4">
+    <h2 class="text-sm font-semibold text-gray-900">Create tag</h2>
+    <%= form_with model: @tag, url: tags_path, class: "mt-3 flex flex-wrap items-end gap-3" do |f| %>
+      <div>
+        <%= f.label :name, class: "block text-xs uppercase text-gray-500" %>
+        <%= f.text_field :name, required: true,
+              class: "mt-1 text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700" %>
+      </div>
+      <div>
+        <%= f.label :color, class: "block text-xs uppercase text-gray-500" %>
+        <%= f.select :color,
+              options_for_select(Tag.palette_keys.map { |key| [key.titleize, key] }, @tag.color),
+              {},
+              class: "mt-1 text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700" %>
+      </div>
+      <%= f.submit "Create",
+            class: "rounded-md px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium cursor-pointer" %>
+    <% end %>
+    <% if @tag.errors.any? %>
+      <p class="mt-3 text-sm text-red-600"><%= @tag.errors.full_messages.to_sentence %></p>
+    <% end %>
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="px-4 py-2 text-left">Tag</th>
+          <th class="px-4 py-2 text-left">Jobs</th>
+          <th class="px-4 py-2 text-left">Rename / recolor</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100 text-sm">
+        <% @tags.each do |tag_record| %>
+          <tr>
+            <td class="px-4 py-3"><%= tag_chip(tag_record) %></td>
+            <td class="px-4 py-3 text-gray-600"><%= tag_record.jobs.size %></td>
+            <td class="px-4 py-3">
+              <%= form_with model: tag_record, url: tag_path(tag_record), method: :patch,
+                    class: "flex flex-wrap items-center gap-2" do |f| %>
+                <%= f.text_field :name, required: true,
+                      class: "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700 w-48" %>
+                <%= f.select :color,
+                      options_for_select(Tag.palette_keys.map { |key| [key.titleize, key] }, tag_record.color),
+                      {},
+                      class: "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700" %>
+                <%= f.submit "Save",
+                      class: "rounded-md px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium cursor-pointer" %>
+              <% end %>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <%= button_to "Delete", tag_path(tag_record), method: :delete,
+                    class: "text-red-600 underline hover:no-underline cursor-pointer",
+                    form: { data: { turbo_confirm: "Delete #{tag_record.name} from all jobs?" } } %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @tags.empty? %>
+          <tr>
+            <td colspan="4" class="px-4 py-6 text-center text-gray-500">No tags yet.</td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+</div>

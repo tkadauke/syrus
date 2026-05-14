@@ -181,6 +181,45 @@
     </div>
   <% end %>
 
+  <section class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900">Tags</h2>
+        <div class="mt-1 flex flex-wrap items-center gap-1">
+          <% if @job.tags.any? %>
+            <% @job.tags.each do |job_tag| %>
+              <span class="inline-flex items-center gap-1">
+                <%= tag_chip(job_tag) %>
+                <%= button_to "x",
+                      tag_job_path(@job, tag_id: job_tag.id),
+                      method: :delete,
+                      class: "text-xs text-gray-400 hover:text-red-600 cursor-pointer",
+                      form: { class: "inline", title: "Remove #{job_tag.name}" } %>
+              </span>
+            <% end %>
+          <% else %>
+            <span class="text-sm text-gray-500">No tags yet.</span>
+          <% end %>
+        </div>
+      </div>
+      <%= form_with url: tags_job_path(@job), method: :post,
+            class: "flex flex-wrap items-center gap-2" do %>
+        <%= text_field_tag :tag_name, nil,
+              placeholder: "Add tag",
+              list: "job-tag-options",
+              required: true,
+              class: "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" %>
+        <datalist id="job-tag-options">
+          <% @tags.each do |tag| %>
+            <option value="<%= tag.name %>"></option>
+          <% end %>
+        </datalist>
+        <%= submit_tag "Add",
+              class: "rounded-md px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium cursor-pointer" %>
+      <% end %>
+    </div>
+  </section>
+
   <% runs = @job.runs.to_a %>
   <% workflows = @job.workflows.includes(steps: { runs: :job_logs }).to_a %>
   <% summary_run = runs.select { |r| r.agent_summary.present? }.last %>

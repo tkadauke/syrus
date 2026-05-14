@@ -71,6 +71,14 @@ module Factories
     }.merge(attrs))
   end
 
+  def tag(**attrs)
+    Tag.create!({
+      user: attrs[:user] || user,
+      name: "tag-#{SecureRandom.hex(2)}",
+      color: "gray"
+    }.merge(attrs))
+  end
+
   # Returns the auto-created initial Run on a fresh Job, or builds an
   # extra Run on an existing Job (use `job:` and pass a different
   # trigger_kind, e.g. trigger_kind: "pr_comment").

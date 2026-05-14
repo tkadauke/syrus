@@ -117,6 +117,21 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include('value="pinned"')
     end
 
+    it "shows up to three tag chips with overflow in job rows" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repo, issue_number: 7)
+      %w[alpha beta gamma zeta].each { |name| job.tags << Factories.tag(user: user, name: name) }
+
+      get root_path
+
+      row_text = Nokogiri::HTML(response.body).at_css("tbody tr").text
+      expect(row_text).to include("alpha")
+      expect(row_text).to include("beta")
+      expect(row_text).to include("gamma")
+      expect(row_text).to include("+1 more")
+      expect(row_text).not_to include("zeta")
+    end
+
     it "shows the latest workflow type and status in a desktop-only column" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       job = Factories.job(repository: repo, issue_number: 7)
@@ -175,6 +190,7 @@ RSpec.describe "Dashboard", type: :request do
 
       it "renders row checkboxes, a select-all checkbox, and hidden bulk actions" do
         job = Factories.job(repository: repo, issue_number: 7)
+        Factories.tag(user: user, name: "epic:attachments", color: "blue")
 
         get root_path
 
@@ -186,6 +202,8 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).to include("Bulk actions")
         expect(response.body).to include("Retry")
         expect(response.body).to include("Close")
+        expect(response.body).to include("Apply tag")
+        expect(response.body).to include("epic:attachments")
       end
 
       it "renders all configured agent retry choices when more than one agent is configured" do
@@ -274,6 +292,28 @@ RSpec.describe "Dashboard", type: :request do
 
         expect(mine.reload).to be_closed
         expect(theirs.reload).to be_open
+      end
+
+      it "bulk applies an existing tag to selected jobs" do
+        first = Factories.job(repository: repo, issue_number: 1)
+        second = Factories.job(repository: repo, issue_number: 2)
+        tag = Factories.tag(user: user, name: "epic:tags", color: "indigo")
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ first.id, second.id ], bulk_action: "apply_tag", tag_id: tag.id }
+
+        expect(first.reload.tags).to contain_exactly(tag)
+        expect(second.reload.tags).to contain_exactly(tag)
+        expect(flash[:notice]).to include("Applied epic:tags to 2 jobs")
+      end
+
+      it "bulk creates a new tag inline" do
+        first = Factories.job(repository: repo, issue_number: 1)
+
+        expect {
+          post bulk_dashboard_jobs_path, params: { job_ids: [ first.id ], bulk_action: "apply_tag", tag_name: "theme:cleanup" }
+        }.to change { user.tags.count }.by(1)
+
+        expect(first.reload.tags.pluck(:name)).to eq([ "theme:cleanup" ])
       end
     end
 
@@ -483,6 +523,26 @@ RSpec.describe "Dashboard", type: :request do
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
           expect(response.body).not_to include("#3")
+        end
+      end
+
+      describe "tag filter" do
+        it "shows jobs matching any selected tag" do
+          first = Factories.job(repository: repo, issue_number: 1)
+          second = Factories.job(repository: repo, issue_number: 2)
+          third = Factories.job(repository: repo, issue_number: 3)
+          urgent = Factories.tag(user: user, name: "urgent", color: "red")
+          auth = Factories.tag(user: user, name: "area:auth", color: "blue")
+          first.tags << urgent
+          second.tags << auth
+
+          get root_path, params: { tag_ids: [ urgent.id, auth.id ] }
+
+          expect(response.body).to include("#1")
+          expect(response.body).to include("#2")
+          expect(response.body).not_to include("#3")
+          expect(response.body).to include("urgent")
+          expect(response.body).to include("area:auth")
         end
       end
     end

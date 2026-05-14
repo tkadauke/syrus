@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 
-const FILTER_KEYS = ["state", "repository_id", "pr", "age", "attention"]
+const FILTER_KEYS = ["state", "repository_id", "pr", "age", "attention", "tag_ids[]"]
 const STORAGE_KEY = "dashboard_job_filters"
 
 export default class extends Controller {
@@ -17,15 +17,19 @@ export default class extends Controller {
         hasSubmittedFilterParams = true
       }
 
-      const val = params.get(key)
-      if (val) {
-        active[key] = val
+      const values = params.getAll(key).filter((value) => value)
+      if (values.length > 0) {
+        active[key] = values
         hasFilters = true
       }
     }
 
     if (hasFilters) {
-      sessionStorage.setItem(STORAGE_KEY, new URLSearchParams(active).toString())
+      const storedParams = new URLSearchParams()
+      for (const [key, values] of Object.entries(active)) {
+        values.forEach((value) => storedParams.append(key, value))
+      }
+      sessionStorage.setItem(STORAGE_KEY, storedParams.toString())
     } else if (hasSubmittedFilterParams) {
       sessionStorage.removeItem(STORAGE_KEY)
     } else if (!params.has("view")) {

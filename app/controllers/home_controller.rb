@@ -11,6 +11,7 @@ class HomeController < ApplicationController
     # want to look back at them.
     active_repo_ids = Current.user.repositories.active.pluck(:id)
     @repositories   = Current.user.repositories.active.order(:owner, :name)
+    @tags           = Current.user.tags.ordered
     @configured_agent_providers = Current.user.configured_agent_providers
     @active_tab     = params[:tab] == "workflows" ? "workflows" : "jobs"
     @pinned_view    = @active_tab == "jobs" && params[:view] == "pinned"
@@ -34,6 +35,7 @@ class HomeController < ApplicationController
     @smart_folder_counts = smart_folder_counts(Current.user.jobs.where(repository_id: active_repo_ids))
 
     @jobs_total = @jobs.count
+    @jobs = @jobs.includes(:tags)
     @jobs = if @pinned_view
       @jobs.order("job_pins.created_at DESC", created_at: :desc)
     else
@@ -71,12 +73,18 @@ class HomeController < ApplicationController
       bulk_retry_jobs(jobs, agent_provider: Regexp.last_match(1))
     when "close"
       bulk_close_jobs(jobs)
+    when "apply_tag"
+      bulk_apply_tag(jobs)
     else
       redirect_back fallback_location: root_path, alert: "Choose a bulk action."
     end
   end
 
   private
+
+  def tag_filter_ids
+    Current.user.tags.where(id: Array(params[:tag_ids]).compact_blank).pluck(:id)
+  end
 
   def bulk_retry_jobs(jobs, agent_provider: nil)
     if agent_provider.present? && !Current.user.agent_provider_configured?(agent_provider)
@@ -121,6 +129,7 @@ class HomeController < ApplicationController
     end
   end
 
+<<<<<<< HEAD
   def smart_folder_from_params
     return if params[:smart_folder_id].blank?
 
@@ -132,7 +141,9 @@ class HomeController < ApplicationController
     if @active_smart_folder
       @active_smart_folder.filter
     else
-      params.permit(:state, :repository_id, :pr, :age, :attention).to_h
+      base = params.permit(:state, :repository_id, :pr, :age, :attention).to_h
+      base["tag_ids"] = tag_filter_ids if params[:tag_ids].present?
+      base
     end
   end
 
@@ -140,5 +151,52 @@ class HomeController < ApplicationController
     (@builtin_smart_folders + @user_smart_folders).to_h do |folder|
       [ folder.id, Jobs::Filter.new(folder.filter).apply(base_scope).count ]
     end
+=======
+  def bulk_apply_tag(jobs)
+    tag = find_or_create_bulk_tag
+    return unless tag
+
+    applied = 0
+    jobs.find_each do |job|
+      job.job_tags.find_or_create_by!(tag: tag)
+      applied += 1
+    end
+
+    redirect_back fallback_location: root_path,
+                  notice: "Applied #{tag.name} to #{helpers.pluralize(applied, 'job')}."
+  end
+
+  def find_or_create_bulk_tag
+    if params[:tag_id].present?
+      tag = Current.user.tags.find_by(id: params[:tag_id])
+      unless tag
+        redirect_back fallback_location: root_path, alert: "Tag not found."
+        return nil
+      end
+      return tag
+    end
+
+    name = params[:tag_name].to_s.strip
+    if name.blank?
+      redirect_back fallback_location: root_path, alert: "Choose or enter a tag."
+      return nil
+    end
+
+    Current.user.tags.find_or_create_by!(name: name) { |tag| tag.color = "gray" }
+  end
+
+  def latest_workflow_job_ids(state)
+    Workflow.where(state: state)
+            .where(<<~SQL.squish)
+              workflows.id = (
+                SELECT latest_workflows.id
+                FROM workflows latest_workflows
+                WHERE latest_workflows.job_id = workflows.job_id
+                ORDER BY latest_workflows.created_at DESC, latest_workflows.id DESC
+                LIMIT 1
+              )
+            SQL
+            .select(:job_id)
+>>>>>>> b40110a (Add per-user tags for organizing jobs)
   end
 end

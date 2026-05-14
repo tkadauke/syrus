@@ -1,11 +1,18 @@
 module Jobs
   class Filter
-    PARAM_KEYS = %w[ state repository_id pr age attention ].freeze
+    PARAM_KEYS = %w[ state repository_id pr age attention tag_ids ].freeze
 
     attr_reader :params
 
     def initialize(params)
-      @params = params.to_h.slice(*PARAM_KEYS).compact_blank
+      sliced = params.to_h.slice(*PARAM_KEYS)
+      # tag_ids is multi-valued; preserve it as an array of strings and
+      # drop empty entries so callers can pass raw form values.
+      if sliced["tag_ids"].present?
+        ids = Array(sliced["tag_ids"]).flatten.compact_blank.map(&:to_s)
+        sliced["tag_ids"] = ids.presence
+      end
+      @params = sliced.compact_blank
     end
 
     def apply(relation)
@@ -13,7 +20,8 @@ module Jobs
       relation = apply_state(relation)
       relation = apply_repository(relation)
       relation = apply_pr(relation)
-      apply_age(relation)
+      relation = apply_age(relation)
+      apply_tags(relation)
     end
 
     def active?
@@ -56,6 +64,13 @@ module Jobs
       return relation unless cutoff
 
       relation.where(created_at: cutoff..)
+    end
+
+    def apply_tags(relation)
+      ids = Array(params["tag_ids"]).compact_blank
+      return relation if ids.empty?
+
+      relation.joins(:job_tags).where(job_tags: { tag_id: ids }).distinct
     end
 
     def apply_attention(relation)

@@ -222,6 +222,46 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to include('loading="lazy"')
       end
 
+      it "shows tags and an add-tag datalist" do
+        existing = Factories.tag(user: user, name: "epic:attachments", color: "blue")
+        job.tags << existing
+        Factories.tag(user: user, name: "area:auth", color: "green")
+
+        get job_path(job)
+
+        expect(response.body).to include("Tags")
+        expect(response.body).to include("epic:attachments")
+        expect(response.body).to include("area:auth")
+        expect(response.body).to include(tags_job_path(job))
+      end
+
+      it "adds an existing tag by name" do
+        tag = Factories.tag(user: user, name: "urgent", color: "red")
+
+        post tags_job_path(job), params: { tag_name: "urgent" }
+
+        expect(job.reload.tags).to contain_exactly(tag)
+        expect(response).to redirect_to(job_path(job))
+      end
+
+      it "creates a new tag inline when adding it to a job" do
+        expect {
+          post tags_job_path(job), params: { tag_name: "theme:cleanup" }
+        }.to change { user.tags.count }.by(1)
+
+        expect(job.reload.tags.pluck(:name)).to eq([ "theme:cleanup" ])
+      end
+
+      it "removes a tag from the job without deleting the tag" do
+        tag = Factories.tag(user: user, name: "urgent", color: "red")
+        job.tags << tag
+
+        delete tag_job_path(job, tag_id: tag.id)
+
+        expect(job.reload.tags).to be_empty
+        expect(Tag.exists?(tag.id)).to be(true)
+      end
+
       it "shows a pending operator-question banner and inline reply form" do
         run = job.initial_run
         run.step.start!; run.step.save!

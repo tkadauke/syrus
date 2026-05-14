@@ -91,15 +91,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.datetime "created_at", null: false
     t.json "payload", null: false
     t.datetime "rejected_at"
-    t.string "requested_by", default: "agent", null: false
     t.integer "repository_id", null: false
+    t.string "requested_by", default: "agent", null: false
     t.bigint "result_id"
     t.string "result_type"
     t.string "state", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
-    t.index ["chat_session_id", "state"], name: "index_chat_pending_actions_on_chat_session_id_and_state"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
+    t.index ["chat_session_id", "state"], name: "index_chat_pending_actions_on_chat_session_id_and_state"
     t.index ["chat_session_id"], name: "index_chat_pending_actions_on_chat_session_id"
     t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
     t.index ["result_type", "result_id"], name: "index_chat_pending_actions_on_result_type_and_result_id"
@@ -162,15 +162,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.index ["chat_session_id"], name: "index_chat_whiteboards_on_chat_session_id", unique: true
   end
 
-  create_table "repository_whiteboards", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "repository_id", null: false
-    t.json "scene_json", null: false
-    t.datetime "updated_at", null: false
-    t.integer "version", default: 0, null: false
-    t.index ["repository_id"], name: "index_repository_whiteboards_on_repository_id", unique: true
-  end
-
   create_table "claude_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "provider", default: "claude", null: false
@@ -227,6 +218,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.index ["token"], name: "index_invitations_on_token", unique: true
   end
 
+  create_table "job_attachments", force: :cascade do |t|
+    t.string "attachment_type", default: "uploaded_file", null: false
+    t.bigint "byte_size"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename"
+    t.string "google_doc_url"
+    t.integer "job_id", null: false
+    t.string "source_url"
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "created_at"], name: "index_job_attachments_on_job_id_and_created_at"
+    t.index ["job_id", "source_url"], name: "index_job_attachments_on_job_id_and_source_url", unique: true
+    t.index ["job_id"], name: "index_job_attachments_on_job_id"
+  end
+
   create_table "job_dependencies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "created_by_user_id"
@@ -243,21 +249,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.index ["job_id", "unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unique_unresolved_per_job", unique: true
     t.index ["job_id"], name: "index_job_dependencies_on_job_id"
     t.index ["unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unresolved_reference"
-  end
-
-  create_table "job_attachments", force: :cascade do |t|
-    t.string "attachment_type", default: "uploaded_file", null: false
-    t.bigint "byte_size"
-    t.string "content_type"
-    t.datetime "created_at", null: false
-    t.string "filename"
-    t.string "google_doc_url"
-    t.integer "job_id", null: false
-    t.string "source_url"
-    t.datetime "updated_at", null: false
-    t.index ["job_id", "created_at"], name: "index_job_attachments_on_job_id_and_created_at"
-    t.index ["job_id", "source_url"], name: "index_job_attachments_on_job_id_and_source_url", unique: true
-    t.index ["job_id"], name: "index_job_attachments_on_job_id"
   end
 
   create_table "job_logs", force: :cascade do |t|
@@ -280,6 +271,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.index ["user_id", "created_at"], name: "index_job_pins_on_user_id_and_created_at"
     t.index ["user_id", "job_id"], name: "index_job_pins_on_user_id_and_job_id", unique: true
     t.index ["user_id"], name: "index_job_pins_on_user_id"
+  end
+
+  create_table "job_tags", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "job_id", null: false
+    t.integer "tag_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "tag_id"], name: "index_job_tags_on_job_id_and_tag_id", unique: true
+    t.index ["job_id"], name: "index_job_tags_on_job_id"
+    t.index ["tag_id"], name: "index_job_tags_on_tag_id"
   end
 
   create_table "jobs", force: :cascade do |t|
@@ -402,6 +403,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.index ["repository_id"], name: "index_repository_notes_on_repository_id"
   end
 
+  create_table "repository_whiteboards", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.json "scene_json", null: false
+    t.datetime "updated_at", null: false
+    t.integer "version", default: 0, null: false
+    t.index ["repository_id"], name: "index_repository_whiteboards_on_repository_id", unique: true
+  end
+
   create_table "run_diagnostics", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "environment_snapshot"
@@ -466,9 +476,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.integer "job_id", null: false
     t.datetime "last_heartbeat_at"
     t.boolean "nudge_sent", default: false, null: false
-    t.integer "output_tokens"
     t.text "operator_chat_response"
     t.string "operator_chat_thread_id"
+    t.integer "output_tokens"
     t.string "parent_session_id"
     t.text "prompt"
     t.datetime "started_at"
@@ -534,12 +544,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
   end
 
   create_table "steps", force: :cascade do |t|
+    t.string "cancellation_reason"
     t.datetime "created_at", null: false
     t.datetime "finished_at"
     t.integer "iteration", default: 1, null: false
     t.string "kind", null: false
     t.string "loop_id"
-    t.string "cancellation_reason"
     t.bigint "next_step_id"
     t.integer "position", default: 0, null: false
     t.datetime "started_at"
@@ -550,6 +560,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
+  end
+
+  create_table "tags", force: :cascade do |t|
+    t.string "color", default: "gray", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.integer "team_id"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["team_id"], name: "index_tags_on_team_id"
+    t.index ["user_id", "name"], name: "index_tags_on_user_id_and_name", unique: true
+    t.index ["user_id"], name: "index_tags_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -598,8 +620,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false
     t.integer "failure_count", default: 0, null: false
-    t.datetime "finished_at"
     t.string "failure_reason"
+    t.datetime "finished_at"
     t.integer "job_id", null: false
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
@@ -629,17 +651,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
   add_foreign_key "cron_templates", "users"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
+  add_foreign_key "job_attachments", "jobs"
   add_foreign_key "job_dependencies", "jobs"
   add_foreign_key "job_dependencies", "jobs", column: "depends_on_job_id"
   add_foreign_key "job_dependencies", "users", column: "created_by_user_id"
-  add_foreign_key "job_attachments", "jobs"
   add_foreign_key "job_logs", "runs"
   add_foreign_key "job_pins", "jobs"
   add_foreign_key "job_pins", "users"
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"
-  add_foreign_key "repository_whiteboards", "repositories"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "operator_questions", "jobs"
   add_foreign_key "operator_questions", "runs"
@@ -650,6 +671,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
   add_foreign_key "repository_documents", "repositories"
   add_foreign_key "repository_documents", "users"
   add_foreign_key "repository_notes", "repositories"
+  add_foreign_key "repository_whiteboards", "repositories"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "runs", "jobs"

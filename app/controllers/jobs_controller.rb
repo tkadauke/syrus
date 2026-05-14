@@ -3,6 +3,7 @@ class JobsController < ApplicationController
 
   def show
     @job_pinned = Current.user.job_pins.exists?(job: @job)
+    @tags = Current.user.tags.ordered
     @dependency_target_options = dependency_target_options
     @pending_operator_question = @job.operator_questions
                                      .joins(:run)
@@ -540,6 +541,30 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: "Dependency gate overridden."
   end
 
+  def add_tag
+    tag = find_or_create_tag_from_params
+    if tag.nil?
+      redirect_to job_path(@job), alert: "Tag name can't be blank."
+      return
+    end
+
+    @job.job_tags.find_or_create_by!(tag: tag)
+    redirect_to job_path(@job), notice: "Tag added."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to job_path(@job), alert: e.record.errors.full_messages.to_sentence
+  end
+
+  def remove_tag
+    tag = Current.user.tags.find_by(id: params[:tag_id])
+    unless tag
+      redirect_to job_path(@job), alert: "Tag not found."
+      return
+    end
+
+    @job.job_tags.where(tag: tag).destroy_all
+    redirect_to job_path(@job), notice: "Tag removed."
+  end
+
   private
 
   def create_more?
@@ -566,10 +591,18 @@ class JobsController < ApplicationController
     false
   end
 
+  def find_or_create_tag_from_params
+    name = params[:tag_name].to_s.strip
+    return nil if name.blank?
+
+    Current.user.tags.find_or_create_by!(name: name) { |tag| tag.color = "gray" }
+  end
+
   def load_job
     @job = Current.user.jobs
                   .includes(
                     :repository,
+                    :tags,
                     job_attachments: { file_attachment: :blob },
                     dependencies: [ :created_by_user, depends_on_job: :repository ],
                     dependent_links: [ job: :repository ],

@@ -148,6 +148,38 @@ module JobsHelper
     end
   end
 
+  def tag_chip(tag_record, classes: nil)
+    colors = tag_color_values(tag_record)
+    content_tag(:span,
+                tag_record.name,
+                class: "inline-flex items-center rounded px-2 py-0.5 text-xs font-medium #{classes}".strip,
+                style: "background-color: #{colors[:bg]}; color: #{colors[:text]};")
+  end
+
+  def tag_chip_list(tags, limit: nil)
+    visible = limit ? tags.first(limit) : tags
+    chips = visible.map { |tag| tag_chip(tag) }
+    if limit && tags.size > limit
+      chips << content_tag(:span, "+#{tags.size - limit} more", class: "text-xs text-gray-500")
+    end
+    safe_join(chips, " ".html_safe)
+  end
+
+  def tag_color_values(tag)
+    color = tag.color.to_s
+    return { bg: color, text: readable_text_color(color) } if color.match?(/\A#[0-9a-fA-F]{6}\z/)
+
+    Tag::PALETTE.fetch(color, Tag::PALETTE["gray"])
+  end
+
+  def readable_text_color(hex)
+    red = hex[1, 2].to_i(16)
+    green = hex[3, 2].to_i(16)
+    blue = hex[5, 2].to_i(16)
+    luminance = (red * 299 + green * 587 + blue * 114) / 1000
+    luminance > 150 ? "#111827" : "#ffffff"
+  end
+
   def attachment_icon_label(attachment)
     content_type = attachment.file.blob.content_type.to_s
     return "IMG" if content_type.start_with?("image/")
