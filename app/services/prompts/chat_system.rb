@@ -14,6 +14,8 @@ module Prompts
         Pinned context for this repository:
         #{pinned_context}
 
+        #{documents_hint}
+
         Your environment:
 
           - Your cwd is a persistent local checkout of the repository.
@@ -88,6 +90,46 @@ module Prompts
         suffix = clipped.length < body.length ? "..." : ""
         "  - #{clipped}#{suffix}"
       end.compact.join("\n")
+    end
+
+    def documents_hint
+      documents = @repository.repository_documents.with_attached_file.order(:created_at, :id)
+      return "" if documents.empty?
+
+      lines = documents.map do |document|
+        "- [#{document.id}] #{document.title} (#{document_label(document)})"
+      end
+
+      "Supporting documents available (use read_repo_document to fetch):\n#{lines.join("\n")}"
+    end
+
+    def document_label(document)
+      return "Google Doc" if document.google_doc?
+
+      content_type = document.content_type.to_s
+      type = case content_type
+      when "application/pdf"
+        "PDF"
+      when /\Aimage\//
+        content_type.delete_prefix("image/").upcase
+      when /\Atext\//
+        content_type.delete_prefix("text/").upcase.presence || "Text"
+      when "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "DOCX"
+      else
+        content_type.presence || "File"
+      end
+
+      size = document.file.attached? ? number_to_human_size(document.file.byte_size) : nil
+      [ type, size ].compact.join(", ")
+    end
+
+    def number_to_human_size(bytes)
+      return nil unless bytes
+      return "#{bytes} bytes" if bytes < 1.kilobyte
+      return "#{(bytes / 1.kilobyte.to_f).round} KB" if bytes < 1.megabyte
+
+      "#{(bytes / 1.megabyte.to_f).round(1)} MB"
     end
   end
 end

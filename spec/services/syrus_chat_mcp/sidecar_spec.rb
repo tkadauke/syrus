@@ -19,6 +19,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::RebaseJobTool,
         SyrusChatMcp::ReadPrTool,
         SyrusChatMcp::RepoInfoTool,
+        SyrusChatMcp::ListRepoDocumentsTool,
+        SyrusChatMcp::ReadRepoDocumentTool,
         SyrusChatMcp::ReadSceneTool,
         SyrusChatMcp::DrawShapeTool,
         SyrusChatMcp::DrawTextTool,
@@ -72,6 +74,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         rebase_job
         read_pr
         repo_info
+        list_repo_documents
+        read_repo_document
         read_scene
         draw_shape
         draw_text

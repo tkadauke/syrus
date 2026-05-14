@@ -39,6 +39,8 @@ module SyrusChatMcp
           RebaseJobTool,
           ReadPrTool,
           RepoInfoTool,
+          ListRepoDocumentsTool,
+          ReadRepoDocumentTool,
           ReadSceneTool,
           DrawShapeTool,
           DrawTextTool,

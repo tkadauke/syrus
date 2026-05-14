@@ -32,6 +32,33 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Pinned context for this repository:")).to be < out.index("Your environment:")
   end
 
+  it "renders supporting document hints without fetching document content" do
+    file = Rack::Test::UploadedFile.new(
+      StringIO.new("pdf"),
+      "application/pdf",
+      original_filename: "api.pdf"
+    )
+    pdf = repo.repository_documents.create!(
+      user: repo.user,
+      kind: "file",
+      title: "API spec",
+      file: file
+    )
+    google_doc = repo.repository_documents.create!(
+      user: repo.user,
+      kind: "google_doc",
+      title: "Architecture notes",
+      google_docs_url: "https://docs.google.com/document/d/abc/edit"
+    )
+
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("Supporting documents available (use read_repo_document to fetch):")
+    expect(out).to include("- [#{pdf.id}] API spec (PDF, 3 bytes)")
+    expect(out).to include("- [#{google_doc.id}] Architecture notes (Google Doc)")
+    expect(out.index("Supporting documents available")).to be < out.index("Your environment:")
+  end
+
   it "caps rendered repository note body text" do
     repo.repository_notes.create!(body: "x" * 2_100, author: "operator")
 

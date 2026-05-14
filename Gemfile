@@ -34,6 +34,10 @@ gem "faraday-http-cache"
 # the agent submit PR copy back to Syrus during its run.
 gem "mcp"
 
+# Best-effort text extraction for repository documents exposed to chat agents.
+gem "docx"
+gem "pdf-reader"
+
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt", "~> 3.1.7"
 
