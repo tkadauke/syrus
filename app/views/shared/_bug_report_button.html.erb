@@ -1,0 +1,88 @@
+<button type="button"
+        data-bug-report-target="button"
+        data-action="click->bug-report#open"
+        class="fixed bottom-4 left-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2"
+        title="Report a bug"
+        aria-label="Report a bug">
+  <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 9.5h6M9 14.5h6M12 5.5V3M7.5 7 5.8 5.3M16.5 7l1.7-1.7M6 12H3.5M20.5 12H18M7.5 17 5.8 18.7M16.5 17l1.7 1.7" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M8 8.5a4 4 0 0 1 8 0v5.25a4 4 0 0 1-8 0V8.5Z" />
+  </svg>
+</button>
+
+<dialog data-bug-report-target="dialog"
+        class="w-[calc(100vw-2rem)] max-w-2xl rounded-lg p-0 shadow-xl backdrop:bg-black/50">
+  <%= form_with url: bug_reports_path,
+        method: :post,
+        multipart: true,
+        data: { bug_report_target: "form", action: "submit->bug-report#submit" },
+        class: "space-y-5 p-5 sm:p-6" do |f| %>
+    <div class="flex items-start justify-between gap-4">
+      <h2 class="text-lg font-semibold text-gray-900">Report a bug</h2>
+      <button type="button"
+              data-action="bug-report#close"
+              class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Close">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </div>
+
+    <div>
+      <%= f.label :title, "Title", class: "mb-1 block text-sm font-medium text-gray-700" %>
+      <%= f.text_field :title,
+            required: true,
+            data: { bug_report_target: "title" },
+            class: "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" %>
+    </div>
+
+    <div>
+      <%= f.label :description, "Description", class: "mb-1 block text-sm font-medium text-gray-700" %>
+      <%= f.text_area :description,
+            rows: 5,
+            data: { bug_report_target: "description" },
+            class: "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" %>
+    </div>
+
+    <fieldset>
+      <legend class="mb-2 block text-sm font-medium text-gray-700">Screenshot</legend>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label class="cursor-pointer rounded-md border border-gray-200 bg-white p-2 has-[:checked]:border-blue-500 has-[:checked]:ring-2 has-[:checked]:ring-blue-500">
+          <input type="radio"
+                 name="screenshot_choice"
+                 value="viewport"
+                 checked
+                 data-bug-report-target="viewportRadio"
+                 data-action="change->bug-report#choose"
+                 class="sr-only">
+          <img data-bug-report-target="viewportPreview" alt="Viewport screenshot preview" class="aspect-video w-full rounded border border-gray-100 object-cover">
+          <span class="mt-2 block text-sm font-medium text-gray-800">Viewport</span>
+        </label>
+
+        <label class="cursor-pointer rounded-md border border-gray-200 bg-white p-2 has-[:checked]:border-blue-500 has-[:checked]:ring-2 has-[:checked]:ring-blue-500">
+          <input type="radio"
+                 name="screenshot_choice"
+                 value="full_page"
+                 data-bug-report-target="fullPageRadio"
+                 data-action="change->bug-report#choose"
+                 class="sr-only">
+          <img data-bug-report-target="fullPagePreview" alt="Full page screenshot preview" class="aspect-video w-full rounded border border-gray-100 object-cover object-top">
+          <span class="mt-2 block text-sm font-medium text-gray-800">Full page</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <input type="file" name="screenshot" accept="image/png" data-bug-report-target="screenshotInput" class="hidden">
+
+    <div class="flex justify-end gap-2 border-t border-gray-100 pt-4">
+      <button type="button"
+              data-action="bug-report#close"
+              class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+        Cancel
+      </button>
+      <%= f.submit "Create Job",
+            class: "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+    </div>
+  <% end %>
+</dialog>

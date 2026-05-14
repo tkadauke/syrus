@@ -33,6 +33,11 @@
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <%= state_pill(job_summary_state(@job)) %>
+      <% if @job.adhoc? && @job.open? && @job.runs.empty? %>
+        <%= button_to "Start Run", start_job_path(@job), method: :post,
+              class: "rounded-md px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium cursor-pointer",
+              form: { class: "inline" } %>
+      <% end %>
       <%= button_to "Postmortem",
             repository_chats_path(@job.repository),
             method: :post,
@@ -390,6 +395,22 @@
         <div>
           <div class="text-xs uppercase text-gray-500 mb-1">Issue</div>
           <pre class="text-sm text-gray-600 whitespace-pre-wrap break-words max-w-prose font-mono"><%= @job.issue_body %></pre>
+        </div>
+      <% end %>
+      <% if @job.job_attachments.any? %>
+        <div>
+          <div class="text-xs uppercase text-gray-500 mb-2">Attachments</div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <% @job.job_attachments.each do |attachment| %>
+              <div class="rounded-lg border border-gray-200 bg-white p-3 text-sm">
+                <% if attachment.file.attached? && attachment.content_type.to_s.start_with?("image/") %>
+                  <%= image_tag attachment.file, class: "aspect-video w-full rounded border border-gray-100 object-cover object-top", alt: attachment.filename %>
+                <% end %>
+                <div class="mt-2 font-medium text-gray-900"><%= attachment.filename %></div>
+                <div class="text-xs text-gray-500"><%= attachment.content_type %> · <%= number_to_human_size(attachment.byte_size) %></div>
+              </div>
+            <% end %>
+          </div>
         </div>
       <% end %>
       <% if summary_run %>

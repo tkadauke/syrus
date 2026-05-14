@@ -89,6 +89,35 @@ class JobsController < ApplicationController
     end
   end
 
+  def start
+    unless @job.adhoc?
+      redirect_to job_path(@job), alert: "Only ad hoc Jobs can be started manually."
+      return
+    end
+
+    if @job.closed?
+      redirect_to job_path(@job), alert: "Thread is closed — reopen it before starting work."
+      return
+    end
+
+    if @job.any_active_run?
+      redirect_to job_path(@job), alert: "A Run is already in progress — wait for it to finish."
+      return
+    end
+
+    if @job.runs.exists?
+      redirect_to job_path(@job), alert: "This Job has already been started — use Retry instead."
+      return
+    end
+
+    workflow = @job.workflows.where(state: "queued", trigger_kind: "initial").order(:created_at).first ||
+               Workflows::Initial.instantiate(job: @job, agent_provider: @job.agent_provider)
+    rendered_prompt = Prompts::AdhocJob.new(prompt: @job.issue_body.to_s).to_s
+    StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
+
+    redirect_to job_path(@job, tab: "workflows"), notice: "Initial workflow enqueued."
+  end
+
   # Soft retry — push another commit to the existing branch by spawning
   # a new Run on the same Job. Useful when the agent stopped halfway
   # through and you want it to take another swing without abandoning the
@@ -544,6 +573,7 @@ class JobsController < ApplicationController
                     job_attachments: { file_attachment: :blob },
                     dependencies: [ :created_by_user, depends_on_job: :repository ],
                     dependent_links: [ job: :repository ],
+                    job_attachments: { file_attachment: :blob },
                     runs: [ :job_logs, :run_health_snapshots ]
                   )
                   .find(params[:id])

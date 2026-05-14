@@ -1683,4 +1683,45 @@ RSpec.describe "Jobs", type: :request do
       expect(response).to redirect_to(new_session_path)
     end
   end
+
+  describe "POST /jobs/:id/start" do
+    before { sign_in_as(user) }
+
+    it "starts a queued ad hoc workflow without creating it at bug-report submit time" do
+      ad_hoc = Job.create!(
+        user: user,
+        repository: repository,
+        kind: "adhoc",
+        issue_number: nil,
+        issue_title: "Screenshot bug",
+        issue_body: "Screenshot bug\n\nThe nav is sideways."
+      )
+      workflow = Workflows::Initial.instantiate(job: ad_hoc, agent_provider: ad_hoc.agent_provider)
+
+      expect(ad_hoc.runs).to be_empty
+      expect {
+        post start_job_path(ad_hoc)
+      }.to have_enqueued_job(RunJob).and change(Run, :count).by(1)
+
+      expect(response).to redirect_to(job_path(ad_hoc, tab: "workflows"))
+      expect(workflow.reload).to be_queued
+      expect(ad_hoc.reload.runs.first.prompt).to include("Screenshot bug")
+    end
+
+    it "renders a Start Run button for unstarted ad hoc jobs" do
+      ad_hoc = Job.create!(
+        user: user,
+        repository: repository,
+        kind: "adhoc",
+        issue_number: nil,
+        issue_title: "Screenshot bug",
+        issue_body: "Screenshot bug"
+      )
+
+      get job_path(ad_hoc)
+
+      expect(response.body).to include("Start Run")
+      expect(response.body).to include(start_job_path(ad_hoc))
+    end
+  end
 end

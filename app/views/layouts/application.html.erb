@@ -24,7 +24,10 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="bg-gray-50 text-gray-900" data-controller="form-validation">
+  <% show_bug_report = Current.user.present? && controller_name != "bug_reports" %>
+  <body class="bg-gray-50 text-gray-900"
+        data-controller="form-validation"
+        data-bug-context="<%= "#{controller_name.camelize}##{action_name}" if show_bug_report %>">
     <header class="bg-white border-b border-gray-200">
       <nav class="container mx-auto px-5 py-4 flex items-center justify-between">
         <div class="flex items-center gap-6">
@@ -136,5 +139,11 @@
         <span class="font-mono shrink-0"><%= app_revision %></span>
       <% end %>
     </footer>
+
+    <% if show_bug_report %>
+      <div data-controller="bug-report" data-bug-context="<%= "#{controller_name.camelize}##{action_name}" %>">
+        <%= render "shared/bug_report_button" %>
+      </div>
+    <% end %>
   </body>
 </html>

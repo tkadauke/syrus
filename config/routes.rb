@@ -116,11 +116,13 @@ Rails.application.routes.draw do
   resources :cron_templates
   resources :invitations, only: %i[ index create destroy ]
   resource :settings, only: %i[ show edit update ]
+  resources :bug_reports, only: %i[ create ]
   resources :jobs, only: %i[ show new create ] do
     resource :pin, only: %i[ create destroy ], controller: "job_pins"
     resources :attachments, only: %i[ create destroy ], controller: "job_attachments"
 
     member do
+      post :start
       post :run_again      # soft retry — new Run on the existing branch
       post :restart        # hard reset — close this thread, open a new one with a fresh branch + PR
       post :cancel         # cancel active runs + close the thread
