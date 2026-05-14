@@ -31,7 +31,12 @@ RSpec.describe AgentProviders::Claude do
         "BUNDLE_PATH" => "/usr/local/bundle",
         "BUNDLE_DEPLOYMENT" => "1",
         "BUNDLE_WITHOUT" => "development:test",
-        "TZ" => "America/New_York"
+        "TZ" => "America/New_York",
+        "S3_BUCKET" => "syrus-attachments",
+        "S3_ENDPOINT" => "http://minio.minio.svc.cluster.local:9000",
+        "S3_REGION" => "us-east-1",
+        "S3_ACCESS_KEY_ID" => "ak",
+        "S3_SECRET_ACCESS_KEY" => "sk"
       }
       saved = ENV.to_h.slice(*stash.keys)
       stash.each { |k, v| ENV[k] = v }
@@ -69,7 +74,17 @@ RSpec.describe AgentProviders::Claude do
       expect(server["env"]).to include(
         "RAILS_ENV" => "production",
         "RAILS_MASTER_KEY" => "deadbeef",
-        "BUNDLE_WITHOUT" => "development:test"
+        "BUNDLE_WITHOUT" => "development:test",
+        # Sidecar boots Rails in production where eager_load triggers
+        # Active Storage's S3Service.new at boot; the S3_* vars must
+        # reach the subprocess or `Aws::S3::Resource#bucket(nil)`
+        # raises and the sidecar dies before responding to claude's
+        # MCP initialize handshake.
+        "S3_BUCKET" => "syrus-attachments",
+        "S3_ENDPOINT" => "http://minio.minio.svc.cluster.local:9000",
+        "S3_REGION" => "us-east-1",
+        "S3_ACCESS_KEY_ID" => "ak",
+        "S3_SECRET_ACCESS_KEY" => "sk"
       )
     end
   end

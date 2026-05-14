@@ -8,6 +8,17 @@ module AgentProviders
     # MySQL. Agents are launched with narrow env allowlists, then spawn
     # MCP server children from there; without forwarding these values,
     # the sidecar can boot under the wrong Rails/Bundler context.
+    #
+    # The S3_* vars are required because production sets
+    # `config.active_storage.service = :minio`, and Rails eagerly
+    # builds the S3Service at boot under `eager_load = true`. With
+    # S3_BUCKET unset, `Aws::S3::Resource#bucket(nil)` raises
+    # `ArgumentError: missing required option :name` mid-boot, the
+    # sidecar dies before responding to claude's MCP `initialize`, and
+    # the agent sees "connection closed: initialize response
+    # (code -32603)". The worker pod has these injected by the
+    # green_acres deployment; we just need to thread them through the
+    # subprocess boundary the same way as RAILS_ENV / DB_HOST.
     SIDECAR_ENV_FORWARD = %w[
       RAILS_ENV
       RAILS_MASTER_KEY
@@ -19,6 +30,11 @@ module AgentProviders
       BUNDLE_DEPLOYMENT
       BUNDLE_WITHOUT
       TZ
+      S3_BUCKET
+      S3_ENDPOINT
+      S3_REGION
+      S3_ACCESS_KEY_ID
+      S3_SECRET_ACCESS_KEY
     ].freeze
 
     def initialize(run:, workspace:, parent_session_id:)
