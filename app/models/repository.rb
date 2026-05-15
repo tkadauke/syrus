@@ -25,7 +25,6 @@ class Repository < ApplicationRecord
   validates :trigger_label, presence: true
   validates :allow_operator_chat, presence: true, inclusion: { in: OPERATOR_CHAT_CHANNELS }
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
-  validates :allow_operator_chat, presence: true, inclusion: { in: OPERATOR_CHAT_CHANNELS }
   validates :owner, uniqueness: { scope: [ :user_id, :name ], case_sensitive: false }
 
   before_validation :normalize_agent_provider
