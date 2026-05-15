@@ -177,7 +177,7 @@ class ChatsController < ApplicationController
   end
 
   def load_pending_action
-    @pending_action = @chat_session.pending_actions.pending.find(params[:pending_action_id])
+    @pending_action = @chat_session.pending_actions.find(params[:pending_action_id])
   end
 
   def load_chat_page

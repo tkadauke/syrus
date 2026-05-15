@@ -68,6 +68,145 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include(chat_whiteboard_path(chat))
     end
 
+    it "renders usage, workspace controls, and the chat side-panel shell" do
+      chat = ChatSession.create!(
+        user: user,
+        repository: repo,
+        cumulative_input_tokens: 12_400,
+        cumulative_output_tokens: 3_200,
+        cumulative_cost_usd: 0.012345,
+        last_message_at: Time.current
+      )
+      chat.create_whiteboard!(
+        scene_json: { "elements" => [ { "id" => "box-1", "type" => "rectangle" } ] },
+        version: 2
+      )
+
+      get chat_path(chat)
+
+      expect(response.body).to include("12.4k in")
+      expect(response.body).to include("3.2k out")
+      expect(response.body).to include("$0.0123")
+      expect(response.body).to include("data-chat-layout-canvas-storage-key-value=\"syrus.chat.canvas.#{chat.id}\"")
+      expect(response.body).to include(chat_whiteboard_path(chat))
+      expect(response.body).to include("Refresh repo")
+      expect(response.body).to include("Reset workspace")
+      expect(response.body).to include('aria-label="Chat side panel"')
+      expect(response.body).to include('data-chat-side-panel-target="whiteboardPanel"')
+      expect(response.body).to include("chat_session_#{chat.id}_whiteboard_broadcast")
+      expect(response.body).to include('data-version="2"')
+    end
+
+    it "still renders for users whose default provider is Codex when Claude credentials exist" do
+      user.update!(
+        agent_provider: "codex",
+        codex_auth_mode: "api_key",
+        codex_api_key: "sk-test"
+      )
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+
+      get chat_path(chat)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("New chat")
+      expect(response.body).to include('name="chat_message[text]"')
+      expect(response.body).not_to include("Claude credentials are required.")
+    end
+
+    it "renders the Claude credential onboarding notice when the token is missing" do
+      user.update!(claude_oauth_token: nil)
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+
+      get chat_path(chat)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Claude credentials are required.")
+      expect(response.body).to include(edit_credentials_path)
+      expect(response.body).not_to include("Start a chat with this repository.")
+      expect(response.body).not_to include("name=\"chat_message[text]\"")
+    end
+
+    it "disables compose while the latest user message has no response" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      chat.messages.create!(role: "user", content: { "text" => "Ping" })
+
+      get chat_path(chat)
+
+      expect(response.body).to include('data-chat-turn-in-flight-value="true"')
+      expect(response.body).to include("disabled")
+      expect(response.body).to include("Stop")
+    end
+
+    it "collapses consecutive same-name tool calls into one grouped row" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      chat.messages.create!(role: "tool_use", tool_name: "Read", content: { "input" => { "file_path" => "a.py" } })
+      chat.messages.create!(role: "tool_result", tool_name: "Read", content: { "result" => [ { "type" => "text", "text" => "first" } ] })
+      chat.messages.create!(role: "tool_use", tool_name: "Read", content: { "input" => { "file_path" => "b.py" } })
+      chat.messages.create!(role: "tool_result", tool_name: "Read", content: { "result" => [ { "type" => "text", "text" => "second" } ] })
+
+      get chat_path(chat)
+
+      document = Nokogiri::HTML(response.body)
+      groups = document.css('details[data-tool-call="true"]')
+      expect(groups.size).to eq(1)
+      summary = groups.first.at_css("summary").text
+      expect(summary).to include("Read")
+      expect(summary).to include("a.py, b.py")
+    end
+
+    it "hides standalone tool result rows in the default grouped view" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      chat.messages.create!(role: "tool_use", tool_name: "Read", content: { "input" => { "file_path" => "a.py" } })
+      chat.messages.create!(role: "tool_result", tool_name: "Read", content: { "result" => [ { "type" => "text", "text" => "contents" } ] })
+
+      get chat_path(chat)
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("[data-tool-call-result]").size).to eq(0)
+      expect(response.body).not_to include("bg-emerald-50")
+      body = document.at_css('details[data-tool-call="true"] [data-tool-call-body]')
+      expect(body.text).to include("contents")
+    end
+
+    it "renders tool rows with proposal links" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      proposal = ChatProposal.create!(
+        chat_session: chat,
+        slug: "auth-map",
+        title: "Map auth flow",
+        body: "Trace the auth flow."
+      )
+      chat.messages.create!(
+        role: "tool_result",
+        tool_name: "propose_issue",
+        proposal: proposal,
+        content: { "slug" => "auth-map", "state" => "pending" }
+      )
+
+      get chat_path(chat)
+
+      expect(response.body).to include("propose_issue")
+      expect(response.body).to include("Proposal ##{proposal.id} created (pending)")
+      expect(response.body).to include(repository_proposals_path(repo))
+    end
+
+    it "renders pending confirmation cards with top-level action routes" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      job = Factories.job(repository: repo)
+      action = chat.pending_actions.create!(
+        action: "cancel_job",
+        payload: { "job_id" => job.id }
+      )
+
+      get chat_path(chat)
+
+      expect(response.body).to include("Pending actions")
+      expect(response.body).to include("Cancel Job")
+      expect(response.body).to include("Job ##{job.id}")
+      expect(response.body).to include(chat_pending_action_confirm_path(chat, action))
+      expect(response.body).to include(chat_pending_action_path(chat, action))
+    end
+
     it "renders only the latest page of messages and exposes the older-message endpoint" do
       chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
       40.times { |i| chat.messages.create!(role: "user", content: { "text" => "msg-#{i}" }) }
@@ -78,6 +217,48 @@ RSpec.describe "Chats", type: :request do
       expect(message_ids).to eq(chat.messages.order(:id).last(30).pluck(:id))
       expect(response.body).to include('data-chat-has-more-older-value="true"')
       expect(response.body).to include(chat_messages_path(chat))
+    end
+
+    it "reports no older messages when the session is short" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      chat.messages.create!(role: "user", content: { "text" => "hi" })
+
+      get chat_path(chat)
+
+      expect(response.body).to include('data-chat-has-more-older-value="false"')
+    end
+  end
+
+  describe "GET /chats/:chat_id/messages" do
+    it "returns the page of older messages before the given id without a continuation" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      msgs = 40.times.map { |i| chat.messages.create!(role: "user", content: { "text" => "msg-#{i}" }) }
+
+      get chat_messages_path(chat), params: { before: msgs[29].id }
+
+      expect(response).to have_http_status(:ok)
+      returned_ids = response.body.scan(/id="chat_message_(\d+)"/).flatten.map(&:to_i)
+      expect(returned_ids).to eq(msgs.first(29).map(&:id))
+      expect(response.headers["X-Chat-Has-More-Older"]).to eq("false")
+    end
+
+    it "reports has-more=true when a full page of older messages was returned" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      msgs = 70.times.map { |i| chat.messages.create!(role: "user", content: { "text" => "msg-#{i}" }) }
+
+      get chat_messages_path(chat), params: { before: msgs[40].id }
+
+      expect(response.headers["X-Chat-Has-More-Older"]).to eq("true")
+    end
+
+    it "is not found on another user's chat" do
+      other = Factories.user(claude_oauth_token: "oat-other")
+      other_repo = Factories.repository(user: other, owner: "globex", name: "things")
+      other_chat = ChatSession.create!(user: other, repository: other_repo, last_message_at: Time.current)
+
+      get chat_messages_path(other_chat), params: { before: 999_999 }
+
+      expect(response).to have_http_status(:not_found).or redirect_to(repositories_path)
     end
   end
 
@@ -92,6 +273,53 @@ RSpec.describe "Chats", type: :request do
 
       expect(chat.reload.last_message_at).to be > 1.minute.ago
       expect(response).to redirect_to(chat_path(chat))
+    end
+
+    it "rejects blank messages" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+
+      expect {
+        post chat_message_path(chat), params: { chat_message: { text: "  " } }
+      }.not_to change(ChatMessage, :count)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(flash[:alert]).to eq("Message cannot be blank.")
+    end
+  end
+
+  describe "POST /chats/:id/stop" do
+    it "sets the stop flag on the chat session" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+
+      post chat_stop_path(chat)
+
+      expect(chat.reload.stop_requested_at).to be_present
+      expect(response).to redirect_to(chat_path(chat))
+      expect(flash[:notice]).to eq("Stop requested.")
+    end
+  end
+
+  describe "workspace actions" do
+    it "enqueues a refresh workspace job" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+
+      expect {
+        post chat_refresh_path(chat)
+      }.to have_enqueued_job(ChatWorkspaceJob).with(repo.id, action: :refresh)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(flash[:notice]).to eq("Repository refresh queued.")
+    end
+
+    it "enqueues a reset workspace job" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+
+      expect {
+        post chat_reset_path(chat)
+      }.to have_enqueued_job(ChatWorkspaceJob).with(repo.id, action: :reset)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(flash[:notice]).to eq("Workspace reset queued.")
     end
   end
 
@@ -124,6 +352,56 @@ RSpec.describe "Chats", type: :request do
 
       expect(response).to redirect_to(chat_path(chat))
       expect(chat.reload.attached_repository_documents).to contain_exactly(document)
+    end
+  end
+
+  describe "pending action confirmation" do
+    it "confirms a pending job-control action" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      job = Factories.job(repository: repo)
+      action = chat.pending_actions.create!(
+        action: "cancel_job",
+        payload: { "job_id" => job.id }
+      )
+
+      post chat_pending_action_confirm_path(chat, action)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(flash[:notice]).to eq("Pending action confirmed.")
+      expect(action.reload).to be_confirmed
+      expect(job.reload).to be_closed
+    end
+
+    it "rejects a pending action without applying it" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      job = Factories.job(repository: repo)
+      action = chat.pending_actions.create!(
+        action: "cancel_job",
+        payload: { "job_id" => job.id }
+      )
+
+      delete chat_pending_action_path(chat, action)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(flash[:notice]).to eq("Pending action rejected.")
+      expect(action.reload).to be_rejected
+      expect(job.reload).to be_open
+    end
+
+    it "does not apply an already-rejected stale action" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      job = Factories.job(repository: repo)
+      action = chat.pending_actions.create!(
+        action: "cancel_job",
+        payload: { "job_id" => job.id }
+      )
+      action.reject!
+
+      post chat_pending_action_confirm_path(chat, action)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(flash[:alert]).to eq("Pending action is no longer active.")
+      expect(job.reload).to be_open
     end
   end
 
