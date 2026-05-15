@@ -121,13 +121,25 @@ class Step < ApplicationRecord
     runs.order(:created_at).last
   end
 
-  # The session_id from the latest succeeded Run on the upstream
-  # step, used by this Step's Run as `parent_session_id` so the
-  # next claude call resumes the prior conversation. Nil when
-  # there's no upstream session (first step in workflow, or
-  # cross-workflow trigger).
+  # The session_id from the latest succeeded upstream Run, used by
+  # this Step's Run as `parent_session_id` so the next agent call
+  # resumes the prior conversation. Non-agentic steps (e.g. grade)
+  # are valid upstream steps but do not create sessions, so walk
+  # backward until an agentic session is found. Nil when there's no
+  # upstream session (first step in workflow, unsucceeded upstream
+  # step, or cross-workflow trigger).
   def upstream_session_id
-    return nil unless previous_step&.state == "succeeded"
-    previous_step.latest_run&.claude_session&.session_id
+    cursor = previous_step
+
+    while cursor
+      return nil unless cursor.state == "succeeded"
+
+      session_id = cursor.latest_run&.claude_session&.session_id
+      return session_id if session_id.present?
+
+      cursor = cursor.previous_step
+    end
+
+    nil
   end
 end

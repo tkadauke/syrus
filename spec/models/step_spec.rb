@@ -139,5 +139,27 @@ RSpec.describe Step do
       ClaudeSession.create!(resumable: run, session_id: "S-upstream", transcript_jsonl: "x")
       expect(step_b.upstream_session_id).to eq("S-upstream")
     end
+
+    it "walks back past succeeded non-agentic steps to the latest agent session" do
+      grade = described_class.create!(workflow: workflow, kind: "grade", position: 1)
+      summarize = described_class.create!(workflow: workflow, kind: "summarize", position: 2)
+      step_a.update!(next_step_id: grade.id, state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      grade.update!(next_step_id: summarize.id, state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      run = Run.create!(job: job, step: step_a, trigger_kind: "retry", state: "succeeded")
+      ClaudeSession.create!(resumable: run, session_id: "S-implement", transcript_jsonl: "x")
+
+      expect(summarize.upstream_session_id).to eq("S-implement")
+    end
+
+    it "returns nil when an intervening upstream step has not succeeded" do
+      grade = described_class.create!(workflow: workflow, kind: "grade", position: 1)
+      summarize = described_class.create!(workflow: workflow, kind: "summarize", position: 2)
+      step_a.update!(next_step_id: grade.id, state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      grade.update!(next_step_id: summarize.id)
+      run = Run.create!(job: job, step: step_a, trigger_kind: "retry", state: "succeeded")
+      ClaudeSession.create!(resumable: run, session_id: "S-implement", transcript_jsonl: "x")
+
+      expect(summarize.upstream_session_id).to be_nil
+    end
   end
 end

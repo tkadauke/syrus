@@ -108,6 +108,23 @@ RSpec.describe Steps::Base do
       expect(h.parent_session_id).to eq("S-upstream")
     end
 
+    it "resumes summarize from implement when a non-agentic grade step is between them" do
+      grade_step = Step.create!(workflow: workflow, kind: "grade", position: 1)
+      current_step.update!(position: 2)
+      upstream_step.update!(next_step_id: grade_step.id)
+      grade_step.update!(next_step_id: current_step.id)
+      upstream_run = Run.create!(job: job, step: upstream_step, trigger_kind: "retry",
+                                  state: "succeeded")
+      ClaudeSession.create!(resumable: upstream_run, session_id: "S-implement", transcript_jsonl: "x")
+      upstream_step.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      grade_step.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      current_run = Run.create!(job: job, step: current_step, trigger_kind: "retry")
+      h = handler_class.new(current_run)
+
+      expect(h.parent_session_id).to eq("S-implement")
+    end
+
     it "an explicit run.parent_session_id wins over the chain (Resume semantics)" do
       run = Run.create!(job: job, step: current_step, trigger_kind: "resume",
                         parent_session_id: "S-explicit")
