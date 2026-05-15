@@ -7,9 +7,16 @@ own MCP sidecar, and produces proposals that become Syrus Jobs.
 The "sessions become a unified pipeline entry-point" half of M1
 (option (c)) stays out of scope here._
 
-_Status check 2026-05-13: plan only. No `ChatSession`,
-`ChatTurnJob`, chat MCP sidecar, proposal models, or chat UI are present
-in the application yet._
+_Status check 2026-05-15: the core chat/proposal work has shipped.
+The application now has `ChatSession` / `ChatMessage`,
+`ChatTurnJob`, `ChatWorkspace`, the chat MCP sidecar and tools,
+proposal models, proposal filing, and Chats / Proposals UI. Follow-up
+work from this plan is now narrower: historical session picking, Codex
+chat-provider support, richer `github_issue` dependency behavior, and
+the larger "sessions become a unified pipeline entry-point" idea remain
+future work. The whiteboard/canvas extension lives in
+`docs/plans/per-repo-chat-whiteboard.md` and should be read as a later
+extension, not a prerequisite for this core plan._
 
 ## Context
 

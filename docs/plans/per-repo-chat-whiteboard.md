@@ -7,9 +7,13 @@ diagrams, UI mockups, flow charts, etc. The chat is the
 conversation; the whiteboard is the visual artifact the
 conversation refines._
 
-_Status: plan only. Requires the per-repo chat M1 (#268–#280) to
-have shipped first — this builds on `ChatSession` + the chat
-sidecar binary._
+_Status check 2026-05-15: shipped as an extension to the per-repo chat
+work. `ChatWhiteboard`, the whiteboard controller/view, chat layout
+controllers, and chat MCP canvas tools (`read_scene`, `draw_*`,
+`move_element`, `delete_element`, `clear_canvas`, `update_scene`) are
+present. Remaining follow-ups are the deferred items below, especially
+raster export / `read_canvas_image()` and richer proposal-body image
+support._
 
 ## Context
 

@@ -1,10 +1,18 @@
 # Syrus → contained dev environment
 
-_Status check 2026-05-13: partially implemented. Job dependencies are
-first-class and block workflow dispatch when unresolved. The broader
-M1/M3-M8 vision here remains future work, including persistent per-repo
-chat, configurable pipeline steps, adversarial review, preview
-environments, scaffolding, continuous deploy, and team roles._
+_Status check 2026-05-15: partially implemented. M1 and M2 are no
+longer only roadmap text: per-repo chat has shipped as
+`ChatSession` / `ChatTurnJob` / `ChatWorkspace` plus chat MCP tools,
+repo-scoped proposals, cascade filing, and a chat/proposals UI; Job
+dependencies are first-class and block workflow dispatch when
+unresolved. The native CI slice of M3 has also started: local `grade`
+steps, loop iterations, `.syrus.yml` grader config, and iteration UI are
+present. Still future: a fully configurable arbitrary pipeline, browser
+tooling, adversarial review, repo scaffolding, preview environments,
+continuous deploy, team roles, Codex-backed chat, and the larger
+"unified session + issue pipeline" architecture. See
+`per-repo-chat.md` for chat follow-ups and `syrus-native-ci.md` Build
+order step 4 for the remaining `ci_failure` cleanup._
 
 The current Syrus is "issue → PR automation harness." The next
 Syrus is "the place where a small team (or a solo operator) builds
@@ -18,11 +26,11 @@ homelab K3s as the substrate, no SaaS multi-tenancy.
 | Capability | Today | Target |
 |---|---|---|
 | Repo lifecycle | Operates on existing repos | Create + scaffold via agent |
-| Iteration | One issue → one PR, independent | DAG of Jobs the operator (or agent) plans |
-| Implementer toolkit | Editor, shell, git | + Playwright/headless browser |
-| Quality gate | GH check_runs | Tests, formatters, browser tests, adversarial review (configurable in `.syrus.yml`) |
+| Iteration | Job dependencies are first-class; one Workflow still runs at a time per Job | DAG of Jobs the operator (or agent) plans |
+| Implementer toolkit | Editor, shell, git, local grade output | + Playwright/headless browser |
+| Quality gate | Local `grade` loops for initial/retry/pr_comment; legacy `ci_failure` check-run path still present | Tests, formatters, browser tests, adversarial review (configurable in `.syrus.yml`) |
 | Delivery | Stops at "PR opened" | CI → preview env per PR → CD on merge |
-| Interactivity | Headless Run, read-only transcript | Persistent multi-session per-repo agent in the browser |
+| Interactivity | Persistent per-repo chat with proposals; Job Runs still use the headless transcript model | Persistent multi-session per-repo agent in the browser |
 | Collaboration | Single-tenant + admin tier | Per-repo roles for a small team |
 
 ## Decisions locked

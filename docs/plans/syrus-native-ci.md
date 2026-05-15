@@ -3,10 +3,16 @@
 _Captured 2026-05-12. Implementation should land across 4 PRs (see
 "Build order"); the GitHub Actions removal is the last one._
 
-_Status check 2026-05-13: not implemented. The existing GitHub Actions
-workflow and `ci_failure` workflow path are still present; there is no
-`grade` Step, loop primitive, iteration model, or `.syrus.yml` grader
-schema yet._
+_Status check 2026-05-15: partially shipped. `Steps::Grade`,
+`Workflows::Loop`, loop iteration tracking on `Step` / `Run`,
+`RepoGradePlan` / `.syrus.yml` grade parsing, grade failure feedback,
+the iteration UI, and `initial` / `retry` / `pr_comment` loop wiring
+are present. The remaining cleanup is the final handoff from GitHub
+check-run driven remediation: `ci_failure` polling, `Workflows::CiFailure`,
+`Steps::AnalyzeAndFix`, and the related prompt/spec surface still exist
+and should be retired in the Build order step 4 follow-up. Inline
+same-Run continuation for controlled grade failures is also explicitly
+tracked as a dropped `#332` follow-up in the specs._
 
 ## Context
 
