@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe StepKind do
+RSpec.describe Step::Kind do
   it "is the canonical source for Step validation values and handler registry" do
     expect(Step::KINDS).to eq(described_class.values)
     expect(Steps::REGISTRY).to eq(described_class.registry)

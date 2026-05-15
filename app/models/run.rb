@@ -2,7 +2,7 @@ class Run < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  TRIGGER_KINDS = WorkflowTriggerKind.values
+  TRIGGER_KINDS = Workflow::TriggerKind.values
 
   belongs_to :job
   # Step is optional during the migration window: existing Runs

@@ -25,11 +25,11 @@ module JobsHelper
     end
 
     kind = kind_or_step.respond_to?(:kind) ? kind_or_step.kind : kind_or_step
-    StepKind.label_for(kind)
+    Step::Kind.label_for(kind)
   end
 
   def workflow_label(trigger_kind)
-    WorkflowTriggerKind.label_for(trigger_kind)
+    Workflow::TriggerKind.label_for(trigger_kind)
   end
 
   def state_pill(state, classes: nil)
@@ -65,7 +65,7 @@ module JobsHelper
   def trigger_pill(trigger_kind)
     colored_pill(
       workflow_label(trigger_kind),
-      classes: WorkflowTriggerKind.style_for(trigger_kind) || ApplicationHelper::PILL_FALLBACK_CLASSES
+      classes: Workflow::TriggerKind.style_for(trigger_kind) || ApplicationHelper::PILL_FALLBACK_CLASSES
     )
   end
 

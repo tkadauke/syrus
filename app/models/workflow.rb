@@ -2,7 +2,7 @@ class Workflow < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  TRIGGER_KINDS = WorkflowTriggerKind.values
+  TRIGGER_KINDS = Workflow::TriggerKind.values
 
   belongs_to :job
   has_many :steps, -> { order(:position) }, dependent: :destroy

@@ -2,8 +2,8 @@ class Step < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  KINDS = StepKind.values
-  AGENTIC_KINDS = StepKind.agentic_values
+  KINDS = Step::Kind.values
+  AGENTIC_KINDS = Step::Kind.agentic_values
 
   belongs_to :workflow
   belongs_to :next_step, class_name: "Step", optional: true

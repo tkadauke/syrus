@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe WorkflowTriggerKind do
+RSpec.describe Workflow::TriggerKind do
   it "is the canonical source for Workflow and Run trigger validation values" do
     expect(Workflow::TRIGGER_KINDS).to eq(described_class.values)
     expect(Run::TRIGGER_KINDS).to eq(described_class.values)

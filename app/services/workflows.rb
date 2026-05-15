@@ -13,11 +13,11 @@ module Workflows
     end
   end
 
-  REGISTRY = WorkflowTriggerKind.registry
+  REGISTRY = Workflow::TriggerKind.registry
 
   def self.for(trigger_kind:)
-    WorkflowTriggerKind.template_for(trigger_kind)
+    Workflow::TriggerKind.template_for(trigger_kind)
   rescue ArgumentError
-      raise ArgumentError, "no workflow template for trigger_kind=#{trigger_kind.inspect}"
+    raise ArgumentError, "no workflow template for trigger_kind=#{trigger_kind.inspect}"
   end
 end
