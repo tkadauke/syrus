@@ -8,6 +8,10 @@ module ChatTemplates
       raise ArgumentError, "target must be issues or prs" unless TARGETS.include?(@target)
     end
 
+    def title
+      "Triage open #{target_label}"
+    end
+
     def to_s
       <<~PROMPT
         Triage #{@repository.slug}'s open #{target_label}.

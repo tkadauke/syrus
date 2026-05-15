@@ -297,6 +297,57 @@ RSpec.describe "Repository chats", type: :request do
       expect(message.content.fetch("text")).to include("propose_issue")
       expect(response).to redirect_to(repository_chats_path(repo))
     end
+
+    it "creates a seeded walkthrough chat from the shared template registry" do
+      expect {
+        post repository_chats_path(repo), params: { chat_template: "walkthrough" }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(2)
+        .and have_enqueued_job(ChatTurnJob)
+
+      chat = repo.chat_sessions.last
+      expect(chat.title).to eq("Guided tour of acme/widgets")
+      expect(chat.messages.first.role).to eq("system")
+      expect(chat.messages.first.content.fetch("text")).to include("repository walkthrough mode for acme/widgets")
+      expect(chat.messages.last.role).to eq("user")
+      expect(chat.messages.last.content.fetch("text")).to include("Give me a guided tour of this repository")
+      expect(response).to redirect_to(repository_chats_path(repo))
+    end
+
+    it "creates a seeded postmortem chat for the selected Job" do
+      job = Factories.job(repository: repo, issue_title: "Flames from the queue")
+
+      expect {
+        post repository_chats_path(repo), params: { chat_template: "postmortem", subject_job_id: job.id }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(2)
+        .and have_enqueued_job(ChatTurnJob)
+
+      chat = repo.chat_sessions.last
+      expect(chat.title).to eq("Postmortem Job ##{job.id}")
+      expect(chat.messages.first.role).to eq("system")
+      expect(chat.messages.first.content.fetch("text")).to include("act as a Job-failure analyst")
+      expect(chat.messages.last.content.fetch("text")).to include("Postmortem Job ##{job.id}: Flames from the queue")
+      expect(response).to redirect_to(repository_chats_path(repo))
+    end
+
+    it "shows an operator-visible error for unknown template keys" do
+      expect {
+        post repository_chats_path(repo), params: { chat_template: "branch_astrology" }
+      }.not_to change(ChatSession, :count)
+
+      expect(response).to redirect_to(repository_path(repo))
+      expect(flash[:alert]).to eq("Unknown chat template: branch_astrology")
+    end
+
+    it "shows an operator-visible error when a postmortem Job is missing" do
+      expect {
+        post repository_chats_path(repo), params: { chat_template: "postmortem", subject_job_id: "999999" }
+      }.not_to change(ChatSession, :count)
+
+      expect(response).to redirect_to(repository_path(repo))
+      expect(flash[:alert]).to eq("Postmortem chat requires a valid Job.")
+    end
   end
 
   describe "POST /repositories/:repository_id/chats/triage" do

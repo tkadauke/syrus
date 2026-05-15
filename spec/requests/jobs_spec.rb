@@ -910,6 +910,14 @@ RSpec.describe "Jobs", type: :request do
       expect(response.body).to match(/data-turbo-confirm=.*Cancel any running work/)
     end
 
+    it "posts the Postmortem action through the chat template registry" do
+      get job_path(job)
+
+      expect(response.body).to include("Postmortem")
+      expect(response.body).to include('name="chat_template" value="postmortem"')
+      expect(response.body).to include("subject_job_id")
+    end
+
     it "puts a turbo_confirm on Start over" do
       # The retry split-button is hidden while a Run is in flight,
       # so finish the initial Run first — Start over only appears

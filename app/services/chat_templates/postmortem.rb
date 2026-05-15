@@ -14,6 +14,18 @@ module ChatTemplates
       )
     end
 
+    def title
+      render.title
+    end
+
+    def system_message
+      system_prompt
+    end
+
+    def user_message
+      "Postmortem Job ##{@job.id}: #{job_title}. Why did this fail? Cite specific transcript lines and code."
+    end
+
     private
 
     def system_prompt
@@ -25,10 +37,6 @@ module ChatTemplates
         lines, run logs, PR context, and code references. Distinguish
         observed facts from likely causes, and call out uncertainty.
       PROMPT
-    end
-
-    def user_message
-      "Postmortem Job ##{@job.id}: #{job_title}. Why did this fail? Cite specific transcript lines and code."
     end
 
     def job_title
