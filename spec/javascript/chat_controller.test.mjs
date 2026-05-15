@@ -140,6 +140,68 @@ test("disables compose controls while a turn is in flight", async () => {
   assert.equal(sendButton.disabled, true)
 })
 
+test("desktop Enter submits the compose form", async () => {
+  const { default: Controller } = await loadController()
+  const { controller, textarea } = buildController(Controller)
+  let clicked = false
+  let prevented = false
+  const form = {
+    querySelector() {
+      return {
+        disabled: false,
+        click() {
+          clicked = true
+        },
+      }
+    },
+  }
+  textarea.closest = () => form
+  globalThis.window = { matchMedia: () => ({ matches: false }) }
+
+  controller.submitOnEnter({
+    key: "Enter",
+    shiftKey: false,
+    isComposing: false,
+    preventDefault() {
+      prevented = true
+    },
+  })
+
+  assert.equal(prevented, true)
+  assert.equal(clicked, true)
+})
+
+test("mobile Enter inserts a newline instead of submitting", async () => {
+  const { default: Controller } = await loadController()
+  const { controller, textarea } = buildController(Controller)
+  let clicked = false
+  let prevented = false
+  const form = {
+    querySelector() {
+      return {
+        disabled: false,
+        click() {
+          clicked = true
+        },
+      }
+    },
+  }
+  textarea.closest = () => form
+  globalThis.window = { matchMedia: () => ({ matches: true }) }
+
+  controller.submitOnEnter({
+    key: "Enter",
+    shiftKey: false,
+    isComposing: false,
+    preventDefault() {
+      prevented = true
+    },
+  })
+
+  assert.equal(prevented, false)
+  assert.equal(clicked, false)
+})
+
 test("stop disables the stop button and flips its label immediately", async () => {
   const { default: Controller } = await loadController()
   const { controller, stopButton } = buildController(Controller)

@@ -83,7 +83,9 @@ export default class extends Controller {
     ta.style.height = `${ta.scrollHeight}px`
   }
 
-  // Enter submits, Shift+Enter inserts a newline (textarea default).
+  // On desktop, Enter submits and Shift+Enter inserts a newline
+  // (textarea default). On mobile, Enter should keep its native
+  // newline behavior because soft keyboards do not expose Shift+Enter.
   // Ignore IME composition keys so non-Latin input methods that
   // commit on Enter aren't hijacked. Click the actual submit
   // button rather than calling form.requestSubmit() so the path is
@@ -92,6 +94,7 @@ export default class extends Controller {
   submitOnEnter(event) {
     if (event.key !== "Enter") return
     if (event.shiftKey) return
+    if (this.isMobileInput()) return
     if (event.isComposing) return
     if (!this.hasTextareaTarget) return
     if (this.textareaTarget.disabled) return
@@ -104,6 +107,13 @@ export default class extends Controller {
 
     event.preventDefault()
     submitter.click()
+  }
+
+  isMobileInput() {
+    if (typeof window === "undefined") return false
+    if (typeof window.matchMedia !== "function") return false
+
+    return window.matchMedia("(pointer: coarse), (max-width: 767px)").matches
   }
 
   scroll() {
