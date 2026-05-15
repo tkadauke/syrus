@@ -195,9 +195,24 @@ class WorkflowWorkspace
         chdir: path.to_s, env: @env
       )
       @git.run("checkout", @branch_name, chdir: path.to_s)
+    elsif stack_parent
+      fetch_stack_parent
+      @git.run("checkout", "-b", @branch_name, stack_parent.head_sha, chdir: path.to_s)
     else
       @git.run("checkout", "-b", @branch_name, chdir: path.to_s)
     end
+  end
+
+  def stack_parent
+    @stack_parent ||= @job.parent_job
+  end
+
+  def fetch_stack_parent
+    @git.run(
+      "fetch", "--depth", CLONE_DEPTH.to_s, authenticated_url,
+      "refs/heads/#{stack_parent.branch_name}:refs/remotes/origin/#{stack_parent.branch_name}",
+      chdir: path.to_s, env: @env
+    )
   end
 
   def clone_local_source

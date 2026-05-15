@@ -70,6 +70,24 @@ RSpec.describe AutoRebase do
     expect(result.note).to match(/no-op/)
   end
 
+  it "rebases onto the parent branch when the Job is stacked" do
+    parent = Factories.job(repository: repository, issue_number: 41)
+    parent_branch = "syrus/issue-41-#{parent.id}"
+    feature = "syrus/issue-42-#{job.id}"
+    push_branch_with_file(parent_branch, "parent.rb", "PARENT\n", "parent")
+    parent_sha = `git --git-dir=#{bare_remote_dir} rev-parse #{parent_branch}`.strip
+    parent.update!(branch_name: parent_branch, pr_number: 41)
+    parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: parent_sha)
+    job.update!(parent_job: parent)
+    push_branch_with_file(feature, "feature.rb", "FEATURE\n", "feature")
+
+    result = described_class.new(job).call
+
+    expect(result).to be_succeeded
+    files = `git --git-dir=#{bare_remote_dir} ls-tree --name-only #{feature}`.split("\n")
+    expect(files).to include("feature.rb").and include("parent.rb")
+  end
+
   it "returns conflict and does not push when a real body conflict remains" do
     feature = "syrus/issue-42-#{job.id}"
     push_branch_with_file(feature, "shared.rb", "FROM_FEATURE\n", "feature edit")

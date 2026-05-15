@@ -76,7 +76,7 @@ class AutoRebase
   end
 
   def base_branch
-    @job.repository.default_branch
+    @job.parent_job&.branch_name.presence || @job.repository.default_branch
   end
 
   # Full (non-shallow) clone on the default branch so that

@@ -291,6 +291,24 @@
           <div class="font-mono text-gray-700"><%= @job.branch_name || "—" %></div>
         </div>
         <div>
+          <div class="text-xs uppercase text-gray-500">Stack base</div>
+          <div class="text-gray-700">
+            <% if @job.parent_job %>
+              <%= link_to "Job ##{@job.parent_job.id}", job_path(@job.parent_job), class: "text-blue-600 underline hover:no-underline" %>
+              <span class="text-xs text-gray-500">(<%= @job.parent_job.branch_name %>)</span>
+            <% else %>
+              <span class="font-mono"><%= @job.repository.default_branch %></span>
+            <% end %>
+          </div>
+          <%= form_with url: stack_base_job_path(@job), method: :patch, class: "mt-1 flex items-center gap-2 text-xs" do |f| %>
+            <%= f.select :stack_base,
+                  Job::STACK_BASES.map { |base| [base, base] },
+                  { selected: @job.stack_base },
+                  class: "border border-gray-300 rounded px-2 py-1 text-xs" %>
+            <%= f.submit "Update", class: "text-blue-600 underline hover:no-underline cursor-pointer" %>
+          <% end %>
+        </div>
+        <div>
           <div class="text-xs uppercase text-gray-500">Pull request</div>
           <div class="space-y-1">
             <% if @job.pr_number %>

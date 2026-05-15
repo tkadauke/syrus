@@ -7,6 +7,7 @@ class Job < ApplicationRecord
   OPERATOR_CHAT_OPT_OUT_LABEL = "syrus-no-chat".freeze
 
   PRIORITIES = %w[ high medium low ].freeze
+  STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
   TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
@@ -20,6 +21,7 @@ class Job < ApplicationRecord
   belongs_to :repository
   belongs_to :scheduled_task, optional: true
   belongs_to :epic, optional: true
+  belongs_to :parent_job, class_name: "Job", optional: true
   belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
@@ -47,10 +49,12 @@ class Job < ApplicationRecord
            dependent: :destroy,
            inverse_of: :depends_on_job
   has_many :dependents, through: :dependent_links, source: :job
+  has_many :stack_children, class_name: "Job", foreign_key: :parent_job_id, dependent: :nullify, inverse_of: :parent_job
 
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
+  validates :stack_base, presence: true, inclusion: { in: STACK_BASES }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
   validates :validity, presence: true, inclusion: { in: VALIDITIES }
   validates :triaging_reason, presence: true, inclusion: { in: TRIAGING_REASONS }
@@ -68,6 +72,7 @@ class Job < ApplicationRecord
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
   enum :triaging_reason, TRIAGING_REASONS.index_with(&:itself), prefix: true, validate: true
+  enum :stack_base, STACK_BASES.index_with(&:itself), prefix: true, validate: true
 
   scope :open_threads, -> { where.not(state: "closed") }
   scope :closed_threads, -> { where(state: "closed") }
@@ -186,6 +191,8 @@ class Job < ApplicationRecord
   # existing ones) without a manual refresh.
   broadcasts_refreshes_to ->(job) { [ job.repository, "jobs" ] }
 
+  after_update_commit :rebase_stack_children_after_merge, if: :saved_change_to_pr_merged_close?
+
   def solid_queue_priority
     PRIORITY_TO_SQ.fetch(priority.to_s, PRIORITY_TO_SQ["medium"])
   end
@@ -274,6 +281,10 @@ class Job < ApplicationRecord
     runs.where(state: "succeeded").last
   end
 
+  def head_sha
+    runs.where.not(head_sha: [ nil, "" ]).order(:created_at).last&.head_sha
+  end
+
   def total_cost_usd
     if runs.loaded?
       runs.sum { |run| run.cost_usd.to_d }
@@ -323,6 +334,16 @@ class Job < ApplicationRecord
     closed? && SUCCESSFUL_CLOSURE_REASONS.include?(closure_reason)
   end
 
+  def stack_ready_for_execution?
+    return true if dependencies_overridden_at.present?
+
+    JobStackResolver.new(self).ready?
+  end
+
+  def resolve_stack_parent!
+    JobStackResolver.new(self).resolve!
+  end
+
   def force_run_dependencies!(user:)
     update!(
       dependencies_overridden_at: Time.current,
@@ -342,7 +363,7 @@ class Job < ApplicationRecord
   end
 
   def start_pending_workflows_if_dependencies_satisfied!
-    return false unless dependencies_satisfied?
+    return false unless stack_ready_for_execution?
     return false unless ready_for_execution?
 
     workflows.where(state: "queued").find_each do |workflow|
@@ -536,5 +557,13 @@ class Job < ApplicationRecord
 
   def issue_number_blank_for_direct
     errors.add(:issue_number, "must be blank for direct Jobs") if issue_number.present?
+  end
+
+  def saved_change_to_pr_merged_close?
+    saved_change_to_state? && closed? && closure_reason == "pr_merged"
+  end
+
+  def rebase_stack_children_after_merge
+    StackRebaseCoordinator.parent_merged(self)
   end
 end

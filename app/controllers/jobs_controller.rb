@@ -543,6 +543,18 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: "Dependency gate overridden."
   end
 
+  def stack_base
+    value = params[:stack_base].to_s
+    unless Job::STACK_BASES.include?(value)
+      redirect_to job_path(@job), alert: "Unknown stack base."
+      return
+    end
+
+    @job.update!(stack_base: value)
+    @job.start_pending_workflows_if_dependencies_satisfied!
+    redirect_to job_path(@job), notice: "Stack base updated."
+  end
+
   def mark_valid
     unless @job.validity_duplicate? || @job.validity_already_implemented?
       redirect_back fallback_location: job_path(@job), alert: "Job is already marked valid."

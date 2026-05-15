@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_15_130000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -340,6 +340,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
     t.boolean "operator_chat_disabled", default: false, null: false
+    t.integer "parent_job_id"
     t.boolean "pr_mergeable"
     t.datetime "pr_mergeable_checked_at"
     t.integer "pr_number"
@@ -347,6 +348,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
     t.integer "repository_id", null: false
     t.integer "scheduled_task_id"
     t.boolean "skip_prepare", default: false, null: false
+    t.string "stack_base", default: "auto", null: false
     t.datetime "started_at"
     t.string "state", default: "triaging", null: false
     t.string "triaging_reason", default: "classifier_pending", null: false
@@ -357,10 +359,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
     t.index ["dependencies_overridden_by_user_id"], name: "index_jobs_on_dependencies_overridden_by_user_id"
     t.index ["epic_id"], name: "index_jobs_on_epic_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
+    t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
     t.index ["scheduled_task_id"], name: "index_jobs_on_scheduled_task_id"
+    t.index ["stack_base"], name: "index_jobs_on_stack_base"
     t.index ["triaging_reason"], name: "index_jobs_on_triaging_reason"
     t.index ["user_id"], name: "index_jobs_on_user_id"
     t.index ["validity"], name: "index_jobs_on_validity"
@@ -690,6 +694,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
   add_foreign_key "job_pins", "jobs"
   add_foreign_key "job_pins", "users"
   add_foreign_key "jobs", "epics"
+  add_foreign_key "jobs", "jobs", column: "parent_job_id"
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"

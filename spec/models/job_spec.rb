@@ -524,6 +524,57 @@ RSpec.describe Job do
       prerequisite.close_with_reason!("pr_merged")
       expect(job.reload).to be_dependencies_satisfied
     end
+
+    it "can start on a single open dependency by making it the stack parent" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
+      prerequisite.update!(branch_name: "syrus/issue-42-#{prerequisite.id}", pr_number: 7)
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "a" * 40)
+      job = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #42")
+
+      expect(job).not_to be_dependencies_satisfied
+      expect(job).to be_stack_ready_for_execution
+      expect(job.reload.parent_job).to eq(prerequisite)
+    end
+
+    it "waits on multiple unmerged dependencies until only one remains as parent" do
+      first = Job.create!(user: user, repository: repository, issue_number: 41)
+      second = Job.create!(user: user, repository: repository, issue_number: 42)
+      second.update!(branch_name: "syrus/issue-42-#{second.id}", pr_number: 8)
+      second.runs.create!(trigger_kind: "initial", agent_provider: second.agent_provider, head_sha: "b" * 40)
+      job = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #41\nDepends-on: #42")
+
+      expect(job).not_to be_stack_ready_for_execution
+
+      first.close_with_reason!("pr_merged")
+
+      expect(job.reload).to be_stack_ready_for_execution
+      expect(job.parent_job).to eq(second)
+    end
+
+    it "waits when the only remaining dependency closed without merging" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
+      job = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #42")
+
+      prerequisite.close_with_reason!("pr_closed")
+
+      expect(job.reload).not_to be_stack_ready_for_execution
+      expect(job.parent_job).to be_nil
+    end
+
+    it "forces main when stack_base is main" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
+      job = Job.create!(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        issue_body: "Depends-on: #42",
+        stack_base: "main"
+      )
+
+      expect(job).to be_stack_ready_for_execution
+      expect(job.reload.parent_job).to be_nil
+      expect(job).not_to be_dependencies_satisfied
+    end
   end
 
   describe "preempted creation (state: closed at create time)" do

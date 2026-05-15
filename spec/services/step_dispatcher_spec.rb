@@ -59,6 +59,18 @@ RSpec.describe StepDispatcher do
         described_class.start_workflow(workflow)
       }.to change { s1.runs.count }.by(1)
     end
+
+    it "starts on an open dependency PR after resolving it as the stack parent" do
+      prerequisite = Factories.job(repository: job.repository, issue_number: 99)
+      prerequisite.update!(branch_name: "syrus/issue-99-#{prerequisite.id}", pr_number: 99)
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "c" * 40)
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.to change { s1.runs.count }.by(1)
+      expect(job.reload.parent_job).to eq(prerequisite)
+    end
   end
 
   describe ".advance_from" do

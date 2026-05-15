@@ -22,7 +22,7 @@ class StepDispatcher
     first = workflow.first_step
     return unless first
     return if first.runs.any?
-    return unless workflow.job.dependencies_satisfied?
+    return unless workflow.job.stack_ready_for_execution?
     return unless workflow.job.ready_for_execution?
 
     run = create_run_and_enqueue(first, workflow,
@@ -242,7 +242,15 @@ class StepDispatcher
     return unless @workflow.may_succeed?
     @workflow.succeed!
     @workflow.save!
+    StackRebaseCoordinator.parent_amended(@workflow.job) if pushed_workflow?
     schedule_mergeability_recheck
+  end
+
+  def pushed_workflow?
+    job = @workflow.job
+    return false unless job.open? && job.pr_number.present?
+
+    @workflow.steps.where(kind: %w[ pr_open push force_push ]).where(state: "succeeded").exists?
   end
 
   def schedule_mergeability_recheck

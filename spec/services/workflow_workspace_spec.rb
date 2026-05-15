@@ -64,6 +64,29 @@ RSpec.describe WorkflowWorkspace do
         expect(`git -C #{ws.path} log --oneline | wc -l`.strip.to_i).to be >= 1
       end
 
+      it "creates a fresh child branch from the parent branch head when stacked" do
+        parent = Factories.job(repository: repository, issue_number: 6)
+        parent_branch = "syrus/issue-6-#{parent.id}"
+        parent_worktree = Pathname.new(@data_root).join("workflows", "_parent")
+        sh("git clone -q file://#{bare_remote_dir} #{parent_worktree}")
+        sh("git -C #{parent_worktree} checkout -q -b #{parent_branch}")
+        File.write(parent_worktree.join("parent.rb"), "PARENT\n")
+        sh("git -C #{parent_worktree} add .")
+        sh("git -C #{parent_worktree} -c user.email=t@e -c user.name=t commit -q -m 'parent'")
+        parent_sha = sh("git -C #{parent_worktree} rev-parse HEAD").strip
+        sh("git -C #{parent_worktree} push -q origin #{parent_branch}")
+        FileUtils.rm_rf(parent_worktree)
+        parent.update!(branch_name: parent_branch, pr_number: 6)
+        parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: parent_sha)
+        job.update!(parent_job: parent)
+
+        ws = described_class.new(workflow)
+        ws.setup
+
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(parent_sha)
+        expect(ws.path.join("parent.rb")).to exist
+      end
+
       it "configures the repository-local Git author for PAT-backed agent commits" do
         ws = described_class.new(workflow)
         ws.setup
