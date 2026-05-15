@@ -2,12 +2,13 @@ require "rails_helper"
 
 RSpec.describe DiagnoseRunJob do
   # Build a Run in `running` state with a given heartbeat age.
-  def running_run(heartbeat_age: 30.seconds)
+  def running_run(heartbeat_age: 30.seconds, agent_provider: "claude")
     run = Run.create!(job: Factories.job, trigger_kind: "initial")
     run.update_columns(
       state: "running",
       started_at: heartbeat_age.ago,
-      last_heartbeat_at: heartbeat_age.ago
+      last_heartbeat_at: heartbeat_age.ago,
+      agent_provider: agent_provider
     )
     run
   end
@@ -31,7 +32,7 @@ RSpec.describe DiagnoseRunJob do
   end
 
   describe "#perform" do
-    context "healthy run — fresh heartbeat, worktree present, claude running" do
+    context "healthy run — fresh heartbeat, worktree present, agent running" do
       it "captures a healthy snapshot" do
         run = running_run(heartbeat_age: 30.seconds)
 
@@ -190,9 +191,56 @@ RSpec.describe DiagnoseRunJob do
     end
   end
 
+  describe "process signals" do
+    it "matches the expected process for a Codex run" do
+      job = build_job
+      workspace_path = "/tmp/syrus-workspace"
+
+      allow(File).to receive(:directory?).and_call_original
+      allow(File).to receive(:directory?).with("/proc").and_return(true)
+      allow(Dir).to receive(:glob).with("/proc/[0-9]*/cwd").and_return([
+        "/proc/111/cwd",
+        "/proc/222/cwd"
+      ])
+      allow(File).to receive(:readlink).and_call_original
+      allow(File).to receive(:readlink).with("/proc/111/cwd").and_return(workspace_path)
+      allow(File).to receive(:readlink).with("/proc/111/exe").and_return("/usr/bin/claude")
+      allow(File).to receive(:readlink).with("/proc/222/cwd").and_return(workspace_path)
+      allow(File).to receive(:readlink).with("/proc/222/exe").and_return("/usr/local/bin/codex")
+      allow(File).to receive(:read).and_call_original
+      allow(File).to receive(:read).with("/proc/111/cmdline").and_return("claude\0--print")
+      allow(File).to receive(:read).with("/proc/222/cmdline").and_return("codex\0exec")
+
+      running, info = job.send(:check_agent_process, workspace_path, "codex")
+
+      expect(running).to be(true)
+      expect(info).to include("PID 222: codex exec")
+      expect(info).not_to include("claude")
+    end
+
+    it "does not treat a Claude process as healthy for a Codex run" do
+      job = build_job
+      workspace_path = "/tmp/syrus-workspace"
+
+      allow(File).to receive(:directory?).and_call_original
+      allow(File).to receive(:directory?).with("/proc").and_return(true)
+      allow(Dir).to receive(:glob).with("/proc/[0-9]*/cwd").and_return([ "/proc/111/cwd" ])
+      allow(File).to receive(:readlink).and_call_original
+      allow(File).to receive(:readlink).with("/proc/111/cwd").and_return(workspace_path)
+      allow(File).to receive(:readlink).with("/proc/111/exe").and_return("/usr/bin/claude")
+      allow(File).to receive(:read).and_call_original
+      allow(File).to receive(:read).with("/proc/111/cmdline").and_return("claude\0--print")
+
+      running, info = job.send(:check_agent_process, workspace_path, "codex")
+
+      expect(running).to be(false)
+      expect(info).to be_nil
+    end
+  end
+
   describe "health status logic" do
-    def snapshot_with(**attrs)
-      run = running_run
+    def snapshot_with(agent_provider: "claude", **attrs)
+      run = running_run(agent_provider: agent_provider)
       s = RunHealthSnapshot.new(run: run, run_state: "running", **attrs)
 
       job = build_job
@@ -236,6 +284,30 @@ RSpec.describe DiagnoseRunJob do
       status, hint = snapshot_with(heartbeat_age_seconds: 60, sq_job_state: "missing")
       expect(status).to eq("warning")
       expect(hint).to include("SolidQueue job not found")
+    end
+
+    it "uses generic agent wording for a stale Codex run without a matching process" do
+      status, hint = snapshot_with(agent_provider: "codex",
+                                   heartbeat_age_seconds: 10.minutes.to_i,
+                                   sq_job_state: "claimed",
+                                   worktree_exists: true,
+                                   claude_process_running: false)
+
+      expect(status).to eq("critical")
+      expect(hint).to include("agent process not found")
+      expect(hint).not_to match(/claude/i)
+    end
+
+    it "uses generic agent wording for a healthy Codex run" do
+      status, hint = snapshot_with(agent_provider: "codex",
+                                   heartbeat_age_seconds: 60,
+                                   sq_job_state: "claimed",
+                                   worktree_exists: true,
+                                   claude_process_running: true)
+
+      expect(status).to eq("healthy")
+      expect(hint).to include("agent active")
+      expect(hint).not_to match(/claude/i)
     end
   end
 end

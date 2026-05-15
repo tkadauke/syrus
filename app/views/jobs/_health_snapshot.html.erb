@@ -57,7 +57,7 @@
     <span class="text-gray-500">worktree</span>
     <span><%= bool_signal(snapshot.worktree_exists) %></span>
 
-    <span class="text-gray-500">claude running</span>
+    <span class="text-gray-500">agent running</span>
     <span><%= bool_signal(snapshot.claude_process_running) %></span>
 
     <span class="text-gray-500">branch on origin</span>
@@ -105,7 +105,7 @@
 
   <% if snapshot.claude_process_info.present? %>
     <details class="mt-2">
-      <summary class="text-gray-500 cursor-pointer select-none hover:text-gray-700">Claude process</summary>
+      <summary class="text-gray-500 cursor-pointer select-none hover:text-gray-700">Agent process</summary>
       <pre class="mt-1 font-mono text-xs bg-black text-gray-100 p-2 rounded whitespace-pre-wrap"><%= snapshot.claude_process_info %></pre>
     </details>
   <% end %>

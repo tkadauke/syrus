@@ -17,6 +17,10 @@ class DiagnoseRunJob < ApplicationJob
   # Heartbeat thresholds for health-status colour-coding.
   WARNING_HEARTBEAT  = 5.minutes
   CRITICAL_HEARTBEAT = Run::STALE_HEARTBEAT_THRESHOLD  # 30 min
+  AGENT_PROCESS_NAMES = {
+    "claude" => "claude",
+    "codex" => "codex"
+  }.freeze
 
   def perform(run_id)
     run = Run.includes(:job, :step, job_logs: []).find_by(id: run_id)
@@ -113,18 +117,21 @@ class DiagnoseRunJob < ApplicationJob
       end
     end
 
-    running, info = check_claude_process(workspace_path)
+    running, info = check_agent_process(workspace_path, run.agent_provider)
     snapshot.claude_process_running = running
     snapshot.claude_process_info    = info
   rescue StandardError => e
     Rails.logger.warn("[DiagnoseRunJob] process signals failed for Run ##{run.id}: #{e.class}: #{e.message}")
   end
 
-  # Check /proc for a claude process whose cwd matches the workspace.
+  # Check /proc for the expected agent process whose cwd matches the workspace.
   # Returns [true, info_string] | [false, nil] | [nil, nil] (unavailable).
   # Linux-only; degrades gracefully on other platforms.
-  def check_claude_process(workspace_path)
+  def check_agent_process(workspace_path, agent_provider)
     return [ nil, nil ] unless File.directory?("/proc")
+
+    process_name = agent_process_name(agent_provider)
+    return [ nil, "Unknown agent provider: #{agent_provider.inspect}" ] unless process_name
 
     Dir.glob("/proc/[0-9]*/cwd").each do |cwd_link|
       cwd = File.readlink(cwd_link) rescue next
@@ -132,15 +139,24 @@ class DiagnoseRunJob < ApplicationJob
 
       pid = File.dirname(cwd_link).split("/").last
       exe = File.readlink("/proc/#{pid}/exe") rescue nil
-      next unless exe.to_s.include?("claude")
-
       cmdline = File.read("/proc/#{pid}/cmdline").gsub("\0", " ").strip rescue nil
+      next unless agent_process_match?(process_name, exe, cmdline)
+
       return [ true, "PID #{pid}: #{cmdline&.first(200)}" ]
     end
 
     [ false, nil ]
   rescue StandardError => e
     [ nil, "(#{e.class}: #{e.message})" ]
+  end
+
+  def agent_process_name(agent_provider)
+    AGENT_PROCESS_NAMES[agent_provider.to_s]
+  end
+
+  def agent_process_match?(process_name, exe, cmdline)
+    File.basename(exe.to_s).include?(process_name) ||
+      cmdline.to_s.split.first.to_s.include?(process_name)
   end
 
   # ── Assessment ───────────────────────────────────────────────────────────
@@ -153,7 +169,7 @@ class DiagnoseRunJob < ApplicationJob
     return "critical" if age && age > CRITICAL_HEARTBEAT.to_i
 
     if run.running?
-      # Claude not found + heartbeat already stale past the warning threshold.
+      # Agent not found + heartbeat already stale past the warning threshold.
       if snapshot.claude_process_running == false && age && age > WARNING_HEARTBEAT.to_i
         return "critical"
       end
@@ -180,23 +196,23 @@ class DiagnoseRunJob < ApplicationJob
     if age && age > CRITICAL_HEARTBEAT.to_i
       base = "Heartbeat #{age_str} stale (past #{CRITICAL_HEARTBEAT.inspect} threshold)"
       if snapshot.claude_process_running == false
-        return "#{base} and claude process not found — recommend Replay or Resume."
+        return "#{base} and agent process not found — recommend Replay or Resume."
       end
       return "#{base} — reaper will auto-cancel soon; use Cancel now to act first."
     end
 
     if age && age > WARNING_HEARTBEAT.to_i
       if snapshot.claude_process_running == false
-        return "Heartbeat #{age_str} stale and claude not found — may be stuck. Compare a second snapshot in a few minutes."
+        return "Heartbeat #{age_str} stale and agent process not found — may be stuck. Compare a second snapshot in a few minutes."
       end
-      return "Heartbeat #{age_str} stale — claude is running but progress may be slow. Capture a second snapshot to confirm."
+      return "Heartbeat #{age_str} stale — agent is running but progress may be slow. Capture a second snapshot to confirm."
     end
 
     if snapshot.sq_job_state == "missing"
       return "SolidQueue job not found — Run may have been queued on a different worker or SQ inspection is unavailable."
     end
 
-    "Run appears healthy — claude active and heartbeat fresh."
+    "Run appears healthy — agent active and heartbeat fresh."
   end
 
   # ── Helpers ──────────────────────────────────────────────────────────────
