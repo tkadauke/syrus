@@ -40,7 +40,7 @@ class ChatProposalFiler
 
         proposal.update!(proposal_attrs)
         wire_dependencies_for(proposal, job, job_by_proposal_id) if job
-        start_adhoc_workflow(job, proposal) if job
+        start_direct_workflow(job, proposal) if job
       end
     end
 
@@ -82,7 +82,7 @@ class ChatProposalFiler
   def create_job_for(proposal)
     case proposal.kind
     when "syrus_issue"
-      create_adhoc_job(proposal)
+      create_direct_job(proposal)
     when "github_issue"
       file_github_issue(proposal)
       nil
@@ -91,10 +91,10 @@ class ChatProposalFiler
     end
   end
 
-  def create_adhoc_job(proposal)
+  def create_direct_job(proposal)
     user.jobs.create!(
       repository: repository,
-      kind: "adhoc",
+      kind: "direct",
       issue_number: nil,
       issue_title: proposal.title,
       issue_body: proposal.body,
@@ -140,8 +140,8 @@ class ChatProposalFiler
     end
   end
 
-  def start_adhoc_workflow(job, proposal)
+  def start_direct_workflow(job, proposal)
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
-    StepDispatcher.start_workflow(workflow, prompt: Prompts::AdhocJob.new(prompt: proposal.body).to_s)
+    StepDispatcher.start_workflow(workflow, prompt: Prompts::DirectJob.new(prompt: proposal.body).to_s)
   end
 end

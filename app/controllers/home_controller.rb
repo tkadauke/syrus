@@ -146,7 +146,7 @@ class HomeController < ApplicationController
   end
 
   def job_filter_params
-    base = params.permit(:state, :repository_id, :pr, :age, :attention).to_h.compact_blank
+    base = params.permit(:state, :repository_id, :kind, :pr, :age, :attention).to_h.compact_blank
     base["tag_ids"] = tag_filter_ids if params[:tag_ids].present?
 
     if @active_smart_folder

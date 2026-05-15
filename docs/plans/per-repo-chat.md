@@ -74,7 +74,7 @@ Job pipeline.
    Proposals tab UI. Keeps proposals reviewable; agent's job is
    to draft, operator's job is to commit.
 8. **Default proposal kind is `syrus_issue`.** Direct `Job`
-   creation with `kind: adhoc`, prompt from the body. Faster
+   creation with `kind: direct`, prompt from the body. Faster
    loop than going through a GitHub issue. Agent can override
    with `kind: github_issue` per proposal when the work is for a
    human or wants a GH audit trail.
@@ -347,8 +347,8 @@ class ChatProposalFiler
 
   def create_job_for(prop)
     case prop.kind
-    when "syrus_issue" then create_adhoc_job(prop)
-    when "github_issue" then file_github_issue_then_adhoc_job(prop)  # see note
+    when "syrus_issue" then create_direct_job(prop)
+    when "github_issue" then file_github_issue_then_direct_job(prop)  # see note
     end
   end
 end

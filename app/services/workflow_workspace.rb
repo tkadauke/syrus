@@ -140,8 +140,8 @@ class WorkflowWorkspace
       "syrus/scheduled-#{@job.scheduled_task_id}-#{@job.id}"
     elsif local_source_path
       "syrus/local-#{@job.id}"
-    elsif @job.adhoc?
-      "syrus/adhoc-#{@job.id}"
+    elsif @job.direct?
+      "syrus/direct-#{@job.id}"
     else
       "syrus/issue-#{@job.issue_number}-#{@job.id}"
     end

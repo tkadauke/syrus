@@ -33,7 +33,7 @@
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <%= state_pill(job_summary_state(@job)) %>
-      <% if @job.adhoc? && @job.open? && @job.runs.empty? %>
+      <% if @job.direct? && @job.open? && @job.runs.empty? %>
         <%= button_to "Start Run", start_job_path(@job), method: :post,
               class: "rounded-md px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium cursor-pointer",
               form: { class: "inline" } %>

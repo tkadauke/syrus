@@ -62,7 +62,7 @@ token-bearing URL only for the individual push command.
 
 ## State Machines
 
-Jobs are long-lived threads around an issue, scheduled task, or ad hoc
+Jobs are long-lived threads around an issue, scheduled task, or direct
 prompt:
 
 ```text

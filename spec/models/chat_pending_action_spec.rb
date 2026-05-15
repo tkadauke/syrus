@@ -5,11 +5,11 @@ RSpec.describe ChatPendingAction do
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
-  def adhoc_job(**attrs)
+  def direct_job(**attrs)
     Job.create!({
       user: user,
       repository: repository,
-      kind: "adhoc",
+      kind: "direct",
       issue_number: nil,
       issue_title: "Manual job",
       issue_body: "Do the thing."
@@ -77,7 +77,7 @@ RSpec.describe ChatPendingAction do
   end
 
   it "confirms a retry_job action by starting a retry Workflow" do
-    job = adhoc_job
+    job = direct_job
     Workflows::Initial.instantiate(job: job).update!(state: "succeeded")
     action = chat_session.pending_actions.create!(
       action: "retry_job",
@@ -93,7 +93,7 @@ RSpec.describe ChatPendingAction do
   end
 
   it "confirms a rebase_job action by starting a rebase Workflow" do
-    job = adhoc_job(pr_number: 17)
+    job = direct_job(pr_number: 17)
     action = chat_session.pending_actions.create!(
       action: "rebase_job",
       payload: { "job_id" => job.id }
@@ -108,7 +108,7 @@ RSpec.describe ChatPendingAction do
   end
 
   it "does not confirm a stale rejected action" do
-    job = adhoc_job
+    job = direct_job
     action = chat_session.pending_actions.create!(
       action: "cancel_job",
       payload: { "job_id" => job.id }

@@ -73,7 +73,7 @@ RSpec.describe "Repository proposals", type: :request do
     end
 
     it "shows filed proposal Job links only when resolved proposals are included" do
-      job = Job.create!(user: user, repository: repo, kind: "adhoc", issue_title: "Filed", issue_body: "Filed body")
+      job = Job.create!(user: user, repository: repo, kind: "direct", issue_title: "Filed", issue_body: "Filed body")
       filed = proposal(slug: "filed-one", title: "Filed one", state: "filed", job: job, filed_at: Time.current)
 
       get repository_proposals_path(repo)

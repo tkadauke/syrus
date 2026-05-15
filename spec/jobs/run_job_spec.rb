@@ -288,17 +288,17 @@ RSpec.describe RunJob do
       job; drain_workflow!(job)
     end
 
-    it "adds human trigger attribution to ad hoc PR descriptions" do
-      adhoc = user.jobs.create!(
+    it "adds human trigger attribution to direct PR descriptions" do
+      direct = user.jobs.create!(
         repository: repository,
-        kind: "adhoc",
+        kind: "direct",
         issue_title: "Manual tidy",
         issue_body: "Clean up the docs."
       )
-      workflow = Workflows::Initial.instantiate(job: adhoc, agent_provider: adhoc.agent_provider)
-      StepDispatcher.start_workflow(workflow, prompt: Prompts::AdhocJob.new(prompt: adhoc.issue_body).to_s)
+      workflow = Workflows::Initial.instantiate(job: direct, agent_provider: direct.agent_provider)
+      StepDispatcher.start_workflow(workflow, prompt: Prompts::DirectJob.new(prompt: direct.issue_body).to_s)
 
-      drain_workflow!(adhoc)
+      drain_workflow!(direct)
 
       expect(a_request(:post, "https://api.github.com/repos/acme/widgets/pulls").with(
         body: hash_including("body" => including("Triggered by @ada"))

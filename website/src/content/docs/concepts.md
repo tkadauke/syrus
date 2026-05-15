@@ -28,7 +28,7 @@ The Job owns the long-lived identifiers:
 - closure reason, when the thread ends
 
 Issue Jobs usually start from a labeled GitHub issue. Scheduled Jobs
-start from a recurring or one-shot task. Ad-hoc Jobs start from an
+start from a recurring or one-shot task. Direct Jobs start from an
 operator prompt.
 
 :::note

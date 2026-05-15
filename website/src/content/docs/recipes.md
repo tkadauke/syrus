@@ -193,16 +193,16 @@ repo = user.repositories.active.find_by!(
 prompt = ENV.fetch("SYRUS_PROMPT")
 job = user.jobs.create!(
   repository: repo,
-  kind: "adhoc",
+  kind: "direct",
   issue_number: nil,
-  issue_title: ENV.fetch("SYRUS_JOB_TITLE", "Ad hoc job"),
+  issue_title: ENV.fetch("SYRUS_JOB_TITLE", "Direct job"),
   issue_body: prompt,
   agent_provider: repo.effective_agent_provider,
   priority: ENV.fetch("SYRUS_PRIORITY", "medium")
 )
 
 workflow = Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
-StepDispatcher.start_workflow(workflow, prompt: Prompts::AdhocJob.new(prompt: prompt).to_s)
+StepDispatcher.start_workflow(workflow, prompt: Prompts::DirectJob.new(prompt: prompt).to_s)
 
 puts "Created Job ##{job.id}"
 RUBY
@@ -212,10 +212,10 @@ In Docker Compose, run the same command inside the web or worker service,
 for example:
 
 ```bash
-docker compose exec web bin/rails runner ./script/create_adhoc_job.rb
+docker compose exec web bin/rails runner ./script/create_direct_job.rb
 ```
 
-Expected outcome: Syrus creates an `adhoc` Job with no GitHub issue,
+Expected outcome: Syrus creates a `direct` Job with no GitHub issue,
 starts the normal initial Workflow, and opens a PR if the agent produces
 a diff.
 

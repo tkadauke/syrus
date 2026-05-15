@@ -24,7 +24,7 @@ Retries create new Runs without erasing the old transcript.
 ### Initial
 
 Trigger: a GitHub issue with the repository's trigger label, or a new cron
-or ad hoc Job that uses the standard issue-to-PR path. Steps:
+or direct Job that uses the standard issue-to-PR path. Steps:
 `prepare -> implement -> summarize -> pr_open`. The agent makes and commits
 the change during `implement`, `summarize` collects PR copy via MCP and
 amends the commit message, and `pr_open` pushes the branch and opens the
@@ -91,7 +91,7 @@ same Job.
 | Step | Agentic | Purpose |
 | --- | --- | --- |
 | `prepare` | No | Run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
-| `implement` | Yes | Make the requested code change for Initial, Retry, cron, and ad hoc work |
+| `implement` | Yes | Make the requested code change for Initial, Retry, cron, and direct work |
 | `respond` | Yes | Address PR review feedback on an existing branch |
 | `analyze_and_fix` | Yes | Diagnose failed CI checks and commit a fix |
 | `summarize` | Yes | Resume the implementation session and collect PR title/body/summary through MCP |

@@ -25,6 +25,11 @@
         {},
         class: select_classes, data: { action: "change->auto-submit#submit" } %>
 
+  <%= f.select :kind,
+        options_for_select([["All kinds", ""], ["Issue", "issue"], ["Direct", "direct"], ["Cron", "cron"]], @job_filter_params["kind"]),
+        {},
+        class: select_classes, data: { action: "change->auto-submit#submit" } %>
+
   <% if @tags.any? %>
     <%= f.select :tag_ids,
           options_for_select(@tags.map { |tag| [tag.name, tag.id] }, Array(@job_filter_params["tag_ids"])),

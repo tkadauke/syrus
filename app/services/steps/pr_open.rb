@@ -86,7 +86,7 @@ module Steps
       parts << "Closes ##{job.issue_number}" if job.issue?
       parts << "" if job.issue?
       parts << body
-      if job.adhoc? && (handle = BotIdentity.github_handle(job.user))
+      if job.direct? && (handle = BotIdentity.github_handle(job.user))
         parts << ""
         parts << "Triggered by @#{handle}"
       end

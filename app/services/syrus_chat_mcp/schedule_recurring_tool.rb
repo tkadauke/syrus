@@ -14,7 +14,7 @@ module SyrusChatMcp
       properties: {
         cron_expression: { type: "string", description: "Five-field cron expression, interpreted in UTC." },
         label: { type: "string", description: "Short operator-facing label for this recurring task." },
-        prompt: { type: "string", description: "Prompt to run as an ad hoc Job each time the schedule fires." }
+        prompt: { type: "string", description: "Prompt to run as a cron Job each time the schedule fires." }
       },
       required: %w[cron_expression label prompt]
     )

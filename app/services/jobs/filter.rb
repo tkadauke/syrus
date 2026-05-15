@@ -1,6 +1,6 @@
 module Jobs
   class Filter
-    PARAM_KEYS = %w[ state repository_id pr age attention tag_ids ].freeze
+    PARAM_KEYS = %w[ state repository_id kind pr age attention tag_ids ].freeze
 
     attr_reader :params, :user
 
@@ -28,6 +28,7 @@ module Jobs
       relation = apply_attention(relation)
       relation = apply_state(relation)
       relation = apply_repository(relation)
+      relation = apply_kind(relation)
       relation = apply_pr(relation)
       relation = apply_age(relation)
       apply_tags(relation)
@@ -58,6 +59,12 @@ module Jobs
       return relation if params["repository_id"].blank?
 
       relation.where(repository_id: params["repository_id"])
+    end
+
+    def apply_kind(relation)
+      return relation unless Job::KINDS.include?(params["kind"])
+
+      relation.where(kind: params["kind"])
     end
 
     def apply_pr(relation)

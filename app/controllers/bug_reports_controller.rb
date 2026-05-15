@@ -29,7 +29,7 @@ class BugReportsController < ApplicationController
     ActiveRecord::Base.transaction do
       job = Current.user.jobs.create!(
         repository: repository,
-        kind: "adhoc",
+        kind: "direct",
         issue_number: nil,
         issue_title: title,
         issue_body: prompt_text,

@@ -1352,11 +1352,11 @@ RSpec.describe "Jobs", type: :request do
     context "signed in" do
       before { sign_in_as(user) }
 
-      it "renders the new ad hoc job form with the user's active repositories" do
+      it "renders the new direct job form with the user's active repositories" do
         repository  # ensure it exists
         get new_job_path
         expect(response).to be_successful
-        expect(response.body).to include("New ad hoc job")
+        expect(response.body).to include("New direct job")
         expect(response.body).to include("acme/widgets")
       end
 
@@ -1419,10 +1419,10 @@ RSpec.describe "Jobs", type: :request do
     end
   end
 
-  describe "POST /jobs (create ad hoc job)" do
+  describe "POST /jobs (create direct job)" do
     before { sign_in_as(user) }
 
-    it "creates an adhoc Job, starts the workflow, and redirects to the job page" do
+    it "creates a direct Job, starts the workflow, and redirects to the job page" do
       repository  # ensure it exists
       expect {
         post jobs_path, params: {
@@ -1434,7 +1434,7 @@ RSpec.describe "Jobs", type: :request do
         .and have_enqueued_job(RunJob)
 
       new_job = Job.order(:created_at).last
-      expect(new_job.kind).to eq("adhoc")
+      expect(new_job.kind).to eq("direct")
       expect(new_job.issue_title).to eq("Bump Ruby version")
       expect(new_job.issue_body).to eq("Update the Ruby version in .ruby-version to 3.3.0.")
       expect(new_job.issue_number).to be_nil
@@ -1461,7 +1461,7 @@ RSpec.describe "Jobs", type: :request do
       expect(new_job.runs.first.agent_provider).to eq("codex")
     end
 
-    it "defaults ad hoc jobs to the repository's effective agent" do
+    it "defaults direct jobs to the repository's effective agent" do
       user.update!(agent_provider: "claude", claude_oauth_token: "oat-test",
                    codex_auth_mode: "api_key", codex_api_key: "sk-test")
       repository.update!(agent_provider: "codex")
@@ -1514,13 +1514,13 @@ RSpec.describe "Jobs", type: :request do
       expect(selected_repository["value"]).to eq(repository.id.to_s)
     end
 
-    it "uses 'Ad hoc job' as the default title when none is provided" do
+    it "uses 'Direct job' as the default title when none is provided" do
       post jobs_path, params: {
         repository_id: repository.id,
         prompt: "Do something."
       }
       new_job = Job.order(:created_at).last
-      expect(new_job.issue_title).to eq("Ad hoc job")
+      expect(new_job.issue_title).to eq("Direct job")
     end
 
     it "pre-renders the prompt and sets it on the first Run" do
@@ -1532,7 +1532,7 @@ RSpec.describe "Jobs", type: :request do
       expect(run.prompt).to include("Do something useful.")
     end
 
-    it "parses dependencies from the ad hoc prompt and waits to dispatch" do
+    it "parses dependencies from the direct prompt and waits to dispatch" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
 
       expect {
@@ -1623,10 +1623,10 @@ RSpec.describe "Jobs", type: :request do
         issue_number: 41,
         issue_title: "Latest attempt"
       )
-      ad_hoc_job = Job.create!(
+      direct_job = Job.create!(
         user: user,
         repository: repository,
-        kind: "adhoc",
+        kind: "direct",
         issue_number: nil,
         issue_title: "One-off cleanup",
         issue_body: "Tidy the thing."
@@ -1645,7 +1645,7 @@ RSpec.describe "Jobs", type: :request do
       expect(select["required"]).to be_present
       expect(document.at_css("input[type='number'][name='dependency_job_id']")).to be_nil
       expect(document.at_css("input[type='number'][name='dependency_issue_number']")).to be_nil
-      expect(option_values).to include("issue:#{repository.id}:41", "job:#{ad_hoc_job.id}")
+      expect(option_values).to include("issue:#{repository.id}:41", "job:#{direct_job.id}")
       expect(option_values).not_to include("job:#{older_issue_job.id}", "issue:#{repository.id}:42")
       expect(option_text.scan("#41").size).to eq(1)
       expect(option_text).to include("Latest attempt")
@@ -1733,41 +1733,41 @@ RSpec.describe "Jobs", type: :request do
   describe "POST /jobs/:id/start" do
     before { sign_in_as(user) }
 
-    it "starts a queued ad hoc workflow without creating it at bug-report submit time" do
-      ad_hoc = Job.create!(
+    it "starts a queued direct workflow without creating it at bug-report submit time" do
+      direct = Job.create!(
         user: user,
         repository: repository,
-        kind: "adhoc",
+        kind: "direct",
         issue_number: nil,
         issue_title: "Screenshot bug",
         issue_body: "Screenshot bug\n\nThe nav is sideways."
       )
-      workflow = Workflows::Initial.instantiate(job: ad_hoc, agent_provider: ad_hoc.agent_provider)
+      workflow = Workflows::Initial.instantiate(job: direct, agent_provider: direct.agent_provider)
 
-      expect(ad_hoc.runs).to be_empty
+      expect(direct.runs).to be_empty
       expect {
-        post start_job_path(ad_hoc)
+        post start_job_path(direct)
       }.to have_enqueued_job(RunJob).and change(Run, :count).by(1)
 
-      expect(response).to redirect_to(job_path(ad_hoc, tab: "workflows"))
+      expect(response).to redirect_to(job_path(direct, tab: "workflows"))
       expect(workflow.reload).to be_queued
-      expect(ad_hoc.reload.runs.first.prompt).to include("Screenshot bug")
+      expect(direct.reload.runs.first.prompt).to include("Screenshot bug")
     end
 
-    it "renders a Start Run button for unstarted ad hoc jobs" do
-      ad_hoc = Job.create!(
+    it "renders a Start Run button for unstarted direct jobs" do
+      direct = Job.create!(
         user: user,
         repository: repository,
-        kind: "adhoc",
+        kind: "direct",
         issue_number: nil,
         issue_title: "Screenshot bug",
         issue_body: "Screenshot bug"
       )
 
-      get job_path(ad_hoc)
+      get job_path(direct)
 
       expect(response.body).to include("Start Run")
-      expect(response.body).to include(start_job_path(ad_hoc))
+      expect(response.body).to include(start_job_path(direct))
     end
   end
 end

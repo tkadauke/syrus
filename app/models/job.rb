@@ -1,7 +1,7 @@
 class Job < ApplicationRecord
   include AASM
 
-  KINDS = %w[ issue cron adhoc ].freeze
+  KINDS = %w[ issue cron direct ].freeze
   CREDENTIAL_MODES = %w[ app pat ].freeze
   PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
   OPERATOR_CHAT_OPT_OUT_LABEL = "syrus-no-chat".freeze
@@ -54,7 +54,7 @@ class Job < ApplicationRecord
             if: :issue?
   validates :scheduled_task_id, presence: true, if: :cron?
   validate  :issue_number_blank_for_cron, if: :cron?
-  validate  :issue_number_blank_for_adhoc, if: :adhoc?
+  validate  :issue_number_blank_for_direct, if: :direct?
   before_validation :default_agent_provider, on: :create
   before_validation :default_credential_mode, on: :create
 
@@ -62,7 +62,7 @@ class Job < ApplicationRecord
   scope :closed_threads, -> { where(state: "closed") }
   scope :issue_kind, -> { where(kind: "issue") }
   scope :cron_kind,  -> { where(kind: "cron") }
-  scope :adhoc_kind, -> { where(kind: "adhoc") }
+  scope :direct_kind, -> { where(kind: "direct") }
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
 
@@ -74,8 +74,8 @@ class Job < ApplicationRecord
     kind == "cron"
   end
 
-  def adhoc?
-    kind == "adhoc"
+  def direct?
+    kind == "direct"
   end
 
   # Returns an "issue-shaped" object (responds to #title, #body) for
@@ -90,7 +90,7 @@ class Job < ApplicationRecord
         "Scheduled task: #{scheduled_task.name}",
         scheduled_task.prompt.to_s
       )
-    elsif adhoc?
+    elsif direct?
       Struct.new(:title, :body).new(issue_title.to_s, issue_body.to_s)
     end
   end
@@ -456,7 +456,7 @@ class Job < ApplicationRecord
     errors.add(:issue_number, "must be blank for cron Jobs") if issue_number.present?
   end
 
-  def issue_number_blank_for_adhoc
-    errors.add(:issue_number, "must be blank for ad hoc Jobs") if issue_number.present?
+  def issue_number_blank_for_direct
+    errors.add(:issue_number, "must be blank for direct Jobs") if issue_number.present?
   end
 end

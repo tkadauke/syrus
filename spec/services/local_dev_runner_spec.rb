@@ -37,7 +37,7 @@ RSpec.describe LocalDevRunner do
         [ "prepare", "succeeded" ],
         [ "implement", "succeeded" ]
       ])
-      expect(result.job).to be_adhoc
+      expect(result.job).to be_direct
       expect(result.job.branch_name).to eq("syrus/local-#{result.job.id}")
       expect(result.job.pr_number).to be_nil
       expect(result.diff).to include("+def local_greet = 'hello from local dev'")

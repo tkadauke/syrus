@@ -93,7 +93,7 @@ class LocalDevRunner
   def create_job(user, repository, root)
     job = user.jobs.create!(
       repository: repository,
-      kind: "adhoc",
+      kind: "direct",
       issue_number: nil,
       issue_title: "Local dev: #{root}",
       issue_body: @prompt,

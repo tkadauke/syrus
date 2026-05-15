@@ -272,42 +272,42 @@ RSpec.describe Job do
     end
   end
 
-  describe "adhoc kind" do
+  describe "direct kind" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
 
-    it "adhoc? returns true for adhoc jobs" do
-      job = Job.new(kind: "adhoc")
-      expect(job.adhoc?).to be true
+    it "direct? returns true for direct jobs" do
+      job = Job.new(kind: "direct")
+      expect(job.direct?).to be true
       expect(job.issue?).to be false
       expect(job.cron?).to be false
     end
 
     it "is valid with no issue_number and no scheduled_task_id" do
-      job = Job.new(user: user, repository: repository, kind: "adhoc", issue_number: nil)
+      job = Job.new(user: user, repository: repository, kind: "direct", issue_number: nil)
       expect(job).to be_valid
     end
 
     it "is invalid when issue_number is present" do
-      job = Job.new(user: user, repository: repository, kind: "adhoc", issue_number: 5)
+      job = Job.new(user: user, repository: repository, kind: "direct", issue_number: 5)
       expect(job).not_to be_valid
-      expect(job.errors[:issue_number]).to include("must be blank for ad hoc Jobs")
+      expect(job.errors[:issue_number]).to include("must be blank for direct Jobs")
     end
 
     it "does NOT auto-spawn an initial Run on create (prompt must be pre-rendered by caller)" do
-      job = Job.create!(user: user, repository: repository, kind: "adhoc")
+      job = Job.create!(user: user, repository: repository, kind: "direct")
       expect(job.runs).to be_empty
     end
 
     it "synthetic_issue returns issue_title/issue_body" do
-      job = Job.new(kind: "adhoc", issue_title: "My task", issue_body: "Do the thing.")
+      job = Job.new(kind: "direct", issue_title: "My task", issue_body: "Do the thing.")
       si = job.synthetic_issue
       expect(si.title).to eq("My task")
       expect(si.body).to eq("Do the thing.")
     end
 
     it "synthetic_issue handles nil issue_title/issue_body gracefully" do
-      job = Job.new(kind: "adhoc", issue_title: nil, issue_body: nil)
+      job = Job.new(kind: "direct", issue_title: nil, issue_body: nil)
       si = job.synthetic_issue
       expect(si.title).to eq("")
       expect(si.body).to eq("")

@@ -38,7 +38,7 @@ carries per-attempt state — prompt, agent metadata, diff, PR copy.
 
 `Job#kind` is `issue` (default, filed from GitHub), `cron` (fired by a
 `ScheduledTask` — no issue_number, prompt pre-rendered at fire time), or
-`adhoc` (operator-created free-form prompt, no GitHub issue or scheduled
+`direct` (operator-created free-form prompt, no GitHub issue or scheduled
 task — prompt supplied directly at job creation). All three kinds use the
 same Workflow pipeline.
 
@@ -173,7 +173,7 @@ preserve scroll position across morphs.
 - **Prompts** all live under `app/services/prompts/` as PORO classes
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`, `Prompts::Resume`,
-  `Prompts::ScheduledTask`, `Prompts::AdhocJob`). Each has a `to_s`. Compose
+  `Prompts::ScheduledTask`, `Prompts::DirectJob`). Each has a `to_s`. Compose
   by appending; never inline prompt text in jobs/services.
 - **Encrypted attributes** — `User#github_token`, `User#claude_oauth_token`
   use Active Record Encryption. Means `RAILS_MASTER_KEY` is required in
@@ -195,8 +195,8 @@ preserve scroll position across morphs.
   per-run 30-minute timeout still bounds runaway loops). Threaded through
   RunJob → AgentInvocation for both regular and rebase runs.
 - **Agent provider selection** — `User#agent_provider` defaults new Jobs
-  and ad hoc Jobs; `Repository#agent_provider` overrides it for that repo
-  and drives repository-level bulk retries. Per-Job actions and new ad hoc
+  and direct Jobs; `Repository#agent_provider` overrides it for that repo
+  and drives repository-level bulk retries. Per-Job actions and new direct
   Jobs can explicitly choose a configured provider. Always pass the chosen
   provider through to the new Workflow/Run instead of relying on later inference.
 - **GitHub issue actions** — Repository pages can list GitHub issues and

@@ -82,7 +82,7 @@ RSpec.describe ChatProposalFiler do
       depends_on(leaf, root)
       filer = described_class.new(user: user, repository: repository)
       calls = 0
-      allow(filer).to receive(:create_adhoc_job).and_wrap_original do |original, prop|
+      allow(filer).to receive(:create_direct_job).and_wrap_original do |original, prop|
         calls += 1
         raise ActiveRecord::RecordInvalid.new(Job.new) if calls == 2
 

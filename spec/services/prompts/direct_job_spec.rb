@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Prompts::AdhocJob do
+RSpec.describe Prompts::DirectJob do
   describe "#to_s" do
     it "includes the operator's prompt text" do
       out = described_class.new(prompt: "Fix the flaky login spec.").to_s

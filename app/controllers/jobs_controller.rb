@@ -21,7 +21,7 @@ class JobsController < ApplicationController
     @prompt_templates   = PromptTemplate.all
   end
 
-  # Create an ad hoc Job from a free-form operator prompt — no GitHub
+  # Create a direct Job from a free-form operator prompt — no GitHub
   # issue, no cron schedule. Behaves like a cron Job fire: the prompt
   # is pre-rendered at create time and passed to StepDispatcher so
   # the agent receives it verbatim when RunJob starts.
@@ -49,7 +49,7 @@ class JobsController < ApplicationController
       return
     end
 
-    title = params[:title].to_s.strip.presence || "Ad hoc job"
+    title = params[:title].to_s.strip.presence || "Direct job"
     prompt_text = params[:prompt].to_s.strip
 
     if prompt_text.blank?
@@ -63,7 +63,7 @@ class JobsController < ApplicationController
 
     job = Current.user.jobs.create!(
       repository: repository,
-      kind: "adhoc",
+      kind: "direct",
       issue_number: nil,
       issue_title: title,
       issue_body: prompt_text,
@@ -79,20 +79,20 @@ class JobsController < ApplicationController
       return
     end
 
-    rendered_prompt = Prompts::AdhocJob.new(prompt: prompt_text).to_s
+    rendered_prompt = Prompts::DirectJob.new(prompt: prompt_text).to_s
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
     StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
 
     if @create_more
-      redirect_to new_job_path(repository_id: repository.id, create_more: "1"), notice: "Ad hoc job created."
+      redirect_to new_job_path(repository_id: repository.id, create_more: "1"), notice: "Direct job created."
     else
-      redirect_to job_path(job), notice: "Ad hoc job created."
+      redirect_to job_path(job), notice: "Direct job created."
     end
   end
 
   def start
-    unless @job.adhoc?
-      redirect_to job_path(@job), alert: "Only ad hoc Jobs can be started manually."
+    unless @job.direct?
+      redirect_to job_path(@job), alert: "Only direct Jobs can be started manually."
       return
     end
 
@@ -113,7 +113,7 @@ class JobsController < ApplicationController
 
     workflow = @job.workflows.where(state: "queued", trigger_kind: "initial").order(:created_at).first ||
                Workflows::Initial.instantiate(job: @job, agent_provider: @job.agent_provider)
-    rendered_prompt = Prompts::AdhocJob.new(prompt: @job.issue_body.to_s).to_s
+    rendered_prompt = Prompts::DirectJob.new(prompt: @job.issue_body.to_s).to_s
     StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
 
     redirect_to job_path(@job, tab: "workflows"), notice: "Initial workflow enqueued."

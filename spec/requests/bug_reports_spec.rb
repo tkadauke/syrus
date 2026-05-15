@@ -36,7 +36,7 @@ RSpec.describe "Bug reports", type: :request do
   describe "POST /bug_reports" do
     before { sign_in_as(user) }
 
-    it "creates a queued ad hoc Job for tkadauke/syrus with the selected screenshot attached" do
+    it "creates a queued direct Job for tkadauke/syrus with the selected screenshot attached" do
       repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
 
       expect {
@@ -56,7 +56,7 @@ RSpec.describe "Bug reports", type: :request do
       expect(job).to have_attributes(
         user: user,
         repository: repository,
-        kind: "adhoc",
+        kind: "direct",
         issue_number: nil,
         issue_title: "Home#index bug",
         issue_body: "Home#index bug\n\nThe dashboard fell over."

@@ -667,6 +667,34 @@ RSpec.describe "Dashboard", type: :request do
         end
       end
 
+      describe "kind filter" do
+        it "renders Direct in the kind facet" do
+          get root_path
+
+          document = Nokogiri::HTML(response.body)
+          labels = document.css("select[name='kind'] option").map(&:text)
+
+          expect(labels).to include("Issue", "Direct", "Cron")
+        end
+
+        it "shows only direct jobs when kind=direct" do
+          issue = Factories.job_record(repository: repo, issue_number: 1)
+          direct = Factories.job_record(
+            repository: repo,
+            kind: "direct",
+            issue_number: nil,
+            issue_title: "Direct cleanup",
+            issue_body: "Tidy the thing."
+          )
+
+          get root_path, params: { kind: "direct" }
+
+          expect(response.body).not_to include("##{issue.issue_number}")
+          expect(response.body).to include("Direct cleanup")
+          expect(response.body).to include(job_path(direct))
+        end
+      end
+
       describe "PR filter" do
         it "shows only jobs with a PR when pr=has_pr" do
           with    = Factories.job_record(repository: repo, issue_number: 1)
