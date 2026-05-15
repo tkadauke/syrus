@@ -60,6 +60,7 @@ RSpec.describe "API: /api/v1/admin/workflows/:id/*", type: :request do
       post "/api/v1/admin/workflows/#{workflow.id}/retry_step", headers: auth
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body.dig("error", "code")).to eq("workspace_cleaned_up")
+      expect(parse_body.dig("error", "message")).to eq("Workspace already cleaned up; use Start over.")
     end
 
     it "refuses when the workflow isn't failed" do

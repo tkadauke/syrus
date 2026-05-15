@@ -1,5 +1,5 @@
 module Steps
-  # First step in Initial / Replay / PrFeedback / CiFailure
+  # First step in Initial / Retry / PrFeedback / CiFailure
   # workflows. Runs deterministic setup work in the workspace
   # BEFORE handing off to the agent — package-manager installs
   # mostly (`bundle install`, `npm ci`, etc.) so the agent doesn't

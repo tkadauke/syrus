@@ -443,7 +443,7 @@ RSpec.describe "Jobs", type: :request do
     end
   end
 
-  describe "POST /jobs/:id/run_again (soft retry)" do
+  describe "POST /jobs/:id/run_again (retry)" do
     before { sign_in_as(user) }
 
     it "creates a new Run with trigger_kind=retry on the existing Job and enqueues RunJob" do
@@ -459,17 +459,25 @@ RSpec.describe "Jobs", type: :request do
       expect(response).to redirect_to(job_path(job, tab: "workflows"))
     end
 
-    it "stores replay_context in workflow artifacts when provided" do
+    it "stores retry context in workflow artifacts when provided" do
       job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
-      post run_again_job_path(job), params: { replay_context: "Please fix the failing tests in spec/models/user_spec.rb." }
+      post run_again_job_path(job), params: { retry_context: "Please fix the failing tests in spec/models/user_spec.rb." }
 
       workflow = job.workflows.where(trigger_kind: "retry").last
       expect(workflow.artifacts["replay_context"]).to eq("Please fix the failing tests in spec/models/user_spec.rb.")
     end
 
-    it "stores no artifacts when replay_context is blank" do
+    it "keeps replay_context as a compatibility alias" do
       job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
-      post run_again_job_path(job), params: { replay_context: "  " }
+      post run_again_job_path(job), params: { replay_context: "Please keep the old client working." }
+
+      workflow = job.workflows.where(trigger_kind: "retry").last
+      expect(workflow.artifacts["replay_context"]).to eq("Please keep the old client working.")
+    end
+
+    it "stores no artifacts when retry_context is blank" do
+      job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+      post run_again_job_path(job), params: { retry_context: "  " }
 
       workflow = job.workflows.where(trigger_kind: "retry").last
       expect(workflow.artifacts).to be_nil
@@ -740,7 +748,7 @@ RSpec.describe "Jobs", type: :request do
       expect {
         post retry_step_job_path(job, workflow_id: workflow.id)
       }.not_to change(Run, :count)
-      expect(flash[:alert]).to match(/already cleaned up/i)
+      expect(flash[:alert]).to eq("Workspace already cleaned up — use Start over.")
     end
 
     it "refuses when the workflow isn't failed" do
@@ -941,6 +949,18 @@ RSpec.describe "Jobs", type: :request do
       expect(response.body).to include("Retry with Codex")
       expect(response.body).to include("agent_provider=codex")
       expect(response.body).not_to include("Retry with Claude")
+    end
+
+    it "renders retry context controls without replay wording" do
+      job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+
+      get job_path(job)
+
+      expect(response.body).to include("Retry with context")
+      expect(response.body).to include("retry_context")
+      expect(response.body).to include("data-controller=\"retry-context\"")
+      expect(response.body).not_to include("Replay")
+      expect(response.body).not_to include("replay-context")
     end
 
     it "offers agent choices for PR feedback and rebase manual actions" do

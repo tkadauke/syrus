@@ -41,7 +41,7 @@ module Api
             return
           end
           unless workflow.retry_available?
-            render_error("workspace_cleaned_up", "Workspace already cleaned up; use Replay to start over.", status: :unprocessable_content)
+            render_error("workspace_cleaned_up", "Workspace already cleaned up; use Start over.", status: :unprocessable_content)
             return
           end
 

@@ -119,7 +119,7 @@ class JobsController < ApplicationController
     redirect_to job_path(@job, tab: "workflows"), notice: "Initial workflow enqueued."
   end
 
-  # Soft retry — push another commit to the existing branch by spawning
+  # Retry — push another commit to the existing branch by spawning
   # a new Run on the same Job. Useful when the agent stopped halfway
   # through and you want it to take another swing without abandoning the
   # in-flight work.
@@ -134,7 +134,8 @@ class JobsController < ApplicationController
       return
     end
 
-    ctx = params[:replay_context].to_s.strip
+    ctx = params[:retry_context].presence || params[:replay_context]
+    ctx = ctx.to_s.strip
     artifacts = ctx.present? ? { "replay_context" => ctx } : nil
     agent_provider = params[:agent_provider].to_s.presence
     if agent_provider.present? && !@job.retry_with_agent_providers.include?(agent_provider)
@@ -150,7 +151,7 @@ class JobsController < ApplicationController
     redirect_to job_path(@job, tab: "workflows"), notice: notice
   end
 
-  # Hard reset — close this thread (no more polling, no more runs), then
+  # Start over — close this thread (no more polling, no more runs), then
   # open a fresh Job for the same issue. The new Job clones, creates a
   # new branch, and opens a new PR. The old branch + PR are abandoned
   # but left untouched on GitHub.
@@ -302,7 +303,7 @@ class JobsController < ApplicationController
   # Refused when:
   #   - the Workflow isn't `failed`
   #   - WorkflowWorkspace.cleanup_for has already run (operator
-  #     should use Replay instead — local-only commits are gone)
+  #     should use Start over instead — local-only commits are gone)
   #   - no failed Step found (one-failed-step-per-workflow holds in
   #     v1; defensive guard for unexpected states)
   def retry_step
@@ -316,7 +317,7 @@ class JobsController < ApplicationController
       return
     end
     unless workflow.retry_available?
-      redirect_to job_path(@job), alert: "Workspace already cleaned up — use Replay to start over."
+      redirect_to job_path(@job), alert: "Workspace already cleaned up — use Start over."
       return
     end
 

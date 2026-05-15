@@ -186,17 +186,17 @@ class DiagnoseRunJob < ApplicationJob
     age_str = age ? "#{(age / 60.0).round(1)} min" : "unknown"
 
     if snapshot.sq_job_state == "failed"
-      return "SolidQueue job failed (#{snapshot.sq_error_class}) — recommend Replay."
+      return "SolidQueue job failed (#{snapshot.sq_error_class}) — recommend Retry."
     end
 
     if snapshot.worktree_exists == false
-      return "Workspace directory is gone — agent cannot make progress. Recommend Replay to start fresh."
+      return "Workspace directory is gone — agent cannot make progress. Recommend Start over."
     end
 
     if age && age > CRITICAL_HEARTBEAT.to_i
       base = "Heartbeat #{age_str} stale (past #{CRITICAL_HEARTBEAT.inspect} threshold)"
       if snapshot.claude_process_running == false
-        return "#{base} and agent process not found — recommend Replay or Resume."
+        return "#{base} and agent process not found — recommend Retry or Resume."
       end
       return "#{base} — reaper will auto-cancel soon; use Cancel now to act first."
     end

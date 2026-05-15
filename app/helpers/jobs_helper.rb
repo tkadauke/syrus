@@ -47,7 +47,8 @@ module JobsHelper
     "pr_comment" => "PR feedback",
     "ci_failure" => "CI failure",
     "rebase"     => "Rebase",
-    "replay"     => "Replay",
+    "retry"      => "Retry",
+    "replay"     => "Retry",
     "manual"     => "Manual",
     "resume"     => "Resume"
   }.freeze

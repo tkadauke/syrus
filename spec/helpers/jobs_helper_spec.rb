@@ -1,6 +1,16 @@
 require "rails_helper"
 
 RSpec.describe JobsHelper, type: :helper do
+  describe "#workflow_label" do
+    it "labels retry workflows as Retry" do
+      expect(helper.workflow_label("retry")).to eq("Retry")
+    end
+
+    it "labels legacy replay trigger values as Retry" do
+      expect(helper.workflow_label("replay")).to eq("Retry")
+    end
+  end
+
   describe "#current_step_caption" do
     let(:job) { job_with_workflow }
 

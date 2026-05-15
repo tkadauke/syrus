@@ -113,7 +113,7 @@ RSpec.describe DiagnoseRunJob do
         expect(snapshot.health_status).to eq("critical")
         expect(snapshot.sq_job_state).to eq("failed")
         expect(snapshot.sq_error_class).to eq("RuntimeError")
-        expect(snapshot.hint).to include("Replay")
+        expect(snapshot.hint).to include("Retry")
       end
     end
 
@@ -264,7 +264,7 @@ RSpec.describe DiagnoseRunJob do
       status, hint = snapshot_with(sq_job_state: "failed", sq_error_class: "Errno::ENOENT",
                                    heartbeat_age_seconds: 60)
       expect(status).to eq("critical")
-      expect(hint).to include("Replay")
+      expect(hint).to include("Retry")
     end
 
     it "is critical when worktree is gone" do

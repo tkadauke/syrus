@@ -1,12 +1,12 @@
 module Steps
-  # Final step of Initial / Replay workflows. Non-agentic. Pushes
+  # Final step of Initial / Retry workflows. Non-agentic. Pushes
   # the workflow branch to origin, then opens a PR against
   # default. Reads pr_title / pr_body from workflow.artifacts (set
   # by Steps::Summarize) and falls through to PrSummarizer or a
   # template if those are missing — same degradation hierarchy
   # the legacy RunJob has, just driven from artifacts now.
   #
-  # Idempotent: if the Job already has a pr_number (replay on a
+  # Idempotent: if the Job already has a pr_number (retry on a
   # Job that already opened a PR), skip PR creation and just push
   # the new commits.
   class PrOpen < Base
@@ -15,7 +15,7 @@ module Steps
       log("pr_open: pushing branch and opening PR (workflow ##{workflow.id})")
 
       push_branch
-      return if job.pr_number.present?  # idempotent for replay
+      return if job.pr_number.present?  # idempotent for retry
 
       title, body = pr_title_and_body
       pr_number = PullRequestOpener.new(repository).open(
