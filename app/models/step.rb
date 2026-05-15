@@ -179,13 +179,18 @@ class Step < ApplicationRecord
     runs.order(:created_at).last
   end
 
-  # The session_id from the latest succeeded upstream Run, used by
-  # this Step's Run as `parent_session_id` so the next agent call
-  # resumes the prior conversation. Non-agentic steps (e.g. grade)
-  # are valid upstream steps but do not create sessions, so walk
-  # backward until an agentic session is found. Nil when there's no
-  # upstream session (first step in workflow, unsucceeded upstream
-  # step, or cross-workflow trigger).
+  # The session_id from the latest succeeded agentic Run upstream,
+  # used by this Step's Run as `parent_session_id` so the next
+  # agent call resumes the prior conversation. Walks backwards
+  # through `previous_step` ancestors, skipping non-agentic steps
+  # like grade/prepare/pr_open which legitimately have no session
+  # — without the walk, Summarize after `loop(implement → grade)`
+  # would see grade as its immediate predecessor, find no session
+  # there, and spawn the agent with no `--resume` despite the
+  # Summarize prompt promising "your previous conversation".
+  # Bails out (returns nil) the moment it hits a non-succeeded
+  # ancestor: the chain hasn't progressed past that step, so any
+  # session further back is stale or unreachable.
   def upstream_session_id
     cursor = previous_step
 
