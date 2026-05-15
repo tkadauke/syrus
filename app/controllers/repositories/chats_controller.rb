@@ -6,6 +6,7 @@ class Repositories::ChatsController < ApplicationController
   before_action :load_pending_action, only: %i[ confirm_pending_action destroy_pending_action ]
 
   def show
+    @chat_available = Current.user.chat_available?
     @chat_session = current_chat_session unless new_chat?
     @messages, @has_more_older = paginated_tail(@chat_session)
     @pending_actions = @chat_session&.pending_actions&.pending&.order(:created_at, :id) || []

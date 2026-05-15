@@ -141,6 +141,39 @@ RSpec.describe User do
     end
   end
 
+  describe "#chat_available?" do
+    it "is available for a Claude-default user with Claude credentials" do
+      user = User.create!(attrs.merge(agent_provider: "claude", claude_oauth_token: "oat-test"))
+
+      expect(user).to be_chat_available
+    end
+
+    it "is available for a Codex-default user with Claude credentials" do
+      user = User.create!(
+        attrs.merge(
+          agent_provider: "codex",
+          claude_oauth_token: "oat-test",
+          codex_auth_mode: "api_key",
+          codex_api_key: "sk-test"
+        )
+      )
+
+      expect(user).to be_chat_available
+    end
+
+    it "is unavailable without Claude credentials" do
+      user = User.create!(
+        attrs.merge(
+          agent_provider: "codex",
+          codex_auth_mode: "api_key",
+          codex_api_key: "sk-test"
+        )
+      )
+
+      expect(user).not_to be_chat_available
+    end
+  end
+
   describe "email normalization" do
     it "downcases and strips whitespace" do
       user = User.create!(attrs.merge(email_address: "  Mixed@Example.com  "))

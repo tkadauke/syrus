@@ -1,17 +1,10 @@
-<%# Chat is Claude-only at the implementation level (sidecar binary,
-    stream parser, etc.), but the user's *default* agent_provider for
-    Job runs is a separate setting — chat works for anyone who has a
-    Claude OAuth token configured, regardless of whether their default
-    provider is claude or codex. %>
-<% chat_available = Current.user.claude_oauth_token.present? %>
-
 <div class="space-y-6"
      <%# Stimulus connects controllers in the order they appear. chat-layout
          reparents the chat pane (via appendChild) into its slot during
          connect, which resets the stream's scrollTop. Listing chat-layout
          first lets that reparent happen before chat-controller calls
          scrollToBottom, so the initial scroll sticks. %>
-     data-controller="<%= chat_available ? "chat-layout chat chat-side-panel" : "chat" %>"
+     data-controller="<%= @chat_available ? "chat-layout chat chat-side-panel" : "chat" %>"
      data-chat-layout-storage-key-value="syrus.user.<%= Current.user.id %>.repository.<%= @repository.id %>.chat_split"
      <% if @chat_session %>
        data-chat-layout-canvas-storage-key-value="syrus.chat.canvas.<%= @chat_session.id %>"
@@ -25,7 +18,7 @@
        data-chat-has-more-older-value="<%= @has_more_older %>"
      <% end %>>
   <div class="space-y-3">
-    <%= render "header", repository: @repository, chat_session: @chat_session, chat_available: chat_available %>
+    <%= render "header", repository: @repository, chat_session: @chat_session, chat_available: @chat_available %>
   </div>
 
   <%# Chat-pane workspace + window controls collapsed onto the right
@@ -45,7 +38,7 @@
               class: "rounded-md px-3 py-1.5 border border-red-200 bg-white text-sm font-medium text-red-700 hover:bg-red-50",
               form: { data: { turbo_confirm: "Reset this repository chat workspace? Any in-progress workspace state will be destroyed." } } %>
       <% end %>
-      <% if chat_available %>
+      <% if @chat_available %>
         <button type="button"
                 class="rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium cursor-pointer"
                 data-chat-layout-target="canvasToggle"
@@ -116,7 +109,7 @@
     <%= turbo_stream_from "chat_session_#{@chat_session.id}_whiteboard" %>
   <% end %>
 
-  <% if Current.user.claude_oauth_token.blank? %>
+  <% unless @chat_available %>
     <div class="bg-white border border-amber-200 rounded-lg p-6 text-sm text-amber-900">
       <div class="font-semibold">Claude credentials are required.</div>
       <p class="mt-1">

@@ -70,6 +70,10 @@ class User < ApplicationRecord
     configured_agent_providers - [ agent_provider ]
   end
 
+  def chat_available?
+    claude_oauth_token.present?
+  end
+
   def agent_provider_configured?(provider)
     case provider.to_s
     when "claude"
