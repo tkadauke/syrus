@@ -221,6 +221,13 @@ Periodically spawns a cron `Job` with a pre-rendered prompt
 A random `minute_offset` is seeded at creation so two tasks with the
 same nominal schedule don't collide on the wall clock.
 
+This is the single user-facing recurring-work model. Chat-created
+recurring schedules requested through `schedule_recurring` are confirmed
+into `ScheduledTask(kind: "cron")` rows and fire through the same
+`PollScheduledTasksJob` / `ScheduledTaskFire` path as schedules created
+from the operator UI. Solid Queue's internal `RecurringTask` records are
+only queue scheduler plumbing and do not represent operator prompts.
+
 `pr_pileup_policy` controls what happens when a prior cron-Job's PR
 is still open at the next fire:
 
@@ -347,7 +354,8 @@ judgment escalate to a Run. See [Services](#services) for details.
 
 ```
 PollScheduledTasksJob (every minute)
-  → ScheduledTask.alive_and_active.due_now
+  → alive ScheduledTasks for active repositories and unpaused users
+      whose scheduled fire time has arrived
       → ScheduledTaskFire.call(task)
         → render prompt (variable expansion: {{date}}, etc.)
         → apply pr_pileup_policy if a prior cron-Job's PR is still open

@@ -53,6 +53,15 @@ RSpec.describe PollScheduledTasksJob do
     described_class.perform_now
   end
 
+  it "skips tasks for archived repositories" do
+    task = cron_task
+    task.update_columns(last_fired_at: 2.hours.ago)
+    repository.archive!
+
+    expect_any_instance_of(ScheduledTaskFire).not_to receive(:call)
+    described_class.perform_now
+  end
+
   it "skips tasks belonging to a user with scheduling paused" do
     task = cron_task
     task.update_columns(last_fired_at: 2.hours.ago)

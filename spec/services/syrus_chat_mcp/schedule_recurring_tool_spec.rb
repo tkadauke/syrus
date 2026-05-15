@@ -51,6 +51,14 @@ RSpec.describe SyrusChatMcp::ScheduleRecurringTool do
     expect(ScheduledTask.count).to eq(0)
   end
 
+  it "describes the scheduled prompt as cron work rather than an ad hoc Job" do
+    schema = described_class.input_schema.instance_variable_get(:@schema)
+    prompt_description = schema.fetch(:properties).fetch(:prompt).fetch(:description)
+
+    expect(prompt_description).to include("scheduled cron Job")
+    expect(prompt_description).not_to include("ad hoc")
+  end
+
   it "returns a tool error for an invalid cron expression" do
     response = call_tool(
       cron_expression: "not cron",

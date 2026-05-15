@@ -153,6 +153,22 @@ RSpec.describe ChatPendingAction do
     expect(action.result).to eq(task)
   end
 
+  it "fires a confirmed schedule_recurring action through cron Job semantics" do
+    action = pending_action
+    action.confirm!(user: user)
+    task = action.result
+
+    result = ScheduledTaskFire.new(task).call
+
+    expect(result).to be_fired
+    expect(result.job).to have_attributes(
+      kind: "cron",
+      scheduled_task: task,
+      issue_number: nil
+    )
+    expect(result.job.runs.first.prompt).to include("scheduled maintenance task")
+  end
+
   it "does not create the ScheduledTask before confirmation" do
     pending_action
 
