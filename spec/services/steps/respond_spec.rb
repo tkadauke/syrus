@@ -41,6 +41,17 @@ RSpec.describe Steps::Respond do
     allow_any_instance_of(GithubClient).to receive(:fetch_issue).and_return(issue)
   end
 
+  it "uses the shared agentic change path to commit and capture the diff" do
+    expect(handler).to receive(:commit_agent_changes)
+      .with("Syrus respond step (will be rewritten by summarize_amend)")
+    expect(handler).to receive(:assert_branch_history_intact!)
+
+    handler.call
+
+    expect(run.reload.agent_diff).to eq("diff --git a/foo.rb b/foo.rb\n+bar")
+    expect(run.head_sha).to eq("abc123")
+  end
+
   it "builds and persists the prompt from Prompts::PrFeedback" do
     handler.call
 

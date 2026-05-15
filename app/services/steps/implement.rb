@@ -10,40 +10,38 @@ module Steps
   # Doesn't push. Doesn't open a PR. Those are pr_open's job.
   class Implement < Base
     def call
-      workspace.setup
+      perform_agentic_change_step(
+        log_message: "invoking agent for #{target_label} (workflow ##{workflow.id}, step ##{step.id} implement)",
+        commit_message: "Syrus implement step (will be rewritten by summarize)"
+      ) do
+        persist_prompt_if_needed
+      end
+    end
 
+    private
+
+    def persist_prompt_if_needed
       # Cron Jobs arrive with a pre-rendered prompt (variables
       # already expanded at fire time); skip the GitHub round-trip
       # entirely. Issue Jobs need the issue body to compose
       # Prompts::Implement.
-      if run.prompt.blank?
-        issue = fetch_issue
-        job.update!(issue_title: issue.title, issue_body: issue.body) if job.issue?
-        ctx = workflow.artifacts&.dig("replay_context")
-        run.update!(prompt: implement_prompt(issue: issue, replay_context: ctx))
-      end
+      return if run.prompt.present?
 
-      target_label = if job.issue?
+      issue = fetch_issue
+      job.update!(issue_title: issue.title, issue_body: issue.body) if job.issue?
+      ctx = workflow.artifacts&.dig("replay_context")
+      run.update!(prompt: implement_prompt(issue: issue, replay_context: ctx))
+    end
+
+    def target_label
+      if job.issue?
         "#{repository.slug}##{job.issue_number}"
       elsif job.adhoc?
         "ad hoc job ##{job.id}"
       else
         "scheduled task ##{job.scheduled_task_id}"
       end
-      log("invoking agent for #{target_label} (workflow ##{workflow.id}, step ##{step.id} implement)")
-
-      run_agent(prompt: run.prompt)
-
-      commit_agent_changes
-      assert_branch_history_intact!
-
-      diff = diff_against_default
-      raise StepFailed, "agent produced no changes" if diff.blank?
-
-      run.update!(agent_diff: diff, head_sha: head_sha)
     end
-
-    private
 
     def fetch_issue
       return job.synthetic_issue if job.cron? || job.adhoc?
@@ -60,24 +58,6 @@ module Steps
           iterations: workflow.artifacts.fetch("iterations", [])
         ).to_s
       ].join("\n\n")
-    end
-
-    # Same logic as RunJob#commit_agent_changes — agent edits
-    # files; we commit them locally with a placeholder message.
-    # The eventual commit message gets rewritten to
-    # workflow.artifacts["pr_title"] either by Steps::Summarize's
-    # downstream amend or (for legacy compatibility) Steps::PrOpen.
-    def commit_agent_changes
-      chdir = workspace.path.to_s
-      git = streaming_git
-      status = git.run("status", "--porcelain", chdir: chdir)
-      return if status.strip.empty?
-
-      git.run("add", "-A", chdir: chdir)
-      git.run(
-        "commit", "-m", "Syrus implement step (will be rewritten by summarize)",
-        chdir: chdir
-      )
     end
   end
 end

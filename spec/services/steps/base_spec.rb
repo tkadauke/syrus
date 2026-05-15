@@ -14,7 +14,7 @@ RSpec.describe Steps::Base do
     Class.new(described_class) do
       def call; nil; end
       public :log, :parent_session_id, :buffered_log_sink, :agent_provider,
-             :agent_adapter
+             :agent_adapter, :perform_agentic_change_step, :commit_agent_changes
     end
   end
   let(:handler) { handler_class.new(run) }
@@ -128,6 +128,53 @@ RSpec.describe Steps::Base do
     it "builds the adapter for the resolved provider" do
       run.update!(agent_provider: "codex")
       expect(handler.agent_adapter).to be_a(AgentProviders::Codex)
+    end
+  end
+
+  describe "#perform_agentic_change_step" do
+    let(:fake_ws) { instance_double(WorkflowWorkspace, setup: nil, path: Rails.root) }
+
+    before do
+      allow(handler).to receive(:workspace).and_return(fake_ws)
+      allow(handler).to receive(:run_agent)
+      allow(handler).to receive(:commit_agent_changes)
+      allow(handler).to receive(:assert_branch_history_intact!)
+      allow(handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+      allow(handler).to receive(:head_sha).and_return("abc123")
+    end
+
+    it "runs the shared change lifecycle and records diff metadata" do
+      expect(fake_ws).to receive(:setup)
+      expect(handler).to receive(:run_agent).with(prompt: "shared prompt")
+      expect(handler).to receive(:commit_agent_changes).with("shared commit message")
+      expect(handler).to receive(:assert_branch_history_intact!)
+
+      handler.perform_agentic_change_step(
+        log_message: "invoking shared path",
+        commit_message: "shared commit message"
+      ) do
+        run.update!(prompt: "shared prompt")
+      end
+
+      expect(run.reload.agent_diff).to eq("diff --git a/foo.rb b/foo.rb\n+bar")
+      expect(run.head_sha).to eq("abc123")
+      expect(run.job_logs.last.chunk).to eq("invoking shared path")
+    end
+
+    it "fails unchanged agent runs before recording diff metadata" do
+      allow(handler).to receive(:diff_against_default).and_return("")
+
+      expect {
+        handler.perform_agentic_change_step(
+          log_message: "invoking shared path",
+          commit_message: "shared commit message"
+        ) do
+          run.update!(prompt: "shared prompt")
+        end
+      }.to raise_error(Steps::Base::StepFailed, "agent produced no changes")
+
+      expect(run.reload.agent_diff).to be_nil
+      expect(run.head_sha).to be_nil
     end
   end
 

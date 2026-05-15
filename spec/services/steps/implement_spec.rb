@@ -31,6 +31,17 @@ RSpec.describe Steps::Implement do
   end
 
   describe "prompt building" do
+    it "uses the shared agentic change path to commit and capture the diff" do
+      expect(handler).to receive(:commit_agent_changes)
+        .with("Syrus implement step (will be rewritten by summarize)")
+      expect(handler).to receive(:assert_branch_history_intact!)
+
+      handler.call
+
+      expect(run.reload.agent_diff).to eq("diff --git a/foo.rb b/foo.rb\n+bar")
+      expect(run.head_sha).to eq("abc123")
+    end
+
     it "builds and persists the prompt from Prompts::Implement" do
       handler.call
       expect(run.reload.prompt).to include("Add greeting helper")

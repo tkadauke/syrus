@@ -181,6 +181,39 @@ module Steps
       GitRunner.new(log_sink: ->(line) { log(line.chomp, kind: "system") }, env: env)
     end
 
+    # Shared lifecycle for agentic steps that are expected to change
+    # the repository: prepare the workspace, compose/persist any prompt
+    # state supplied by the concrete step, invoke the agent, commit its
+    # edits, verify git history, and capture the GitHub-style diff.
+    def perform_agentic_change_step(log_message:, commit_message:)
+      workspace.setup
+      yield if block_given?
+
+      log(log_message)
+      run_agent(prompt: run.prompt)
+
+      commit_agent_changes(commit_message)
+      assert_branch_history_intact!
+
+      diff = diff_against_default
+      raise StepFailed, "agent produced no changes" if diff.blank?
+
+      run.update!(agent_diff: diff, head_sha: head_sha)
+    end
+
+    # Agent edits files; we commit them locally with a placeholder
+    # message. Downstream summarize steps rewrite the final commit
+    # message before push/open.
+    def commit_agent_changes(commit_message)
+      chdir = workspace.path.to_s
+      git = streaming_git
+      status = git.run("status", "--porcelain", chdir: chdir)
+      return if status.strip.empty?
+
+      git.run("add", "-A", chdir: chdir)
+      git.run("commit", "-m", commit_message, chdir: chdir)
+    end
+
     # Defensive check: the agent didn't run a `git checkout
     # --orphan` or equivalent that severs HEAD's history from
     # default branch. Same outcome label as RunJob's existing

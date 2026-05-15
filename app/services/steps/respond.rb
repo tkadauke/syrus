@@ -9,18 +9,12 @@ module Steps
   # needs.
   class Respond < Base
     def call
-      workspace.setup
-      run.update!(prompt: compose_prompt) if run.prompt.blank?
-
-      log("invoking agent for respond step (workflow ##{workflow.id}, pr_comment)")
-      run_agent(prompt: run.prompt)
-
-      commit_agent_changes
-      assert_branch_history_intact!
-      diff = diff_against_default
-      raise StepFailed, "agent produced no changes" if diff.blank?
-
-      run.update!(agent_diff: diff, head_sha: head_sha)
+      perform_agentic_change_step(
+        log_message: "invoking agent for respond step (workflow ##{workflow.id}, pr_comment)",
+        commit_message: "Syrus respond step (will be rewritten by summarize_amend)"
+      ) do
+        run.update!(prompt: compose_prompt) if run.prompt.blank?
+      end
     end
 
     private
@@ -51,18 +45,6 @@ module Steps
           c["body"], c["path"], c["line"], c["diff_hunk"], c["created_at"]
         )
       end
-    end
-
-    def commit_agent_changes
-      chdir = workspace.path.to_s
-      git = streaming_git
-      status = git.run("status", "--porcelain", chdir: chdir)
-      return if status.strip.empty?
-      git.run("add", "-A", chdir: chdir)
-      git.run(
-        "commit", "-m", "Syrus respond step (will be rewritten by summarize_amend)",
-        chdir: chdir
-      )
     end
   end
 end
