@@ -73,6 +73,41 @@
             Showing smart folder: <strong><%= @active_smart_folder.name %></strong>
           </div>
         <% end %>
+    <% if @epics&.any? %>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-200">
+          <h2 class="font-semibold text-lg">Epics awaiting your move</h2>
+        </div>
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr>
+              <th class="px-4 py-2 text-left">State</th>
+              <th class="px-4 py-2 text-left">Epic</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Updated</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 text-sm">
+            <% @epics.each do |epic| %>
+              <tr>
+                <td class="px-4 py-3 align-top"><%= state_pill(epic.state) %></td>
+                <td class="px-4 py-3">
+                  <div class="font-medium text-gray-900"><%= epic.title %></div>
+                  <div class="sm:hidden text-xs font-mono text-gray-500 mt-0.5">
+                    <%= link_to epic.repository.slug, repository_path(epic.repository), class: "hover:underline" %>
+                  </div>
+                </td>
+                <td class="hidden sm:table-cell px-4 py-3 font-mono">
+                  <%= link_to epic.repository.slug, repository_path(epic.repository), class: "text-gray-700 hover:underline" %>
+                </td>
+                <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(epic.updated_at) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+
     <% if @jobs.any? || @page > 1 %>
       <% jobs_total_pages = (@jobs_total.to_f / HomeController::PER_PAGE).ceil %>
       <%= form_with url: bulk_dashboard_jobs_path, method: :post,
@@ -192,6 +227,30 @@
                         <%= tag_chip_list(job.tags.to_a, limit: 3) %>
                       </div>
                     <% end %>
+                    <% if job.validity_duplicate? || job.validity_already_implemented? %>
+                      <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <span class="font-medium"><%= job.validity.humanize %></span>
+                            <% if job.invalidation_reason.present? %>
+                              <span class="ml-1"><%= job.invalidation_reason %></span>
+                            <% end %>
+                          </div>
+                          <%= button_tag "Override (mark valid)",
+                                type: "submit",
+                                formaction: mark_valid_job_path(job),
+                                formmethod: "post",
+                                class: "rounded-md bg-amber-700 px-2 py-1 text-white hover:bg-amber-600 cursor-pointer" %>
+                        </div>
+                        <% if job.invalidation_evidence.present? %>
+                          <div class="mt-1 flex flex-wrap gap-x-2 gap-y-1">
+                            <% job.invalidation_evidence.each do |url| %>
+                              <%= link_to url, url, target: "_blank", rel: "noopener", class: "text-amber-800 underline hover:no-underline break-all" %>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
                     <div class="sm:hidden text-xs text-gray-400 mt-1 flex items-center gap-1.5">
                       <span><%= pluralize(job.workflows.size, "workflow") %></span>
                       <span>·</span>
@@ -240,7 +299,7 @@
           </div>
         </div>
       <% end %>
-    <% else %>
+    <% elsif !@epics&.any? %>
       <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
         <% if @job_filter.active? %>
           No jobs match the current filters.

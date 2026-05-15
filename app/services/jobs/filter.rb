@@ -105,6 +105,14 @@ module Jobs
                 .where(id: awaiting_operator_job_ids)
                 .or(relation.open_threads.where(id: unread_feedback_job_ids))
                 .or(relation.open_threads.where(id: latest_failed_run_job_ids))
+                .or(relation.open_threads.where(id: awaiting_epic_job_ids))
+                .or(relation.open_threads.where(id: needs_review_job_ids))
+      when "awaiting_epic"
+        relation.where(id: awaiting_epic_job_ids)
+      when "needs_review"
+        relation.where(id: needs_review_job_ids)
+      when "awaiting_your_move"
+        relation.none
       when "just_failed"
         relation.where(id: latest_failed_run_job_ids)
       when "in_review"
@@ -152,6 +160,14 @@ module Jobs
 
     def awaiting_operator_job_ids
       Run.where(state: "awaiting_operator").select(:job_id)
+    end
+
+    def awaiting_epic_job_ids
+      Job.triaging.where(triaging_reason: "pending_epic_ref").select(:id)
+    end
+
+    def needs_review_job_ids
+      Job.where(validity: %w[ duplicate already_implemented ]).select(:id)
     end
 
     def unread_feedback_job_ids

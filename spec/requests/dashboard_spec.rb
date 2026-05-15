@@ -813,8 +813,91 @@ RSpec.describe "Dashboard", type: :request do
 
         document = Nokogiri::HTML(response.body)
         attention = document.at_css("aside")
-        expect(attention.text).to include("Inbox", "Just failed", "In review", "Stale", "Blocked", "Merged this week")
+        expect(attention.text).to include("Inbox", "Awaiting Epic", "Needs review", "Awaiting your move", "Just failed", "In review", "Stale", "Blocked", "Merged this week")
         expect(attention.css("a").find { |link| link.text.include?("Just failed") }.text).to include("1")
+      end
+
+      it "shows triaging jobs pending an epic ref in Awaiting Epic until they leave triaging" do
+        pending = Factories.job_record(
+          repository: repo,
+          issue_number: 3,
+          state: "triaging",
+          triaging_reason: "pending_epic_ref",
+          issue_title: "Waiting for the great parent"
+        )
+        Factories.job_record(
+          repository: repo,
+          issue_number: 4,
+          state: "blocked_by_epic",
+          triaging_reason: "pending_epic_ref",
+          issue_title: "Parent arrived"
+        )
+        SmartFolder.ensure_builtins!
+        awaiting_epic = SmartFolder.find_by!(name: "Awaiting Epic")
+
+        get root_path, params: { smart_folder_id: awaiting_epic.id }
+
+        expect(response.body).to include("#3")
+        expect(response.body).to include("Waiting for the great parent")
+        expect(response.body).not_to include("#4")
+        expect(response.body).not_to include("Parent arrived")
+
+        pending.update!(state: "blocked_by_epic")
+        get root_path, params: { smart_folder_id: awaiting_epic.id }
+
+        expect(response.body).not_to include("#3")
+      end
+
+      it "shows invalid jobs in Needs review with evidence and lets the operator mark them valid" do
+        job = Factories.job_record(
+          repository: repo,
+          issue_number: 5,
+          state: "triaging",
+          validity: "duplicate",
+          invalidation_reason: "Covered by the ancient scroll.",
+          invalidation_evidence: [ "https://github.com/acme/widgets/pull/12" ],
+          issue_title: "Rebuild the aqueduct"
+        )
+        SmartFolder.ensure_builtins!
+        needs_review = SmartFolder.find_by!(name: "Needs review")
+
+        get root_path, params: { smart_folder_id: needs_review.id }
+
+        expect(response.body).to include("Rebuild the aqueduct")
+        expect(response.body).to include("Covered by the ancient scroll.")
+        expect(response.body).to include("https://github.com/acme/widgets/pull/12")
+        expect(response.body).to include("Override (mark valid)")
+
+        expect {
+          post mark_valid_job_path(job), headers: { "HTTP_REFERER" => root_path(smart_folder_id: needs_review.id) }
+        }.to change { job.reload.state }.from("triaging").to("queued")
+          .and change { job.runs.count }.from(0).to(1)
+
+        expect(job.validity).to eq("valid")
+        expect(job.invalidation_reason).to be_nil
+        expect(job.invalidation_evidence).to eq([])
+
+        get root_path, params: { smart_folder_id: needs_review.id }
+        expect(response.body).not_to include("Rebuild the aqueduct")
+      end
+
+      it "shows ready epics in Awaiting your move until they enter progress" do
+        ready = Factories.epic(user: user, repository: repo, state: "ready", title: "Restore the forum")
+        Factories.epic(user: user, repository: repo, state: "in_progress", title: "Already marching")
+        SmartFolder.ensure_builtins!
+        awaiting_move = SmartFolder.find_by!(name: "Awaiting your move")
+
+        get root_path, params: { smart_folder_id: awaiting_move.id }
+
+        expect(response.body).to include("Epics awaiting your move")
+        expect(response.body).to include("Restore the forum")
+        expect(response.body).not_to include("Already marching")
+        expect(Nokogiri::HTML(response.body).at_css("aside").css("a").find { |link| link.text.include?("Awaiting your move") }.text).to include("1")
+
+        ready.in_progress!
+        get root_path, params: { smart_folder_id: awaiting_move.id }
+
+        expect(response.body).not_to include("Restore the forum")
       end
 
       it "applies a built-in smart folder filter" do

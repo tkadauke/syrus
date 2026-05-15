@@ -149,6 +149,7 @@ Rails.application.routes.draw do
       post :dependencies, action: :add_dependency
       delete "dependencies/:dependency_id", action: :remove_dependency, as: :dependency
       post :override_dependencies
+      post :mark_valid
     end
   end
 

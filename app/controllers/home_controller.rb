@@ -29,6 +29,7 @@ class HomeController < ApplicationController
     @job_filter_params = job_filter_params
     @job_filter = Jobs::Filter.new(@job_filter_params, user: Current.user)
     @jobs = @job_filter.apply(@jobs)
+    @epics = epics_for_active_smart_folder(active_repo_ids)
     @smart_folder_counts = smart_folder_counts(Current.user.jobs.where(repository_id: active_repo_ids))
 
     # Hide built-in folders whose attention is in HIDE_BUILTIN_WHEN_EMPTY
@@ -160,8 +161,27 @@ class HomeController < ApplicationController
 
   def smart_folder_counts(base_scope)
     (@builtin_smart_folders + @user_smart_folders).to_h do |folder|
-      [ folder.id, Jobs::Filter.new(folder.filter, user: Current.user).apply(base_scope).count ]
+      count = Jobs::Filter.new(folder.filter, user: Current.user).apply(base_scope).count
+      count += epic_count_for_filter(folder.filter)
+      [ folder.id, count ]
     end
+  end
+
+  def epics_for_active_smart_folder(active_repo_ids)
+    return Epic.none unless %w[ inbox awaiting_your_move ].include?(@active_smart_folder&.filter&.fetch("attention", nil))
+
+    Epic.includes(:repository)
+        .where(user: Current.user, repository_id: active_repo_ids, state: "ready")
+        .order(updated_at: :desc, id: :desc)
+  end
+
+  def epic_count_for_filter(filter)
+    return 0 unless %w[ inbox awaiting_your_move ].include?(filter["attention"])
+
+    Current.user.epics.joins(:repository)
+           .where(repositories: { archived_at: nil })
+           .where(state: "ready")
+           .count
   end
 
   def bulk_apply_tag(jobs)

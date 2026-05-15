@@ -543,6 +543,16 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: "Dependency gate overridden."
   end
 
+  def mark_valid
+    unless @job.validity_duplicate? || @job.validity_already_implemented?
+      redirect_back fallback_location: job_path(@job), alert: "Job is already marked valid."
+      return
+    end
+
+    @job.mark_valid_and_queue!
+    redirect_back fallback_location: job_path(@job), notice: "Job marked valid and re-queued."
+  end
+
   def add_tag
     tag = find_or_create_tag_from_params
     if tag.nil?

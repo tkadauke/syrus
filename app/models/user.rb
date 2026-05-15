@@ -3,6 +3,7 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :destroy
   has_many :repositories, dependent: :destroy
   has_many :installations, dependent: :destroy
+  has_many :epics, dependent: :destroy
   has_many :jobs, dependent: :destroy
   has_many :job_pins, dependent: :destroy
   has_many :pinned_jobs, through: :job_pins, source: :job

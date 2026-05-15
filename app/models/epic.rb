@@ -10,6 +10,9 @@ class Epic < ApplicationRecord
   validates :title, presence: true
   validate :repository_belongs_to_user
 
+  broadcasts_refreshes_to ->(epic) { [ epic.user, "jobs" ] }
+  broadcasts_refreshes_to ->(epic) { [ epic.repository, "jobs" ] }
+
   after_update_commit :release_blocked_jobs!, if: :saved_change_to_in_progress?
 
   private

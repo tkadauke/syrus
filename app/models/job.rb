@@ -331,6 +331,15 @@ class Job < ApplicationRecord
     start_pending_workflows_if_dependencies_satisfied!
   end
 
+  def mark_valid_and_queue!
+    update!(
+      validity: "valid",
+      invalidation_reason: nil,
+      invalidation_evidence: []
+    )
+    advance_after_triage! if may_advance_after_triage?
+  end
+
   def start_pending_workflows_if_dependencies_satisfied!
     return false unless dependencies_satisfied?
     return false unless ready_for_execution?
