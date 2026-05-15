@@ -1,4 +1,4 @@
-<% action_path = chat_session ? repository_chat_message_path(repository, chat_session) : repository_chats_path(repository) %>
+<% action_path = chat_session ? chat_message_path(chat_session) : chats_path %>
 <% stop_requested = chat_session&.stop_requested_at.present? %>
 <% controls_id = chat_session ? "chat_session_#{chat_session.id}_controls" : "new_chat_controls" %>
 
@@ -15,7 +15,7 @@
             nil,
             rows: 1,
             required: true,
-            placeholder: "Ask about this repository…",
+            placeholder: chat_session&.repository ? "Ask about this repository..." : "Attach a repository to start chatting...",
             class: "min-h-9 max-h-[4.75rem] flex-1 resize-none overflow-y-auto rounded-md border border-gray-300 px-3 py-2 text-sm leading-5 focus:border-blue-500 focus:ring-blue-500",
             data: { chat_target: "textarea", action: "input->chat#autoGrow keydown->chat#submitOnEnter" },
             disabled: turn_in_flight %>
@@ -26,7 +26,7 @@
     <% end %>
     <% if chat_session && turn_in_flight %>
       <%= button_to(stop_requested ? "Stopping…" : "Stop",
-            repository_chat_stop_path(repository, chat_session),
+            chat_stop_path(chat_session),
             method: :post,
             class: "rounded-md px-4 py-2 border border-red-200 bg-white text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400",
             disabled: stop_requested,

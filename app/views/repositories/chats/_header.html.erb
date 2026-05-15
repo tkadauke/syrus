@@ -1,7 +1,13 @@
 <div id="<%= chat_session ? "chat_session_#{chat_session.id}_header" : "new_chat_header" %>">
   <h1 class="font-bold text-3xl">
-    <%= link_to repository.slug,
-          repository_path(repository),
-          class: "font-mono hover:underline" %>
+    <% if chat_session&.title.present? %>
+      <%= chat_session.title %>
+    <% elsif repository %>
+      <%= link_to repository.slug,
+            repository_path(repository),
+            class: "font-mono hover:underline" %>
+    <% else %>
+      New chat
+    <% end %>
   </h1>
 </div>

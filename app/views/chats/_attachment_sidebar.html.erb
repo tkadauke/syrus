@@ -1,0 +1,110 @@
+<aside class="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
+  <div class="flex items-center justify-between gap-3">
+    <h2 class="text-sm font-semibold text-gray-900">Attachments</h2>
+    <a href="#add-attachment"
+       class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">
+      Add attachment
+    </a>
+  </div>
+
+  <% groups = [
+    [ "Repository", "Repos" ],
+    [ "Epic", "Epics" ],
+    [ "Job", "Jobs" ],
+    [ "RepositoryDocument", "Documents" ]
+  ] %>
+  <div class="space-y-4">
+    <% groups.each do |type, label| %>
+      <% attachments = Array(attachment_groups[type]) %>
+      <section>
+        <div class="mb-2 text-xs font-semibold uppercase text-gray-500"><%= label %></div>
+        <% if attachments.any? %>
+          <div class="space-y-1">
+            <% attachments.each do |attachment| %>
+              <% record = attachment.attachable %>
+              <% text = case record
+                        when Repository then record.slug
+                        when Job then "Job ##{record.id}: #{record.issue_title.presence || record.issue_number || record.kind}"
+                        when RepositoryDocument then "#{record.title} (#{record.repository.slug})"
+                        else record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
+                        end %>
+              <%= button_to text,
+                    chat_attachment_path(chat_session, attachment),
+                    method: :delete,
+                    class: "block w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-left text-xs text-gray-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700",
+                    title: "Detach #{text}" %>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-xs text-gray-400">None</div>
+        <% end %>
+      </section>
+    <% end %>
+  </div>
+
+  <section>
+    <div class="mb-2 text-xs font-semibold uppercase text-gray-500">In-scope documents</div>
+    <% if documents_in_scope.any? %>
+      <div class="space-y-1">
+        <% documents_in_scope.each do |document| %>
+          <div class="rounded-md border border-gray-200 px-2 py-1.5 text-xs">
+            <div class="font-medium text-gray-800"><%= document.title %></div>
+            <div class="font-mono text-[0.7rem] text-gray-500"><%= document.repository.slug %></div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="text-xs text-gray-400">No documents in scope.</div>
+    <% end %>
+  </section>
+
+  <div id="add-attachment" class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <div class="mb-3 flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-gray-900">Add attachment</h3>
+      <a href="#" class="text-xs text-gray-500 underline hover:no-underline">Close</a>
+    </div>
+
+    <%= form_with url: chat_attachments_path(chat_session), method: :post, class: "space-y-3" do %>
+      <% selected_type = params[:attachment_type].presence || params[:attachable_type].presence || "Repository" %>
+      <div>
+        <label for="attachment_type" class="block text-xs font-medium text-gray-600">Type</label>
+        <%= select_tag :attachment_type,
+              options_for_select([ [ "Repo", "Repository" ], [ "Epic", "Epic" ], [ "Job", "Job" ], [ "Document", "Document" ] ], selected_type),
+              class: "mt-1 w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm" %>
+      </div>
+      <div>
+        <label for="attachment_query" class="block text-xs font-medium text-gray-600">Search</label>
+        <%= search_field_tag :attachment_query,
+              params[:attachment_query],
+              class: "mt-1 w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm",
+              placeholder: "Search by name or id" %>
+      </div>
+      <%= submit_tag "Search",
+            name: nil,
+            formmethod: :get,
+            formaction: chat_path(chat_session, anchor: "add-attachment"),
+            class: "rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50" %>
+    <% end %>
+
+    <div class="mt-3 space-y-1">
+      <% if attachment_results.any? %>
+        <% attachment_results.each do |record| %>
+          <% type = record.is_a?(RepositoryDocument) ? "RepositoryDocument" : record.class.name %>
+          <% text = case record
+                    when Repository then record.slug
+                    when Job then "Job ##{record.id}: #{record.issue_title.presence || record.issue_number || record.kind}"
+                    when RepositoryDocument then "#{record.title} (#{record.repository.slug})"
+                    else record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
+                    end %>
+          <%= button_to text,
+                chat_attachments_path(chat_session),
+                method: :post,
+                params: { attachable_type: type, attachable_id: record.id },
+                class: "block w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-left text-xs text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700" %>
+        <% end %>
+      <% else %>
+        <div class="text-xs text-gray-500">No matches.</div>
+      <% end %>
+    </div>
+  </div>
+</aside>

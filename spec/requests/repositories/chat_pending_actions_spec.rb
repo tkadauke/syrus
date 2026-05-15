@@ -28,7 +28,7 @@ RSpec.describe "Repository chat pending actions", type: :request do
       post repository_chat_pending_action_confirm_path(repo, action)
     }.to change { ScheduledTask.count }.by(1)
 
-    expect(response).to redirect_to(repository_chats_path(repo))
+    expect(response).to redirect_to(chat_path(chat_session))
     expect(action.reload).to be_confirmed
   end
 
@@ -37,7 +37,7 @@ RSpec.describe "Repository chat pending actions", type: :request do
 
     delete repository_chat_pending_action_path(repo, action)
 
-    expect(response).to redirect_to(repository_chats_path(repo))
+    expect(response).to redirect_to(chat_path(chat_session))
     expect(action.reload).to be_cancelled
   end
 end

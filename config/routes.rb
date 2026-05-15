@@ -107,6 +107,19 @@ Rails.application.routes.draw do
     resources :scheduled_tasks, only: %i[ new create ]
   end
 
+  resources :chats, only: %i[ new create show ] do
+    get  :messages
+    post :message
+    post :stop
+    post :refresh
+    post :reset
+    post :attachments, action: :add_attachment
+    delete "attachments/:attachment_id", action: :destroy_attachment, as: :attachment
+    post "pending_actions/:pending_action_id/confirm", action: :confirm_pending_action, as: :pending_action_confirm
+    delete "pending_actions/:pending_action_id", action: :destroy_pending_action, as: :pending_action
+    resource :whiteboard, only: %i[ show update ], controller: "chat_whiteboards"
+  end
+
   resources :scheduled_tasks, only: %i[ index show edit update destroy ] do
     member do
       post :pause
