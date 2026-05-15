@@ -68,6 +68,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
   end
 
+  create_table "chat_attachments", force: :cascade do |t|
+    t.integer "attachable_id", null: false
+    t.string "attachable_type", null: false
+    t.datetime "attached_at", null: false
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["attachable_type", "attachable_id"], name: "index_chat_attachments_on_attachable"
+    t.index ["chat_session_id", "attachable_type", "attachable_id"], name: "index_chat_attachments_on_session_and_attachable", unique: true
+    t.index ["chat_session_id"], name: "index_chat_attachments_on_chat_session_id"
+  end
+
   create_table "chat_bookmarks", force: :cascade do |t|
     t.integer "chat_message_id", null: false
     t.datetime "created_at", null: false
@@ -151,13 +163,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
     t.integer "cumulative_input_tokens", default: 0, null: false
     t.integer "cumulative_output_tokens", default: 0, null: false
     t.datetime "last_message_at"
-    t.integer "repository_id", null: false
     t.datetime "stop_requested_at"
     t.string "title"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
-    t.index ["repository_id", "last_message_at"], name: "index_chat_sessions_on_repository_id_and_last_message_at"
-    t.index ["repository_id"], name: "index_chat_sessions_on_repository_id"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
   end
 
@@ -644,6 +653,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "admin_actions", "users"
+  add_foreign_key "chat_attachments", "chat_sessions"
   add_foreign_key "chat_bookmarks", "chat_messages"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"
@@ -654,7 +664,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_proposals", "chat_sessions"
   add_foreign_key "chat_proposals", "jobs"
-  add_foreign_key "chat_sessions", "repositories"
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"

@@ -45,8 +45,9 @@ class Repositories::ChatsController < ApplicationController
     chat_session = nil
     user_message = nil
     ApplicationRecord.transaction do
-      chat_session = @repository.chat_sessions.create!(
+      chat_session = ChatSession.create!(
         user: Current.user,
+        repository: @repository,
         title: text.truncate(80),
         last_message_at: Time.current
       )
@@ -133,7 +134,7 @@ class Repositories::ChatsController < ApplicationController
   end
 
   def load_chat_session
-    @chat_session = @repository.chat_sessions.find(params[:id])
+    @chat_session = Current.user.chat_sessions.attached_to_repository(@repository).find(params[:id])
   end
 
   def load_pending_action
@@ -141,7 +142,10 @@ class Repositories::ChatsController < ApplicationController
   end
 
   def current_chat_session
-    @repository.chat_sessions.order(last_message_at: :desc, created_at: :desc, id: :desc).first
+    Current.user.chat_sessions
+      .attached_to_repository(@repository)
+      .order(last_message_at: :desc, created_at: :desc, id: :desc)
+      .first
   end
 
   def new_chat?

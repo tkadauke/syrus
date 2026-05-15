@@ -12,7 +12,8 @@ class Repository < ApplicationRecord
   belongs_to :installation, optional: true
   has_many :jobs, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
-  has_many :chat_sessions, dependent: :destroy
+  has_many :chat_attachments, as: :attachable, dependent: :destroy
+  has_many :chat_sessions, through: :chat_attachments
   has_many :repository_notes, dependent: :destroy
   has_many :repository_documents, dependent: :destroy
   has_one :repository_whiteboard, dependent: :destroy
@@ -30,6 +31,7 @@ class Repository < ApplicationRecord
 
   before_validation :normalize_agent_provider
   before_save :link_installation_from_owner
+  before_destroy :destroy_chat_sessions, prepend: true
   before_destroy :destroy_chat_workspace
 
   scope :active,   -> { where(archived_at: nil) }
@@ -95,5 +97,9 @@ class Repository < ApplicationRecord
 
   def destroy_chat_workspace
     ChatWorkspace.destroy!(self)
+  end
+
+  def destroy_chat_sessions
+    chat_sessions.find_each(&:destroy)
   end
 end

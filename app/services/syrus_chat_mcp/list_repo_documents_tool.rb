@@ -4,14 +4,14 @@ module SyrusChatMcp
   class ListRepoDocumentsTool < MCP::Tool
     tool_name "list_repo_documents"
 
-    description "List supporting documents attached to this chat session's repository."
+    description "List supporting documents available to this chat session."
 
     input_schema(properties: {})
 
     class << self
       def call(server_context:)
-        repository = server_context.fetch(:chat_session).repository
-        documents = repository.repository_documents.with_attached_file.order(:created_at, :id)
+        chat_session = server_context.fetch(:chat_session)
+        documents = chat_session.attached_documents_in_scope.with_attached_file.order(:created_at, :id)
 
         MCP::Tool::Response.new([
           { type: "text", text: JSON.generate(documents.map { |document| document_payload(document) }) }

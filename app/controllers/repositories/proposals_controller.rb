@@ -88,7 +88,9 @@ class Repositories::ProposalsController < ApplicationController
   end
 
   def proposals_scope
-    ChatProposal.joins(:chat_session).where(chat_sessions: { repository_id: @repository.id })
+    ChatProposal
+      .joins(chat_session: :chat_attachments)
+      .where(chat_attachments: { attachable_type: "Repository", attachable_id: @repository.id })
   end
 
   def selected_bulk_proposals

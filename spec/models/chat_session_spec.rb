@@ -7,20 +7,21 @@ RSpec.describe ChatSession do
     session = described_class.create!(repository: repo, user: repo.user, title: "Plan the aqueduct")
 
     expect(session).to be_persisted
+    expect(session.attached_repositories).to contain_exactly(repo)
+    expect(session.repository).to eq(repo)
     expect(session.cumulative_input_tokens).to eq(0)
     expect(session.cumulative_output_tokens).to eq(0)
     expect(session.cumulative_cost).to eq(0)
   end
 
-  it "requires a repository" do
+  it "can exist without an attached repository" do
     session = described_class.new(user: repo.user)
 
-    expect(session).not_to be_valid
-    expect(session.errors[:repository]).to be_present
+    expect(session).to be_valid
   end
 
   it "requires a user" do
-    session = described_class.new(repository: repo)
+    session = described_class.new
 
     expect(session).not_to be_valid
     expect(session.errors[:user]).to be_present
@@ -134,5 +135,43 @@ RSpec.describe ChatSession do
     session = described_class.create!(repository: repo, user: repo.user)
 
     expect(repo.user.chat_sessions).to include(session)
+  end
+
+  describe "#attached_documents_in_scope" do
+    it "returns repository documents reachable through repository, job, and direct document attachments" do
+      user = repo.user
+      other_repo = Factories.repository(user: user)
+      unrelated_repo = Factories.repository(user: user)
+      repo_document = repo.repository_documents.create!(
+        user: user,
+        kind: "google_doc",
+        title: "Repo notes",
+        google_docs_url: "https://docs.google.com/document/d/repo/edit"
+      )
+      job_document = other_repo.repository_documents.create!(
+        user: user,
+        kind: "google_doc",
+        title: "Job notes",
+        google_docs_url: "https://docs.google.com/document/d/job/edit"
+      )
+      direct_document = unrelated_repo.repository_documents.create!(
+        user: user,
+        kind: "google_doc",
+        title: "Direct notes",
+        google_docs_url: "https://docs.google.com/document/d/direct/edit"
+      )
+      unrelated_repo.repository_documents.create!(
+        user: user,
+        kind: "google_doc",
+        title: "Out of scope",
+        google_docs_url: "https://docs.google.com/document/d/out/edit"
+      )
+      job = Factories.job_record(user: user, repository: other_repo)
+      session = described_class.create!(user: user, repository: repo)
+      session.chat_attachments.create!(attachable: job)
+      session.chat_attachments.create!(attachable: direct_document)
+
+      expect(session.attached_documents_in_scope).to contain_exactly(repo_document, job_document, direct_document)
+    end
   end
 end

@@ -94,7 +94,29 @@ RSpec.describe "SyrusChatMcp repository document tools" do
     ])
   end
 
-  it "rejects reads outside the chat repository" do
+  it "includes documents reachable through attached jobs" do
+    other = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: other)
+    document = other.repository_documents.create!(
+      user: user,
+      kind: "google_doc",
+      title: "Job context",
+      google_docs_url: "https://docs.google.com/document/d/job/edit"
+    )
+    chat_session.chat_attachments.create!(attachable: job)
+
+    response = call_tool("list_repo_documents")
+    payload = JSON.parse(text_content(response), symbolize_names: true)
+
+    expect(payload).to include(
+      id: document.id,
+      kind: "google_doc",
+      title: "Job context",
+      url: "https://docs.google.com/document/d/job/edit"
+    )
+  end
+
+  it "rejects reads outside the chat attachment scope" do
     other = Factories.repository(user: user)
     document = other.repository_documents.create!(
       user: user,
@@ -106,7 +128,7 @@ RSpec.describe "SyrusChatMcp repository document tools" do
     response = call_tool("read_repo_document", id: document.id)
 
     expect(response.dig(:result, :isError)).to be true
-    expect(text_content(response)).to include("document not found in this repository")
+    expect(text_content(response)).to include("document not found in this chat session's attachments")
   end
 
   it "returns text file content and caps large documents at 64 KB" do

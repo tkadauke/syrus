@@ -22,7 +22,7 @@ module SyrusChatMcp
 
     tool_name "read_repo_document"
 
-    description "Read a supporting document attached to this chat session's repository."
+    description "Read a supporting document available to this chat session."
 
     input_schema(
       properties: {
@@ -33,9 +33,9 @@ module SyrusChatMcp
 
     class << self
       def call(id:, server_context:)
-        repository = server_context.fetch(:chat_session).repository
-        document = repository.repository_documents.with_attached_file.find_by(id: id)
-        return SyrusChatMcp.invalid("document not found in this repository: #{id}") unless document
+        chat_session = server_context.fetch(:chat_session)
+        document = chat_session.attached_documents_in_scope.with_attached_file.find_by(id: id)
+        return SyrusChatMcp.invalid("document not found in this chat session's attachments: #{id}") unless document
 
         if document.file?
           read_file(document)

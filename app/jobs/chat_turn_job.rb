@@ -8,7 +8,7 @@ class ChatTurnJob < ApplicationJob
 
   limits_concurrency to: 1, group: CONCURRENCY_GROUP, key: ->(chat_session_id, *) {
     chat_session = ChatSession.find(chat_session_id)
-    "chat:#{chat_session.repository_id}"
+    "chat:#{chat_session.repository_id || chat_session.id}"
   }, duration: 30.minutes
 
   class << self
@@ -18,7 +18,7 @@ class ChatTurnJob < ApplicationJob
   SIDECAR_ENV_FORWARD = AgentProviders::Base::SIDECAR_ENV_FORWARD
 
   def perform(chat_session_id, user_message_id)
-    @chat = ChatSession.includes(:repository, :user).find(chat_session_id)
+    @chat = ChatSession.includes(:user, :attached_repositories).find(chat_session_id)
     @user_message = @chat.messages.find(user_message_id)
     @turn_started_at = Time.current
     @cancelled = false

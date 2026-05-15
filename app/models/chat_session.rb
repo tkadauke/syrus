@@ -1,7 +1,28 @@
 class ChatSession < ApplicationRecord
-  belongs_to :repository
   belongs_to :user
 
+  has_many :chat_attachments, dependent: :destroy
+  has_many :repository_attachments,
+           -> { where(attachable_type: "Repository").order(:attached_at, :id) },
+           class_name: "ChatAttachment"
+  has_many :job_attachments,
+           -> { where(attachable_type: "Job").order(:attached_at, :id) },
+           class_name: "ChatAttachment"
+  has_many :repository_document_attachments,
+           -> { where(attachable_type: "RepositoryDocument").order(:attached_at, :id) },
+           class_name: "ChatAttachment"
+  has_many :attached_repositories,
+           through: :repository_attachments,
+           source: :attachable,
+           source_type: "Repository"
+  has_many :attached_jobs,
+           through: :job_attachments,
+           source: :attachable,
+           source_type: "Job"
+  has_many :attached_repository_documents,
+           through: :repository_document_attachments,
+           source: :attachable,
+           source_type: "RepositoryDocument"
   has_many :messages, class_name: "ChatMessage", dependent: :destroy
   has_many :bookmarks,
            -> { order("chat_messages.created_at ASC", "chat_messages.id ASC", "chat_bookmarks.id ASC") },
@@ -13,6 +34,7 @@ class ChatSession < ApplicationRecord
   has_one :whiteboard, dependent: :destroy
 
   after_update_commit :broadcast_header, if: :cumulative_usage_previously_changed?
+  after_create :attach_initial_repository
 
   validates :cumulative_input_tokens,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -20,6 +42,45 @@ class ChatSession < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :cumulative_cost_usd,
             numericality: { greater_than_or_equal_to: 0 }
+
+  scope :attached_to_repository, ->(repository) {
+    joins(:chat_attachments)
+      .where(chat_attachments: { attachable_type: "Repository", attachable_id: repository.id })
+  }
+
+  def repository=(repository)
+    @initial_repository = repository
+  end
+
+  def repository
+    attached_repositories.first || @initial_repository
+  end
+
+  def repository_id
+    repository&.id
+  end
+
+  def attached_epics
+    attached_records_for("Epic")
+  end
+
+  def attached_documents
+    return attached_repository_documents unless "Document".safe_constantize
+
+    records = attached_records_for("Document")
+    records.to_a + attached_repository_documents.to_a
+  end
+
+  def attached_documents_in_scope
+    repository_ids = attached_repositories.ids + attached_jobs.includes(:repository).map(&:repository_id)
+    document_ids = attached_repository_documents.ids
+
+    RepositoryDocument
+      .where(user_id: user_id)
+      .where(repository_id: repository_ids.uniq)
+      .or(RepositoryDocument.where(user_id: user_id, id: document_ids))
+      .distinct
+  end
 
   def turn_in_flight?
     latest_user_message = messages.where(role: "user").order(:created_at, :id).last
@@ -75,5 +136,18 @@ class ChatSession < ApplicationRecord
     saved_change_to_cumulative_input_tokens? ||
       saved_change_to_cumulative_output_tokens? ||
       saved_change_to_cumulative_cost_usd?
+  end
+
+  def attach_initial_repository
+    return unless @initial_repository
+
+    chat_attachments.create!(attachable: @initial_repository)
+  end
+
+  def attached_records_for(type)
+    klass = type.safe_constantize
+    return [] unless klass
+
+    klass.where(id: chat_attachments.where(attachable_type: type).select(:attachable_id))
   end
 end
