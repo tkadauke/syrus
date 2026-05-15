@@ -116,7 +116,11 @@ Rails.application.routes.draw do
   resources :tags, only: %i[ index create update destroy ]
   resources :cron_templates
   resources :invitations, only: %i[ index create destroy ]
-  resource :settings, only: %i[ show edit update ]
+  # Legacy compatibility: the account menu's `/settings` entry is the
+  # per-user credentials page. App-wide settings live at `/settings/edit`
+  # and remain admin-only.
+  get "settings", to: "credentials#edit"
+  resource :settings, only: %i[ edit update ]
   resources :bug_reports, only: %i[ create ]
   resources :jobs, only: %i[ show new create ] do
     resource :pin, only: %i[ create destroy ], controller: "job_pins"

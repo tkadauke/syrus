@@ -14,14 +14,14 @@ RSpec.describe "Settings", type: :request do
     context "as a non-admin" do
       before { admin; sign_in_as(non_admin) }
 
-      it "redirects to credentials" do
+      it "serves the credentials page as an intentional alias" do
         get settings_path
-        expect(response).to redirect_to(edit_credentials_path)
+        expect(response).to be_successful
+        expect(response.body).to include("My credentials")
       end
 
       it "shows only My credentials in the in-page nav" do
         get settings_path
-        follow_redirect!
         expect(response.body).to include("My credentials")
         expect(response.body).not_to include("Invitations")
         expect(response.body).not_to include("App settings")
@@ -31,14 +31,14 @@ RSpec.describe "Settings", type: :request do
     context "as an admin" do
       before { sign_in_as(admin) }
 
-      it "redirects to credentials" do
+      it "serves the credentials page as an intentional alias" do
         get settings_path
-        expect(response).to redirect_to(edit_credentials_path)
+        expect(response).to be_successful
+        expect(response.body).to include("My credentials")
       end
 
       it "shows only the per-user sections in the in-page nav (Invitations + App settings are admin-area-only)" do
         get settings_path
-        follow_redirect!
         expect(response.body).to include("My credentials")
         expect(response.body).to include("Templates")
         expect(response.body).not_to match(/<a[^>]*>Invitations/)  # moved to admin area
