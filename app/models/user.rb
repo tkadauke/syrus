@@ -48,6 +48,9 @@ class User < ApplicationRecord
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
   validates :agent_provider, presence: true, inclusion: { in: AGENT_PROVIDERS }
   validates :codex_auth_mode, presence: true, inclusion: { in: CODEX_AUTH_MODES }
+  validates :epic_reopen_window,
+            presence: true,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :telegram_chat_id,
             format: { with: /\A-?\d+\z/, message: "must be a numeric Telegram chat id" },
             allow_blank: true

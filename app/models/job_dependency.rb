@@ -12,6 +12,8 @@ class JobDependency < ApplicationRecord
   validate :no_cycle
   validate :pending_fields_consistent
 
+  after_save_commit :materialize_derived_epic_dependency, if: :resolved?
+
   scope :resolved, -> { where.not(depends_on_job_id: nil) }
   scope :pending, -> { where(depends_on_job_id: nil) }
 
@@ -82,5 +84,18 @@ class JobDependency < ApplicationRecord
     self.class.resolved.where(job_id: current_id).pluck(:depends_on_job_id).any? do |next_id|
       reaches_job?(next_id, target_id, seen)
     end
+  end
+
+  def materialize_derived_epic_dependency
+    dependent_epic = job&.epic
+    upstream_epic = depends_on_job&.epic
+    return if dependent_epic.blank? || upstream_epic.blank?
+    return if dependent_epic == upstream_epic
+
+    EpicDependency.find_or_create_by!(
+      epic: dependent_epic,
+      depends_on_epic: upstream_epic,
+      derived: true
+    )
   end
 end

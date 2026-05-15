@@ -132,7 +132,7 @@ class Job < ApplicationRecord
       transitions from: :blocked_by_epic, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_if_needed
     end
 
-    event :close do
+    event :close, after: :refresh_epic_auto_state do
       transitions from: [ :open, :triaging, :blocked_by_epic, :queued ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
@@ -168,6 +168,7 @@ class Job < ApplicationRecord
   after_create :seed_parsed_dependencies
   after_create :resolve_pending_dependencies_targeting_self
   after_create :create_initial_run, if: -> { state == "open" && issue? }
+  after_save :refresh_epic_auto_state, if: -> { epic_id.present? }
 
   # Trigger a Turbo morph-refresh on the Job's show page on any change.
   # Combined with turbo_refreshes_with method: :morph in the layout,
@@ -302,6 +303,7 @@ class Job < ApplicationRecord
   ].freeze
 
   def dependencies_satisfied?
+    return false if epic.present? && !epic.releases_jobs_for_execution?
     return true if dependencies_overridden_at.present?
 
     dependencies.includes(:depends_on_job).all? do |dependency|
@@ -346,6 +348,7 @@ class Job < ApplicationRecord
     return false unless ready_for_execution?
 
     workflows.where(state: "queued").find_each do |workflow|
+      workflow.association(:job).target = self
       StepDispatcher.start_workflow(workflow)
     end
     true
@@ -528,6 +531,10 @@ class Job < ApplicationRecord
 
     errors.add(:epic, "must belong to the same user") if epic.user_id != user_id
     errors.add(:epic, "must belong to the same repository") if epic.repository_id != repository_id
+  end
+
+  def refresh_epic_auto_state
+    epic&.refresh_auto_state!
   end
 
   def issue_number_blank_for_cron

@@ -101,4 +101,50 @@ RSpec.describe JobDependency do
       expect(described_class.pending).not_to include(resolved)
     end
   end
+
+  describe "Epic dependency derivation" do
+    it "creates a derived EpicDependency for cross-Epic Job dependencies" do
+      upstream_epic = Factories.epic(user: user)
+      dependent_epic = Factories.epic(user: user)
+      upstream = Job.create!(user: user, repository: repository, issue_number: 100, epic: upstream_epic)
+      dependent = Job.create!(user: user, repository: repository, issue_number: 101, epic: dependent_epic)
+
+      expect {
+        described_class.create!(job: dependent, depends_on_job: upstream, source: "manual")
+      }.to change(EpicDependency, :count).by(1)
+
+      edge = EpicDependency.last
+      expect(edge).to have_attributes(
+        epic: dependent_epic,
+        depends_on_epic: upstream_epic,
+        derived: true
+      )
+    end
+
+    it "does not derive an EpicDependency inside the same Epic" do
+      epic = Factories.epic(user: user)
+      upstream = Job.create!(user: user, repository: repository, issue_number: 110, epic: epic)
+      dependent = Job.create!(user: user, repository: repository, issue_number: 111, epic: epic)
+
+      expect {
+        described_class.create!(job: dependent, depends_on_job: upstream, source: "manual")
+      }.not_to change(EpicDependency, :count)
+    end
+
+    it "derives the EpicDependency when a pending JobDependency resolves" do
+      upstream_epic = Factories.epic(user: user)
+      dependent_epic = Factories.epic(user: user)
+      upstream = Job.create!(user: user, repository: repository, issue_number: 120, epic: upstream_epic)
+      dependent = Job.create!(user: user, repository: repository, issue_number: 121, epic: dependent_epic)
+      dependency = described_class.create!(job: dependent,
+                                           unresolved_owner: repository.owner,
+                                           unresolved_repo: repository.name,
+                                           unresolved_number: upstream.issue_number,
+                                           source: "parsed")
+
+      expect {
+        dependency.resolve!(depends_on_job: upstream)
+      }.to change(EpicDependency, :count).by(1)
+    end
+  end
 end

@@ -1,16 +1,19 @@
 class CreateEpicsAndAddTriageFieldsToJobs < ActiveRecord::Migration[8.1]
   def change
-    create_table :epics do |t|
-      t.references :user, null: false, foreign_key: true
-      t.references :repository, null: false, foreign_key: true
-      t.string :title, null: false
-      t.text :description
-      t.string :state, null: false, default: "backlog"
+    unless table_exists?(:epics)
+      create_table :epics do |t|
+        t.references :user, null: false, foreign_key: true
+        t.references :repository, null: false, foreign_key: true
+        t.string :title, null: false
+        t.text :description
+        t.string :state, null: false, default: "backlog"
 
-      t.timestamps
+        t.timestamps
+      end
     end
 
-    add_reference :jobs, :epic, foreign_key: true, index: false
+    add_reference :epics, :repository, null: false, foreign_key: true unless column_exists?(:epics, :repository_id)
+    add_reference :jobs, :epic, foreign_key: true, index: false unless column_exists?(:jobs, :epic_id)
     add_column :jobs, :validity, :string, null: false, default: "valid"
     add_column :jobs, :invalidation_reason, :text
     add_column :jobs, :invalidation_evidence, :json, null: false, default: []

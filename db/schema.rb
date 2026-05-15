@@ -227,15 +227,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
     t.index ["user_id"], name: "index_documents_on_user_id"
   end
 
+  create_table "epic_dependencies", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "depends_on_epic_id", null: false
+    t.boolean "derived", default: false, null: false
+    t.integer "epic_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["depends_on_epic_id"], name: "index_epic_dependencies_on_depends_on_epic_id"
+    t.index ["epic_id", "depends_on_epic_id", "derived"], name: "index_epic_deps_on_epic_and_depends_on_and_derived", unique: true
+    t.index ["epic_id"], name: "index_epic_dependencies_on_epic_id"
+  end
+
   create_table "epics", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
+    t.datetime "done_at"
+    t.string "github_issue_url"
+    t.integer "number", null: false
     t.integer "repository_id", null: false
     t.string "state", default: "backlog", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["repository_id"], name: "index_epics_on_repository_id"
+    t.index ["number"], name: "index_epics_on_number", unique: true
+    t.index ["user_id", "state"], name: "index_epics_on_user_id_and_state"
     t.index ["user_id"], name: "index_epics_on_user_id"
   end
 
@@ -613,6 +629,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
     t.string "codex_auth_mode", default: "api_key", null: false
     t.datetime "created_at", null: false
     t.string "email_address", null: false
+    t.integer "epic_reopen_window", default: 30, null: false
     t.datetime "gh_api_blocked_at"
     t.text "gh_api_blocked_reason"
     t.integer "gh_rate_limit_limit"
@@ -679,6 +696,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
   add_foreign_key "claude_sessions", "runs"
   add_foreign_key "cron_templates", "users"
   add_foreign_key "documents", "users"
+  add_foreign_key "epic_dependencies", "epics"
+  add_foreign_key "epic_dependencies", "epics", column: "depends_on_epic_id"
   add_foreign_key "epics", "repositories"
   add_foreign_key "epics", "users"
   add_foreign_key "installations", "users"
