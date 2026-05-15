@@ -183,6 +183,9 @@ RSpec.describe "Dashboard", type: :request do
       running.workflows.first.update!(state: "running", started_at: Time.current)
       idle = Factories.job(repository: repo, issue_number: 2)
       idle.workflows.first.update!(state: "succeeded", started_at: 1.hour.ago, finished_at: Time.current)
+      closed = Factories.job(repository: repo, issue_number: 3) # initial workflow defaults to queued
+      closed.close!
+      closed.save!
 
       get root_path
 
@@ -210,12 +213,16 @@ RSpec.describe "Dashboard", type: :request do
       queued = Factories.job(repository: repo, issue_number: 2) # initial workflow defaults to queued
       done = Factories.job(repository: repo, issue_number: 3)
       done.workflows.first.update!(state: "succeeded", started_at: 1.hour.ago, finished_at: Time.current)
+      closed = Factories.job(repository: repo, issue_number: 4) # initial workflow defaults to queued
+      closed.close!
+      closed.save!
 
       get root_path, params: { attention: "in_progress" }
 
       expect(response.body).to include("#1")
       expect(response.body).to include("#2")
       expect(response.body).not_to include("#3")
+      expect(response.body).not_to include("#4")
     end
 
     it "keeps normal filters available in the pinned smart folder view" do

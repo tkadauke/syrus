@@ -89,7 +89,7 @@ module Jobs
 
         relation.joins(:job_pins).where(job_pins: { user_id: user.id })
       when "in_progress"
-        relation.where(id: Workflow.active.select(:job_id))
+        relation.open_threads.where(id: Workflow.active.select(:job_id))
       when "inbox"
         # Closed jobs never need attention — even if their latest run
         # failed or they have unread feedback, the operator chose to
