@@ -200,7 +200,7 @@
                          aria-label="Select all jobs"
                          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                 </th>
-                <th class="px-4 py-2 text-left">State</th>
+                <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
                 <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
                 <th class="px-4 py-2 text-left">Issue</th>
                 <th class="hidden sm:table-cell px-4 py-2 text-left">Latest</th>
@@ -220,7 +220,7 @@
                           aria: { label: "Select job #{job.id}" },
                           class: "rounded border-gray-300 text-blue-600 focus:ring-blue-500" %>
                   </td>
-                  <td class="px-4 py-3 align-top">
+                  <td class="hidden sm:table-cell px-4 py-3 align-top">
                     <%= state_pill(job_summary_state(job)) %>
                     <% if job.priority != "medium" %>
                       <%= priority_pill(job.priority) %>
@@ -231,6 +231,13 @@
                     <%= link_to job.repository.slug, repository_path(job.repository), class: "text-gray-700 hover:underline" %>
                   </td>
                   <td class="px-4 py-3">
+                    <div class="sm:hidden mb-1 flex flex-wrap items-center gap-1.5">
+                      <%= state_pill(job_summary_state(job)) %>
+                      <% if job.priority != "medium" %>
+                        <%= priority_pill(job.priority) %>
+                      <% end %>
+                      <span class="text-xs text-gray-500"><%= cost_caption(job.total_cost_usd) %></span>
+                    </div>
                     <div class="sm:hidden text-xs font-mono text-gray-500 mb-0.5">
                       <%= link_to job.repository.slug, repository_path(job.repository), class: "hover:underline" %>
                     </div>
@@ -331,7 +338,7 @@
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th class="px-4 py-2 text-left">State</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
               <th class="hidden sm:table-cell px-4 py-2 text-left">Trigger</th>
               <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
               <th class="px-4 py-2 text-left">Issue</th>
@@ -343,13 +350,14 @@
           <tbody class="divide-y divide-gray-100 text-sm">
             <% @workflows.each do |wf| %>
               <tr>
-                <td class="px-4 py-3 align-top"><%= state_pill(wf.state) %></td>
+                <td class="hidden sm:table-cell px-4 py-3 align-top"><%= state_pill(wf.state) %></td>
                 <td class="hidden sm:table-cell px-4 py-3 align-top"><%= trigger_pill(wf.trigger_kind) %></td>
                 <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
                   <%= link_to wf.job.repository.slug, repository_path(wf.job.repository), class: "text-gray-700 hover:underline" %>
                 </td>
                 <td class="px-4 py-3">
-                  <div class="sm:hidden flex items-center gap-1.5 mb-0.5">
+                  <div class="sm:hidden flex flex-wrap items-center gap-1.5 mb-0.5">
+                    <%= state_pill(wf.state) %>
                     <%= trigger_pill(wf.trigger_kind) %>
                     <span class="text-xs font-mono text-gray-500">
                       <%= link_to wf.job.repository.slug, repository_path(wf.job.repository), class: "hover:underline" %>

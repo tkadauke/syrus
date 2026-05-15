@@ -64,6 +64,26 @@ RSpec.describe "Dashboard", type: :request do
       expect(row.css("td")[1].text).to include("$1.23")
     end
 
+    it "merges job state details into the issue column on mobile" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repo, issue_number: 7, priority: "high")
+      job.initial_run.update!(state: "failed", cost_usd: 1.23)
+
+      get root_path
+
+      document = Nokogiri::HTML(response.body)
+      state_header = document.css("thead th").find { |th| th.text.strip == "State" }
+      row = document.at_css("tbody tr")
+      mobile_state_summary = row.css("td")[3].css("[class]").find do |node|
+        node["class"].to_s.include?("sm:hidden") && node.text.include?("failed")
+      end
+
+      expect(state_header["class"]).to include("hidden sm:table-cell")
+      expect(row.css("td")[1]["class"]).to include("hidden sm:table-cell")
+      expect(mobile_state_summary.text).to include("high")
+      expect(mobile_state_summary.text).to include("$1.23")
+    end
+
     it "renders a pin toggle on each job row" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       job = Factories.job_record(repository: repo, issue_number: 7)
@@ -298,12 +318,14 @@ RSpec.describe "Dashboard", type: :request do
 
       document = Nokogiri::HTML(response.body)
       status_cell = document.css("tbody tr td")[1]
+      issue_cell = document.css("tbody tr td")[3]
       latest_cell = document.css("tbody tr td")[4]
 
       expect(document.at_css("thead").text).to include("Latest")
-      expect(status_cell["class"]).not_to include("hidden")
+      expect(status_cell["class"]).to include("hidden sm:table-cell")
       expect(status_cell.text).not_to include("failed")
       expect(status_cell.text).not_to include("pr_comment")
+      expect(issue_cell.text).not_to include("pr_comment")
       expect(latest_cell["class"]).to include("hidden sm:table-cell")
       expect(latest_cell.text).to include("failed")
       expect(latest_cell.text).to include("pr_comment")
@@ -486,6 +508,26 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).to include("initial")              # trigger pill
         expect(response.body).to include("Prepare workspace")    # human-readable step kind label (first step now)
         expect(response.body).to include("(1/5)")                # step counter
+      end
+
+      it "merges workflow state into the issue column on mobile" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        job = Factories.job(repository: repo, issue_number: 7)
+        job.latest_workflow.update!(state: "running")
+
+        get root_path(tab: "workflows")
+
+        document = Nokogiri::HTML(response.body)
+        state_header = document.css("thead th").find { |th| th.text.strip == "State" }
+        row = document.at_css("tbody tr")
+        mobile_state_summary = row.css("td")[3].css("[class]").find do |node|
+          node["class"].to_s.include?("sm:hidden") && node.text.include?("running")
+        end
+
+        expect(state_header["class"]).to include("hidden sm:table-cell")
+        expect(row.css("td")[0]["class"]).to include("hidden sm:table-cell")
+        expect(mobile_state_summary.text).to include("initial")
+        expect(mobile_state_summary.text).to include("acme/widgets")
       end
 
       it "scopes to the current user (no leakage)" do
