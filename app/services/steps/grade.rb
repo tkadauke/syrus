@@ -1,5 +1,3 @@
-require "open3"
-
 module Steps
   class Grade < Base
     TIMEOUT_EXIT_CODE = 124
@@ -40,28 +38,26 @@ module Steps
     def run_grader(grader)
       log("[grade] $ #{grader.command}")
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      timed_out = false
       exit_code = nil
       log_path = grader_log_path(grader)
       absolute_log_path = workspace.path.join(log_path)
       FileUtils.mkdir_p(absolute_log_path.dirname)
 
       File.open(absolute_log_path, "wb") do |file|
-        Open3.popen2e(env, "bash", "-c", grader.command,
-                      chdir: workspace.path.to_s,
-                      unsetenv_others: true,
-                      pgroup: true) do |stdin, output, wait_thread|
-          stdin.close
-          killer = timeout_thread(wait_thread.pid, grader.timeout_minutes) { timed_out = true }
+        result = ProcessRunner.new(
+          env: env,
+          command: [ "bash", "-c", grader.command ],
+          chdir: workspace.path,
+          timeout: grader.timeout_minutes.minutes,
+          on_output_chunk: ->(chunk) do
+            file.write(chunk)
+            file.flush
+          end
+        ).run
 
-          stream_to_file(output, file)
+        exit_code = result.timed_out ? TIMEOUT_EXIT_CODE : result.exit_status
 
-          killer.kill
-          status = wait_thread.value
-          exit_code = timed_out ? TIMEOUT_EXIT_CODE : (status.exitstatus || 1)
-        end
-
-        if timed_out
+        if result.timed_out
           file.write("\n[timed out after #{grader.timeout_minutes} minutes]\n")
           log("[grade] #{grader.name} timed out after #{grader.timeout_minutes} minutes")
         end
@@ -118,40 +114,7 @@ module Steps
     end
 
     def env
-      ENV.slice(*Prepare::PREP_ENV_FORWARD)
-    end
-
-    def timeout_thread(pid, timeout_minutes)
-      Thread.new do
-        sleep timeout_minutes.minutes
-        yield
-        kill_tree(pid)
-      end
-    end
-
-    def stream_to_file(output, file)
-      loop do
-        ready, = IO.select([ output ], nil, nil, 0.5)
-        next unless ready
-
-        begin
-          chunk = output.read_nonblock(16 * 1024)
-          file.write(chunk)
-          file.flush
-        rescue IO::WaitReadable
-          next
-        rescue EOFError
-          break
-        end
-      end
-    end
-
-    def kill_tree(pid)
-      Process.kill("TERM", -pid)
-      sleep 5
-      Process.kill("KILL", -pid) rescue nil
-    rescue Errno::ESRCH
-      # Already dead.
+      ProcessRunner.forwarded_env(Prepare::PREP_ENV_FORWARD)
     end
   end
 end

@@ -1,5 +1,3 @@
-require "open3"
-
 module Steps
   # First step in Initial / Replay / PrFeedback / CiFailure
   # workflows. Runs deterministic setup work in the workspace
@@ -60,27 +58,20 @@ module Steps
     # install live. Hard timeout via a watcher thread that SIGTERMs
     # the process tree if it exceeds the budget.
     def run_shell(cmd)
-      timed_out = false
-      env = ENV.slice(*PREP_ENV_FORWARD)
-      Open3.popen2e(env, "bash", "-c", cmd,
-                    chdir: workspace.path.to_s,
-                    unsetenv_others: true) do |stdin, output, wait_thread|
-        stdin.close
-        killer = Thread.new do
-          sleep PER_COMMAND_TIMEOUT
-          timed_out = true
-          kill_tree(wait_thread.pid)
-        end
+      buffer = new_log_buffer
+      result = ProcessRunner.new(
+        env: env,
+        command: [ "bash", "-c", cmd ],
+        chdir: workspace.path,
+        timeout: PER_COMMAND_TIMEOUT,
+        on_output_chunk: ->(chunk) { stream_buffered_chunk(buffer, chunk) }
+      ).run
+      flush_log_buffer(buffer)
 
-        stream_buffered(output)
-
-        killer.kill
-        status = wait_thread.value
-        if timed_out
-          raise StepFailed, "prepare command timed out after #{PER_COMMAND_TIMEOUT}s: #{cmd}"
-        elsif !status.success?
-          raise StepFailed, "prepare command failed (exit #{status.exitstatus}): #{cmd}"
-        end
+      if result.timed_out
+        raise StepFailed, "prepare command timed out after #{PER_COMMAND_TIMEOUT}s: #{cmd}"
+      elsif !result.success?
+        raise StepFailed, "prepare command failed (exit #{result.exit_status}): #{cmd}"
       end
     end
 
@@ -90,37 +81,43 @@ module Steps
     # reached. The IO.select timeout shrinks toward the next eligible flush
     # deadline, so quiet streams still flush promptly.
     def stream_buffered(io)
-      buffer = +""
-      last_flush = Time.current
-
-      flush = -> do
-        next if buffer.empty?
-        log(buffer.chomp, kind: "system")
-        buffer.clear
-        last_flush = Time.current
-      end
-
+      buffer = new_log_buffer
       loop do
-        timeout = next_log_flush_timeout(buffer, last_flush)
+        timeout = next_log_flush_timeout(buffer[:content], buffer[:last_flush])
         ready, = IO.select([ io ], nil, nil, timeout)
 
         unless ready
-          flush.call if log_flush_ready?(buffer, last_flush)
+          flush_log_buffer(buffer) if log_flush_ready?(buffer[:content], buffer[:last_flush])
           next
         end
 
         begin
-          buffer << io.read_nonblock(16 * 1024)
+          stream_buffered_chunk(buffer, io.read_nonblock(16 * 1024))
         rescue IO::WaitReadable
           next
         rescue EOFError
           break
         end
-
-        flush.call if log_flush_ready?(buffer, last_flush)
       end
     ensure
-      flush&.call
+      flush_log_buffer(buffer) if buffer
+    end
+
+    def new_log_buffer
+      { content: +"", last_flush: Time.current }
+    end
+
+    def stream_buffered_chunk(buffer, chunk)
+      buffer[:content] << chunk
+      flush_log_buffer(buffer) if log_flush_ready?(buffer[:content], buffer[:last_flush])
+    end
+
+    def flush_log_buffer(buffer)
+      return if buffer[:content].empty?
+
+      log(buffer[:content].chomp, kind: "system")
+      buffer[:content].clear
+      buffer[:last_flush] = Time.current
     end
 
     def next_log_flush_timeout(buffer, last_flush)
@@ -131,12 +128,8 @@ module Steps
       timeout.positive? ? timeout : 0
     end
 
-    def kill_tree(pid)
-      Process.kill("TERM", pid)
-      sleep 5
-      Process.kill("KILL", pid) rescue nil
-    rescue Errno::ESRCH
-      # Already dead.
+    def env
+      ProcessRunner.forwarded_env(PREP_ENV_FORWARD)
     end
   end
 end

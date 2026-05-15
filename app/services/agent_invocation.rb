@@ -1,5 +1,4 @@
 require "json"
-require "open3"
 
 class AgentInvocation
   DEFAULT_TIMEOUT_SECONDS = 30.minutes.to_i
@@ -118,53 +117,32 @@ class AgentInvocation
       cost_usd: nil, input_tokens: nil, output_tokens: nil,
       cache_creation_input_tokens: nil, cache_read_input_tokens: nil
     }
-    timed_out = false
-
-    # `unsetenv_others: true` means: child gets EXACTLY the env we
-    # pass (plus nothing inherited). Without it, Open3 *merges* env
-    # into the parent's environment, so the worker container's
-    # BUNDLE_GEMFILE / BUNDLE_PATH / RAILS_ENV / etc. all leak into
-    # the agent's claude subprocess. Then anything Bundler-aware the
-    # agent runs (`bundle exec`, `bundle install`, even
-    # `bin/rails ...`) targets Syrus's own /rails/Gemfile, not the
-    # target repo's worktree. See issue #104 + Run #107 for the
-    # incident this caused (agent "fixed" Syrus's Gemfile.lock,
-    # which then broke the worker pod's bundle until next deploy).
-    Open3.popen2e(env, *cmd, chdir: workspace_path, unsetenv_others: true) do |stdin, output, wait_thread|
-      stdin.close
-
-      killer = Thread.new do
-        sleep timeout
-        timed_out = true
-        kill_tree(wait_thread.pid)
-      end
-
-      output.each_line do |line|
+    runner_result = ProcessRunner.new(
+      env: env,
+      command: cmd,
+      chdir: workspace_path,
+      timeout: timeout,
+      stop_requested: stop_requested,
+      on_output_line: ->(line) do
         update = process_event(line, log_sink)
         metadata.merge!(update.compact) if update
-        if stop_requested.call
-          kill_tree(wait_thread.pid)
-          break
-        end
       end
+    ).run
 
-      killer.kill
-      status = wait_thread.value
-      Result.new(
-        turns: metadata[:turns],
-        exit_status: status.exitstatus,
-        timed_out: timed_out,
-        is_error: metadata[:is_error],
-        outcome: metadata[:outcome],
-        final_text: metadata[:final_text],
-        session_id: metadata[:session_id],
-        cost_usd: metadata[:cost_usd],
-        input_tokens: metadata[:input_tokens],
-        output_tokens: metadata[:output_tokens],
-        cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
-        cache_read_input_tokens: metadata[:cache_read_input_tokens]
-      )
-    end
+    Result.new(
+      turns: metadata[:turns],
+      exit_status: runner_result.exit_status,
+      timed_out: runner_result.timed_out,
+      is_error: metadata[:is_error],
+      outcome: metadata[:outcome],
+      final_text: metadata[:final_text],
+      session_id: metadata[:session_id],
+      cost_usd: metadata[:cost_usd],
+      input_tokens: metadata[:input_tokens],
+      output_tokens: metadata[:output_tokens],
+      cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
+      cache_read_input_tokens: metadata[:cache_read_input_tokens]
+    )
   end
 
   # Env vars Syrus's worker forwards into the agent's claude
@@ -191,8 +169,10 @@ class AgentInvocation
   ].freeze
 
   def agent_env(oauth_token:, workspace_path:)
-    forwarded = ENV.slice(*AGENT_ENV_FORWARD)
-    forwarded["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
+    forwarded = ProcessRunner.forwarded_env(
+      AGENT_ENV_FORWARD,
+      extra: { "CLAUDE_CODE_OAUTH_TOKEN" => oauth_token }
+    )
     # If the worktree itself is a Bundler project (its own Gemfile),
     # point BUNDLE_GEMFILE at it explicitly. Saves the agent from
     # having to figure out where bundler should look. If the
@@ -296,11 +276,4 @@ class AgentInvocation
     nil
   end
 
-  def kill_tree(pid)
-    Process.kill("TERM", pid)
-    sleep 5
-    Process.kill("KILL", pid) rescue nil
-  rescue Errno::ESRCH
-    # Already dead; nothing to do.
-  end
 end

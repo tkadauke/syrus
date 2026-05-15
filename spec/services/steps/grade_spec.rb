@@ -98,14 +98,11 @@ RSpec.describe Steps::Grade do
             run: ruby -e 'sleep 10'
             timeout_minutes: 15
     YAML
-    allow(handler).to receive(:timeout_thread) do |pid, _timeout_minutes, &block|
-      Thread.new do
-        sleep 0.1
-        block.call
-        Process.kill("TERM", -pid) rescue nil
-        Process.kill("KILL", -pid) rescue nil
-      end
-    end
+    fake_runner = instance_double(ProcessRunner)
+    allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+    allow(fake_runner).to receive(:run).and_return(
+      ProcessRunner::Result.new(exit_status: nil, timed_out: true, stopped: false, duration_s: 0.1)
+    )
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed)
 

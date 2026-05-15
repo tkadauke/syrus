@@ -1,6 +1,5 @@
 require "fileutils"
 require "json"
-require "open3"
 
 class CodexInvocation
   DEFAULT_TIMEOUT_SECONDS = AgentInvocation::DEFAULT_TIMEOUT_SECONDS
@@ -68,43 +67,33 @@ class CodexInvocation
       cache_creation_input_tokens: nil,
       cache_read_input_tokens: nil
     }
-    timed_out = false
-    result = nil
-
-    Open3.popen2e(env, *cmd, chdir: workspace_path, unsetenv_others: true) do |stdin, output, wait_thread|
-      stdin.close
-
-      killer = Thread.new do
-        sleep timeout
-        timed_out = true
-        kill_tree(wait_thread.pid)
-      end
-
-      output.each_line do |line|
+    runner_result = ProcessRunner.new(
+      env: env,
+      command: cmd,
+      chdir: workspace_path,
+      timeout: timeout,
+      on_output_line: ->(line) do
         update = process_event(line, log_sink)
         metadata.merge!(update.compact) if update
       end
+    ).run
 
-      killer.kill
-      status = wait_thread.value
-      transcript_path = rollout_path_for(codex_home, metadata[:session_id])
-      result = AgentInvocation::Result.new(
-        turns: metadata[:turns],
-        exit_status: status.exitstatus,
-        timed_out: timed_out,
-        is_error: metadata[:is_error],
-        outcome: metadata[:outcome],
-        final_text: metadata[:final_text],
-        session_id: metadata[:session_id],
-        transcript_path: transcript_path,
-        transcript_jsonl: read_transcript(transcript_path),
-        input_tokens: metadata[:input_tokens],
-        output_tokens: metadata[:output_tokens],
-        cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
-        cache_read_input_tokens: metadata[:cache_read_input_tokens]
-      )
-    end
-    result
+    transcript_path = rollout_path_for(codex_home, metadata[:session_id])
+    AgentInvocation::Result.new(
+      turns: metadata[:turns],
+      exit_status: runner_result.exit_status,
+      timed_out: runner_result.timed_out,
+      is_error: metadata[:is_error],
+      outcome: metadata[:outcome],
+      final_text: metadata[:final_text],
+      session_id: metadata[:session_id],
+      transcript_path: transcript_path,
+      transcript_jsonl: read_transcript(transcript_path),
+      input_tokens: metadata[:input_tokens],
+      output_tokens: metadata[:output_tokens],
+      cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
+      cache_read_input_tokens: metadata[:cache_read_input_tokens]
+    )
   end
 
   def codex_command(workspace_path:, prompt:, resume_session_id:)
@@ -117,10 +106,13 @@ class CodexInvocation
   end
 
   def codex_env(api_key:, codex_home:)
-    env = ENV.slice(*CODEX_ENV_FORWARD)
-    env["CODEX_HOME"] = codex_home
-    env["CODEX_API_KEY"] = api_key if api_key.present?
-    env
+    ProcessRunner.forwarded_env(
+      CODEX_ENV_FORWARD,
+      extra: {
+        "CODEX_HOME" => codex_home,
+        "CODEX_API_KEY" => api_key.presence
+      }
+    )
   end
 
   def write_config(codex_home, mcp_server)
@@ -251,11 +243,4 @@ class CodexInvocation
     File.write(path, jsonl)
   end
 
-  def kill_tree(pid)
-    Process.kill("TERM", pid)
-    sleep 5
-    Process.kill("KILL", pid) rescue nil
-  rescue Errno::ESRCH
-    # Already dead.
-  end
 end
