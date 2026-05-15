@@ -2,35 +2,8 @@ class Step < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  # The full v1 set. Each kind has a Steps::<Camelized> handler.
-  KINDS = %w[
-    prepare
-    implement
-    summarize
-    pr_open
-    respond
-    summarize_amend
-    push
-    analyze_and_fix
-    auto_rebase
-    agent_rebase
-    force_push
-    grade
-    grader
-    grader_fanout
-    grader_collect
-    auto_merge
-    manual
-  ].freeze
-
-  # Step kinds that spawn an agent subprocess. Non-agentic steps
-  # (pr_open, push, auto_rebase, force_push, auto_merge) just run service code
-  # — Steps::PrOpen calls PullRequestOpener, Steps::Push runs `git
-  # push`, etc. — and never invoke an agent.
-  AGENTIC_KINDS = %w[
-    implement summarize respond summarize_amend
-    analyze_and_fix agent_rebase manual
-  ].freeze
+  KINDS = StepKind.values
+  AGENTIC_KINDS = StepKind.agentic_values
 
   belongs_to :workflow
   belongs_to :next_step, class_name: "Step", optional: true

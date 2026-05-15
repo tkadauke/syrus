@@ -18,30 +18,6 @@ module JobsHelper
     "pending"   => "bg-gray-100 text-gray-700"
   }.freeze
 
-  # Human-readable label per Step.kind. Keep these short — they
-  # render in dashboard cells and in Job#show step headers next to
-  # other compact metadata. Falls back to humanizing the kind for
-  # any kind not yet enumerated here, so a new step type doesn't
-  # blank out the UI.
-  STEP_KIND_LABELS = {
-    "prepare"         => "Prepare workspace",
-    "implement"       => "Implement",
-    "summarize"       => "Summarize",
-    "pr_open"         => "Open PR",
-    "respond"         => "Address feedback",
-    "summarize_amend" => "Summarize",
-    "push"            => "Push",
-    "analyze_and_fix" => "Fix CI failures",
-    "grade"           => "Grade",
-    "grader_fanout"   => "Plan graders",
-    "grader_collect"  => "Aggregate graders",
-    "grader"          => "Grader",
-    "auto_rebase"     => "Auto-rebase",
-    "agent_rebase"    => "Agent rebase",
-    "force_push"      => "Force-push",
-    "manual"          => "Manual"
-  }.freeze
-
   def step_kind_label(kind_or_step)
     if kind_or_step.respond_to?(:kind) && kind_or_step.kind == "grader"
       name = kind_or_step.details.is_a?(Hash) ? kind_or_step.details["name"] : nil
@@ -49,36 +25,12 @@ module JobsHelper
     end
 
     kind = kind_or_step.respond_to?(:kind) ? kind_or_step.kind : kind_or_step
-    STEP_KIND_LABELS[kind.to_s] || kind.to_s.humanize
+    StepKind.label_for(kind)
   end
-
-  # Human-readable label per Workflow.trigger_kind. Used as the
-  # workflow card title on Job#show, replacing the previous bare
-  # "Workflow N" header that didn't say what the workflow was
-  # actually doing. Falls back to humanizing the trigger kind so
-  # an unknown kind doesn't blank the UI.
-  WORKFLOW_LABELS = {
-    "initial"    => "Initial implementation",
-    "pr_comment" => "PR feedback",
-    "ci_failure" => "CI failure",
-    "rebase"     => "Rebase",
-    "retry"      => "Retry",
-    "replay"     => "Retry",
-    "manual"     => "Manual",
-  }.freeze
 
   def workflow_label(trigger_kind)
-    WORKFLOW_LABELS[trigger_kind.to_s] || trigger_kind.to_s.humanize
+    WorkflowTriggerKind.label_for(trigger_kind)
   end
-
-  TRIGGER_STYLES = {
-    "initial"     => "bg-purple-100 text-purple-700",
-    "pr_comment"  => "bg-cyan-100 text-cyan-700",
-    "ci_failure"  => "bg-red-100 text-red-700",
-    "retry"       => "bg-amber-100 text-amber-700",
-    "manual"      => "bg-gray-100 text-gray-700",
-    "rebase"      => "bg-teal-100 text-teal-700",
-  }.freeze
 
   def state_pill(state, classes: nil)
     style = STATE_STYLES[state.to_s] || ApplicationHelper::PILL_FALLBACK_CLASSES
@@ -111,7 +63,10 @@ module JobsHelper
   end
 
   def trigger_pill(trigger_kind)
-    colored_pill(trigger_kind, classes: TRIGGER_STYLES[trigger_kind.to_s] || ApplicationHelper::PILL_FALLBACK_CLASSES)
+    colored_pill(
+      workflow_label(trigger_kind),
+      classes: WorkflowTriggerKind.style_for(trigger_kind) || ApplicationHelper::PILL_FALLBACK_CLASSES
+    )
   end
 
   PRIORITY_STYLES = {

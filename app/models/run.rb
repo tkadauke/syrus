@@ -2,7 +2,7 @@ class Run < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  TRIGGER_KINDS = %w[ initial pr_comment ci_failure retry manual rebase auto_merge resume local_dev ].freeze
+  TRIGGER_KINDS = WorkflowTriggerKind.values
 
   belongs_to :job
   # Step is optional during the migration window: existing Runs

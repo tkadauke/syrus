@@ -1,6 +1,25 @@
 require "rails_helper"
 
 RSpec.describe JobsHelper, type: :helper do
+  describe "kind labels and pills" do
+    it "uses step metadata labels, including newer step kinds" do
+      expect(helper.step_kind_label("apply_suggestions")).to eq("Apply suggestions")
+      expect(helper.step_kind_label("auto_merge")).to eq("Auto-merge")
+    end
+
+    it "uses workflow metadata labels, including newer trigger kinds" do
+      expect(helper.workflow_label("auto_merge")).to eq("Auto-merge")
+      expect(helper.workflow_label("local_dev")).to eq("Local dev")
+    end
+
+    it "renders trigger pills with metadata labels and styles" do
+      html = helper.trigger_pill("local_dev")
+
+      expect(html).to include("Local dev")
+      expect(html).to include("bg-blue-100 text-blue-700")
+    end
+  end
+
   describe "#workflow_label" do
     it "labels retry workflows as Retry" do
       expect(helper.workflow_label("retry")).to eq("Retry")
@@ -50,7 +69,7 @@ RSpec.describe JobsHelper, type: :helper do
 
   end
 
-describe "#job_summary_state" do
+  describe "#job_summary_state" do
     it "returns 'closed' for a closed Job regardless of latest workflow state" do
       job = Factories.job
       job.update!(state: "closed", closure_reason: "cancelled", finished_at: Time.current)

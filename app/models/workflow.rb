@@ -2,10 +2,7 @@ class Workflow < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  # Trigger kinds the v1 templates handle. The first six map
-  # 1:1 to today's Run.trigger_kind values; once the migration
-  # off Run.trigger_kind lands, this is the canonical list.
-  TRIGGER_KINDS = %w[ initial pr_comment ci_failure rebase auto_merge retry manual resume local_dev ].freeze
+  TRIGGER_KINDS = WorkflowTriggerKind.values
 
   belongs_to :job
   has_many :steps, -> { order(:position) }, dependent: :destroy

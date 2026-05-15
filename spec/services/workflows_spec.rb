@@ -13,6 +13,8 @@ RSpec.describe Workflows do
       expect(described_class.for(trigger_kind: "auto_merge")).to eq(Workflows::AutoMerge)
       expect(described_class.for(trigger_kind: "retry")).to      eq(Workflows::Retry)
       expect(described_class.for(trigger_kind: "manual")).to     eq(Workflows::Manual)
+      expect(described_class.for(trigger_kind: "resume")).to     eq(Workflows::Resume)
+      expect(described_class.for(trigger_kind: "local_dev")).to  eq(Workflows::LocalDev)
     end
 
     it "raises on an unknown trigger_kind" do

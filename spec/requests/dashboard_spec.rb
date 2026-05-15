@@ -1135,7 +1135,7 @@ RSpec.describe "Dashboard", type: :request do
       expect(issue_cell.text).not_to include("pr_comment")
       expect(latest_cell["class"]).to include("hidden sm:table-cell")
       expect(latest_cell.text).to include("failed")
-      expect(latest_cell.text).to include("pr_comment")
+      expect(latest_cell.text).to include("PR feedback")
     end
 
     it "shows the latest workflow for closed jobs without mixing it into job status" do
@@ -1152,7 +1152,7 @@ RSpec.describe "Dashboard", type: :request do
 
       expect(status_cell.text).to include("closed")
       expect(status_cell.text).not_to include("initial")
-      expect(latest_cell.text).to include("initial")
+      expect(latest_cell.text).to include("Initial implementation")
       expect(latest_cell.text).to include("queued")
     end
 
