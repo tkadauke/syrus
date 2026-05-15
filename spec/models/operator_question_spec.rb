@@ -34,4 +34,21 @@ RSpec.describe OperatorQuestion do
     expect(question.errors[:workflow]).to include("must match the Run's Workflow")
     expect(question.errors[:job]).to include("must match the Workflow's Job")
   end
+
+  it "exposes context-backed delivery metadata for chat integrations" do
+    question = described_class.create!(
+      run: run,
+      workflow: run.workflow,
+      job: run.job,
+      text: "Which API shape should I use?",
+      context: {
+        "channel" => "telegram",
+        "thread_id" => "telegram:123:456"
+      }
+    )
+
+    expect(question.channel).to eq("telegram")
+    expect(question.thread_id).to eq("telegram:123:456")
+    expect(question.repository).to eq(run.job.repository)
+  end
 end

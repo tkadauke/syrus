@@ -82,13 +82,15 @@ RSpec.describe RunJob, "step-dispatch path" do
     asking_handler = Class.new(Steps::Base) do
       def call
         OperatorQuestion.create!(
-          repository: repository,
           job: job,
+          workflow: workflow,
           run: run,
-          channel: "in_syrus",
-          question: "Which API should this use?",
-          context: "The prompt names two plausible APIs.",
-          sent_at: Time.current
+          text: "Which API should this use?",
+          context: {
+            "channel" => "in_syrus",
+            "context" => "The prompt names two plausible APIs."
+          },
+          asked_at: Time.current
         )
       end
     end

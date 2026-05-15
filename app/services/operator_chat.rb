@@ -17,6 +17,14 @@ module OperatorChat
     raise DeliveryError, "run must belong to a Workflow" unless workflow
 
     record = nil
+    record_context =
+      if context.is_a?(Hash)
+        context.presence || {}
+      elsif context.present?
+        { "context" => context }
+      else
+        {}
+      end
 
     OperatorQuestion.transaction do
       record = OperatorQuestion.create!(
@@ -24,10 +32,9 @@ module OperatorChat
         workflow: workflow,
         run: run,
         text: question,
-        context: context,
+        context: record_context.merge("channel" => channel),
         asked_at: Time.current
       )
-      record.channel = channel
 
       klass_name.constantize.deliver!(record)
     end

@@ -15,36 +15,9 @@ class OperatorQuestion < ApplicationRecord
     operator_responses.create!(text: text, responded_at: responded_at)
   end
 
-  def channel=(value)
-    @legacy_channel = value.to_s
-    merge_legacy_channel
-  end
-
   def context=(value)
     normalized = value.is_a?(Hash) || value.nil? ? value : { "context" => value }
     super(normalized)
-    merge_legacy_channel
-  end
-
-  def question
-    text
-  end
-
-  def question=(value)
-    self.text = value
-  end
-
-  def sent_at
-    asked_at
-  end
-
-  def sent_at=(value)
-    self.asked_at = value
-  end
-
-  def repository=(_value)
-    # Legacy writer kept for tests and older dispatch seams. Repository
-    # is derived from the owning Job.
   end
 
   def channel
@@ -53,10 +26,6 @@ class OperatorQuestion < ApplicationRecord
 
   def thread_id
     context.is_a?(Hash) ? context["thread_id"] : nil
-  end
-
-  def state
-    "sent"
   end
 
   def repository
@@ -70,14 +39,6 @@ class OperatorQuestion < ApplicationRecord
     self.job ||= run&.job
     self.context = {} if context.nil?
     self.asked_at ||= Time.current
-  end
-
-  def merge_legacy_channel
-    return if @legacy_channel.blank?
-
-    current = self[:context]
-    current = {} unless current.is_a?(Hash)
-    self[:context] = current.merge("channel" => @legacy_channel)
   end
 
   def context_is_present

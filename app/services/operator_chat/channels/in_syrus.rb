@@ -13,7 +13,7 @@ module OperatorChat
           content: {
             "kind" => "operator_question",
             "operator_question_id" => operator_question.id,
-            "question" => operator_question.question,
+            "question" => operator_question.text,
             "context" => message_context(operator_question)
           }
         )
