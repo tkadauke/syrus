@@ -104,15 +104,9 @@ class ChatPendingAction < ApplicationRecord
       nil
     when "retry_job"
       job = action_job
-      raise ArgumentError, "Thread is closed — use Start over to begin a new one." if job.closed?
-      raise ArgumentError, "A Run is already in progress — wait for it to finish." if job.any_active_run?
-      unless job.latest_workflow&.retry_as_new_workflow_available?
-        raise ArgumentError, "Retry is not available for this Job."
-      end
+      result = RetryWorkflowEnqueuer.call(job: job)
+      raise ArgumentError, result.error unless result.success?
 
-      job.sync_skip_prepare_from_source!
-      workflow = Workflows::Retry.instantiate(job: job)
-      StepDispatcher.start_workflow(workflow)
       nil
     when "rebase_job"
       job = action_job

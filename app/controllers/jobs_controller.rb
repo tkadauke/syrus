@@ -125,29 +125,22 @@ class JobsController < ApplicationController
   # through and you want it to take another swing without abandoning the
   # in-flight work.
   def run_again
-    if @job.closed?
-      redirect_to job_path(@job), alert: "Thread is closed — use Start over to begin a new one."
-      return
-    end
-
-    if @job.any_active_run?
-      redirect_to job_path(@job), alert: "A Run is already in progress — wait for it to finish."
-      return
-    end
-
     ctx = params[:retry_context].presence || params[:replay_context]
     ctx = ctx.to_s.strip
     artifacts = ctx.present? ? { "replay_context" => ctx } : nil
     agent_provider = params[:agent_provider].to_s.presence
-    if agent_provider.present? && !@job.retry_with_agent_providers.include?(agent_provider)
-      redirect_to job_path(@job), alert: "That agent is not available for retry."
+
+    result = RetryWorkflowEnqueuer.call(
+      job: @job,
+      artifacts: artifacts,
+      agent_provider: agent_provider,
+      provider_validation: :retry_alternate
+    )
+    unless result.success?
+      redirect_to job_path(@job), alert: result.error
       return
     end
-    @job.switch_agent_provider!(agent_provider) if agent_provider.present?
-    @job.sync_skip_prepare_from_source!
 
-    workflow = Workflows::Retry.instantiate(job: @job, artifacts: artifacts, agent_provider: agent_provider)
-    StepDispatcher.start_workflow(workflow)
     notice = agent_provider.present? ? "Retry workflow enqueued with #{agent_provider.titleize}." : "Retry workflow enqueued."
     redirect_to job_path(@job, tab: "workflows"), notice: notice
   end
