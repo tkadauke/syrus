@@ -37,6 +37,7 @@ class BugReportsController < ApplicationController
         priority: "medium"
       )
 
+      job.advance_after_triage!
       Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
       attach_screenshot!(job, screenshot)
     end

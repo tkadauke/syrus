@@ -105,13 +105,13 @@ class ScheduledTask < ApplicationRecord
   # Does this task already have a Job whose PR is still open on GitHub
   # from a prior fire? Used by pr_pileup_policy=skip to short-circuit.
   def has_open_pr?
-    jobs.where(state: "open").where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL").exists?
+    jobs.open_threads.where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL").exists?
   end
 
   # Most recent Job's still-open PR ids — used by pr_pileup_policy=replace
   # to close them out before opening a fresh one.
   def open_pr_jobs
-    jobs.where(state: "open").where.not(pr_number: nil)
+    jobs.open_threads.where.not(pr_number: nil)
   end
 
   # The most recently created Job from this task that opened a PR.

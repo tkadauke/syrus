@@ -11,6 +11,7 @@ class Repository < ApplicationRecord
   belongs_to :user
   belongs_to :installation, optional: true
   has_many :jobs, dependent: :destroy
+  has_many :epics, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
   has_many :repository_notes, dependent: :destroy

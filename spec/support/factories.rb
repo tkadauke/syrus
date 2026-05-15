@@ -25,6 +25,15 @@ module Factories
     }.merge(attrs))
   end
 
+  def epic(**attrs)
+    repo = attrs[:repository] || repository(user: attrs[:user] || user)
+    Epic.create!({
+      user: attrs[:user] || repo.user,
+      repository: repo,
+      title: "Epic #{SecureRandom.hex(2)}"
+    }.merge(attrs))
+  end
+
   def installation(**attrs)
     Installation.create!({
       user: attrs[:user] || user,
@@ -53,10 +62,7 @@ module Factories
       repository: repo,
       issue_number: 42
     }.merge(attrs))
-    if job.open? && job.issue? && job.workflows.none?
-      workflow = Workflows::Initial.instantiate(job: job)
-      StepDispatcher.start_workflow(workflow)
-    end
+    job.advance_after_triage! if job.may_advance_after_triage?
     job.association(:workflows).reset
     job.association(:runs).reset
     job
@@ -67,7 +73,7 @@ module Factories
   # run behavior; use `job` when the initial Workflow/Run graph matters.
   def job_record(**attrs)
     repo = attrs[:repository] || repository(user: attrs[:user] || user)
-    desired_state = attrs.key?(:state) ? attrs[:state] : "open"
+    desired_state = attrs.key?(:state) ? attrs[:state] : "queued"
 
     create_attrs = {
       user: attrs[:user] || repo.user,

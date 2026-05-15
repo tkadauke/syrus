@@ -30,6 +30,7 @@ RSpec.describe PollRepositoryJob do
       described_class.perform_now(repository.id)
 
       job = Job.find_by!(repository: repository, issue_number: 42)
+      job.advance_after_triage!
       workflow = job.workflows.first
       expect(job).to be_skip_prepare
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
@@ -47,7 +48,9 @@ RSpec.describe PollRepositoryJob do
 
       described_class.perform_now(repository.id)
 
-      workflow = Job.find_by!(repository: repository, issue_number: 42).workflows.first
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      job.advance_after_triage!
+      workflow = job.workflows.first
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
     end
 
@@ -68,7 +71,9 @@ RSpec.describe PollRepositoryJob do
 
       described_class.perform_now(repository.id)
 
-      workflow = Job.find_by!(repository: repository, issue_number: 42).workflows.first
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      job.advance_after_triage!
+      workflow = job.workflows.first
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement grade summarize pr_open ])
       expect(workflow.first_step.kind).to eq("prepare")
     end
@@ -97,7 +102,9 @@ RSpec.describe PollRepositoryJob do
 
       described_class.perform_now(repository.id)
 
-      run = Job.find_by!(repository: repository, issue_number: 42).runs.first
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      job.advance_after_triage!
+      run = job.runs.first
       expect(run.job_logs.pluck(:kind, :chunk)).to include([
         "system",
         "prepare skipped via '#{Workflows::SKIP_PREPARE_LABEL}' label"
@@ -115,6 +122,7 @@ RSpec.describe PollRepositoryJob do
       }.not_to have_enqueued_job(RunJob)
 
       job = Job.find_by!(repository: repository, issue_number: 42)
+      job.advance_after_triage!
       expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
       expect(job.runs).to be_empty
     end
@@ -126,6 +134,7 @@ RSpec.describe PollRepositoryJob do
 
       described_class.perform_now(repository.id)
       job = Job.find_by!(repository: repository, issue_number: 42)
+      job.advance_after_triage!
       expect(job.runs).to be_empty
 
       prerequisite.close_with_reason!("pr_merged")
@@ -145,6 +154,7 @@ RSpec.describe PollRepositoryJob do
       }.not_to have_enqueued_job(RunJob)
 
       job = Job.find_by!(repository: repository, issue_number: 42)
+      job.advance_after_triage!
       dependency = job.dependencies.first
       expect(job.runs).to be_empty
       expect(dependency).to be_pending
@@ -163,6 +173,7 @@ RSpec.describe PollRepositoryJob do
 
       described_class.perform_now(repository.id)
       job = Job.find_by!(repository: repository, issue_number: 42)
+      job.advance_after_triage!
 
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 999)
       prerequisite.close_with_reason!("pr_merged")
@@ -191,8 +202,8 @@ RSpec.describe PollRepositoryJob do
 
       created = Job.where(repository: repository).order(:created_at).last
       expect(created.issue_number).to eq(42)
-      expect(created.state).to eq("open")
-      expect(created.runs.first.state).to eq("queued")
+      expect(created.state).to eq("triaging")
+      expect(created.runs).to be_empty
     end
 
     it "creates a Job whose workflow skips prepare when the issue has the prepare-skip label" do
@@ -210,7 +221,9 @@ RSpec.describe PollRepositoryJob do
 
       described_class.perform_now(repository.id)
 
-      workflow = Job.find_by!(repository: repository, issue_number: 99).latest_workflow
+      job = Job.find_by!(repository: repository, issue_number: 99)
+      job.advance_after_triage!
+      workflow = job.latest_workflow
       expect(workflow.steps.pluck(:kind)).to eq(%w[ implement grade summarize pr_open ])
       expect(workflow.artifact("prepare_skipped_reason")).to eq("issue_label")
     end
@@ -239,7 +252,7 @@ RSpec.describe PollRepositoryJob do
       # was closed. Either way the poller must not re-ingest. The old
       # code dedup'd only on active Job state and opened a fresh PR
       # every poll cycle.
-      job_46 = Job.create!(user: user, repository: repository, issue_number: 46)
+      job_46 = Factories.job(user: user, repository: repository, issue_number: 46)
       job_46.runs.first.tap { |r| r.start!; r.succeed!; r.save! }
 
       job_42 = Job.create!(user: user, repository: repository, issue_number: 42)
@@ -293,13 +306,13 @@ RSpec.describe PollRepositoryJob do
         expect(preempted.runs).to be_empty   # no auto-Run
 
         normal = Job.find_by(repository: repository, issue_number: 46)
-        expect(normal.state).to eq("open")
-        expect(normal.runs.size).to eq(1)
+        expect(normal.state).to eq("triaging")
+        expect(normal.runs).to be_empty
       end
 
       it "attaches the external PR to a stalled prior Job (failed, no Syrus PR shipped) and closes it as preempted" do
         # Pre-seed: #42 has a Job whose initial run failed and we never opened a PR.
-        prior = Job.create!(user: user, repository: repository, issue_number: 42)
+        prior = Factories.job(user: user, repository: repository, issue_number: 42)
         prior.runs.first.tap { |r| r.fail!; r.save! }
 
         expect {
@@ -322,7 +335,7 @@ RSpec.describe PollRepositoryJob do
       end
 
       it "leaves a Job alone if it has an active Run (mid-flight), but still records the external PR" do
-        prior = Job.create!(user: user, repository: repository, issue_number: 42)
+        prior = Factories.job(user: user, repository: repository, issue_number: 42)
         prior.runs.first.start!  # running
 
         described_class.perform_now(repository.id)

@@ -23,6 +23,7 @@ class StepDispatcher
     return unless first
     return if first.runs.any?
     return unless workflow.job.dependencies_satisfied?
+    return unless workflow.job.ready_for_execution?
 
     run = create_run_and_enqueue(first, workflow,
                                  parent_session_id: parent_session_id,

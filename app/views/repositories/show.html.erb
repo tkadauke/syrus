@@ -87,7 +87,7 @@
       <%= button_to "Poll now", poll_repository_path(@repository), method: :post,
             class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
             form: { class: "inline" } %>
-      <% retryable = @repository.jobs.where(state: "open").select { |j| !j.any_active_run? && j.current_run&.failed? } %>
+      <% retryable = @repository.jobs.open_threads.select { |j| !j.any_active_run? && j.current_run&.failed? } %>
       <% if retryable.any? %>
         <% preferred_agent = @repository.effective_agent_provider.titleize %>
         <%= button_to "Retry #{retryable.size} failed with #{preferred_agent}", retry_failed_jobs_repository_path(@repository), method: :post,

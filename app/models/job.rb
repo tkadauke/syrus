@@ -7,6 +7,8 @@ class Job < ApplicationRecord
   OPERATOR_CHAT_OPT_OUT_LABEL = "syrus-no-chat".freeze
 
   PRIORITIES = %w[ high medium low ].freeze
+  VALIDITIES = %w[ valid duplicate already_implemented ].freeze
+  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
   # lower numbers first, so high-priority jobs (0) run before medium (10) and
   # low (20). The gap of 10 between levels leaves room for future additions
@@ -17,6 +19,7 @@ class Job < ApplicationRecord
   belongs_to :user
   belongs_to :repository
   belongs_to :scheduled_task, optional: true
+  belongs_to :epic, optional: true
   belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
@@ -48,6 +51,8 @@ class Job < ApplicationRecord
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
+  validates :validity, presence: true, inclusion: { in: VALIDITIES }
+  validates :triaging_reason, presence: true, inclusion: { in: TRIAGING_REASONS }
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -55,10 +60,15 @@ class Job < ApplicationRecord
   validates :scheduled_task_id, presence: true, if: :cron?
   validate  :issue_number_blank_for_cron, if: :cron?
   validate  :issue_number_blank_for_direct, if: :direct?
+  validate  :epic_belongs_to_same_user_and_repository
   before_validation :default_agent_provider, on: :create
   before_validation :default_credential_mode, on: :create
+  before_validation :default_lifecycle_metadata, on: :create
 
-  scope :open_threads, -> { where(state: "open") }
+  enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
+  enum :triaging_reason, TRIAGING_REASONS.index_with(&:itself), prefix: true, validate: true
+
+  scope :open_threads, -> { where.not(state: "closed") }
   scope :closed_threads, -> { where(state: "closed") }
   scope :issue_kind, -> { where(kind: "issue") }
   scope :cron_kind,  -> { where(kind: "cron") }
@@ -96,11 +106,33 @@ class Job < ApplicationRecord
   end
 
   aasm column: :state, whiny_transitions: false do
-    state :open, initial: true
+    state :triaging, initial: true
+    state :blocked_by_epic
+    state :queued
+    state :open
     state :closed
 
+    event :advance_after_triage do
+      transitions from: :triaging, to: :blocked_by_epic, guard: :blocked_by_epic_before_execution?
+      transitions from: :triaging, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_if_needed
+    end
+
+    event :mark_classifier_uncertain do
+      transitions from: :triaging, to: :triaging, after: -> {
+        self.triaging_reason = "classifier_uncertain"
+      }
+    end
+
+    event :block_by_epic do
+      transitions from: [ :triaging, :queued, :open ], to: :blocked_by_epic, guard: :blocked_by_epic_before_execution?
+    end
+
+    event :release_epic_block do
+      transitions from: :blocked_by_epic, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_if_needed
+    end
+
     event :close do
-      transitions from: :open, to: :closed, after: -> {
+      transitions from: [ :open, :triaging, :blocked_by_epic, :queued ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
       }
@@ -112,10 +144,11 @@ class Job < ApplicationRecord
     # "Retry" to spawn a fresh Run if they want.
     # Polling resumes automatically once the Job is open again.
     event :reopen do
-      transitions from: :closed, to: :open, after: -> {
+      transitions from: :closed, to: :triaging, after: -> {
         self.closure_reason = nil
         self.finished_at = nil
         self.failure_count = 0
+        self.triaging_reason ||= "classifier_pending"
       }
     end
   end
@@ -133,7 +166,7 @@ class Job < ApplicationRecord
   # awareness without scheduling any agent work.
   after_create :seed_parsed_dependencies
   after_create :resolve_pending_dependencies_targeting_self
-  after_create :create_initial_run, if: -> { open? && issue? }
+  after_create :create_initial_run, if: -> { state == "open" && issue? }
 
   # Trigger a Turbo morph-refresh on the Job's show page on any change.
   # Combined with turbo_refreshes_with method: :morph in the layout,
@@ -154,6 +187,20 @@ class Job < ApplicationRecord
 
   def solid_queue_priority
     PRIORITY_TO_SQ.fetch(priority.to_s, PRIORITY_TO_SQ["medium"])
+  end
+
+  def open?
+    !closed?
+  end
+
+  def ready_for_execution?
+    validity == "valid" && !blocked_by_epic_before_execution?
+  end
+
+  def blocked_by_epic_before_execution?
+    return false unless epic
+
+    epic.backlog? || epic.ready?
   end
 
   def prepare_skip_reason
@@ -286,6 +333,7 @@ class Job < ApplicationRecord
 
   def start_pending_workflows_if_dependencies_satisfied!
     return false unless dependencies_satisfied?
+    return false unless ready_for_execution?
 
     workflows.where(state: "queued").find_each do |workflow|
       StepDispatcher.start_workflow(workflow)
@@ -365,6 +413,13 @@ class Job < ApplicationRecord
   def create_initial_run
     workflow = Workflows::Initial.instantiate(job: self)
     StepDispatcher.start_workflow(workflow)
+  end
+
+  def create_initial_run_if_needed
+    return unless issue?
+    return if workflows.exists?
+
+    create_initial_run
   end
 
   def seed_parsed_dependencies
@@ -450,6 +505,19 @@ class Job < ApplicationRecord
 
   def default_credential_mode
     self.credential_mode = repository&.credential_mode || "pat"
+  end
+
+  def default_lifecycle_metadata
+    self.validity ||= "valid"
+    self.triaging_reason ||= "classifier_pending"
+    self.invalidation_evidence ||= []
+  end
+
+  def epic_belongs_to_same_user_and_repository
+    return unless epic
+
+    errors.add(:epic, "must belong to the same user") if epic.user_id != user_id
+    errors.add(:epic, "must belong to the same repository") if epic.repository_id != repository_id
   end
 
   def issue_number_blank_for_cron

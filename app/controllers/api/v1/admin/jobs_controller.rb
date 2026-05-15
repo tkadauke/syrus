@@ -25,7 +25,9 @@ module Api
           scope = Job.includes(:repository).order(updated_at: :desc)
           scope = scope.where(pr_number: params[:pr_number])       if params[:pr_number].present?
           scope = scope.where(issue_number: params[:issue_number]) if params[:issue_number].present?
-          scope = scope.where(state: params[:state])               if params[:state].present?
+          if params[:state].present?
+            scope = params[:state] == "open" ? scope.open_threads : scope.where(state: params[:state])
+          end
           if params[:repo].present?
             owner, name = params[:repo].split("/", 2)
             scope = scope.joins(:repository).where(repositories: { owner: owner, name: name })
@@ -84,6 +86,9 @@ module Api
             state:          job.state,
             kind:           job.kind,
             priority:       job.priority,
+            validity:       job.validity,
+            triaging_reason: job.triaging_reason,
+            epic_id:        job.epic_id,
             agent_provider: job.agent_provider,
             repository:     job.repository.slug,
             issue_number:   job.issue_number,
@@ -103,6 +108,11 @@ module Api
             state: job.state,
             kind: job.kind,
             priority: job.priority,
+            validity: job.validity,
+            invalidation_reason: job.invalidation_reason,
+            invalidation_evidence: job.invalidation_evidence,
+            triaging_reason: job.triaging_reason,
+            epic_id: job.epic_id,
             agent_provider: job.agent_provider,
             closure_reason: job.closure_reason,
             failure_count: job.failure_count,

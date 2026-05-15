@@ -80,6 +80,7 @@ class JobsController < ApplicationController
     end
 
     rendered_prompt = Prompts::DirectJob.new(prompt: prompt_text).to_s
+    job.advance_after_triage!
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
     StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
 
@@ -164,6 +165,7 @@ class JobsController < ApplicationController
       skip_prepare: skip_prepare,
       operator_chat_disabled: @job.operator_chat_disabled?
     )
+    new_job.advance_after_triage!
     redirect_to job_path(new_job), notice: "Started over — new branch and PR will be created."
   end
 

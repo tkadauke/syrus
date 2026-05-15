@@ -7,6 +7,8 @@ module JobsHelper
     "cancelled" => "bg-amber-100 text-amber-700",
     "awaiting_operator" => "bg-fuchsia-100 text-fuchsia-700",
     "open"      => "bg-emerald-100 text-emerald-700",
+    "triaging"  => "bg-sky-100 text-sky-700",
+    "blocked_by_epic" => "bg-amber-100 text-amber-700",
     "closed"    => "bg-gray-200 text-gray-800",
     "preempted" => "bg-violet-100 text-violet-700",
     "pending"   => "bg-gray-100 text-gray-700"
@@ -228,6 +230,7 @@ module JobsHelper
     return "preempted" if job.closure_reason == "preempted"
     return "preempted" if job.closure_reason&.start_with?("external_pr_")
     return "closed" if job.closed?
+    return job.state if job.triaging? || job.blocked_by_epic?
     job.current_run&.state || "pending"
   end
 

@@ -690,7 +690,7 @@ RSpec.describe RunJob do
 
       expect(job.workflows.last.state).to eq("failed")
       # Job stays open — failure cap is per-Workflow now, not per-Job
-      expect(job.reload.state).to eq("open")
+      expect(job.reload).to be_open
     end
   end
 

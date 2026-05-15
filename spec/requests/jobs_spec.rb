@@ -657,7 +657,7 @@ RSpec.describe "Jobs", type: :request do
       run.reload
       job.reload
       expect(run.state).to eq("cancelled")
-      expect(job.state).to eq("open")
+      expect(job).to be_open
       expect(response).to redirect_to(job_path(job))
       expect(flash[:notice]).to match(/stopped/i)
     end
@@ -668,7 +668,7 @@ RSpec.describe "Jobs", type: :request do
       post stop_run_job_path(job, run_id: run.id)
 
       expect(run.reload.state).to eq("cancelled")
-      expect(job.reload.state).to eq("open")
+      expect(job.reload).to be_open
     end
 
     it "refuses to stop an already-terminal Run" do
@@ -826,7 +826,7 @@ RSpec.describe "Jobs", type: :request do
       post reopen_job_path(job)
 
       job.reload
-      expect(job.state).to eq("open")
+      expect(job.state).to eq("triaging")
       expect(job.closure_reason).to be_nil
       expect(job.finished_at).to be_nil
       expect(response).to redirect_to(job_path(job))
@@ -847,7 +847,7 @@ RSpec.describe "Jobs", type: :request do
 
     it "refuses on an open Job" do
       post reopen_job_path(job)
-      expect(job.reload.state).to eq("open")
+      expect(job.reload).to be_open
       expect(flash[:alert]).to match(/isn't closed/)
     end
   end
@@ -1698,6 +1698,7 @@ RSpec.describe "Jobs", type: :request do
     it "lets admins override dependency gates" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
       target = Job.create!(user: user, repository: repository, issue_number: 42, issue_body: "Depends-on: #41")
+      target.advance_after_triage!
       user.update!(admin: true)
 
       expect(target.runs).to be_empty

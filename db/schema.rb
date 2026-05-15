@@ -198,6 +198,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
     t.index ["user_id"], name: "index_cron_templates_on_user_id"
   end
 
+  create_table "epics", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.integer "repository_id", null: false
+    t.string "state", default: "backlog", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["repository_id"], name: "index_epics_on_repository_id"
+    t.index ["user_id"], name: "index_epics_on_user_id"
+  end
+
   create_table "installations", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "account_login", null: false
@@ -300,9 +312,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
     t.string "credential_mode", default: "pat", null: false
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
+    t.integer "epic_id"
     t.integer "external_pr_number"
     t.integer "failure_count", default: 0, null: false
     t.datetime "finished_at"
+    t.json "invalidation_evidence", default: [], null: false
+    t.text "invalidation_reason"
     t.text "issue_body"
     t.integer "issue_number"
     t.string "issue_title"
@@ -319,17 +334,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
     t.integer "scheduled_task_id"
     t.boolean "skip_prepare", default: false, null: false
     t.datetime "started_at"
-    t.string "state", default: "open", null: false
+    t.string "state", default: "triaging", null: false
+    t.string "triaging_reason", default: "classifier_pending", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "validity", default: "valid", null: false
     t.index ["credential_mode"], name: "index_jobs_on_credential_mode"
     t.index ["dependencies_overridden_by_user_id"], name: "index_jobs_on_dependencies_overridden_by_user_id"
+    t.index ["epic_id"], name: "index_jobs_on_epic_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
     t.index ["scheduled_task_id"], name: "index_jobs_on_scheduled_task_id"
+    t.index ["triaging_reason"], name: "index_jobs_on_triaging_reason"
     t.index ["user_id"], name: "index_jobs_on_user_id"
+    t.index ["validity"], name: "index_jobs_on_validity"
   end
 
   create_table "operator_questions", force: :cascade do |t|
@@ -659,6 +679,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
   add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"
   add_foreign_key "cron_templates", "users"
+  add_foreign_key "epics", "repositories"
+  add_foreign_key "epics", "users"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
   add_foreign_key "job_attachments", "jobs"
@@ -668,6 +690,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
   add_foreign_key "job_logs", "runs"
   add_foreign_key "job_pins", "jobs"
   add_foreign_key "job_pins", "users"
+  add_foreign_key "jobs", "epics"
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"

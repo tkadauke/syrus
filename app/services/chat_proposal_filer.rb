@@ -99,7 +99,7 @@ class ChatProposalFiler
       issue_title: proposal.title,
       issue_body: proposal.body,
       agent_provider: repository.effective_agent_provider
-    )
+    ).tap(&:advance_after_triage!)
   end
 
   def file_github_issue(proposal)

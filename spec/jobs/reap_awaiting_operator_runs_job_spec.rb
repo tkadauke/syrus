@@ -60,6 +60,6 @@ RSpec.describe ReapAwaitingOperatorRunsJob do
 
     expect(run.reload.state).to eq("awaiting_operator")
     expect(run.agent_outcome).to be_nil
-    expect(run.job.reload.state).to eq("open")
+    expect(run.job.reload).to be_open
   end
 end

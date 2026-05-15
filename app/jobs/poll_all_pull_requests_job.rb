@@ -14,14 +14,14 @@ class PollAllPullRequestsJob < ApplicationJob
     return if AppSetting.polling_paused?
     Job.joins(:repository)
        .merge(Repository.active)
-       .where(state: "open").where.not(pr_number: nil)
+       .open_threads.where.not(pr_number: nil)
        .find_each do |job|
       PollPullRequestJob.perform_later(job.id)
     end
 
     Job.joins(:repository)
        .merge(Repository.active)
-       .where(state: "open", pr_number: nil).where.not(external_pr_number: nil)
+       .open_threads.where(pr_number: nil).where.not(external_pr_number: nil)
        .find_each do |job|
       PollExternalPrJob.perform_later(job.id)
     end

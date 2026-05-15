@@ -40,6 +40,7 @@ class ScheduledTaskFire
       issue_body: rendered_prompt,
       issue_number: nil
     )
+    job.advance_after_triage!
     # Job#after_create_commit only auto-instantiates the Initial
     # workflow for issue Jobs. Cron Jobs need explicit instantiation
     # here so the pre-rendered prompt rides through to the first

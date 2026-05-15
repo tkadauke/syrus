@@ -2,14 +2,14 @@ require "rails_helper"
 
 RSpec.describe Job do
   describe "thread state machine" do
-    it "starts open" do
+    it "starts as an open thread" do
       job = Factories.job
       expect(job).to be_open
     end
 
-    it "transitions open → closed via close!" do
+    it "transitions queued → closed via close!" do
       job = Factories.job
-      expect { job.close! }.to change(job, :state).from("open").to("closed")
+      expect { job.close! }.to change(job, :state).from("queued").to("closed")
     end
 
     it "captures finished_at on close" do
@@ -40,7 +40,7 @@ RSpec.describe Job do
       expect(job.may_reopen?).to be true
     end
 
-    it "reopen! transitions closed → open and clears closure_reason + finished_at" do
+    it "reopen! transitions closed → triaging and clears closure_reason + finished_at" do
       job = Factories.job
       job.close_with_reason!("cancelled")
       expect(job.closure_reason).to eq("cancelled")
@@ -49,7 +49,7 @@ RSpec.describe Job do
       job.reopen!
       job.save!
 
-      expect(job.state).to eq("open")
+      expect(job.state).to eq("triaging")
       expect(job.closure_reason).to be_nil
       expect(job.finished_at).to be_nil
     end
@@ -226,6 +226,54 @@ RSpec.describe Job do
 
       expect(job.reload.failure_count).to eq(0)
       expect(job).to be_open
+    end
+  end
+
+  describe "triage lifecycle" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "creates issue jobs in triaging with classifier_pending reason and no run" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+
+      expect(job.state).to eq("triaging")
+      expect(job.triaging_reason).to eq("classifier_pending")
+      expect(job.validity).to eq("valid")
+      expect(job.runs).to be_empty
+    end
+
+    it "queues a valid triaged issue job and creates its initial run" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+
+      expect { job.advance_after_triage! }
+        .to change { job.reload.state }.from("triaging").to("queued")
+        .and change { job.runs.count }.from(0).to(1)
+    end
+
+    it "keeps duplicate jobs out of the queue" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+      job.update!(
+        validity: "duplicate",
+        invalidation_reason: "Human PR already covers this.",
+        invalidation_evidence: [ "https://github.com/acme/widgets/pull/12" ]
+      )
+
+      expect(job.may_advance_after_triage?).to be false
+      expect { job.advance_after_triage! }.not_to change { job.reload.state }
+      expect(job.runs).to be_empty
+    end
+
+    it "blocks on backlog epics and queues when the epic enters in_progress" do
+      epic = Factories.epic(user: user, repository: repository, state: "backlog")
+      job = Job.create!(user: user, repository: repository, issue_number: 1, epic: epic)
+
+      expect { job.advance_after_triage! }
+        .to change { job.reload.state }.from("triaging").to("blocked_by_epic")
+      expect(job.runs).to be_empty
+
+      expect { epic.in_progress! }
+        .to change { job.reload.state }.from("blocked_by_epic").to("queued")
+        .and change { job.runs.count }.from(0).to(1)
     end
   end
 
@@ -494,10 +542,10 @@ RSpec.describe Job do
       expect(preempted.external_pr_number).to eq(7)
     end
 
-    it "auto-spawns a Run for ordinary (open) Job creation" do
+    it "does not auto-spawn a Run before triage advances" do
       ordinary = Job.create!(user: user, repository: repository, issue_number: 100)
-      expect(ordinary.runs.size).to eq(1)
-      expect(ordinary.initial_run).to be_present
+      expect(ordinary).to be_triaging
+      expect(ordinary.runs).to be_empty
     end
   end
 end

@@ -122,7 +122,7 @@ class RepositoriesController < ApplicationController
   # making progress) and closed Jobs (Reopen is still a manual call,
   # since "I want this Job alive again" is a deliberate decision).
   def retry_failed_jobs
-    eligible = @repository.jobs.where(state: "open").select do |j|
+    eligible = @repository.jobs.open_threads.select do |j|
       !j.any_active_run? && j.current_run&.failed?
     end
 

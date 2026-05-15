@@ -100,6 +100,7 @@ class LocalDevRunner
       priority: "medium",
       agent_provider: @agent_provider.presence || repository.effective_agent_provider
     )
+    job.advance_after_triage!
     job.update!(branch_name: "syrus/local-#{job.id}")
     job
   end

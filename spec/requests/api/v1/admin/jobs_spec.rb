@@ -59,7 +59,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       body = parse_body
 
       expect(body["id"]).to eq(job.id)
-      expect(body["state"]).to eq("open")
+      expect(body["state"]).to eq("queued")
       expect(body["agent_provider"]).to eq(job.agent_provider)
       expect(body["repository"]["slug"]).to eq(job.repository.slug)
 

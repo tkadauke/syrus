@@ -47,7 +47,7 @@ module Jobs
     def apply_state(relation)
       case params["state"]
       when "open", "closed"
-        relation.where(state: params["state"])
+        params["state"] == "open" ? relation.open_threads : relation.closed_threads
       when "failed", "succeeded"
         relation.open_threads.where(id: latest_workflow_job_ids(params["state"]))
       else
