@@ -1560,11 +1560,11 @@ RSpec.describe "Jobs", type: :request do
       expect(target.reload.dependencies).to be_empty
     end
 
-    it "keeps accepting legacy dependency job id posts" do
+    it "adds a selected job target as a manual dependency" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
       target = Job.create!(user: user, repository: repository, issue_number: 42)
 
-      post dependencies_job_path(target), params: { dependency_job_id: prerequisite.id }
+      post dependencies_job_path(target), params: { dependency_target: "job:#{prerequisite.id}" }
 
       expect(target.reload.dependencies.first.depends_on_job).to eq(prerequisite)
     end

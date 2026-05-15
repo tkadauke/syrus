@@ -613,13 +613,7 @@ class JobsController < ApplicationController
   end
 
   def find_dependency_target
-    if params[:dependency_target].present?
-      find_dependency_target_from_select(params[:dependency_target])
-    elsif params[:dependency_job_id].present?
-      Current.user.jobs.find_by(id: params[:dependency_job_id])
-    elsif params[:dependency_issue_number].present?
-      @job.repository.jobs.where(issue_number: params[:dependency_issue_number]).order(:created_at).last
-    end
+    find_dependency_target_from_select(params[:dependency_target])
   end
 
   def find_dependency_target_from_select(value)
