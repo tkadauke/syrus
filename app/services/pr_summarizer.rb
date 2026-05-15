@@ -1,9 +1,7 @@
 require "json"
-require "tmpdir"
 
 # Single-shot agent call that authors a PR title + body from the issue
-# and the agent's diff. The provider invocation is pinned to one turn
-# and rooted in a tmpdir so it has no filesystem context to wander into.
+# and the agent's diff. The provider invocation is pinned to one turn.
 class PrSummarizer
   DEFAULT_TIMEOUT_SECONDS = 2.minutes.to_i
 
@@ -11,21 +9,13 @@ class PrSummarizer
     def success? = error.nil?
   end
 
-  # Legacy Claude test seam — provider-backed callers pass an agent adapter.
-  class << self
-    attr_accessor :runner
-  end
-
-  def initialize(issue:, diff:, oauth_token: nil, agent: nil,
+  def initialize(issue:, diff:, agent:,
                  log_sink: ->(*, **) { },
-                 runner: nil,
                  timeout: DEFAULT_TIMEOUT_SECONDS)
     @issue = issue
     @diff = diff
-    @oauth_token = oauth_token
     @agent = agent
     @log_sink = log_sink
-    @runner = runner || self.class.runner
     @timeout = timeout
   end
 
@@ -47,28 +37,10 @@ class PrSummarizer
   private
 
   def invoke_agent(prompt)
-    if @agent
-      @agent.run_once(prompt: prompt,
-                      log_sink: @log_sink,
-                      timeout: @timeout,
-                      max_turns: 1)
-    else
-      invoke_legacy_claude(prompt)
-    end
-  end
-
-  def invoke_legacy_claude(prompt)
-    Dir.mktmpdir("syrus-summarize") do |tmpdir|
-      AgentInvocation.new(
-        tmpdir,
-        prompt: prompt,
-        oauth_token: @oauth_token,
-        log_sink: @log_sink,
-        runner: @runner,
-        timeout: @timeout,
-        max_turns: 1
-      ).run
-    end
+    @agent.run_once(prompt: prompt,
+                    log_sink: @log_sink,
+                    timeout: @timeout,
+                    max_turns: 1)
   end
 
   def parse(raw)

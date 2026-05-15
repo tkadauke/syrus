@@ -40,7 +40,6 @@ RSpec.describe RunJob do
     )
 
     RunJob.agent_runner = method(:default_agent_runner)
-    PrSummarizer.runner = method(:default_pr_summarizer_runner)
 
     @data_root = Dir.mktmpdir("syrus-data")
     ENV["SYRUS_DATA_ROOT"] = @data_root
@@ -49,7 +48,6 @@ RSpec.describe RunJob do
   after do
     ENV.delete("SYRUS_DATA_ROOT")
     RunJob.agent_runner = nil
-    PrSummarizer.runner = nil
     FileUtils.rm_rf(bare_remote_dir)
     FileUtils.rm_rf(@data_root) if @data_root
   end
@@ -759,14 +757,6 @@ RSpec.describe RunJob do
       sh("git -c user.name=t -c user.email=t@e -C #{workspace_path} commit --allow-empty -q -m 'rebased'")
     end
     AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
-  end
-
-  def default_pr_summarizer_runner(**_)
-    AgentInvocation::Result.new(
-      turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success",
-      final_text: '{"title":"Summarizer fallback","body":"Summarizer fallback body."}',
-      session_id: nil
-    )
   end
 
   def seed_remote_with_initial_commit(bare_path)
