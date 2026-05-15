@@ -188,19 +188,81 @@ RSpec.describe "Repository chats", type: :request do
       expect(cards).to all(satisfy { |node| node.attribute("open").blank? })
     end
 
-    it "renders pending confirmation cards" do
+    it "renders pending job-control confirmation cards with current routes" do
       chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
-      job = Factories.job(repository: repo)
-      action = chat.pending_actions.create!(
+      cancel_job = Factories.job(repository: repo)
+      retry_job = Factories.job(repository: repo, issue_number: 43)
+      rebase_job = Factories.job(repository: repo, issue_number: 44)
+      cancel_action = chat.pending_actions.create!(
         action: "cancel_job",
-        payload: { "job_id" => job.id }
+        payload: { "job_id" => cancel_job.id }
+      )
+      retry_action = chat.pending_actions.create!(
+        action: "retry_job",
+        payload: { "job_id" => retry_job.id }
+      )
+      rebase_action = chat.pending_actions.create!(
+        action: "rebase_job",
+        payload: { "job_id" => rebase_job.id }
       )
 
       get repository_chats_path(repo)
 
       expect(response.body).to include("Pending actions")
-      expect(response.body).to include("Cancel Job")
-      expect(response.body).to include("Job ##{job.id}")
+      expect(response.body).to include("Cancel Job ##{cancel_job.id}")
+      expect(response.body).to include("Retry Job ##{retry_job.id}")
+      expect(response.body).to include("Rebase Job ##{rebase_job.id}")
+
+      document = Nokogiri::HTML(response.body)
+      [ cancel_action, retry_action, rebase_action ].each do |action|
+        expect(document.at_css("form[action='#{repository_chat_pending_action_confirm_path(repo, action)}'][method='post']")).to be_present
+        cancel_form = document.at_css("form[action='#{repository_chat_pending_action_path(repo, action)}'][method='post']")
+        expect(cancel_form).to be_present
+        expect(cancel_form.at_css("input[name='_method'][value='delete']")).to be_present
+      end
+    end
+
+    it "renders pending note confirmation cards with current routes" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      note = repo.repository_notes.create!(body: "Retire the brittle parser note.", author: "operator")
+      add_action = chat.pending_actions.create!(
+        action: "add_repo_note",
+        requested_by: "agent",
+        payload: { "body" => "Pin this crucial repository note before anyone forgets." }
+      )
+      remove_action = chat.pending_actions.create!(
+        action: "remove_repo_note",
+        requested_by: "agent",
+        payload: { "id" => note.id }
+      )
+
+      get repository_chats_path(repo)
+
+      expect(response.body).to include("Pin repository note")
+      expect(response.body).to include("Pin this crucial repository note")
+      expect(response.body).to include("Remove repository note ##{note.id}")
+      expect(response.body).to include(repository_chat_pending_action_confirm_path(repo, add_action))
+      expect(response.body).to include(repository_chat_pending_action_path(repo, add_action))
+      expect(response.body).to include(repository_chat_pending_action_confirm_path(repo, remove_action))
+      expect(response.body).to include(repository_chat_pending_action_path(repo, remove_action))
+    end
+
+    it "renders pending schedule_recurring confirmation cards with current routes" do
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      action = chat.pending_actions.create!(
+        action_type: "schedule_recurring",
+        payload: {
+          "cron_expression" => "0 9 * * 1",
+          "label" => "Weekly review",
+          "prompt" => "Review the project.",
+          "next_fire_at" => "2026-05-18T09:00:00Z"
+        }
+      )
+
+      get repository_chats_path(repo)
+
+      expect(response.body).to include("Weekly review")
+      expect(response.body).to include("0 9 * * 1")
       expect(response.body).to include(repository_chat_pending_action_confirm_path(repo, action))
       expect(response.body).to include(repository_chat_pending_action_path(repo, action))
     end
