@@ -80,6 +80,62 @@ RSpec.describe ChatSession do
     expect(session.cumulative_cost).to eq(BigDecimal("0.014321"))
   end
 
+  it "records zero usage fields without changing existing totals" do
+    session = described_class.create!(
+      repository: repo,
+      user: repo.user,
+      cumulative_input_tokens: 12,
+      cumulative_output_tokens: 34,
+      cumulative_cost_usd: 0.05
+    )
+    result = AgentInvocation::Result.new(
+      turns: 1,
+      exit_status: 0,
+      timed_out: false,
+      is_error: false,
+      outcome: "success",
+      final_text: "Done",
+      session_id: "claude-session",
+      cost_usd: 0,
+      input_tokens: 0,
+      output_tokens: 0
+    )
+
+    session.record_turn_usage!(result)
+
+    expect(session.reload.cumulative_input_tokens).to eq(12)
+    expect(session.cumulative_output_tokens).to eq(34)
+    expect(session.cumulative_cost).to eq(BigDecimal("0.05"))
+  end
+
+  it "ignores nil usage fields" do
+    session = described_class.create!(
+      repository: repo,
+      user: repo.user,
+      cumulative_input_tokens: 12,
+      cumulative_output_tokens: 34,
+      cumulative_cost_usd: 0.05
+    )
+    result = AgentInvocation::Result.new(
+      turns: 1,
+      exit_status: 0,
+      timed_out: false,
+      is_error: false,
+      outcome: "success",
+      final_text: "Done",
+      session_id: "claude-session",
+      cost_usd: nil,
+      input_tokens: nil,
+      output_tokens: nil
+    )
+
+    session.record_turn_usage!(result)
+
+    expect(session.reload.cumulative_input_tokens).to eq(12)
+    expect(session.cumulative_output_tokens).to eq(34)
+    expect(session.cumulative_cost).to eq(BigDecimal("0.05"))
+  end
+
   it "destroys messages with the session" do
     session = described_class.create!(repository: repo, user: repo.user)
     message = session.messages.create!(role: "user", content: { "text" => "Ave" })

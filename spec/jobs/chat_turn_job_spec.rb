@@ -36,6 +36,7 @@ RSpec.describe ChatTurnJob do
       result_fixture(
         session_id: "chat-session-1",
         transcript_jsonl: "{\"type\":\"system\"}\n",
+        cost_usd: 0.004321,
         input_tokens: 12,
         output_tokens: 5
       )
@@ -54,6 +55,7 @@ RSpec.describe ChatTurnJob do
     )
     expect(chat.reload.cumulative_input_tokens).to eq(12)
     expect(chat.cumulative_output_tokens).to eq(5)
+    expect(chat.cumulative_cost).to eq(BigDecimal("0.004321"))
     expect(chat.last_message_at).to be_present
 
     session = chat.claude_session
@@ -63,6 +65,23 @@ RSpec.describe ChatTurnJob do
       session_id: "chat-session-1",
       transcript_jsonl: "{\"type\":\"system\"}\n"
     )
+  end
+
+  it "preserves existing usage totals when invocation result usage fields are nil" do
+    chat.update!(
+      cumulative_input_tokens: 10,
+      cumulative_output_tokens: 20,
+      cumulative_cost_usd: 0.03
+    )
+    ChatTurnJob.agent_runner = ->(**_) {
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(chat.reload.cumulative_input_tokens).to eq(10)
+    expect(chat.cumulative_output_tokens).to eq(20)
+    expect(chat.cumulative_cost).to eq(BigDecimal("0.03"))
   end
 
   it "resumes the existing Claude session after the first turn and omits the system prompt" do

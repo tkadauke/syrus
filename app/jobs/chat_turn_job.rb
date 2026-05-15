@@ -49,7 +49,7 @@ class ChatTurnJob < ApplicationJob
     end
 
     capture_session!(result) if result
-    increment_usage!(result) if result
+    @chat.record_turn_usage!(result) if result
     touch_chat!
   end
 
@@ -145,15 +145,6 @@ class ChatTurnJob < ApplicationJob
       cwd: workspace_path,
       session_id: result.session_id
     )
-  end
-
-  def increment_usage!(result)
-    input_tokens = result.input_tokens.to_i
-    output_tokens = result.output_tokens.to_i
-    return if input_tokens.zero? && output_tokens.zero?
-
-    @chat.increment!(:cumulative_input_tokens, input_tokens) if input_tokens.positive?
-    @chat.increment!(:cumulative_output_tokens, output_tokens) if output_tokens.positive?
   end
 
   def touch_chat!
