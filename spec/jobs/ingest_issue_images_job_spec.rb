@@ -7,7 +7,7 @@ RSpec.describe IngestIssueImagesJob do
   let(:body) { "Screenshot:\n\n![screen](#{image_url})" }
   let(:job) { Factories.job(user: user, repository: repository, issue_number: 42, issue_body: body) }
 
-  it "downloads issue images into uploaded_file JobAttachments" do
+  it "downloads issue images into uploaded file documents" do
     stub_request(:head, image_url).to_return(
       status: 200,
       headers: { "Content-Type" => "image/png", "Content-Length" => "7" }

@@ -46,7 +46,7 @@ RSpec.describe "Bug reports", type: :request do
           screenshot: upload_png
         }
       }.to change(Job, :count).by(1)
-       .and change(JobAttachment, :count).by(1)
+       .and change(Document, :count).by(1)
        .and change(Workflow, :count).by(1)
 
       expect(Run.count).to eq(0)

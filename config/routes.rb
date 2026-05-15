@@ -6,6 +6,7 @@ Rails.application.routes.draw do
   resource :credentials, only: %i[ edit update ] do
     post :rotate_api_token
     delete :revoke_api_token
+    resources :documents, only: %i[ create destroy ], controller: "credentials/documents"
   end
 
   # Admin REST API. Token-based auth (per-user), JSON only.

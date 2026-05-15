@@ -20,7 +20,7 @@ RSpec.describe "Job attachments", type: :request do
       post job_attachments_path(job), params: {
         job_attachment: { files: [ upload_file ] }
       }
-    }.to change(JobAttachment, :count).by(1)
+    }.to change(Document, :count).by(1)
 
     expect(response).to redirect_to(job_path(job, tab: "attachments"))
     attachment = job.job_attachments.last
@@ -38,7 +38,7 @@ RSpec.describe "Job attachments", type: :request do
 
     expect {
       delete job_attachment_path(job, attachment)
-    }.to change(JobAttachment, :count).by(-1)
+    }.to change(Document, :count).by(-1)
     expect(response).to redirect_to(job_path(job, tab: "attachments"))
   end
 

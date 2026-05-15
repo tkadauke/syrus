@@ -6,7 +6,7 @@ RSpec.describe JobImageAttachmentIngestor do
   let(:job) { Factories.job(repository: repository) }
   let(:png_body) { "\x89PNG\r\n\x1A\nimage-data".b }
 
-  it "extracts markdown images, downloads them, and stores JobAttachments" do
+  it "extracts markdown images, downloads them, and stores job documents" do
     stub_request(:get, "https://uploads.example.com/mockup.png").to_return(
       status: 200,
       headers: { "Content-Type" => "image/png", "Content-Length" => png_body.bytesize.to_s },

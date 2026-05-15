@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe RepositoryDocument, type: :model do
+RSpec.describe Document, type: :model do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user) }
 
@@ -60,7 +60,7 @@ RSpec.describe RepositoryDocument, type: :model do
     )
 
     expect(document).not_to be_valid
-    expect(document.errors[:google_docs_url]).to include("must be blank for file documents")
+    expect(document.errors[:google_doc_url]).to include("must be blank for file documents")
   end
 
   it "rejects files larger than 20 MB" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_15_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -207,6 +207,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
     t.index ["user_id"], name: "index_cron_templates_on_user_id"
   end
 
+  create_table "documents", force: :cascade do |t|
+    t.integer "attachable_id", null: false
+    t.string "attachable_type", null: false
+    t.bigint "byte_size"
+    t.text "content_cache", limit: 65536
+    t.datetime "content_cached_at"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename"
+    t.string "google_doc_url"
+    t.string "kind", default: "file", null: false
+    t.string "source_url"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id"
+    t.index ["attachable_type", "attachable_id", "created_at"], name: "index_documents_on_attachable_and_created_at"
+    t.index ["attachable_type", "attachable_id", "source_url"], name: "index_documents_on_attachable_and_source_url", unique: true
+    t.index ["user_id"], name: "index_documents_on_user_id"
+  end
+
   create_table "epics", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
@@ -246,21 +266,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
     t.index ["email_address"], name: "index_invitations_on_email_address"
     t.index ["invited_by_id"], name: "index_invitations_on_invited_by_id"
     t.index ["token"], name: "index_invitations_on_token", unique: true
-  end
-
-  create_table "job_attachments", force: :cascade do |t|
-    t.string "attachment_type", default: "uploaded_file", null: false
-    t.bigint "byte_size"
-    t.string "content_type"
-    t.datetime "created_at", null: false
-    t.string "filename"
-    t.string "google_doc_url"
-    t.integer "job_id", null: false
-    t.string "source_url"
-    t.datetime "updated_at", null: false
-    t.index ["job_id", "created_at"], name: "index_job_attachments_on_job_id_and_created_at"
-    t.index ["job_id", "source_url"], name: "index_job_attachments_on_job_id_and_source_url", unique: true
-    t.index ["job_id"], name: "index_job_attachments_on_job_id"
   end
 
   create_table "job_dependencies", force: :cascade do |t|
@@ -414,21 +419,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
     t.index ["installation_id"], name: "index_repositories_on_installation_id"
     t.index ["user_id", "owner", "name"], name: "index_repositories_on_user_id_and_owner_and_name", unique: true
     t.index ["user_id"], name: "index_repositories_on_user_id"
-  end
-
-  create_table "repository_documents", force: :cascade do |t|
-    t.text "content_cache", limit: 65536
-    t.datetime "content_cached_at"
-    t.datetime "created_at", null: false
-    t.string "google_docs_url"
-    t.string "kind", null: false
-    t.integer "repository_id", null: false
-    t.string "title", null: false
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.index ["repository_id", "created_at"], name: "index_repository_documents_on_repository_id_and_created_at"
-    t.index ["repository_id"], name: "index_repository_documents_on_repository_id"
-    t.index ["user_id"], name: "index_repository_documents_on_user_id"
   end
 
   create_table "repository_notes", force: :cascade do |t|
@@ -688,11 +678,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
   add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"
   add_foreign_key "cron_templates", "users"
+  add_foreign_key "documents", "users"
   add_foreign_key "epics", "repositories"
   add_foreign_key "epics", "users"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
-  add_foreign_key "job_attachments", "jobs"
   add_foreign_key "job_dependencies", "jobs"
   add_foreign_key "job_dependencies", "jobs", column: "depends_on_job_id"
   add_foreign_key "job_dependencies", "users", column: "created_by_user_id"
@@ -710,8 +700,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
   add_foreign_key "operator_responses", "operator_questions"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
-  add_foreign_key "repository_documents", "repositories"
-  add_foreign_key "repository_documents", "users"
   add_foreign_key "repository_notes", "repositories"
   add_foreign_key "repository_whiteboards", "repositories"
   add_foreign_key "run_diagnostics", "runs"

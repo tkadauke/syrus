@@ -62,7 +62,7 @@
 
       <section class="space-y-3 border-t border-gray-200 pt-4">
         <h3 class="text-sm font-semibold text-gray-900">Upload a file</h3>
-        <%= form_with model: [ @repository, RepositoryDocument.new(kind: "file") ],
+        <%= form_with model: [ @repository, Document.new(kind: "file") ],
               url: repository_documents_path(@repository, frame: params[:frame]),
               method: :post,
               multipart: true,
@@ -97,7 +97,7 @@
 
       <section class="space-y-3 border-t border-gray-200 pt-4">
         <h3 class="text-sm font-semibold text-gray-900">Link a Google Doc</h3>
-        <%= form_with model: [ @repository, RepositoryDocument.new(kind: "google_doc") ],
+        <%= form_with model: [ @repository, Document.new(kind: "google_doc") ],
               url: repository_documents_path(@repository, frame: params[:frame]),
               method: :post,
               class: "space-y-3" do |form| %>

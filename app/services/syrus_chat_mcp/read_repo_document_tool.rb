@@ -26,7 +26,7 @@ module SyrusChatMcp
 
     input_schema(
       properties: {
-        id: { type: "integer", description: "RepositoryDocument id to read." }
+        id: { type: "integer", description: "Document id to read." }
       },
       required: %w[id]
     )

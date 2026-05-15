@@ -2,7 +2,7 @@
   <section class="bg-white border border-gray-200 rounded-lg p-4 space-y-4 text-sm">
     <div class="flex items-center justify-between gap-3">
       <h2 class="font-semibold text-gray-900">Attachments</h2>
-      <span class="text-xs text-gray-500"><%= @job.job_attachments.size %> / <%= JobAttachment::MAX_ATTACHMENTS_PER_JOB %></span>
+      <span class="text-xs text-gray-500"><%= @job.job_attachments.size %> / <%= Document::MAX_ATTACHMENTS_PER_JOB %></span>
     </div>
 
     <% if @job.job_attachments.any? %>
@@ -59,7 +59,7 @@
       </div>
       <%= file_field_tag "job_attachment[files][]",
             multiple: true,
-            accept: JobAttachment::ALLOWED_CONTENT_TYPES.join(","),
+            accept: Document::ALLOWED_CONTENT_TYPES.join(","),
             class: "hidden",
             data: {
               attachment_drop_target: "input",

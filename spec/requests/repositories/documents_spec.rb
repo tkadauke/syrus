@@ -60,7 +60,7 @@ RSpec.describe "Repository documents", type: :request do
             file: upload(filename: "api.md", content_type: "text/markdown", content: "# API")
           }
         }
-      }.to change(RepositoryDocument, :count).by(1)
+      }.to change(Document, :count).by(1)
 
       document = repo.repository_documents.last
       expect(document.user).to eq(user)
@@ -78,7 +78,7 @@ RSpec.describe "Repository documents", type: :request do
             google_docs_url: "https://docs.google.com/document/d/design/edit"
           }
         }
-      }.to change(RepositoryDocument, :count).by(1)
+      }.to change(Document, :count).by(1)
 
       document = repo.repository_documents.last
       expect(document.kind).to eq("google_doc")
@@ -95,7 +95,7 @@ RSpec.describe "Repository documents", type: :request do
             file: upload(filename: "archive.zip", content_type: "application/zip")
           }
         }
-      }.not_to change(RepositoryDocument, :count)
+      }.not_to change(Document, :count)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.body).to include("must be a supported text, PDF, Office, or image file")
@@ -128,7 +128,7 @@ RSpec.describe "Repository documents", type: :request do
 
       expect {
         delete document_path(document, frame: 1)
-      }.to change(RepositoryDocument, :count).by(-1)
+      }.to change(Document, :count).by(-1)
 
       expect(ActiveStorage::Blob.where(id: blob.id)).to be_empty
       expect(response).to redirect_to(repository_documents_path(repo, frame: "1"))

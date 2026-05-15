@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe JobAttachment, type: :model do
+RSpec.describe Document, type: :model do
   let(:job) { Factories.job }
 
   def uploaded_attachment(filename:, content_type:, content: "hello")
@@ -23,7 +23,7 @@ RSpec.describe JobAttachment, type: :model do
     attachment = uploaded_attachment(filename: "archive.zip", content_type: "application/zip")
 
     expect(attachment).not_to be_valid
-    expect(attachment.errors[:file]).to include("must be a PNG, JPG, GIF, WebP, PDF, plain text, or Markdown file")
+    expect(attachment.errors[:file]).to include("must be a supported text, PDF, Office, or image file")
   end
 
   it "rejects files over 20 MB" do

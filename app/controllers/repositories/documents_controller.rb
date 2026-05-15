@@ -4,7 +4,7 @@ class Repositories::DocumentsController < ApplicationController
 
   def index
     @documents = @repository.repository_documents.includes(:user, file_attachment: :blob).newest_first
-    @document = @repository.repository_documents.new(kind: "file")
+    @document = @repository.repository_documents.new(kind: "file", user: Current.user)
     render layout: false if params[:frame].present?
   end
 
@@ -22,7 +22,7 @@ class Repositories::DocumentsController < ApplicationController
   end
 
   def destroy
-    repository = @document.repository
+    repository = @document.attachable
     @document.file.purge if @document.file.attached?
     @document.destroy!
     redirect_to repository_documents_path(repository, frame: params[:frame]), notice: "Document removed."
@@ -35,12 +35,17 @@ class Repositories::DocumentsController < ApplicationController
   end
 
   def load_document
-    @document = RepositoryDocument.joins(:repository)
-      .where(repositories: { user_id: Current.user.id })
+    @document = Document.where(attachable_type: "Repository", attachable_id: Current.user.repositories.select(:id))
       .find(params[:id])
   end
 
   def document_params
-    params.require(:repository_document).permit(:kind, :title, :google_docs_url, :file)
+    params.require(document_param_key).permit(:kind, :title, :google_doc_url, :google_docs_url, :file)
+  end
+
+  def document_param_key
+    return :repository_document if params[:repository_document].present?
+
+    :document
   end
 end

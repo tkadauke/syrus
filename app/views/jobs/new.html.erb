@@ -115,7 +115,7 @@
       </div>
       <%= file_field_tag "job_attachment[files][]",
             multiple: true,
-            accept: JobAttachment::ALLOWED_CONTENT_TYPES.join(","),
+            accept: Document::ALLOWED_CONTENT_TYPES.join(","),
             class: "hidden",
             data: { attachment_drop_target: "input" } %>
       <button type="button"
