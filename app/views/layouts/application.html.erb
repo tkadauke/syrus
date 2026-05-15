@@ -31,16 +31,18 @@
     <header class="bg-white border-b border-gray-200">
       <nav class="container mx-auto px-5 py-4 flex items-center justify-between">
         <div class="flex items-center gap-6">
-          <%= link_to "Syrus", root_path, class: "font-bold text-xl text-gray-900 hover:text-blue-600" %>
+          <%= link_to "Syrus", default_chat_path, class: "font-bold text-xl text-gray-900 hover:text-blue-600" %>
 
           <% if Current.user %>
             <div class="flex items-center gap-4 text-sm">
-              <%# Repositories is the only top-level nav link. Scheduled
-                  tasks live under their repository (the repo show page
-                  has the per-repo list). Templates and Settings live
-                  in the user-menu dropdown on the right.
-                  Mobile: shortened to "Repos" to save space. %>
-              <%= link_to repositories_path, class: "text-gray-700 hover:text-blue-600" do %>
+              <% top_nav_class = "text-gray-700 hover:text-blue-600" %>
+              <% top_nav_active_class = "text-blue-600 font-medium" %>
+              <%= link_to "Chats", default_chat_path,
+                    class: controller_path == "repositories/chats" ? top_nav_active_class : top_nav_class %>
+              <%= link_to "Dashboard", dashboard_epics_path,
+                    class: controller_name == "home" && action_name != "index" ? top_nav_active_class : top_nav_class %>
+              <%= link_to repositories_path,
+                    class: controller_name == "repositories" ? top_nav_active_class : top_nav_class do %>
                 <span class="sm:hidden">Repos</span>
                 <span class="hidden sm:inline">Repositories</span>
               <% end %>

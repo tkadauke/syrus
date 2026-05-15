@@ -8,7 +8,7 @@ class SmartFoldersController < ApplicationController
   def create
     filter = Jobs::Filter.new(params.permit(:state, :repository_id, :pr, :age, :attention).to_h).to_h
     if filter.empty?
-      redirect_to root_path, alert: "Choose at least one filter before saving a smart folder."
+      redirect_to dashboard_jobs_path, alert: "Choose at least one filter before saving a smart folder."
       return
     end
 
@@ -20,9 +20,9 @@ class SmartFoldersController < ApplicationController
     )
 
     if folder.save
-      redirect_to root_path(smart_folder_id: folder.id), notice: "Smart folder saved."
+      redirect_to dashboard_jobs_path(smart_folder_id: folder.id), notice: "Smart folder saved."
     else
-      redirect_to root_path(filter), alert: folder.errors.full_messages.to_sentence
+      redirect_to dashboard_jobs_path(filter), alert: folder.errors.full_messages.to_sentence
     end
   end
 

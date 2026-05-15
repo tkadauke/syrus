@@ -35,7 +35,7 @@ export default class extends Controller {
     } else if (!params.has("view")) {
       const stored = sessionStorage.getItem(STORAGE_KEY)
       if (stored) {
-        window.location.replace(`/?${stored}`)
+        window.location.replace(`/dashboard/jobs?${stored}`)
       }
     }
   }

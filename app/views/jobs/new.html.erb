@@ -145,7 +145,7 @@
       <%= f.submit "Create job",
             class: "rounded-md px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
             disabled: @repositories.empty? %>
-      <%= link_to "Cancel", root_path, class: "text-sm text-gray-600 underline hover:no-underline" %>
+      <%= link_to "Cancel", dashboard_jobs_path, class: "text-sm text-gray-600 underline hover:no-underline" %>
     </div>
   <% end %>
 </div>

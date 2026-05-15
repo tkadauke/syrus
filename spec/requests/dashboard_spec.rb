@@ -7,12 +7,63 @@ RSpec.describe "Dashboard", type: :request do
 
   it "requires authentication" do
     user  # force a User to exist; first-run setup redirects to new_user instead
-    get root_path
+    get dashboard_jobs_path
     expect(response).to redirect_to(new_session_path)
   end
 
   context "signed in" do
     before { sign_in_as(user) }
+
+    it "redirects the Chats default to the most recently active chat" do
+      older_repo = Factories.repository(user: user, owner: "acme", name: "older")
+      newer_repo = Factories.repository(user: user, owner: "acme", name: "newer")
+      ChatSession.create!(repository: older_repo, user: user, last_message_at: 2.hours.ago)
+      ChatSession.create!(repository: newer_repo, user: user, last_message_at: 1.hour.ago)
+
+      get root_path
+
+      expect(response).to redirect_to(repository_chats_path(newer_repo))
+    end
+
+    it "renders top-level navigation and points Dashboard at the default Epics subtab" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+
+      get dashboard_jobs_path
+
+      document = Nokogiri::HTML(response.body)
+      chat_links = document.css("a[href='#{repository_chats_path(repo)}']").map { |link| link.text.strip }
+      dashboard_links = document.css("a[href='#{dashboard_epics_path}']").map { |link| link.text.strip }
+      expect(chat_links).to include("Syrus", "Chats")
+      expect(dashboard_links).to include("Dashboard", "Epics")
+      expect(document.at_css("a[href='#{repositories_path}']").text).to include("Repositories")
+      expect(document.at_css("a[href='#{dashboard_jobs_path}']").text).to include("Jobs")
+      expect(document.at_css("a[href='#{dashboard_workflows_path}']").text).to include("Workflows")
+    end
+
+    it "uses Epics as the default Dashboard subtab" do
+      get "/dashboard"
+
+      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to(dashboard_epics_path)
+    end
+
+    it "renders the Epics subtab stub" do
+      get dashboard_epics_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Epics board coming in M3")
+    end
+
+    it "redirects legacy list URLs to Dashboard subtabs" do
+      get "/jobs"
+      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to(dashboard_jobs_path)
+
+      get "/workflows"
+      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to(dashboard_workflows_path)
+    end
 
     it "lists the current user's recent jobs" do
       mine_repo = Factories.repository(user: user, owner: "acme", name: "widgets")
@@ -21,7 +72,7 @@ RSpec.describe "Dashboard", type: :request do
       other_repo = Factories.repository(user: other, owner: "globex", name: "things")
       Factories.job_record(repository: other_repo, issue_number: 99)
 
-      get root_path
+      get dashboard_jobs_path
       expect(response.body).to include("acme/widgets")
       expect(response.body).to include("#7")
       expect(response.body).not_to include("globex/things")
@@ -29,7 +80,7 @@ RSpec.describe "Dashboard", type: :request do
     end
 
     it "shows the empty state when no jobs exist" do
-      get root_path
+      get dashboard_jobs_path
       expect(response.body).to include("No jobs yet")
     end
 
@@ -43,7 +94,7 @@ RSpec.describe "Dashboard", type: :request do
         state: "succeeded"
       )
 
-      get root_path
+      get dashboard_jobs_path
 
       document = Nokogiri::HTML(response.body)
       row = document.at_css("tbody tr")
@@ -58,7 +109,7 @@ RSpec.describe "Dashboard", type: :request do
       job = Factories.job(repository: repo, issue_number: 7)
       job.initial_run.update!(cost_usd: 1.23)
 
-      get root_path
+      get dashboard_jobs_path
 
       row = Nokogiri::HTML(response.body).at_css("tbody tr")
       expect(row.css("td")[1].text).to include("$1.23")
@@ -69,7 +120,7 @@ RSpec.describe "Dashboard", type: :request do
       job = Factories.job(repository: repo, issue_number: 7, priority: "high")
       job.initial_run.update!(state: "failed", cost_usd: 1.23)
 
-      get root_path
+      get dashboard_jobs_path
 
       document = Nokogiri::HTML(response.body)
       state_header = document.css("thead th").find { |th| th.text.strip == "State" }
@@ -88,7 +139,7 @@ RSpec.describe "Dashboard", type: :request do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       job = Factories.job_record(repository: repo, issue_number: 7)
 
-      get root_path
+      get dashboard_jobs_path
 
       document = Nokogiri::HTML(response.body)
       pin = document.at_css("a[href='#{job_pin_path(job)}'][aria-label='Pin job']")
@@ -110,7 +161,7 @@ RSpec.describe "Dashboard", type: :request do
 
       SmartFolder.ensure_builtins!
       pinned_folder = SmartFolder.builtins.find { |f| f.filter["attention"] == "pinned" }
-      get root_path, params: { smart_folder_id: pinned_folder.id }
+      get dashboard_jobs_path, params: { smart_folder_id: pinned_folder.id }
 
       document = Nokogiri::HTML(response.body)
       rows = document.css("tbody tr").map(&:text)
@@ -126,7 +177,7 @@ RSpec.describe "Dashboard", type: :request do
     it "renders an attention dropdown with every built-in smart folder's attention value" do
       Factories.repository(user: user, owner: "acme", name: "widgets")
 
-      get root_path
+      get dashboard_jobs_path
 
       select = Nokogiri::HTML(response.body).at_css("select[name='attention']")
       expect(select).to be_present
@@ -145,12 +196,12 @@ RSpec.describe "Dashboard", type: :request do
       )
       Factories.job_record(repository: repo, issue_number: 1)
 
-      get root_path
+      get dashboard_jobs_path
 
       document = Nokogiri::HTML(response.body)
       mobile_panel = document.at_css("details")
       desktop_sidebar = document.at_css("aside")
-      desktop_filter_form = document.css("form[action='#{root_path}']").find do |form|
+      desktop_filter_form = document.css("form[action='#{dashboard_jobs_path}']").find do |form|
         form["method"] == "get" && form["class"].to_s.include?("lg:flex")
       end
 
@@ -175,7 +226,7 @@ RSpec.describe "Dashboard", type: :request do
       closed_failed.initial_run.update!(state: "failed", finished_at: Time.current)
       closed_failed.close!; closed_failed.save!
 
-      get root_path, params: { attention: "inbox" }
+      get dashboard_jobs_path, params: { attention: "inbox" }
 
       expect(response.body).to include("#1")
       expect(response.body).not_to include("#2")
@@ -187,7 +238,7 @@ RSpec.describe "Dashboard", type: :request do
       failing.initial_run.update!(state: "failed", finished_at: Time.current)
       Factories.job(repository: repo, issue_number: 2)
 
-      get root_path, params: { attention: "just_failed" }
+      get dashboard_jobs_path, params: { attention: "just_failed" }
 
       expect(response.body).to include("#1")
       expect(response.body).not_to include("#2")
@@ -201,10 +252,10 @@ RSpec.describe "Dashboard", type: :request do
 
       SmartFolder.ensure_builtins!
       pinned_folder = SmartFolder.builtins.find { |f| f.filter["attention"] == "pinned" }
-      get root_path
+      get dashboard_jobs_path
 
       sidebar = Nokogiri::HTML(response.body).at_css("aside")
-      pinned_row = sidebar.css("a").find { |a| a["href"] == root_path(smart_folder_id: pinned_folder.id) }
+      pinned_row = sidebar.css("a").find { |a| a["href"] == dashboard_jobs_path(smart_folder_id: pinned_folder.id) }
       expect(pinned_row).to be_present
       expect(pinned_row.text).to match(/Pinned\s+1\b/)
     end
@@ -212,7 +263,7 @@ RSpec.describe "Dashboard", type: :request do
     it "hides the Pinned sidebar entry when the user has nothing pinned" do
       Factories.repository(user: user, owner: "acme", name: "widgets")
 
-      get root_path
+      get dashboard_jobs_path
 
       sidebar = Nokogiri::HTML(response.body).at_css("aside")
       expect(sidebar.text).not_to include("Pinned")
@@ -223,7 +274,7 @@ RSpec.describe "Dashboard", type: :request do
       SmartFolder.ensure_builtins!
       pinned_folder = SmartFolder.builtins.find { |f| f.filter["attention"] == "pinned" }
 
-      get root_path, params: { smart_folder_id: pinned_folder.id }
+      get dashboard_jobs_path, params: { smart_folder_id: pinned_folder.id }
 
       sidebar = Nokogiri::HTML(response.body).at_css("aside")
       expect(sidebar.text).to include("Pinned")
@@ -239,7 +290,7 @@ RSpec.describe "Dashboard", type: :request do
       closed.close!
       closed.save!
 
-      get root_path
+      get dashboard_jobs_path
 
       sidebar = Nokogiri::HTML(response.body).at_css("aside")
       in_progress_row = sidebar.css("a").find { |a| a.text.include?("In progress") }
@@ -252,7 +303,7 @@ RSpec.describe "Dashboard", type: :request do
       done = Factories.job(repository: repo, issue_number: 1)
       done.workflows.first.update!(state: "succeeded", started_at: 1.hour.ago, finished_at: Time.current)
 
-      get root_path
+      get dashboard_jobs_path
 
       sidebar = Nokogiri::HTML(response.body).at_css("aside")
       expect(sidebar.text).not_to include("In progress")
@@ -269,7 +320,7 @@ RSpec.describe "Dashboard", type: :request do
       closed.close!
       closed.save!
 
-      get root_path, params: { attention: "in_progress" }
+      get dashboard_jobs_path, params: { attention: "in_progress" }
 
       expect(response.body).to include("#1")
       expect(response.body).to include("#2")
@@ -287,7 +338,7 @@ RSpec.describe "Dashboard", type: :request do
 
       SmartFolder.ensure_builtins!
       pinned_folder = SmartFolder.builtins.find { |f| f.filter["attention"] == "pinned" }
-      get root_path, params: { smart_folder_id: pinned_folder.id, state: "closed" }
+      get dashboard_jobs_path, params: { smart_folder_id: pinned_folder.id, state: "closed" }
 
       expect(response.body).not_to include("#1")
       expect(response.body).to include("#2")
@@ -298,10 +349,10 @@ RSpec.describe "Dashboard", type: :request do
       SmartFolder.ensure_builtins!
       inbox = SmartFolder.builtins.find { |f| f.filter["attention"] == "inbox" }
 
-      get root_path, params: { smart_folder_id: inbox.id }
+      get dashboard_jobs_path, params: { smart_folder_id: inbox.id }
 
       document = Nokogiri::HTML(response.body)
-      filter_form = document.css("form[action='#{root_path}']").find { |f| f["method"] == "get" }
+      filter_form = document.css("form[action='#{dashboard_jobs_path}']").find { |f| f["method"] == "get" }
       expect(filter_form).to be_present
       expect(filter_form.at_css("input[name='smart_folder_id']")).to be_nil
       # The smart folder's filters are pre-populated in the form inputs
@@ -309,16 +360,16 @@ RSpec.describe "Dashboard", type: :request do
       expect(filter_form.at_css("select[name='attention'] option[selected]")["value"]).to eq("inbox")
     end
 
-    it "points the Clear link at root_path so it drops both filters and any active smart folder" do
+    it "points the Clear link at dashboard_jobs_path so it drops both filters and any active smart folder" do
       Factories.repository(user: user, owner: "acme", name: "widgets")
       SmartFolder.ensure_builtins!
       inbox = SmartFolder.builtins.find { |f| f.filter["attention"] == "inbox" }
 
-      get root_path, params: { smart_folder_id: inbox.id, state: "open" }
+      get dashboard_jobs_path, params: { smart_folder_id: inbox.id, state: "open" }
 
       clear_link = Nokogiri::HTML(response.body).css("a").find { |a| a.text.strip == "Clear" }
       expect(clear_link).to be_present
-      expect(clear_link["href"]).to eq(root_path)
+      expect(clear_link["href"]).to eq(dashboard_jobs_path)
     end
 
     it "shows up to three tag chips with overflow in job rows" do
@@ -326,7 +377,7 @@ RSpec.describe "Dashboard", type: :request do
       job = Factories.job_record(repository: repo, issue_number: 7)
       %w[alpha beta gamma zeta].each { |name| job.tags << Factories.tag(user: user, name: name) }
 
-      get root_path
+      get dashboard_jobs_path
 
       row_text = Nokogiri::HTML(response.body).at_css("tbody tr").text
       expect(row_text).to include("alpha")
@@ -346,7 +397,7 @@ RSpec.describe "Dashboard", type: :request do
         created_at: 1.minute.from_now
       )
 
-      get root_path
+      get dashboard_jobs_path
 
       document = Nokogiri::HTML(response.body)
       status_cell = document.css("tbody tr td")[1]
@@ -369,7 +420,7 @@ RSpec.describe "Dashboard", type: :request do
       job.close!
       job.save!
 
-      get root_path
+      get dashboard_jobs_path
 
       document = Nokogiri::HTML(response.body)
       status_cell = document.css("tbody tr td")[1]
@@ -398,7 +449,7 @@ RSpec.describe "Dashboard", type: :request do
         job = Factories.job(repository: repo, issue_number: 7)
         Factories.tag(user: user, name: "epic:attachments", color: "blue")
 
-        get root_path
+        get dashboard_jobs_path
 
         document = Nokogiri::HTML(response.body)
         expect(document.at_css("form[action='#{bulk_dashboard_jobs_path}'][data-controller='bulk-jobs']")).to be_present
@@ -416,7 +467,7 @@ RSpec.describe "Dashboard", type: :request do
         user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
         Factories.job(repository: repo, issue_number: 7)
 
-        get root_path
+        get dashboard_jobs_path
 
         expect(response.body).to include("Retry with Claude")
         expect(response.body).to include("Retry with Codex")
@@ -426,7 +477,7 @@ RSpec.describe "Dashboard", type: :request do
         user.update!(claude_oauth_token: "oat-test", codex_api_key: nil)
         Factories.job(repository: repo, issue_number: 7)
 
-        get root_path
+        get dashboard_jobs_path
 
         expect(response.body).not_to include("Retry with Claude")
         expect(response.body).not_to include("Retry with Codex")
@@ -525,7 +576,7 @@ RSpec.describe "Dashboard", type: :request do
 
     describe "Workflows tab" do
       it "renders the empty state when no workflows exist" do
-        get root_path(tab: "workflows")
+        get dashboard_workflows_path
         expect(response.body).to include("No workflows yet")
       end
 
@@ -535,7 +586,7 @@ RSpec.describe "Dashboard", type: :request do
         # Job's after_create_commit instantiated a Workflows::Initial
         # — prepare → loop(implement, grade) → summarize → pr_open. Show that on
         # the Workflows tab.
-        get root_path(tab: "workflows")
+        get dashboard_workflows_path
         expect(response.body).to include("acme/widgets")
         expect(response.body).to include("initial")              # trigger pill
         expect(response.body).to include("Prepare workspace")    # human-readable step kind label (first step now)
@@ -547,7 +598,7 @@ RSpec.describe "Dashboard", type: :request do
         job = Factories.job(repository: repo, issue_number: 7)
         job.latest_workflow.update!(state: "running")
 
-        get root_path(tab: "workflows")
+        get dashboard_workflows_path
 
         document = Nokogiri::HTML(response.body)
         state_header = document.css("thead th").find { |th| th.text.strip == "State" }
@@ -567,7 +618,7 @@ RSpec.describe "Dashboard", type: :request do
         Factories.job(repository: mine, issue_number: 7)
         theirs = Factories.repository(user: other, owner: "globex", name: "things")
         Factories.job(repository: theirs, issue_number: 99)
-        get root_path(tab: "workflows")
+        get dashboard_workflows_path
         expect(response.body).to include("acme/widgets")
         expect(response.body).not_to include("globex/things")
       end
@@ -582,7 +633,7 @@ RSpec.describe "Dashboard", type: :request do
           closed_job = Factories.job_record(repository: repo, issue_number: 2)
           closed_job.close!; closed_job.save!
 
-          get root_path, params: { state: "open" }
+          get dashboard_jobs_path, params: { state: "open" }
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
         end
@@ -592,7 +643,7 @@ RSpec.describe "Dashboard", type: :request do
           closed_job = Factories.job_record(repository: repo, issue_number: 2)
           closed_job.close!; closed_job.save!
 
-          get root_path, params: { state: "closed" }
+          get dashboard_jobs_path, params: { state: "closed" }
           expect(response.body).not_to include("#1")
           expect(response.body).to include("#2")
         end
@@ -602,7 +653,7 @@ RSpec.describe "Dashboard", type: :request do
           closed_job = Factories.job_record(repository: repo, issue_number: 2)
           closed_job.close!; closed_job.save!
 
-          get root_path
+          get dashboard_jobs_path
           expect(response.body).to include("#1")
           expect(response.body).to include("#2")
         end
@@ -624,7 +675,7 @@ RSpec.describe "Dashboard", type: :request do
           closed_failed.latest_workflow.update!(state: "failed", created_at: 3.minutes.ago)
           closed_failed.close!; closed_failed.save!
 
-          get root_path, params: { state: "failed" }
+          get dashboard_jobs_path, params: { state: "failed" }
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
           expect(response.body).not_to include("#3")
@@ -647,7 +698,7 @@ RSpec.describe "Dashboard", type: :request do
           closed_succeeded.latest_workflow.update!(state: "succeeded", created_at: 3.minutes.ago)
           closed_succeeded.close!; closed_succeeded.save!
 
-          get root_path, params: { state: "succeeded" }
+          get dashboard_jobs_path, params: { state: "succeeded" }
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
           expect(response.body).not_to include("#3")
@@ -661,7 +712,7 @@ RSpec.describe "Dashboard", type: :request do
           Factories.job_record(repository: repo_a, issue_number: 10)
           Factories.job_record(repository: repo_b, issue_number: 20)
 
-          get root_path, params: { repository_id: repo_a.id }
+          get dashboard_jobs_path, params: { repository_id: repo_a.id }
           expect(response.body).to include("#10")
           expect(response.body).not_to include("#20")
         end
@@ -669,7 +720,7 @@ RSpec.describe "Dashboard", type: :request do
 
       describe "kind filter" do
         it "renders Direct in the kind facet" do
-          get root_path
+          get dashboard_jobs_path
 
           document = Nokogiri::HTML(response.body)
           labels = document.css("select[name='kind'] option").map(&:text)
@@ -687,7 +738,7 @@ RSpec.describe "Dashboard", type: :request do
             issue_body: "Tidy the thing."
           )
 
-          get root_path, params: { kind: "direct" }
+          get dashboard_jobs_path, params: { kind: "direct" }
 
           expect(response.body).not_to include("##{issue.issue_number}")
           expect(response.body).to include("Direct cleanup")
@@ -701,7 +752,7 @@ RSpec.describe "Dashboard", type: :request do
           without = Factories.job_record(repository: repo, issue_number: 2)
           with.update!(pr_number: 99)
 
-          get root_path, params: { pr: "has_pr" }
+          get dashboard_jobs_path, params: { pr: "has_pr" }
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
         end
@@ -711,7 +762,7 @@ RSpec.describe "Dashboard", type: :request do
           without = Factories.job_record(repository: repo, issue_number: 2)
           with.update!(pr_number: 99)
 
-          get root_path, params: { pr: "no_pr" }
+          get dashboard_jobs_path, params: { pr: "no_pr" }
           expect(response.body).not_to include("#1")
           expect(response.body).to include("#2")
         end
@@ -720,7 +771,7 @@ RSpec.describe "Dashboard", type: :request do
           external = Factories.job_record(repository: repo, issue_number: 5,
                                           state: "closed", closure_reason: "preempted",
                                           external_pr_number: 7, finished_at: Time.current)
-          get root_path, params: { pr: "has_pr" }
+          get dashboard_jobs_path, params: { pr: "has_pr" }
           expect(response.body).to include("#5")
         end
       end
@@ -731,7 +782,7 @@ RSpec.describe "Dashboard", type: :request do
           old    = Factories.job_record(repository: repo, issue_number: 2)
           old.update_column(:created_at, 2.days.ago)
 
-          get root_path, params: { age: "1d" }
+          get dashboard_jobs_path, params: { age: "1d" }
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
         end
@@ -741,7 +792,7 @@ RSpec.describe "Dashboard", type: :request do
           old    = Factories.job_record(repository: repo, issue_number: 2)
           old.update_column(:created_at, 8.days.ago)
 
-          get root_path, params: { age: "7d" }
+          get dashboard_jobs_path, params: { age: "7d" }
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
         end
@@ -751,14 +802,14 @@ RSpec.describe "Dashboard", type: :request do
           old    = Factories.job_record(repository: repo, issue_number: 2)
           old.update_column(:created_at, 31.days.ago)
 
-          get root_path, params: { age: "30d" }
+          get dashboard_jobs_path, params: { age: "30d" }
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
         end
 
         it "ignores an unrecognised age value and shows all jobs" do
           Factories.job_record(repository: repo, issue_number: 1)
-          get root_path, params: { age: "bogus" }
+          get dashboard_jobs_path, params: { age: "bogus" }
           expect(response.body).to include("#1")
         end
       end
@@ -773,7 +824,7 @@ RSpec.describe "Dashboard", type: :request do
           closed_a.close!; closed_a.save!
           open_b  = Factories.job_record(repository: repo_b, issue_number: 3)
 
-          get root_path, params: { state: "open", repository_id: repo_a.id }
+          get dashboard_jobs_path, params: { state: "open", repository_id: repo_a.id }
           expect(response.body).to include("#1")
           expect(response.body).not_to include("#2")
           expect(response.body).not_to include("#3")
@@ -790,7 +841,7 @@ RSpec.describe "Dashboard", type: :request do
           first.tags << urgent
           second.tags << auth
 
-          get root_path, params: { tag_ids: [ urgent.id, auth.id ] }
+          get dashboard_jobs_path, params: { tag_ids: [ urgent.id, auth.id ] }
 
           expect(response.body).to include("#1")
           expect(response.body).to include("#2")
@@ -809,7 +860,7 @@ RSpec.describe "Dashboard", type: :request do
         failed.initial_run.update!(state: "failed", finished_at: Time.current)
         Factories.job(repository: repo, issue_number: 2)
 
-        get root_path
+        get dashboard_jobs_path
 
         document = Nokogiri::HTML(response.body)
         attention = document.at_css("aside")
@@ -835,7 +886,7 @@ RSpec.describe "Dashboard", type: :request do
         SmartFolder.ensure_builtins!
         awaiting_epic = SmartFolder.find_by!(name: "Awaiting Epic")
 
-        get root_path, params: { smart_folder_id: awaiting_epic.id }
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_epic.id }
 
         expect(response.body).to include("#3")
         expect(response.body).to include("Waiting for the great parent")
@@ -843,7 +894,7 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).not_to include("Parent arrived")
 
         pending.update!(state: "blocked_by_epic")
-        get root_path, params: { smart_folder_id: awaiting_epic.id }
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_epic.id }
 
         expect(response.body).not_to include("#3")
       end
@@ -861,7 +912,7 @@ RSpec.describe "Dashboard", type: :request do
         SmartFolder.ensure_builtins!
         needs_review = SmartFolder.find_by!(name: "Needs review")
 
-        get root_path, params: { smart_folder_id: needs_review.id }
+        get dashboard_jobs_path, params: { smart_folder_id: needs_review.id }
 
         expect(response.body).to include("Rebuild the aqueduct")
         expect(response.body).to include("Covered by the ancient scroll.")
@@ -869,7 +920,7 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).to include("Override (mark valid)")
 
         expect {
-          post mark_valid_job_path(job), headers: { "HTTP_REFERER" => root_path(smart_folder_id: needs_review.id) }
+          post mark_valid_job_path(job), headers: { "HTTP_REFERER" => dashboard_jobs_path(smart_folder_id: needs_review.id) }
         }.to change { job.reload.state }.from("triaging").to("queued")
           .and change { job.runs.count }.from(0).to(1)
 
@@ -877,7 +928,7 @@ RSpec.describe "Dashboard", type: :request do
         expect(job.invalidation_reason).to be_nil
         expect(job.invalidation_evidence).to eq([])
 
-        get root_path, params: { smart_folder_id: needs_review.id }
+        get dashboard_jobs_path, params: { smart_folder_id: needs_review.id }
         expect(response.body).not_to include("Rebuild the aqueduct")
       end
 
@@ -887,7 +938,7 @@ RSpec.describe "Dashboard", type: :request do
         SmartFolder.ensure_builtins!
         awaiting_move = SmartFolder.find_by!(name: "Awaiting your move")
 
-        get root_path, params: { smart_folder_id: awaiting_move.id }
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_move.id }
 
         expect(response.body).to include("Epics awaiting your move")
         expect(response.body).to include("Restore the forum")
@@ -895,7 +946,7 @@ RSpec.describe "Dashboard", type: :request do
         expect(Nokogiri::HTML(response.body).at_css("aside").css("a").find { |link| link.text.include?("Awaiting your move") }.text).to include("1")
 
         ready.in_progress!
-        get root_path, params: { smart_folder_id: awaiting_move.id }
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_move.id }
 
         expect(response.body).not_to include("Restore the forum")
       end
@@ -907,7 +958,7 @@ RSpec.describe "Dashboard", type: :request do
         SmartFolder.ensure_builtins!
         just_failed = SmartFolder.find_by!(name: "Just failed")
 
-        get root_path, params: { smart_folder_id: just_failed.id }
+        get dashboard_jobs_path, params: { smart_folder_id: just_failed.id }
 
         expect(response.body).to include("#1")
         expect(response.body).not_to include("#2")
@@ -923,7 +974,7 @@ RSpec.describe "Dashboard", type: :request do
 
         folder = user.smart_folders.find_by!(name: "Open PRs")
         expect(folder.filter).to eq("state" => "open", "pr" => "has_pr")
-        expect(response).to redirect_to(root_path(smart_folder_id: folder.id))
+        expect(response).to redirect_to(dashboard_jobs_path(smart_folder_id: folder.id))
       end
 
       it "shows and applies user-defined smart folders in the sidebar" do
@@ -936,7 +987,7 @@ RSpec.describe "Dashboard", type: :request do
           position: 0
         )
 
-        get root_path, params: { smart_folder_id: folder.id }
+        get dashboard_jobs_path, params: { smart_folder_id: folder.id }
 
         expect(response.body).to include("PRs")
         expect(response.body).to include("#1")
@@ -986,18 +1037,18 @@ RSpec.describe "Dashboard", type: :request do
       end
 
       it "attaches filter-memory controller to the jobs filter form" do
-        get root_path
+        get dashboard_jobs_path
         expect(response.body).to include('data-controller="auto-submit filter-memory"')
       end
 
       it "attaches filter-memory#clear action to the Clear link when filters are active" do
         Factories.job_record(repository: repo, issue_number: 1)
-        get root_path, params: { state: "open" }
+        get dashboard_jobs_path, params: { state: "open" }
         expect(response.body).to include("filter-memory#clear")
       end
 
       it "does not render the Clear link (or its action) when no filters are active" do
-        get root_path
+        get dashboard_jobs_path
         expect(response.body).not_to include("filter-memory#clear")
       end
 
@@ -1011,7 +1062,7 @@ RSpec.describe "Dashboard", type: :request do
       it "restores remembered filters only when no filter params were submitted" do
         result = run_filter_memory_controller(search: "")
 
-        expect(result["events"]).to eq([ [ "replace", "/?pr=has_pr" ] ])
+        expect(result["events"]).to eq([ [ "replace", "/dashboard/jobs?pr=has_pr" ] ])
         expect(result["stored"]).to eq("pr=has_pr")
       end
 
@@ -1036,26 +1087,26 @@ RSpec.describe "Dashboard", type: :request do
 
       it "shows a warning banner when remaining quota is below 200" do
         set_rate_limit(remaining: 150)
-        get root_path
+        get dashboard_jobs_path
         expect(response.body).to include("quota low")
         expect(response.body).to include("150")
       end
 
       it "shows a critical banner when quota is exhausted" do
         set_rate_limit(remaining: 0)
-        get root_path
+        get dashboard_jobs_path
         expect(response.body).to include("exhausted")
       end
 
       it "shows no banner when quota is ample (>= 200)" do
         set_rate_limit(remaining: 4000)
-        get root_path
+        get dashboard_jobs_path
         expect(response.body).not_to include("quota low")
         expect(response.body).not_to include("exhausted")
       end
 
       it "shows no banner when no rate limit data has been recorded yet" do
-        get root_path
+        get dashboard_jobs_path
         expect(response.body).not_to include("quota low")
         expect(response.body).not_to include("exhausted")
       end
@@ -1068,19 +1119,19 @@ RSpec.describe "Dashboard", type: :request do
       let!(:archived_job) { Factories.job(repository: archived_repo, issue_number: 2) }
 
       it "hides jobs from archived repositories" do
-        get root_path
+        get dashboard_jobs_path
         expect(response.body).to     include("active-thing")
         expect(response.body).not_to include("archived-thing")
       end
 
       it "hides workflows from archived repositories" do
-        get root_path(tab: "workflows")
+        get dashboard_workflows_path
         expect(response.body).to     include("active-thing")
         expect(response.body).not_to include("archived-thing")
       end
 
       it "drops archived repos from the repository filter dropdown" do
-        get root_path
+        get dashboard_jobs_path
         expect(response.body).to     include(active_repo.slug)
         expect(response.body).not_to include("acme/archived-thing")
       end

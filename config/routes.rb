@@ -114,6 +114,13 @@ Rails.application.routes.draw do
       post :fire_now    # manually fire an active task without waiting for cron
     end
   end
+  get "dashboard", to: redirect("/dashboard/epics", status: 302)
+  get "dashboard/epics", to: "home#epics", as: :dashboard_epics
+  get "dashboard/jobs", to: "home#jobs", as: :dashboard_jobs
+  get "dashboard/workflows", to: "home#workflows", as: :dashboard_workflows
+  get "jobs", to: redirect("/dashboard/jobs", status: 302)
+  get "workflows", to: redirect("/dashboard/workflows", status: 302)
+
   resources :smart_folders, only: %i[ index create update destroy ]
   resources :tags, only: %i[ index create update destroy ]
   resources :cron_templates

@@ -3,6 +3,29 @@ class HomeController < ApplicationController
   HIDE_BUILTIN_WHEN_EMPTY = %w[ pinned in_progress ].freeze
 
   def index
+    redirect_to default_chat_path
+  end
+
+  def epics
+    @active_tab = "epics"
+    render :index
+  end
+
+  def jobs
+    @active_tab = "jobs"
+    load_dashboard
+    render :index
+  end
+
+  def workflows
+    @active_tab = "workflows"
+    load_dashboard
+    render :index
+  end
+
+  private
+
+  def load_dashboard
     # Dashboard hides archived repositories and everything that
     # belonged to them. Archiving is the operator's "I'm done with
     # this for now" gesture; surfacing the archived repo's stale
@@ -14,7 +37,6 @@ class HomeController < ApplicationController
     @repositories   = Current.user.repositories.active.order(:owner, :name)
     @tags           = Current.user.tags.ordered
     @configured_agent_providers = Current.user.configured_agent_providers
-    @active_tab     = params[:tab] == "workflows" ? "workflows" : "jobs"
     @page           = [ params[:page].to_i, 1 ].max
     SmartFolder.ensure_builtins!
     @builtin_smart_folders = SmartFolder.builtins
@@ -67,7 +89,7 @@ class HomeController < ApplicationController
   def bulk_jobs
     job_ids = Array(params[:job_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
     if job_ids.empty?
-      redirect_back fallback_location: root_path, alert: "Select at least one job."
+      redirect_back fallback_location: dashboard_jobs_path, alert: "Select at least one job."
       return
     end
 
@@ -86,11 +108,9 @@ class HomeController < ApplicationController
     when "apply_tag"
       bulk_apply_tag(jobs)
     else
-      redirect_back fallback_location: root_path, alert: "Choose a bulk action."
+      redirect_back fallback_location: dashboard_jobs_path, alert: "Choose a bulk action."
     end
   end
-
-  private
 
   def tag_filter_ids
     Current.user.tags.where(id: Array(params[:tag_ids]).compact_blank).pluck(:id)
@@ -98,7 +118,7 @@ class HomeController < ApplicationController
 
   def bulk_retry_jobs(jobs, agent_provider: nil)
     if agent_provider.present? && !Current.user.agent_provider_configured?(agent_provider)
-      redirect_back fallback_location: root_path, alert: "That agent is not available for retry."
+      redirect_back fallback_location: dashboard_jobs_path, alert: "That agent is not available for retry."
       return
     end
 
@@ -114,10 +134,10 @@ class HomeController < ApplicationController
     end
 
     if retried.zero?
-      redirect_back fallback_location: root_path, alert: "No selected jobs were eligible for retry."
+      redirect_back fallback_location: dashboard_jobs_path, alert: "No selected jobs were eligible for retry."
     else
       agent_suffix = agent_provider.present? ? " with #{agent_provider.titleize}" : ""
-      redirect_back fallback_location: root_path,
+      redirect_back fallback_location: dashboard_jobs_path,
                     notice: "Retry enqueued for #{helpers.pluralize(retried, 'job')}#{agent_suffix}."
     end
   end
@@ -132,9 +152,9 @@ class HomeController < ApplicationController
     end
 
     if closed.zero?
-      redirect_back fallback_location: root_path, alert: "No selected jobs were open."
+      redirect_back fallback_location: dashboard_jobs_path, alert: "No selected jobs were open."
     else
-      redirect_back fallback_location: root_path,
+      redirect_back fallback_location: dashboard_jobs_path,
                     notice: "#{helpers.pluralize(closed, 'job')} closed."
     end
   end
@@ -194,7 +214,7 @@ class HomeController < ApplicationController
       applied += 1
     end
 
-    redirect_back fallback_location: root_path,
+    redirect_back fallback_location: dashboard_jobs_path,
                   notice: "Applied #{tag.name} to #{helpers.pluralize(applied, 'job')}."
   end
 
@@ -202,7 +222,7 @@ class HomeController < ApplicationController
     if params[:tag_id].present?
       tag = Current.user.tags.find_by(id: params[:tag_id])
       unless tag
-        redirect_back fallback_location: root_path, alert: "Tag not found."
+        redirect_back fallback_location: dashboard_jobs_path, alert: "Tag not found."
         return nil
       end
       return tag
@@ -210,7 +230,7 @@ class HomeController < ApplicationController
 
     name = params[:tag_name].to_s.strip
     if name.blank?
-      redirect_back fallback_location: root_path, alert: "Choose or enter a tag."
+      redirect_back fallback_location: dashboard_jobs_path, alert: "Choose or enter a tag."
       return nil
     end
 

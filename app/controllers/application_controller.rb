@@ -7,6 +7,7 @@ class ApplicationController < ActionController::Base
   stale_when_importmap_changes
 
   before_action :compute_system_alerts
+  helper_method :default_chat_path
 
   private
 
@@ -21,5 +22,16 @@ class ApplicationController < ActionController::Base
   def require_admin
     return if Current.user&.admin?
     redirect_to root_path, alert: "Admin access required."
+  end
+
+  def default_chat_path
+    return new_session_path unless Current.user
+
+    chat_session = Current.user.chat_sessions
+      .where.not(last_message_at: nil)
+      .order(last_message_at: :desc, created_at: :desc, id: :desc)
+      .detect(&:repository)
+
+    chat_session ? repository_chats_path(chat_session.repository) : repositories_path
   end
 end
