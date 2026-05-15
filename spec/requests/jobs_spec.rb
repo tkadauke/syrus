@@ -853,8 +853,9 @@ RSpec.describe "Jobs", type: :request do
       r
     end
 
-    it "instantiates a Resume workflow carrying parent_session_id from the source's ClaudeSession" do
-      ClaudeSession.create!(resumable: failed_run, session_id: "uuid-deadbeef", transcript_jsonl: "{}\n")
+    it "instantiates a Resume workflow carrying parent_session_id from a Codex-backed captured session" do
+      ClaudeSession.create!(resumable: failed_run, provider: "codex",
+                            session_id: "uuid-deadbeef", transcript_jsonl: "{}\n")
 
       expect {
         post resume_job_path(job, source_run_id: failed_run.id)
@@ -877,11 +878,12 @@ RSpec.describe "Jobs", type: :request do
       expect(flash[:alert]).to match(/Only failed or cancelled/)
     end
 
-    it "refuses when the source Run has no captured ClaudeSession" do
+    it "refuses when the source Run has no captured agent session" do
       expect {
         post resume_job_path(job, source_run_id: failed_run.id)
       }.not_to change { job.workflows.where(trigger_kind: "resume").count }
-      expect(flash[:alert]).to match(/No Claude session captured/)
+      expect(flash[:alert]).to match(/No agent session captured/)
+      expect(flash[:alert]).not_to match(/Claude session|ClaudeSession/)
     end
 
     it "refuses when the source_run_id doesn't belong to this Job" do

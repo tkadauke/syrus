@@ -27,8 +27,26 @@ RSpec.describe "Admin overview", type: :request do
       expect(response.body).to include("Admin overview")
       expect(response.body).to include("Active runs")
       expect(response.body).to include("Workers")
-      expect(response.body).to include("Claude session capture")
+      expect(response.body).to include("Agent session capture")
+      expect(response.body).not_to include("Claude session capture")
       expect(response.body).to include("Stuck things")
+    end
+
+    it "counts Codex-backed captured sessions as agent sessions" do
+      sign_in_as(admin)
+      job = Factories.job(user: admin)
+      run = job.initial_run
+      run.update!(state: "succeeded", agent_provider: "codex", finished_at: Time.current)
+      run.step.update!(kind: "implement")
+      ClaudeSession.create!(resumable: run, provider: "codex",
+                            session_id: "codex-thread", transcript_jsonl: "{}\n")
+
+      get "/admin"
+
+      expect(response.body).to include("Agent session capture")
+      expect(response.body).to include("100%")
+      expect(response.body).to include("1 of 1 agentic runs (24h)")
+      expect(response.body).not_to include("Claude session capture")
     end
 
     it "wires the auto-refresh Stimulus controller" do

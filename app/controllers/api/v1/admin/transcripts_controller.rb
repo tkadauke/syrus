@@ -2,7 +2,7 @@ module Api
   module V1
     module Admin
       # Mirror of Admin::TranscriptsController for programmatic
-      # access. Same parser (ClaudeTranscript), same data, JSON
+      # access. Same parser, same captured agent-session data, JSON
       # shape suitable for piping into jq.
       #
       #   GET /api/v1/admin/runs/:run_id/transcript        → { summary, events }
@@ -19,7 +19,7 @@ module Api
           run = Run.find(params[:run_id])
           session = run.claude_session
           unless session
-            render_error("not_found", "No ClaudeSession captured for Run ##{run.id}.", status: :not_found)
+            render_error("not_found", "No agent session captured for Run ##{run.id}.", status: :not_found)
             return
           end
 
@@ -47,7 +47,7 @@ module Api
           run = Run.find(params[:run_id])
           session = run.claude_session
           unless session
-            render_error("not_found", "No ClaudeSession captured for Run ##{run.id}.", status: :not_found)
+            render_error("not_found", "No agent session captured for Run ##{run.id}.", status: :not_found)
             return
           end
           send_data session.transcript_jsonl,

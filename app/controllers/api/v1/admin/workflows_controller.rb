@@ -11,7 +11,7 @@ module Api
       #   POST /api/v1/admin/workflows/:id/cleanup_workspace
       class WorkflowsController < BaseController
         # Single workflow's nested state (steps + runs + diagnostics
-        # + claude_session metadata). Same per-record-resilience as
+        # + captured agent-session metadata). Same per-record-resilience as
         # JobsController — a single bad row doesn't 500 the whole
         # response. Job envelope is included so the caller can drill
         # back up if needed.

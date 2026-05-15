@@ -185,10 +185,10 @@ class Run < ApplicationRecord
     trigger_kind == "rebase"
   end
 
-  # Resume Runs continue a Claude Code session whose worker died
+  # Resume Runs continue an agent session whose worker died
   # mid-flight. RunJob restores the prior session's JSONL to disk
-  # before invoking claude with --resume, and uses Prompts::Resume
-  # as the new prompt so claude knows what just happened.
+  # before invoking the provider's resume path, and uses Prompts::Resume
+  # as the new prompt so the agent knows what just happened.
   def resume?
     trigger_kind == "resume"
   end

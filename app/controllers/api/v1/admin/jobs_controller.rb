@@ -3,7 +3,7 @@ module Api
     module Admin
       # Single-shot Job state dump — collapses the "write a Rails
       # runner that joins Job + Workflows + Steps + Runs +
-      # diagnostics + claude_session" investigation pattern into
+      # diagnostics + agent-session metadata" investigation pattern into
       # one HTTP call.
       #
       # GET /api/v1/admin/jobs/:id → JSON

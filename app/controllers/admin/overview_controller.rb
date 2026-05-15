@@ -78,8 +78,8 @@ module Admin
       @gh_low_users = User.where("gh_rate_limit_remaining IS NOT NULL AND gh_rate_limit_limit > 0")
                           .select { |u| u.gh_rate_limit_remaining.to_f / u.gh_rate_limit_limit < 0.10 }
 
-      # ClaudeSession capture rate — succeeded agentic Runs in the
-      # last 24h, with vs without a ClaudeSession. The path-encoding
+      # Agent session capture rate — succeeded agentic Runs in the
+      # last 24h, with vs without a captured session. The path-encoding
       # bug would have shown 0% here (every implement Run completed
       # but no session was captured). This tile is the canary.
       agentic_kinds = Step::AGENTIC_KINDS

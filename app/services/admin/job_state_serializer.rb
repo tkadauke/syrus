@@ -45,6 +45,9 @@ module Admin
     end
 
     def run(run)
+      session = run.claude_session
+      session_payload = agent_session_payload(session)
+
       {
         id: run.id,
         state: run.state,
@@ -61,16 +64,8 @@ module Admin
         agent_diff_present: run.agent_diff.present?,
         agent_diff_bytes: run.agent_diff&.bytesize || 0,
         job_log_count: run.job_logs.size,
-        claude_session: run.claude_session && {
-          session_id: run.claude_session.session_id,
-          provider: run.claude_session.provider,
-          # transcript_jsonl is dropped on Run success (commit
-          # 804cdf5) — keep the metadata visible but flag the
-          # body as pruned instead of pretending size 0.
-          transcript_pruned: run.claude_session.transcript_jsonl.nil?,
-          transcript_bytes:  run.claude_session.transcript_jsonl&.bytesize,
-          transcript_lines:  run.claude_session.transcript_jsonl&.count("\n")
-        },
+        agent_session: session_payload,
+        claude_session: session_payload,
         run_diagnostic: run.run_diagnostic && {
           error_class: run.run_diagnostic.error_class,
           error_message: run.run_diagnostic.error_message,
@@ -79,6 +74,21 @@ module Admin
       }
     rescue => e
       per_record_error(run, e)
+    end
+
+    def agent_session_payload(session)
+      return unless session
+
+      {
+        session_id: session.session_id,
+        provider: session.provider,
+        # transcript_jsonl is dropped on Run success (commit
+        # 804cdf5) — keep the metadata visible but flag the
+        # body as pruned instead of pretending size 0.
+        transcript_pruned: session.transcript_jsonl.nil?,
+        transcript_bytes:  session.transcript_jsonl&.bytesize,
+        transcript_lines:  session.transcript_jsonl&.count("\n")
+      }
     end
 
     def per_record_error(record, error)

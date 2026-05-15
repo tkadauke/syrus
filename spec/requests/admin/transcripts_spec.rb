@@ -54,12 +54,13 @@ RSpec.describe "Admin transcripts", type: :request do
       expect(response.body).to include("turns=1")
     end
 
-    it "redirects when no ClaudeSession was captured" do
+    it "redirects when no agent session was captured" do
       sign_in_as(admin)
       run.claude_session.destroy
       get "/admin/runs/#{run.id}/transcript"
       expect(response).to redirect_to(job_path(run.job)).or redirect_to(root_path)
-      expect(flash[:alert]).to match(/no Claude session/i)
+      expect(flash[:alert]).to match(/no agent session/i)
+      expect(flash[:alert]).not_to match(/Claude session|ClaudeSession/)
     end
   end
 

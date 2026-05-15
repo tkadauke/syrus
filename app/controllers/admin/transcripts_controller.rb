@@ -1,5 +1,5 @@
 module Admin
-  # Renders a captured ClaudeSession.transcript_jsonl as a navigable
+  # Renders a captured agent-session transcript_jsonl as a navigable
   # event stream — system init (with model + tool list), user
   # prompts, assistant text, tool calls + results, and the final
   # result summary. Backs the "Open transcript" link on the
@@ -11,7 +11,7 @@ module Admin
 
       unless @session
         redirect_back fallback_location: job_path(@run.job),
-                      alert: "No Claude session was captured for Run ##{@run.id}."
+                      alert: "No agent session was captured for Run ##{@run.id}."
         return
       end
 
@@ -26,7 +26,7 @@ module Admin
 
       unless session
         redirect_back fallback_location: job_path(@run.job),
-                      alert: "No Claude session captured for Run ##{@run.id}."
+                      alert: "No agent session captured for Run ##{@run.id}."
         return
       end
 

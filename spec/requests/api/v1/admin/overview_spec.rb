@@ -20,10 +20,29 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).to have_key("queued_runs")
       expect(body).to have_key("recent_failures_24h")
       expect(body).to have_key("github_rate_limits")
+      expect(body).to have_key("agent_session_capture_rate")
       expect(body).to have_key("claude_session_capture_rate")
       expect(body).to have_key("workers")
       expect(body).to have_key("recurring")
       expect(body).to have_key("stuck")
+    end
+
+    it "reports Codex-backed captured sessions under the agent-neutral key" do
+      job = Factories.job(user: admin)
+      run = job.initial_run
+      run.update!(state: "succeeded", agent_provider: "codex", finished_at: Time.current)
+      run.step.update!(kind: "implement")
+      ClaudeSession.create!(resumable: run, provider: "codex",
+                            session_id: "codex-thread", transcript_jsonl: "{}\n")
+
+      get "/api/v1/admin/overview", headers: auth
+
+      expect(parse_body["agent_session_capture_rate"]).to eq(
+        "total" => 1,
+        "captured" => 1,
+        "rate" => 1.0
+      )
+      expect(parse_body["claude_session_capture_rate"]).to eq(parse_body["agent_session_capture_rate"])
     end
 
     it "surfaces a stuck Run in the watchlist" do

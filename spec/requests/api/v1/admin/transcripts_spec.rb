@@ -13,7 +13,7 @@ RSpec.describe "API: /api/v1/admin/runs/:run_id/transcript", type: :request do
 
   before do
     ClaudeSession.create!(
-      resumable: run, session_id: "abc-123",
+      resumable: run, provider: "codex", session_id: "abc-123",
       transcript_jsonl: jsonl(
         { "type" => "system", "subtype" => "init", "model" => "claude-sonnet-4-6",
           "cwd" => "/x", "tools" => [ "Bash", "mcp__syrus__submit_summary" ],
@@ -59,6 +59,8 @@ RSpec.describe "API: /api/v1/admin/runs/:run_id/transcript", type: :request do
       get "/api/v1/admin/runs/#{run.id}/transcript", headers: auth
       expect(response).to have_http_status(:not_found)
       expect(parse_body.dig("error", "code")).to eq("not_found")
+      expect(parse_body.dig("error", "message")).to match(/No agent session captured/)
+      expect(parse_body.dig("error", "message")).not_to match(/ClaudeSession|Claude session/)
     end
   end
 

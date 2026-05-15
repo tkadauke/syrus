@@ -1,7 +1,7 @@
 require "json"
 
-# Parses a captured ClaudeSession.transcript_jsonl into a flat,
-# UI-renderable list of events. The on-disk JSONL is claude-code's
+# Parses a captured agent-session transcript_jsonl into a flat,
+# UI-renderable list of events. The on-disk JSONL originated as claude-code's
 # internal schema (NOT stream-json) and includes a lot of meta
 # events (queue-operation, attachment, last-prompt, ai-title, …)
 # that aren't directly useful to a human reader. This class extracts

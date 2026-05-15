@@ -10,7 +10,7 @@ class ClaudeSession < ApplicationRecord
 
   before_validation :default_resumable_from_run
 
-  # Keep sessions for diagnostics for two weeks after the parent Run
+  # Keep captured agent sessions for diagnostics for two weeks after the parent Run
   # reaches a terminal state. After that, ClaudeSessionPruneJob deletes
   # them. Active Runs (queued/running) are never pruned.
   RETAIN_AFTER_TERMINAL = 14.days

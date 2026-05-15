@@ -202,10 +202,10 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: notice
   end
 
-  # Continue a failed/cancelled Run by reloading its claude session
+  # Continue a failed/cancelled Run by reloading its agent session
   # in a NEW Run. Carries `parent_session_id` so RunJob restores the
-  # JSONL to disk before invoking `claude --resume`. The new Run uses
-  # Prompts::Resume as its prompt — claude --print --resume still
+  # JSONL to disk before invoking the provider's resume path. The new Run uses
+  # Prompts::Resume as its prompt — resume invocations still
   # needs an arg, and silent re-invocation with the original prompt
   # would confuse the model.
   def resume
@@ -220,14 +220,13 @@ class JobsController < ApplicationController
     end
     session = source_run.claude_session
     unless session
-      redirect_to job_path(@job), alert: "No Claude session captured for that Run — try Retry instead."
+      redirect_to job_path(@job), alert: "No agent session captured for that Run — try Retry instead."
       return
     end
 
     workflow = Workflows::Resume.instantiate(job: @job, agent_provider: session.provider)
     # The first (and only) step of Resume is `manual` — pass the
-    # parent session id so AgentInvocation runs claude with
-    # `--resume <session>`.
+    # parent session id so the provider can resume the captured session.
     StepDispatcher.start_workflow(workflow, parent_session_id: session.session_id)
     redirect_to job_path(@job), notice: "Resume workflow enqueued."
   end

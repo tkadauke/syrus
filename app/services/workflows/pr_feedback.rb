@@ -5,7 +5,7 @@ module Workflows
   #   prepare → loop(respond, grade) → summarize_amend → push
   #
   # respond runs the agent with the comment text + diff context —
-  # *fresh* claude session (no --resume from the prior workflow's
+  # *fresh* agent session (no --resume from the prior workflow's
   # implement; cross-workflow resume gets unwieldy and the prompt
   # already carries the context the agent needs). summarize_amend
   # --resumes respond and produces the *commit message for the
