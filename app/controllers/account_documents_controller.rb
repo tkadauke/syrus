@@ -1,4 +1,4 @@
-class Credentials::DocumentsController < ApplicationController
+class AccountDocumentsController < ApplicationController
   def create
     created = []
     errors = []

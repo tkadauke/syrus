@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Credential documents", type: :request do
+RSpec.describe "Account documents", type: :request do
   let(:user) { Factories.user }
 
   before { sign_in_as(user) }
@@ -15,7 +15,7 @@ RSpec.describe "Credential documents", type: :request do
 
   it "uploads and deletes a user-scoped file document" do
     expect {
-      post credentials_documents_path, params: {
+      post account_documents_path, params: {
         document: { files: [ upload_file ] }
       }
     }.to change(Document, :count).by(1)
@@ -26,13 +26,13 @@ RSpec.describe "Credential documents", type: :request do
     expect(response).to redirect_to(edit_credentials_path)
 
     expect {
-      delete credentials_document_path(document)
+      delete account_document_path(document)
     }.to change(Document, :count).by(-1)
     expect(response).to redirect_to(edit_credentials_path)
   end
 
   it "adds a user-scoped Google Doc link" do
-    post credentials_documents_path, params: {
+    post account_documents_path, params: {
       document: { google_doc_url: "https://docs.google.com/document/d/user/edit" }
     }
 
