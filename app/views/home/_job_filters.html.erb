@@ -1,0 +1,53 @@
+<%# Note: we deliberately do NOT carry smart_folder_id through this
+    form. Any manual filter change inflates the smart folder's
+    filter set onto plain URL params (each input is already
+    pre-populated with the folder's values) and drops the
+    smart_folder_id, letting the operator refine and save the
+    result as a new smart folder. %>
+<%= form_with url: root_path, method: :get,
+      data: { controller: "auto-submit filter-memory" },
+      class: local_assigns.fetch(:class_name, "flex flex-wrap items-center gap-3") do |f| %>
+  <% select_classes = "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" %>
+  <% attention_options = [["Any attention", ""]] + SmartFolder::BUILTIN_DEFINITIONS.filter_map { |d| [d[:name], d[:filter]["attention"]] if d[:filter]["attention"] } %>
+
+  <%= f.select :attention,
+        options_for_select(attention_options, @job_filter_params["attention"]),
+        {},
+        class: select_classes, data: { action: "change->auto-submit#submit" } %>
+
+  <%= f.select :state,
+        options_for_select([["All states", ""], ["Open", "open"], ["Failed", "failed"], ["Succeeded", "succeeded"], ["Closed", "closed"]], @job_filter_params["state"]),
+        {},
+        class: select_classes, data: { action: "change->auto-submit#submit" } %>
+
+  <%= f.select :repository_id,
+        options_for_select([["All repos", ""]] + @repositories.map { |r| [r.slug, r.id] }, @job_filter_params["repository_id"]),
+        {},
+        class: select_classes, data: { action: "change->auto-submit#submit" } %>
+
+  <% if @tags.any? %>
+    <%= f.select :tag_ids,
+          options_for_select(@tags.map { |tag| [tag.name, tag.id] }, Array(@job_filter_params["tag_ids"])),
+          { include_hidden: false },
+          multiple: true,
+          size: [[@tags.size, 1].max, 4].min,
+          class: "#{select_classes} min-w-36",
+          data: { action: "change->auto-submit#submit" } %>
+  <% end %>
+
+  <%= f.select :pr,
+        options_for_select([["Any PR status", ""], ["Has PR", "has_pr"], ["No PR", "no_pr"]], @job_filter_params["pr"]),
+        {},
+        class: select_classes, data: { action: "change->auto-submit#submit" } %>
+
+  <%= f.select :age,
+        options_for_select([["All time", ""], ["Last 24h", "1d"], ["Last 7 days", "7d"], ["Last 30 days", "30d"]], @job_filter_params["age"]),
+        {},
+        class: select_classes, data: { action: "change->auto-submit#submit" } %>
+
+  <% if @job_filter.active? %>
+    <%= link_to "Clear", root_path,
+          class: "text-sm text-gray-500 hover:text-gray-700 underline",
+          data: { action: "click->filter-memory#clear" } %>
+  <% end %>
+<% end %>

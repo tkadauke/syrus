@@ -135,6 +135,38 @@ RSpec.describe "Dashboard", type: :request do
       expect(option_values).to eq([""] + expected)
     end
 
+    it "collapses folders and filters by default on mobile only" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      user.smart_folders.create!(
+        name: "Open PRs",
+        kind: "user_defined",
+        position: 0,
+        filter: { "pr" => "has_pr" }
+      )
+      Factories.job_record(repository: repo, issue_number: 1)
+
+      get root_path
+
+      document = Nokogiri::HTML(response.body)
+      mobile_panel = document.at_css("details")
+      desktop_sidebar = document.at_css("aside")
+      desktop_filter_form = document.css("form[action='#{root_path}']").find do |form|
+        form["method"] == "get" && form["class"].to_s.include?("lg:flex")
+      end
+
+      expect(mobile_panel).to be_present
+      expect(mobile_panel["class"]).to include("lg:hidden")
+      expect(mobile_panel["open"]).to be_nil
+      expect(mobile_panel.at_css("summary").text).to include("Folders and filters")
+      expect(mobile_panel.text).to include("Attention")
+      expect(mobile_panel.text).to include("Open PRs")
+      expect(mobile_panel.at_css("select[name='attention']")).to be_present
+
+      expect(desktop_sidebar["class"]).to include("hidden")
+      expect(desktop_sidebar["class"]).to include("lg:block")
+      expect(desktop_filter_form).to be_present
+    end
+
     it "excludes closed jobs from the inbox even when they have a failed latest run" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       open_failed = Factories.job(repository: repo, issue_number: 1)

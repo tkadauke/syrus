@@ -41,114 +41,35 @@
   </div>
 
   <% if @active_tab == "jobs" %>
-    <div class="grid gap-5 lg:grid-cols-[16rem_1fr]">
-      <aside class="space-y-4">
-        <div class="bg-white border border-gray-200 rounded-lg p-3">
-          <div class="mb-2 text-xs font-semibold uppercase text-gray-500">Attention</div>
-          <nav class="space-y-1">
-            <% @builtin_smart_folders.each do |folder| %>
-              <% active = @active_smart_folder == folder %>
-              <%= link_to root_path(smart_folder_id: folder.id),
-                    class: "flex items-center justify-between rounded-md px-2 py-1.5 text-sm #{active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}" do %>
-                <span><%= folder.name %></span>
-                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>
-              <% end %>
-            <% end %>
-          </nav>
-
-          <div class="my-3 border-t border-gray-200"></div>
-
-          <div class="mb-2 flex items-center justify-between">
-            <span class="text-xs font-semibold uppercase text-gray-500">Saved</span>
-            <%= link_to "Manage", smart_folders_path, class: "text-xs text-blue-600 underline hover:no-underline" %>
+    <details class="group rounded-lg border border-gray-200 bg-white lg:hidden">
+      <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-gray-700">
+        <span>Folders and filters</span>
+        <span class="text-gray-400 group-open:hidden">Show</span>
+        <span class="hidden text-gray-400 group-open:inline">Hide</span>
+      </summary>
+      <div class="space-y-4 border-t border-gray-200 p-3">
+        <%= render "smart_folders" %>
+        <%= render "job_filters", class_name: "flex flex-col gap-3" %>
+        <%= render "save_smart_folder_form", class_name: "flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm" %>
+        <% if @active_smart_folder %>
+          <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+            Showing smart folder: <strong><%= @active_smart_folder.name %></strong>
           </div>
-          <nav class="space-y-1">
-            <% @user_smart_folders.each do |folder| %>
-              <% active = @active_smart_folder == folder %>
-              <%= link_to root_path(smart_folder_id: folder.id),
-                    class: "flex items-center justify-between rounded-md px-2 py-1.5 text-sm #{active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}" do %>
-                <span class="truncate"><%= folder.name %></span>
-                <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>
-              <% end %>
-            <% end %>
-            <% if @user_smart_folders.empty? %>
-              <div class="px-2 py-1.5 text-sm text-gray-400">No saved folders</div>
-            <% end %>
-          </nav>
-        </div>
+        <% end %>
+      </div>
+    </details>
+
+    <div class="grid gap-5 lg:grid-cols-[16rem_1fr]">
+      <aside class="hidden space-y-4 lg:block">
+        <%= render "smart_folders" %>
       </aside>
 
       <div class="space-y-4">
-        <%# Note: we deliberately do NOT carry smart_folder_id through this
-            form. Any manual filter change inflates the smart folder's
-            filter set onto plain URL params (each input is already
-            pre-populated with the folder's values) and drops the
-            smart_folder_id, letting the operator refine and save the
-            result as a new smart folder. %>
-        <%= form_with url: root_path, method: :get,
-              data: { controller: "auto-submit filter-memory" },
-              class: "flex flex-wrap items-center gap-3" do |f| %>
-          <% select_classes = "text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" %>
-          <% attention_options = [["Any attention", ""]] + SmartFolder::BUILTIN_DEFINITIONS.filter_map { |d| [d[:name], d[:filter]["attention"]] if d[:filter]["attention"] } %>
-
-          <%= f.select :attention,
-                options_for_select(attention_options, @job_filter_params["attention"]),
-                {},
-                class: select_classes, data: { action: "change->auto-submit#submit" } %>
-
-          <%= f.select :state,
-                options_for_select([["All states", ""], ["Open", "open"], ["Failed", "failed"], ["Succeeded", "succeeded"], ["Closed", "closed"]], @job_filter_params["state"]),
-                {},
-                class: select_classes, data: { action: "change->auto-submit#submit" } %>
-
-          <%= f.select :repository_id,
-                options_for_select([["All repos", ""]] + @repositories.map { |r| [r.slug, r.id] }, @job_filter_params["repository_id"]),
-                {},
-                class: select_classes, data: { action: "change->auto-submit#submit" } %>
-
-          <% if @tags.any? %>
-            <%= f.select :tag_ids,
-                  options_for_select(@tags.map { |tag| [tag.name, tag.id] }, Array(@job_filter_params["tag_ids"])),
-                  { include_hidden: false },
-                  multiple: true,
-                  size: [[@tags.size, 1].max, 4].min,
-                  class: "#{select_classes} min-w-36",
-                  data: { action: "change->auto-submit#submit" } %>
-          <% end %>
-
-          <%= f.select :pr,
-                options_for_select([["Any PR status", ""], ["Has PR", "has_pr"], ["No PR", "no_pr"]], @job_filter_params["pr"]),
-                {},
-                class: select_classes, data: { action: "change->auto-submit#submit" } %>
-
-          <%= f.select :age,
-                options_for_select([["All time", ""], ["Last 24h", "1d"], ["Last 7 days", "7d"], ["Last 30 days", "30d"]], @job_filter_params["age"]),
-                {},
-                class: select_classes, data: { action: "change->auto-submit#submit" } %>
-
-          <% if @job_filter.active? %>
-            <%= link_to "Clear", root_path,
-                  class: "text-sm text-gray-500 hover:text-gray-700 underline",
-                  data: { action: "click->filter-memory#clear" } %>
-          <% end %>
-        <% end %>
-
-        <% if @job_filter.active? && @active_smart_folder.nil? %>
-          <%= form_with url: smart_folders_path, method: :post,
-                class: "flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm" do |f| %>
-            <% @job_filter.to_h.each do |key, value| %>
-              <%= hidden_field_tag key, value %>
-            <% end %>
-            <%= f.label :name, "Save current filter as", class: "text-gray-600" %>
-            <%= f.text_field :name, name: "smart_folder[name]", required: true, placeholder: "Folder name",
-                  class: "w-52 text-sm border border-gray-300 rounded-md px-2 py-1.5" %>
-            <%= f.submit "Save smart folder",
-                  class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
-          <% end %>
-        <% end %>
+        <%= render "job_filters", class_name: "hidden flex-wrap items-center gap-3 lg:flex" %>
+        <%= render "save_smart_folder_form", class_name: "hidden flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm lg:flex" %>
 
         <% if @active_smart_folder %>
-          <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+          <div class="hidden rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 lg:block">
             Showing smart folder: <strong><%= @active_smart_folder.name %></strong>
           </div>
         <% end %>

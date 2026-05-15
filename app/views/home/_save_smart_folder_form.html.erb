@@ -1,0 +1,13 @@
+<% if @job_filter.active? && @active_smart_folder.nil? %>
+  <%= form_with url: smart_folders_path, method: :post,
+        class: local_assigns.fetch(:class_name, "flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm") do |f| %>
+    <% @job_filter.to_h.each do |key, value| %>
+      <%= hidden_field_tag key, value %>
+    <% end %>
+    <%= f.label :name, "Save current filter as", class: "text-gray-600" %>
+    <%= f.text_field :name, name: "smart_folder[name]", required: true, placeholder: "Folder name",
+          class: "w-52 text-sm border border-gray-300 rounded-md px-2 py-1.5" %>
+    <%= f.submit "Save smart folder",
+          class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
+  <% end %>
+<% end %>
