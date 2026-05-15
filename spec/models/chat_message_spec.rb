@@ -45,6 +45,13 @@ RSpec.describe ChatMessage do
     expect(message.errors[:content]).to be_present
   end
 
+  it "destroys bookmarks with the message" do
+    message = described_class.create!(chat_session: session, role: "assistant", content: { "text" => "Salve" })
+    bookmark = message.bookmarks.create!(label: "Greeting", kind: "topic")
+
+    expect { message.destroy }.to change { ChatBookmark.where(id: bookmark.id).count }.by(-1)
+  end
+
   # Regression: before this fix the compose form was rendered once
   # (server-side, with turn_in_flight: true) and never refreshed when
   # the turn ended, leaving the Send button disabled until the operator

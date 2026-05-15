@@ -4,6 +4,8 @@ class ChatMessage < ApplicationRecord
   belongs_to :chat_session
   belongs_to :proposal, class_name: "ChatProposal", optional: true
 
+  has_many :bookmarks, class_name: "ChatBookmark", dependent: :destroy, inverse_of: :chat_message
+
   after_create_commit :broadcast_to_chat
   after_create_commit :broadcast_controls_update
 

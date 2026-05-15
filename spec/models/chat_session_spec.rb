@@ -87,6 +87,31 @@ RSpec.describe ChatSession do
     expect { session.destroy }.to change { ChatMessage.where(id: message.id).count }.by(-1)
   end
 
+  it "lists bookmarks through messages in message chronology" do
+    session = described_class.create!(repository: repo, user: repo.user)
+    later = session.messages.create!(
+      role: "assistant",
+      content: { "text" => "Second" },
+      created_at: 1.minute.from_now
+    )
+    earlier = session.messages.create!(
+      role: "assistant",
+      content: { "text" => "First" },
+      created_at: 1.minute.ago
+    )
+    middle = session.messages.create!(
+      role: "assistant",
+      content: { "text" => "Middle" },
+      created_at: Time.current
+    )
+
+    later_bookmark = later.bookmarks.create!(label: "Second topic", kind: "topic")
+    earlier_bookmark = earlier.bookmarks.create!(label: "First topic", kind: "manual")
+    middle_bookmark = middle.bookmarks.create!(label: "Epic launch", kind: "epic_origin")
+
+    expect(session.bookmarks).to eq([ earlier_bookmark, middle_bookmark, later_bookmark ])
+  end
+
   it "reports a turn in flight until a non-user response follows the latest user message" do
     session = described_class.create!(repository: repo, user: repo.user)
 

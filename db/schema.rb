@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_15_000000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -66,6 +66,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.text "telegram_webhook_secret"
     t.datetime "updated_at", null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
+  end
+
+  create_table "chat_bookmarks", force: :cascade do |t|
+    t.integer "chat_message_id", null: false
+    t.datetime "created_at", null: false
+    t.string "kind", null: false
+    t.string "label", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_message_id"], name: "index_chat_bookmarks_on_chat_message_id"
   end
 
   create_table "chat_messages", force: :cascade do |t|
@@ -632,9 +641,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000000) do
     t.index ["job_id"], name: "index_workflows_on_job_id"
   end
 
-  add_foreign_key "admin_actions", "users"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "admin_actions", "users"
+  add_foreign_key "chat_bookmarks", "chat_messages"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_pending_actions", "chat_sessions"

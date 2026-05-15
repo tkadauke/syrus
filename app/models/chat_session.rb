@@ -3,6 +3,10 @@ class ChatSession < ApplicationRecord
   belongs_to :user
 
   has_many :messages, class_name: "ChatMessage", dependent: :destroy
+  has_many :bookmarks,
+           -> { order("chat_messages.created_at ASC", "chat_messages.id ASC", "chat_bookmarks.id ASC") },
+           through: :messages,
+           source: :bookmarks
   has_many :proposals, class_name: "ChatProposal", dependent: :destroy
   has_many :pending_actions, class_name: "ChatPendingAction", dependent: :destroy
   has_one :claude_session, as: :resumable, dependent: :destroy
