@@ -25,7 +25,6 @@ module Api
             },
             github_rate_limits: low_rate_limit_users,
             agent_session_capture_rate: capture_rate_payload,
-            claude_session_capture_rate: capture_rate_payload,
             stuck: ::Admin::StuckItems.all.map { |i| serialize_stuck(i) }
           }
 

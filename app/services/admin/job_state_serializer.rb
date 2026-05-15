@@ -65,7 +65,6 @@ module Admin
         agent_diff_bytes: run.agent_diff&.bytesize || 0,
         job_log_count: run.job_logs.size,
         agent_session: session_payload,
-        claude_session: session_payload,
         run_diagnostic: run.run_diagnostic && {
           error_class: run.run_diagnostic.error_class,
           error_message: run.run_diagnostic.error_message,

@@ -21,7 +21,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).to have_key("recent_failures_24h")
       expect(body).to have_key("github_rate_limits")
       expect(body).to have_key("agent_session_capture_rate")
-      expect(body).to have_key("claude_session_capture_rate")
+      expect(body).not_to have_key("claude_session_capture_rate")
       expect(body).to have_key("workers")
       expect(body).to have_key("recurring")
       expect(body).to have_key("stuck")
@@ -42,7 +42,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
         "captured" => 1,
         "rate" => 1.0
       )
-      expect(parse_body["claude_session_capture_rate"]).to eq(parse_body["agent_session_capture_rate"])
+      expect(parse_body).not_to have_key("claude_session_capture_rate")
     end
 
     it "surfaces a stuck Run in the watchlist" do

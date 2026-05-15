@@ -84,10 +84,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(run_payload["agent_session"]["provider"]).to eq("codex")
       expect(run_payload["agent_session"]["transcript_lines"]).to eq(2)
       expect(run_payload["agent_session"]["transcript_pruned"]).to be false
-      expect(run_payload["claude_session"]["session_id"]).to eq("abc-123")
-      expect(run_payload["claude_session"]["provider"]).to eq("codex")
-      expect(run_payload["claude_session"]["transcript_lines"]).to eq(2)
-      expect(run_payload["claude_session"]["transcript_pruned"]).to be false
+      expect(run_payload).not_to have_key("claude_session")
     end
 
     it "tolerates a captured agent session whose transcript was pruned post-success (issue surfaced by Job 80)" do
@@ -109,7 +106,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
         "transcript_bytes"  => nil,
         "transcript_lines"  => nil
       )
-      expect(run_payload["claude_session"]).to eq(run_payload["agent_session"])
+      expect(run_payload).not_to have_key("claude_session")
     end
 
     it "swaps in an error envelope when a single Run's serializer raises (others still render)" do
