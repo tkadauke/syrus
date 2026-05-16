@@ -81,6 +81,20 @@ RSpec.describe SyrusChatMcp::ProposeIssueTool do
     expect(chat_session.proposals.find_by(slug: "leaf")).to be_nil
   end
 
+  it "does not allow the grouped Epic proposal kind through the issue tool" do
+    response = described_class.call(
+      slug: "epic",
+      title: "Epic",
+      body: "Body.",
+      kind: "epic",
+      server_context: { chat_session: chat_session }
+    )
+
+    expect(response.instance_variable_get(:@error)).to be(true)
+    expect(response.content.first[:text]).to match(/kind must be syrus_issue or github_issue/)
+    expect(chat_session.proposals.find_by(slug: "epic")).to be_nil
+  end
+
   it "returns a tool error when dependencies would create a cycle" do
     root = ChatProposal.create!(chat_session: chat_session, slug: "root", title: "Root", body: "Root.")
     leaf = ChatProposal.create!(chat_session: chat_session, slug: "leaf", title: "Leaf", body: "Leaf.")

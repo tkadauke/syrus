@@ -14,6 +14,16 @@ class ChatProposal < ApplicationRecord
   belongs_to :job, optional: true
   belongs_to :epic, optional: true
   belongs_to :target_epic, class_name: "Epic", optional: true
+  belongs_to :parent_proposal,
+             class_name: "ChatProposal",
+             optional: true,
+             inverse_of: :child_proposals
+  has_many :child_proposals,
+           -> { order(:child_position, :created_at, :id) },
+           class_name: "ChatProposal",
+           foreign_key: :parent_proposal_id,
+           inverse_of: :parent_proposal,
+           dependent: :nullify
 
   has_many :dependency_edges,
            class_name: "ChatProposalDependency",
@@ -79,6 +89,14 @@ class ChatProposal < ApplicationRecord
 
   def effective_repository
     repository || chat_session.repository
+  end
+
+  def epic_bundle?
+    epic?
+  end
+
+  def active_child_proposals
+    child_proposals.where.not(state: "rejected")
   end
 
   def materialized_label

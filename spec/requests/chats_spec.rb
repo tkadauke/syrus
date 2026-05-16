@@ -619,6 +619,24 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include("Rejected")
       expect(response.body).not_to include(chat_proposal_confirm_path(chat, proposal))
     end
+
+    it "renders an Epic proposal as one confirmable card with rejectable child rows" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      epic = chat.proposals.create!(slug: "m3", title: "M3 proposals", body: "Group cards.", kind: "epic", repository: repo)
+      schema = epic.child_proposals.create!(chat_session: chat, slug: "schema", title: "Schema", body: "Persist it.", repository: repo)
+      ui = epic.child_proposals.create!(chat_session: chat, slug: "ui", title: "UI", body: "Render it.", repository: repo)
+      ChatProposalDependency.create!(proposal: ui, depends_on: schema)
+      chat.messages.create!(role: "assistant", proposal: epic, content: { "text" => "Epic proposal proposed." })
+
+      get chat_path(chat)
+
+      expect(response.body).to include("M3 proposals")
+      expect(response.body).to include("Confirm Epic and Jobs")
+      expect(response.body).to include("Schema")
+      expect(response.body).to include("UI")
+      expect(response.body).to include("depends on schema")
+      expect(response.body).to include(chat_proposal_reject_path(chat, ui))
+    end
   end
 
   describe "legacy repository chat URL" do

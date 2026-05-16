@@ -200,8 +200,14 @@ class ChatsController < ApplicationController
       return
     end
 
-    result = ChatProposalFiler.new(user: Current.user, repository: @proposal.effective_repository).file!([ @proposal ])
+    result = if @proposal.epic_bundle?
+      ChatEpicProposalMaterializer.new(user: Current.user).file!(@proposal)
+    else
+      ChatProposalFiler.new(user: Current.user, repository: @proposal.effective_repository).file!([ @proposal ])
+    end
     redirect_to chat_path(@chat_session), notice: proposal_confirmed_notice(result)
+  rescue ArgumentError => e
+    redirect_to chat_path(@chat_session), alert: e.message
   rescue ActiveRecord::RecordInvalid => e
     redirect_to chat_path(@chat_session), alert: e.record.errors.full_messages.to_sentence
   end
@@ -370,7 +376,7 @@ class ChatsController < ApplicationController
   end
 
   def proposal_confirmed_notice(result)
-    record = result.jobs.first || @proposal.reload.materialized_record
+    record = result.respond_to?(:epic) && result.epic ? result.epic : result.jobs.first || @proposal.reload.materialized_record
     case record
     when Job
       "Proposal confirmed and filed as Job ##{record.id}."

@@ -143,8 +143,12 @@ class Repositories::ChatsController < ApplicationController
       return
     end
 
-    result = ChatProposalFiler.new(user: Current.user, repository: @proposal.effective_repository || @repository).file!([ @proposal ])
-    record = result.jobs.first || @proposal.reload.materialized_record
+    result = if @proposal.epic_bundle?
+      ChatEpicProposalMaterializer.new(user: Current.user).file!(@proposal)
+    else
+      ChatProposalFiler.new(user: Current.user, repository: @proposal.effective_repository || @repository).file!([ @proposal ])
+    end
+    record = result.respond_to?(:epic) && result.epic ? result.epic : result.jobs.first || @proposal.reload.materialized_record
     notice = case record
     when Job
       "Proposal confirmed and filed as Job ##{record.id}."
@@ -154,6 +158,8 @@ class Repositories::ChatsController < ApplicationController
       "Proposal confirmed."
     end
     redirect_to chat_path(@proposal.chat_session), notice: notice
+  rescue ArgumentError => e
+    redirect_to chat_path(@proposal.chat_session), alert: e.message
   rescue ActiveRecord::RecordInvalid => e
     redirect_to chat_path(@proposal.chat_session), alert: e.record.errors.full_messages.to_sentence
   end

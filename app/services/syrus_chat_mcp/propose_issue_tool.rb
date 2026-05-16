@@ -36,7 +36,7 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("slug is required") if slug.empty?
         return SyrusChatMcp.invalid("title is required") if title.empty?
         return SyrusChatMcp.invalid("body is required") if body.empty?
-        return SyrusChatMcp.invalid("kind must be syrus_issue or github_issue") unless ChatProposal.kinds.key?(kind)
+        return SyrusChatMcp.invalid("kind must be syrus_issue or github_issue") unless %w[syrus_issue github_issue].include?(kind)
 
         proposal = ChatProposalProposer.new(
           chat_session: chat_session,
