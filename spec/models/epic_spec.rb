@@ -43,7 +43,7 @@ RSpec.describe Epic do
 
   it "keeps ready to in_progress manual and unblocks queued child workflows when started" do
     epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
-    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic)
+    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
     workflow = Workflows::Initial.instantiate(job: job)
 
     expect(job).not_to be_dependencies_satisfied
@@ -54,7 +54,43 @@ RSpec.describe Epic do
     }.to change { epic.state }.from("ready").to("in_progress")
       .and change(Run, :count).by(1)
 
+    expect(job.reload).to be_queued
     expect(workflow.first_step.runs.first).to be_queued
+  end
+
+  it "releases child Jobs from the Epic block without starting them while Job dependencies are unsatisfied" do
+    epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 19, state: "queued")
+    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+    JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+    expect {
+      expect {
+        epic.start!
+      }.to change { job.reload.state }.from("blocked_by_epic").to("queued")
+    }.not_to change(Run, :count)
+
+    expect(job.workflows.queued.count).to eq(1)
+  end
+
+  it "restores child Epic blocks on override rollback when child Jobs have not started running" do
+    epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+
+    epic.start!
+    run = job.reload.runs.first
+
+    expect {
+      epic.override_state!("ready")
+    }.to change { job.reload.state }.from("queued").to("blocked_by_epic")
+
+    expect(run.reload).to be_cancelled
+    expect(job.workflows.first).to be_cancelled
+
+    expect {
+      epic.override_state!("in_progress")
+    }.to change { job.reload.state }.from("blocked_by_epic").to("queued")
+      .and change(Run, :count).by(1)
   end
 
   it "auto-completes in-progress Epics when all child Jobs are merged" do

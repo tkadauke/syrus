@@ -56,6 +56,10 @@ class Epic < ApplicationRecord
     @releasing_jobs_for_execution || in_progress? || done?
   end
 
+  def in_progress!
+    override_state!("in_progress")
+  end
+
   def ready_to_start?
     dependencies_done? && child_jobs_confirmed?
   end
@@ -82,8 +86,13 @@ class Epic < ApplicationRecord
     raise ArgumentError, "unknown Epic state: #{target_state}" unless STATES.include?(target_state)
 
     transaction do
+      was_in_progress = in_progress?
       update!(state: target_state, done_at: target_state == "done" ? Time.current : nil)
-      unblock_child_jobs! if target_state == "in_progress"
+      if target_state == "in_progress"
+        unblock_child_jobs!
+      elsif was_in_progress && %w[backlog ready].include?(target_state)
+        restore_child_epic_blocks!
+      end
     end
   end
 
@@ -92,10 +101,18 @@ class Epic < ApplicationRecord
     begin
       jobs.find_each do |job|
         job.epic = self
+        job.release_epic_block! if job.may_release_epic_block?
         job.start_pending_workflows_if_dependencies_satisfied!
       end
     ensure
       @releasing_jobs_for_execution = false
+    end
+  end
+
+  def restore_child_epic_blocks!
+    jobs.find_each do |job|
+      job.epic = self
+      job.restore_epic_block_if_not_started!
     end
   end
 

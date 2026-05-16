@@ -72,10 +72,57 @@ RSpec.describe "Dashboard", type: :request do
       lane_titles = document.css("section h2").map { |heading| heading.text.strip }
       expect(lane_titles).to eq([ "Backlog", "Ready", "In Progress", "Done" ])
 
-      card = document.at_css("a[href='#{epic_path(epic)}']")
-      expect(card.text).to include("EPIC-#{epic.number}", "Launch board", "1/2 done", "acme/widgets", "1 dep")
-      expect(card.at_css("[aria-label='Blocked']")).to be_present
+      kanban_card = document.at_css("[data-epic-id='#{epic.id}']")
+      expect(kanban_card.text).to include("EPIC-#{epic.number}", "Launch board", "1/2 done", "acme/widgets", "1 dep")
+      expect(kanban_card.at_css("[aria-label='Blocked']")).to be_present
+      expect(kanban_card["draggable"]).to eq("true")
+      expect(kanban_card["data-epic-state-url"]).to eq(state_epic_path(epic))
+      expect(response.body).to include("Override state")
       expect(response.body).to include("Done epics hidden")
+    end
+
+    it "starts a ready Epic from the Kanban transition endpoint and unblocks child Jobs" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      epic = Factories.epic(user: user, repository: repo, state: "ready")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, state: "blocked_by_epic")
+
+      expect {
+        patch state_epic_path(epic),
+              params: { target_state: "in_progress" },
+              headers: { "ACCEPT" => "application/json" }
+      }.to change(Run, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to include("state" => "in_progress")
+      expect(epic.reload).to be_in_progress
+      expect(job.reload).to be_queued
+    end
+
+    it "rejects non-ready-to-in-progress Kanban transitions server-side" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      epic = Factories.epic(user: user, repository: repo, state: "backlog")
+
+      patch state_epic_path(epic),
+            params: { target_state: "done" },
+            headers: { "ACCEPT" => "application/json" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)).to include("error" => "transition_not_allowed")
+      expect(epic.reload).to be_backlog
+    end
+
+    it "lets the card menu override state and rolls child Jobs back when progress is reverted" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      epic = Factories.epic(user: user, repository: repo, state: "ready")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, state: "blocked_by_epic")
+      patch state_epic_path(epic), params: { target_state: "in_progress" }, headers: { "ACCEPT" => "application/json" }
+
+      patch state_epic_path(epic), params: { target_state: "ready", override: "1" }
+
+      expect(response).to redirect_to(dashboard_epics_path)
+      expect(epic.reload).to be_ready
+      expect(job.reload).to be_blocked_by_epic
+      expect(job.runs.first).to be_cancelled
     end
 
     it "shows Done epics when requested" do

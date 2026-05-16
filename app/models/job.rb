@@ -209,7 +209,7 @@ class Job < ApplicationRecord
   def blocked_by_epic_before_execution?
     return false unless epic
 
-    epic.backlog? || epic.ready?
+    !epic.releases_jobs_for_execution?
   end
 
   def prepare_skip_reason
@@ -375,6 +375,20 @@ class Job < ApplicationRecord
     true
   end
 
+  def restore_epic_block_if_not_started!
+    return false unless queued?
+    return false if runs.where(state: %w[running awaiting_operator succeeded failed]).exists?
+
+    transaction do
+      workflows.where(state: "queued").find_each do |workflow|
+        workflow.cancel!
+        workflow.save!
+      end
+
+      block_by_epic! if may_block_by_epic?
+    end
+  end
+
   def log_pending_dependency_warnings!
     return if pending_dependency_warnings.blank?
 
@@ -451,7 +465,7 @@ class Job < ApplicationRecord
 
   def create_initial_run_if_needed
     return unless issue?
-    return if workflows.exists?
+    return if workflows.where.not(state: "cancelled").exists?
 
     create_initial_run
   end
