@@ -1,13 +1,13 @@
 <%#
   Repository-scoped tab nav. Drop in at the top of any repo-scoped
   view so the operator's "where am I in this repo?" experience stays
-  uniform — every view shows the same five tabs in the same order,
+  uniform — every view shows the same tabs in the same order,
   with the current one highlighted.
 
   Locals:
     repository: the Repository instance
     active:     symbol identifying the current tab — one of
-                :overview, :github_issues, :chats, :proposals,
+                :overview, :github_issues, :proposals,
                 :scheduled_tasks
 
   Optional block: anything yielded renders inside an action slot on
@@ -19,7 +19,6 @@
   tabs = [
     [ :overview,        "Overview",       repository_path(repository) ],
     [ :github_issues,   "GitHub Issues",  repository_path(repository, tab: "github_issues") ],
-    [ :chats,           "Chats",          repository_chats_path(repository) ],
     [ :proposals,       "Proposals",      repository_proposals_path(repository) ],
     [ :scheduled_tasks, "Scheduled Tasks", repository_scheduled_tasks_path(repository) ]
   ]
@@ -28,8 +27,8 @@
   active_cls   = "border-blue-600 text-blue-600"
 %>
 <%# Pin the row to a constant height so the tab strip doesn't shift
-    when navigating between tabs with an action slot (Chats, Scheduled
-    Tasks) and tabs without one (Overview, GitHub Issues, Proposals).
+    when navigating between tabs with an action slot (Scheduled Tasks)
+    and tabs without one (Overview, GitHub Issues, Proposals).
     items-end keeps the active tab's border-b-2 (with -mb-px) flush
     against the row's border-b regardless of right-slot content. %>
 <div class="flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 min-h-10">
