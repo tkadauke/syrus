@@ -18,23 +18,32 @@ RSpec.describe "Dashboard", type: :request do
       older_repo = Factories.repository(user: user, owner: "acme", name: "older")
       newer_repo = Factories.repository(user: user, owner: "acme", name: "newer")
       ChatSession.create!(repository: older_repo, user: user, last_message_at: 2.hours.ago)
-      ChatSession.create!(repository: newer_repo, user: user, last_message_at: 1.hour.ago)
+      newer_chat = ChatSession.create!(repository: newer_repo, user: user, last_message_at: 1.hour.ago)
+      ChatSession.create!(repository: newer_repo, user: user, created_at: Time.current)
 
       get root_path
 
-      expect(response).to redirect_to(repository_chats_path(newer_repo))
+      expect(response).to redirect_to(chat_path(newer_chat))
+    end
+
+    it "redirects the Chats default to a fresh top-level chat when no chats exist" do
+      get root_path
+
+      expect(response).to redirect_to(new_chat_path)
     end
 
     it "renders top-level navigation and points Dashboard at the default Epics subtab" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
-      ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
+      chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
 
       get dashboard_jobs_path
 
       document = Nokogiri::HTML(response.body)
-      chat_links = document.css("a[href='#{repository_chats_path(repo)}']").map { |link| link.text.strip }
+      chat_links = document.css("a[href='#{chat_path(chat)}']").map { |link| link.text.strip }
+      new_chat_links = document.css("a[href='#{new_chat_path}']").map { |link| link.text.strip }
       dashboard_links = document.css("a[href='#{dashboard_epics_path}']").map { |link| link.text.strip }
       expect(chat_links).to include("Syrus", "Chats")
+      expect(new_chat_links).to include("+ New chat")
       expect(dashboard_links).to include("Dashboard", "Epics")
       expect(document.at_css("a[href='#{repositories_path}']").text).to include("Repositories")
       expect(document.at_css("a[href='#{dashboard_jobs_path}']").text).to include("Jobs")

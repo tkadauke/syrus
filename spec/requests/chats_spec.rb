@@ -95,6 +95,7 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include('data-chat-side-panel-target="whiteboardPanel"')
       expect(response.body).to include("chat_session_#{chat.id}_whiteboard_broadcast")
       expect(response.body).to include('data-version="2"')
+      expect(response.body).to include("box-1")
     end
 
     it "still renders for users whose default provider is Codex when Claude credentials exist" do

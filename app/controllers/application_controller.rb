@@ -28,10 +28,9 @@ class ApplicationController < ActionController::Base
     return new_session_path unless Current.user
 
     chat_session = Current.user.chat_sessions
-      .where.not(last_message_at: nil)
-      .order(last_message_at: :desc, created_at: :desc, id: :desc)
-      .detect(&:repository)
+      .order(Arel.sql("last_message_at IS NULL ASC"), last_message_at: :desc, created_at: :desc, id: :desc)
+      .first
 
-    chat_session ? repository_chats_path(chat_session.repository) : repositories_path
+    chat_session ? chat_path(chat_session) : new_chat_path
   end
 end
