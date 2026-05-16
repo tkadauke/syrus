@@ -1,5 +1,5 @@
 class ChatProposalFiler
-  Result = Struct.new(:proposals, :jobs, :github_issue_numbers, :warnings, keyword_init: true) do
+  Result = Struct.new(:proposals, :jobs, :epics, :github_issue_numbers, :warnings, keyword_init: true) do
     def filed_count
       proposals.size
     end
@@ -15,6 +15,7 @@ class ChatProposalFiler
     ensure_repository_scope!(ordered)
 
     jobs = []
+    epics = []
     github_issue_numbers = {}
     warnings = self.class.warnings_for(ordered)
 
@@ -24,28 +25,32 @@ class ChatProposalFiler
       ordered.each do |proposal|
         next unless proposal.proposed?
 
-        job = create_job_for(proposal)
+        materialized = create_record_for(proposal)
         proposal_attrs = {
           state: "confirmed",
           filed_at: Time.current,
           confirmed_at: Time.current
         }
 
-        if job
-          proposal_attrs[:job] = job
-          jobs << job
-          job_by_proposal_id[proposal.id] = job
-        else
+        case materialized
+        when Job
+          proposal_attrs[:job] = materialized
+          jobs << materialized
+          job_by_proposal_id[proposal.id] = materialized
+        when Epic
+          proposal_attrs[:epic] = materialized
+          epics << materialized
+        when nil
           github_issue_numbers[proposal.id] = proposal.github_issue_number
         end
 
         proposal.update!(proposal_attrs)
-        wire_dependencies_for(proposal, job, job_by_proposal_id) if job
-        start_direct_workflow(job, proposal) if job
+        wire_dependencies_for(proposal, materialized, job_by_proposal_id)
+        start_direct_workflow(materialized, proposal) if materialized.is_a?(Job)
       end
     end
 
-    Result.new(proposals: ordered, jobs: jobs, github_issue_numbers: github_issue_numbers, warnings: warnings)
+    Result.new(proposals: ordered, jobs: jobs, epics: epics, github_issue_numbers: github_issue_numbers, warnings: warnings)
   end
 
   def self.ordered_closure(selected_proposals)
@@ -58,9 +63,11 @@ class ChatProposalFiler
     warnings = []
     if kinds.include?("github_issue") && kinds.include?("syrus_issue")
       warnings << "This cascade mixes Syrus jobs and GitHub issues. Dependencies are wired only between Syrus job proposals."
+    elsif kinds.include?("github_issue") && kinds.include?("epic")
+      warnings << "This cascade mixes Epics and GitHub issues. GitHub issue dependencies are not materialized immediately."
     end
     if proposals.any? { |proposal| proposal.github_issue? && (proposal.dependencies.any? || proposal.dependents.any?) }
-      warnings << "GitHub issue proposals are filed to GitHub and picked up later by polling, so cross-proposal Job dependencies involving them are not created now."
+      warnings << "GitHub issue proposals are filed to GitHub and picked up later by polling, so cross-proposal dependencies involving them are not created now."
     end
     warnings
   end
@@ -80,13 +87,15 @@ class ChatProposalFiler
       .transform_values(&:job)
   end
 
-  def create_job_for(proposal)
+  def create_record_for(proposal)
     case proposal.kind
     when "syrus_issue"
       create_direct_job(proposal)
     when "github_issue"
       file_github_issue(proposal)
       nil
+    when "epic"
+      create_epic(proposal)
     else
       raise ArgumentError, "unsupported proposal kind: #{proposal.kind}"
     end
@@ -113,6 +122,14 @@ class ChatProposalFiler
     proposal.github_issue_number = issue.number
   end
 
+  def create_epic(proposal)
+    user.epics.create!(
+      repository: repository,
+      title: proposal.title,
+      description: proposal.body
+    )
+  end
+
   def github_labels_for(proposal)
     labels = parse_labels(proposal.labels)
     (labels + [ repository.trigger_label ]).map(&:to_s).map(&:strip).reject(&:blank?).uniq
@@ -127,7 +144,12 @@ class ChatProposalFiler
     value.to_s.split(",")
   end
 
-  def wire_dependencies_for(proposal, job, job_by_proposal_id)
+  def wire_dependencies_for(proposal, materialized, job_by_proposal_id)
+    wire_job_dependencies_for(proposal, materialized, job_by_proposal_id) if materialized.is_a?(Job)
+    wire_epic_dependencies_for(proposal, materialized) if materialized.is_a?(Epic)
+  end
+
+  def wire_job_dependencies_for(proposal, job, job_by_proposal_id)
     proposal.dependencies.each do |dependency|
       depends_on_job = job_by_proposal_id[dependency.id]
       next unless depends_on_job
@@ -137,6 +159,19 @@ class ChatProposalFiler
         depends_on_job: depends_on_job,
         source: "manual",
         created_by_user: user
+      )
+    end
+  end
+
+  def wire_epic_dependencies_for(proposal, epic)
+    proposal.dependencies.includes(:epic).each do |dependency|
+      depends_on_epic = dependency.epic
+      next unless depends_on_epic
+
+      EpicDependency.create!(
+        epic: epic,
+        depends_on_epic: depends_on_epic,
+        derived: false
       )
     end
   end

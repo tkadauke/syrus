@@ -1,0 +1,80 @@
+<% dialog_id = "chat_session_#{chat_session.id}_#{kind == "epic" ? "epic" : "job"}_proposal_dialog" %>
+
+<dialog id="<%= dialog_id %>"
+        class="w-full max-w-2xl rounded-lg border border-gray-200 p-0 shadow-xl backdrop:bg-gray-900/30"
+        data-chat-target="proposalDialog">
+  <div class="border-b border-gray-200 px-5 py-4">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-base font-semibold text-gray-900"><%= title %></h2>
+      <button type="button"
+              class="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+              data-action="chat#closeProposalModal"
+              aria-label="Close proposal form">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <%= form_with url: chat_proposals_path(chat_session), method: :post, class: "space-y-4 px-5 py-4" do |form| %>
+    <%= hidden_field_tag "chat_proposal[kind]", kind %>
+
+    <div>
+      <%= label_tag "chat_proposal_#{kind}_slug", "Slug", class: "block text-sm font-medium text-gray-700" %>
+      <%= text_field_tag "chat_proposal[slug]",
+            nil,
+            id: "chat_proposal_#{kind}_slug",
+            required: true,
+            placeholder: kind == "epic" ? "checkout-redesign" : "checkout-copy",
+            class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500" %>
+    </div>
+
+    <div>
+      <%= label_tag "chat_proposal_#{kind}_title", "Title", class: "block text-sm font-medium text-gray-700" %>
+      <%= text_field_tag "chat_proposal[title]",
+            nil,
+            id: "chat_proposal_#{kind}_title",
+            required: true,
+            class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500" %>
+    </div>
+
+    <div>
+      <%= label_tag "chat_proposal_#{kind}_body", kind == "epic" ? "Description" : "Prompt", class: "block text-sm font-medium text-gray-700" %>
+      <%= text_area_tag "chat_proposal[body]",
+            nil,
+            id: "chat_proposal_#{kind}_body",
+            rows: 8,
+            required: true,
+            class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500" %>
+    </div>
+
+    <% unless kind == "epic" %>
+      <div>
+        <%= label_tag "chat_proposal_#{kind}_labels", "Labels", class: "block text-sm font-medium text-gray-700" %>
+        <%= text_field_tag "chat_proposal[labels]",
+              nil,
+              id: "chat_proposal_#{kind}_labels",
+              placeholder: "bug, ui",
+              class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500" %>
+      </div>
+    <% end %>
+
+    <div>
+      <%= label_tag "chat_proposal_#{kind}_depends_on", "Depends on", class: "block text-sm font-medium text-gray-700" %>
+      <%= text_field_tag "chat_proposal[depends_on]",
+            nil,
+            id: "chat_proposal_#{kind}_depends_on",
+            placeholder: "existing-slug, another-slug",
+            class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500" %>
+    </div>
+
+    <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
+      <button type="button"
+              class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              data-action="chat#closeProposalModal">
+        Cancel
+      </button>
+      <%= submit_tag submit_label,
+            class: "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700" %>
+    </div>
+  <% end %>
+</dialog>

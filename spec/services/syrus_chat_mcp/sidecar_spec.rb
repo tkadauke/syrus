@@ -10,6 +10,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       name: "syrus-chat-sidecar",
       tools: [
         SyrusChatMcp::ProposeIssueTool,
+        SyrusChatMcp::ProposeEpicTool,
         SyrusChatMcp::ListProposalsTool,
         SyrusChatMcp::DeleteProposalTool,
         SyrusChatMcp::ReadJobTool,
@@ -65,6 +66,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       tool_names = response[:result][:tools].map { |tool| tool[:name] }
       expect(tool_names).to eq(%w[
         propose_issue
+        propose_epic
         list_proposals
         delete_proposal
         read_job

@@ -112,6 +112,7 @@ Rails.application.routes.draw do
   resources :chats, only: %i[ new create show ] do
     get  :messages
     post :message
+    post :proposals, action: :create_proposal
     post :stop
     post :refresh
     post :reset

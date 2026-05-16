@@ -29,7 +29,7 @@ class ChatProposal < ApplicationRecord
 
   has_many :messages, class_name: "ChatMessage", foreign_key: :proposal_id, dependent: :nullify
 
-  enum :kind, { syrus_issue: "syrus_issue", github_issue: "github_issue" }, validate: true
+  enum :kind, { syrus_issue: "syrus_issue", github_issue: "github_issue", epic: "epic" }, validate: true
   enum :state, {
     proposed: "proposed",
     confirmed: "confirmed",

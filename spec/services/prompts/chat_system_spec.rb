@@ -81,10 +81,12 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("The durable products of this session are proposals")
+    expect(out).to include("`propose_issue` and `propose_epic`")
     expect(out).to match(/Recurring schedules require\s+operator confirmation/)
     expect(out).to include("Use unique, stable, descriptive `slug`s")
     expect(out).to include("Express dependencies between proposals when they exist")
     expect(out).to include("Default `kind: \"syrus_issue\"`")
+    expect(out).to include("Use `propose_epic`")
     expect(out).to include("Use `schedule_recurring(cron_expression, label, prompt)` only")
   end
 

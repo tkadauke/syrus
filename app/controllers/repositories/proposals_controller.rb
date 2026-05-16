@@ -119,8 +119,10 @@ class Repositories::ProposalsController < ApplicationController
 
   def file_notice(result)
     job_links = result.jobs.map { |job| helpers.link_to("Job ##{job.id}", job_path(job)) }
+    epic_labels = result.epics.map(&:display_number)
     parts = [ "Filed #{helpers.pluralize(result.filed_count, 'proposal')}." ]
     parts << "Created #{helpers.pluralize(result.jobs.size, 'Job')}: #{job_links.to_sentence}." if job_links.any?
+    parts << "Created #{helpers.pluralize(result.epics.size, 'Epic')}: #{epic_labels.to_sentence}." if epic_labels.any?
     parts << "GitHub issues will be picked up by polling." if result.github_issue_numbers.any?
     parts.join(" ").html_safe
   end

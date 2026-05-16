@@ -76,6 +76,20 @@ RSpec.describe ChatProposalFiler do
       expect(JobDependency.count).to eq(0)
     end
 
+    it "files Epic proposals and wires Epic dependencies" do
+      root = proposal(slug: "root-epic", title: "Root Epic", kind: "epic")
+      leaf = proposal(slug: "leaf-epic", title: "Leaf Epic", kind: "epic")
+      depends_on(leaf, root)
+
+      result = described_class.new(user: user, repository: repository).file!([ leaf ])
+
+      expect(result.epics.map(&:title)).to eq([ "Root Epic", "Leaf Epic" ])
+      expect(root.reload).to be_confirmed
+      expect(leaf.reload).to be_confirmed
+      expect(root.epic).to have_attributes(title: "Root Epic", description: "Body for Root Epic")
+      expect(leaf.epic.depends_on_epics).to contain_exactly(root.epic)
+    end
+
     it "rolls back proposal and Job changes when filing fails" do
       root = proposal(slug: "root", title: "Root")
       leaf = proposal(slug: "leaf", title: "Leaf")

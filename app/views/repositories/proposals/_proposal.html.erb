@@ -25,6 +25,8 @@
           <% end %>
           <% if proposal.job %>
             &middot; <%= link_to "Confirmed as Job ##{proposal.job.id}", job_path(proposal.job), class: "text-blue-600 underline hover:no-underline" %>
+          <% elsif proposal.epic %>
+            &middot; Confirmed as <%= proposal.epic.display_number %>
           <% elsif proposal.github_issue_number.present? %>
             &middot; Filed as GitHub issue #<%= proposal.github_issue_number %>
           <% end %>

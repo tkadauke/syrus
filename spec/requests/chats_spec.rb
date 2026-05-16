@@ -192,6 +192,18 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include(chat_proposal_reject_path(chat, proposal))
     end
 
+    it "renders manual proposal buttons and modal forms in the composer" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+
+      get chat_path(chat)
+
+      expect(response.body).to include("Propose Epic")
+      expect(response.body).to include("Propose Job")
+      expect(response.body).to include("chat_session_#{chat.id}_epic_proposal_dialog")
+      expect(response.body).to include("chat_session_#{chat.id}_job_proposal_dialog")
+      expect(response.body).to include(chat_proposals_path(chat))
+    end
+
     it "does not render pending actions in a side panel" do
       chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
       job = Factories.job(repository: repo)
@@ -283,6 +295,66 @@ RSpec.describe "Chats", type: :request do
 
       expect(response).to redirect_to(chat_path(chat))
       expect(flash[:alert]).to eq("Message cannot be blank.")
+    end
+  end
+
+  describe "POST /chats/:id/proposals" do
+    it "creates a proposed Job card without enqueueing a chat turn" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: 1.day.ago)
+      root = chat.proposals.create!(slug: "root", title: "Root", body: "Do root.")
+
+      expect {
+        post chat_proposals_path(chat), params: {
+          chat_proposal: {
+            kind: "syrus_issue",
+            slug: "manual-job",
+            title: "Manual Job",
+            body: "Do the job.",
+            labels: "ui, polish",
+            depends_on: "root"
+          }
+        }
+      }.to change(ChatProposal, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob).exactly(0).times
+
+      proposal = chat.proposals.find_by!(slug: "manual-job")
+      expect(response).to redirect_to(chat_path(chat))
+      expect(proposal).to have_attributes(kind: "syrus_issue", title: "Manual Job", labels: %(["ui","polish"]))
+      expect(proposal.dependencies).to contain_exactly(root)
+      expect(chat.messages.last).to have_attributes(role: "assistant", proposal: proposal)
+
+      get chat_path(chat)
+
+      expect(response.body).to include("Manual Job")
+      expect(response.body).to include("Do the job.")
+      expect(response.body).to include("Proposed")
+      expect(response.body).to include(chat_proposal_confirm_path(chat, proposal))
+      expect(response.body).to include(chat_proposal_reject_path(chat, proposal))
+    end
+
+    it "creates a proposed Epic card that confirms into an Epic" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+
+      post chat_proposals_path(chat), params: {
+        chat_proposal: {
+          kind: "epic",
+          slug: "manual-epic",
+          title: "Manual Epic",
+          body: "Coordinate the work."
+        }
+      }
+
+      proposal = chat.proposals.find_by!(slug: "manual-epic")
+      expect(proposal).to have_attributes(kind: "epic", state: "proposed")
+
+      expect {
+        post chat_proposal_confirm_path(chat, proposal)
+      }.to change(Epic, :count).by(1)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(proposal.reload).to be_confirmed
+      expect(proposal.epic).to have_attributes(title: "Manual Epic", description: "Coordinate the work.")
     end
   end
 

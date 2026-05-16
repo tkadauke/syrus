@@ -3,7 +3,7 @@
 <% controls_id = chat_session ? "chat_session_#{chat_session.id}_controls" : "new_chat_controls" %>
 
 <div id="<%= controls_id %>" class="bg-white border border-gray-200 rounded-lg p-3">
-  <div class="flex items-end gap-3">
+  <div class="flex flex-wrap items-end gap-3">
     <%= form_with url: action_path,
           method: :post,
           class: "flex flex-1 items-end gap-3",
@@ -35,4 +35,34 @@
     <% end %>
   </div>
 
+  <div class="mt-3 flex flex-wrap items-center gap-2">
+    <% proposal_disabled = chat_session.blank? || repository.blank? || turn_in_flight %>
+    <button type="button"
+            class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+            data-action="chat#openProposalModal"
+            data-chat-proposal-dialog-id="chat_session_<%= chat_session&.id || "new" %>_epic_proposal_dialog"
+            <%= "disabled" if proposal_disabled %>>
+      Propose Epic
+    </button>
+    <button type="button"
+            class="rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+            data-action="chat#openProposalModal"
+            data-chat-proposal-dialog-id="chat_session_<%= chat_session&.id || "new" %>_job_proposal_dialog"
+            <%= "disabled" if proposal_disabled %>>
+      Propose Job
+    </button>
+  </div>
+
+  <% if chat_session && repository %>
+    <%= render "repositories/chats/manual_proposal_dialog",
+          chat_session: chat_session,
+          kind: "epic",
+          title: "Propose Epic",
+          submit_label: "Create Epic Proposal" %>
+    <%= render "repositories/chats/manual_proposal_dialog",
+          chat_session: chat_session,
+          kind: "syrus_issue",
+          title: "Propose Job",
+          submit_label: "Create Job Proposal" %>
+  <% end %>
 </div>

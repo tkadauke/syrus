@@ -30,6 +30,7 @@ module SyrusChatMcp
         name: "syrus-chat-sidecar",
         tools: [
           ProposeIssueTool,
+          ProposeEpicTool,
           ListProposalsTool,
           DeleteProposalTool,
           ReadJobTool,
