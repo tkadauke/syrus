@@ -146,6 +146,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_170000) do
     t.datetime "edited_at"
     t.integer "epic_id"
     t.datetime "filed_at"
+    t.datetime "confirmed_at"
     t.integer "github_issue_number"
     t.integer "job_id"
     t.string "kind", default: "syrus_issue", null: false
