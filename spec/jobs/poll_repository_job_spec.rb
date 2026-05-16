@@ -96,6 +96,18 @@ RSpec.describe PollRepositoryJob do
       }.not_to have_enqueued_job(IngestIssueImagesJob)
     end
 
+    it "runs the ingestion classifier for new classifier-pending jobs when the agent is configured" do
+      user.update!(claude_oauth_token: "oat-test")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 88, body: "Classify me, consul.") ])
+      allow(IngestionClassifier).to receive(:call)
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 88)
+      expect(IngestionClassifier).to have_received(:call).with(job: job)
+    end
+
     it "ingests an Epic marker declaration as an Epic without creating a Job" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(number: 77, body: "Epic: Attachments rollout") ])

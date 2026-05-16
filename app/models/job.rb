@@ -418,11 +418,17 @@ class Job < ApplicationRecord
   end
 
   def mark_valid_and_queue!
-    update!(
-      validity: "valid",
-      invalidation_reason: nil,
-      invalidation_evidence: []
-    )
+    transaction do
+      update!(
+        state: closed? ? "triaging" : state,
+        closure_reason: nil,
+        finished_at: nil,
+        validity: "valid",
+        invalidation_reason: nil,
+        invalidation_evidence: [],
+        triaging_reason: "classifier_pending"
+      )
+    end
     advance_after_triage! if may_advance_after_triage?
   end
 

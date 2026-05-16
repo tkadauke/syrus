@@ -326,6 +326,26 @@ RSpec.describe Job do
       expect(job.runs).to be_empty
     end
 
+    it "lets an operator mark a closed invalid job valid and queue it" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+      job.update!(
+        state: "closed",
+        closure_reason: "duplicate",
+        finished_at: Time.current,
+        validity: "duplicate",
+        invalidation_reason: "Already covered.",
+        invalidation_evidence: [ "https://github.com/acme/widgets/issues/2" ]
+      )
+
+      expect { job.mark_valid_and_queue! }
+        .to change { job.reload.state }.from("closed").to("queued")
+        .and change { job.runs.count }.from(0).to(1)
+
+      expect(job.closure_reason).to be_nil
+      expect(job.finished_at).to be_nil
+      expect(job.validity).to eq("valid")
+    end
+
     it "blocks on backlog epics and queues when the epic enters in_progress" do
       epic = Factories.epic(user: user, repository: repository, state: "backlog")
       job = Job.create!(user: user, repository: repository, issue_number: 1, epic: epic)

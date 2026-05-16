@@ -109,6 +109,7 @@ class PollRepositoryJob < ApplicationJob
       operator_chat_disabled: operator_chat_disabled_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue)
     )
+    classify_if_available(job)
     enqueue_issue_image_ingest(job)
   end
 
@@ -155,6 +156,13 @@ class PollRepositoryJob < ApplicationJob
     )
     job.advance_after_triage! if epic && job.may_advance_after_triage?
     enqueue_issue_image_ingest(job)
+  end
+
+  def classify_if_available(job)
+    return unless job.triaging? && job.triaging_reason_classifier_pending?
+    return unless job.user.agent_provider_configured?(job.agent_provider)
+
+    IngestionClassifier.call(job: job)
   end
 
   def latest_job_for_issue(repository, issue_number)
