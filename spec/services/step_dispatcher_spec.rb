@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe StepDispatcher do
+  include ActiveJob::TestHelper
+
   let(:job) { Factories.job }
   let!(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
   let!(:s1) { Step.create!(workflow: workflow, kind: "implement", position: 0) }
@@ -101,6 +103,24 @@ RSpec.describe StepDispatcher do
       workflow.start!; workflow.save!
       described_class.advance_from(s3)  # last step — no next
       expect(workflow.reload).to be_succeeded
+    end
+
+    it "schedules a merge-state poll after a pending stacked auto-merge rebase push" do
+      clear_enqueued_jobs
+      job.repository.update!(auto_merge_enabled: true)
+      job.update!(pr_number: 42, branch_name: "syrus/issue-42-#{job.id}")
+      pending = Workflows::AutoMerge.instantiate(job: job)
+      pending.set_artifact!("pending_auto_merge", "waiting_for_parent")
+      pending.cancel!
+      pending.save!
+      rebase = Workflow.create!(job: job, trigger_kind: "rebase")
+      force_push = Step.create!(workflow: rebase, kind: "force_push", position: 0)
+      rebase.start!; rebase.save!
+      force_push.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      described_class.advance_from(force_push)
+
+      expect(enqueued_jobs.any? { |entry| entry[:job] == PollMergeStateJob }).to be(true)
     end
 
     it "advances a succeeded grade step to the post-loop step" do

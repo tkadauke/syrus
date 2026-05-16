@@ -464,6 +464,12 @@ class Job < ApplicationRecord
     end
   end
 
+  def pending_auto_merge?
+    workflows.where(trigger_kind: "auto_merge").any? do |workflow|
+      workflow.artifact("pending_auto_merge") == "waiting_for_parent"
+    end
+  end
+
   def log_pending_dependency_warnings!
     return if pending_dependency_warnings.blank?
 

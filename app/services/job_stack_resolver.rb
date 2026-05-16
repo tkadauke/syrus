@@ -36,7 +36,17 @@ class JobStackResolver
     parent_id = parent&.id
     return if @job.parent_job_id == parent_id
 
+    old_parent = @job.parent_job
     @job.update!(parent_job: parent)
+    refresh_stack_footers(old_parent, parent, @job)
+  end
+
+  def refresh_stack_footers(*jobs)
+    jobs.compact.uniq.each do |job|
+      PrStackFooter.refresh!(job)
+    rescue StandardError => e
+      Rails.logger.info("[JobStackResolver] failed to refresh stack footer for job #{job.id}: #{e.class}: #{e.message}")
+    end
   end
 
   def parent_ready?(parent)

@@ -26,6 +26,6 @@ RSpec.describe Steps::Push do
       expect(body).to include("across 2 Runs at a total cost of $0.30")
     end
 
-    described_class.new(run).send(:update_pr_cost_footer)
+    described_class.new(run).send(:update_managed_pr_footers)
   end
 end

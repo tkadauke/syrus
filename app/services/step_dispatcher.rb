@@ -244,6 +244,7 @@ class StepDispatcher
     @workflow.save!
     StackRebaseCoordinator.parent_amended(@workflow.job) if pushed_workflow?
     schedule_mergeability_recheck
+    schedule_auto_merge_recheck
   end
 
   def pushed_workflow?
@@ -257,5 +258,14 @@ class StepDispatcher
     job = @workflow.job
     return unless job.pr_number.present? || job.external_pr_number.present?
     PollRebaseJob.set(wait: MERGEABILITY_RECHECK_DELAY).perform_later(job.id)
+  end
+
+  def schedule_auto_merge_recheck
+    job = @workflow.job
+    return unless pushed_workflow?
+    return unless job.repository.auto_merge_enabled?
+    return unless job.pending_auto_merge?
+
+    PollMergeStateJob.set(wait: MERGEABILITY_RECHECK_DELAY).perform_later(job.id)
   end
 end

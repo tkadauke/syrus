@@ -56,4 +56,17 @@ RSpec.describe Steps::AutoMerge do
     expect(step.reload).to be_cancelled
     expect(workflow.reload).to be_cancelled
   end
+
+  it "queues the merge attempt while a stack parent is still open" do
+    parent = Factories.job(user: user, repository: repository, issue_number: 41, pr_number: 6)
+    job.update!(parent_job: parent)
+    allow(client).to receive(:merge_pull_request)
+
+    described_class.new(run).call
+
+    expect(client).not_to have_received(:merge_pull_request)
+    expect(workflow.reload.artifact("pending_auto_merge")).to eq("waiting_for_parent")
+    expect(run.reload).to be_cancelled
+    expect(run.job_logs.last.chunk).to include("waiting for parent #6 to merge")
+  end
 end

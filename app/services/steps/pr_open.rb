@@ -28,6 +28,7 @@ module Steps
       )
       job.update!(pr_number: pr_number, branch_name: workspace.branch_name)
       job.mark_implemented! if job.may_mark_implemented?
+      refresh_stack_footer
       log("pr_open: opened PR ##{pr_number} (#{title.inspect})")
     end
 
@@ -98,7 +99,20 @@ module Steps
       parts << "---"
       implement_run = workflow.steps.where(kind: "implement").last&.latest_run
       parts << attribution_footer(implement_run)
-      PrCostFooter.apply(parts.join("\n"), job)
+      PrCostFooter.apply(PrStackFooter.apply(parts.join("\n"), job), job)
+    end
+
+    def refresh_stack_footer
+      return unless job.parent_job.present? || job.stack_children.exists?
+
+      client = GithubClient.for(repository: repository, user: job.user)
+      [ job.parent_job, job ].compact.uniq.each do |stack_job|
+        next if stack_job.pr_number.blank?
+
+        pr = client.pull_request(repository.slug, stack_job.pr_number, bypass_cache: true)
+        body = PrCostFooter.apply(PrStackFooter.apply(pr.body.to_s, stack_job), stack_job)
+        client.update_pull_request_body(repository.slug, stack_job.pr_number, body)
+      end
     end
 
     def attribution_footer(implement_run)

@@ -62,6 +62,7 @@ class PollPullRequestJob < ApplicationJob
       r.save!
     end
     @job.close_with_reason!(reason)
+    StackRebaseCoordinator.parent_closed(@job) if reason == "pr_closed"
   end
 
   def has_label?(pr, name)

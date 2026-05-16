@@ -33,6 +33,17 @@ RSpec.describe PollMergeStateJob do
     }.to change { job.workflows.where(trigger_kind: "auto_merge").count }.by(1)
   end
 
+  it "queues AutoMerge instead of merging a clean child before its parent" do
+    parent = Factories.job(user: user, repository: repository, issue_number: 41, pr_number: 6)
+    job.update!(parent_job: parent)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to change { job.workflows.where(trigger_kind: "auto_merge").count }.by(1)
+
+    expect(job.current_run.job_logs.last.chunk).to include("waiting for parent #6 to merge")
+  end
+
   it "dispatches Rebase when approved but behind" do
     allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(mergeable_state: "behind", mergeable: false))
 
