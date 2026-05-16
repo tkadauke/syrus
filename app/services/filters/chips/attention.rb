@@ -3,7 +3,7 @@ module Filters
     # Preset macro chip — value selects a named composite filter
     # (pinned / in_progress / inbox / awaiting_approval / just_failed /
     # in_review / stale / blocked / merged_this_week / awaiting_epic /
-    # needs_review). Each
+    # needs_review / landing_queue). Each
     # preset compiles to whatever sub-scope it needs; the UI will
     # eventually let operators "expand" a preset chip into its
     # primitive sub-chips for further editing.
@@ -15,7 +15,7 @@ module Filters
 
       PRESETS = %w[
         pinned in_progress inbox awaiting_approval just_failed in_review
-        stale blocked merged_this_week awaiting_epic needs_review
+        stale blocked merged_this_week awaiting_epic needs_review landing_queue
       ].freeze
 
       values(*PRESETS)
@@ -83,6 +83,10 @@ module Filters
 
       def apply_needs_review
         scope.where(id: needs_review_ids)
+      end
+
+      def apply_landing_queue
+        scope.landing_queue
       end
 
       def awaiting_operator_ids

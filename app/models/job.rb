@@ -81,6 +81,7 @@ class Job < ApplicationRecord
 
   scope :open_threads, -> { where.not(state: %w[ closed merged ]) }
   scope :closed_threads, -> { where(state: %w[ closed merged ]) }
+  scope :landing_queue, -> { where(state: %w[ approved landing ]) }
   scope :issue_kind, -> { where(kind: "issue") }
   scope :cron_kind,  -> { where(kind: "cron") }
   scope :direct_kind, -> { where(kind: "direct") }
@@ -125,6 +126,7 @@ class Job < ApplicationRecord
     state :approved
     state :landing
     state :merged
+    state :landing_failed
     state :closed
 
     event :advance_after_triage do
@@ -147,11 +149,11 @@ class Job < ApplicationRecord
     end
 
     event :mark_implemented do
-      transitions from: [ :queued, :open ], to: :implemented
+      transitions from: [ :queued, :open, :landing_failed ], to: :implemented
     end
 
     event :approve, before: :assign_approval_metadata do
-      transitions from: :implemented, to: :approved
+      transitions from: [ :open, :implemented, :landing_failed ], to: :approved
     end
 
     event :unapprove, after: :clear_approval_metadata do
@@ -159,6 +161,10 @@ class Job < ApplicationRecord
     end
 
     event :land do
+      transitions from: :approved, to: :landing
+    end
+
+    event :start_landing do
       transitions from: :approved, to: :landing
     end
 
@@ -172,9 +178,15 @@ class Job < ApplicationRecord
     end
 
     event :close, after: :refresh_epic_auto_state do
-      transitions from: [ :open, :triaging, :blocked_by_epic, :queued, :implemented, :approved, :landing ], to: :closed, after: -> {
+      transitions from: [ :open, :triaging, :blocked_by_epic, :queued, :implemented, :approved, :landing, :landing_failed ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
+      }
+    end
+
+    event :fail_landing do
+      transitions from: :landing, to: :implemented, after: -> {
+        self.approved_at = nil
       }
     end
 
@@ -230,6 +242,7 @@ class Job < ApplicationRecord
   after_commit :broadcast_epic_refresh
 
   after_update_commit :rebase_stack_children_after_merge, if: :saved_change_to_pr_merged_terminal?
+  after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
 
   def solid_queue_priority
     PRIORITY_TO_SQ.fetch(priority.to_s, PRIORITY_TO_SQ["medium"])
@@ -266,6 +279,12 @@ class Job < ApplicationRecord
   def close_with_reason!(reason)
     update!(closure_reason: reason)
     close!
+  end
+
+  def approve_for_landing!
+    return true if approved? || landing? || closed?
+
+    approve!(via: "github_review")
   end
 
   def mark_feedback_addressed!(addressed_at)
@@ -785,6 +804,17 @@ class Job < ApplicationRecord
 
   def saved_change_to_pr_merged_terminal?
     saved_change_to_state? && (closed? || merged?) && closure_reason == "pr_merged"
+  end
+
+  def saved_change_needs_landing_queue_processor?
+    return true if saved_change_to_state? && approved?
+    return true if saved_change_to_state? && (closed? || merged?) && closure_reason == "pr_merged"
+
+    false
+  end
+
+  def enqueue_landing_queue_processor
+    LandingQueueProcessorJob.perform_later
   end
 
   def rebase_stack_children_after_merge

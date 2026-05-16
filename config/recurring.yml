@@ -19,6 +19,9 @@ default: &default
   poll_merge_states:
     class: PollAllMergeStatesJob
     schedule: every 5 minutes
+  process_landing_queue:
+    class: LandingQueueProcessorJob
+    schedule: every 30 seconds
   poll_scheduled_tasks:
     class: PollScheduledTasksJob
     schedule: every minute

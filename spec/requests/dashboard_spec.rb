@@ -1067,7 +1067,7 @@ RSpec.describe "Dashboard", type: :request do
         document = Nokogiri::HTML(response.body)
         attention = document.at_css("aside")
         # Always-visible + when_present (Just failed has 1 match).
-        expect(attention.text).to include("Inbox", "In review", "Awaiting your approval", "Just failed")
+        expect(attention.text).to include("Inbox", "Landing queue", "In review", "Awaiting your approval", "Just failed")
         # On-demand folders live behind the "More" disclosure.
         expect(attention.text).to include("More", "Awaiting Epic", "Needs review", "Merged this week")
         # Sweeping retired folders means "Awaiting your move" is gone.

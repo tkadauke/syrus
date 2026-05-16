@@ -23,6 +23,7 @@ class SmartFolder < ApplicationRecord
     { key: "in_progress",      name: "In progress",      visibility: :when_present, filter: attention_preset_filter("in_progress") },
     { key: "inbox",            name: "Inbox",            visibility: :always,       filter: attention_preset_filter("inbox") },
     { key: "awaiting_approval", name: "Awaiting your approval", visibility: :when_present, filter: attention_preset_filter("awaiting_approval") },
+    { key: "landing_queue",    name: "Landing queue",    visibility: :always,       filter: attention_preset_filter("landing_queue") },
     { key: "just_failed",      name: "Just failed",      visibility: :when_present, filter: attention_preset_filter("just_failed") },
     { key: "in_review",        name: "In review",        visibility: :always,       filter: attention_preset_filter("in_review") },
     { key: "blocked",          name: "Blocked",          visibility: :when_present, filter: attention_preset_filter("blocked") },

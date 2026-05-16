@@ -13,6 +13,7 @@ module JobsHelper
     "approved" => "bg-green-100 text-green-700",
     "landing" => "bg-teal-100 text-teal-700",
     "merged" => "bg-emerald-100 text-emerald-700",
+    "landing_failed" => "bg-red-100 text-red-700",
     "closed"    => "bg-gray-200 text-gray-800",
     "preempted" => "bg-violet-100 text-violet-700",
     "pending"   => "bg-gray-100 text-gray-700"
@@ -273,7 +274,7 @@ module JobsHelper
     return "preempted" if job.closure_reason == "preempted"
     return "preempted" if job.closure_reason&.start_with?("external_pr_")
     return "closed" if job.closed?
-    return job.state if job.triaging? || job.blocked_by_epic?
+    return job.state if job.triaging? || job.blocked_by_epic? || job.implemented? || job.approved? || job.landing? || job.landing_failed?
     job.current_run&.state || "pending"
   end
 

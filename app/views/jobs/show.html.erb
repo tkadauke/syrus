@@ -184,6 +184,23 @@
     </div>
   <% end %>
 
+  <% if @landing_queue_entry %>
+    <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
+      <span class="font-medium">In landing queue:</span>
+      position #<%= @landing_queue_entry.position %>
+      <% if @landing_queue_entry.blocked_reason.present? %>
+        (<%= @landing_queue_entry.blocked_reason %>)
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @job.landing_failure_reason.present? %>
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+      <span class="font-medium">Landing failed:</span>
+      <%= @job.landing_failure_reason %>
+    </div>
+  <% end %>
+
   <section class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>

@@ -10,6 +10,7 @@ class JobsController < ApplicationController
                                      .merge(Run.where(state: "awaiting_operator"))
                                      .order(asked_at: :desc, created_at: :desc)
                                      .first
+    @landing_queue_entry = LandingQueueProcessor.entries(Current.user.jobs).find { |entry| entry.job_id == @job.id }
   end
 
   def new

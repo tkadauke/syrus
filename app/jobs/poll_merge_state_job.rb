@@ -26,9 +26,7 @@ class PollMergeStateJob < ApplicationJob
 
     gate = AutoMergeGate.new(job: @job, client: @client, bypass_cache: true, pr: @pr).evaluate
     if gate.merge_ready?
-      return if wait_for_stack_parent_merge
-
-      dispatch_auto_merge
+      approve_for_landing
     elsif gate.approved? && rebaseable_mergeable_state?
       dispatch_rebase
     elsif !gate.approved? && mergeable_state == "behind"
@@ -53,23 +51,12 @@ class PollMergeStateJob < ApplicationJob
     REBASE_MERGEABLE_STATES.include?(mergeable_state)
   end
 
-  def dispatch_auto_merge
-    workflow = Workflows::AutoMerge.instantiate(job: @job)
-    audit("auto_merge: dispatching workflow ##{workflow.id} for PR ##{@job.pr_number}")
-    Rails.logger.info("[PollMergeStateJob] job #{@job.id} PR ##{@job.pr_number} approved and clean; instantiating AutoMerge workflow")
-    StepDispatcher.start_workflow(workflow)
-  end
+  def approve_for_landing
+    return unless @job.may_approve?
 
-  def wait_for_stack_parent_merge
-    parent = @job.parent_job
-    return false unless parent
-    return false if parent.closed? && parent.closure_reason == "pr_merged"
-
-    unless @job.pending_auto_merge?
-      audit("auto_merge: waiting for parent ##{parent.pr_number || parent.id} to merge")
-      dispatch_auto_merge
-    end
-    true
+    @job.approve_for_landing!
+    audit("landing_queue: approved PR ##{@job.pr_number}; queued for landing")
+    Rails.logger.info("[PollMergeStateJob] job #{@job.id} PR ##{@job.pr_number} approved and clean; queued for landing")
   end
 
   def dispatch_rebase

@@ -35,6 +35,9 @@ RSpec.describe Steps::AutoMerge do
   end
 
   it "re-verifies gates, merges via GitHub, comments, and closes the Job" do
+    job.approve!
+    job.start_landing!
+    job.save!
     allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
     allow(client).to receive(:add_issue_comment)
 

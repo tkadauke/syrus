@@ -375,6 +375,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_190000) do
     t.string "last_ci_handled_sha"
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
+    t.text "landing_failure_reason"
     t.boolean "operator_chat_disabled", default: false, null: false
     t.integer "parent_job_id"
     t.json "pending_epic_reference", null: false
@@ -402,6 +403,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_190000) do
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
     t.index ["scheduled_task_id"], name: "index_jobs_on_scheduled_task_id"
+    t.index ["state", "approved_at", "id"], name: "index_jobs_on_state_and_approved_at_and_id"
     t.index ["stack_base"], name: "index_jobs_on_stack_base"
     t.index ["triaging_reason"], name: "index_jobs_on_triaging_reason"
     t.index ["user_id"], name: "index_jobs_on_user_id"
@@ -667,6 +669,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_190000) do
     t.string "gh_rate_limit_resource", limit: 32
     t.string "github_handle"
     t.string "github_token"
+    t.boolean "landing_paused", default: false, null: false
     t.string "name"
     t.string "password_digest", null: false
     t.boolean "scheduling_paused", default: false, null: false
@@ -674,6 +677,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_190000) do
     t.datetime "updated_at", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
+    t.index ["landing_paused"], name: "index_users_on_landing_paused"
   end
 
   create_table "whiteboards", force: :cascade do |t|

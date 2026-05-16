@@ -27,21 +27,23 @@ RSpec.describe PollMergeStateJob do
     allow_any_instance_of(GithubClient).to receive(:pr_commits).and_return([])
   end
 
-  it "dispatches AutoMerge when approved and clean" do
+  it "marks clean approved PRs approved for the landing queue" do
     expect {
       described_class.perform_now(job.id)
-    }.to change { job.workflows.where(trigger_kind: "auto_merge").count }.by(1)
+    }.to change { job.reload.state }.to("approved")
+
+    expect(job.approved_at).to be_present
   end
 
-  it "queues AutoMerge instead of merging a clean child before its parent" do
+  it "queues a clean child instead of merging it before its parent" do
     parent = Factories.job(user: user, repository: repository, issue_number: 41, pr_number: 6)
     job.update!(parent_job: parent)
 
-    expect {
-      described_class.perform_now(job.id)
-    }.to change { job.workflows.where(trigger_kind: "auto_merge").count }.by(1)
+    described_class.perform_now(job.id)
 
-    expect(job.current_run.job_logs.last.chunk).to include("waiting for parent #6 to merge")
+    expect(job.reload).to be_approved
+    entry = LandingQueueProcessor.entries(Job.where(id: job.id)).first
+    expect(entry.blocked_reason).to include("waiting for #41 to merge")
   end
 
   it "dispatches Rebase when approved but behind" do

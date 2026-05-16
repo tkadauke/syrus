@@ -9,6 +9,14 @@
         <span><%= folder.name %></span>
         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>
       <% end %>
+      <% if active && folder.filter["attention"] == "landing_queue" %>
+        <div class="px-2 pb-1">
+          <%= button_to Current.user.landing_paused? ? "Resume landing" : "Pause landing",
+                toggle_landing_pause_path,
+                method: :post,
+                class: "w-full rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer" %>
+        </div>
+      <% end %>
     <% end %>
   </nav>
 

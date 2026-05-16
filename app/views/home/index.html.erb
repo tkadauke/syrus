@@ -323,6 +323,7 @@
             <tbody class="divide-y divide-gray-100 text-sm">
               <% @jobs.each do |job| %>
                 <% latest_workflow = job.latest_workflow %>
+                <% landing_entry = @landing_queue_entries[job.id] %>
                 <tr>
                   <td class="px-4 py-3 align-top">
                     <%= check_box_tag "job_ids[]", job.id, false,
@@ -379,6 +380,14 @@
                     <% end %>
                     <% if job.approved_at.present? || job.state == "implemented" %>
                       <div class="text-xs text-gray-500 mt-0.5"><%= approval_caption(job) %></div>
+                    <% end %>
+                    <% if landing_entry %>
+                      <div class="mt-1 text-xs text-gray-500">
+                        Landing queue position #<%= landing_entry.position %>
+                        <% if landing_entry.blocked_reason.present? %>
+                          (<%= landing_entry.blocked_reason %>)
+                        <% end %>
+                      </div>
                     <% end %>
                     <% if job.tags.any? %>
                       <div class="mt-1 flex flex-wrap items-center gap-1">

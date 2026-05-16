@@ -61,6 +61,12 @@ class HomeController < ApplicationController
     end
   end
 
+  def toggle_landing_pause
+    Current.user.update!(landing_paused: !Current.user.landing_paused?)
+    LandingQueueProcessorJob.perform_later unless Current.user.landing_paused?
+    redirect_back fallback_location: dashboard_jobs_path, notice: Current.user.landing_paused? ? "Landing paused." : "Landing resumed."
+  end
+
   private
 
   def load_epics_dashboard
@@ -115,6 +121,7 @@ class HomeController < ApplicationController
     @jobs = @job_filter.apply(@jobs)
     @epics = epics_for_active_smart_folder(active_repo_ids)
     @smart_folder_counts = smart_folder_counts(Current.user.jobs.where(repository_id: active_repo_ids))
+    @landing_queue_entries = LandingQueueProcessor.entries(Current.user.jobs.where(repository_id: active_repo_ids)).index_by(&:job_id)
 
     # Split the built-ins into the primary sidebar list and the
     # collapsible "More" disclosure at the bottom. See
@@ -144,14 +151,17 @@ class HomeController < ApplicationController
 
     @jobs_total = @jobs.count
     @jobs = @jobs.includes(:tags)
-    @jobs = if @job_filter.pinned?
+    @jobs = if landing_queue_folder?
+      ordered_ids = @landing_queue_entries.keys
+      @jobs.sort_by { |job| ordered_ids.index(job.id) || ordered_ids.length }
+    elsif @job_filter.pinned?
       # apply_attention(pinned) already joined job_pins; ordering by
       # the pin's created_at puts the most recently pinned jobs first.
       @jobs.order("job_pins.created_at DESC", created_at: :desc)
     else
       @jobs.order(created_at: :desc)
     end
-    @jobs = @jobs.offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    @jobs = @jobs.is_a?(Array) ? @jobs.slice((@page - 1) * PER_PAGE, PER_PAGE) || [] : @jobs.offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
     @pinned_job_ids = Current.user.job_pins.where(job_id: @jobs.map(&:id)).pluck(:job_id)
 
     # Workflows tab — every burst of work, newest first. Eager-load
@@ -303,6 +313,10 @@ class HomeController < ApplicationController
       count += epic_count_for_filter(folder.filter)
       [ folder.id, count ]
     end
+  end
+
+  def landing_queue_folder?
+    filter_has_attention_chip?(@job_filter.to_h, "landing_queue")
   end
 
   def epics_for_active_smart_folder(active_repo_ids)
