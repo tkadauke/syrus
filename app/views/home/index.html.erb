@@ -1,4 +1,4 @@
-<div class="space-y-6">
+<div class="space-y-6" data-controller="epic-graph-drawer">
   <%# Subscribe to the per-user "jobs" stream so any Job/Run change
       (new Job, state pill move, workflow count tick, mergeability flip)
       morphs the dashboard live without a reload. %>
@@ -204,6 +204,7 @@
               <th class="px-4 py-2 text-left">Epic</th>
               <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
               <th class="hidden sm:table-cell px-4 py-2 text-left">Updated</th>
+              <th class="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 text-sm">
@@ -230,6 +231,22 @@
                   <%= link_to epic.repository.slug, repository_path(epic.repository), class: "text-gray-700 hover:underline" %>
                 </td>
                 <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(epic.updated_at) %></td>
+                <td class="px-4 py-3 text-right">
+                  <details class="relative inline-block text-left">
+                    <summary class="cursor-pointer list-none rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                      Menu
+                    </summary>
+                    <div class="absolute right-0 z-10 mt-2 w-56 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg">
+                      <%= link_to "Show dependency graph",
+                            graph_epic_path(epic, drawer: 1),
+                            class: "block px-3 py-2 text-left text-gray-700 hover:bg-gray-50",
+                            data: {
+                              turbo_frame: "epic_graph_drawer_body",
+                              action: "epic-graph-drawer#open"
+                            } %>
+                    </div>
+                  </details>
+                </td>
               </tr>
             <% end %>
           </tbody>
@@ -618,4 +635,33 @@
       </div>
     <% end %>
   <% end %>
+
+  <div data-epic-graph-drawer-target="overlay"
+       class="hidden fixed inset-0 z-40 bg-gray-900/30"
+       data-action="click->epic-graph-drawer#close">
+  </div>
+  <aside data-epic-graph-drawer-target="panel"
+         class="fixed inset-y-0 right-0 z-50 flex w-full max-w-3xl translate-x-full flex-col border-l border-gray-200 bg-white shadow-xl transition-transform duration-200"
+         aria-label="Epic dependency graph drawer">
+    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <h2 class="font-semibold text-gray-900">Dependency graph</h2>
+      <div class="flex items-center gap-2">
+        <button type="button"
+                class="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                data-action="epic-graph-drawer#toggleExpanded">
+          <span data-epic-graph-drawer-target="expandLabel">Expand full-width</span>
+        </button>
+        <button type="button"
+                class="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                data-action="epic-graph-drawer#close">
+          Close
+        </button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4">
+      <%= turbo_frame_tag "epic_graph_drawer_body", data: { epic_graph_drawer_target: "frame" } do %>
+        <p class="text-sm text-gray-500">Choose an Epic graph from a card menu.</p>
+      <% end %>
+    </div>
+  </aside>
 </div>

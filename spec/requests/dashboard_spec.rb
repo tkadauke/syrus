@@ -1227,6 +1227,24 @@ RSpec.describe "Dashboard", type: :request do
         expect(epic.reload.auto_approve_mode).to eq("if_graders_pass")
       end
 
+      it "renders a Kanban card menu action that opens the dependency graph drawer" do
+        epic = Factories.epic(user: user, repository: repo, state: "ready", title: "Restore the forum")
+        SmartFolder.ensure_builtins!
+        awaiting_move = SmartFolder.find_by!(name: "Awaiting your move")
+
+        get root_path, params: { smart_folder_id: awaiting_move.id }
+
+        document = Nokogiri::HTML(response.body)
+        graph_link = document.at_css("a[href='#{graph_epic_path(epic, drawer: 1)}']")
+
+        expect(response.body).to include('data-controller="epic-graph-drawer"')
+        expect(response.body).to include('aria-label="Epic dependency graph drawer"')
+        expect(document.at_css("turbo-frame#epic_graph_drawer_body")).to be_present
+        expect(graph_link.text).to include("Show dependency graph")
+        expect(graph_link["data-turbo-frame"]).to eq("epic_graph_drawer_body")
+        expect(graph_link["data-action"]).to include("epic-graph-drawer#open")
+      end
+
       it "applies a built-in smart folder filter" do
         failed = Factories.job(repository: repo, issue_number: 1)
         failed.initial_run.update!(state: "failed", finished_at: Time.current)
