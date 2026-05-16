@@ -53,7 +53,7 @@ RSpec.describe ChatPendingAction do
   end
 
   it "validates job-control payloads include a job_id" do
-    %w[cancel_job retry_job rebase_job].each do |action_name|
+    %w[cancel_job retry_job rebase_job reopen_epic_and_attach_job].each do |action_name|
       action = chat_session.pending_actions.build(action: action_name, payload: {})
 
       expect(action).not_to be_valid
@@ -105,6 +105,21 @@ RSpec.describe ChatPendingAction do
 
     workflow = job.workflows.where(trigger_kind: "rebase").last
     expect(workflow.first_step.runs.count).to eq(1)
+  end
+
+  it "confirms a reopen_epic_and_attach_job action" do
+    epic = Factories.epic(user: user, repository: repository, state: "done", done_at: 60.days.ago)
+    job = direct_job
+    action = chat_session.pending_actions.create!(
+      action: "reopen_epic_and_attach_job",
+      payload: { "epic_id" => epic.id, "job_id" => job.id }
+    )
+
+    expect(action.confirm!).to be true
+
+    expect(action.reload).to be_confirmed
+    expect(epic.reload).to be_in_progress
+    expect(job.reload.epic).to eq(epic)
   end
 
   it "does not confirm a stale rejected action" do

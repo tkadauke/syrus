@@ -5,6 +5,7 @@ class ChatPendingAction < ApplicationRecord
     cancel_job
     retry_job
     rebase_job
+    reopen_epic_and_attach_job
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
   STATES = %w[ pending confirmed rejected cancelled ].freeze
@@ -120,6 +121,14 @@ class ChatPendingAction < ApplicationRecord
       workflow = Workflows::Rebase.instantiate(job: job)
       StepDispatcher.start_workflow(workflow)
       nil
+    when "reopen_epic_and_attach_job"
+      epic = repository.epics.where(user: user).find(payload.fetch("epic_id"))
+      job = action_job
+
+      epic.in_progress! if epic.done?
+      job.update!(epic: epic, pending_epic_reference: {})
+      job.advance_after_triage! if job.may_advance_after_triage?
+      job
     else
       ScheduledTask.create!(
         user: user,
@@ -144,6 +153,9 @@ class ChatPendingAction < ApplicationRecord
       errors.add(:payload, "id is required") unless payload["id"].present?
     when "cancel_job", "retry_job", "rebase_job"
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
+    when "reopen_epic_and_attach_job"
+      errors.add(:payload, "job_id is required") unless payload["job_id"].present?
+      errors.add(:payload, "epic_id is required") unless payload["epic_id"].present?
     when "schedule_recurring"
       errors.add(:payload, "cron_expression is required") if payload["cron_expression"].to_s.strip.blank?
       errors.add(:payload, "label is required") if payload["label"].to_s.strip.blank?

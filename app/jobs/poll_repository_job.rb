@@ -153,7 +153,7 @@ class PollRepositoryJob < ApplicationJob
       triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
       pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url)
     )
-    job.advance_after_triage! if epic && job.may_advance_after_triage?
+    job.advance_after_triage! if job.epic && job.may_advance_after_triage?
     enqueue_issue_image_ingest(job)
   end
 

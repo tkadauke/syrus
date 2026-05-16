@@ -72,6 +72,7 @@ class Job < ApplicationRecord
   before_validation :default_agent_provider, on: :create
   before_validation :default_credential_mode, on: :create
   before_validation :default_lifecycle_metadata, on: :create
+  before_validation :defer_stale_closed_epic_assignment
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
   enum :triaging_reason, TRIAGING_REASONS.index_with(&:itself), prefix: true, validate: true
@@ -207,6 +208,8 @@ class Job < ApplicationRecord
   after_create :resolve_pending_dependencies_targeting_self
   after_create :create_initial_run, if: -> { state == "open" && issue? }
   after_save :refresh_epic_auto_state, if: -> { epic_id.present? }
+  after_commit :reopen_recent_closed_epic, if: :saved_change_to_epic_id?
+  after_commit :suggest_stale_closed_epic_assignment, if: :stale_closed_epic_assignment?
 
   # Trigger a Turbo morph-refresh on the Job's show page on any change.
   # Combined with turbo_refreshes_with method: :morph in the layout,
@@ -439,6 +442,13 @@ class Job < ApplicationRecord
     true
   end
 
+  def closed_epic_reopenable?(closed_epic)
+    return false unless closed_epic&.done?
+    return false unless closed_epic.done_at
+
+    Time.current - closed_epic.done_at <= user.epic_reopen_window.days
+  end
+
   def start_pending_workflows_if_dependencies_satisfied!
     return false unless stack_ready_for_execution?
     return false unless ready_for_execution?
@@ -543,6 +553,95 @@ class Job < ApplicationRecord
     return if workflows.where.not(state: "cancelled").exists?
 
     create_initial_run
+  end
+
+  def defer_stale_closed_epic_assignment
+    return unless new_record? || will_save_change_to_epic_id?
+
+    closed_epic = epic || (Epic.find_by(id: epic_id) if epic_id.present?)
+    return unless closed_epic&.done?
+    return if closed_epic_reopenable?(closed_epic)
+
+    @stale_closed_epic_assignment_id = closed_epic.id
+    self.epic = nil
+  end
+
+  def stale_closed_epic_assignment?
+    @stale_closed_epic_assignment_id.present?
+  end
+
+  def reopen_recent_closed_epic
+    return unless epic&.done?
+    return unless closed_epic_reopenable?(epic)
+
+    epic.in_progress!
+    log_epic_auto_reopen(epic)
+  end
+
+  def log_epic_auto_reopen(closed_epic)
+    message = "Epic #{closed_epic.display_number} auto-reopened for Job ##{id}."
+    Rails.logger.info("[EpicAssignment] #{message}")
+
+    planning_chat_for(closed_epic)&.messages&.create!(
+      role: "system",
+      content: { "text" => message }
+    )
+  end
+
+  def suggest_stale_closed_epic_assignment
+    closed_epic = user.epics.find_by(id: @stale_closed_epic_assignment_id)
+    @stale_closed_epic_assignment_id = nil
+    return unless closed_epic
+
+    chat = planning_chat_for_pending_action(closed_epic)
+    text = "This new issue resembles closed #{closed_epic.display_number}; reopen and attach?"
+    chat.messages.create!(role: "system", content: { "text" => text })
+    chat.pending_actions.create!(
+      action: "reopen_epic_and_attach_job",
+      repository: repository,
+      user: user,
+      requested_by: "agent",
+      payload: {
+        "confidence" => "low",
+        "epic_id" => closed_epic.id,
+        "job_id" => id
+      }
+    )
+  end
+
+  def planning_chat_for(closed_epic)
+    user.chat_sessions
+      .joins(:chat_attachments, messages: :bookmarks)
+      .where(chat_attachments: { attachable_type: "Epic", attachable_id: closed_epic.id })
+      .where(chat_bookmarks: { kind: "epic_origin" })
+      .order("chat_bookmarks.created_at ASC", "chat_sessions.created_at ASC", "chat_sessions.id ASC")
+      .first ||
+      user.chat_sessions
+        .joins(:chat_attachments)
+        .where(chat_attachments: { attachable_type: "Epic", attachable_id: closed_epic.id })
+        .order(created_at: :asc, id: :asc)
+        .first
+  end
+
+  def create_planning_chat_for(closed_epic)
+    user.chat_sessions.create!(
+      repository: repository,
+      title: "Planning #{closed_epic.display_number}"
+    ).tap do |chat|
+      chat.chat_attachments.find_or_create_by!(attachable: closed_epic)
+    end
+  end
+
+  def planning_chat_for_pending_action(closed_epic)
+    chat = planning_chat_for(closed_epic)
+    if chat && chat.repository_id.nil?
+      chat.chat_attachments.find_or_create_by!(attachable: repository)
+      chat.association(:attached_repositories).reset
+    end
+
+    return chat if chat&.repository_id == repository_id
+
+    create_planning_chat_for(closed_epic)
   end
 
   def seed_parsed_dependencies

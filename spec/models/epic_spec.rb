@@ -139,4 +139,87 @@ RSpec.describe Epic do
       expect(epic.done_at).to eq(Time.current)
     end
   end
+
+  it "auto-reopens a recently done Epic when a new Job is assigned to it" do
+    chat = ChatSession.create!(user: user, repository: repository)
+    origin = chat.messages.create!(role: "assistant", content: { "text" => "Epic planning." })
+    origin.bookmarks.create!(kind: "epic_origin", label: "Epic planning")
+
+    epic = described_class.create!(user: user, repository: repository, title: "Recent")
+    chat.chat_attachments.create!(attachable: epic)
+    epic.update!(state: "done", done_at: 5.days.ago)
+
+    job = Job.create!(user: user, repository: repository, issue_number: 501, epic: epic)
+
+    expect(job.reload.epic).to eq(epic)
+    expect(epic.reload).to be_in_progress
+    expect(chat.messages.where(role: "system").last.content["text"]).to include("Job ##{job.id}")
+  end
+
+  it "leaves stale done Epic matches unattached and suggests an operator confirmation" do
+    chat = ChatSession.create!(user: user, repository: repository)
+    origin = chat.messages.create!(role: "assistant", content: { "text" => "Epic planning." })
+    origin.bookmarks.create!(kind: "epic_origin", label: "Epic planning")
+
+    epic = described_class.create!(user: user, repository: repository, title: "Ancient")
+    chat.chat_attachments.create!(attachable: epic)
+    epic.update!(state: "done", done_at: 60.days.ago)
+
+    job = Job.create!(user: user, repository: repository, issue_number: 502, epic: epic)
+
+    expect(job.reload.epic).to be_nil
+    expect(epic.reload).to be_done
+    expect(chat.messages.where(role: "system").last.content["text"]).to eq(
+      "This new issue resembles closed #{epic.display_number}; reopen and attach?"
+    )
+    expect(chat.pending_actions.last).to have_attributes(
+      action: "reopen_epic_and_attach_job",
+      payload: {
+        "confidence" => "low",
+        "epic_id" => epic.id,
+        "job_id" => job.id
+      }
+    )
+  end
+
+  it "handles stale done Epic assignment on an existing Job" do
+    chat = ChatSession.create!(user: user, repository: repository)
+    origin = chat.messages.create!(role: "assistant", content: { "text" => "Epic planning." })
+    origin.bookmarks.create!(kind: "epic_origin", label: "Epic planning")
+
+    epic = described_class.create!(user: user, repository: repository, title: "Old map")
+    chat.chat_attachments.create!(attachable: epic)
+    epic.update!(state: "done", done_at: 60.days.ago)
+    job = Job.create!(user: user, repository: repository, issue_number: 505)
+
+    job.update!(epic: epic)
+
+    expect(job.reload.epic).to be_nil
+    expect(chat.pending_actions.last.payload).to include(
+      "epic_id" => epic.id,
+      "job_id" => job.id
+    )
+  end
+
+  it "honors the user's configured Epic reopen window" do
+    user.update!(epic_reopen_window: 90)
+    epic = described_class.create!(user: user, repository: repository, title: "Still recent")
+    epic.update!(state: "done", done_at: 60.days.ago)
+
+    job = Job.create!(user: user, repository: repository, issue_number: 503, epic: epic)
+
+    expect(job.reload.epic).to eq(epic)
+    expect(epic.reload).to be_in_progress
+  end
+
+  it "does not detach an already-attached stale done Epic on unrelated Job saves" do
+    epic = described_class.create!(user: user, repository: repository, title: "Historical")
+    epic.update!(state: "done", done_at: 60.days.ago)
+    job = Job.create!(user: user, repository: repository, issue_number: 504)
+    job.update_columns(epic_id: epic.id)
+
+    expect {
+      job.update!(issue_title: "Still attached")
+    }.not_to change { job.reload.epic_id }
+  end
 end
