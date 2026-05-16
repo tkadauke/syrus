@@ -104,8 +104,8 @@ RSpec.describe JobDependency do
 
   describe "Epic dependency derivation" do
     it "creates a derived EpicDependency for cross-Epic Job dependencies" do
-      upstream_epic = Factories.epic(user: user)
-      dependent_epic = Factories.epic(user: user)
+      upstream_epic = Factories.epic(user: user, repository: repository)
+      dependent_epic = Factories.epic(user: user, repository: repository)
       upstream = Job.create!(user: user, repository: repository, issue_number: 100, epic: upstream_epic)
       dependent = Job.create!(user: user, repository: repository, issue_number: 101, epic: dependent_epic)
 
@@ -122,7 +122,7 @@ RSpec.describe JobDependency do
     end
 
     it "does not derive an EpicDependency inside the same Epic" do
-      epic = Factories.epic(user: user)
+      epic = Factories.epic(user: user, repository: repository)
       upstream = Job.create!(user: user, repository: repository, issue_number: 110, epic: epic)
       dependent = Job.create!(user: user, repository: repository, issue_number: 111, epic: epic)
 
@@ -132,8 +132,8 @@ RSpec.describe JobDependency do
     end
 
     it "derives the EpicDependency when a pending JobDependency resolves" do
-      upstream_epic = Factories.epic(user: user)
-      dependent_epic = Factories.epic(user: user)
+      upstream_epic = Factories.epic(user: user, repository: repository)
+      dependent_epic = Factories.epic(user: user, repository: repository)
       upstream = Job.create!(user: user, repository: repository, issue_number: 120, epic: upstream_epic)
       dependent = Job.create!(user: user, repository: repository, issue_number: 121, epic: dependent_epic)
       dependency = described_class.create!(job: dependent,

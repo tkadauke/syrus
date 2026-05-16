@@ -31,6 +31,7 @@ class Epic < ApplicationRecord
 
   broadcasts_refreshes_to ->(epic) { [ epic.user, "jobs" ] }
   broadcasts_refreshes_to ->(epic) { [ epic.repository, "jobs" ] }
+  broadcasts_refreshes
 
   aasm column: :state, whiny_transitions: false do
     state :backlog, initial: true
@@ -41,7 +42,10 @@ class Epic < ApplicationRecord
     end
 
     event :start do
-      transitions from: :ready, to: :in_progress, after: :unblock_child_jobs!
+      transitions from: :ready, to: :in_progress, after: -> {
+        self.state = "in_progress"
+        unblock_child_jobs!
+      }
     end
 
     event :auto_complete do
@@ -106,7 +110,9 @@ class Epic < ApplicationRecord
     begin
       jobs.find_each do |job|
         job.epic = self
-        job.release_epic_block! if job.may_release_epic_block?
+        if job.blocked_by_epic? && job.may_release_epic_block?
+          job.release_epic_block!
+        end
         job.start_pending_workflows_if_dependencies_satisfied!
       end
     ensure

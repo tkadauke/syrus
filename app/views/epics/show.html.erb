@@ -1,32 +1,68 @@
-<div class="space-y-4">
+<div class="space-y-6">
   <%= link_to "Back to Epics", dashboard_epics_path, class: "text-sm text-blue-600 underline hover:no-underline" %>
 
-  <div class="rounded-lg border border-gray-200 bg-white p-6">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <div class="font-mono text-sm font-semibold text-gray-500"><%= @epic.display_number %></div>
-        <h1 class="mt-1 text-2xl font-bold text-gray-900"><%= @epic.title %></h1>
+  <div class="space-y-3">
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="font-bold text-2xl">
+          <span class="font-mono"><%= @epic.display_number %></span>
+          <span class="text-gray-400">·</span>
+          <%= @epic.title %>
+        </h1>
+        <%= state_pill(@epic.state) %>
       </div>
-      <%= state_pill(@epic.state) %>
+      <p class="mt-1 text-sm text-gray-500">
+        <%= link_to @epic.repository.slug, repository_path(@epic.repository), class: "font-mono hover:underline" %>
+        · <%= pluralize(@epic.jobs.size, "Job") %>
+        · updated <%= relative_timestamp(@epic.updated_at) %>
+      </p>
+      <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+          <%= epic_done_jobs_count(@epic) %>/<%= epic_total_jobs_count(@epic) %> done
+        </span>
+        <span class="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+          <%= pluralize(epic_dependency_edge_count(@epic), "dep") %>
+        </span>
+        <% if epic_blocked?(@epic) %>
+          <span class="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Blocked</span>
+        <% end %>
+      </div>
     </div>
-
-    <div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
-      <%= link_to @epic.repository.slug, repository_path(@epic.repository), class: "font-mono text-blue-700 underline hover:no-underline" %>
-      <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-        <%= epic_done_jobs_count(@epic) %>/<%= epic_total_jobs_count(@epic) %> done
-      </span>
-      <span class="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
-        <%= pluralize(epic_dependency_edge_count(@epic), "dep") %>
-      </span>
-      <% if epic_blocked?(@epic) %>
-        <span class="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Blocked</span>
-      <% end %>
-    </div>
-
-    <% if @epic.description.present? %>
-      <div class="mt-4 whitespace-pre-wrap text-sm text-gray-700"><%= @epic.description %></div>
-    <% else %>
-      <div class="mt-4 text-sm text-gray-500">Epic detail page placeholder.</div>
-    <% end %>
   </div>
+
+  <%= turbo_stream_from @epic %>
+
+  <%= render "dependency_graph", epic: @epic, result: @graph, initially_open: @graph.node_count <= 10 %>
+
+  <% if @epic.description.present? %>
+    <section class="rounded-lg border border-gray-200 bg-white p-4">
+      <h2 class="font-semibold text-gray-900">Description</h2>
+      <div class="chat-prose mt-2 text-sm text-gray-700"><%= render_markdown(@epic.description) %></div>
+    </section>
+  <% end %>
+
+  <section class="rounded-lg border border-gray-200 bg-white">
+    <div class="border-b border-gray-200 px-4 py-3">
+      <h2 class="font-semibold text-gray-900">Jobs</h2>
+    </div>
+    <% if @jobs.any? %>
+      <ul class="divide-y divide-gray-100 text-sm">
+        <% @jobs.each do |job| %>
+          <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div class="min-w-0">
+              <%= link_to job.direct? ? "Direct" : (job.issue_number.present? ? "##{job.issue_number}" : "Job ##{job.id}"),
+                    job_path(job),
+                    class: "font-medium text-blue-600 underline hover:no-underline" %>
+              <% if job.issue_title.present? %>
+                <span class="text-gray-700"><%= job.issue_title %></span>
+              <% end %>
+            </div>
+            <%= state_pill(job_summary_state(job)) %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="px-4 py-6 text-sm text-gray-400">No Jobs in this Epic.</p>
+    <% end %>
+  </section>
 </div>

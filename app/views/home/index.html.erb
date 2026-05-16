@@ -211,7 +211,9 @@
               <tr>
                 <td class="px-4 py-3 align-top"><%= state_pill(epic.state) %></td>
                 <td class="px-4 py-3">
-                  <div class="font-medium text-gray-900"><%= epic.title %></div>
+                  <div class="font-medium text-gray-900">
+                    <%= link_to epic.title, epic_path(epic), class: "hover:underline" %>
+                  </div>
                   <%= form_with url: dashboard_epic_auto_approval_path(epic), method: :patch,
                         scope: :epic, class: "mt-2 flex flex-wrap items-center gap-2 text-xs" do |form| %>
                     <%= form.label :auto_approve_mode, "Auto-approval", class: "font-medium text-gray-700" %>

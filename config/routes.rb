@@ -187,6 +187,7 @@ Rails.application.routes.draw do
       post :mark_valid
     end
   end
+  resources :epics, only: %i[ show ]
 
   namespace :admin do
     # System overview — landing page for the admin area.

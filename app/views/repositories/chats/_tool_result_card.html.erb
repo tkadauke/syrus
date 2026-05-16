@@ -17,5 +17,10 @@
             class: "text-blue-700 underline hover:no-underline" %>
     <% end %>
   </summary>
+  <% if message.proposal&.job&.epic %>
+    <div class="px-3 pb-3">
+      <%= render "epics/dependency_graph", epic: message.proposal.job.epic, initially_open: false, compact: true %>
+    </div>
+  <% end %>
   <pre class="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words"><%= JSON.pretty_generate(payload) %></pre>
 </details>

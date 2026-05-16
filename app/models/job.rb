@@ -224,11 +224,16 @@ class Job < ApplicationRecord
   # there should pick up newly-polled Jobs (and state changes on
   # existing ones) without a manual refresh.
   broadcasts_refreshes_to ->(job) { [ job.repository, "jobs" ] }
+  after_commit :broadcast_epic_refresh
 
   after_update_commit :rebase_stack_children_after_merge, if: :saved_change_to_pr_merged_terminal?
 
   def solid_queue_priority
     PRIORITY_TO_SQ.fetch(priority.to_s, PRIORITY_TO_SQ["medium"])
+  end
+
+  def broadcast_epic_refresh
+    broadcast_refresh_later_to(epic) if epic
   end
 
   def open?

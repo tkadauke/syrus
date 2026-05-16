@@ -1,0 +1,18 @@
+<% epics = chat_session&.attached_epics.to_a %>
+<% if epics.any? %>
+  <div class="flex flex-wrap items-start gap-2 text-xs">
+    <% epics.each do |epic| %>
+      <div class="rounded-md border border-gray-200 bg-white px-2 py-1">
+        <div class="flex items-center gap-2">
+          <%= link_to epic.display_number,
+                epic_path(epic),
+                class: "font-mono font-medium text-blue-700 underline hover:no-underline" %>
+          <span class="max-w-64 truncate text-gray-700"><%= epic.title %></span>
+        </div>
+        <div class="mt-1">
+          <%= render "epics/dependency_graph", epic: epic, initially_open: false, compact: true %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>

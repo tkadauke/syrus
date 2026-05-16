@@ -19,6 +19,7 @@
      <% end %>>
   <div class="space-y-3">
     <%= render "header", repository: @repository, chat_session: @chat_session, chat_available: @chat_available %>
+    <%= render "epic_references", chat_session: @chat_session if @chat_session %>
   </div>
 
   <%# Chat-pane workspace + window controls collapsed onto the right

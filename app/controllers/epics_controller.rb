@@ -1,12 +1,12 @@
 class EpicsController < ApplicationController
+  before_action :load_epic
+
   def show
-    @epic = Current.user.epics
-                        .includes(:repository, { jobs: :repository }, { dependencies: :depends_on_epic }, { dependent_links: :epic })
-                        .find(params[:id])
+    @graph = EpicDependencyGraphRenderer.new(@epic).render
+    @jobs = @epic.jobs.includes(:repository, :dependencies, :dependent_links).order(:id)
   end
 
   def update_state
-    @epic = Current.user.epics.find(params[:id])
     target_state = params[:target_state].to_s
 
     if ActiveModel::Type::Boolean.new.cast(params[:override])
@@ -29,6 +29,10 @@ class EpicsController < ApplicationController
   end
 
   private
+
+  def load_epic
+    @epic = Current.user.epics.includes(:repository).find(params[:id])
+  end
 
   def respond_to_state_update
     respond_to do |format|

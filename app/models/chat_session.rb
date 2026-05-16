@@ -8,7 +8,7 @@ class ChatSession < ApplicationRecord
   has_many :job_attachments,
            -> { where(attachable_type: "Job").order(:attached_at, :id) },
            class_name: "ChatAttachment"
-  has_many :document_attachments,
+  has_many :repository_document_attachments,
            -> { where(attachable_type: "Document").order(:attached_at, :id) },
            class_name: "ChatAttachment"
   has_many :attached_repositories,
@@ -20,7 +20,7 @@ class ChatSession < ApplicationRecord
            source: :attachable,
            source_type: "Job"
   has_many :attached_repository_documents,
-           through: :document_attachments,
+           through: :repository_document_attachments,
            source: :attachable,
            source_type: "Document"
   has_many :messages, class_name: "ChatMessage", dependent: :destroy
@@ -65,17 +65,18 @@ class ChatSession < ApplicationRecord
   end
 
   def attached_documents
-    attached_repository_documents
+    records = attached_records_for("Document")
+    records.to_a
   end
 
   def attached_documents_in_scope
     repository_ids = attached_repositories.ids + attached_jobs.includes(:repository).map(&:repository_id)
-    document_ids = attached_repository_documents.ids
-    documents = Document.where(user_id: user_id)
+    document_ids = attached_documents.map(&:id)
 
-    documents
+    Document
+      .where(user_id: user_id)
       .where(attachable_type: "Repository", attachable_id: repository_ids.uniq)
-      .or(documents.where(id: document_ids))
+      .or(Document.where(user_id: user_id, id: document_ids))
       .distinct
   end
 
