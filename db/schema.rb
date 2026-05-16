@@ -146,6 +146,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_180000) do
     t.datetime "edited_at"
     t.integer "epic_id"
     t.datetime "filed_at"
+    t.datetime "confirmed_at"
     t.integer "github_issue_number"
     t.integer "job_id"
     t.string "kind", default: "syrus_issue", null: false
@@ -710,6 +711,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_180000) do
   add_foreign_key "chat_pending_actions", "users"
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "depends_on_id"
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "proposal_id"
+  add_foreign_key "chat_proposals", "epics"
   add_foreign_key "chat_proposals", "chat_sessions"
   add_foreign_key "chat_proposals", "epics"
   add_foreign_key "chat_proposals", "jobs"
