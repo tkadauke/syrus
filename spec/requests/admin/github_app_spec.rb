@@ -94,4 +94,35 @@ RSpec.describe "Admin GitHub App registration", type: :request do
     expect(job.approved_via).to eq("github_review")
     expect(job.approval_evidence).to eq("github_review_url" => "https://github.com/acme/widgets/pull/7#pullrequestreview-99")
   end
+
+  it "warns when an edited issue removes an Epic marker without detaching links" do
+    user = Factories.user
+    Factories.repository(user: user, owner: "acme", name: "widgets")
+    payload = {
+      action: "edited",
+      repository: {
+        full_name: "acme/widgets",
+        name: "widgets",
+        owner: { login: "acme" }
+      },
+      issue: {
+        number: 42,
+        body: "No marker now."
+      },
+      changes: {
+        body: { from: "Epic: Attachments rollout" }
+      }
+    }
+
+    expect(Rails.logger).to receive(:warn).with(/Epic marker removed/)
+
+    post "/github_app/webhook",
+      params: payload.to_json,
+      headers: {
+        "CONTENT_TYPE" => "application/json",
+        "X-GitHub-Event" => "issues"
+      }
+
+    expect(response).to have_http_status(:ok)
+  end
 end

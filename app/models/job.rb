@@ -421,6 +421,19 @@ class Job < ApplicationRecord
     advance_after_triage! if may_advance_after_triage?
   end
 
+  def resolve_pending_epic_ref!(resolved_epic)
+    return false unless triaging? && triaging_reason_pending_epic_ref?
+    return false unless pending_epic_reference.to_h["github_issue_url"] == resolved_epic.github_issue_url
+
+    update!(
+      epic: resolved_epic,
+      triaging_reason: "classifier_pending",
+      pending_epic_reference: {}
+    )
+    advance_after_triage! if may_advance_after_triage?
+    true
+  end
+
   def start_pending_workflows_if_dependencies_satisfied!
     return false unless stack_ready_for_execution?
     return false unless ready_for_execution?

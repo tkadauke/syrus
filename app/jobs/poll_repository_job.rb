@@ -40,6 +40,9 @@ class PollRepositoryJob < ApplicationJob
       return
     end
 
+    marker = EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
+    return ingest_epic_marker!(marker, issue, repository) if marker
+
     prior = latest_job_for_issue(repository, issue.number)
 
     # Look up linked PRs for any issue we might still act on — i.e.
@@ -109,6 +112,51 @@ class PollRepositoryJob < ApplicationJob
     enqueue_issue_image_ingest(job)
   end
 
+  def ingest_epic_marker!(marker, issue, repository)
+    case marker[:kind]
+    when :epic_declaration
+      epic_url = issue_url(repository, issue.number)
+      Epic.find_or_create_by!(
+        user: repository.user,
+        repository: repository,
+        github_issue_url: epic_url
+      ) do |epic|
+        epic.title = marker[:name]
+        epic.description = issue_body(issue)
+      end
+      Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} ingested as Epic")
+    when :child_of_epic
+      ingest_child_of_epic!(marker, issue, repository)
+    end
+  end
+
+  def ingest_child_of_epic!(marker, issue, repository)
+    prior = latest_job_for_issue(repository, issue.number)
+    if prior
+      sync_issue_label_state!(prior, issue)
+      Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} dedup: prior Job ##{prior.id} exists")
+      return
+    end
+
+    epic_url = issue_url_for_reference(marker)
+    epic = repository.user.epics.find_by(github_issue_url: epic_url)
+    job = Job.create!(
+      user: repository.user,
+      repository: repository,
+      issue_number: issue.number,
+      issue_title: issue_title(issue),
+      issue_body: issue_body(issue),
+      skip_prepare: skip_prepare_label_present?(issue),
+      operator_chat_disabled: operator_chat_disabled_label_present?(issue),
+      prepare_skip_reason_override: prepare_skip_reason(issue),
+      epic: epic,
+      triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
+      pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url)
+    )
+    job.advance_after_triage! if epic && job.may_advance_after_triage?
+    enqueue_issue_image_ingest(job)
+  end
+
   def latest_job_for_issue(repository, issue_number)
     Job.where(repository_id: repository.id, issue_number: issue_number).order(:created_at).last
   end
@@ -145,6 +193,23 @@ class PollRepositoryJob < ApplicationJob
 
   def issue_body(issue)
     issue.respond_to?(:body) ? issue.body : nil
+  end
+
+  def issue_url(repository, issue_number)
+    "https://github.com/#{repository.owner}/#{repository.name}/issues/#{issue_number}"
+  end
+
+  def issue_url_for_reference(reference)
+    "https://github.com/#{reference[:owner]}/#{reference[:repo]}/issues/#{reference[:number]}"
+  end
+
+  def pending_epic_reference(reference, github_issue_url)
+    {
+      "owner" => reference[:owner],
+      "repo" => reference[:repo],
+      "number" => reference[:number],
+      "github_issue_url" => github_issue_url
+    }
   end
 
   def enqueue_issue_image_ingest(job)

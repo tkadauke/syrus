@@ -96,6 +96,88 @@ RSpec.describe PollRepositoryJob do
       }.not_to have_enqueued_job(IngestIssueImagesJob)
     end
 
+    it "ingests an Epic marker declaration as an Epic without creating a Job" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 77, body: "Epic: Attachments rollout") ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Epic, :count).by(1)
+        .and change(Job, :count).by(0)
+
+      epic = Epic.last
+      expect(epic).to have_attributes(
+        user: user,
+        repository: repository,
+        title: "Attachments rollout",
+        github_issue_url: "https://github.com/acme/widgets/issues/77"
+      )
+    end
+
+    it "attaches a child issue to an already-ingested Epic and leaves triage for the Epic block" do
+      epic = Factories.epic(
+        user: user,
+        repository: repository,
+        github_issue_url: "https://github.com/acme/widgets/issues/41",
+        state: "backlog"
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42, body: "Epic: #41") ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.epic).to eq(epic)
+      expect(job.state).to eq("blocked_by_epic")
+      expect(job.triaging_reason).to eq("classifier_pending")
+      expect(job.pending_epic_reference).to eq({})
+      expect(job.runs).to be_empty
+    end
+
+    it "keeps a child issue in triaging with pending_epic_ref until the Epic is ingested" do
+      child = issue(number: 42, body: "Epic: #41")
+      declaration = issue(number: 41, body: "Epic: Attachments rollout")
+      poll_count = 0
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do
+        poll_count += 1
+        poll_count == 1 ? [ child ] : [ declaration ]
+      end
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.state).to eq("triaging")
+      expect(job.triaging_reason).to eq("pending_epic_ref")
+      expect(job.epic).to be_nil
+      expect(job.pending_epic_reference).to eq(
+        "owner" => "acme",
+        "repo" => "widgets",
+        "number" => 41,
+        "github_issue_url" => "https://github.com/acme/widgets/issues/41"
+      )
+
+      described_class.perform_now(repository.id)
+
+      epic = Epic.find_by!(github_issue_url: "https://github.com/acme/widgets/issues/41")
+      expect(job.reload.epic).to eq(epic)
+      expect(job.state).to eq("blocked_by_epic")
+      expect(job.triaging_reason).to eq("classifier_pending")
+      expect(job.pending_epic_reference).to eq({})
+      expect(job.runs).to be_empty
+    end
+
+    it "does not convert a pending Epic reference to an epicless Job on later polls" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42, body: "Epic: #41") ])
+
+      described_class.perform_now(repository.id)
+      job = Job.find_by!(repository: repository, issue_number: 42)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change { job.reload.attributes.slice("state", "triaging_reason", "epic_id", "pending_epic_reference") }
+    end
+
     it "emits a system log entry when prepare is skipped" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(labels: [ "syrus", Workflows::SKIP_PREPARE_LABEL ]) ])

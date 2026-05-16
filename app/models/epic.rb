@@ -28,6 +28,7 @@ class Epic < ApplicationRecord
   validate :repository_belongs_to_user
 
   before_validation :assign_number, on: :create
+  after_create :resolve_pending_child_jobs
 
   broadcasts_refreshes_to ->(epic) { [ epic.user, "jobs" ] }
   broadcasts_refreshes_to ->(epic) { [ epic.repository, "jobs" ] }
@@ -144,5 +145,16 @@ class Epic < ApplicationRecord
 
   def stamp_done_at
     self.done_at = Time.current
+  end
+
+  def resolve_pending_child_jobs
+    return if github_issue_url.blank?
+
+    user.jobs
+        .triaging
+        .where(triaging_reason: "pending_epic_ref")
+        .find_each do |job|
+      job.resolve_pending_epic_ref!(self)
+    end
   end
 end

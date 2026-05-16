@@ -1,7 +1,7 @@
 class GithubAppWebhooksController < ActionController::Base
   def create
     handle_pull_request_review if request.headers["X-GitHub-Event"] == "pull_request_review"
-
+    process_issue_edited if request.headers["X-GitHub-Event"] == "issues"
     head :ok
   end
 
@@ -39,5 +39,32 @@ class GithubAppWebhooksController < ActionController::Base
     Time.zone.parse(value) if value.present?
   rescue ArgumentError
     nil
+  end
+
+  def process_issue_edited
+    payload = JSON.parse(request.raw_post)
+    return unless payload["action"] == "edited"
+
+    repository_payload = payload["repository"].to_h
+    owner = repository_payload.dig("owner", "login").presence || repository_payload["full_name"].to_s.split("/").first
+    name = repository_payload["name"].presence || repository_payload["full_name"].to_s.split("/").last
+    issue = payload["issue"].to_h
+    old_body = payload.dig("changes", "body", "from").to_s
+    new_body = issue["body"].to_s
+
+    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", owner.to_s.downcase, name.to_s.downcase).find_each do |repository|
+      old_marker = EpicMarkerParser.parse(text: old_body, default_repository: repository)
+      new_marker = EpicMarkerParser.parse(text: new_body, default_repository: repository)
+
+      if old_marker && new_marker.nil?
+        Rails.logger.warn("[GithubAppWebhooksController] #{repository.slug}##{issue["number"]} Epic marker removed; existing Epic/Job links left unchanged")
+      elsif old_marker.nil? && new_marker
+        Rails.logger.info("[GithubAppWebhooksController] #{repository.slug}##{issue["number"]} Epic marker added")
+      elsif old_marker && new_marker && old_marker != new_marker
+        Rails.logger.info("[GithubAppWebhooksController] #{repository.slug}##{issue["number"]} Epic marker changed")
+      end
+    end
+  rescue JSON::ParserError
+    Rails.logger.warn("[GithubAppWebhooksController] invalid JSON payload")
   end
 end

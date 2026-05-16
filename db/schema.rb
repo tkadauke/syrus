@@ -372,6 +372,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_170000) do
     t.boolean "pr_mergeable"
     t.datetime "pr_mergeable_checked_at"
     t.integer "pr_number"
+    t.json "pending_epic_reference", default: {}, null: false
     t.string "priority", default: "medium", null: false
     t.integer "repository_id", null: false
     t.integer "scheduled_task_id"
