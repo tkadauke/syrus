@@ -5,15 +5,15 @@ RSpec.describe ChatProposalFiler do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:session) { ChatSession.create!(repository: repository, user: user) }
 
-  def proposal(slug:, title:, kind: "syrus_issue", body: "Body for #{title}", labels: nil)
-    ChatProposal.create!(
+  def proposal(slug:, title:, kind: "syrus_issue", body: "Body for #{title}", labels: nil, **attrs)
+    ChatProposal.create!({
       chat_session: session,
       slug: slug,
       title: title,
       body: body,
       kind: kind,
       labels: labels
-    )
+    }.merge(attrs))
   end
 
   def depends_on(proposal, dependency)
@@ -110,6 +110,65 @@ RSpec.describe ChatProposalFiler do
       expect(root.reload).to be_pending
       expect(leaf.reload).to be_pending
       expect(JobDependency.count).to eq(0)
+    end
+
+    it "materializes an Epic-only proposal without creating child Jobs" do
+      epic_proposal = proposal(
+        slug: "epic-marble",
+        title: "Marble backlog",
+        body: "A place for proposals to stand upright.",
+        kind: "epic"
+      )
+
+      job_count = Job.count
+      expect {
+        described_class.new(user: user, repository: repository).file!([ epic_proposal ])
+      }.to change(Epic, :count).by(1)
+      expect(Job.count).to eq(job_count)
+
+      epic = epic_proposal.reload.epic
+      expect(epic).to have_attributes(
+        repository: repository,
+        title: "Marble backlog",
+        description: "A place for proposals to stand upright."
+      )
+      expect(epic_proposal).to be_confirmed
+    end
+
+    it "materializes a Job proposal under its target Epic" do
+      epic = Factories.epic(user: user, repository: repository, title: "Forum")
+      job_proposal = proposal(
+        slug: "job-labels",
+        title: "Add labels",
+        body: "The columns are tired of guessing.",
+        kind: "job",
+        target_epic: epic
+      )
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      }.to change(Job, :count).by(1)
+
+      job = job_proposal.reload.job
+      expect(job).to have_attributes(
+        repository: repository,
+        epic: epic,
+        kind: "direct",
+        issue_title: "Add labels",
+        issue_body: "The columns are tired of guessing."
+      )
+    end
+
+    it "materializes a Job proposal without an Epic when no target Epic is set" do
+      job_proposal = proposal(
+        slug: "job-standalone",
+        title: "Standalone inscription",
+        kind: "job"
+      )
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      expect(job_proposal.reload.job.epic).to be_nil
     end
   end
 end

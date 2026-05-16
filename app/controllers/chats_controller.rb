@@ -200,7 +200,7 @@ class ChatsController < ApplicationController
       return
     end
 
-    result = ChatProposalFiler.new(user: Current.user, repository: @proposal.chat_session.repository).file!([ @proposal ])
+    result = ChatProposalFiler.new(user: Current.user, repository: @proposal.effective_repository).file!([ @proposal ])
     redirect_to chat_path(@chat_session), notice: proposal_confirmed_notice(result)
   rescue ActiveRecord::RecordInvalid => e
     redirect_to chat_path(@chat_session), alert: e.record.errors.full_messages.to_sentence

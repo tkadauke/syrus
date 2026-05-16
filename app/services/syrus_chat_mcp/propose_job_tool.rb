@@ -1,37 +1,42 @@
 require "mcp"
 
 module SyrusChatMcp
-  class ProposeEpicTool < MCP::Tool
+  class ProposeJobTool < MCP::Tool
     extend ProposalToolSupport
 
-    tool_name "propose_epic"
+    tool_name "propose_job"
 
     description <<~DESC
-      Create an Epic-only proposal card. Confirming the card creates the
-      Epic by itself, with no child Jobs.
+      Create a Job proposal card. If epic_id is provided, confirming the
+      card creates the Job under that Epic. Without epic_id, confirming
+      creates an epicless direct Job.
     DESC
 
     input_schema(
       properties: {
-        title: { type: "string", description: "Epic title." },
-        description: { type: "string", description: "Markdown Epic description." },
-        attached_repos: { type: "array", items: { type: "string" }, description: "Optional repository slugs or ids. The first repo is used as the Epic repository." },
+        epic_id: { type: "integer", description: "Optional target Epic id." },
+        repo: { type: "string", description: "Repository id, name, or owner/name slug." },
+        title: { type: "string", description: "Job title." },
+        description: { type: "string", description: "Markdown Job description." },
         depends_on: { type: "array", items: { type: "string" }, description: "Optional proposal slugs that must be confirmed first." }
       },
-      required: %w[title description]
+      required: %w[repo title description]
     )
 
     class << self
-      def call(title:, description:, server_context:, attached_repos: [], depends_on: [])
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [])
         chat_session = server_context.fetch(:chat_session)
+        repository = repository_for(chat_session, repo)
         title = title.to_s.strip
         description = description.to_s.strip
-        repo_tokens = normalize_string_list(attached_repos)
-        repository = repository_for(chat_session, repo_tokens.first)
 
+        return SyrusChatMcp.invalid("repo is required") if repo.to_s.strip.empty?
+        return SyrusChatMcp.invalid("repository not found") unless repository
         return SyrusChatMcp.invalid("title is required") if title.empty?
         return SyrusChatMcp.invalid("description is required") if description.empty?
-        return SyrusChatMcp.invalid("repository not found") unless repository
+
+        target_epic = target_epic_for(chat_session, repository, epic_id)
+        return SyrusChatMcp.invalid("epic_id was not found in #{repository.slug}") if epic_id.present? && !target_epic
 
         dependencies, unknown_slugs = dependency_proposals(chat_session, depends_on)
         return SyrusChatMcp.invalid("unknown depends_on slug(s): #{unknown_slugs.join(', ')}") if unknown_slugs.any?
@@ -40,15 +45,16 @@ module SyrusChatMcp
         ChatProposal.transaction do
           proposal = chat_session.proposals.create!(
             repository: repository,
-            slug: unique_slug(chat_session, title, prefix: "epic"),
+            target_epic: target_epic,
+            slug: unique_slug(chat_session, title, prefix: "job"),
             title: title,
             body: description,
-            kind: "epic"
+            kind: "job"
           )
           dependencies.each do |dependency|
             ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)
           end
-          create_proposal_message!(chat_session, proposal, text: "Epic proposal proposed.")
+          create_proposal_message!(chat_session, proposal, text: "Job proposal proposed.")
         end
 
         SyrusChatMcp.success(SyrusChatMcp.proposal_payload(proposal))

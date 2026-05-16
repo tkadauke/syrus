@@ -32,6 +32,7 @@ module SyrusChatMcp
           AttachRepositoryTool,
           ProposeIssueTool,
           ProposeEpicTool,
+          ProposeJobTool,
           SetBookmarkTool,
           ListProposalsTool,
           DeleteProposalTool,

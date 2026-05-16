@@ -90,8 +90,12 @@ class Repositories::ProposalsController < ApplicationController
 
   def proposals_scope
     ChatProposal
-      .joins(chat_session: :chat_attachments)
-      .where(chat_attachments: { attachable_type: "Repository", attachable_id: @repository.id })
+      .left_joins(chat_session: :chat_attachments)
+      .where(
+        "chat_proposals.repository_id = :repository_id OR (chat_proposals.repository_id IS NULL AND chat_attachments.attachable_type = 'Repository' AND chat_attachments.attachable_id = :repository_id)",
+        repository_id: @repository.id
+      )
+      .distinct
   end
 
   def selected_bulk_proposals

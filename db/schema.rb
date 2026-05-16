@@ -146,14 +146,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_180000) do
     t.datetime "edited_at"
     t.integer "epic_id"
     t.datetime "filed_at"
-    t.datetime "confirmed_at"
     t.integer "github_issue_number"
     t.integer "job_id"
     t.string "kind", default: "syrus_issue", null: false
     t.string "labels"
     t.datetime "rejected_at"
+    t.integer "repository_id"
     t.string "slug", null: false
     t.string "state", default: "proposed", null: false
+    t.integer "target_epic_id"
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.datetime "withdrawn_at"
@@ -162,6 +163,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_180000) do
     t.index ["chat_session_id"], name: "index_chat_proposals_on_chat_session_id"
     t.index ["epic_id"], name: "index_chat_proposals_on_epic_id"
     t.index ["job_id"], name: "index_chat_proposals_on_job_id"
+    t.index ["repository_id"], name: "index_chat_proposals_on_repository_id"
+    t.index ["target_epic_id"], name: "index_chat_proposals_on_target_epic_id"
   end
 
   create_table "chat_sessions", force: :cascade do |t|
@@ -711,10 +714,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_180000) do
   add_foreign_key "chat_pending_actions", "users"
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "depends_on_id"
   add_foreign_key "chat_proposal_dependencies", "chat_proposals", column: "proposal_id"
-  add_foreign_key "chat_proposals", "epics"
   add_foreign_key "chat_proposals", "chat_sessions"
   add_foreign_key "chat_proposals", "epics"
+  add_foreign_key "chat_proposals", "epics", column: "target_epic_id"
   add_foreign_key "chat_proposals", "jobs"
+  add_foreign_key "chat_proposals", "repositories"
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"

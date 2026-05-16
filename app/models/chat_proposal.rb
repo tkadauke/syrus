@@ -10,8 +10,10 @@ class ChatProposal < ApplicationRecord
   attribute :state, :string, default: "proposed"
 
   belongs_to :chat_session
+  belongs_to :repository, optional: true
   belongs_to :job, optional: true
   belongs_to :epic, optional: true
+  belongs_to :target_epic, class_name: "Epic", optional: true
 
   has_many :dependency_edges,
            class_name: "ChatProposalDependency",
@@ -29,7 +31,12 @@ class ChatProposal < ApplicationRecord
 
   has_many :messages, class_name: "ChatMessage", foreign_key: :proposal_id, dependent: :nullify
 
-  enum :kind, { syrus_issue: "syrus_issue", github_issue: "github_issue", epic: "epic" }, validate: true
+  enum :kind, {
+    syrus_issue: "syrus_issue",
+    github_issue: "github_issue",
+    epic: "epic",
+    job: "job"
+  }, validate: true
   enum :state, {
     proposed: "proposed",
     confirmed: "confirmed",
@@ -41,6 +48,10 @@ class ChatProposal < ApplicationRecord
 
   validates :slug, :title, :body, presence: true
   validates :slug, uniqueness: { scope: :chat_session_id }
+  validate :repository_belongs_to_chat_user
+  validate :target_epic_matches_repository
+
+  before_validation :default_repository, on: :create
 
   def state=(value)
     super(STATE_ALIASES.fetch(value.to_s, value))
@@ -64,6 +75,10 @@ class ChatProposal < ApplicationRecord
 
   def materialized_record
     job || epic
+  end
+
+  def effective_repository
+    repository || chat_session.repository
   end
 
   def materialized_label
@@ -142,4 +157,30 @@ class ChatProposal < ApplicationRecord
     Set.new(where(id: seen_ids.to_a).to_a)
   end
   private_class_method :transitive_closure
+
+  private
+
+  def default_repository
+    self.repository ||= chat_session&.repository
+  end
+
+  def repository_belongs_to_chat_user
+    return unless repository && chat_session
+    return if repository.user_id == chat_session.user_id
+
+    errors.add(:repository, "must belong to the chat user")
+  end
+
+  def target_epic_matches_repository
+    return unless target_epic
+
+    if chat_session && target_epic.user_id != chat_session.user_id
+      errors.add(:target_epic, "must belong to the chat user")
+    end
+
+    repo = effective_repository
+    return unless repo && target_epic.repository_id != repo.id
+
+    errors.add(:target_epic, "must belong to the proposal repository")
+  end
 end

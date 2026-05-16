@@ -561,6 +561,48 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include(job_path(proposal.job))
     end
 
+    it "confirms an Epic-only proposal without creating child Jobs" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      proposal = chat.proposals.create!(
+        slug: "epic-auth",
+        title: "Auth as civic infrastructure",
+        body: "Consolidate the entire forum before adding plaques.",
+        kind: "epic"
+      )
+      chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Epic proposal proposed." })
+
+      job_count = Job.count
+      expect {
+        post chat_proposal_confirm_path(chat, proposal)
+      }.to change(Epic, :count).by(1)
+      expect(Job.count).to eq(job_count)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(proposal.reload).to be_confirmed
+      expect(proposal.epic).to be_present
+    end
+
+    it "confirms a Job proposal under its target Epic" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      epic = Factories.epic(user: user, repository: repo, title: "Forum")
+      proposal = chat.proposals.create!(
+        repository: repo,
+        target_epic: epic,
+        slug: "job-plaque",
+        title: "Install plaque",
+        body: "One small plaque, filed under the proper civilization.",
+        kind: "job"
+      )
+      chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Job proposal proposed." })
+
+      expect {
+        post chat_proposal_confirm_path(chat, proposal)
+      }.to change(Job, :count).by(1)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(proposal.reload.job.epic).to eq(epic)
+    end
+
     it "rejects a proposed card while keeping history visible" do
       chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
       proposal = chat.proposals.create!(slug: "auth-map", title: "Map auth", body: "Map it.")

@@ -143,9 +143,16 @@ class Repositories::ChatsController < ApplicationController
       return
     end
 
-    result = ChatProposalFiler.new(user: Current.user, repository: @repository).file!([ @proposal ])
+    result = ChatProposalFiler.new(user: Current.user, repository: @proposal.effective_repository || @repository).file!([ @proposal ])
     record = result.jobs.first || @proposal.reload.materialized_record
-    notice = record.is_a?(Job) ? "Proposal confirmed and filed as Job ##{record.id}." : "Proposal confirmed."
+    notice = case record
+    when Job
+      "Proposal confirmed and filed as Job ##{record.id}."
+    when Epic
+      "Proposal confirmed and filed as #{record.display_number}."
+    else
+      "Proposal confirmed."
+    end
     redirect_to chat_path(@proposal.chat_session), notice: notice
   rescue ActiveRecord::RecordInvalid => e
     redirect_to chat_path(@proposal.chat_session), alert: e.record.errors.full_messages.to_sentence
@@ -180,8 +187,12 @@ class Repositories::ChatsController < ApplicationController
 
   def proposals_scope
     ChatProposal
-      .joins(chat_session: :chat_attachments)
-      .where(chat_attachments: { attachable_type: "Repository", attachable_id: @repository.id })
+      .left_joins(chat_session: :chat_attachments)
+      .where(
+        "chat_proposals.repository_id = :repository_id OR (chat_proposals.repository_id IS NULL AND chat_attachments.attachable_type = 'Repository' AND chat_attachments.attachable_id = :repository_id)",
+        repository_id: @repository.id
+      )
+      .distinct
   end
 
   def current_chat_session

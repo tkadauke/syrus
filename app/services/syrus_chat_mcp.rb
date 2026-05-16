@@ -48,6 +48,8 @@ module SyrusChatMcp
       state: proposal.state,
       labels: labels_for(proposal),
       dependencies: proposal.dependencies.order(:slug).pluck(:slug),
+      repository: proposal.effective_repository&.slug,
+      target_epic: target_epic_payload(proposal),
       materialized: materialized_payload(proposal)
     }
   end
@@ -68,6 +70,12 @@ module SyrusChatMcp
     when Epic
       { type: "epic", id: proposal.epic.id, number: proposal.epic.number }
     end
+  end
+
+  def self.target_epic_payload(proposal)
+    return unless proposal.target_epic
+
+    { id: proposal.target_epic.id, number: proposal.target_epic.number, label: proposal.target_epic.display_number }
   end
 
   def self.labels_for(proposal)

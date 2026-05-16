@@ -30,6 +30,9 @@
           <% elsif proposal.github_issue_number.present? %>
             &middot; Filed as GitHub issue #<%= proposal.github_issue_number %>
           <% end %>
+          <% if proposal.target_epic %>
+            &middot; target: <span class="font-mono"><%= proposal.target_epic.display_number %></span>
+          <% end %>
         </div>
       </div>
     </div>

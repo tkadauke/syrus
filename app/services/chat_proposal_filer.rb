@@ -77,7 +77,7 @@ class ChatProposalFiler
   attr_reader :user, :repository
 
   def ensure_repository_scope!(proposals)
-    foreign = proposals.find { |proposal| proposal.chat_session.repository_id != repository.id }
+    foreign = proposals.find { |proposal| proposal.effective_repository&.id != repository.id }
     raise ActiveRecord::RecordNotFound, "proposal #{foreign.id} is outside this repository" if foreign
   end
 
@@ -89,7 +89,7 @@ class ChatProposalFiler
 
   def create_record_for(proposal)
     case proposal.kind
-    when "syrus_issue"
+    when "syrus_issue", "job"
       create_direct_job(proposal)
     when "github_issue"
       file_github_issue(proposal)
@@ -102,14 +102,25 @@ class ChatProposalFiler
   end
 
   def create_direct_job(proposal)
+    target_repository = proposal.effective_repository || repository
+
     user.jobs.create!(
-      repository: repository,
+      repository: target_repository,
+      epic: proposal.target_epic,
       kind: "direct",
       issue_number: nil,
       issue_title: proposal.title,
       issue_body: proposal.body,
-      agent_provider: repository.effective_agent_provider
+      agent_provider: target_repository.effective_agent_provider
     ).tap(&:advance_after_triage!)
+  end
+
+  def create_epic(proposal)
+    user.epics.create!(
+      repository: proposal.effective_repository || repository,
+      title: proposal.title,
+      description: proposal.body
+    )
   end
 
   def file_github_issue(proposal)
@@ -120,14 +131,6 @@ class ChatProposalFiler
       labels: github_labels_for(proposal)
     )
     proposal.github_issue_number = issue.number
-  end
-
-  def create_epic(proposal)
-    user.epics.create!(
-      repository: repository,
-      title: proposal.title,
-      description: proposal.body
-    )
   end
 
   def github_labels_for(proposal)

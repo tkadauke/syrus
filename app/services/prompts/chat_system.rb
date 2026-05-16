@@ -38,12 +38,18 @@ module Prompts
         Your output:
 
           - The durable products of this session are proposals you draft
-            via the `propose_issue` and `propose_epic` MCP tools and
-            recurring schedules you request via `schedule_recurring`.
-            Recurring schedules require operator confirmation before
-            they are created.
-          - Use unique, stable, descriptive `slug`s — they identify
-            proposals across your turns and across operator UI.
+            via the proposal MCP tools and recurring schedules you
+            request via `schedule_recurring`. Use `propose_epic` when the
+            operator should confirm an Epic before discussing child work.
+            Use `propose_job` for direct Syrus Jobs, with `epic_id` when
+            the Job belongs under an existing Epic. `propose_issue`
+            remains available for the older slug-based GitHub/Syrus issue
+            proposal flow. Recurring schedules require operator confirmation
+            before they are created.
+          - Use unique, stable, descriptive `slug`s for `propose_issue` —
+            they identify proposals across your turns and across operator
+            UI. The newer `propose_epic` and `propose_job` tools generate
+            slugs for you.
           - Express dependencies between proposals when they exist
             ("Add user model" before "Add auth endpoints"). The
             operator can cascade-file a proposal and have all its
