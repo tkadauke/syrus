@@ -10,6 +10,7 @@ class Job < ApplicationRecord
   STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
   TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain ].freeze
+  APPROVAL_VIAS = %w[ operator bulk github_review auto_rule ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
   # lower numbers first, so high-priority jobs (0) run before medium (10) and
   # low (20). The gap of 10 between levels leaves room for future additions
@@ -23,6 +24,7 @@ class Job < ApplicationRecord
   belongs_to :epic, optional: true
   belongs_to :parent_job, class_name: "Job", optional: true
   belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
+  belongs_to :approved_by_user, class_name: "User", optional: true
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
   # direct has_many :runs is a convenience accessor, NOT a cascade
@@ -58,6 +60,7 @@ class Job < ApplicationRecord
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
   validates :validity, presence: true, inclusion: { in: VALIDITIES }
   validates :triaging_reason, presence: true, inclusion: { in: TRIAGING_REASONS }
+  validates :approved_via, inclusion: { in: APPROVAL_VIAS }, allow_nil: true
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -73,9 +76,10 @@ class Job < ApplicationRecord
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
   enum :triaging_reason, TRIAGING_REASONS.index_with(&:itself), prefix: true, validate: true
   enum :stack_base, STACK_BASES.index_with(&:itself), prefix: true, validate: true
+  enum :approved_via, APPROVAL_VIAS.index_with(&:itself), prefix: true, validate: { allow_nil: true }
 
-  scope :open_threads, -> { where.not(state: "closed") }
-  scope :closed_threads, -> { where(state: "closed") }
+  scope :open_threads, -> { where.not(state: %w[ closed merged ]) }
+  scope :closed_threads, -> { where(state: %w[ closed merged ]) }
   scope :issue_kind, -> { where(kind: "issue") }
   scope :cron_kind,  -> { where(kind: "cron") }
   scope :direct_kind, -> { where(kind: "direct") }
@@ -116,6 +120,10 @@ class Job < ApplicationRecord
     state :blocked_by_epic
     state :queued
     state :open
+    state :implemented
+    state :approved
+    state :landing
+    state :merged
     state :closed
 
     event :advance_after_triage do
@@ -137,8 +145,33 @@ class Job < ApplicationRecord
       transitions from: :blocked_by_epic, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_if_needed
     end
 
+    event :mark_implemented do
+      transitions from: [ :queued, :open ], to: :implemented
+    end
+
+    event :approve, before: :assign_approval_metadata do
+      transitions from: :implemented, to: :approved
+    end
+
+    event :unapprove, after: :clear_approval_metadata do
+      transitions from: :approved, to: :implemented
+    end
+
+    event :land do
+      transitions from: :approved, to: :landing
+    end
+
+    event :mark_merged, after: -> {
+      self.finished_at = Time.current
+      self.closure_reason ||= "pr_merged"
+      record_outcome_to_scheduled_task! if cron?
+      refresh_epic_auto_state
+    } do
+      transitions from: :landing, to: :merged
+    end
+
     event :close, after: :refresh_epic_auto_state do
-      transitions from: [ :open, :triaging, :blocked_by_epic, :queued ], to: :closed, after: -> {
+      transitions from: [ :open, :triaging, :blocked_by_epic, :queued, :implemented, :approved, :landing ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
       }
@@ -192,14 +225,14 @@ class Job < ApplicationRecord
   # existing ones) without a manual refresh.
   broadcasts_refreshes_to ->(job) { [ job.repository, "jobs" ] }
 
-  after_update_commit :rebase_stack_children_after_merge, if: :saved_change_to_pr_merged_close?
+  after_update_commit :rebase_stack_children_after_merge, if: :saved_change_to_pr_merged_terminal?
 
   def solid_queue_priority
     PRIORITY_TO_SQ.fetch(priority.to_s, PRIORITY_TO_SQ["medium"])
   end
 
   def open?
-    !closed?
+    !closed? && !merged?
   end
 
   def ready_for_execution?
@@ -231,6 +264,29 @@ class Job < ApplicationRecord
     return if last_feedback_addressed_at && last_feedback_addressed_at >= addressed_at
 
     update!(last_feedback_addressed_at: addressed_at)
+  end
+
+  def approve!(*args, **kwargs)
+    raise AASM::InvalidTransition.new(self, :approve, :default) unless may_approve?
+
+    approve(*args, **kwargs).tap { save! }
+  end
+
+  def unapprove!(*args, **kwargs)
+    raise AASM::InvalidTransition.new(self, :unapprove, :default) unless may_unapprove?
+
+    unapprove(*args, **kwargs).tap { save! }
+  end
+
+  def record_github_review_approval!(review_url:, approved_at: Time.current)
+    mark_implemented! if may_mark_implemented?
+    return false unless may_approve?
+
+    approve!(
+      via: "github_review",
+      evidence: { "github_review_url" => review_url }.compact,
+      at: approved_at
+    )
   end
 
   # Cancels every active Run on this Job and closes the thread. Used by
@@ -333,7 +389,7 @@ class Job < ApplicationRecord
   end
 
   def dependency_succeeded?
-    closed? && SUCCESSFUL_CLOSURE_REASONS.include?(closure_reason)
+    merged? || (closed? && SUCCESSFUL_CLOSURE_REASONS.include?(closure_reason))
   end
 
   def stack_ready_for_execution?
@@ -545,6 +601,22 @@ class Job < ApplicationRecord
     self.validity ||= "valid"
     self.triaging_reason ||= "classifier_pending"
     self.invalidation_evidence ||= []
+    self.approval_evidence ||= {}
+  end
+
+  def assign_approval_metadata(*args)
+    options = args.last.is_a?(Hash) ? args.last : {}
+    self.approved_at = options[:at] || Time.current
+    self.approved_via = options.fetch(:via)
+    self.approved_by_user = options[:by_user]
+    self.approval_evidence = options[:evidence].presence || {}
+  end
+
+  def clear_approval_metadata
+    self.approved_at = nil
+    self.approved_via = nil
+    self.approved_by_user = nil
+    self.approval_evidence = {}
   end
 
   def epic_belongs_to_same_user_and_repository
@@ -566,8 +638,8 @@ class Job < ApplicationRecord
     errors.add(:issue_number, "must be blank for direct Jobs") if issue_number.present?
   end
 
-  def saved_change_to_pr_merged_close?
-    saved_change_to_state? && closed? && closure_reason == "pr_merged"
+  def saved_change_to_pr_merged_terminal?
+    saved_change_to_state? && (closed? || merged?) && closure_reason == "pr_merged"
   end
 
   def rebase_stack_children_after_merge

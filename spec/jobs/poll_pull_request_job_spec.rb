@@ -90,7 +90,7 @@ RSpec.describe PollPullRequestJob do
       repository.update!(auto_merge_enabled: true)
       stub_pr
       stub_reviews([
-        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, user: { login: "reviewer" } }
+        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1", user: { login: "reviewer" } }
       ])
       stub_issue_comments([])
       stub_review_comments([])
@@ -99,6 +99,10 @@ RSpec.describe PollPullRequestJob do
       described_class.perform_now(job.id)
 
       expect(job.reload).to be_open
+      expect(job.state).to eq("approved")
+      expect(job.approved_at).to be_present
+      expect(job.approved_via).to eq("github_review")
+      expect(job.approval_evidence).to eq("github_review_url" => "https://github.com/acme/widgets/pull/7#pullrequestreview-1")
       expect(job.closure_reason).to be_nil
     end
 
@@ -106,7 +110,7 @@ RSpec.describe PollPullRequestJob do
       repository.update!(auto_merge_enabled: false)
       stub_pr
       stub_reviews([
-        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, user: { login: "reviewer" } }
+        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1", user: { login: "reviewer" } }
       ])
       stub_issue_comments([
         { id: 1, body: "please address this before manual merge",
@@ -120,6 +124,8 @@ RSpec.describe PollPullRequestJob do
       }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
 
       expect(job.reload).to be_open
+      expect(job.state).to eq("approved")
+      expect(job.approved_via).to eq("github_review")
       expect(job.closure_reason).to be_nil
     end
 
@@ -134,7 +140,7 @@ RSpec.describe PollPullRequestJob do
     it "keeps the Job open on a new APPROVED review when auto-merge is disabled" do
       stub_pr
       stub_reviews([
-        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, user: { login: "reviewer" } }
+        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1", user: { login: "reviewer" } }
       ])
       stub_issue_comments([])
       stub_review_comments([])
@@ -145,6 +151,8 @@ RSpec.describe PollPullRequestJob do
       }.not_to change { job.reload.state }
 
       expect(job).to be_open
+      expect(job.state).to eq("approved")
+      expect(job.approved_via).to eq("github_review")
       expect(job.closure_reason).to be_nil
     end
   end

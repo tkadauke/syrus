@@ -63,4 +63,35 @@ RSpec.describe "Admin GitHub App registration", type: :request do
     post "/github_app/webhook"
     expect(response).to have_http_status(:ok)
   end
+
+  it "records approval metadata from pull_request_review webhooks" do
+    repository = Factories.repository(user: admin, owner: "acme", name: "widgets")
+    job = Factories.job(repository: repository, issue_number: 42, pr_number: 7)
+    job.update!(state: "implemented")
+
+    payload = {
+      review: {
+        state: "approved",
+        submitted_at: "2026-05-16T00:15:00Z",
+        html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-99"
+      },
+      repository: {
+        name: "widgets",
+        owner: { login: "acme" }
+      },
+      pull_request: {
+        number: 7
+      }
+    }
+
+    post "/github_app/webhook",
+         params: payload.to_json,
+         headers: { "CONTENT_TYPE" => "application/json", "X-GitHub-Event" => "pull_request_review" }
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload.state).to eq("approved")
+    expect(job.approved_at).to eq(Time.zone.parse("2026-05-16T00:15:00Z"))
+    expect(job.approved_via).to eq("github_review")
+    expect(job.approval_evidence).to eq("github_review_url" => "https://github.com/acme/widgets/pull/7#pullrequestreview-99")
+  end
 end

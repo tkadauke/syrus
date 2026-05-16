@@ -42,6 +42,7 @@ class PollPullRequestJob < ApplicationJob
     return close_with("pr_closed") if @pr.state == "closed"
     return close_with("syrus_stop") if has_label?(@pr, "syrus-stop")
 
+    react_to_pr_reviews
     react_to_pr_comments
     react_to_ci_failures
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
@@ -65,6 +66,31 @@ class PollPullRequestJob < ApplicationJob
 
   def has_label?(pr, name)
     Array(pr.labels).any? { |l| l.name == name }
+  end
+
+  def react_to_pr_reviews
+    latest_approval = @client.pr_reviews(@slug, @job.pr_number)
+                             .select { |review| review.state == "APPROVED" }
+                             .max_by { |review| review_submitted_at(review) || Time.at(0) }
+    return unless latest_approval
+
+    submitted_at = review_submitted_at(latest_approval) || Time.current
+    return if @job.approved_at && @job.approved_at >= submitted_at
+
+    @job.record_github_review_approval!(
+      approved_at: submitted_at,
+      review_url: latest_approval.respond_to?(:html_url) ? latest_approval.html_url : nil
+    )
+  end
+
+  def review_submitted_at(review)
+    value = review.respond_to?(:submitted_at) ? review.submitted_at : nil
+    return value if value.respond_to?(:to_time) && !value.is_a?(String)
+    return if value.blank?
+
+    Time.zone.parse(value.to_s)
+  rescue ArgumentError
+    nil
   end
 
   # ----- pr_comment branch ------------------------------------------------

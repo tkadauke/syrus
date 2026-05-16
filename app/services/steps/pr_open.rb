@@ -15,7 +15,10 @@ module Steps
       log("pr_open: pushing branch and opening PR (workflow ##{workflow.id})")
 
       push_branch
-      return if job.pr_number.present?  # idempotent for retry
+      if job.pr_number.present?  # idempotent for retry
+        job.mark_implemented! if job.may_mark_implemented?
+        return
+      end
 
       title, body = pr_title_and_body
       pr_number = PullRequestOpener.new(repository).open(
@@ -24,6 +27,7 @@ module Steps
         body: body
       )
       job.update!(pr_number: pr_number, branch_name: workspace.branch_name)
+      job.mark_implemented! if job.may_mark_implemented?
       log("pr_open: opened PR ##{pr_number} (#{title.inspect})")
     end
 

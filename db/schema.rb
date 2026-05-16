@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_15_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_16_002034) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -336,6 +336,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_130000) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "agent_provider", null: false
+    t.datetime "approved_at"
+    t.integer "approved_by_user_id"
+    t.string "approved_via"
+    t.json "approval_evidence", default: {}, null: false
     t.string "branch_name"
     t.string "closure_reason"
     t.datetime "created_at", null: false
@@ -376,6 +380,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_130000) do
     t.index ["epic_id"], name: "index_jobs_on_epic_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
+    t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
@@ -717,6 +722,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_130000) do
   add_foreign_key "jobs", "repositories"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"
+  add_foreign_key "jobs", "users", column: "approved_by_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "operator_questions", "jobs"
   add_foreign_key "operator_questions", "runs"

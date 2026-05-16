@@ -68,6 +68,69 @@ RSpec.describe Job do
       # is about the thread, not
       # the Run
     end
+
+    it "approves an implemented job with approval metadata" do
+      job = Factories.job
+      job.update!(state: "implemented")
+
+      freeze_time do
+        expect {
+          job.approve!(
+            via: "operator",
+            by_user: job.user,
+            evidence: { "note" => "reviewed in Syrus" },
+            at: Time.current
+          )
+        }.to change(job, :state).from("implemented").to("approved")
+
+        expect(job.approved_at).to eq(Time.current)
+        expect(job.approved_via).to eq("operator")
+        expect(job.approved_by_user).to eq(job.user)
+        expect(job.approval_evidence).to eq("note" => "reviewed in Syrus")
+      end
+    end
+
+    it "moves an approved job into landing and then merged" do
+      job = Factories.job
+      job.update!(state: "implemented")
+      job.approve!(via: "bulk", by_user: job.user)
+
+      expect { job.land! }.to change(job, :state).from("approved").to("landing")
+      expect { job.mark_merged! }.to change(job, :state).from("landing").to("merged")
+      expect(job.finished_at).to be_present
+      expect(job.closure_reason).to eq("pr_merged")
+    end
+
+    it "unapproves an approved job back to implemented and clears metadata" do
+      job = Factories.job
+      job.update!(state: "implemented")
+      job.approve!(via: "operator", by_user: job.user, evidence: { "note" => "ship it" })
+
+      expect { job.unapprove! }.to change(job, :state).from("approved").to("implemented")
+      expect(job.approved_at).to be_nil
+      expect(job.approved_via).to be_nil
+      expect(job.approved_by_user).to be_nil
+      expect(job.approval_evidence).to eq({})
+    end
+
+    it "does not allow unapproving a landing job" do
+      job = Factories.job
+      job.update!(state: "implemented")
+      job.approve!(via: "operator", by_user: job.user)
+      job.land!
+
+      expect(job.may_unapprove?).to be false
+      expect { job.unapprove! }.to raise_error(AASM::InvalidTransition)
+      expect(job.state).to eq("landing")
+    end
+
+    it "does not allow approving a merged job" do
+      job = Factories.job
+      job.update!(state: "merged")
+
+      expect(job.may_approve?).to be false
+      expect { job.approve!(via: "operator", by_user: job.user) }.to raise_error(AASM::InvalidTransition)
+    end
   end
 
   describe "auto-create initial Run on commit" do
