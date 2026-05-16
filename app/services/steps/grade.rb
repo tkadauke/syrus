@@ -6,6 +6,7 @@ module Steps
     def call
       workspace.setup
       plan = RepoGradePlan.for(workspace.path)
+      record_plan_source!(plan)
 
       log("[grade] source: #{plan.source}")
       log("[grade] note: #{plan.note}") if plan.note
@@ -34,6 +35,25 @@ module Steps
     end
 
     private
+
+    def record_plan_source!(plan)
+      workflow.set_artifact!("grade_plan_source", plan.source)
+      workflow.set_artifact!("grade_plan_repo_committed", repo_committed_grader_source?(plan))
+    end
+
+    def repo_committed_grader_source?(plan)
+      return false if plan.graders.empty?
+      return false if plan.source == "none"
+
+      changed = GitRunner.new.run(
+        "diff", "--name-only", "#{repository.default_branch}...HEAD", "--", *AutoApprovalRule::GRADER_FILES,
+        chdir: workspace.path.to_s
+      )
+      changed.strip.empty?
+    rescue GitRunner::GitError => e
+      log("[grade] could not verify committed grader source: #{e.message}")
+      false
+    end
 
     def run_grader(grader)
       log("[grade] $ #{grader.command}")

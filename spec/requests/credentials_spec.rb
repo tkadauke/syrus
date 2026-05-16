@@ -132,6 +132,12 @@ RSpec.describe "Credentials", type: :request do
       expect(user.reload.telegram_chat_id).to eq("123456")
     end
 
+    it "updates the auto-approval fallback" do
+      patch credentials_path, params: { user: { auto_approve_mode: "if_graders_pass" } }
+      expect(response).to redirect_to(edit_credentials_path)
+      expect(user.reload.auto_approve_mode).to eq("if_graders_pass")
+    end
+
     it "rejects a non-numeric telegram_chat_id" do
       patch credentials_path, params: { user: { telegram_chat_id: "not-a-chat" } }
       expect(response).to have_http_status(:unprocessable_content)

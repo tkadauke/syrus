@@ -27,7 +27,7 @@ RSpec.describe "Repositories", type: :request do
         post repositories_path, params: { repository: {
           owner: "acme", name: "widgets", default_branch: "main",
           trigger_label: "syrus", polling_enabled: "1", prepare_enabled: "0", agent_provider: "codex",
-          allow_operator_chat: "telegram",
+          allow_operator_chat: "telegram", auto_approve_mode: "if_graders_pass",
           github_owner_id: "123", github_repository_id: "456"
         } }
       }.to change(user.repositories, :count).by(1)
@@ -35,6 +35,7 @@ RSpec.describe "Repositories", type: :request do
       expect(user.repositories.last.agent_provider).to eq("codex")
       expect(user.repositories.last.prepare_enabled).to be(false)
       expect(user.repositories.last.allow_operator_chat).to eq("telegram")
+      expect(user.repositories.last.auto_approve_mode).to eq("if_graders_pass")
       expect(user.repositories.last.github_owner_id).to eq(123)
       expect(user.repositories.last.github_repository_id).to eq(456)
     end
@@ -45,13 +46,14 @@ RSpec.describe "Repositories", type: :request do
       patch repository_path(mine), params: { repository: {
         owner: "acme", name: "widgets", default_branch: "main",
         trigger_label: "syrus", polling_enabled: "1", prepare_enabled: "0", agent_provider: "codex",
-        allow_operator_chat: "telegram"
+        allow_operator_chat: "telegram", auto_approve_mode: "if_graders_pass_and_tagged_safe"
       } }
 
       expect(response).to redirect_to(repositories_path)
       expect(mine.reload.agent_provider).to eq("codex")
       expect(mine.prepare_enabled).to be(false)
       expect(mine.allow_operator_chat).to eq("telegram")
+      expect(mine.auto_approve_mode).to eq("if_graders_pass_and_tagged_safe")
 
       follow_redirect!
       expect(response.body).to include("agent Codex")

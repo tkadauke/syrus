@@ -51,6 +51,11 @@
       <% end %>
       <dt class="text-gray-500">PR pileup policy</dt>
       <dd><%= @task.pr_pileup_policy %></dd>
+      <dt class="text-gray-500">Auto-approval</dt>
+      <dd>
+        <span class="font-mono"><%= @task.auto_approve_mode %></span>
+        <span class="ml-2 text-xs text-gray-500"><%= auto_approve_preview(@task) %></span>
+      </dd>
       <dt class="text-gray-500">Last fired</dt>
       <dd><%= @task.last_fired_at&.utc&.iso8601 || '—' %></dd>
       <dt class="text-gray-500">Last successful fire</dt>

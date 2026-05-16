@@ -1,6 +1,21 @@
 require "rails_helper"
 
 RSpec.describe Epic do
+  it "defaults auto-approval to never and accepts grader-gated modes" do
+    epic = Factories.epic
+    expect(epic.auto_approve_mode).to eq("never")
+
+    epic.update!(auto_approve_mode: "if_graders_pass")
+    expect(epic.auto_approve_mode).to eq("if_graders_pass")
+  end
+
+  it "rejects unknown auto-approval modes" do
+    epic = Factories.epic
+    epic.auto_approve_mode = "always"
+    expect(epic).not_to be_valid
+    expect(epic.errors[:auto_approve_mode]).to be_present
+  end
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 

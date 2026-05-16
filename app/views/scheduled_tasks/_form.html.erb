@@ -66,6 +66,13 @@
   </div>
 
   <div>
+    <%= form.label :auto_approve_mode, "Auto-approval", class: "block text-sm font-medium text-gray-700" %>
+    <%= form.select :auto_approve_mode, auto_approve_mode_options, {},
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full bg-white" %>
+    <p class="text-xs text-gray-500 mt-1"><%= auto_approve_preview(task) %></p>
+  </div>
+
+  <div>
     <%= form.label :prompt, "Prompt", class: "block text-sm font-medium text-gray-700" %>
     <p class="text-xs text-gray-500 mt-1">
       The standing instruction for the agent. A Syrus preamble gets prepended at fire time

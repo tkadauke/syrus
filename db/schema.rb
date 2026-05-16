@@ -245,6 +245,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_170000) do
   end
 
   create_table "epics", force: :cascade do |t|
+    t.string "auto_approve_mode", default: "never", null: false
     t.datetime "created_at", null: false
     t.text "description"
     t.datetime "done_at"
@@ -426,6 +427,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_170000) do
     t.string "agent_provider"
     t.string "allow_operator_chat", default: "disabled", null: false
     t.datetime "archived_at"
+    t.string "auto_approve_mode", default: "never", null: false
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
@@ -555,6 +557,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_170000) do
 
   create_table "scheduled_tasks", force: :cascade do |t|
     t.datetime "archived_at"
+    t.string "auto_approve_mode", default: "never", null: false
     t.integer "consecutive_failure_count", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "cron_expression"
@@ -637,6 +640,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_170000) do
     t.integer "agent_max_turns", default: 200, null: false
     t.string "agent_provider", default: "claude", null: false
     t.string "api_token"
+    t.string "auto_approve_mode", default: "never", null: false
     t.string "claude_oauth_token"
     t.string "codex_api_key"
     t.text "codex_auth_json"

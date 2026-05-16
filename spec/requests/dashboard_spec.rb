@@ -1100,6 +1100,42 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).not_to include("Rebuild the aqueduct")
       end
 
+      it "shows ready epics in Awaiting your move until they enter progress" do
+        ready = Factories.epic(user: user, repository: repo, state: "ready", title: "Restore the forum")
+        Factories.epic(user: user, repository: repo, state: "in_progress", title: "Already marching")
+        SmartFolder.ensure_builtins!
+        awaiting_move = SmartFolder.find_by!(name: "Awaiting your move")
+
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_move.id }
+
+        expect(response.body).to include("Epics awaiting your move")
+        expect(response.body).to include("Restore the forum")
+        expect(response.body).not_to include("Already marching")
+        expect(Nokogiri::HTML(response.body).at_css("aside").css("a").find { |link| link.text.include?("Awaiting your move") }.text).to include("1")
+
+        ready.in_progress!
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_move.id }
+
+        expect(response.body).not_to include("Restore the forum")
+      end
+
+      it "updates an Epic auto-approval rule from the Epics dashboard" do
+        epic = Factories.epic(user: user, repository: repo, state: "ready", title: "Polish aqueduct")
+        SmartFolder.ensure_builtins!
+        awaiting_move = SmartFolder.find_by!(name: "Awaiting your move")
+
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_move.id }
+        expect(response.body).to include("Auto-approval")
+        expect(response.body).to include("If graders pass")
+
+        patch dashboard_epic_auto_approval_path(epic), params: {
+          epic: { auto_approve_mode: "if_graders_pass" }
+        }
+
+        expect(response).to redirect_to(dashboard_epics_path)
+        expect(epic.reload.auto_approve_mode).to eq("if_graders_pass")
+      end
+
       it "applies a built-in smart folder filter" do
         failed = Factories.job(repository: repo, issue_number: 1)
         failed.initial_run.update!(state: "failed", finished_at: Time.current)

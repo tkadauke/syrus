@@ -110,6 +110,15 @@
     <%= form.label :auto_merge_enabled, "Auto-merge approved Syrus PRs", class: "text-sm text-gray-700" %>
   </div>
 
+  <div>
+    <%= form.label :auto_approve_mode, "Auto-approval fallback", class: "block text-sm font-medium text-gray-700" %>
+    <%= form.select :auto_approve_mode, auto_approve_mode_options, {},
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full bg-white" %>
+    <p class="text-xs text-gray-500 mt-1">
+      Used only when a Job's scheduled task or Epic does not set auto-approval.
+    </p>
+  </div>
+
   <div class="flex items-center gap-3">
     <%= form.submit class: "rounded-md px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
     <%= link_to "Cancel", repositories_path, class: "text-gray-700 underline hover:no-underline" %>

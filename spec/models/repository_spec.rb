@@ -17,6 +17,20 @@ RSpec.describe Repository do
     expect(repo.agent_provider).to eq("codex")
   end
 
+  it "defaults auto-approval to never and accepts grader-gated modes" do
+    repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
+    expect(repo.auto_approve_mode).to eq("never")
+
+    repo.update!(auto_approve_mode: "if_graders_pass")
+    expect(repo.auto_approve_mode).to eq("if_graders_pass")
+  end
+
+  it "rejects unknown auto-approval modes" do
+    repo = Repository.new(user: owner, owner: "acme", name: "widgets", auto_approve_mode: "whenever")
+    expect(repo).not_to be_valid
+    expect(repo.errors[:auto_approve_mode]).to be_present
+  end
+
   it "normalizes blank agent_provider to user-default fallback" do
     owner.update!(agent_provider: "codex", codex_api_key: "sk-test")
     repo = Repository.create!(user: owner, owner: "acme", name: "widgets", agent_provider: "")

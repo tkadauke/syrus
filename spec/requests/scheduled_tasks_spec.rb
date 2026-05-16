@@ -73,13 +73,16 @@ RSpec.describe "Scheduled tasks", type: :request do
     describe "POST /repositories/:id/scheduled_tasks" do
       it "creates a cron task and redirects to its show page" do
         expect {
-          post repository_scheduled_tasks_path(repository), params: { scheduled_task: valid_cron_attrs }
+          post repository_scheduled_tasks_path(repository), params: {
+            scheduled_task: valid_cron_attrs.merge(auto_approve_mode: "if_graders_pass")
+          }
         }.to change { ScheduledTask.count }.by(1)
         task = ScheduledTask.last
         expect(response).to redirect_to(scheduled_task_path(task))
         expect(task.user).to eq(user)
         expect(task.repository).to eq(repository)
         expect(task.minute_offset).to be_between(0, 59)
+        expect(task.auto_approve_mode).to eq("if_graders_pass")
       end
 
       it "rejects invalid cron expressions" do
@@ -107,8 +110,27 @@ RSpec.describe "Scheduled tasks", type: :request do
     describe "PATCH /scheduled_tasks/:id" do
       it "updates the prompt" do
         task = repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)
-        patch scheduled_task_path(task), params: { scheduled_task: { prompt: "Updated standing instruction." } }
+        patch scheduled_task_path(task), params: {
+          scheduled_task: {
+            prompt: "Updated standing instruction.",
+            auto_approve_mode: "if_graders_pass_and_tagged_safe"
+          }
+        }
         expect(task.reload.prompt).to eq("Updated standing instruction.")
+        expect(task.auto_approve_mode).to eq("if_graders_pass_and_tagged_safe")
+      end
+
+      it "shows the auto-approval picker and preview line" do
+        task = repository.scheduled_tasks.create!(
+          user: user,
+          **valid_cron_attrs.merge(auto_approve_mode: "if_graders_pass")
+        )
+
+        get edit_scheduled_task_path(task)
+
+        expect(response.body).to include("Auto-approval")
+        expect(response.body).to include("If graders pass")
+        expect(response.body).to include("repo-committed graders pass")
       end
     end
 

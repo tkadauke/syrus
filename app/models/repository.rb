@@ -1,4 +1,6 @@
 class Repository < ApplicationRecord
+  include AutoApproveModes
+
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   OPERATOR_CHAT_CHANNELS = %w[ disabled in_syrus telegram ].freeze
 

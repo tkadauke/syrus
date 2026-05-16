@@ -90,6 +90,7 @@ class Step < ApplicationRecord
   # The dispatcher is what creates the Run on the next Step; this
   # callback just signals "I'm done; move along".
   after_update_commit :advance_next_step!, if: :saved_change_to_state_to_succeeded?
+  after_update_commit :apply_auto_approval_rule!, if: :saved_change_to_succeeded_grade?
 
   # When a Step fails, the linear chain can't advance: v1 has no
   # intra-workflow retry, so the workflow itself is dead. Mark
@@ -106,8 +107,16 @@ class Step < ApplicationRecord
     saved_change_to_state? && state == "failed"
   end
 
+  def saved_change_to_succeeded_grade?
+    saved_change_to_state_to_succeeded? && kind == "grade"
+  end
+
   def advance_next_step!
     StepDispatcher.advance_from(self)
+  end
+
+  def apply_auto_approval_rule!
+    AutoApprovalRule.for(workflow.job).apply_after_grader_success!(self)
   end
 
   def fail_workflow!

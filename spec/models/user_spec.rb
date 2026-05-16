@@ -63,6 +63,23 @@ RSpec.describe User do
     end
   end
 
+  describe "auto_approve_mode" do
+    it "defaults to never" do
+      expect(User.create!(attrs).auto_approve_mode).to eq("never")
+    end
+
+    it "accepts grader-gated modes" do
+      user = User.create!(attrs.merge(auto_approve_mode: "if_graders_pass_and_tagged_safe"))
+      expect(user.auto_approve_mode).to eq("if_graders_pass_and_tagged_safe")
+    end
+
+    it "rejects unknown modes" do
+      user = User.new(attrs.merge(auto_approve_mode: "always"))
+      expect(user).not_to be_valid
+      expect(user.errors[:auto_approve_mode]).to be_present
+    end
+  end
+
   describe "codex_auth_mode" do
     it "defaults to api_key" do
       expect(User.create!(attrs).codex_auth_mode).to eq("api_key")

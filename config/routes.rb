@@ -133,6 +133,7 @@ Rails.application.routes.draw do
   end
   get "dashboard", to: redirect("/dashboard/epics", status: 302)
   get "dashboard/epics", to: "home#epics", as: :dashboard_epics
+  patch "dashboard/epics/:id/auto_approval", to: "home#update_epic_auto_approval", as: :dashboard_epic_auto_approval
   get "dashboard/jobs", to: "home#jobs", as: :dashboard_jobs
   get "dashboard/workflows", to: "home#workflows", as: :dashboard_workflows
   get "jobs", to: redirect("/dashboard/jobs", status: 302)

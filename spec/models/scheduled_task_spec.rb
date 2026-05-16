@@ -47,6 +47,21 @@ RSpec.describe ScheduledTask do
       expect(task).not_to be_valid
     end
 
+    it "defaults auto-approval to never and accepts grader-gated modes" do
+      task = build_cron
+      task.save!
+      expect(task.auto_approve_mode).to eq("never")
+
+      task.update!(auto_approve_mode: "if_graders_pass")
+      expect(task.auto_approve_mode).to eq("if_graders_pass")
+    end
+
+    it "rejects unknown auto-approval modes" do
+      task = build_cron(auto_approve_mode: "always")
+      expect(task).not_to be_valid
+      expect(task.errors[:auto_approve_mode]).to be_present
+    end
+
     it "requires cron_expression for cron tasks" do
       task = build_cron(cron_expression: nil)
       expect(task).not_to be_valid

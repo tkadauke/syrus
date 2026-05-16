@@ -104,7 +104,7 @@ class ScheduledTasksController < ApplicationController
   end
 
   def scheduled_task_params
-    permitted = %i[ name prompt kind cron_expression fire_at pr_pileup_policy ]
+    permitted = %i[ name prompt kind cron_expression fire_at pr_pileup_policy auto_approve_mode ]
     params.expect(scheduled_task: permitted)
   end
 end

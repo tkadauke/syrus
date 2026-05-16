@@ -212,6 +212,14 @@
                 <td class="px-4 py-3 align-top"><%= state_pill(epic.state) %></td>
                 <td class="px-4 py-3">
                   <div class="font-medium text-gray-900"><%= epic.title %></div>
+                  <%= form_with url: dashboard_epic_auto_approval_path(epic), method: :patch,
+                        scope: :epic, class: "mt-2 flex flex-wrap items-center gap-2 text-xs" do |form| %>
+                    <%= form.label :auto_approve_mode, "Auto-approval", class: "font-medium text-gray-700" %>
+                    <%= form.select :auto_approve_mode, auto_approve_mode_options, {},
+                          class: "rounded border border-gray-300 bg-white px-2 py-1 text-xs" %>
+                    <%= form.submit "Update", class: "text-blue-600 underline hover:no-underline cursor-pointer" %>
+                    <span class="text-gray-500"><%= auto_approve_preview(epic) %></span>
+                  <% end %>
                   <div class="sm:hidden text-xs font-mono text-gray-500 mt-0.5">
                     <%= link_to epic.repository.slug, repository_path(epic.repository), class: "hover:underline" %>
                   </div>

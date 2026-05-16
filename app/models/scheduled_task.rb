@@ -1,6 +1,8 @@
 require "fugit"
 
 class ScheduledTask < ApplicationRecord
+  include AutoApproveModes
+
   KINDS = %w[ cron one_shot ].freeze
   STATES = %w[ scheduled paused auto_paused fired ].freeze
   PR_PILEUP_POLICIES = %w[ skip pile replace ].freeze

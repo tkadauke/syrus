@@ -241,6 +241,7 @@ class Job < ApplicationRecord
 
   def blocked_by_epic_before_execution?
     return false unless epic
+    return false if epic.releases_jobs_for_execution?
 
     !epic.releases_jobs_for_execution?
   end

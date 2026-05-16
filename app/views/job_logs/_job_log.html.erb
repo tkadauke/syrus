@@ -18,6 +18,9 @@
            when "system"         then "text-purple-300"
            else                       "text-gray-100"
            end %>
+<% if job_log.kind == "system" && job_log.chunk.include?("auto_approval:") %>
+  <% color = "text-emerald-300 font-semibold" %>
+<% end %>
 <div id="<%= dom_id(job_log) %>"
      data-log-kind="<%= job_log.kind %>"
      class="font-mono text-xs <%= color %> whitespace-pre-wrap"><%= job_log.chunk %></div>

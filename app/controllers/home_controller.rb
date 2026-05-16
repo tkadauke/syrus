@@ -23,6 +23,12 @@ class HomeController < ApplicationController
     render :index
   end
 
+  def update_epic_auto_approval
+    epic = Current.user.epics.find(params[:id])
+    epic.update!(params.expect(epic: [ :auto_approve_mode ]))
+    redirect_back fallback_location: dashboard_epics_path, notice: "Epic auto-approval updated."
+  end
+
   def bulk_jobs
     job_ids = Array(params[:job_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
     if job_ids.empty?

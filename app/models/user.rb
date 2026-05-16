@@ -1,4 +1,6 @@
 class User < ApplicationRecord
+  include AutoApproveModes
+
   has_secure_password
   has_many :sessions, dependent: :destroy
   has_many :repositories, dependent: :destroy

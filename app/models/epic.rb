@@ -1,5 +1,6 @@
 class Epic < ApplicationRecord
   include AASM
+  include AutoApproveModes
 
   STATES = %w[ backlog ready in_progress done ].freeze
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
@@ -94,6 +95,10 @@ class Epic < ApplicationRecord
         restore_child_epic_blocks!
       end
     end
+  end
+
+  def in_progress!
+    override_state!("in_progress")
   end
 
   def unblock_child_jobs!
