@@ -1,8 +1,9 @@
 module Filters
   module Chips
     # Preset macro chip — value selects a named composite filter
-    # (pinned / in_progress / inbox / just_failed / in_review / stale /
-    # blocked / merged_this_week / awaiting_epic / needs_review). Each
+    # (pinned / in_progress / inbox / awaiting_approval / just_failed /
+    # in_review / stale / blocked / merged_this_week / awaiting_epic /
+    # needs_review). Each
     # preset compiles to whatever sub-scope it needs; the UI will
     # eventually let operators "expand" a preset chip into its
     # primitive sub-chips for further editing.
@@ -12,8 +13,8 @@ module Filters
       operators :is
 
       PRESETS = %w[
-        pinned in_progress inbox just_failed in_review stale blocked
-        merged_this_week awaiting_epic needs_review
+        pinned in_progress inbox awaiting_approval just_failed in_review
+        stale blocked merged_this_week awaiting_epic needs_review
       ].freeze
 
       def apply
@@ -44,6 +45,11 @@ module Filters
             .or(open.where(id: latest_failed_run_ids))
             .or(open.where(id: awaiting_epic_ids))
             .or(open.where(id: needs_review_ids))
+            .or(open.where(id: awaiting_approval_ids))
+      end
+
+      def apply_awaiting_approval
+        scope.where(id: awaiting_approval_ids)
       end
 
       def apply_just_failed
@@ -112,6 +118,10 @@ module Filters
 
       def needs_review_ids
         Job.where(validity: %w[ duplicate already_implemented ]).select(:id)
+      end
+
+      def awaiting_approval_ids
+        Job.where(state: "implemented").select(:id)
       end
 
       def unread_feedback_ids

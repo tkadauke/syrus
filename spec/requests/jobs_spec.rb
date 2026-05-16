@@ -69,6 +69,51 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*Codex/m)
       end
 
+      it "approves an implemented job from the job page" do
+        user.update!(name: "Thomas")
+        job.update!(state: "implemented")
+
+        freeze_time do
+          post approve_job_path(job)
+        end
+
+        expect(response).to redirect_to(job_path(job))
+        expect(job.reload.state).to eq("approved")
+        expect(job.approved_at).to be_present
+        expect(job.approved_via).to eq("operator")
+        expect(job.approved_by_user).to eq(user)
+
+        get job_path(job)
+        expect(response.body).to include("Unapprove")
+        expect(response.body).to include("Approved by Thomas via Syrus")
+      end
+
+      it "unapproves an approved job before landing starts" do
+        job.update!(state: "implemented")
+        job.approve!(via: "operator", by_user: user)
+
+        post unapprove_job_path(job)
+
+        expect(response).to redirect_to(job_path(job))
+        expect(job.reload.state).to eq("implemented")
+        expect(job.approved_at).to be_nil
+        expect(job.approved_via).to be_nil
+        expect(job.approved_by_user).to be_nil
+        expect(job.approval_evidence).to eq({})
+      end
+
+      it "refuses to unapprove a landing job" do
+        job.update!(state: "implemented")
+        job.approve!(via: "operator", by_user: user)
+        job.land!
+
+        post unapprove_job_path(job)
+
+        expect(response).to redirect_to(job_path(job))
+        expect(flash[:alert]).to include("Only approved Jobs")
+        expect(job.reload.state).to eq("landing")
+      end
+
       it "renders the current user's pin state in the header" do
         Factories.job_pin(user: user, job: job)
 
@@ -1331,7 +1376,7 @@ RSpec.describe "Jobs", type: :request do
 
       it "pins and unpins one of the current user's jobs" do
         SmartFolder.ensure_builtins!
-        pinned_folder = SmartFolder.builtins.find { |f| f.filter["attention"] == "pinned" }
+        pinned_folder = SmartFolder.find_builtin_by_attention("pinned")
         pinned_url = root_url(smart_folder_id: pinned_folder.id)
 
         expect {

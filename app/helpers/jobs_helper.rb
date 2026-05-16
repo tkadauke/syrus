@@ -9,6 +9,10 @@ module JobsHelper
     "open"      => "bg-emerald-100 text-emerald-700",
     "triaging"  => "bg-sky-100 text-sky-700",
     "blocked_by_epic" => "bg-amber-100 text-amber-700",
+    "implemented" => "bg-cyan-100 text-cyan-700",
+    "approved" => "bg-green-100 text-green-700",
+    "landing" => "bg-teal-100 text-teal-700",
+    "merged" => "bg-emerald-100 text-emerald-700",
     "closed"    => "bg-gray-200 text-gray-800",
     "preempted" => "bg-violet-100 text-violet-700",
     "pending"   => "bg-gray-100 text-gray-700"
@@ -213,6 +217,45 @@ module JobsHelper
     when "issue_label"
       "Prepare skipped (issue label)"
     end
+  end
+
+  def approval_caption(job)
+    return "Not approved" if job.approved_at.blank?
+    return "Approved by #{approval_actor(job)} #{relative_timestamp(job.approved_at)}" if job.approved_via == "auto_rule"
+
+    actor = approval_actor(job)
+    via = approval_via_label(job)
+    time = relative_timestamp(job.approved_at)
+    "Approved by #{actor} via #{via} #{time}"
+  end
+
+  def approval_actor(job)
+    return job.approved_by_user.display_name if job.approved_by_user
+
+    case job.approved_via
+    when "auto_rule"
+      rule = job.approval_evidence["rule"].presence || job.approval_evidence["rule_name"].presence || "unknown"
+      "Codex grader rule '#{rule}'"
+    when "github_review"
+      "GitHub review"
+    else
+      "Syrus"
+    end
+  end
+
+  def approval_via_label(job)
+    case job.approved_via
+    when "operator" then "Syrus"
+    when "bulk" then "bulk approval"
+    when "github_review" then "GitHub"
+    when "auto_rule" then "auto approval"
+    else job.approved_via.to_s.humanize
+    end
+  end
+
+  def latest_agent_diff(job)
+    runs = job.runs.loaded? ? job.runs.to_a : job.runs.order(:created_at).to_a
+    runs.reverse.find { |run| run.agent_diff.present? }&.agent_diff
   end
 
   def cost_caption(amount)

@@ -172,6 +172,26 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: "Cancellation requested."
   end
 
+  def approve
+    unless @job.may_approve?
+      redirect_to job_path(@job), alert: "Only implemented Jobs can be approved."
+      return
+    end
+
+    @job.approve!(via: "operator", by_user: Current.user)
+    redirect_to job_path(@job), notice: "Job approved."
+  end
+
+  def unapprove
+    unless @job.may_unapprove?
+      redirect_to job_path(@job), alert: "Only approved Jobs that have not started landing can be unapproved."
+      return
+    end
+
+    @job.unapprove!
+    redirect_to job_path(@job), notice: "Job unapproved."
+  end
+
   # Manually fire PollPullRequestJob for this Job — useful when the
   # operator just left a review comment and doesn't want to wait for
   # the 5-min recurring schedule.

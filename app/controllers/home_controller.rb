@@ -42,6 +42,12 @@ class HomeController < ApplicationController
       bulk_retry_jobs(jobs, agent_provider: Regexp.last_match(1))
     when "close"
       bulk_close_jobs(jobs)
+    when "approve"
+      bulk_approve_jobs(jobs)
+    when "review_approve"
+      bulk_review_approval(jobs)
+    when "commit_review_approval"
+      bulk_commit_review_approval(jobs)
     when "apply_tag"
       bulk_apply_tag(jobs)
     else
@@ -192,6 +198,73 @@ class HomeController < ApplicationController
       redirect_back fallback_location: dashboard_jobs_path,
                     notice: "#{helpers.pluralize(closed, 'job')} closed."
     end
+  end
+
+  def bulk_approve_jobs(jobs)
+    batch_id = SecureRandom.uuid
+    approved = 0
+
+    ActiveRecord::Base.transaction do
+      jobs.each do |job|
+        next unless job.may_approve?
+
+        job.approve!(
+          via: "bulk",
+          by_user: Current.user,
+          evidence: { "batch_id" => batch_id }
+        )
+        approved += 1
+      end
+    end
+
+    if approved.zero?
+      redirect_back fallback_location: dashboard_jobs_path, alert: "No selected jobs were awaiting approval."
+    else
+      redirect_back fallback_location: dashboard_jobs_path,
+                    notice: "Approved #{helpers.pluralize(approved, 'job')} in batch #{batch_id}."
+    end
+  end
+
+  def bulk_review_approval(jobs)
+    @active_tab = "jobs"
+    @bulk_review_jobs = jobs.where(state: "implemented")
+                            .includes(:repository, :runs)
+                            .order(created_at: :desc)
+                            .to_a
+    if @bulk_review_jobs.empty?
+      redirect_back fallback_location: dashboard_jobs_path, alert: "No selected jobs were awaiting approval."
+      return
+    end
+
+    load_dashboard
+    render :index
+  end
+
+  def bulk_commit_review_approval(jobs)
+    choices_param = params[:approval_choices]
+    choices = choices_param.respond_to?(:to_unsafe_h) ? choices_param.to_unsafe_h : {}
+    ids_to_approve = choices.select { |_id, choice| choice == "approve" }.keys
+    reviewed_jobs = jobs.where(id: ids_to_approve, state: "implemented")
+
+    if reviewed_jobs.empty?
+      redirect_back fallback_location: dashboard_jobs_path, alert: "No reviewed jobs were approved."
+      return
+    end
+
+    batch_id = SecureRandom.uuid
+    approved = 0
+    ActiveRecord::Base.transaction do
+      reviewed_jobs.each do |job|
+        job.approve!(
+          via: "bulk",
+          by_user: Current.user,
+          evidence: { "batch_id" => batch_id }
+        )
+        approved += 1
+      end
+    end
+
+    redirect_to dashboard_jobs_path, notice: "Approved #{helpers.pluralize(approved, 'job')} in batch #{batch_id}."
   end
 
   def smart_folder_from_params

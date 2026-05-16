@@ -599,6 +599,8 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).to include("Bulk actions")
         expect(response.body).to include("Retry")
         expect(response.body).to include("Close")
+        expect(response.body).to include("Approve")
+        expect(response.body).to include("Review and approve")
         expect(response.body).to include("Apply tag")
         expect(response.body).to include("epic:attachments")
       end
@@ -678,6 +680,66 @@ RSpec.describe "Dashboard", type: :request do
         expect(active_job.reload).to be_closed
         expect(active_job.initial_run.reload).to be_cancelled
         expect(flash[:notice]).to match(/2 jobs closed/)
+      end
+
+      it "bulk approves selected implemented jobs with a shared batch id" do
+        first = Factories.job(repository: repo, issue_number: 1)
+        second = Factories.job(repository: repo, issue_number: 2)
+        first.update!(state: "implemented")
+        second.update!(state: "implemented")
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ first.id, second.id ], bulk_action: "approve" }
+
+        expect(first.reload.state).to eq("approved")
+        expect(second.reload.state).to eq("approved")
+        expect(first.approved_via).to eq("bulk")
+        expect(second.approved_via).to eq("bulk")
+        expect(first.approved_by_user).to eq(user)
+        expect(second.approved_by_user).to eq(user)
+        expect(first.approval_evidence.fetch("batch_id")).to be_present
+        expect(second.approval_evidence.fetch("batch_id")).to eq(first.approval_evidence.fetch("batch_id"))
+      end
+
+      it "renders a sequential review drawer for selected implemented jobs" do
+        first = Factories.job(repository: repo, issue_number: 1, issue_title: "Review the aqueduct")
+        second = Factories.job(repository: repo, issue_number: 2, issue_title: "Review the forum")
+        first.update!(state: "implemented")
+        second.update!(state: "implemented")
+        first.initial_run.update!(agent_diff: "diff --git a/a.txt b/a.txt\n+first")
+        second.initial_run.update!(agent_diff: "diff --git a/b.txt b/b.txt\n+second")
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ first.id, second.id ], bulk_action: "review_approve" }
+
+        expect(response).to be_successful
+        expect(response.body).to include("Review and approve")
+        expect(response.body).to include("Review the aqueduct")
+        expect(response.body).to include("Review the forum")
+        expect(response.body).to include("+first")
+        expect(response.body).to include("+second")
+        expect(response.body).to include("Commit approved batch")
+        expect(response.body).to include(%(name="approval_choices[#{first.id}]"))
+        expect(response.body).to include(%(name="approval_choices[#{second.id}]"))
+      end
+
+      it "commits reviewed approvals and skips rejected jobs" do
+        approved = Factories.job(repository: repo, issue_number: 1)
+        skipped = Factories.job(repository: repo, issue_number: 2)
+        approved.update!(state: "implemented")
+        skipped.update!(state: "implemented")
+
+        post bulk_dashboard_jobs_path, params: {
+          job_ids: [ approved.id, skipped.id ],
+          bulk_action: "commit_review_approval",
+          approval_choices: {
+            approved.id.to_s => "approve",
+            skipped.id.to_s => "skip"
+          }
+        }
+
+        expect(approved.reload.state).to eq("approved")
+        expect(skipped.reload.state).to eq("implemented")
+        expect(approved.approved_via).to eq("bulk")
+        expect(approved.approval_evidence.fetch("batch_id")).to be_present
       end
 
       it "does not bulk mutate another user's jobs" do
@@ -1005,7 +1067,7 @@ RSpec.describe "Dashboard", type: :request do
         document = Nokogiri::HTML(response.body)
         attention = document.at_css("aside")
         # Always-visible + when_present (Just failed has 1 match).
-        expect(attention.text).to include("Inbox", "In review", "Just failed")
+        expect(attention.text).to include("Inbox", "In review", "Awaiting your approval", "Just failed")
         # On-demand folders live behind the "More" disclosure.
         expect(attention.text).to include("More", "Awaiting Epic", "Needs review", "Merged this week")
         # Sweeping retired folders means "Awaiting your move" is gone.
@@ -1034,6 +1096,35 @@ RSpec.describe "Dashboard", type: :request do
 
         details = Nokogiri::HTML(response.body).at_css("aside details")
         expect(details["open"]).not_to be_nil
+      end
+
+      it "shows implemented jobs in Awaiting your approval with a live count" do
+        awaiting = Factories.job_record(
+          repository: repo,
+          issue_number: 6,
+          state: "implemented",
+          issue_title: "Inspect the marble"
+        )
+        Factories.job_record(
+          repository: repo,
+          issue_number: 7,
+          state: "approved",
+          issue_title: "Already blessed"
+        )
+        SmartFolder.ensure_builtins!
+        awaiting_approval = SmartFolder.find_by!(name: "Awaiting your approval")
+
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_approval.id }
+
+        expect(response.body).to include("Inspect the marble")
+        expect(response.body).not_to include("Already blessed")
+        link = Nokogiri::HTML(response.body).at_css("aside").css("a").find { |node| node.text.include?("Awaiting your approval") }
+        expect(link.text).to include("1")
+
+        awaiting.approve!(via: "operator", by_user: user)
+        get dashboard_jobs_path, params: { smart_folder_id: awaiting_approval.id }
+
+        expect(response.body).not_to include("Inspect the marble")
       end
 
       it "shows triaging jobs pending an epic ref in Awaiting Epic until they leave triaging" do

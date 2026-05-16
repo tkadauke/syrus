@@ -162,6 +162,8 @@ Rails.application.routes.draw do
       post :run_again      # soft retry — new Run on the existing branch
       post :restart        # hard reset — close this thread, open a new one with a fresh branch + PR
       post :cancel         # cancel active runs + close the thread
+      post :approve        # implemented → approved, by operator action
+      post :unapprove      # approved → implemented, until landing starts
       post :reopen         # undo a close — closed → open, polling resumes
       post :poll_feedback  # manually trigger PollPullRequestJob for this Job
       post :rebase         # manually trigger a rebase Run on this Job's PR

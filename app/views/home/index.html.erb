@@ -234,7 +234,7 @@
             class: "space-y-3" do %>
         <div data-bulk-jobs-target="actions"
              class="hidden flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-          <span class="text-gray-600">Bulk actions</span>
+          <span class="text-gray-600">Bulk actions for <span data-bulk-jobs-target="count">0</span></span>
           <%= button_tag "Retry", name: :bulk_action, value: "retry",
                 class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
           <% if @configured_agent_providers.size > 1 %>
@@ -246,6 +246,15 @@
           <%= button_tag "Close", name: :bulk_action, value: "close",
                 class: "rounded-md px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-medium cursor-pointer",
                 data: { turbo_confirm: "Cancel active runs and close the selected jobs?" } %>
+          <%= button_tag name: :bulk_action, value: "approve",
+                class: "rounded-md px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white font-medium cursor-pointer",
+                data: { turbo_confirm: "Approve the selected implemented jobs?" } do %>
+            Approve <span data-bulk-jobs-target="count">0</span>
+          <% end %>
+          <%= button_tag name: :bulk_action, value: "review_approve",
+                class: "rounded-md px-3 py-1.5 border border-green-200 bg-white text-green-700 hover:bg-green-50 font-medium cursor-pointer" do %>
+            Review and approve <span data-bulk-jobs-target="count">0</span>
+          <% end %>
           <div class="flex flex-wrap items-center gap-2 border-l border-gray-200 pl-2">
             <%= select_tag :tag_id,
                   options_for_select([["Choose tag", ""]] + @tags.map { |tag| [tag.name, tag.id] }),
@@ -341,6 +350,9 @@
                     <% if caption %>
                       <div class="text-xs text-gray-500 italic mt-0.5"><%= caption %></div>
                     <% end %>
+                    <% if job.approved_at.present? || job.state == "implemented" %>
+                      <div class="text-xs text-gray-500 mt-0.5"><%= approval_caption(job) %></div>
+                    <% end %>
                     <% if job.tags.any? %>
                       <div class="mt-1 flex flex-wrap items-center gap-1">
                         <%= tag_chip_list(job.tags.to_a, limit: 3) %>
@@ -396,6 +408,81 @@
             </tbody>
           </table>
         </div>
+      <% end %>
+      <% if @bulk_review_jobs&.any? %>
+        <%= form_with url: bulk_dashboard_jobs_path, method: :post,
+              data: { controller: "approval-review" },
+              class: "fixed inset-y-0 right-0 z-40 flex w-full max-w-3xl flex-col border-l border-gray-200 bg-white shadow-xl" do %>
+          <%= hidden_field_tag :bulk_action, "commit_review_approval" %>
+          <% @bulk_review_jobs.each do |job| %>
+            <%= hidden_field_tag "job_ids[]", job.id %>
+          <% end %>
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <div>
+              <h2 class="text-base font-semibold text-gray-900">Review and approve</h2>
+              <p class="text-sm text-gray-500">
+                <span data-approval-review-target="position">1</span> of <%= @bulk_review_jobs.size %>
+              </p>
+            </div>
+            <%= link_to "Close", dashboard_jobs_path(request.query_parameters.except("page")),
+                  class: "rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" %>
+          </div>
+
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            <% @bulk_review_jobs.each_with_index do |job, index| %>
+              <section data-approval-review-target="item"
+                       class="<%= index.zero? ? '' : 'hidden' %> space-y-3 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div class="font-mono text-sm text-gray-500"><%= job.repository.slug %></div>
+                    <h3 class="text-lg font-semibold text-gray-900">
+                      <%= job_source_label_html(job) %>
+                      <% if job.issue_title.present? %>
+                        <span class="font-normal"><%= job.issue_title %></span>
+                      <% end %>
+                    </h3>
+                  </div>
+                  <%= state_pill(job_summary_state(job)) %>
+                </div>
+
+                <% diff = latest_agent_diff(job) %>
+                <% if diff.present? %>
+                  <pre class="max-h-[65vh] overflow-auto rounded-md bg-black p-3 font-mono text-xs text-gray-100 whitespace-pre"><%= diff %></pre>
+                <% else %>
+                  <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    No stored diff is available for this Job.
+                  </div>
+                <% end %>
+
+                <%= hidden_field_tag "approval_choices[#{job.id}]", "skip", data: { approval_review_target: "choice" } %>
+              </section>
+            <% end %>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-4 py-3">
+            <button type="button"
+                    data-action="approval-review#skip"
+                    class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+              Skip
+            </button>
+            <div class="flex items-center gap-2">
+              <button type="button"
+                      data-approval-review-target="previous"
+                      data-action="approval-review#previous"
+                      class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                Previous
+              </button>
+              <button type="button"
+                      data-action="approval-review#approve"
+                      class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500 cursor-pointer">
+                Approve
+              </button>
+              <%= submit_tag "Commit approved batch",
+                    data: { approval_review_target: "submit" },
+                    class: "hidden rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+            </div>
+          </div>
+        <% end %>
       <% end %>
       <% if jobs_total_pages > 1 %>
         <% first_item = (@page - 1) * HomeController::PER_PAGE + 1 %>
