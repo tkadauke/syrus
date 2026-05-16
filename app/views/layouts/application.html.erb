@@ -37,8 +37,6 @@
             <div class="flex items-center gap-4 text-sm">
               <% top_nav_class = "text-gray-700 hover:text-blue-600" %>
               <% top_nav_active_class = "text-blue-600 font-medium" %>
-              <%= link_to "Chats", default_chat_path,
-                    class: controller_path.in?(%w[chats repositories/chats]) ? top_nav_active_class : top_nav_class %>
               <%= link_to "Dashboard", dashboard_epics_path,
                     class: controller_name == "home" && action_name != "index" ? top_nav_active_class : top_nav_class %>
               <%= link_to repositories_path,

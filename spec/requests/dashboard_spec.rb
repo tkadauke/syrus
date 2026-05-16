@@ -42,7 +42,7 @@ RSpec.describe "Dashboard", type: :request do
       chat_links = document.css("a[href='#{chat_path(chat)}']").map { |link| link.text.strip }
       new_chat_links = document.css("a[href='#{new_chat_path}']").map { |link| link.text.strip }
       dashboard_links = document.css("a[href='#{dashboard_epics_path}']").map { |link| link.text.strip }
-      expect(chat_links).to include("Syrus", "Chats")
+      expect(chat_links).to eq([ "Syrus" ])
       expect(new_chat_links).to include("+ New chat")
       expect(dashboard_links).to include("Dashboard", "Epics")
       expect(document.at_css("a[href='#{repositories_path}']").text).to include("Repositories")
