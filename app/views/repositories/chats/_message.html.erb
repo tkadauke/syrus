@@ -8,11 +8,15 @@
       <div class="chat-prose chat-prose-invert max-w-[min(42rem,85%)] rounded-lg bg-blue-600 px-4 py-2 text-white"><%= render_markdown(text) %></div>
     </div>
   <% when "assistant" %>
-    <div class="max-w-3xl rounded-lg border border-gray-200 bg-white px-4 py-3">
-      <div class="chat-prose text-gray-800">
-        <%= render_markdown(text) %>
+    <% if message.proposal_card? %>
+      <%= render "repositories/chats/proposal_card", proposal: message.proposal, repository: repository, chat_session: message.chat_session %>
+    <% else %>
+      <div class="max-w-3xl rounded-lg border border-gray-200 bg-white px-4 py-3">
+        <div class="chat-prose text-gray-800">
+          <%= render_markdown(text) %>
+        </div>
       </div>
-    </div>
+    <% end %>
   <% when "tool_use" %>
     <% if ChatMessageGrouper.groupable_tool_use?(message) %>
       <%# Live broadcast path. Renders one collapsed tool-call line. The

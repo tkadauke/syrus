@@ -12,13 +12,16 @@ class ChatMessage < ApplicationRecord
   validates :role, presence: true, inclusion: { in: ROLES }
   validate :content_is_present
 
-  # Proposal-bearing tool_use rows still render as the standalone
-  # tool_use_card. The view auto-expands them so the proposal link
-  # is visible by default. All other tool_use messages flow through
-  # ChatMessageGrouper and the tool_call_group partial — collapsed
-  # by default, no per-message expansion logic needed.
+  # Proposal-bearing rows render as inline proposal cards. All other
+  # tool_use messages flow through ChatMessageGrouper and the
+  # tool_call_group partial — collapsed by default, no per-message
+  # expansion logic needed.
   def proposal_tool_use?
     role == "tool_use" && proposal_id.present?
+  end
+
+  def proposal_card?
+    role == "assistant" && proposal_id.present?
   end
 
   private

@@ -14,7 +14,7 @@ RSpec.describe ChatProposal do
     )
   end
 
-  it "creates a pending syrus issue proposal by default" do
+  it "creates a proposed syrus issue proposal by default" do
     proposal = described_class.create!(
       chat_session: chat_session,
       slug: "roman-footer",
@@ -22,7 +22,7 @@ RSpec.describe ChatProposal do
       body: "Add a constitutionally proportionate Latin footer."
     )
 
-    expect(proposal).to be_pending
+    expect(proposal).to be_proposed
     expect(proposal).to be_syrus_issue
   end
 

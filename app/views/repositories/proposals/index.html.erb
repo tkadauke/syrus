@@ -15,16 +15,16 @@
     <h2 class="font-semibold text-lg">Proposals</h2>
     <div class="flex flex-wrap items-center justify-end gap-2">
       <% if @proposal_layers.values.flatten.any? && !@include_resolved %>
-        <%= link_to "File all",
+        <%= link_to "Confirm all",
               file_bulk_repository_proposals_path(@repository, all: "1"),
               class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium" %>
       <% end %>
       <% if @include_resolved %>
-        <%= link_to "Pending only",
+        <%= link_to "Proposed only",
               repository_proposals_path(@repository),
               class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium" %>
       <% else %>
-        <%= link_to "Show recently filed/discarded",
+        <%= link_to "Show recently resolved",
               repository_proposals_path(@repository, include_resolved: "1"),
               class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium" %>
       <% end %>
@@ -58,7 +58,7 @@
   <% else %>
     <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
       No pending proposals. Open a chat to draft some.
-      <%= link_to "Chats", default_chat_path, class: "text-blue-600 underline hover:no-underline" %>
+      <%= link_to "Chats tab", repository_chats_path(@repository), class: "text-blue-600 underline hover:no-underline" %>
     </div>
   <% end %>
 

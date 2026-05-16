@@ -22,12 +22,13 @@ class ChatProposalFiler
       job_by_proposal_id = existing_jobs_for(ordered)
 
       ordered.each do |proposal|
-        next unless proposal.pending?
+        next unless proposal.proposed?
 
         job = create_job_for(proposal)
         proposal_attrs = {
-          state: "filed",
-          filed_at: Time.current
+          state: "confirmed",
+          filed_at: Time.current,
+          confirmed_at: Time.current
         }
 
         if job

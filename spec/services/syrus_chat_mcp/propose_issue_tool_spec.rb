@@ -45,7 +45,7 @@ RSpec.describe SyrusChatMcp::ProposeIssueTool do
 
     proposal = chat_session.proposals.find_by!(slug: "leaf")
     expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)).to include(id: proposal.id, slug: "leaf", state: "pending")
+    expect(response_payload(response)).to include(id: proposal.id, slug: "leaf", state: "proposed")
     expect(proposal).to have_attributes(
       title: "Leaf issue",
       body: "File second.",
@@ -53,6 +53,7 @@ RSpec.describe SyrusChatMcp::ProposeIssueTool do
       labels: %(["bug","syrus"])
     )
     expect(proposal.dependencies).to contain_exactly(root)
+    expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
   it "updates the existing proposal for the same slug" do
@@ -68,7 +69,8 @@ RSpec.describe SyrusChatMcp::ProposeIssueTool do
 
     expect(response[:result][:isError]).to be_falsey
     expect(chat_session.proposals.where(slug: "same").count).to eq(1)
-    expect(original.reload).to have_attributes(title: "New", body: "New body.", labels: %(["new"]))
+    expect(original.reload).to have_attributes(title: "New", body: "New body.", labels: %(["new"]), state: "proposed")
+    expect(original.edited_at).to be_present
   end
 
   it "returns a tool error for unknown dependency slugs" do

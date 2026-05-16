@@ -86,6 +86,8 @@ Rails.application.routes.draw do
     post "chats/:id/stop",    to: "repositories/chats#stop",    as: :chat_stop
     post "chats/:id/refresh", to: "repositories/chats#refresh", as: :chat_refresh
     post "chats/:id/reset",   to: "repositories/chats#reset",   as: :chat_reset
+    post "chats/:id/proposals/:proposal_id/confirm", to: "repositories/chats#confirm_proposal", as: :chat_proposal_confirm
+    post "chats/:id/proposals/:proposal_id/reject", to: "repositories/chats#reject_proposal", as: :chat_proposal_reject
     post "chat_pending_actions/:id/confirm", to: "repositories/chats#confirm_pending_action", as: :chat_pending_action_confirm
     delete "chat_pending_actions/:id", to: "repositories/chats#destroy_pending_action", as: :chat_pending_action
     get  "chats/:chat_id/whiteboard",   to: "repositories/whiteboards#show",   as: :chat_whiteboard
@@ -115,6 +117,8 @@ Rails.application.routes.draw do
     post :reset
     post :attachments, action: :add_attachment
     delete "attachments/:attachment_id", action: :destroy_attachment, as: :attachment
+    post "proposals/:proposal_id/confirm", action: :confirm_proposal, as: :proposal_confirm
+    post "proposals/:proposal_id/reject", action: :reject_proposal, as: :proposal_reject
     post "pending_actions/:pending_action_id/confirm", action: :confirm_pending_action, as: :pending_action_confirm
     delete "pending_actions/:pending_action_id", action: :destroy_pending_action, as: :pending_action
     resource :whiteboard, only: %i[ show update ], controller: "chat_whiteboards"

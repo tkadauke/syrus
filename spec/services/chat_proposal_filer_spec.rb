@@ -34,7 +34,7 @@ RSpec.describe ChatProposalFiler do
         .and change(JobDependency, :count).by(2)
         .and have_enqueued_job(RunJob).exactly(:once)
 
-      expect([ root, middle, leaf ].map { |p| p.reload.state }).to all(eq("filed"))
+      expect([ root, middle, leaf ].map { |p| p.reload.state }).to all(eq("confirmed"))
       expect([ root, middle, leaf ].map(&:job)).to all(be_present)
       expect(middle.job.dependencies.first.depends_on_job).to eq(root.job)
       expect(leaf.job.dependencies.first.depends_on_job).to eq(middle.job)

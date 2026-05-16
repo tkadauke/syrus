@@ -1,6 +1,6 @@
 <dialog open class="w-full max-w-3xl rounded-lg border border-gray-200 p-0 shadow-xl backdrop:bg-gray-900/30">
   <div class="border-b border-gray-200 px-5 py-4">
-    <h2 class="font-semibold text-lg">File proposals</h2>
+    <h2 class="font-semibold text-lg">Confirm proposals</h2>
     <p class="mt-1 text-sm text-gray-600">
       Review the upstream cascade before creating Jobs or GitHub issues.
     </p>
@@ -29,7 +29,7 @@
                 <% end %>
               </div>
             </div>
-            <% unless proposal.pending? %>
+            <% unless proposal.proposed? %>
               <span class="inline-block rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= proposal.state %></span>
             <% end %>
           </div>
@@ -47,20 +47,20 @@
           repository_proposals_path(repository),
           class: "rounded-md px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium" %>
     <% if file_all %>
-      <%= button_to "Confirm filing",
+      <%= button_to "Confirm proposals",
             file_bulk_repository_proposals_path(repository),
             method: :post,
             params: { all: "1" },
             class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
             form: { class: "inline" } %>
     <% elsif selected_ids.one? %>
-      <%= button_to "Confirm filing",
+      <%= button_to "Confirm proposal",
             file_repository_proposal_path(repository, selected_ids.first),
             method: :post,
             class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer",
             form: { class: "inline" } %>
     <% else %>
-      <%= button_to "Confirm filing",
+      <%= button_to "Confirm proposals",
             file_bulk_repository_proposals_path(repository),
             method: :post,
             params: { proposal_ids: selected_ids },

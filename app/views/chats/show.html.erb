@@ -38,44 +38,6 @@
     </div>
   </div>
 
-  <% if @pending_actions.any? %>
-    <section class="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-      <h2 class="text-sm font-semibold text-amber-900">Pending actions</h2>
-      <% @pending_actions.each do |action| %>
-        <% payload = action.payload || {} %>
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-white px-3 py-2 text-sm">
-          <div>
-            <div class="font-medium text-gray-900">
-              <% if action.action == "add_repo_note" %>
-                Pin repository note
-              <% elsif action.action == "remove_repo_note" %>
-                Remove repository note #<%= payload["id"] %>
-              <% elsif action.action == "cancel_job" %>
-                Cancel Job #<%= payload["job_id"] %>
-              <% elsif action.action == "retry_job" %>
-                Retry Job #<%= payload["job_id"] %>
-              <% elsif action.action == "rebase_job" %>
-                Rebase Job #<%= payload["job_id"] %>
-              <% else %>
-                <%= payload["label"] || action.action_type.to_s.humanize %>
-              <% end %>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <%= button_to "Confirm",
-                  chat_pending_action_confirm_path(@chat_session, action),
-                  method: :post,
-                  class: "rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700" %>
-            <%= button_to "Cancel",
-                  chat_pending_action_path(@chat_session, action),
-                  method: :delete,
-                  class: "rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50" %>
-          </div>
-        </div>
-      <% end %>
-    </section>
-  <% end %>
-
   <%= turbo_stream_from "chat_session_#{@chat_session.id}_messages" %>
   <%= turbo_stream_from "chat_session_#{@chat_session.id}_controls" %>
   <%= turbo_stream_from "chat_session_#{@chat_session.id}_header" %>

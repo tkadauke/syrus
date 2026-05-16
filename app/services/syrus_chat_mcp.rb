@@ -47,7 +47,8 @@ module SyrusChatMcp
       kind: proposal.kind,
       state: proposal.state,
       labels: labels_for(proposal),
-      dependencies: proposal.dependencies.order(:slug).pluck(:slug)
+      dependencies: proposal.dependencies.order(:slug).pluck(:slug),
+      materialized: materialized_payload(proposal)
     }
   end
 
@@ -58,6 +59,15 @@ module SyrusChatMcp
       author: note.author,
       created_at: note.created_at.iso8601
     }
+  end
+
+  def self.materialized_payload(proposal)
+    case proposal.materialized_record
+    when Job
+      { type: "job", id: proposal.job.id }
+    when Epic
+      { type: "epic", id: proposal.epic.id, number: proposal.epic.number }
+    end
   end
 
   def self.labels_for(proposal)

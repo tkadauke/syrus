@@ -37,9 +37,9 @@ RSpec.describe SyrusChatMcp::DeleteProposalTool do
     response = call_tool("root")
 
     expect(response[:result][:isError]).to be_falsey
-    expect(root.reload).to be_discarded
-    expect(middle.reload).to be_discarded
-    expect(leaf.reload).to be_discarded
+    expect(root.reload).to be_withdrawn
+    expect(middle.reload).to be_withdrawn
+    expect(leaf.reload).to be_withdrawn
     expect(unrelated.reload).to be_pending
     expect(response_payload(response)[:cascade].map { |proposal| proposal[:slug] }).to eq(%w[middle leaf])
   end

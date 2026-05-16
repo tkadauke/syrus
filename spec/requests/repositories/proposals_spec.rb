@@ -7,7 +7,7 @@ RSpec.describe "Repository proposals", type: :request do
 
   before { sign_in_as(user) }
 
-  def proposal(slug:, title:, body: "Body for #{title}", state: "pending", chat_session: session, **attrs)
+  def proposal(slug:, title:, body: "Body for #{title}", state: "proposed", chat_session: session, **attrs)
     ChatProposal.create!({
       chat_session: chat_session,
       slug: slug,
@@ -22,33 +22,33 @@ RSpec.describe "Repository proposals", type: :request do
   end
 
   describe "GET /repositories/:repository_id/proposals" do
-    it "lists pending proposals and hides resolved proposals by default" do
+    it "lists proposed cards and hides resolved proposals by default" do
       pending = proposal(slug: "pending-one", title: "Pending one")
-      filed = proposal(slug: "filed-one", title: "Filed one", state: "filed", filed_at: Time.current)
+      filed = proposal(slug: "filed-one", title: "Filed one", state: "confirmed", filed_at: Time.current)
 
       get repository_proposals_path(repo)
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include(pending.title)
-      expect(response.body).to include("Show recently filed/discarded")
+      expect(response.body).to include("Show recently resolved")
       expect(response.body).not_to include(filed.title)
     end
 
-    it "includes recently filed and discarded proposals when toggled" do
-      filed = proposal(slug: "filed-one", title: "Filed one", state: "filed", filed_at: Time.current)
-      discarded = proposal(slug: "discarded-one", title: "Discarded one", state: "discarded", discarded_at: Time.current)
+    it "includes recently resolved proposals when toggled" do
+      filed = proposal(slug: "filed-one", title: "Filed one", state: "confirmed", filed_at: Time.current)
+      discarded = proposal(slug: "discarded-one", title: "Discarded one", state: "withdrawn", discarded_at: Time.current)
 
       get repository_proposals_path(repo, include_resolved: "1")
 
       expect(response.body).to include(filed.title)
       expect(response.body).to include(discarded.title)
-      expect(response.body).to include("Pending only")
+      expect(response.body).to include("Proposed only")
     end
 
-    it "renders the empty state when there are no pending proposals" do
+    it "renders the empty state when there are no proposed cards" do
       get repository_proposals_path(repo)
 
-      expect(response.body).to include("No pending proposals. Open a chat to draft some.")
+      expect(response.body).to include("No proposed cards. Open a chat to draft some.")
     end
 
     it "groups and orders proposals by DAG layer" do
@@ -74,13 +74,13 @@ RSpec.describe "Repository proposals", type: :request do
 
     it "shows filed proposal Job links only when resolved proposals are included" do
       job = Job.create!(user: user, repository: repo, kind: "direct", issue_title: "Filed", issue_body: "Filed body")
-      filed = proposal(slug: "filed-one", title: "Filed one", state: "filed", job: job, filed_at: Time.current)
+      filed = proposal(slug: "filed-one", title: "Filed one", state: "confirmed", job: job, filed_at: Time.current)
 
       get repository_proposals_path(repo)
       expect(response.body).not_to include(filed.title)
 
       get repository_proposals_path(repo, include_resolved: "1")
-      expect(response.body).to include("Filed as Job ##{job.id}")
+      expect(response.body).to include("Confirmed as Job ##{job.id}")
       expect(response.body).to include(job_path(job))
     end
   end
@@ -140,7 +140,7 @@ RSpec.describe "Repository proposals", type: :request do
       delete repository_proposal_path(repo, root), params: { discard_mode: "cascade" }
 
       expect(response).to redirect_to(repository_proposals_path(repo))
-      expect([ root, middle, leaf, sibling ].map { |p| p.reload.state }).to all(eq("discarded"))
+      expect([ root, middle, leaf, sibling ].map { |p| p.reload.state }).to all(eq("withdrawn"))
       expect([ root, middle, leaf, sibling ].map(&:discarded_at)).to all(be_present)
     end
   end
@@ -154,11 +154,11 @@ RSpec.describe "Repository proposals", type: :request do
       get file_repository_proposal_path(repo, leaf)
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("File proposals")
+      expect(response.body).to include("Confirm proposals")
       expect(response.body.index("Root")).to be < response.body.index("Leaf")
       expect(response.body).to include("Root body")
       expect(response.body).to include("Leaf body")
-      expect(response.body).to include("Confirm filing")
+      expect(response.body).to include("Confirm proposal")
     end
   end
 
@@ -212,7 +212,7 @@ RSpec.describe "Repository proposals", type: :request do
         .and change(JobDependency, :count).by(2)
 
       expect(response).to redirect_to(repository_proposals_path(repo))
-      expect([ root, left, right ].map { |p| p.reload.state }).to all(eq("filed"))
+      expect([ root, left, right ].map { |p| p.reload.state }).to all(eq("confirmed"))
     end
 
     it "files all pending proposals" do

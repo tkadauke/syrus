@@ -1,8 +1,17 @@
 require "set"
 
 class ChatProposal < ApplicationRecord
+  STATE_ALIASES = {
+    "pending" => "proposed",
+    "filed" => "confirmed",
+    "discarded" => "withdrawn"
+  }.freeze
+
+  attribute :state, :string, default: "proposed"
+
   belongs_to :chat_session
   belongs_to :job, optional: true
+  belongs_to :epic, optional: true
 
   has_many :dependency_edges,
            class_name: "ChatProposalDependency",
@@ -21,10 +30,54 @@ class ChatProposal < ApplicationRecord
   has_many :messages, class_name: "ChatMessage", foreign_key: :proposal_id, dependent: :nullify
 
   enum :kind, { syrus_issue: "syrus_issue", github_issue: "github_issue" }, validate: true
-  enum :state, { pending: "pending", filed: "filed", discarded: "discarded" }, validate: true
+  enum :state, {
+    proposed: "proposed",
+    confirmed: "confirmed",
+    rejected: "rejected",
+    withdrawn: "withdrawn"
+  }, validate: true
+
+  scope :pending, -> { proposed }
 
   validates :slug, :title, :body, presence: true
   validates :slug, uniqueness: { scope: :chat_session_id }
+
+  def state=(value)
+    super(STATE_ALIASES.fetch(value.to_s, value))
+  end
+
+  def pending?
+    proposed?
+  end
+
+  def filed?
+    confirmed?
+  end
+
+  def discarded?
+    withdrawn?
+  end
+
+  def resolved?
+    confirmed? || rejected? || withdrawn?
+  end
+
+  def materialized_record
+    job || epic
+  end
+
+  def materialized_label
+    case materialized_record
+    when Job
+      "Job ##{job.id}"
+    when Epic
+      epic.display_number
+    end
+  end
+
+  def reset_to_proposed_after_edit!
+    update!(state: "proposed", edited_at: Time.current)
+  end
 
   def self.topological_sort(scope)
     proposals = scope.to_a

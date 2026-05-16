@@ -5,7 +5,7 @@ module SyrusChatMcp
     tool_name "delete_proposal"
 
     description <<~DESC
-      Discard a proposal by slug. Downstream dependents are discarded too;
+      Withdraw a proposal by slug. Downstream dependents are withdrawn too;
       the response lists that cascade so the agent can tell the operator.
     DESC
 
@@ -31,7 +31,7 @@ module SyrusChatMcp
 
         proposal.transaction do
           cascade.each do |downstream|
-            downstream.update!(state: "discarded", discarded_at: downstream.discarded_at || now)
+            downstream.update!(state: "withdrawn", discarded_at: downstream.discarded_at || now, withdrawn_at: downstream.withdrawn_at || now)
           end
         end
 

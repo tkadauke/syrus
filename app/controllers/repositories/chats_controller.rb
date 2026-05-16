@@ -4,6 +4,7 @@ class Repositories::ChatsController < ApplicationController
   before_action :load_repository
   before_action :load_chat_session, only: %i[ message stop refresh reset messages ]
   before_action :load_pending_action, only: %i[ confirm_pending_action destroy_pending_action ]
+  before_action :load_proposal, only: %i[ confirm_proposal reject_proposal ]
 
   def show
     chat_session = if new_chat?
@@ -131,6 +132,34 @@ class Repositories::ChatsController < ApplicationController
     redirect_to repository_chats_path(@repository), alert: e.message
   end
 
+  def confirm_proposal
+    if @proposal.confirmed?
+      redirect_to chat_path(@proposal.chat_session), alert: "Proposal is already confirmed."
+      return
+    end
+
+    unless @proposal.proposed?
+      redirect_to chat_path(@proposal.chat_session), alert: "Proposal is no longer proposed."
+      return
+    end
+
+    result = ChatProposalFiler.new(user: Current.user, repository: @repository).file!([ @proposal ])
+    record = result.jobs.first || @proposal.reload.materialized_record
+    notice = record.is_a?(Job) ? "Proposal confirmed and filed as Job ##{record.id}." : "Proposal confirmed."
+    redirect_to chat_path(@proposal.chat_session), notice: notice
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to chat_path(@proposal.chat_session), alert: e.record.errors.full_messages.to_sentence
+  end
+
+  def reject_proposal
+    if @proposal.proposed?
+      @proposal.update!(state: "rejected", rejected_at: Time.current)
+      redirect_to chat_path(@proposal.chat_session), notice: "Proposal rejected."
+    else
+      redirect_to chat_path(@proposal.chat_session), alert: "Proposal is no longer proposed."
+    end
+  end
+
   private
 
   def load_repository
@@ -143,6 +172,16 @@ class Repositories::ChatsController < ApplicationController
 
   def load_pending_action
     @pending_action = ChatPendingAction.where(repository: @repository, user: Current.user).find(params[:id])
+  end
+
+  def load_proposal
+    @proposal = proposals_scope.find(params[:proposal_id])
+  end
+
+  def proposals_scope
+    ChatProposal
+      .joins(chat_session: :chat_attachments)
+      .where(chat_attachments: { attachable_type: "Repository", attachable_id: @repository.id })
   end
 
   def current_chat_session

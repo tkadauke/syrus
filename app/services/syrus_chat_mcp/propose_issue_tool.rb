@@ -42,17 +42,27 @@ module SyrusChatMcp
         unknown_slugs = dependency_slugs - proposals_by_slug.keys
         return SyrusChatMcp.invalid("unknown depends_on slug(s): #{unknown_slugs.join(', ')}") if unknown_slugs.any?
 
-        proposal = proposals_by_slug[slug] || chat_session.proposals.build(slug: slug)
+        existing = proposals_by_slug[slug]
+        proposal = existing || chat_session.proposals.build(slug: slug)
         dependencies = dependency_slugs.map { |dependency_slug| proposals_by_slug.fetch(dependency_slug) }
         return SyrusChatMcp.invalid("depends_on would create a cycle") if cycle?(proposal, dependencies)
 
         proposal.transaction do
           proposal.assign_attributes(title: title, body: body, kind: kind, labels: JSON.generate(labels))
+          if existing
+            proposal.state = "proposed"
+            proposal.edited_at = Time.current
+          end
           proposal.save!
           proposal.dependency_edges.destroy_all
           dependencies.each do |dependency|
             ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)
           end
+          chat_session.messages.create!(
+            role: "assistant",
+            proposal: proposal,
+            content: { "text" => existing ? "Proposal edited." : "Proposal proposed." }
+          )
         end
 
         SyrusChatMcp.success(

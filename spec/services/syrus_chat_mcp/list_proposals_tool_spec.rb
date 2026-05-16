@@ -36,7 +36,7 @@ RSpec.describe SyrusChatMcp::ListProposalsTool do
       title: "Leaf",
       body: "Leaf body.",
       kind: "github_issue",
-      state: "discarded"
+      state: "withdrawn"
     )
     ChatProposalDependency.create!(proposal: leaf, depends_on: root)
 
@@ -50,9 +50,10 @@ RSpec.describe SyrusChatMcp::ListProposalsTool do
         title: "Root",
         body: "Root body.",
         kind: "syrus_issue",
-        state: "pending",
+        state: "proposed",
         labels: %w[syrus],
-        dependencies: []
+        dependencies: [],
+        materialized: nil
       },
       {
         id: leaf.id,
@@ -60,9 +61,10 @@ RSpec.describe SyrusChatMcp::ListProposalsTool do
         title: "Leaf",
         body: "Leaf body.",
         kind: "github_issue",
-        state: "discarded",
+        state: "withdrawn",
         labels: [],
-        dependencies: %w[root]
+        dependencies: %w[root],
+        materialized: nil
       }
     ])
   end

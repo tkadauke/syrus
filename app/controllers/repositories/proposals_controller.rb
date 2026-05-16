@@ -8,6 +8,7 @@ class Repositories::ProposalsController < ApplicationController
 
   def update
     if @proposal.update(proposal_params)
+      @proposal.reset_to_proposed_after_edit! unless @proposal.proposed?
       redirect_to repository_proposals_path(@repository), notice: "Proposal updated."
     else
       load_index
@@ -22,13 +23,13 @@ class Repositories::ProposalsController < ApplicationController
 
     ApplicationRecord.transaction do
       discarded.each do |proposal|
-        proposal.update!(state: "discarded", discarded_at: Time.current)
+            proposal.update!(state: "withdrawn", discarded_at: Time.current, withdrawn_at: Time.current)
       end
       @proposal.dependent_edges.destroy_all unless cascade?
     end
 
     redirect_to repository_proposals_path(@repository),
-                notice: "Discarded #{helpers.pluralize(discarded.size, 'proposal')}."
+                notice: "Withdrew #{helpers.pluralize(discarded.size, 'proposal')}."
   end
 
   def file
@@ -75,7 +76,7 @@ class Repositories::ProposalsController < ApplicationController
     @include_resolved = ActiveModel::Type::Boolean.new.cast(params[:include_resolved])
     scoped = proposals_scope.includes(:dependencies, :dependents, :chat_session)
     scoped = if @include_resolved
-      scoped.where("chat_proposals.state = ? OR chat_proposals.updated_at >= ?", "pending", 30.days.ago)
+      scoped.where("chat_proposals.state = ? OR chat_proposals.updated_at >= ?", "proposed", 30.days.ago)
     else
       scoped.pending
     end

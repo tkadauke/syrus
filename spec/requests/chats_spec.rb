@@ -169,7 +169,7 @@ RSpec.describe "Chats", type: :request do
       expect(body.text).to include("contents")
     end
 
-    it "renders tool rows with proposal links" do
+    it "renders proposals as inline assistant cards with actions" do
       chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
       proposal = ChatProposal.create!(
         chat_session: chat,
@@ -178,34 +178,32 @@ RSpec.describe "Chats", type: :request do
         body: "Trace the auth flow."
       )
       chat.messages.create!(
-        role: "tool_result",
-        tool_name: "propose_issue",
+        role: "assistant",
         proposal: proposal,
-        content: { "slug" => "auth-map", "state" => "pending" }
+        content: { "text" => "Proposal proposed." }
       )
 
       get chat_path(chat)
 
-      expect(response.body).to include("propose_issue")
-      expect(response.body).to include("Proposal ##{proposal.id} created (pending)")
-      expect(response.body).to include(repository_proposals_path(repo))
+      expect(response.body).to include("Map auth flow")
+      expect(response.body).to include("Trace the auth flow.")
+      expect(response.body).to include("Proposed")
+      expect(response.body).to include(chat_proposal_confirm_path(chat, proposal))
+      expect(response.body).to include(chat_proposal_reject_path(chat, proposal))
     end
 
-    it "renders pending confirmation cards with top-level action routes" do
+    it "does not render pending actions in a side panel" do
       chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
       job = Factories.job(repository: repo)
-      action = chat.pending_actions.create!(
+      chat.pending_actions.create!(
         action: "cancel_job",
         payload: { "job_id" => job.id }
       )
 
       get chat_path(chat)
 
-      expect(response.body).to include("Pending actions")
-      expect(response.body).to include("Cancel Job")
-      expect(response.body).to include("Job ##{job.id}")
-      expect(response.body).to include(chat_pending_action_confirm_path(chat, action))
-      expect(response.body).to include(chat_pending_action_path(chat, action))
+      expect(response.body).not_to include("Pending actions")
+      expect(response.body).not_to include("Cancel Job")
     end
 
     it "renders only the latest page of messages and exposes the older-message endpoint" do
@@ -403,6 +401,45 @@ RSpec.describe "Chats", type: :request do
       expect(response).to redirect_to(chat_path(chat))
       expect(flash[:alert]).to eq("Pending action is no longer active.")
       expect(job.reload).to be_open
+    end
+  end
+
+  describe "proposal state actions" do
+    it "confirms a proposed card and links it to the created job" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      proposal = chat.proposals.create!(slug: "auth-map", title: "Map auth", body: "Map it.")
+      chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+      expect {
+        post chat_proposal_confirm_path(chat, proposal)
+      }.to change(Job, :count).by(1)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(proposal.reload).to be_confirmed
+      expect(proposal.job).to be_present
+
+      get chat_path(chat)
+
+      expect(response.body).to include("Confirmed proposal")
+      expect(response.body).to include("Job ##{proposal.job.id}")
+      expect(response.body).to include(job_path(proposal.job))
+    end
+
+    it "rejects a proposed card while keeping history visible" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      proposal = chat.proposals.create!(slug: "auth-map", title: "Map auth", body: "Map it.")
+      chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+      post chat_proposal_reject_path(chat, proposal)
+
+      expect(response).to redirect_to(chat_path(chat))
+      expect(proposal.reload).to be_rejected
+
+      get chat_path(chat)
+
+      expect(response.body).to include("Map auth")
+      expect(response.body).to include("Rejected")
+      expect(response.body).not_to include(chat_proposal_confirm_path(chat, proposal))
     end
   end
 

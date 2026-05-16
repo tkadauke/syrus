@@ -89,7 +89,7 @@
     <div class="mt-3 space-y-1">
       <% if attachment_results.any? %>
         <% attachment_results.each do |record| %>
-          <% type = record.class.name %>
+          <% type = record.is_a?(Document) ? "Document" : record.class.name %>
           <% text = case record
                     when Repository then record.slug
                     when Job then "Job ##{record.id}: #{record.issue_title.presence || record.issue_number || record.kind}"

@@ -3,6 +3,7 @@ class ChatsController < ApplicationController
 
   before_action :load_chat_session, except: %i[ new create ]
   before_action :load_pending_action, only: %i[ confirm_pending_action destroy_pending_action ]
+  before_action :load_proposal, only: %i[ confirm_proposal reject_proposal ]
 
   def new
     @chat_session = nil
@@ -171,6 +172,32 @@ class ChatsController < ApplicationController
     redirect_to chat_path(@chat_session), alert: e.message
   end
 
+  def confirm_proposal
+    if @proposal.confirmed?
+      redirect_to chat_path(@chat_session), alert: "Proposal is already confirmed."
+      return
+    end
+
+    unless @proposal.proposed?
+      redirect_to chat_path(@chat_session), alert: "Proposal is no longer proposed."
+      return
+    end
+
+    result = ChatProposalFiler.new(user: Current.user, repository: @proposal.chat_session.repository).file!([ @proposal ])
+    redirect_to chat_path(@chat_session), notice: proposal_confirmed_notice(result)
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to chat_path(@chat_session), alert: e.record.errors.full_messages.to_sentence
+  end
+
+  def reject_proposal
+    if @proposal.proposed?
+      @proposal.update!(state: "rejected", rejected_at: Time.current)
+      redirect_to chat_path(@chat_session), notice: "Proposal rejected."
+    else
+      redirect_to chat_path(@chat_session), alert: "Proposal is no longer proposed."
+    end
+  end
+
   private
 
   def load_chat_session
@@ -181,9 +208,13 @@ class ChatsController < ApplicationController
     @pending_action = @chat_session.pending_actions.find(params[:pending_action_id])
   end
 
+  def load_proposal
+    @proposal = @chat_session.proposals.find(params[:proposal_id])
+  end
+
   def load_chat_page
     @messages, @has_more_older = paginated_tail(@chat_session)
-    @pending_actions = @chat_session.pending_actions.pending.order(:created_at, :id)
+    @pending_actions = []
     @turn_in_flight = @chat_session.turn_in_flight?
     @attachment_groups = @chat_session.chat_attachments.includes(:attachable).order(:attachable_type, :attached_at, :id).group_by(&:attachable_type)
     @documents_in_scope = @chat_session.attached_documents_in_scope.includes(:attachable).order(:title, :id)
@@ -292,6 +323,18 @@ class ChatsController < ApplicationController
     when Job then "Job ##{record.id}"
     when Document then record.title
     else record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
+    end
+  end
+
+  def proposal_confirmed_notice(result)
+    record = result.jobs.first || @proposal.reload.materialized_record
+    case record
+    when Job
+      "Proposal confirmed and filed as Job ##{record.id}."
+    when Epic
+      "Proposal confirmed and filed as #{record.display_number}."
+    else
+      "Proposal confirmed."
     end
   end
 end
