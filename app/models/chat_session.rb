@@ -11,9 +11,6 @@ class ChatSession < ApplicationRecord
   has_many :repository_document_attachments,
            -> { where(attachable_type: "Document").order(:attached_at, :id) },
            class_name: "ChatAttachment"
-  has_many :repository_document_attachments,
-           -> { where(attachable_type: "Document").order(:attached_at, :id) },
-           class_name: "ChatAttachment"
   has_many :attached_repositories,
            through: :repository_attachments,
            source: :attachable,

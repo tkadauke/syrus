@@ -113,8 +113,9 @@ class Epic < ApplicationRecord
         job.epic = self
         if job.blocked_by_epic? && job.may_release_epic_block?
           job.release_epic_block!
+        else
+          job.start_pending_workflows_if_dependencies_satisfied!
         end
-        job.start_pending_workflows_if_dependencies_satisfied!
       end
     ensure
       @releasing_jobs_for_execution = false
