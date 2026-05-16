@@ -8,6 +8,7 @@ class HomeController < ApplicationController
 
   def epics
     @active_tab = "epics"
+    load_epics_dashboard
     render :index
   end
 
@@ -24,6 +25,31 @@ class HomeController < ApplicationController
   end
 
   private
+
+  def load_epics_dashboard
+    active_repositories = Current.user.repositories.active.order(:owner, :name)
+    @epic_repositories = active_repositories
+    @epic_filter_params = epic_filter_params
+
+    epics = Current.user.epics
+                        .where(repository_id: active_repositories.select(:id))
+                        .includes(:repository, { jobs: :repository }, { dependencies: :depends_on_epic }, { dependent_links: :epic })
+
+    if @epic_filter_params["repository_id"].present?
+      epics = epics.where(repository_id: @epic_filter_params["repository_id"])
+    end
+
+    @show_done_epics = @epic_filter_params["done"] == "1"
+    epics = epics.where.not(state: "done") unless @show_done_epics
+
+    epics = epics.to_a
+    if @epic_filter_params["blocked"] == "1"
+      epics = epics.select { |epic| epic_blocked_for_board?(epic) }
+    end
+
+    epics = sort_epics_for_board(epics, @epic_filter_params["sort"])
+    @epic_lanes = Epic::STATES.index_with { |state| epics.select { |epic| epic.state == state } }
+  end
 
   def load_dashboard
     # Dashboard hides archived repositories and everything that
@@ -172,6 +198,23 @@ class HomeController < ApplicationController
     else
       base
     end
+  end
+
+  def epic_filter_params
+    params.permit(:repository_id, :blocked, :done, :sort).to_h.compact_blank
+  end
+
+  def sort_epics_for_board(epics, sort)
+    case sort
+    when "updated_asc"
+      epics.sort_by { |epic| [ epic.updated_at || Time.zone.at(0), epic.id ] }
+    else
+      epics.sort_by { |epic| [ epic.updated_at || Time.zone.at(0), epic.id ] }.reverse
+    end
+  end
+
+  def epic_blocked_for_board?(epic)
+    epic.dependencies.any? { |dependency| !dependency.depends_on_epic.done? }
   end
 
   def smart_folder_counts(base_scope)

@@ -48,11 +48,87 @@ RSpec.describe "Dashboard", type: :request do
       expect(response).to redirect_to(dashboard_epics_path)
     end
 
-    it "renders the Epics subtab stub" do
+    it "renders the Epics Kanban board with real cards" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      prerequisite = Factories.epic(user: user, repository: repo, title: "Gatekeeper", state: "backlog")
+      epic = Factories.epic(user: user, repository: repo, title: "Launch board", state: "ready")
+      EpicDependency.create!(epic: epic, depends_on_epic: prerequisite, derived: false)
+      Factories.job_record(repository: repo, epic: epic, issue_number: 7, state: "closed", closure_reason: "pr_merged")
+      Factories.job_record(repository: repo, epic: epic, issue_number: 8, state: "open")
+
       get dashboard_epics_path
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("Epics board coming in M3")
+      document = Nokogiri::HTML(response.body)
+      lane_titles = document.css("section h2").map { |heading| heading.text.strip }
+      expect(lane_titles).to eq([ "Backlog", "Ready", "In Progress", "Done" ])
+
+      card = document.at_css("a[href='#{epic_path(epic)}']")
+      expect(card.text).to include("EPIC-#{epic.number}", "Launch board", "1/2 done", "acme/widgets", "1 dep")
+      expect(card.at_css("[aria-label='Blocked']")).to be_present
+      expect(response.body).to include("Done epics hidden")
+    end
+
+    it "shows Done epics when requested" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      done_epic = Factories.epic(user: user, repository: repo, title: "Already shipped", state: "done")
+
+      get dashboard_epics_path, params: { done: "1" }
+
+      expect(response.body).to include("Already shipped")
+      expect(response.body).to include(epic_path(done_epic))
+    end
+
+    it "filters Epics by repository and blocked status" do
+      repo_a = Factories.repository(user: user, owner: "acme", name: "widgets")
+      repo_b = Factories.repository(user: user, owner: "acme", name: "api")
+      prerequisite = Factories.epic(user: user, repository: repo_a, title: "Unfinished prerequisite", state: "backlog")
+      blocked = Factories.epic(user: user, repository: repo_a, title: "Blocked board", state: "backlog")
+      unblocked = Factories.epic(user: user, repository: repo_a, title: "Open runway", state: "backlog")
+      other_repo = Factories.epic(user: user, repository: repo_b, title: "Wrong repo", state: "backlog")
+      EpicDependency.create!(epic: blocked, depends_on_epic: prerequisite, derived: false)
+
+      get dashboard_epics_path, params: { repository_id: repo_a.id, blocked: "1" }
+
+      expect(response.body).to include("Blocked board")
+      expect(response.body).not_to include("Open runway")
+      expect(response.body).not_to include("Wrong repo")
+      expect(response.body).not_to include("Unfinished prerequisite")
+      expect(response.body).to include(%(option selected="selected" value="#{repo_a.id}"))
+      expect(other_repo.repository).to eq(repo_b)
+    end
+
+    it "sorts Epics within a lane by recently updated first by default" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      older = Factories.epic(user: user, repository: repo, title: "Older board", state: "backlog")
+      newer = Factories.epic(user: user, repository: repo, title: "Newer board", state: "backlog")
+      older.update_columns(updated_at: 2.days.ago)
+      newer.update_columns(updated_at: 1.hour.ago)
+
+      get dashboard_epics_path
+
+      backlog = Nokogiri::HTML(response.body).css("section").find { |section| section.at_css("h2")&.text&.strip == "Backlog" }
+      card_titles = backlog.css("a").map(&:text).map(&:squish)
+      expect(card_titles.first).to include("Newer board")
+      expect(card_titles.second).to include("Older board")
+
+      get dashboard_epics_path, params: { sort: "updated_asc" }
+
+      backlog = Nokogiri::HTML(response.body).css("section").find { |section| section.at_css("h2")&.text&.strip == "Backlog" }
+      card_titles = backlog.css("a").map(&:text).map(&:squish)
+      expect(card_titles.first).to include("Older board")
+      expect(card_titles.second).to include("Newer board")
+    end
+
+    it "renders the placeholder Epic detail page" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      epic = Factories.epic(user: user, repository: repo, title: "Detail shell", state: "ready")
+
+      get epic_path(epic)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Detail shell")
+      expect(response.body).to include("Epic detail page placeholder")
     end
 
     it "redirects legacy list URLs to Dashboard subtabs" do

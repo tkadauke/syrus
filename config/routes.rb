@@ -134,6 +134,7 @@ Rails.application.routes.draw do
   get "jobs", to: redirect("/dashboard/jobs", status: 302)
   get "workflows", to: redirect("/dashboard/workflows", status: 302)
 
+  resources :epics, only: %i[ show ]
   resources :smart_folders, only: %i[ index create update destroy ]
   resources :tags, only: %i[ index create update destroy ]
   resources :cron_templates
