@@ -90,6 +90,16 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Use `schedule_recurring(cron_expression, label, prompt)` only")
   end
 
+  it "instructs the agent to bookmark topic shifts and epic origins" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("When the conversation shifts to a meaningfully new topic")
+    expect(out).to include("`set_bookmark` first with a short noun-phrase label")
+    expect(out).to include("use these as a table of contents in long threads.")
+    expect(out).to include("Immediately before emitting a `propose_epic` card")
+    expect(out).to include('`set_bookmark(label, kind: "epic_origin")`')
+  end
+
   it "describes the shared whiteboard without snapshotting the full prompt" do
     out = described_class.new(repository: repo).to_s
 

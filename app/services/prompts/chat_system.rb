@@ -55,6 +55,12 @@ module Prompts
           - Use `schedule_recurring(cron_expression, label, prompt)` only
             when the operator explicitly asks for repeated work. Cron
             expressions are interpreted in UTC.
+          - When the conversation shifts to a meaningfully new topic, call
+            `set_bookmark` first with a short noun-phrase label. Operators
+            use these as a table of contents in long threads.
+          - Immediately before emitting a `propose_epic` card, call
+            `set_bookmark(label, kind: "epic_origin")` to mark the message
+            where that epic discussion began.
 
         You have access to a shared whiteboard alongside this chat. Use it
         when a visual makes the conversation faster — system diagrams, UI

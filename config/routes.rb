@@ -116,6 +116,7 @@ Rails.application.routes.draw do
     post :stop
     post :refresh
     post :reset
+    post :bookmarks, action: :create_bookmark
     post :attachments, action: :add_attachment
     delete "attachments/:attachment_id", action: :destroy_attachment, as: :attachment
     post "proposals/:proposal_id/confirm", action: :confirm_proposal, as: :proposal_confirm

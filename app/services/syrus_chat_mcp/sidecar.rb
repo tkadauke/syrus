@@ -31,6 +31,7 @@ module SyrusChatMcp
         tools: [
           ProposeIssueTool,
           ProposeEpicTool,
+          SetBookmarkTool,
           ListProposalsTool,
           DeleteProposalTool,
           ReadJobTool,

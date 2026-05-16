@@ -1,4 +1,21 @@
 <aside class="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
+  <section>
+    <div class="mb-2 text-xs font-semibold uppercase text-gray-500">Bookmarks</div>
+    <% bookmarks = local_assigns.fetch(:bookmarks, []) %>
+    <% if bookmarks.any? %>
+      <nav class="space-y-1" aria-label="Chat bookmarks">
+        <% bookmarks.each do |bookmark| %>
+          <a href="#message-<%= bookmark.chat_message_id %>"
+             class="block rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">
+            <span class="block truncate"><%= bookmark.label %></span>
+          </a>
+        <% end %>
+      </nav>
+    <% else %>
+      <div class="text-xs text-gray-400">None</div>
+    <% end %>
+  </section>
+
   <div class="flex items-center justify-between gap-3">
     <h2 class="text-sm font-semibold text-gray-900">Attachments</h2>
     <a href="#add-attachment"

@@ -153,6 +153,16 @@ class ChatsController < ApplicationController
     redirect_to chat_path(@chat_session), notice: "#{label} detached."
   end
 
+  def create_bookmark
+    message = @chat_session.messages.find(params[:message_id])
+    bookmark = message.bookmarks.create!(label: bookmark_label, kind: "manual")
+
+    redirect_to chat_path(@chat_session, anchor: "message-#{message.id}"), notice: "Bookmarked #{bookmark.label}."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to chat_path(@chat_session, anchor: params[:message_id].present? ? "message-#{params[:message_id]}" : nil),
+                alert: e.record.errors.full_messages.to_sentence
+  end
+
   def confirm_pending_action
     if @pending_action.confirm!(user: Current.user)
       record = @pending_action.result
@@ -237,6 +247,7 @@ class ChatsController < ApplicationController
     @attachment_groups = @chat_session.chat_attachments.includes(:attachable).order(:attachable_type, :attached_at, :id).group_by(&:attachable_type)
     @documents_in_scope = @chat_session.attached_documents_in_scope.includes(:attachable).order(:title, :id)
     @attachment_results = attachment_search_results
+    @bookmarks = @chat_session.bookmarks.includes(:chat_message)
   end
 
   def paginated_tail(chat_session)
@@ -271,6 +282,10 @@ class ChatsController < ApplicationController
     value.to_s.split(",").map(&:strip).reject(&:blank?)
   end
 
+  def bookmark_label
+    params.dig(:chat_bookmark, :label).to_s.strip
+  end
+
   def repository_from_params
     id = params[:repository_id].presence || params.dig(:chat_attachment, :repository_id).presence
     return unless id
@@ -292,7 +307,7 @@ class ChatsController < ApplicationController
     raw = params[:attachable_type].presence || params.dig(:chat_attachment, :attachable_type).presence
     return unless raw
 
-    type = raw.to_s == "RepositoryDocument" ? "Document" : raw.to_s
+    type = %w[Document RepositoryDocument].include?(raw.to_s) ? "Document" : raw.to_s
     ChatAttachment::ATTACHABLE_TYPES.include?(type) ? type : nil
   end
 
@@ -324,7 +339,7 @@ class ChatsController < ApplicationController
 
   def normalized_search_type
     raw = params[:attachment_type].presence || params[:attachable_type].presence || "Repository"
-    raw.to_s == "RepositoryDocument" ? "Document" : raw.to_s
+    %w[Document RepositoryDocument].include?(raw.to_s) ? "Document" : raw.to_s
   end
 
   def attachment_search_scope(type)

@@ -11,6 +11,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       tools: [
         SyrusChatMcp::ProposeIssueTool,
         SyrusChatMcp::ProposeEpicTool,
+        SyrusChatMcp::SetBookmarkTool,
         SyrusChatMcp::ListProposalsTool,
         SyrusChatMcp::DeleteProposalTool,
         SyrusChatMcp::ReadJobTool,
@@ -67,6 +68,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(tool_names).to eq(%w[
         propose_issue
         propose_epic
+        set_bookmark
         list_proposals
         delete_proposal
         read_job

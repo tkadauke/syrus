@@ -55,10 +55,15 @@ RSpec.describe "Chats", type: :request do
         google_docs_url: "https://docs.google.com/document/d/launch/edit"
       )
       chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      message = chat.messages.create!(role: "assistant", content: { "text" => "Discuss aqueducts." })
+      message.bookmarks.create!(label: "Aqueducts", kind: "topic")
 
       get chat_path(chat)
 
       expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Bookmarks")
+      expect(response.body).to include("Aqueducts")
+      expect(response.body).to include("#message-#{message.id}")
       expect(response.body).to include("Attachments")
       expect(response.body).to include("Add attachment")
       expect(response.body).to include(repo.slug)
@@ -66,6 +71,18 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include(chat_attachments_path(chat))
       expect(response.body).to include(chat_message_path(chat))
       expect(response.body).to include(chat_whiteboard_path(chat))
+    end
+
+    it "renders message anchors and manual bookmark controls" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      message = chat.messages.create!(role: "assistant", content: { "text" => "Discuss roads." })
+
+      get chat_path(chat)
+
+      expect(response.body).to include("id=\"message-#{message.id}\"")
+      expect(response.body).to include("Bookmark this")
+      expect(response.body).to include(chat_bookmarks_path(chat))
+      expect(response.body).to include("name=\"message_id\"")
     end
 
     it "renders usage, workspace controls, and the chat side-panel shell" do
@@ -355,6 +372,40 @@ RSpec.describe "Chats", type: :request do
       expect(response).to redirect_to(chat_path(chat))
       expect(proposal.reload).to be_confirmed
       expect(proposal.epic).to have_attributes(title: "Manual Epic", description: "Coordinate the work.")
+    end
+  end
+
+  describe "POST /chats/:id/bookmarks" do
+    it "creates a manual bookmark on a message in the chat" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      message = chat.messages.create!(role: "assistant", content: { "text" => "Mark this." })
+
+      expect {
+        post chat_bookmarks_path(chat), params: {
+          message_id: message.id,
+          chat_bookmark: { label: "Marked point" }
+        }
+      }.to change(ChatBookmark, :count).by(1)
+
+      bookmark = message.bookmarks.sole
+      expect(bookmark).to be_manual
+      expect(bookmark.label).to eq("Marked point")
+      expect(response).to redirect_to(chat_path(chat, anchor: "message-#{message.id}"))
+    end
+
+    it "does not bookmark a message from another chat" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      other_chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      message = other_chat.messages.create!(role: "assistant", content: { "text" => "Do not mark this." })
+
+      expect {
+        post chat_bookmarks_path(chat), params: {
+          message_id: message.id,
+          chat_bookmark: { label: "Wrong chat" }
+        }
+      }.not_to change(ChatBookmark, :count)
+
+      expect(response).to have_http_status(:not_found).or redirect_to(repositories_path)
     end
   end
 
