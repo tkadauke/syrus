@@ -29,6 +29,7 @@ module SyrusChatMcp
       server = MCP::Server.new(
         name: "syrus-chat-sidecar",
         tools: [
+          AttachRepositoryTool,
           ProposeIssueTool,
           ProposeEpicTool,
           ListProposalsTool,

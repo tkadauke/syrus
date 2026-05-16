@@ -26,10 +26,10 @@ RSpec.describe Prompts::ChatSystem do
 
     out = described_class.new(repository: repo).to_s
 
-    expect(out).to include("Pinned context for this repository:")
+    expect(out).to include("Pinned context:")
     expect(out).to include("- Use the App credential path for this repo.")
     expect(out).not_to include("Removed context.")
-    expect(out.index("Pinned context for this repository:")).to be < out.index("Your environment:")
+    expect(out.index("Pinned context:")).to be < out.index("Your environment:")
   end
 
   it "renders supporting document hints without fetching document content" do
@@ -64,7 +64,7 @@ RSpec.describe Prompts::ChatSystem do
 
     out = described_class.new(repository: repo).to_s
 
-    pinned = out[/Pinned context for this repository:\n(?<body>.*?)\n\nYour environment:/m, :body].rstrip
+    pinned = out[/Pinned context:\n(?<body>.*?)\n\nYour environment:/m, :body].rstrip
     expect(pinned.length).to be <= 2.kilobytes + 10
     expect(pinned).to end_with("...")
   end
@@ -73,8 +73,17 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("The workspace persists across turns.")
+    expect(out).to include("Use `attach_repository(slug)` whenever you need to look at")
     expect(out).to include("switch back to the default branch when you're done")
     expect(out).to match(/Run `git fetch`\s+\(or use the `repo_info` tool\)/)
+  end
+
+  it "supports top-level chats that do not start with a repository" do
+    out = described_class.new(repository: nil).to_s
+
+    expect(out).to include("embedded research and planning assistant for the\nchat workspace")
+    expect(out).to include("Use `attach_repository(slug)`")
+    expect(out).to include("Pinned context:\n  - (none)")
   end
 
   it "captures the durable chat artifact contract that should not regress" do

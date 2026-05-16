@@ -87,12 +87,12 @@ class Repositories::ChatsController < ApplicationController
   end
 
   def refresh
-    ChatWorkspaceJob.perform_later(@repository.id, action: :refresh)
+    ChatWorkspaceJob.perform_later(@chat_session.id, action: :refresh)
     redirect_to chat_path(@chat_session), notice: "Repository refresh queued."
   end
 
   def reset
-    ChatWorkspaceJob.perform_later(@repository.id, action: :reset)
+    ChatWorkspaceJob.perform_later(@chat_session.id, action: :reset)
     redirect_to chat_path(@chat_session), notice: "Workspace reset queued."
   end
 

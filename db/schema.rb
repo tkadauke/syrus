@@ -174,7 +174,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_170000) do
     t.string "title"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "workspace_path"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
+    t.index ["workspace_path"], name: "index_chat_sessions_on_workspace_path"
   end
 
   create_table "chat_whiteboards", force: :cascade do |t|

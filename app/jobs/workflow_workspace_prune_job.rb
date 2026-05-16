@@ -16,9 +16,12 @@ class WorkflowWorkspacePruneJob < ApplicationJob
   # window expires.
   RETAIN_AFTER_FAILURE = 7.days
 
+  RETAIN_CHAT_WORKSPACES = 7.days
+
   def perform
     db_sweep
     filesystem_sweep
+    chat_workspace_sweep
   end
 
   private
@@ -95,5 +98,10 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     Workflow.joins(steps: :runs)
             .where(runs: { state: "awaiting_operator" })
             .select(:id)
+  end
+
+  def chat_workspace_sweep
+    n = ChatWorkspace.prune_idle!(older_than: RETAIN_CHAT_WORKSPACES)
+    Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{n} chat workspaces") if n > 0
   end
 end

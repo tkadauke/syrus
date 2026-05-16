@@ -7,6 +7,7 @@ RSpec.describe ChatWorkspace do
   let(:repository) do
     Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main")
   end
+  let(:chat_session) { ChatSession.create!(user: user) }
 
   before do
     seed_remote(bare_remote_dir)
@@ -23,85 +24,117 @@ RSpec.describe ChatWorkspace do
   end
 
   describe ".path_for" do
-    it "is keyed on repository id under chats/" do
-      expect(described_class.path_for(repository))
-        .to eq(Pathname.new(@data_root).join("chats", repository.id.to_s))
+    it "is keyed on chat session id under chat-workspaces/" do
+      expect(described_class.path_for(chat_session))
+        .to eq(Pathname.new(@data_root).join("chat-workspaces", chat_session.id.to_s))
+    end
+
+    it "uses the persisted workspace path once provisioned" do
+      path = described_class.ensure_root!(chat_session)
+
+      expect(chat_session.reload.workspace_path).to eq(path.to_s)
+      expect(described_class.path_for(chat_session)).to eq(path)
     end
   end
 
-  describe ".ensure!" do
+  describe ".attach_repository!" do
     it "shallow-clones the repository on first use" do
-      path = described_class.ensure!(repository)
+      path = described_class.attach_repository!(chat_session, repository)
 
       expect(path).to exist
       expect(path.join(".git")).to exist
+      expect(path).to eq(described_class.path_for(chat_session).join("repositories", "acme", "widgets"))
       expect(`git -C #{path} rev-parse --abbrev-ref HEAD`.strip).to eq("main")
+      expect(chat_session.reload.attached_repositories).to contain_exactly(repository)
     end
 
     it "writes .syrus/ into the git info exclude file" do
-      path = described_class.ensure!(repository)
+      path = described_class.attach_repository!(chat_session, repository)
 
       exclude_entries = path.join(".git", "info", "exclude").read.lines.map(&:chomp)
       expect(exclude_entries).to include(".syrus/")
     end
 
-    it "no-ops when the workspace already exists" do
-      path = described_class.ensure!(repository)
-      File.write(path.join("local-note.txt"), "keep me\n")
+    it "fetches and fast-forwards when the repository already exists" do
+      path = described_class.attach_repository!(chat_session, repository)
+      add_remote_commit("second")
 
-      allow_any_instance_of(GitRunner).to receive(:run).and_raise("git should not run")
+      described_class.attach_repository!(chat_session, repository)
 
-      expect { described_class.ensure!(repository) }.not_to raise_error
-      expect(path.join("local-note.txt").read).to eq("keep me\n")
+      expect(path.join("README.md").read).to include("second")
+      expect(chat_session.reload.repository_attachments.count).to eq(1)
     end
   end
 
   describe ".refresh!" do
-    it "fetches all remotes and prunes deleted refs" do
-      path = described_class.ensure!(repository)
+    it "fetches and fast-forwards the attached repo" do
+      path = described_class.attach_repository!(chat_session, repository)
       git = instance_double(GitRunner)
       allow(GitRunner).to receive(:new).and_return(git)
 
       expect(git).to receive(:run)
-        .with("fetch", "--all", "--prune", chdir: path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
+        .with("fetch", "origin", "main", "--prune", chdir: path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      expect(git).to receive(:run).with("checkout", "main", chdir: path.to_s)
+      expect(git).to receive(:run).with("merge", "--ff-only", "origin/main", chdir: path.to_s)
 
-      described_class.refresh!(repository)
+      described_class.refresh!(chat_session, repository)
     end
   end
 
   describe ".reset!" do
-    it "removes the existing workspace and re-clones it" do
-      path = described_class.ensure!(repository)
+    it "removes the existing chat workspace and recreates the root" do
+      path = described_class.attach_repository!(chat_session, repository)
       File.write(path.join("local-note.txt"), "discard me\n")
 
-      described_class.reset!(repository)
+      root = described_class.path_for(chat_session)
+      described_class.reset!(chat_session)
 
-      expect(path).to exist
-      expect(path.join(".git")).to exist
-      expect(path.join("local-note.txt")).not_to exist
-      expect(path.join(".git", "info", "exclude").read).to include(".syrus/")
+      expect(root).to exist
+      expect(path).not_to exist
     end
   end
 
   describe ".destroy!" do
     it "removes the workspace path" do
-      path = described_class.ensure!(repository)
+      path = described_class.ensure_root!(chat_session)
 
-      described_class.destroy!(repository)
+      described_class.destroy!(chat_session)
 
       expect(path).not_to exist
     end
 
     it "is idempotent on a missing path" do
-      expect { described_class.destroy!(repository) }.not_to raise_error
+      expect { described_class.destroy!(chat_session) }.not_to raise_error
     end
   end
 
-  describe "Repository destroy callback" do
-    it "removes the repository chat workspace" do
-      path = described_class.ensure!(repository)
+  describe ".prune_idle!" do
+    it "removes chat workspaces idle past the retention window and clears the path" do
+      path = described_class.ensure_root!(chat_session)
+      chat_session.update_columns(last_message_at: 8.days.ago, updated_at: 8.days.ago)
 
-      repository.destroy!
+      expect(described_class.prune_idle!(older_than: 7.days)).to eq(1)
+
+      expect(path).not_to exist
+      expect(chat_session.reload.workspace_path).to be_nil
+    end
+
+    it "leaves recently used chat workspaces alone" do
+      path = described_class.ensure_root!(chat_session)
+      chat_session.update_columns(last_message_at: 1.day.ago)
+
+      expect(described_class.prune_idle!(older_than: 7.days)).to eq(0)
+
+      expect(path).to exist
+      expect(chat_session.reload.workspace_path).to eq(path.to_s)
+    end
+  end
+
+  describe "ChatSession destroy callback" do
+    it "removes the chat workspace" do
+      path = described_class.ensure_root!(chat_session)
+
+      chat_session.destroy!
 
       expect(path).not_to exist
     end
@@ -115,6 +148,16 @@ RSpec.describe ChatWorkspace do
       sh("git -C #{seed} commit -q -m 'initial' --author='Seed <s@e>'")
       FileUtils.mkdir_p(bare_path.dirname)
       sh("git clone -q --bare #{seed} #{bare_path}")
+    end
+  end
+
+  def add_remote_commit(text)
+    Dir.mktmpdir("syrus-chatws-update") do |seed|
+      sh("git clone -q #{bare_remote_dir} #{seed}")
+      File.open(Pathname.new(seed).join("README.md"), "a") { |f| f.puts text }
+      sh("git -C #{seed} add README.md")
+      sh("git -C #{seed} commit -q -m 'update' --author='Seed <s@e>'")
+      sh("git -C #{seed} push -q origin main")
     end
   end
 

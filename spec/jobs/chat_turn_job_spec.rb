@@ -7,13 +7,13 @@ RSpec.describe ChatTurnJob do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
   let(:chat) { ChatSession.create!(repository: repository, user: user) }
   let(:workspace_root) { Pathname.new(Dir.mktmpdir("syrus-chat-workspace")) }
-  let(:workspace_path) { workspace_root.join("repo") }
+  let(:workspace_path) { workspace_root.join("chat") }
   let(:user_message) { chat.messages.create!(role: "user", content: { text: "What is the plan?" }) }
 
   before do
     ChatTurnJob.agent_runner = nil
-    allow(ChatWorkspace).to receive(:path_for).with(repository).and_return(workspace_path)
-    allow(ChatWorkspace).to receive(:ensure!).with(repository).and_return(workspace_path)
+    allow(ChatWorkspace).to receive(:path_for).with(chat).and_return(workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(workspace_path)
   end
 
   after do
@@ -62,7 +62,7 @@ RSpec.describe ChatTurnJob do
     expect(received[:max_turns]).to be_nil
 
     expect(chat.messages.order(:created_at).pluck(:role)).to eq(
-      [ "user", "system", "system", "assistant", "tool_use", "tool_result" ]
+      [ "user", "assistant", "tool_use", "tool_result" ]
     )
     expect(chat.reload.cumulative_input_tokens).to eq(12)
     expect(chat.cumulative_output_tokens).to eq(5)
@@ -76,6 +76,25 @@ RSpec.describe ChatTurnJob do
       session_id: "chat-session-1",
       transcript_jsonl: "{\"type\":\"system\"}\n"
     )
+  end
+
+  it "can run a top-level chat before any repository is attached" do
+    chat = ChatSession.create!(user: user)
+    message = chat.messages.create!(role: "user", content: { text: "Inspect tkadauke/syrus" })
+    top_level_path = workspace_root.join("top-level")
+    allow(ChatWorkspace).to receive(:path_for).with(chat).and_return(top_level_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(top_level_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(received[:workspace_path]).to eq(top_level_path.to_s)
+    expect(received[:prompt]).to include("Use `attach_repository(slug)`")
   end
 
   it "preserves existing usage totals when invocation result usage fields are nil" do

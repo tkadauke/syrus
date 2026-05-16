@@ -11,6 +11,9 @@ class ChatSession < ApplicationRecord
   has_many :document_attachments,
            -> { where(attachable_type: "Document").order(:attached_at, :id) },
            class_name: "ChatAttachment"
+  has_many :repository_document_attachments,
+           -> { where(attachable_type: "Document").order(:attached_at, :id) },
+           class_name: "ChatAttachment"
   has_many :attached_repositories,
            through: :repository_attachments,
            source: :attachable,
@@ -35,6 +38,7 @@ class ChatSession < ApplicationRecord
 
   after_update_commit :broadcast_header, if: :cumulative_usage_previously_changed?
   after_create :attach_initial_repository
+  before_destroy :destroy_workspace
 
   validates :cumulative_input_tokens,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -58,6 +62,10 @@ class ChatSession < ApplicationRecord
 
   def repository_id
     repository&.id
+  end
+
+  def workspace_root
+    ChatWorkspace.path_for(self)
   end
 
   def attached_epics
@@ -139,6 +147,10 @@ class ChatSession < ApplicationRecord
     return unless @initial_repository
 
     chat_attachments.create!(attachable: @initial_repository)
+  end
+
+  def destroy_workspace
+    ChatWorkspace.destroy!(self)
   end
 
   def attached_records_for(type)

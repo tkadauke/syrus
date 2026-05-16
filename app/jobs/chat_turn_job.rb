@@ -7,8 +7,7 @@ class ChatTurnJob < ApplicationJob
   discard_on StandardError
 
   limits_concurrency to: 1, group: CONCURRENCY_GROUP, key: ->(chat_session_id, *) {
-    chat_session = ChatSession.find(chat_session_id)
-    "chat:#{chat_session.repository_id || chat_session.id}"
+    "chat:#{chat_session_id}"
   }, duration: 30.minutes
 
   class << self
@@ -56,13 +55,7 @@ class ChatTurnJob < ApplicationJob
   private
 
   def ensure_workspace!
-    path = ChatWorkspace.path_for(@chat.repository)
-    first_clone = !path.exist?
-
-    create_message!("system", text: "Cloning #{@chat.repository.slug}...") if first_clone
-    ChatWorkspace.ensure!(@chat.repository).tap do
-      create_message!("system", text: "Clone ready.") if first_clone
-    end
+    ChatWorkspace.ensure_root!(@chat)
   end
 
   def prompt_for(parent_session_id)
@@ -142,7 +135,7 @@ class ChatTurnJob < ApplicationJob
   def capture_session!(result)
     return if result.session_id.blank?
 
-    transcript_jsonl = transcript_jsonl_for(result, workspace_path: ChatWorkspace.path_for(@chat.repository))
+    transcript_jsonl = transcript_jsonl_for(result, workspace_path: ChatWorkspace.path_for(@chat))
     attrs = {
       provider: "claude",
       session_id: result.session_id,

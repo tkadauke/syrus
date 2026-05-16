@@ -9,6 +9,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
+        SyrusChatMcp::AttachRepositoryTool,
         SyrusChatMcp::ProposeIssueTool,
         SyrusChatMcp::ProposeEpicTool,
         SyrusChatMcp::ListProposalsTool,
@@ -65,6 +66,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
 
       tool_names = response[:result][:tools].map { |tool| tool[:name] }
       expect(tool_names).to eq(%w[
+        attach_repository
         propose_issue
         propose_epic
         list_proposals

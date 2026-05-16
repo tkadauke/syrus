@@ -194,4 +194,17 @@ RSpec.describe WorkflowWorkspacePruneJob do
     expect(WorkflowWorkspace).not_to receive(:cleanup_for)
     described_class.perform_now
   end
+
+  it "prunes chat workspaces idle past the retention window" do
+    allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
+    chat = ChatSession.create!(user: Factories.user, last_message_at: (described_class::RETAIN_CHAT_WORKSPACES + 1.day).ago)
+    path = ChatWorkspace.ensure_root!(chat)
+    chat.update_columns(last_message_at: (described_class::RETAIN_CHAT_WORKSPACES + 1.day).ago,
+                        updated_at: (described_class::RETAIN_CHAT_WORKSPACES + 1.day).ago)
+
+    described_class.perform_now
+
+    expect(path).not_to exist
+    expect(chat.reload.workspace_path).to be_nil
+  end
 end

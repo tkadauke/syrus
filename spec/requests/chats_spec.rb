@@ -44,6 +44,19 @@ RSpec.describe "Chats", type: :request do
       expect(chat.messages.last.content).to eq("text" => "Map auth")
       expect(response).to redirect_to(chat_path(chat))
     end
+
+    it "creates the first message and enqueues a turn without a repository attachment" do
+      expect {
+        post chats_path, params: { chat_message: { text: "Map tkadauke/syrus" } }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      chat = ChatSession.last
+      expect(chat.attached_repositories).to be_empty
+      expect(chat.messages.last.content).to eq("text" => "Map tkadauke/syrus")
+      expect(response).to redirect_to(chat_path(chat))
+    end
   end
 
   describe "GET /chats/:id" do
@@ -376,7 +389,7 @@ RSpec.describe "Chats", type: :request do
 
       expect {
         post chat_refresh_path(chat)
-      }.to have_enqueued_job(ChatWorkspaceJob).with(repo.id, action: :refresh)
+      }.to have_enqueued_job(ChatWorkspaceJob).with(chat.id, action: :refresh)
 
       expect(response).to redirect_to(chat_path(chat))
       expect(flash[:notice]).to eq("Repository refresh queued.")
@@ -387,7 +400,7 @@ RSpec.describe "Chats", type: :request do
 
       expect {
         post chat_reset_path(chat)
-      }.to have_enqueued_job(ChatWorkspaceJob).with(repo.id, action: :reset)
+      }.to have_enqueued_job(ChatWorkspaceJob).with(chat.id, action: :reset)
 
       expect(response).to redirect_to(chat_path(chat))
       expect(flash[:notice]).to eq("Workspace reset queued.")

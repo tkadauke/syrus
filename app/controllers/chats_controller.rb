@@ -29,17 +29,13 @@ class ChatsController < ApplicationController
         title: text.presence&.truncate(80),
         last_message_at: text.present? ? Time.current : nil
       )
-      if text.present? && repository
+      if text.present?
         user_message = chat_session.messages.create!(role: "user", content: { "text" => text })
       end
     end
 
     ChatTurnJob.perform_later(chat_session.id, user_message.id) if user_message
-    if text.present? && !repository
-      redirect_to chat_path(chat_session), alert: "Attach a repository before sending a message."
-    else
-      redirect_to chat_path(chat_session), notice: text.present? ? "Message sent." : "Chat created."
-    end
+    redirect_to chat_path(chat_session), notice: text.present? ? "Message sent." : "Chat created."
   end
 
   def show
@@ -69,11 +65,6 @@ class ChatsController < ApplicationController
     text = message_text
     if text.blank?
       redirect_to chat_path(@chat_session), alert: "Message cannot be blank."
-      return
-    end
-
-    unless @chat_session.repository
-      redirect_to chat_path(@chat_session), alert: "Attach a repository before sending a message."
       return
     end
 
@@ -112,24 +103,22 @@ class ChatsController < ApplicationController
   end
 
   def refresh
-    repository = @chat_session.repository
-    unless repository
+    unless @chat_session.repository
       redirect_to chat_path(@chat_session), alert: "Attach a repository before refreshing a workspace."
       return
     end
 
-    ChatWorkspaceJob.perform_later(repository.id, action: :refresh)
+    ChatWorkspaceJob.perform_later(@chat_session.id, action: :refresh)
     redirect_to chat_path(@chat_session), notice: "Repository refresh queued."
   end
 
   def reset
-    repository = @chat_session.repository
-    unless repository
+    unless @chat_session.repository
       redirect_to chat_path(@chat_session), alert: "Attach a repository before resetting a workspace."
       return
     end
 
-    ChatWorkspaceJob.perform_later(repository.id, action: :reset)
+    ChatWorkspaceJob.perform_later(@chat_session.id, action: :reset)
     redirect_to chat_path(@chat_session), notice: "Workspace reset queued."
   end
 

@@ -60,7 +60,7 @@ RSpec.describe "Repository chat redirects", type: :request do
 
       expect {
         post repository_chat_refresh_path(repo, chat)
-      }.to have_enqueued_job(ChatWorkspaceJob).with(repo.id, action: :refresh)
+      }.to have_enqueued_job(ChatWorkspaceJob).with(chat.id, action: :refresh)
 
       expect(response).to redirect_to(chat_path(chat))
     end

@@ -7,21 +7,22 @@ module Prompts
     def to_s
       <<~PROMPT
         You are an embedded research and planning assistant for the
-        #{@repository.slug} repository. Your role is to help the
+        #{chat_scope}. Your role is to help the
         operator inspect the code, think through changes, and draft
         Syrus Jobs — NOT to make code changes yourself.
 
-        Pinned context for this repository:
+        Pinned context:
         #{pinned_context}
 
         #{documents_hint}
 
         Your environment:
 
-          - Your cwd is a persistent local checkout of the repository.
-            It is yours to navigate as you see fit: checkout branches,
-            fetch, diff, grep, anything that helps you answer the
-            operator's questions.
+          - Your cwd is a persistent workspace for this chat.
+            Use `attach_repository(slug)` whenever you need to look at
+            code for a repository you haven't already attached. The tool
+            returns the repository checkout path; run shell commands in
+            that path when inspecting code.
           - The workspace is isolated. Nothing you do is ever pushed,
             committed upstream, or seen by any other process. No
             commit or push tool is available to you here.
@@ -79,7 +80,15 @@ module Prompts
 
     private
 
+    def chat_scope
+      return "chat workspace" unless @repository
+
+      "#{@repository.slug} repository"
+    end
+
     def pinned_context
+      return "  - (none)" unless @repository
+
       notes = @repository.repository_notes.active.order(:created_at, :id)
       return "  - (none)" if notes.empty?
 
@@ -96,6 +105,8 @@ module Prompts
     end
 
     def documents_hint
+      return "" unless @repository
+
       documents = @repository.repository_documents.with_attached_file.order(:created_at, :id)
       return "" if documents.empty?
 
