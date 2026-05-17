@@ -22,6 +22,10 @@ class SmartFolder < ApplicationRecord
     attention_preset_filter(preset)
   end
 
+  def self.workflow_attention(preset)
+    attention_preset_filter(preset)
+  end
+
   JOB_BUILTINS = [
     { key: "pinned",           name: "Pinned",           visibility: :when_present, filter: attention_preset_filter("pinned") },
     { key: "in_progress",      name: "In progress",      visibility: :when_present, filter: attention_preset_filter("in_progress") },
@@ -47,9 +51,17 @@ class SmartFolder < ApplicationRecord
     { key: "epics_recently_done", name: "Recently done", visibility: :on_demand,    filter: epic_attention("recently_done") }
   ].freeze
 
+  WORKFLOW_BUILTINS = [
+    { key: "workflows_running",     name: "Running",     visibility: :always,       filter: workflow_attention("running") },
+    { key: "workflows_stuck",       name: "Stuck",       visibility: :when_present, filter: workflow_attention("stuck") },
+    { key: "workflows_just_failed", name: "Just failed", visibility: :when_present, filter: workflow_attention("just_failed") },
+    { key: "workflows_queued",      name: "Queued",      visibility: :on_demand,    filter: workflow_attention("queued") }
+  ].freeze
+
   BUILTINS_BY_SUBJECT = {
     "job" => JOB_BUILTINS,
-    "epic" => EPIC_BUILTINS
+    "epic" => EPIC_BUILTINS,
+    "workflow" => WORKFLOW_BUILTINS
   }.freeze
 
   VISIBILITY_BY_SUBJECT_AND_NAME = BUILTINS_BY_SUBJECT.transform_values do |definitions|
@@ -59,7 +71,7 @@ class SmartFolder < ApplicationRecord
   EPIC_BUILTIN_DEFINITIONS = EPIC_BUILTINS
 
   KINDS = %w[ builtin user_defined ].freeze
-  SUBJECT_TYPES = %w[ job epic ].freeze
+  SUBJECT_TYPES = %w[ job epic workflow ].freeze
 
   belongs_to :user, optional: true
 
@@ -69,7 +81,7 @@ class SmartFolder < ApplicationRecord
   after_initialize :seed_defaults, if: :new_record?
 
   enum :kind, { builtin: "builtin", user_defined: "user_defined" }, validate: true
-  enum :subject_type, { job: "job", epic: "epic" }, validate: true
+  enum :subject_type, { job: "job", epic: "epic", workflow: "workflow" }, validate: true
 
   validates :name, presence: true
   validates :kind, presence: true, inclusion: { in: KINDS }
@@ -86,10 +98,15 @@ class SmartFolder < ApplicationRecord
   def self.ensure_builtins!
     ensure_builtin_set!(:job, BUILTIN_DEFINITIONS)
     ensure_epic_builtins!
+    ensure_workflow_builtins!
   end
 
   def self.ensure_epic_builtins!
     ensure_builtin_set!(:epic, EPIC_BUILTIN_DEFINITIONS)
+  end
+
+  def self.ensure_workflow_builtins!
+    ensure_builtin_set!(:workflow, WORKFLOW_BUILTINS)
   end
 
   def self.ensure_builtin_set!(subject, definitions)

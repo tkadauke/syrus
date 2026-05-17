@@ -159,6 +159,13 @@ module Filters
         "has_epic_dependency"     => "Filters::Chips::Epics::HasEpicDependency",
         "attention"               => "Filters::Chips::Epics::Attention"
       }
+    ),
+    workflow: Subject.new(
+      name: :workflow,
+      model: Workflow,
+      chips: {
+        "attention" => "Filters::Chips::Workflows::Attention"
+      }
     )
   }.freeze
 
