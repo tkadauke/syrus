@@ -1,24 +1,35 @@
 require "rails_helper"
+require "cgi"
 
 RSpec.describe "Epics", type: :request do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
   describe "GET /epics" do
-    it "requires authentication" do
-      user
-
+    it "redirects to the root Epic dashboard subject" do
       get epics_path
 
-      expect(response).to redirect_to(new_session_path)
+      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/?subject=epic")
     end
 
+    it "preserves query params in the compatibility redirect" do
+      q = Filters::QueryParam.encode("and" => [ { "field" => "state", "op" => "is", "value" => "ready" } ])
+
+      get epics_path, params: { q: q, smart_folder_id: "12" }
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to eq("http://www.example.com/?subject=epic&q=#{CGI.escape(q)}&smart_folder_id=12")
+    end
+  end
+
+  describe "GET /?subject=epic&view=list" do
     it "renders a subject-aware chip bar and Epic SmartFolder sidebar" do
       sign_in_as(user)
       SmartFolder.ensure_epic_builtins!
       Factories.epic(user: user, repository: repo, title: "Raise the forum", state: "ready")
 
-      get epics_path
+      get root_path, params: { subject: "epic", view: "list" }
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("Epics")
@@ -35,7 +46,7 @@ RSpec.describe "Epics", type: :request do
       Factories.epic(user: user, repository: repo, title: "Backlog aqueduct", state: "backlog")
       folder = SmartFolder.for_subject(:epic).built_in_sidebar_order.find_by!(name: "Ready")
 
-      get epics_path, params: { smart_folder_id: folder.id }
+      get root_path, params: { subject: "epic", view: "list", smart_folder_id: folder.id }
 
       expect(response.body).to include(ready.title)
       expect(response.body).not_to include("Backlog aqueduct")
@@ -52,7 +63,7 @@ RSpec.describe "Epics", type: :request do
         ]
       )
 
-      get epics_path, params: { q: q }
+      get root_path, params: { subject: "epic", view: "list", q: q }
 
       expect(response.body).to include(keep.title)
       expect(response.body).not_to include("Bathhouse tiles")

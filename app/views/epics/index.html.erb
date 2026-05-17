@@ -18,7 +18,7 @@
     <span class="hidden text-gray-400 group-open:inline">Hide</span>
   </summary>
   <div class="space-y-4 border-t border-gray-200 p-3">
-    <%= render "epic_smart_folders", folder_link_classes: folder_link_classes %>
+    <%= render "epics/epic_smart_folders", folder_link_classes: folder_link_classes %>
     <%= render "home/chip_bar", subject: :epic, filter: @filter, schema: @schema, action_url: epics_path, class_name: "relative flex flex-col gap-3" %>
     <% if @smart_folder %>
       <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
@@ -30,7 +30,7 @@
 
 <div class="grid gap-5 lg:grid-cols-[16rem_1fr]">
   <aside class="hidden space-y-4 lg:block">
-    <%= render "epic_smart_folders", folder_link_classes: folder_link_classes %>
+    <%= render "epics/epic_smart_folders", folder_link_classes: folder_link_classes %>
   </aside>
 
   <div class="space-y-4">

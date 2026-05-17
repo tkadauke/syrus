@@ -1,10 +1,9 @@
 class HomeController < ApplicationController
   PER_PAGE = 25
-  DASHBOARD_SUBJECT_PATHS = {
-    "epic" => :dashboard_epics_path,
-    "job" => :dashboard_jobs_path,
-    "workflow" => :dashboard_workflows_path
-  }.freeze
+  DASHBOARD_SUBJECTS = %w[job epic].freeze
+  DASHBOARD_VIEWS = %w[list kanban].freeze
+  DEFAULT_DASHBOARD_SUBJECT = "epic"
+  DEFAULT_DASHBOARD_VIEW = "list"
   KANBAN_PER_PAGE = 100
   JOB_KANBAN_LANES = [
     { key: "queued", title: "Queued" },
@@ -16,15 +15,17 @@ class HomeController < ApplicationController
   before_action :persist_dashboard_preferences_from_params, only: %i[index epics jobs workflows]
 
   def index
-    if params[:subject].present?
-      @active_tab = dashboard_subject_from_params
-      set_dashboard_view
-      @active_tab == "epics" ? load_epics_dashboard : load_dashboard
-      render :index
-      return
-    end
+    @dashboard_subject = dashboard_subject
+    @dashboard_view = dashboard_view
 
-    redirect_to dashboard_preference_path
+    case [ @dashboard_subject, @dashboard_view ]
+    when [ "job", "list" ], [ "job", "kanban" ]
+      jobs
+    when [ "epic", "kanban" ]
+      epics
+    else
+      epic_list
+    end
   end
 
   def epics
@@ -104,20 +105,66 @@ class HomeController < ApplicationController
     )
   end
 
-  def dashboard_preference_path
-    preferences = Current.user.dashboard_preferences
-    subject = normalize_dashboard_subject(preferences["last_subject"])
-    path_helper = DASHBOARD_SUBJECT_PATHS.fetch(subject, :dashboard_epics_path)
-
-    public_send(path_helper, view: preferences["last_view"])
+  def dashboard_subject
+    normalized_dashboard_param(:subject, DASHBOARD_SUBJECTS) ||
+      persisted_dashboard_subject ||
+      DEFAULT_DASHBOARD_SUBJECT
   end
 
-  def normalize_dashboard_subject(subject)
-    subject.to_s.presence&.delete_suffix("s") || User::DASHBOARD_PREFERENCES_DEFAULTS.fetch("last_subject")
+  def dashboard_view
+    normalized_dashboard_param(:view, DASHBOARD_VIEWS) ||
+      persisted_dashboard_view ||
+      DEFAULT_DASHBOARD_VIEW
   end
 
-  def dashboard_subject_from_params
-    params[:subject].to_s.presence_in(%w[epic epics]) ? "epics" : "jobs"
+  def normalized_dashboard_param(key, valid_values)
+    return unless params.key?(key)
+
+    params[key].to_s.presence_in(valid_values) || default_dashboard_value_for(key)
+  end
+
+  def default_dashboard_value_for(key)
+    case key.to_sym
+    when :subject
+      DEFAULT_DASHBOARD_SUBJECT
+    when :view
+      DEFAULT_DASHBOARD_VIEW
+    end
+  end
+
+  def persisted_dashboard_subject
+    Current.user.dashboard_preferences["last_subject"].to_s.presence_in(DASHBOARD_SUBJECTS)
+  end
+
+  def persisted_dashboard_view
+    Current.user.dashboard_preferences["last_view"].to_s.presence_in(DASHBOARD_VIEWS)
+  end
+
+  def epic_list
+    @active_tab = "epics"
+    @dashboard_subject = "epic"
+    @dashboard_view = "list"
+    load_epic_list_dashboard
+    render :index
+  end
+
+  def load_epic_list_dashboard
+    SmartFolder.ensure_builtins!
+    SmartFolder.ensure_epic_builtins!
+    @page = [ params[:page].to_i, 1 ].max
+    @smart_folder = epic_list_smart_folder_from_params
+    @filter = ::Epics::Filter.from_params(params, smart_folder: @smart_folder, user: Current.user)
+    @schema = ::Filters::Schema.for(subject: :epic, user: Current.user)
+    @smart_folders = SmartFolder.for_subject(:epic).where(user: Current.user).order(:position, :id)
+    @builtin_smart_folders = SmartFolder.for_subject(:epic).built_in_sidebar_order
+    @smart_folder_counts = epic_list_smart_folder_counts(Current.user.epics)
+    @primary_builtin_smart_folders, @more_builtin_smart_folders = split_epic_list_builtin_smart_folders
+
+    @epics = @filter.apply(Current.user.epics.includes(:repository))
+    @epics_total = @epics.count
+    @epics_matching_count = @epics_total
+    @jobs_matching_count = job_count_from_current_filter
+    @epics = @epics.order(updated_at: :desc, id: :desc).offset((@page - 1) * EpicsController::PER_PAGE).limit(EpicsController::PER_PAGE)
   end
 
   def set_dashboard_view
@@ -394,10 +441,18 @@ class HomeController < ApplicationController
       SmartFolder.for_subject(:epic).where(user: Current.user).find_by(id: params[:smart_folder_id])
   end
 
+  def epic_list_smart_folder_from_params
+    epic_smart_folder_from_params
+  end
+
   def epic_smart_folder_counts(base_scope)
     (@builtin_smart_folders + @smart_folders).to_h do |folder|
       [ folder.id, ::Epics::Filter.from_tree(folder.filter, user: Current.user).apply(base_scope).count ]
     end
+  end
+
+  def epic_list_smart_folder_counts(base_scope)
+    epic_smart_folder_counts(base_scope)
   end
 
   def split_epic_builtin_smart_folders
@@ -418,6 +473,10 @@ class HomeController < ApplicationController
     end
 
     [ primary, more ]
+  end
+
+  def split_epic_list_builtin_smart_folders
+    split_epic_builtin_smart_folders
   end
 
   def job_count_from_current_filter

@@ -139,10 +139,17 @@ Rails.application.routes.draw do
   get "dashboard/jobs", to: "home#jobs", as: :dashboard_jobs
   post "dashboard/landing_pause", to: "home#toggle_landing_pause", as: :toggle_landing_pause
   get "dashboard/workflows", to: "home#workflows", as: :dashboard_workflows
-  get "jobs", to: redirect("/dashboard/jobs", status: 302)
+  get "jobs", to: redirect(status: 302) { |_params, request|
+    query = request.query_parameters.except("subject").to_query
+    query.present? ? "/?subject=job&#{query}" : "/?subject=job"
+  }
   get "workflows", to: redirect("/dashboard/workflows", status: 302)
 
-  resources :epics, only: %i[ index show ] do
+  get "epics", to: redirect(status: 302) { |_params, request|
+    query = request.query_parameters.except("subject").to_query
+    query.present? ? "/?subject=epic&#{query}" : "/?subject=epic"
+  }, as: :epics
+  resources :epics, only: %i[ show ] do
     member do
       patch :state, action: :update_state
     end

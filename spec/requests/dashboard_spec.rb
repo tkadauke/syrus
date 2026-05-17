@@ -1,5 +1,7 @@
 require "rails_helper"
 require "open3"
+require "base64"
+require "cgi"
 
 RSpec.describe "Dashboard", type: :request do
   let(:user)  { Factories.user }
@@ -14,25 +16,56 @@ RSpec.describe "Dashboard", type: :request do
   context "signed in" do
     before { sign_in_as(user) }
 
-    it "redirects first-time root visits to the default Dashboard preference" do
+    it "renders the default Epic list dashboard at root" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.epic(user: user, repository: repo, title: "Raise the forum", state: "ready")
+
       get root_path
 
-      expect(response).to redirect_to(dashboard_epics_path(view: "list"))
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Epics")
+      expect(response.body).to include("Raise the forum")
+      expect(response.body).to include('data-filter-memory-subject-value="epic"')
     end
 
-    it "redirects root visits without params to the stored Dashboard preference" do
+    it "renders root visits without params from the stored Dashboard preference" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.job_record(repository: repo, issue_number: 7)
       user.update!(dashboard_preferences: { last_subject: "job", last_view: "list" })
 
       get root_path
 
-      expect(response).to redirect_to(dashboard_jobs_path(view: "list"))
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("acme/widgets")
+      expect(response.body).to include("#7")
     end
 
-    it "persists explicit Dashboard preference params before redirecting" do
-      get root_path, params: { subject: "epic", view: "kanban" }
+    it "honors subject and view params at root" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.job_record(repository: repo, issue_number: 7)
+      Factories.epic(user: user, repository: repo, title: "Launch board", state: "ready")
 
-      expect(response).to redirect_to(dashboard_epics_path(view: "kanban"))
+      get root_path, params: { subject: "job", view: "list" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("acme/widgets")
+      expect(response.body).to include("#7")
+
+      get root_path, params: { subject: "epic", view: "kanban" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Backlog", "Ready", "In Progress", "Done")
+      expect(response.body).to include("Launch board")
       expect(user.reload.dashboard_preferences).to eq("last_subject" => "epic", "last_view" => "kanban")
+    end
+
+    it "falls back to default dashboard params for invalid values" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.epic(user: user, repository: repo, title: "Default forum", state: "ready")
+
+      get root_path, params: { subject: "scroll", view: "mosaic" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Epics")
+      expect(response.body).to include("Default forum")
     end
 
     it "renders top-level navigation and points Dashboard at the default Epics subtab" do
@@ -251,10 +284,19 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include("Back to Epics")
     end
 
-    it "redirects legacy list URLs to Dashboard subtabs" do
+    it "redirects legacy list URLs to root dashboard subjects" do
       get "/jobs"
       expect(response).to have_http_status(:found)
-      expect(response).to redirect_to(dashboard_jobs_path)
+      expect(response).to redirect_to("/?subject=job")
+
+      q = Base64.strict_encode64("status:open")
+      get "/jobs", params: { q: q, smart_folder_id: "42" }
+      expect(response).to have_http_status(:found)
+      expect(response.location).to eq("http://www.example.com/?subject=job&q=#{CGI.escape(q)}&smart_folder_id=42")
+
+      get "/epics"
+      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/?subject=epic")
 
       get "/workflows"
       expect(response).to have_http_status(:found)
