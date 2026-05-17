@@ -34,8 +34,8 @@ class AutoRebase
 
     # Clone the base branch (not shallow — rebase needs full history
     # to find merge-base). After clone, `origin/<base>` is set to the
-    # current tip of the default branch, which is exactly what we
-    # rebase onto. Then fetch + checkout the feature branch.
+    # current tip of the effective base branch, which is exactly what
+    # we rebase onto. Then fetch + checkout the feature branch.
     clone_base_branch
     fetch_and_checkout_feature_branch
     configure_git_author
@@ -76,10 +76,10 @@ class AutoRebase
   end
 
   def base_branch
-    @job.parent_job&.branch_name.presence || @job.repository.default_branch
+    @job.effective_base_branch
   end
 
-  # Full (non-shallow) clone on the default branch so that
+  # Full (non-shallow) clone on the effective base branch so that
   # `origin/<base>` is available as a remote tracking ref and
   # merge-base computation works across any history depth.
   def clone_base_branch

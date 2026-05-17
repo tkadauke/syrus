@@ -29,7 +29,7 @@ module Steps
       Prompts::Rebase.new(
         repo_slug: repository.slug,
         branch_name: job.branch_name,
-        base_branch: job.parent_job&.branch_name.presence || repository.default_branch,
+        base_branch: job.effective_base_branch,
         pr_number: pr_number
       ).to_s
     end

@@ -78,13 +78,35 @@ RSpec.describe WorkflowWorkspace do
         FileUtils.rm_rf(parent_worktree)
         parent.update!(branch_name: parent_branch, pr_number: 6)
         parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: parent_sha)
-        job.update!(parent_job: parent)
+        JobDependency.create!(job: job, depends_on_job: parent, source: "manual", created_by_user: user)
 
         ws = described_class.new(workflow)
         ws.setup
 
         expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(parent_sha)
         expect(ws.path.join("parent.rb")).to exist
+      end
+
+      it "creates a fresh branch from the default branch after the dependency merges" do
+        parent = Factories.job(repository: repository, issue_number: 9)
+        parent_branch = "syrus/issue-9-#{parent.id}"
+        parent_worktree = Pathname.new(@data_root).join("workflows", "_parent_merged")
+        sh("git clone -q file://#{bare_remote_dir} #{parent_worktree}")
+        sh("git -C #{parent_worktree} checkout -q -b #{parent_branch}")
+        File.write(parent_worktree.join("parent.rb"), "PARENT\n")
+        sh("git -C #{parent_worktree} add .")
+        sh("git -C #{parent_worktree} -c user.email=t@e -c user.name=t commit -q -m 'parent'")
+        sh("git -C #{parent_worktree} push -q origin #{parent_branch}")
+        FileUtils.rm_rf(parent_worktree)
+        parent.update!(branch_name: parent_branch, pr_number: 9)
+        parent.close_with_reason!("pr_merged")
+        JobDependency.create!(job: job, depends_on_job: parent, source: "manual", created_by_user: user)
+
+        ws = described_class.new(workflow)
+        ws.setup
+
+        expect(ws.path.join("parent.rb")).not_to exist
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-7-#{job.id}")
       end
 
       it "branches from the parent's current remote tip even when the parent's stored head_sha is dangling" do
@@ -112,7 +134,7 @@ RSpec.describe WorkflowWorkspace do
 
         parent.update!(branch_name: parent_branch, pr_number: 8)
         parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: dangling_sha)
-        job.update!(parent_job: parent)
+        JobDependency.create!(job: job, depends_on_job: parent, source: "manual", created_by_user: user)
 
         expect(parent.head_sha).to eq(dangling_sha)
         expect(dangling_sha).not_to eq(new_tip)

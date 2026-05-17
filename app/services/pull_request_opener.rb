@@ -5,10 +5,10 @@ class PullRequestOpener
   end
 
   # Returns the new PR number.
-  def open(branch:, title:, body:)
+  def open(branch:, title:, body:, job: nil)
     pr = @client.create_pull_request(
       @repository.slug,
-      base: @repository.default_branch,
+      base: job&.effective_base_branch || @repository.default_branch,
       head: branch,
       title: title,
       body: body

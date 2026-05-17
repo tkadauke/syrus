@@ -22,4 +22,31 @@ RSpec.describe PullRequestOpener do
       body: "B"
     )
   end
+
+  it "uses the Job's effective base branch when one is provided" do
+    parent = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 1,
+      state: "open",
+      branch_name: "syrus/issue-1",
+      pr_number: 1
+    )
+    job = Factories.job_record(user: user, repository: repository, issue_number: 2, state: "open")
+    JobDependency.create!(job: job, depends_on_job: parent, source: "manual", created_by_user: user)
+    fake_pr = double(number: 100)
+    fake_client = instance_double(GithubClient, create_pull_request: fake_pr)
+
+    opener = described_class.new(repository, client: fake_client)
+    pr_number = opener.open(branch: "syrus/issue-2-2", title: "T", body: "B", job: job)
+
+    expect(pr_number).to eq(100)
+    expect(fake_client).to have_received(:create_pull_request).with(
+      "acme/widgets",
+      base: "syrus/issue-1",
+      head: "syrus/issue-2-2",
+      title: "T",
+      body: "B"
+    )
+  end
 end

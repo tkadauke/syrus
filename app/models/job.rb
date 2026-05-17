@@ -420,6 +420,19 @@ class Job < ApplicationRecord
     merged? || (closed? && SUCCESSFUL_CLOSURE_REASONS.include?(closure_reason))
   end
 
+  def effective_base_branch
+    return repository.default_branch if stack_base_main?
+
+    parent = dependencies.includes(:depends_on_job).map(&:depends_on_job).compact.find do |dependency_job|
+      dependency_job.open? &&
+        dependency_job.pr_number.present? &&
+        dependency_job.branch_name.present? &&
+        !dependency_job.dependency_succeeded?
+    end
+
+    parent&.branch_name.presence || repository.default_branch
+  end
+
   def stack_ready_for_execution?
     return true if dependencies_overridden_at.present?
 

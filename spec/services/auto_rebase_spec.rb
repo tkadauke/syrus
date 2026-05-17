@@ -78,7 +78,7 @@ RSpec.describe AutoRebase do
     parent_sha = `git --git-dir=#{bare_remote_dir} rev-parse #{parent_branch}`.strip
     parent.update!(branch_name: parent_branch, pr_number: 41)
     parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: parent_sha)
-    job.update!(parent_job: parent)
+    JobDependency.create!(job: job, depends_on_job: parent, source: "manual", created_by_user: user)
     push_branch_with_file(feature, "feature.rb", "FEATURE\n", "feature")
 
     result = described_class.new(job).call

@@ -24,7 +24,8 @@ module Steps
       pr_number = PullRequestOpener.new(repository).open(
         branch: workspace.branch_name,
         title: title,
-        body: body
+        body: body,
+        job: job
       )
       job.update!(pr_number: pr_number, branch_name: workspace.branch_name)
       job.mark_implemented! if job.may_mark_implemented?

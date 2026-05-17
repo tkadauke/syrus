@@ -40,6 +40,33 @@ RSpec.describe Steps::PrOpen do
     expect(body).not_to include("Run took")
   end
 
+  it "passes the Job to PullRequestOpener so dependent PRs use their effective base" do
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+    opener = instance_double(PullRequestOpener)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:push_branch)
+    allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
+    expect(PullRequestOpener).to receive(:new).with(repository).and_return(opener)
+    expect(opener).to receive(:open).with(
+      branch: "syrus/issue-42-#{job.id}",
+      title: "T",
+      body: "B",
+      job: job
+    ).and_return(99)
+
+    handler.call
+
+    expect(job.reload.pr_number).to eq(99)
+  end
+
   context "when falling back to the second-shot summarizer" do
     let(:user) { Factories.user(agent_provider: "codex", codex_api_key: "sk-test") }
     let(:workflow_provider) { "codex" }

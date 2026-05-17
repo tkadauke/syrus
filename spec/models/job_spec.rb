@@ -660,6 +660,56 @@ RSpec.describe Job do
     end
   end
 
+  describe "#effective_base_branch" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user, default_branch: "main") }
+
+    it "returns an open dependency's PR branch when the dependency has not merged" do
+      parent = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 41,
+        state: "open",
+        branch_name: "syrus/issue-41",
+        pr_number: 41
+      )
+      child = Factories.job_record(user: user, repository: repository, issue_number: 42, state: "open")
+      JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: user)
+
+      expect(child.effective_base_branch).to eq("syrus/issue-41")
+    end
+
+    it "returns the default branch after the dependency merges" do
+      parent = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 41,
+        state: "closed",
+        closure_reason: "pr_merged",
+        branch_name: "syrus/issue-41",
+        pr_number: 41
+      )
+      child = Factories.job_record(user: user, repository: repository, issue_number: 42, state: "open")
+      JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: user)
+
+      expect(child.effective_base_branch).to eq("main")
+    end
+
+    it "returns the default branch for a closed non-PR dependency" do
+      parent = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 41,
+        state: "closed",
+        closure_reason: "duplicate"
+      )
+      child = Factories.job_record(user: user, repository: repository, issue_number: 42, state: "open")
+      JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: user)
+
+      expect(child.effective_base_branch).to eq("main")
+    end
+  end
+
   describe "preempted creation (state: closed at create time)" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
