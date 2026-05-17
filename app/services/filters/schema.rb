@@ -10,11 +10,15 @@ module Filters
     # ordered by Registry::CHIPS' declaration order so the add-filter
     # menu shows fields in the logical grouping the registry uses.
     def for_user(user)
-      Registry::CHIPS.keys.map { |field| chip_for(field, user: user) }
+      self.for(subject: :job, user: user)
     end
 
-    def chip_for(field, user: nil)
-      chip = Registry.find(field)
+    def for(subject:, user: nil)
+      Registry.fields(subject: subject).map { |field| chip_for(field, subject: subject, user: user) }
+    end
+
+    def chip_for(field, subject: :job, user: nil)
+      chip = Registry.find(field, subject: subject)
       meta = {
         "field"     => field,
         "label"     => chip.label,

@@ -10,21 +10,26 @@
     Plus the action URL the form submits to. Everything else (chip
     rendering, add-filter popover, per-bucket editor) is JS. %>
 <%
-  filter_tree_json = @job_filter.to_h.to_json
-  schema_json = Filters::Schema.for_user(Current.user).to_json
+  subject = local_assigns.fetch(:subject, :job).to_sym
+  filter = local_assigns.fetch(:filter, @job_filter)
+  action_url = local_assigns.fetch(:action_url, dashboard_jobs_path)
+  schema = local_assigns.fetch(:schema, Filters::Schema.for(subject: subject, user: Current.user))
+  filter_tree_json = filter.to_h.to_json
+  schema_json = schema.to_json
 %>
-<div data-controller="chip-bar"
+<div data-controller="chip-bar filter-memory"
      data-chip-bar-tree-value="<%= filter_tree_json %>"
      data-chip-bar-schema-value="<%= schema_json %>"
-     data-chip-bar-submit-url-value="<%= dashboard_jobs_path %>"
+     data-chip-bar-submit-url-value="<%= action_url %>"
+     data-filter-memory-subject-value="<%= subject %>"
      class="<%= local_assigns.fetch(:class_name, '') %>">
   <form data-chip-bar-target="form"
-        action="<%= dashboard_jobs_path %>"
+        action="<%= action_url %>"
         method="get"
         class="flex flex-wrap items-center gap-2">
     <%# The single payload submitted: the encoded AST tree. The
         chip-bar controller keeps this in sync with chip mutations. %>
-    <input type="hidden" name="q" data-chip-bar-target="qInput" value="<%= @job_filter.to_query_param %>">
+    <input type="hidden" name="q" data-chip-bar-target="qInput" value="<%= filter.to_query_param %>">
 
     <div data-chip-bar-target="chips" class="flex flex-wrap items-center gap-2"></div>
 
@@ -36,9 +41,9 @@
       <span class="text-gray-400">▾</span>
     </button>
 
-    <% if @job_filter.active? %>
+    <% if filter.active? %>
       <button type="button"
-              data-action="chip-bar#clearAll"
+              data-action="chip-bar#clearAll filter-memory#clear"
               class="text-sm text-gray-500 hover:text-gray-700 underline">Clear</button>
     <% end %>
   </form>

@@ -1,12 +1,19 @@
 import { Controller } from "@hotwired/stimulus"
 
-const FILTER_KEYS = ["state", "repository_id", "pr", "age", "attention", "tag_ids[]"]
-const STORAGE_KEY = "dashboard_job_filters"
+const FILTER_KEYS = ["q", "state", "repository_id", "pr", "age", "attention", "tag_ids[]"]
+const LEGACY_STORAGE_KEY = "dashboard_job_filters"
+const EMPTY_Q_VALUES = new Set(["eyJhbmQiOltdfQ", "eyJhbmQiOltd9", ""])
 
 export default class extends Controller {
+  static values = {
+    subject: { type: String, default: "job" }
+  }
+
   connect() {
     const params = new URLSearchParams(window.location.search)
     if (params.has("smart_folder_id")) return
+    const storage = globalThis.localStorage || globalThis.sessionStorage
+    const storageKey = `syrus.filter.last:${this.subjectValue || "job"}`
 
     const active = {}
     let hasFilters = false
@@ -17,7 +24,7 @@ export default class extends Controller {
         hasSubmittedFilterParams = true
       }
 
-      const values = params.getAll(key).filter((value) => value)
+      const values = params.getAll(key).filter((value) => !this.blankFilterValue(key, value))
       if (values.length > 0) {
         active[key] = values
         hasFilters = true
@@ -29,18 +36,29 @@ export default class extends Controller {
       for (const [key, values] of Object.entries(active)) {
         values.forEach((value) => storedParams.append(key, value))
       }
-      sessionStorage.setItem(STORAGE_KEY, storedParams.toString())
+      storage.setItem(storageKey, storedParams.toString())
     } else if (hasSubmittedFilterParams) {
-      sessionStorage.removeItem(STORAGE_KEY)
+      storage.removeItem(storageKey)
     } else if (!params.has("view")) {
-      const stored = sessionStorage.getItem(STORAGE_KEY)
+      const stored = storage.getItem(storageKey) || (this.subjectValue === "job" ? storage.getItem(LEGACY_STORAGE_KEY) : null)
       if (stored) {
-        window.location.replace(`/dashboard/jobs?${stored}`)
+        window.location.replace(`${this.restorePath}?${stored}`)
       }
     }
   }
 
   clear() {
-    sessionStorage.removeItem(STORAGE_KEY)
+    const storage = globalThis.localStorage || globalThis.sessionStorage
+    storage.removeItem(`syrus.filter.last:${this.subjectValue || "job"}`)
+  }
+
+  get restorePath() {
+    if (window.location.pathname) return window.location.pathname
+    return this.subjectValue === "epic" ? "/epics" : "/dashboard/jobs"
+  }
+
+  blankFilterValue(key, value) {
+    if (!value) return true
+    return key === "q" && EMPTY_Q_VALUES.has(value)
   }
 }

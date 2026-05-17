@@ -33,9 +33,28 @@ class SmartFolder < ApplicationRecord
     { key: "merged_this_week", name: "Merged this week", visibility: :on_demand,    filter: attention_preset_filter("merged_this_week") }
   ].freeze
 
+  def self.epic_attention_preset_filter(preset)
+    {
+      "and" => [
+        { "field" => "attention", "op" => "is", "value" => preset }
+      ]
+    }
+  end
+
+  EPIC_BUILTIN_DEFINITIONS = [
+    { key: "epics_in_progress", name: "In progress", visibility: :always, filter: epic_attention_preset_filter("in_progress") },
+    { key: "epics_ready", name: "Ready", visibility: :when_present, filter: epic_attention_preset_filter("ready_to_start") },
+    { key: "epics_blocked", name: "Blocked", visibility: :when_present, filter: epic_attention_preset_filter("blocked_by_dependency") },
+    { key: "epics_stalled", name: "Stalled", visibility: :when_present, filter: epic_attention_preset_filter("stalled") },
+    { key: "epics_empty", name: "Empty", visibility: :on_demand, filter: epic_attention_preset_filter("empty") },
+    { key: "epics_recently_done", name: "Recently done", visibility: :on_demand, filter: epic_attention_preset_filter("recently_done") }
+  ].freeze
+
   VISIBILITY_BY_NAME = BUILTIN_DEFINITIONS.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }.freeze
+  EPIC_VISIBILITY_BY_NAME = EPIC_BUILTIN_DEFINITIONS.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }.freeze
 
   KINDS = %w[ builtin user_defined ].freeze
+  SUBJECT_TYPES = %w[ job epic ].freeze
 
   belongs_to :user, optional: true
 
@@ -48,18 +67,30 @@ class SmartFolder < ApplicationRecord
 
   validates :name, presence: true
   validates :kind, presence: true, inclusion: { in: KINDS }
+  validates :subject_type, presence: true, inclusion: { in: SUBJECT_TYPES }
   validates :filter, presence: true
-  validates :name, uniqueness: { scope: :user_id }
+  validates :name, uniqueness: { scope: [ :user_id, :subject_type ] }
   validate :builtin_owner_and_user_defined_owner
 
-  scope :builtins, -> { builtin.where(user_id: nil).order(:position, :id) }
-  scope :for_user, ->(user) { user_defined.where(user: user).order(:position, :id) }
+  scope :for_subject, ->(subject) { where(subject_type: subject.to_s) }
+  scope :builtins, -> { for_subject(:job).builtin.where(user_id: nil).order(:position, :id) }
+  scope :for_user, ->(user) { for_subject(:job).user_defined.where(user: user).order(:position, :id) }
+  scope :built_in_sidebar_order, -> { builtin.where(user_id: nil).order(:position, :id) }
 
   def self.ensure_builtins!
-    BUILTIN_DEFINITIONS.each_with_index do |definition, index|
-      folder = find_or_initialize_by(user_id: nil, name: definition.fetch(:name))
+    ensure_builtin_set!(:job, BUILTIN_DEFINITIONS)
+  end
+
+  def self.ensure_epic_builtins!
+    ensure_builtin_set!(:epic, EPIC_BUILTIN_DEFINITIONS)
+  end
+
+  def self.ensure_builtin_set!(subject, definitions)
+    definitions.each_with_index do |definition, index|
+      folder = find_or_initialize_by(user_id: nil, subject_type: subject.to_s, name: definition.fetch(:name))
       folder.assign_attributes(
         kind: "builtin",
+        subject_type: subject.to_s,
         filter: definition.fetch(:filter),
         position: index
       )
@@ -69,7 +100,7 @@ class SmartFolder < ApplicationRecord
     # Sweep retired built-ins so they don't keep appearing in the
     # sidebar after we remove or rename a definition. ("Awaiting your
     # move" used to live here; its filter resolved to relation.none.)
-    builtin.where(user_id: nil).where.not(name: BUILTIN_DEFINITIONS.map { |d| d.fetch(:name) }).destroy_all
+    builtin.where(user_id: nil, subject_type: subject.to_s).where.not(name: definitions.map { |d| d.fetch(:name) }).destroy_all
   end
 
   # Sidebar tier for this folder — see BUILTIN_DEFINITIONS for the
@@ -77,7 +108,8 @@ class SmartFolder < ApplicationRecord
   def visibility
     return :user_defined unless builtin?
 
-    VISIBILITY_BY_NAME[name] || :on_demand
+    visibility_map = subject_type == "epic" ? EPIC_VISIBILITY_BY_NAME : VISIBILITY_BY_NAME
+    visibility_map[name] || :on_demand
   end
 
   # Returns the attention-preset value for this folder if its filter
@@ -104,6 +136,7 @@ class SmartFolder < ApplicationRecord
 
   def seed_empty_filter
     self.filter ||= {}
+    self.subject_type ||= "job"
   end
 
   def builtin_owner_and_user_defined_owner

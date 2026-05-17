@@ -91,5 +91,14 @@ RSpec.describe Filters::Schema do
       schema = described_class.chip_for("finished_at")
       expect(schema["operators"]).to include("is_set", "is_unset")
     end
+
+    it "renders Epic-subject metadata from the Epic chip set" do
+      schema = described_class.for(subject: :epic)
+      fields = schema.map { |chip| chip["field"] }
+
+      expect(fields).to match_array(Filters::SUBJECTS.fetch(:epic).fields)
+      expect(schema.find { |chip| chip["field"] == "state" }["values"].map { |v| v["value"] }).to eq(Epic::STATES)
+      expect(schema.find { |chip| chip["field"] == "attention" }["values"].map { |v| v["value"] }).to include("ready_to_start", "recently_done")
+    end
   end
 end

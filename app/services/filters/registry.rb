@@ -66,17 +66,63 @@ module Filters
       "attention"                     => "Filters::Chips::Attention"
     }.freeze
 
-    def self.find(field)
+    def self.find(field, subject: :job)
+      return Filters.subject(subject).find_chip(field) unless subject.to_sym == :job
+
       class_name = CHIPS[field.to_s] or raise UnknownFilterField.new(field)
       class_name.constantize
     end
 
-    def self.fields
+    def self.fields(subject: :job)
+      return Filters.subject(subject).fields unless subject.to_sym == :job
+
       CHIPS.keys
     end
 
-    def self.exists?(field)
+    def self.exists?(field, subject: :job)
+      return Filters.subject(subject).chips.key?(field.to_s) unless subject.to_sym == :job
+
       CHIPS.key?(field.to_s)
     end
+  end
+
+  Subject = Data.define(:name, :model, :chips) do
+    def find_chip(field)
+      chips.fetch(field.to_s) { raise UnknownFilterField.new(field) }.constantize
+    end
+
+    def fields
+      chips.keys
+    end
+  end
+
+  JOB_CHIPS = Registry::CHIPS
+
+  EPIC_CHIPS = {
+    "attention" => "Filters::Chips::Epics::Attention",
+    "state" => "Filters::Chips::Epics::State",
+    "repository_id" => "Filters::Chips::RepositoryId",
+    "title" => "Filters::Chips::Epics::Title",
+    "description" => "Filters::Chips::Epics::Description",
+    "number" => "Filters::Chips::Epics::Number",
+    "auto_approve_mode" => "Filters::Chips::Epics::AutoApproveMode",
+    "created_at" => "Filters::Chips::CreatedAt",
+    "updated_at" => "Filters::Chips::UpdatedAt",
+    "done_at" => "Filters::Chips::Epics::DoneAt",
+    "has_child_jobs" => "Filters::Chips::Epics::HasChildJobs",
+    "has_open_children" => "Filters::Chips::Epics::HasOpenChildren",
+    "has_blocked_children" => "Filters::Chips::Epics::HasBlockedChildren",
+    "child_job_count" => "Filters::Chips::Epics::ChildJobCount",
+    "child_progress_percent" => "Filters::Chips::Epics::ChildProgressPercent",
+    "has_epic_dependency" => "Filters::Chips::Epics::HasEpicDependency"
+  }.freeze
+
+  SUBJECTS = {
+    job: Subject.new(name: :job, model: Job, chips: JOB_CHIPS),
+    epic: Subject.new(name: :epic, model: Epic, chips: EPIC_CHIPS)
+  }.freeze
+
+  def self.subject(name)
+    SUBJECTS.fetch(name.to_sym) { raise ArgumentError, "unknown filter subject: #{name.inspect}" }
   end
 end

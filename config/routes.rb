@@ -142,7 +142,7 @@ Rails.application.routes.draw do
   get "jobs", to: redirect("/dashboard/jobs", status: 302)
   get "workflows", to: redirect("/dashboard/workflows", status: 302)
 
-  resources :epics, only: %i[ show ] do
+  resources :epics, only: %i[ index show ] do
     member do
       patch :state, action: :update_state
     end
@@ -189,7 +189,7 @@ Rails.application.routes.draw do
       post :mark_valid
     end
   end
-  resources :epics, only: %i[ show ] do
+  resources :epics, only: [] do
     member do
       get :graph
     end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_16_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_17_004932) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -608,11 +608,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_190000) do
     t.string "kind", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
+    t.string "subject_type", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id"
+    t.index ["kind", "subject_type"], name: "index_smart_folders_on_kind_and_subject_type"
     t.index ["kind"], name: "index_smart_folders_on_kind"
-    t.index ["user_id", "name"], name: "index_smart_folders_on_user_id_and_name", unique: true
     t.index ["user_id", "position"], name: "index_smart_folders_on_user_id_and_position"
+    t.index ["user_id", "subject_type", "name"], name: "index_smart_folders_on_user_id_and_subject_type_and_name", unique: true
     t.index ["user_id"], name: "index_smart_folders_on_user_id"
   end
 

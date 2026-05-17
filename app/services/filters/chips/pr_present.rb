@@ -14,6 +14,8 @@ module Filters
         case op
         when :is_true  then scope.with_pr
         when :is_false then scope.without_pr
+        when :is
+          value.to_s == "has" ? scope.with_pr : scope.without_pr
         else unsupported_op!
         end
       end

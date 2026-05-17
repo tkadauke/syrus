@@ -4,13 +4,14 @@ module Filters
   # through to chips that need operator-context (e.g. the pinned
   # attention preset joins job_pins for the current user).
   class Compiler
-    def self.call(node, scope:, user: nil)
-      new(scope: scope, user: user).compile(node)
+    def self.call(node, scope:, user: nil, subject: :job)
+      new(scope: scope, user: user, subject: subject).compile(node)
     end
 
-    def initialize(scope:, user: nil)
+    def initialize(scope:, user: nil, subject: :job)
       @scope = scope
       @user = user
+      @subject = subject
     end
 
     def compile(node)
@@ -28,7 +29,7 @@ module Filters
 
     def compile_and(node)
       node.children.reduce(@scope) do |scope, child|
-        self.class.new(scope: scope, user: @user).compile(child)
+        self.class.new(scope: scope, user: @user, subject: @subject).compile(child)
       end
     end
 
@@ -37,7 +38,7 @@ module Filters
 
       primary_key = @scope.model.primary_key
       matched_ids = node.children.flat_map do |child|
-        self.class.new(scope: @scope, user: @user).compile(child).pluck(primary_key)
+        self.class.new(scope: @scope, user: @user, subject: @subject).compile(child).pluck(primary_key)
       end.uniq
 
       @scope.where(primary_key => matched_ids)
@@ -45,12 +46,12 @@ module Filters
 
     def compile_not(node)
       primary_key = @scope.model.primary_key
-      matched_ids = self.class.new(scope: @scope, user: @user).compile(node.child).pluck(primary_key)
+      matched_ids = self.class.new(scope: @scope, user: @user, subject: @subject).compile(node.child).pluck(primary_key)
       @scope.where.not(primary_key => matched_ids)
     end
 
     def compile_chip(node)
-      chip_class = Registry.find(node.field)
+      chip_class = Registry.find(node.field, subject: @subject)
       chip_class.new(scope: @scope, op: node.op, value: node.value, user: @user).apply
     end
   end

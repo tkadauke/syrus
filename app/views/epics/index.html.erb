@@ -1,0 +1,110 @@
+<% content_for :title, "Epics" %>
+
+<% folder_link_classes = ->(active) { "flex items-center justify-between rounded-md px-2 py-1.5 text-sm #{active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}" } %>
+<% epics_total_pages = (@epics_total.to_f / EpicsController::PER_PAGE).ceil %>
+
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h1 class="text-2xl font-bold">Epics</h1>
+    <p class="mt-1 text-sm text-gray-500">Filter and review Epic-level work.</p>
+  </div>
+  <%= link_to "Dashboard board", dashboard_epics_path, class: "rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" %>
+</div>
+
+<details class="group rounded-lg border border-gray-200 bg-white lg:hidden">
+  <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-gray-700">
+    <span>Folders and filters</span>
+    <span class="text-gray-400 group-open:hidden">Show</span>
+    <span class="hidden text-gray-400 group-open:inline">Hide</span>
+  </summary>
+  <div class="space-y-4 border-t border-gray-200 p-3">
+    <%= render "epic_smart_folders", folder_link_classes: folder_link_classes %>
+    <%= render "home/chip_bar", subject: :epic, filter: @filter, schema: @schema, action_url: epics_path, class_name: "relative flex flex-col gap-3" %>
+    <% if @smart_folder %>
+      <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+        Showing smart folder: <strong><%= @smart_folder.name %></strong>
+      </div>
+    <% end %>
+  </div>
+</details>
+
+<div class="grid gap-5 lg:grid-cols-[16rem_1fr]">
+  <aside class="hidden space-y-4 lg:block">
+    <%= render "epic_smart_folders", folder_link_classes: folder_link_classes %>
+  </aside>
+
+  <div class="space-y-4">
+    <%= render "home/chip_bar", subject: :epic, filter: @filter, schema: @schema, action_url: epics_path, class_name: "relative hidden lg:block" %>
+
+    <% if @smart_folder %>
+      <div class="hidden rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 lg:block">
+        Showing smart folder: <strong><%= @smart_folder.name %></strong>
+      </div>
+    <% end %>
+
+    <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+          <tr>
+            <th class="px-4 py-2 text-left">State</th>
+            <th class="px-4 py-2 text-left">Epic</th>
+            <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
+            <th class="hidden sm:table-cell px-4 py-2 text-left">Updated</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 text-sm">
+          <% @epics.each do |epic| %>
+            <tr>
+              <td class="px-4 py-3 align-top"><%= state_pill(epic.state) %></td>
+              <td class="px-4 py-3">
+                <div class="font-medium text-gray-900">
+                  <span class="font-mono text-xs text-gray-500"><%= epic.display_number %></span>
+                  <%= link_to epic.title, epic_path(epic), class: "ml-1 hover:underline" %>
+                </div>
+                <% if epic.description.present? %>
+                  <div class="mt-1 line-clamp-2 text-sm text-gray-500"><%= epic.description %></div>
+                <% end %>
+                <div class="mt-1 sm:hidden text-xs font-mono text-gray-500">
+                  <%= link_to epic.repository.slug, repository_path(epic.repository), class: "hover:underline" %>
+                </div>
+              </td>
+              <td class="hidden sm:table-cell px-4 py-3 font-mono">
+                <%= link_to epic.repository.slug, repository_path(epic.repository), class: "text-gray-700 hover:underline" %>
+              </td>
+              <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(epic.updated_at) %></td>
+              <td class="px-4 py-3 text-right">
+                <%= link_to "View", epic_path(epic), class: "text-blue-600 underline hover:no-underline" %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @epics.empty? %>
+            <tr>
+              <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-500">No epics match these filters.</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if epics_total_pages > 1 %>
+      <% first_item = ((@page - 1) * EpicsController::PER_PAGE) + 1 %>
+      <% last_item = [ @page * EpicsController::PER_PAGE, @epics_total ].min %>
+      <div class="flex items-center justify-between text-sm text-gray-600">
+        <span>Showing <%= first_item %>-<%= last_item %> of <%= @epics_total %></span>
+        <div class="flex gap-2">
+          <% if @page > 1 %>
+            <%= link_to "Previous", epics_path(request.query_parameters.merge(page: @page - 1)), class: "rounded border border-gray-300 px-3 py-1 hover:bg-gray-50" %>
+          <% else %>
+            <span class="rounded border border-gray-200 px-3 py-1 text-gray-300">Previous</span>
+          <% end %>
+          <% if @page < epics_total_pages %>
+            <%= link_to "Next", epics_path(request.query_parameters.merge(page: @page + 1)), class: "rounded border border-gray-300 px-3 py-1 hover:bg-gray-50" %>
+          <% else %>
+            <span class="rounded border border-gray-200 px-3 py-1 text-gray-300">Next</span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

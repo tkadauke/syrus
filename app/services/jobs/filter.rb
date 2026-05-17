@@ -44,7 +44,7 @@ module Jobs
     end
 
     def apply(scope)
-      Filters::Compiler.call(@ast, scope: scope, user: @user)
+      Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :job)
     end
 
     # True if the tree contains any chip.
@@ -128,8 +128,8 @@ module Jobs
       end
 
       case params["pr"]
-      when "has_pr" then chips << chip("pr_present", "is_true", nil)
-      when "no_pr"  then chips << chip("pr_present", "is_false", nil)
+      when "has_pr" then chips << chip("pr_present", "is", "has")
+      when "no_pr"  then chips << chip("pr_present", "is", "none")
       end
 
       if (age = params["age"]).present?
