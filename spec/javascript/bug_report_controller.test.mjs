@@ -23,7 +23,7 @@ class FakeDataTransfer {
   }
 }
 
-function buildController(Controller, { capture = { name: "bug-report-viewport.png" }, existingFiles = [] } = {}) {
+function buildController(Controller, { capture = { name: "bug-report-viewport.png" }, existingFiles = [], noneChecked = false } = {}) {
   let closed = false
   const controller = new Controller()
   controller.captures = { viewport: capture }
@@ -32,9 +32,10 @@ function buildController(Controller, { capture = { name: "bug-report-viewport.pn
       closed = true
     }
   }
+  controller.viewportRadioTarget = { checked: !noneChecked }
   controller.fullPageRadioTarget = { checked: false }
-  controller.noneRadioTarget = { checked: false }
-  controller.screenshotInputTarget = { files: existingFiles }
+  controller.noneRadioTarget = { checked: noneChecked }
+  controller.screenshotInputTarget = { files: existingFiles, value: "existing" }
 
   return { controller, wasClosed: () => closed }
 }
@@ -57,16 +58,10 @@ test("closes the dialog after a valid bug report submit starts", async () => {
   assert.equal(controller.screenshotInputTarget.files.length, 1)
 })
 
-test("keeps the dialog open when submit has no screenshot", async () => {
+test("clears the screenshot and closes when no screenshot is selected", async () => {
   const { default: Controller } = await loadController()
-  const { controller, wasClosed } = buildController(Controller, { capture: null })
+  const { controller, wasClosed } = buildController(Controller, { noneChecked: true })
   let prevented = false
-  let alertMessage = null
-  globalThis.window = {
-    alert(message) {
-      alertMessage = message
-    }
-  }
 
   controller.submit({
     preventDefault() {
@@ -74,9 +69,9 @@ test("keeps the dialog open when submit has no screenshot", async () => {
     }
   })
 
-  assert.equal(prevented, true)
-  assert.equal(wasClosed(), false)
-  assert.equal(alertMessage, "Choose a screenshot before submitting.")
+  assert.equal(prevented, false)
+  assert.equal(wasClosed(), true)
+  assert.equal(controller.screenshotInputTarget.value, "")
 })
 
 test("allows submit when no screenshot is explicitly selected", async () => {
