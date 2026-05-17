@@ -242,7 +242,7 @@ RSpec.describe "Dashboard", type: :request do
             params: { target_state: "done" },
             headers: { "ACCEPT" => "application/json" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)).to include("error" => "transition_not_allowed")
       expect(epic.reload).to be_backlog
     end

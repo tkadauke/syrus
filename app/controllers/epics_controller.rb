@@ -37,13 +37,13 @@ class EpicsController < ApplicationController
     else
       respond_to do |format|
         format.html { redirect_back fallback_location: dashboard_epics_path, alert: "That Epic transition is not available from the board." }
-        format.json { render json: { error: "transition_not_allowed" }, status: :unprocessable_entity }
+        format.json { render json: { error: "transition_not_allowed" }, status: :unprocessable_content }
       end
     end
   rescue ArgumentError
     respond_to do |format|
       format.html { redirect_back fallback_location: dashboard_epics_path, alert: "Unknown Epic state." }
-      format.json { render json: { error: "unknown_state" }, status: :unprocessable_entity }
+      format.json { render json: { error: "unknown_state" }, status: :unprocessable_content }
     end
   end
 

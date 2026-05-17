@@ -102,6 +102,7 @@ end
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
+  gem "faraday-retry"
   gem "selenium-webdriver"
 
   # Stub HTTP and replay GitHub responses [https://github.com/vcr/vcr, https://github.com/bblimke/webmock]
