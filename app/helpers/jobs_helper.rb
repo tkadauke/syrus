@@ -128,6 +128,41 @@ module JobsHelper
     colored_pill(priority, classes: PRIORITY_STYLES[priority.to_s] || ApplicationHelper::PILL_FALLBACK_CLASSES)
   end
 
+  ATTENTION_STATUS_STYLES = {
+    "running" => "bg-blue-100 text-blue-700",
+    "approved" => "bg-green-100 text-green-700",
+    "blocked" => "bg-amber-100 text-amber-800",
+    "awaiting feedback" => "bg-cyan-100 text-cyan-700"
+  }.freeze
+
+  def job_attention_status(job)
+    has_active_run = if job.runs.loaded?
+      job.runs.any? { |run| %w[queued running awaiting_operator].include?(run.state) }
+    else
+      job.any_active_run?
+    end
+
+    blocked_by_dependency = if job.dependencies.loaded?
+      job.dependencies.any? do |dependency|
+        dependency.pending? || (dependency.resolved? && !dependency.depends_on_job.dependency_succeeded?)
+      end
+    else
+      false
+    end
+
+    return "running" if job.latest_workflow_state == "running" || has_active_run
+    return "approved" if job.approved? || job.landing? || job.merged? || job.approved_at.present?
+    return "blocked" if job.blocked_by_epic? || job.pr_mergeable == false || blocked_by_dependency
+    return "awaiting feedback" if job.pr_number.present? || job.external_pr_number.present?
+
+    "awaiting feedback"
+  end
+
+  def job_attention_status_pill(job)
+    status = job_attention_status(job)
+    colored_pill(status, classes: ATTENTION_STATUS_STYLES.fetch(status, ApplicationHelper::PILL_FALLBACK_CLASSES), extra: "shrink-0")
+  end
+
   def job_pin_button(job, pinned:)
     label = pinned ? "Unpin job" : "Pin job"
     classes = [

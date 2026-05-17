@@ -36,6 +36,9 @@
     <%# The single payload submitted: the encoded AST tree. The
         chip-bar controller keeps this in sync with chip mutations. %>
     <input type="hidden" name="q" data-chip-bar-target="qInput" value="<%= filter.to_query_param %>">
+    <% if request.query_parameters["view"].present? %>
+      <%= hidden_field_tag :view, request.query_parameters["view"] %>
+    <% end %>
 
     <div data-chip-bar-target="chips" class="flex flex-wrap items-center gap-2"></div>
 

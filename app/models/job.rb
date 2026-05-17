@@ -87,6 +87,36 @@ class Job < ApplicationRecord
   scope :direct_kind, -> { where(kind: "direct") }
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
+  scope :with_latest_workflow_snapshot, -> {
+    joins(<<~SQL.squish)
+      LEFT JOIN (
+        SELECT
+          latest_workflows.id AS latest_workflow_id,
+          latest_workflows.job_id AS latest_workflow_job_id,
+          latest_workflows.state AS latest_workflow_state,
+          latest_workflows.trigger_kind AS latest_workflow_trigger_kind,
+          latest_workflows.created_at AS latest_workflow_created_at
+        FROM (
+          SELECT
+            workflows.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY workflows.job_id
+              ORDER BY workflows.created_at DESC, workflows.id DESC
+            ) AS row_number
+          FROM workflows
+        ) latest_workflows
+        WHERE latest_workflows.row_number = 1
+      ) latest_workflow_per_job
+        ON latest_workflow_per_job.latest_workflow_job_id = jobs.id
+    SQL
+      .select(
+        "jobs.*",
+        "latest_workflow_per_job.latest_workflow_id AS latest_workflow_id",
+        "COALESCE(latest_workflow_per_job.latest_workflow_state, 'queued') AS latest_workflow_state",
+        "latest_workflow_per_job.latest_workflow_trigger_kind AS latest_workflow_trigger_kind",
+        "latest_workflow_per_job.latest_workflow_created_at AS latest_workflow_created_at"
+      )
+  }
 
   def issue?
     kind == "issue"
@@ -342,6 +372,27 @@ class Job < ApplicationRecord
 
   def latest_workflow
     workflows.last
+  end
+
+  def latest_workflow_state
+    return self[:latest_workflow_state].presence || "queued" if has_attribute?(:latest_workflow_state)
+
+    latest_workflow&.state || "queued"
+  end
+
+  def latest_workflow_trigger_kind
+    return self[:latest_workflow_trigger_kind] if has_attribute?(:latest_workflow_trigger_kind)
+
+    latest_workflow&.trigger_kind
+  end
+
+  def latest_workflow_created_at
+    value = if has_attribute?(:latest_workflow_created_at)
+      self[:latest_workflow_created_at]
+    else
+      latest_workflow&.created_at
+    end
+    value.is_a?(String) ? Time.zone.parse(value) : value
   end
 
   def retry_with_agent_providers

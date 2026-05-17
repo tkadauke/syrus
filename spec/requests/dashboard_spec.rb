@@ -106,6 +106,18 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include("Ready")
     end
 
+    it "renders the Job Kanban board from the subject/view root URL" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.job_record(repository: repo, issue_number: 77, issue_title: "Count the tablets")
+
+      get root_path, params: { subject: "job", view: "kanban" }
+
+      expect(response).to have_http_status(:ok)
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("[data-kanban-lane] h2").map { |heading| heading.text.strip }).to eq([ "Queued", "Running", "Succeeded", "Failed" ])
+      expect(response.body).to include("#77", "Count the tablets")
+    end
+
     it "renders the Epics Kanban board with real cards" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       prerequisite = Factories.epic(user: user, repository: repo, title: "Gatekeeper", state: "backlog")
@@ -329,6 +341,62 @@ RSpec.describe "Dashboard", type: :request do
       pin = document.at_css("a[href='#{job_pin_path(job)}'][aria-label='Pin job']")
       expect(pin).to be_present
       expect(pin["data-turbo-method"]).to eq("post")
+    end
+
+    it "renders the read-only Job Kanban board bucketed by latest workflow state" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      pre_run = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Await the first trumpet")
+      running = Factories.job(repository: repo, issue_number: 2, issue_title: "March immediately")
+      running.latest_workflow.update!(state: "running", created_at: 3.minutes.ago)
+      succeeded = Factories.job(repository: repo, issue_number: 3, issue_title: "Return triumphant", pr_number: 8)
+      succeeded.latest_workflow.update!(state: "succeeded", created_at: 2.minutes.ago)
+      succeeded.initial_run.update!(state: "succeeded")
+      failed = Factories.job(repository: repo, issue_number: 4, issue_title: "Drop the standard")
+      failed.latest_workflow.update!(state: "failed", trigger_kind: "retry", created_at: 1.minute.ago)
+      failed.initial_run.update!(state: "failed")
+
+      get dashboard_jobs_path, params: { view: "kanban" }
+
+      expect(response).to have_http_status(:ok)
+      document = Nokogiri::HTML(response.body)
+      lane_titles = document.css("[data-kanban-lane] h2").map { |heading| heading.text.strip }
+      expect(lane_titles).to eq([ "Queued", "Running", "Succeeded", "Failed" ])
+
+      expect(document.at_css("[data-kanban-lane='queued']").text).to include("#1", "Await the first trumpet", "No workflow yet")
+      expect(document.at_css("[data-kanban-lane='running']").text).to include("#2", "March immediately", "running", "initial")
+      expect(document.at_css("[data-kanban-lane='succeeded']").text).to include("#3", "Return triumphant", "awaiting feedback")
+      expect(document.at_css("[data-kanban-lane='failed']").text).to include("#4", "Drop the standard", "failed", "retry")
+
+      card = document.at_css("[data-job-id='#{failed.id}']")
+      expect(card.name).to eq("a")
+      expect(card["href"]).to eq(job_path(failed))
+      expect(card["draggable"]).to be_nil
+    end
+
+    it "keeps filters applied in the Job Kanban view" do
+      repo_a = Factories.repository(user: user, owner: "acme", name: "alpha")
+      repo_b = Factories.repository(user: user, owner: "acme", name: "beta")
+      Factories.job_record(repository: repo_a, issue_number: 10, issue_title: "Correct province")
+      Factories.job_record(repository: repo_b, issue_number: 20, issue_title: "Wrong province")
+
+      get dashboard_jobs_path, params: { view: "kanban", repository_id: repo_a.id }
+
+      expect(response.body).to include("#10", "Correct province")
+      expect(response.body).not_to include("#20")
+      expect(response.body).not_to include("Wrong province")
+    end
+
+    it "caps the Job Kanban board at the first 100 filtered jobs" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      101.times do |index|
+        Factories.job_record(repository: repo, issue_number: index + 1, issue_title: "Inscription #{index + 1}")
+      end
+
+      get dashboard_jobs_path, params: { view: "kanban" }
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("[data-job-id]").size).to eq(100)
+      expect(response.body).to include("Showing the first 100 jobs; refine filters to narrow the board.")
     end
 
     it "shows pinned jobs for the current user sorted by pinned time via the pinned smart folder" do

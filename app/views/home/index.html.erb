@@ -265,6 +265,21 @@
             Showing smart folder: <strong><%= @active_smart_folder.name %></strong>
           </div>
         <% end %>
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex gap-2 text-sm">
+            <%= link_to "List",
+                  dashboard_jobs_path(request.query_parameters.except("page", "view")),
+                  class: "rounded-md border px-3 py-1.5 #{@dashboard_view == 'list' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}" %>
+            <%= link_to "Kanban",
+                  dashboard_jobs_path(request.query_parameters.except("page").merge("view" => "kanban")),
+                  class: "rounded-md border px-3 py-1.5 #{@dashboard_view == 'kanban' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}" %>
+          </div>
+          <% if @dashboard_view == "kanban" && @job_kanban_cap_hit %>
+            <div class="text-sm text-amber-700">
+              Showing the first <%= HomeController::KANBAN_PER_PAGE %> jobs; refine filters to narrow the board.
+            </div>
+          <% end %>
+        </div>
     <% if @epics&.any? %>
       <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div class="px-4 py-3 border-b border-gray-200">
@@ -327,7 +342,25 @@
       </div>
     <% end %>
 
-    <% if @jobs.any? || @page > 1 %>
+    <% if @dashboard_view == "kanban" %>
+      <% if @job_kanban_lanes.values.flatten.any? %>
+        <%= render "kanban_board",
+              lanes: HomeController::JOB_KANBAN_LANES,
+              items_by_lane: @job_kanban_lanes,
+              card_partial: "jobs/card",
+              item_name: :job,
+              empty_label: "No jobs." %>
+      <% elsif !@epics&.any? %>
+        <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
+          <% if @job_filter.active? %>
+            No jobs match the current filters.
+          <% else %>
+            No jobs yet. Add a repository, enable polling, label an issue
+            <code class="bg-gray-100 px-1 rounded">syrus</code>, and one will show up here.
+          <% end %>
+        </div>
+      <% end %>
+    <% elsif @jobs.any? || @page > 1 %>
       <% jobs_total_pages = (@jobs_total.to_f / HomeController::PER_PAGE).ceil %>
       <%= form_with url: bulk_dashboard_jobs_path, method: :post,
             data: { controller: "bulk-jobs" },

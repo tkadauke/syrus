@@ -5,6 +5,13 @@ class HomeController < ApplicationController
     "job" => :dashboard_jobs_path,
     "workflow" => :dashboard_workflows_path
   }.freeze
+  KANBAN_PER_PAGE = 100
+  JOB_KANBAN_LANES = [
+    { key: "queued", title: "Queued" },
+    { key: "running", title: "Running" },
+    { key: "succeeded", title: "Succeeded" },
+    { key: "failed", title: "Failed" }
+  ].freeze
 
   before_action :persist_dashboard_preferences_from_params, only: %i[index epics jobs workflows]
 
@@ -173,6 +180,7 @@ class HomeController < ApplicationController
     @tags           = Current.user.tags.ordered
     @configured_agent_providers = Current.user.configured_agent_providers
     @page           = [ params[:page].to_i, 1 ].max
+    @dashboard_view = params[:view] == "kanban" ? "kanban" : "list"
     SmartFolder.ensure_builtins!
     @builtin_smart_folders = SmartFolder.builtins
     @user_smart_folders = SmartFolder.for_user(Current.user)
@@ -219,6 +227,11 @@ class HomeController < ApplicationController
 
     @jobs_total = @jobs.count
     @jobs = @jobs.includes(:tags)
+
+    if @active_tab == "jobs" && @dashboard_view == "kanban"
+      load_job_kanban
+    end
+
     @jobs = if landing_queue_folder?
       ordered_ids = @landing_queue_entries.keys
       @jobs.sort_by { |job| ordered_ids.index(job.id) || ordered_ids.length }
@@ -240,6 +253,22 @@ class HomeController < ApplicationController
                          .includes(:steps, job: :repository)
     @workflows_total = @workflows.count
     @workflows = @workflows.order(created_at: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+  end
+
+  def load_job_kanban
+    @job_kanban_cap_hit = @jobs_total > KANBAN_PER_PAGE
+    kanban_jobs = @jobs
+      .with_latest_workflow_snapshot
+      .includes(:repository, :runs, { dependencies: :depends_on_job }, :tags)
+      .order(created_at: :desc)
+      .limit(KANBAN_PER_PAGE)
+      .to_a
+
+    @job_kanban_lanes = JOB_KANBAN_LANES.to_h { |lane| [ lane.fetch(:key), [] ] }
+    kanban_jobs.each do |job|
+      lane = JOB_KANBAN_LANES.find { |candidate| candidate.fetch(:key) == job.latest_workflow_state }&.fetch(:key) || "queued"
+      @job_kanban_lanes[lane] << job
+    end
   end
 
   def tag_filter_ids
