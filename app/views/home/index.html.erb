@@ -130,11 +130,6 @@
                 schema: @schema,
                 action_url: root_path(subject: "epic", view: current_view),
                 class_name: "relative flex flex-col gap-3" %>
-          <% if @smart_folder %>
-            <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-              Showing smart folder: <strong><%= @smart_folder.name %></strong>
-            </div>
-          <% end %>
         </div>
       </details>
 
@@ -144,12 +139,6 @@
         </aside>
 
         <div class="space-y-4">
-          <% if @smart_folder %>
-            <div class="hidden rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 lg:block">
-              Showing smart folder: <strong><%= @smart_folder.name %></strong>
-            </div>
-          <% end %>
-
           <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50 text-xs uppercase text-gray-500">
@@ -235,11 +224,6 @@
                 schema: @schema,
                 action_url: root_path(subject: "epic", view: current_view),
                 class_name: "relative flex flex-col gap-3" %>
-          <% if @smart_folder %>
-            <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-              Showing smart folder: <strong><%= @smart_folder.name %></strong>
-            </div>
-          <% end %>
         </div>
       </details>
 
@@ -249,12 +233,6 @@
         </aside>
 
         <div class="space-y-4">
-          <% if @smart_folder %>
-            <div class="hidden rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 lg:block">
-              Showing smart folder: <strong><%= @smart_folder.name %></strong>
-            </div>
-          <% end %>
-
           <%= render "shared/kanban_board",
                 subject: :epic,
                 records: @epic_records,
@@ -278,11 +256,6 @@
         <%= render "smart_folders" %>
         <%= render "chip_bar", class_name: "relative flex flex-col gap-3" %>
         <%= render "save_smart_folder_form", class_name: "flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm" %>
-        <% if @active_smart_folder %>
-          <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-            Showing smart folder: <strong><%= @active_smart_folder.name %></strong>
-          </div>
-        <% end %>
       </div>
     </details>
 
@@ -294,11 +267,6 @@
       <div class="space-y-4">
         <%= render "save_smart_folder_form", class_name: "hidden flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm lg:flex" %>
 
-        <% if @active_smart_folder %>
-          <div class="hidden rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 lg:block">
-            Showing smart folder: <strong><%= @active_smart_folder.name %></strong>
-          </div>
-        <% end %>
         <%# The List/Kanban toggle now lives in the top-level dashboard
             nav (around line 68); the second copy that used to live here
             was a leftover from before the nav-level toggle existed.

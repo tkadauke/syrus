@@ -1555,7 +1555,7 @@ RSpec.describe "Dashboard", type: :request do
 
         expect(response.body).to include("#1")
         expect(response.body).not_to include("#2")
-        expect(response.body).to include("Showing smart folder")
+        expect(response.body).not_to include("Showing smart folder")
       end
 
       it "saves the current filters as a user-defined smart folder" do

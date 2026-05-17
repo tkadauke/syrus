@@ -50,6 +50,7 @@ RSpec.describe "Epics", type: :request do
 
       expect(response.body).to include(ready.title)
       expect(response.body).not_to include("Backlog aqueduct")
+      expect(response.body).not_to include("Showing smart folder")
     end
 
     it "round-trips q filters through the Epic filter" do
