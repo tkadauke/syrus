@@ -74,6 +74,38 @@ RSpec.describe "Dashboard", type: :request do
       expect(user.reload.dashboard_preferences).to eq("last_subject" => "job", "last_view" => "kanban")
     end
 
+    it "renders subject and view toggles on the parameterized dashboard" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.job_record(repository: repo, issue_number: 7)
+      Factories.epic(user: user, repository: repo, title: "Raise the forum", state: "ready")
+
+      get root_path, params: { subject: "job", view: "list" }
+
+      expect(response).to have_http_status(:ok)
+      document = Nokogiri::HTML(response.body)
+      subject_nav = document.at_css("nav[aria-label='Dashboard subject']")
+      view_nav = document.at_css("nav[aria-label='Dashboard view']")
+
+      expect(subject_nav.text.squish).to include("Epics 1", "Jobs 1")
+      expect(subject_nav.at_css("a[href='/?subject=epic&view=list']")["title"]).to eq("1 epic matches the current filter")
+      expect(subject_nav.at_css("a[href='/?subject=job&view=list']")["class"]).to include("bg-blue-600")
+      expect(view_nav.at_css("a[href='/?subject=job&view=list']")["class"]).to include("bg-gray-800")
+      expect(view_nav.at_css("a[href='/?subject=job&view=kanban']")["data-turbo-frame"]).to eq("dashboard_content")
+    end
+
+    it "renders the Epic subject with the Epic chip bar and sidebar on list view" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.epic(user: user, repository: repo, title: "Raise the forum", state: "ready")
+
+      get root_path, params: { subject: "epic", view: "list" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('data-filter-memory-subject-value="epic"')
+      expect(response.body).to include("&quot;field&quot;:&quot;auto_approve_mode&quot;")
+      expect(response.body).to include("Raise the forum")
+      expect(response.body).to include("Ready")
+    end
+
     it "renders the Epics Kanban board with real cards" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       prerequisite = Factories.epic(user: user, repository: repo, title: "Gatekeeper", state: "backlog")

@@ -9,23 +9,34 @@ class HomeController < ApplicationController
   before_action :persist_dashboard_preferences_from_params, only: %i[index epics jobs workflows]
 
   def index
+    if params[:subject].present?
+      @active_tab = dashboard_subject_from_params
+      set_dashboard_view
+      @active_tab == "epics" ? load_epics_dashboard : load_dashboard
+      render :index
+      return
+    end
+
     redirect_to dashboard_preference_path
   end
 
   def epics
     @active_tab = "epics"
+    set_dashboard_view
     load_epics_dashboard
     render :index
   end
 
   def jobs
     @active_tab = "jobs"
+    set_dashboard_view
     load_dashboard
     render :index
   end
 
   def workflows
     @active_tab = "workflows"
+    set_dashboard_view
     load_dashboard
     render :index
   end
@@ -98,14 +109,37 @@ class HomeController < ApplicationController
     subject.to_s.presence&.delete_suffix("s") || User::DASHBOARD_PREFERENCES_DEFAULTS.fetch("last_subject")
   end
 
+  def dashboard_subject_from_params
+    params[:subject].to_s.presence_in(%w[epic epics]) ? "epics" : "jobs"
+  end
+
+  def set_dashboard_view
+    @dashboard_subject = @active_tab == "epics" ? "epic" : "job"
+    @dashboard_view = params[:view].to_s.presence_in(%w[list kanban]) || (@dashboard_subject == "epic" ? "kanban" : "list")
+  end
+
   def load_epics_dashboard
     active_repositories = Current.user.repositories.active.order(:owner, :name)
     @epic_repositories = active_repositories
     @epic_filter_params = epic_filter_params
+    @page = [ params[:page].to_i, 1 ].max
+    SmartFolder.ensure_builtins!
+    SmartFolder.ensure_epic_builtins!
+    @schema = ::Filters::Schema.for(subject: :epic, user: Current.user)
+    @smart_folder = epic_smart_folder_from_params
+    @filter = ::Epics::Filter.from_params(params, smart_folder: @smart_folder, user: Current.user)
+    @smart_folders = SmartFolder.for_subject(:epic).where(user: Current.user).order(:position, :id)
+    @builtin_smart_folders = SmartFolder.for_subject(:epic).built_in_sidebar_order
+    @smart_folder_counts = epic_smart_folder_counts(Current.user.epics.where(repository_id: active_repositories.select(:id)))
+    @primary_builtin_smart_folders, @more_builtin_smart_folders = split_epic_builtin_smart_folders
 
     epics = Current.user.epics
                         .where(repository_id: active_repositories.select(:id))
                         .includes(:repository, { jobs: :repository }, { dependencies: :depends_on_epic }, { dependent_links: :epic })
+
+    @epics = @filter.apply(Current.user.epics.includes(:repository).where(repository_id: active_repositories.select(:id)))
+    @epics_total = @epics.count
+    @epics = @epics.order(updated_at: :desc, id: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
 
     if @epic_filter_params["repository_id"].present?
       epics = epics.where(repository_id: @epic_filter_params["repository_id"])
@@ -121,6 +155,9 @@ class HomeController < ApplicationController
 
     epics = sort_epics_for_board(epics, @epic_filter_params["sort"])
     @epic_records = epics
+    @epic_lanes = Epic::STATES.index_with { |state| epics.select { |epic| epic.state == state } }
+    @epics_matching_count = @epics_total
+    @jobs_matching_count = job_count_from_current_filter
   end
 
   def load_dashboard
@@ -148,6 +185,8 @@ class HomeController < ApplicationController
 
     @job_filter = Jobs::Filter.from_params(params, smart_folder: @active_smart_folder, user: Current.user)
     @jobs = @job_filter.apply(@jobs)
+    @jobs_matching_count = @jobs.count
+    @epics_matching_count = epic_count_from_current_filter(active_repo_ids)
     @epics = epics_for_active_smart_folder(active_repo_ids)
     @smart_folder_counts = smart_folder_counts(Current.user.jobs.where(repository_id: active_repo_ids))
     @landing_queue_entries = LandingQueueProcessor.entries(Current.user.jobs.where(repository_id: active_repo_ids)).index_by(&:job_id)
@@ -317,6 +356,54 @@ class HomeController < ApplicationController
 
     SmartFolder.builtins.find_by(id: params[:smart_folder_id]) ||
       SmartFolder.for_user(Current.user).find_by(id: params[:smart_folder_id])
+  end
+
+  def epic_smart_folder_from_params
+    return if params[:smart_folder_id].blank?
+
+    SmartFolder.for_subject(:epic).builtin.where(user_id: nil).find_by(id: params[:smart_folder_id]) ||
+      SmartFolder.for_subject(:epic).where(user: Current.user).find_by(id: params[:smart_folder_id])
+  end
+
+  def epic_smart_folder_counts(base_scope)
+    (@builtin_smart_folders + @smart_folders).to_h do |folder|
+      [ folder.id, ::Epics::Filter.from_tree(folder.filter, user: Current.user).apply(base_scope).count ]
+    end
+  end
+
+  def split_epic_builtin_smart_folders
+    primary = []
+    more = []
+
+    @builtin_smart_folders.each do |folder|
+      case folder.visibility
+      when :always
+        primary << folder
+      when :on_demand
+        more << folder
+      when :when_present
+        primary << folder if @smart_folder_counts[folder.id].to_i.positive? || @smart_folder == folder
+      else
+        primary << folder
+      end
+    end
+
+    [ primary, more ]
+  end
+
+  def job_count_from_current_filter
+    active_repo_ids = Current.user.repositories.active.select(:id)
+    filter = Jobs::Filter.from_params(params, user: Current.user)
+    filter.apply(Current.user.jobs.where(repository_id: active_repo_ids)).count
+  rescue Filters::UnknownFilterField, ArgumentError
+    Current.user.jobs.where(repository_id: active_repo_ids).count
+  end
+
+  def epic_count_from_current_filter(active_repo_ids)
+    filter = ::Epics::Filter.from_params(params, user: Current.user)
+    filter.apply(Current.user.epics.where(repository_id: active_repo_ids)).count
+  rescue Filters::UnknownFilterField, ArgumentError
+    Current.user.epics.where(repository_id: active_repo_ids).count
   end
 
   def epic_filter_params

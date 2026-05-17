@@ -39,10 +39,13 @@ export default class extends Controller {
       storage.setItem(storageKey, storedParams.toString())
     } else if (hasSubmittedFilterParams) {
       storage.removeItem(storageKey)
-    } else if (!params.has("view")) {
+    } else {
       const stored = storage.getItem(storageKey) || (this.subjectValue === "job" ? storage.getItem(LEGACY_STORAGE_KEY) : null)
       if (stored) {
-        window.location.replace(`${this.restorePath}?${stored}`)
+        const restoredParams = new URLSearchParams(stored)
+        if (params.has("subject")) restoredParams.set("subject", params.get("subject"))
+        if (params.has("view")) restoredParams.set("view", params.get("view"))
+        window.location.replace(`${this.restorePath}?${restoredParams.toString()}`)
       }
     }
   }

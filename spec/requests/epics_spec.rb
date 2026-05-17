@@ -122,6 +122,19 @@ RSpec.describe "Epics", type: :request do
 
       expect(result["events"]).to eq([ [ "replace", "/epics?q=epic" ] ])
     end
+
+    it "preserves dashboard subject and view params when restoring filters" do
+      result = run_filter_memory_controller(
+        subject: "epic",
+        search: "?subject=epic&view=list",
+        stored: {
+          "syrus.filter.last:job" => "q=job",
+          "syrus.filter.last:epic" => "q=epic"
+        }
+      )
+
+      expect(result["events"]).to eq([ [ "replace", "/epics?q=epic&subject=epic&view=list" ] ])
+    end
   end
 
   describe "GET /epics/:id" do
