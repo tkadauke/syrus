@@ -5,6 +5,43 @@ module Filters
     end
   end
 
+  # Chip genericity inventory for the Phase 3 namespace move:
+  #
+  # state                         job
+  # kind                          job
+  # priority                      job
+  # agent_provider                job
+  # closure_reason                job
+  # triaging_reason               job
+  # validity                      job
+  # latest_workflow_state         job
+  # latest_workflow_trigger_kind  job
+  # latest_run_state              job
+  # pr_present                    job
+  # pr_mergeable                  job
+  # repository_id                 generic
+  # epic_id                       column-named-after-job
+  # parent_job_id                 column-named-after-job
+  # title                         column-named-after-job
+  # description                   column-named-after-job
+  # branch_name                   column-named-after-job
+  # pr_title                      column-named-after-job
+  # issue_number                  column-named-after-job
+  # pr_number                     column-named-after-job
+  # age                           job
+  # created_at                    generic
+  # updated_at                    generic
+  # finished_at                   column-named-after-job
+  # last_seen_comment_at          column-named-after-job
+  # pinned_by_me                  job
+  # has_unread_feedback           job
+  # has_active_run                job
+  # has_blocked_deps              job
+  # has_parent_job                job
+  # has_child_jobs                job
+  # tags                          job
+  # attention                     job
+  #
   # Central index of every chip type the system knows about. Adding a
   # new filter is a one-line entry here plus a class under
   # Filters::Chips. Bucket / operator vocabulary lives on the chip
