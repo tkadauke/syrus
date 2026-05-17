@@ -802,7 +802,7 @@ function formatObjectValue(chip) {
 
 function labelForOption(value, meta) {
   if (!meta || !Array.isArray(meta.values)) return String(value)
-  const match = meta.values.find(v => (typeof v === "object" ? v.value === value : v === value))
+  const match = meta.values.find(v => String(typeof v === "object" ? v.value : v) === String(value))
   if (!match) return String(value)
   return typeof match === "object" ? match.label : match
 }
