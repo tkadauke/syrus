@@ -18,7 +18,7 @@ class SmartFolder < ApplicationRecord
     }
   end
 
-  BUILTIN_DEFINITIONS = [
+  JOB_BUILTINS = [
     { key: "pinned",           name: "Pinned",           visibility: :when_present, filter: attention_preset_filter("pinned") },
     { key: "in_progress",      name: "In progress",      visibility: :when_present, filter: attention_preset_filter("in_progress") },
     { key: "inbox",            name: "Inbox",            visibility: :always,       filter: attention_preset_filter("inbox") },
@@ -32,6 +32,7 @@ class SmartFolder < ApplicationRecord
     { key: "needs_review",     name: "Needs review",     visibility: :on_demand,    filter: attention_preset_filter("needs_review") },
     { key: "merged_this_week", name: "Merged this week", visibility: :on_demand,    filter: attention_preset_filter("merged_this_week") }
   ].freeze
+  BUILTIN_DEFINITIONS = JOB_BUILTINS
 
   def self.epic_attention_preset_filter(preset)
     {
@@ -49,6 +50,7 @@ class SmartFolder < ApplicationRecord
     { key: "epics_empty", name: "Empty", visibility: :on_demand, filter: epic_attention_preset_filter("empty") },
     { key: "epics_recently_done", name: "Recently done", visibility: :on_demand, filter: epic_attention_preset_filter("recently_done") }
   ].freeze
+  EPIC_BUILTINS = EPIC_BUILTIN_DEFINITIONS
 
   VISIBILITY_BY_NAME = BUILTIN_DEFINITIONS.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }.freeze
   EPIC_VISIBILITY_BY_NAME = EPIC_BUILTIN_DEFINITIONS.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }.freeze
@@ -61,9 +63,10 @@ class SmartFolder < ApplicationRecord
   # MySQL 8 rejects defaults on JSON columns, so seed an empty filter
   # on initialize for new records — keeps `filter: {}` working as the
   # implicit default the migration used to provide.
-  after_initialize :seed_empty_filter, if: :new_record?
+  after_initialize :seed_defaults, if: :new_record?
 
   enum :kind, { builtin: "builtin", user_defined: "user_defined" }, validate: true
+  enum :subject_type, { job: "job", epic: "epic" }, validate: true
 
   validates :name, presence: true
   validates :kind, presence: true, inclusion: { in: KINDS }
@@ -134,7 +137,7 @@ class SmartFolder < ApplicationRecord
 
   private
 
-  def seed_empty_filter
+  def seed_defaults
     self.filter ||= {}
     self.subject_type ||= "job"
   end
