@@ -1,21 +1,26 @@
 module Filters
   module Chips
     module Epics
-      class HasBlockedChildren < Predicate
+      class HasBlockedChildren < BooleanExists
         filter_name "has_blocked_children"
         label "Has blocked children"
 
-        private
-
-        def matching_ids
-          Job.where(id: blocked_job_ids).where.not(epic_id: nil).select(:epic_id)
-        end
-
-        def blocked_job_ids
-          successful = Job.closed_threads.where(closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS)
-          JobDependency.pending
-                       .or(JobDependency.resolved.where.not(depends_on_job_id: successful.select(:id)))
-                       .select(:job_id)
+        def apply
+          apply_exists(<<~SQL.squish, Job::SUCCESSFUL_CLOSURE_REASONS)
+            EXISTS (
+              SELECT 1
+              FROM jobs child_jobs
+              INNER JOIN job_dependencies ON job_dependencies.job_id = child_jobs.id
+              LEFT JOIN jobs dependency_jobs ON dependency_jobs.id = job_dependencies.depends_on_job_id
+              WHERE child_jobs.epic_id = epics.id
+                AND (
+                  job_dependencies.depends_on_job_id IS NULL
+                  OR dependency_jobs.id IS NULL
+                  OR dependency_jobs.state != 'closed'
+                  OR dependency_jobs.closure_reason NOT IN (?)
+                )
+            )
+          SQL
         end
       end
     end

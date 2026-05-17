@@ -2,10 +2,10 @@ require "rails_helper"
 
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
-    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(12)
+    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(18)
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
-    expect(described_class::EPIC_BUILTINS).to eq([])
+    expect(described_class::EPIC_BUILTINS).to eq(described_class::EPIC_BUILTIN_DEFINITIONS)
     expect(described_class.builtins.pluck(:name)).to eq([
       "Pinned",
       "In progress",
@@ -22,10 +22,21 @@ RSpec.describe SmartFolder do
     ])
     expect(described_class.builtins.pluck(:user_id).uniq).to eq([ nil ])
     expect(described_class.builtins.pluck(:subject_type).uniq).to eq([ "job" ])
+    expect(described_class.builtins(:epic).pluck(:name)).to eq([
+      "In progress",
+      "Ready",
+      "Blocked",
+      "Stalled",
+      "Empty",
+      "Recently done"
+    ])
+    expect(described_class.builtins(:epic).pluck(:user_id).uniq).to eq([ nil ])
+    expect(described_class.builtins(:epic).pluck(:subject_type).uniq).to eq([ "epic" ])
   end
 
   it "sweeps retired built-ins on next ensure_builtins!" do
     described_class.create!(name: "Ghost", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)
+    described_class.create!(name: "Ghost", subject_type: "epic", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)
 
     expect { described_class.ensure_builtins! }.to change { described_class.exists?(name: "Ghost") }.from(true).to(false)
   end
@@ -40,6 +51,11 @@ RSpec.describe SmartFolder do
     expect(by_name["Stale"]).to eq(:when_present)
     expect(by_name["Merged this week"]).to eq(:on_demand)
     expect(by_name["Needs review"]).to eq(:on_demand)
+
+    epic_by_name = described_class.builtins(:epic).to_h { |f| [ f.name, f.visibility ] }
+    expect(epic_by_name["In progress"]).to eq(:always)
+    expect(epic_by_name["Ready"]).to eq(:when_present)
+    expect(epic_by_name["Empty"]).to eq(:on_demand)
   end
 
   it "requires user-defined folders to belong to a user" do

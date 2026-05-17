@@ -66,60 +66,55 @@ module Filters
       "attention"                     => "Filters::Chips::Attention"
     }.freeze
 
-    def self.find(field, subject: :job)
-      return Filters.subject(subject).find_chip(field) unless subject.to_sym == :job
+    define_singleton_method(:for) do |subject|
+      Filters::SUBJECTS.fetch(subject.to_sym) { raise ArgumentError, "unknown filter subject: #{subject.inspect}" }
+    end
 
-      class_name = CHIPS[field.to_s] or raise UnknownFilterField.new(field)
-      class_name.constantize
+    def self.find(field, subject: :job)
+      find_for(subject, field)
+    end
+
+    def self.find_for(subject, field)
+      public_send(:for, subject).chip_class(field)
     end
 
     def self.fields(subject: :job)
-      return Filters.subject(subject).fields unless subject.to_sym == :job
-
-      CHIPS.keys
+      public_send(:for, subject).fields
     end
 
     def self.exists?(field, subject: :job)
-      return Filters.subject(subject).chips.key?(field.to_s) unless subject.to_sym == :job
-
-      CHIPS.key?(field.to_s)
+      public_send(:for, subject).chips.key?(field.to_s)
     end
   end
-
-  Subject = Data.define(:name, :model, :chips) do
-    def find_chip(field)
-      chips.fetch(field.to_s) { raise UnknownFilterField.new(field) }.constantize
-    end
-
-    def fields
-      chips.keys
-    end
-  end
-
-  JOB_CHIPS = Registry::CHIPS
-
-  EPIC_CHIPS = {
-    "attention" => "Filters::Chips::Epics::Attention",
-    "state" => "Filters::Chips::Epics::State",
-    "repository_id" => "Filters::Chips::RepositoryId",
-    "title" => "Filters::Chips::Epics::Title",
-    "description" => "Filters::Chips::Epics::Description",
-    "number" => "Filters::Chips::Epics::Number",
-    "auto_approve_mode" => "Filters::Chips::Epics::AutoApproveMode",
-    "created_at" => "Filters::Chips::CreatedAt",
-    "updated_at" => "Filters::Chips::UpdatedAt",
-    "done_at" => "Filters::Chips::Epics::DoneAt",
-    "has_child_jobs" => "Filters::Chips::Epics::HasChildJobs",
-    "has_open_children" => "Filters::Chips::Epics::HasOpenChildren",
-    "has_blocked_children" => "Filters::Chips::Epics::HasBlockedChildren",
-    "child_job_count" => "Filters::Chips::Epics::ChildJobCount",
-    "child_progress_percent" => "Filters::Chips::Epics::ChildProgressPercent",
-    "has_epic_dependency" => "Filters::Chips::Epics::HasEpicDependency"
-  }.freeze
 
   SUBJECTS = {
-    job: Subject.new(name: :job, model: Job, chips: JOB_CHIPS),
-    epic: Subject.new(name: :epic, model: Epic, chips: EPIC_CHIPS)
+    job: Subject.new(
+      name: :job,
+      model: Job,
+      chips: Registry::CHIPS
+    ),
+    epic: Subject.new(
+      name: :epic,
+      model: Epic,
+      chips: {
+        "repository_id"           => "Filters::Chips::RepositoryId",
+        "created_at"              => "Filters::Chips::CreatedAt",
+        "updated_at"              => "Filters::Chips::UpdatedAt",
+        "state"                   => "Filters::Chips::Epics::State",
+        "title"                   => "Filters::Chips::Epics::Title",
+        "description"             => "Filters::Chips::Epics::Description",
+        "done_at"                 => "Filters::Chips::Epics::DoneAt",
+        "number"                  => "Filters::Chips::Epics::Number",
+        "auto_approve_mode"       => "Filters::Chips::Epics::AutoApproveMode",
+        "has_child_jobs"          => "Filters::Chips::Epics::HasChildJobs",
+        "has_open_children"       => "Filters::Chips::Epics::HasOpenChildren",
+        "has_blocked_children"    => "Filters::Chips::Epics::HasBlockedChildren",
+        "child_job_count"         => "Filters::Chips::Epics::ChildJobCount",
+        "child_progress_percent"  => "Filters::Chips::Epics::ChildProgressPercent",
+        "has_epic_dependency"     => "Filters::Chips::Epics::HasEpicDependency",
+        "attention"               => "Filters::Chips::Epics::Attention"
+      }
+    )
   }.freeze
 
   def self.subject(name)

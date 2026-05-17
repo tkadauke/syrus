@@ -1,14 +1,20 @@
 module Filters
   module Chips
     module Epics
-      class HasEpicDependency < Predicate
+      class HasEpicDependency < BooleanExists
         filter_name "has_epic_dependency"
-        label "Has Epic dependency"
+        label "Has epic dependency"
 
-        private
-
-        def matching_ids
-          EpicDependency.where.not(depends_on_epic_id: Epic.where(state: "done").select(:id)).select(:epic_id)
+        def apply
+          apply_exists(<<~SQL.squish)
+            EXISTS (
+              SELECT 1
+              FROM epic_dependencies
+              INNER JOIN epics dependency_epics ON dependency_epics.id = epic_dependencies.depends_on_epic_id
+              WHERE epic_dependencies.epic_id = epics.id
+                AND dependency_epics.state != 'done'
+            )
+          SQL
         end
       end
     end

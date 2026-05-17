@@ -14,17 +14,22 @@ module Filters
         values(*PRESETS)
 
         EXPANSIONS = {
-          "ready_to_start" => -> { chip_node("state", "is", "ready") },
-          "in_progress" => -> { chip_node("state", "is", "in_progress") },
-          "empty" => -> { chip_node("has_child_jobs", "is_false", nil) },
+          "ready_to_start"        => -> { chip_node("state", "is", "ready") },
+          "in_progress"           => -> { chip_node("state", "is", "in_progress") },
+          "empty"                 => -> { chip_node("has_child_jobs", "is_false", nil) },
           "blocked_by_dependency" => -> { chip_node("has_epic_dependency", "is_true", nil) },
-          "recently_done" => -> {
+          "recently_done"         => -> {
             and_node(
               chip_node("state", "is", "done"),
               chip_node("done_at", "within_last", { "n" => 7, "unit" => "days" })
             )
           }
         }.freeze
+
+        def self.expansion_for(preset_value)
+          builder = EXPANSIONS[preset_value.to_s]
+          builder&.call
+        end
 
         def self.expansions
           EXPANSIONS.transform_values(&:call)
@@ -41,25 +46,52 @@ module Filters
         def apply
           unsupported_op! unless op == :is
 
-          case value.to_s
-          when "ready_to_start" then scope.where(state: "ready")
-          when "in_progress" then scope.where(state: "in_progress")
-          when "stalled" then scope.where(state: "in_progress").where.not(id: recently_active_epic_ids)
-          when "empty" then scope.where.not(id: Job.where.not(epic_id: nil).select(:epic_id))
-          when "blocked_by_dependency" then scope.where(id: blocked_epic_ids)
-          when "recently_done" then scope.where(state: "done", done_at: 7.days.ago..)
-          else scope
-          end
+          preset = value.to_s
+          return scope unless PRESETS.include?(preset)
+
+          send("apply_#{preset}")
         end
 
         private
 
-        def recently_active_epic_ids
-          Job.joins(:runs).where(runs: { updated_at: 7.days.ago.. }).where.not(epic_id: nil).select(:epic_id)
+        def apply_ready_to_start
+          scope.where(state: "ready")
         end
 
-        def blocked_epic_ids
-          EpicDependency.where.not(depends_on_epic_id: Epic.where(state: "done").select(:id)).select(:epic_id)
+        def apply_in_progress
+          scope.where(state: "in_progress")
+        end
+
+        def apply_stalled
+          scope.where(state: "in_progress")
+               .where.not(id: child_run_activity_since(7.days.ago))
+        end
+
+        def apply_empty
+          scope.where.not(id: Job.where.not(epic_id: nil).select(:epic_id))
+        end
+
+        def apply_blocked_by_dependency
+          scope.where(id: unresolved_epic_dependency_ids)
+        end
+
+        def apply_recently_done
+          scope.where(state: "done", done_at: 7.days.ago..)
+        end
+
+        def child_run_activity_since(cutoff)
+          Epic.joins(jobs: :runs)
+              .where("runs.updated_at >= ?", cutoff)
+              .select(:id)
+        end
+
+        def unresolved_epic_dependency_ids
+          EpicDependency.joins(<<~SQL.squish)
+            INNER JOIN epics dependency_epics
+              ON dependency_epics.id = epic_dependencies.depends_on_epic_id
+          SQL
+                        .where.not(dependency_epics: { state: "done" })
+                        .select(:epic_id)
         end
       end
     end

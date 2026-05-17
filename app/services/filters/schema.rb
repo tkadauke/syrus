@@ -10,10 +10,10 @@ module Filters
     # ordered by Registry::CHIPS' declaration order so the add-filter
     # menu shows fields in the logical grouping the registry uses.
     def for_user(user)
-      self.for(subject: :job, user: user)
+      public_send(:for, subject: :job, user: user)
     end
 
-    def for(subject:, user: nil)
+    define_singleton_method(:for) do |subject: :job, user: nil|
       Registry.fields(subject: subject).map { |field| chip_for(field, subject: subject, user: user) }
     end
 

@@ -1,14 +1,12 @@
 module Filters
   module Chips
     module Epics
-      class HasOpenChildren < Predicate
+      class HasOpenChildren < BooleanExists
         filter_name "has_open_children"
         label "Has open children"
 
-        private
-
-        def matching_ids
-          Job.open_threads.where.not(epic_id: nil).select(:epic_id)
+        def apply
+          apply_exists("EXISTS (SELECT 1 FROM jobs WHERE jobs.epic_id = epics.id AND jobs.state = ?)", "open")
         end
       end
     end

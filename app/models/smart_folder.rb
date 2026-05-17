@@ -18,6 +18,10 @@ class SmartFolder < ApplicationRecord
     }
   end
 
+  def self.epic_attention(preset)
+    attention_preset_filter(preset)
+  end
+
   JOB_BUILTINS = [
     { key: "pinned",           name: "Pinned",           visibility: :when_present, filter: attention_preset_filter("pinned") },
     { key: "in_progress",      name: "In progress",      visibility: :when_present, filter: attention_preset_filter("in_progress") },
@@ -34,26 +38,25 @@ class SmartFolder < ApplicationRecord
   ].freeze
   BUILTIN_DEFINITIONS = JOB_BUILTINS
 
-  def self.epic_attention_preset_filter(preset)
-    {
-      "and" => [
-        { "field" => "attention", "op" => "is", "value" => preset }
-      ]
-    }
-  end
-
-  EPIC_BUILTIN_DEFINITIONS = [
-    { key: "epics_in_progress", name: "In progress", visibility: :always, filter: epic_attention_preset_filter("in_progress") },
-    { key: "epics_ready", name: "Ready", visibility: :when_present, filter: epic_attention_preset_filter("ready_to_start") },
-    { key: "epics_blocked", name: "Blocked", visibility: :when_present, filter: epic_attention_preset_filter("blocked_by_dependency") },
-    { key: "epics_stalled", name: "Stalled", visibility: :when_present, filter: epic_attention_preset_filter("stalled") },
-    { key: "epics_empty", name: "Empty", visibility: :on_demand, filter: epic_attention_preset_filter("empty") },
-    { key: "epics_recently_done", name: "Recently done", visibility: :on_demand, filter: epic_attention_preset_filter("recently_done") }
+  EPIC_BUILTINS = [
+    { key: "epics_in_progress",   name: "In progress",   visibility: :always,       filter: epic_attention("in_progress") },
+    { key: "epics_ready",         name: "Ready",         visibility: :when_present, filter: epic_attention("ready_to_start") },
+    { key: "epics_blocked",       name: "Blocked",       visibility: :when_present, filter: epic_attention("blocked_by_dependency") },
+    { key: "epics_stalled",       name: "Stalled",       visibility: :when_present, filter: epic_attention("stalled") },
+    { key: "epics_empty",         name: "Empty",         visibility: :on_demand,    filter: epic_attention("empty") },
+    { key: "epics_recently_done", name: "Recently done", visibility: :on_demand,    filter: epic_attention("recently_done") }
   ].freeze
-  EPIC_BUILTINS = EPIC_BUILTIN_DEFINITIONS
 
-  VISIBILITY_BY_NAME = BUILTIN_DEFINITIONS.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }.freeze
-  EPIC_VISIBILITY_BY_NAME = EPIC_BUILTIN_DEFINITIONS.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }.freeze
+  BUILTINS_BY_SUBJECT = {
+    "job" => JOB_BUILTINS,
+    "epic" => EPIC_BUILTINS
+  }.freeze
+
+  VISIBILITY_BY_SUBJECT_AND_NAME = BUILTINS_BY_SUBJECT.transform_values do |definitions|
+    definitions.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }
+  end.freeze
+
+  EPIC_BUILTIN_DEFINITIONS = EPIC_BUILTINS
 
   KINDS = %w[ builtin user_defined ].freeze
   SUBJECT_TYPES = %w[ job epic ].freeze
@@ -76,12 +79,13 @@ class SmartFolder < ApplicationRecord
   validate :builtin_owner_and_user_defined_owner
 
   scope :for_subject, ->(subject) { where(subject_type: subject.to_s) }
-  scope :builtins, -> { for_subject(:job).builtin.where(user_id: nil).order(:position, :id) }
-  scope :for_user, ->(user) { for_subject(:job).user_defined.where(user: user).order(:position, :id) }
+  scope :builtins, ->(subject = :job) { for_subject(subject).builtin.where(user_id: nil).order(:position, :id) }
+  scope :for_user, ->(user, subject: :job) { for_subject(subject).user_defined.where(user: user).order(:position, :id) }
   scope :built_in_sidebar_order, -> { builtin.where(user_id: nil).order(:position, :id) }
 
   def self.ensure_builtins!
     ensure_builtin_set!(:job, BUILTIN_DEFINITIONS)
+    ensure_epic_builtins!
   end
 
   def self.ensure_epic_builtins!
@@ -111,8 +115,7 @@ class SmartFolder < ApplicationRecord
   def visibility
     return :user_defined unless builtin?
 
-    visibility_map = subject_type == "epic" ? EPIC_VISIBILITY_BY_NAME : VISIBILITY_BY_NAME
-    visibility_map[name] || :on_demand
+    VISIBILITY_BY_SUBJECT_AND_NAME.fetch(subject_type, {})[name] || :on_demand
   end
 
   # Returns the attention-preset value for this folder if its filter

@@ -373,9 +373,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_005947) do
     t.string "issue_title"
     t.string "kind", default: "issue", null: false
     t.string "last_ci_handled_sha"
+    t.text "landing_failure_reason"
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
-    t.text "landing_failure_reason"
     t.boolean "operator_chat_disabled", default: false, null: false
     t.integer "parent_job_id"
     t.json "pending_epic_reference", null: false

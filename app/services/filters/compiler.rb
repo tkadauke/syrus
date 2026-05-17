@@ -11,7 +11,7 @@ module Filters
     def initialize(scope:, user: nil, subject: :job)
       @scope = scope
       @user = user
-      @subject = subject
+      @subject = subject.to_sym
     end
 
     def compile(node)
@@ -51,7 +51,7 @@ module Filters
     end
 
     def compile_chip(node)
-      chip_class = Registry.find(node.field, subject: @subject)
+      chip_class = Registry.find_for(@subject, node.field)
       chip_class.new(scope: @scope, op: node.op, value: node.value, user: @user).apply
     end
   end
