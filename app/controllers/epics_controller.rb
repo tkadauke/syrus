@@ -21,8 +21,7 @@ class EpicsController < ApplicationController
   end
 
   def show
-    @graph_depth = graph_depth
-    @graph = EpicDependencyGraphRenderer.new(@epic, depth: @graph_depth).render
+    @graph = EpicDependencyGraphRenderer.new(@epic).render
     @jobs = @epic.jobs.includes(:repository, :dependencies, :dependent_links).order(:id)
   end
 
@@ -49,8 +48,7 @@ class EpicsController < ApplicationController
   end
 
   def graph
-    @graph_depth = graph_depth
-    @graph = EpicDependencyGraphRenderer.new(@epic, depth: @graph_depth).render
+    @graph = EpicDependencyGraphRenderer.new(@epic).render
     html = render_to_string(partial: "dependency_graph", locals: {
       epic: @epic,
       result: @graph,
@@ -104,9 +102,5 @@ class EpicsController < ApplicationController
       format.html { redirect_back fallback_location: dashboard_epics_path, notice: "Epic updated." }
       format.json { render json: { state: @epic.reload.state } }
     end
-  end
-
-  def graph_depth
-    params[:graph_depth].to_s == "transitive" ? :transitive : :adjacent
   end
 end

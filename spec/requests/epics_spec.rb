@@ -136,7 +136,8 @@ RSpec.describe "Epics", type: :request do
     it "shows the dependency graph expanded for small Epics" do
       sign_in_as(user)
       epic = Factories.epic(user: user, repository: repo, title: "Restore forum")
-      Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 10, issue_title: "Set stones")
+      blocker_epic = Factories.epic(user: user, repository: repo, title: "Deliver marble")
+      EpicDependency.create!(epic: epic, depends_on_epic: blocker_epic, derived: false)
 
       get epic_path(epic)
 
@@ -144,45 +145,33 @@ RSpec.describe "Epics", type: :request do
       expect(response.body).to include("Restore forum")
       expect(response.body).to include("Dependency graph")
       expect(response.body).to include("data-controller=\"mermaid-graph\"")
-      expect(response.body).to include("job_")
+      expect(response.body).to include("(1 epic dep, 0 job blockers)")
       expect(response.body).to match(/<details[^>]*open[^>]*>.*Dependency graph/m)
     end
 
-    it "toggles the dependency graph between adjacent and transitive depth" do
+    it "shows the empty state when an Epic has no external dependencies" do
       sign_in_as(user)
-      root = Factories.epic(user: user, repository: repo, title: "Restore forum")
-      middle = Factories.epic(user: user, repository: repo, title: "Repair road")
-      leaf = Factories.epic(user: user, repository: repo, title: "Deliver marble")
-      root_job = Factories.job_record(user: user, repository: repo, epic: root, issue_number: 20, issue_title: "Survey")
-      middle_job = Factories.job_record(user: user, repository: repo, epic: middle, issue_number: 21, issue_title: "Pave")
-      leaf_job = Factories.job_record(user: user, repository: repo, epic: leaf, issue_number: 22, issue_title: "Haul")
-      JobDependency.create!(job: middle_job, depends_on_job: root_job, source: "manual", created_by_user: user)
-      JobDependency.create!(job: leaf_job, depends_on_job: middle_job, source: "manual", created_by_user: user)
+      epic = Factories.epic(user: user, repository: repo, title: "Restore forum")
+      Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 20, issue_title: "Survey")
 
-      get epic_path(root)
+      get epic_path(epic)
 
-      expect(response.body).to include("Show all transitive dependencies")
-      expect(response.body).to include("job_#{middle_job.id}")
-      expect(response.body).not_to include("job_#{leaf_job.id}")
-
-      get epic_path(root), params: { graph_depth: "transitive" }
-
-      expect(response.body).to include("Show local dependencies")
-      expect(response.body).to include("job_#{middle_job.id}")
-      expect(response.body).to include("job_#{leaf_job.id}")
+      expect(response.body).to include("No external dependencies")
+      expect(response.body).not_to include("data-controller=\"mermaid-graph\"")
     end
 
     it "renders a drawer graph frame for Kanban cards" do
       sign_in_as(user)
       epic = Factories.epic(user: user, repository: repo, title: "Restore forum")
-      Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 30, issue_title: "Set stones")
+      blocker_epic = Factories.epic(user: user, repository: repo, title: "Deliver marble")
+      EpicDependency.create!(epic: epic, depends_on_epic: blocker_epic, derived: false)
 
       get graph_epic_path(epic), params: { drawer: 1 }
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include('turbo-frame id="epic_graph_drawer_body"')
       expect(response.body).to include("Dependency graph")
-      expect(response.body).to include("Show all transitive dependencies")
+      expect(response.body).to include("(1 epic dep, 0 job blockers)")
     end
 
     it "does not expose another user's Epic" do

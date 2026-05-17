@@ -14,78 +14,120 @@ RSpec.describe EpicDependencyGraphRenderer do
     )
   end
 
-  it "renders internal, cross-Epic, and manual dependency edges with distinct Mermaid styles" do
+  it "returns an empty-state result when the Epic has no external dependencies" do
     epic = Factories.epic(user: user, repository: repo, title: "Forum restoration")
-    neighbor = Factories.epic(user: user, repository: repo, title: "Aqueduct repair")
-    jobs = [
-      epic_job(epic, 1, "Survey ruins"),
-      epic_job(epic, 2, "Rebuild columns"),
-      epic_job(epic, 3, "Hang banner"),
-      epic_job(epic, 4, "Invite senate"),
-      epic_job(epic, 5, "Declare victory")
-    ]
-    outside = epic_job(neighbor, 6, "Deliver marble")
-
-    JobDependency.create!(job: jobs[1], depends_on_job: jobs[0], source: "manual", created_by_user: user)
-    JobDependency.create!(job: jobs[2], depends_on_job: jobs[1], source: "manual", created_by_user: user)
-    JobDependency.create!(job: jobs[4], depends_on_job: jobs[3], source: "manual", created_by_user: user)
-    JobDependency.create!(job: jobs[0], depends_on_job: outside, source: "manual", created_by_user: user)
-    EpicDependency.create!(epic: epic, depends_on_epic: neighbor, derived: false)
+    epic_job(epic, 1, "Survey ruins")
 
     result = described_class.new(epic).render
 
-    expect(result.node_count).to eq(8)
-    expect(result.definition).to include("flowchart LR")
-    expect(result.definition).to include("job_#{jobs[0].id}[\"#1 Survey ruins\"]")
-    expect(result.definition).to include("job_#{outside.id}[\"#{neighbor.display_number} / #6 Deliver marble\"]")
-    expect(result.definition).to include("job_#{jobs[0].id} --> job_#{jobs[1].id}")
-    expect(result.definition).to include("job_#{outside.id} -.-> job_#{jobs[0].id}")
-    expect(result.definition).to include("epic_#{neighbor.id} ==> epic_#{epic.id}")
-    expect(result.definition).to include("stroke:#374151,stroke-width:2px")
-    expect(result.definition).to include("stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 4")
-    expect(result.definition).to include("stroke:#111827,stroke-width:4px")
+    expect(result).to be_empty
+    expect(result.external_dependencies?).to be false
+    expect(result.node_count).to eq(1)
+    expect(result.epic_dependency_count).to eq(0)
+    expect(result.job_blocker_count).to eq(0)
+    expect(result.definition).to include("epic_#{epic.id}[\"#{epic.display_number} Forum restoration\"]")
   end
 
-  it "renders the full transitive closure when requested" do
-    root = Factories.epic(user: user, repository: repo, title: "Forum restoration")
-    middle = Factories.epic(user: user, repository: repo, title: "Road paving")
-    leaf = Factories.epic(user: user, repository: repo, title: "Marble delivery")
-    root_job = epic_job(root, 10, "Survey ruins")
-    middle_job = epic_job(middle, 11, "Lay stones")
-    leaf_job = epic_job(leaf, 12, "Haul marble")
+  it "renders an Epic dependency touching the current Epic" do
+    epic = Factories.epic(user: user, repository: repo, title: "Forum restoration")
+    blocker = Factories.epic(user: user, repository: repo, title: "Aqueduct repair")
+    EpicDependency.create!(epic: epic, depends_on_epic: blocker, derived: false)
 
-    JobDependency.create!(job: middle_job, depends_on_job: root_job, source: "manual", created_by_user: user)
-    JobDependency.create!(job: leaf_job, depends_on_job: middle_job, source: "manual", created_by_user: user)
+    result = described_class.new(epic).render
 
-    adjacent = described_class.new(root).render
-    transitive = described_class.new(root, depth: :transitive).render
-
-    expect(adjacent.definition).to include("job_#{middle_job.id}")
-    expect(adjacent.definition).not_to include("job_#{leaf_job.id}")
-    expect(transitive.definition).to include("job_#{middle_job.id}")
-    expect(transitive.definition).to include("job_#{leaf_job.id}")
-    expect(transitive.node_count).to eq(6)
-    expect(transitive.summarized).to be false
+    expect(result.node_count).to eq(2)
+    expect(result.epic_dependency_count).to eq(1)
+    expect(result.job_blocker_count).to eq(0)
+    expect(result.definition).to include("epic_#{epic.id} --> epic_#{blocker.id}")
+    expect(result.definition).to include("class epic_#{epic.id} currentEpic")
+    expect(result.definition).to include("class epic_#{blocker.id} otherEpic")
   end
 
-  it "summarizes large transitive graphs into Epic-level nodes" do
-    root = Factories.epic(user: user, repository: repo, title: "Forum restoration")
-    middle = Factories.epic(user: user, repository: repo, title: "Road paving")
-    root_job = epic_job(root, 20, "Survey ruins")
-    previous = root_job
+  it "renders an external blocker Job in another Epic" do
+    epic = Factories.epic(user: user, repository: repo, title: "Forum restoration")
+    other_epic = Factories.epic(user: user, repository: repo, title: "Marble delivery")
+    local_job = epic_job(epic, 2, "Rebuild columns")
+    blocker = epic_job(other_epic, 3, "Deliver marble")
+    JobDependency.create!(job: local_job, depends_on_job: blocker, source: "manual", created_by_user: user)
+    EpicDependency.delete_all
 
-    4.times do |index|
-      job = epic_job(middle, 21 + index, "Stone #{index}")
-      JobDependency.create!(job: job, depends_on_job: previous, source: "manual", created_by_user: user)
-      previous = job
-    end
+    result = described_class.new(epic).render
 
-    result = described_class.new(root, depth: :transitive, summary_node_threshold: 3).render
+    expect(result.node_count).to eq(2)
+    expect(result.epic_dependency_count).to eq(0)
+    expect(result.job_blocker_count).to eq(1)
+    expect(result.definition).to include("epic_#{epic.id} --> job_#{blocker.id}")
+    expect(result.definition).to include("job_#{blocker.id}[\"#{other_epic.display_number} / #3 Deliver marble\"]")
+    expect(result.definition).to include("class job_#{blocker.id} epicJobBlocker")
+  end
 
-    expect(result.summarized).to be true
-    expect(result.raw_node_count).to eq(7)
-    expect(result.definition).to include("epic_#{root.id}[\"#{root.display_number} Forum restoration (1 Job)\"]")
-    expect(result.definition).to include("epic_#{middle.id}[\"#{middle.display_number} Road paving (4 Jobs)\"]")
-    expect(result.definition).not_to include("job_#{previous.id}")
+  it "renders an Epic-less blocker Job with dashed styling" do
+    epic = Factories.epic(user: user, repository: repo, title: "Forum restoration")
+    local_job = epic_job(epic, 4, "Raise scaffolding")
+    blocker = Factories.job_record(
+      user: user,
+      repository: repo,
+      epic: nil,
+      issue_number: 5,
+      issue_title: "Find spare stones"
+    )
+    JobDependency.create!(job: local_job, depends_on_job: blocker, source: "manual", created_by_user: user)
+
+    result = described_class.new(epic).render
+
+    expect(result.node_count).to eq(2)
+    expect(result.epic_dependency_count).to eq(0)
+    expect(result.job_blocker_count).to eq(1)
+    expect(result.definition).to include("job_#{blocker.id}[\"No Epic / #5 Find spare stones\"]")
+    expect(result.definition).to include("class job_#{blocker.id} epiclessJobBlocker")
+    expect(result.definition).to include("classDef epiclessJobBlocker")
+    expect(result.definition).to include("stroke-dasharray:5 4")
+  end
+
+  it "combines Epic dependencies and external blocker Jobs without duplicates" do
+    epic = Factories.epic(user: user, repository: repo, title: "Forum restoration")
+    other_epic = Factories.epic(user: user, repository: repo, title: "Marble delivery")
+    dependent_epic = Factories.epic(user: user, repository: repo, title: "Victory parade")
+    local_a = epic_job(epic, 6, "Set foundations")
+    local_b = epic_job(epic, 7, "Raise columns")
+    blocker = epic_job(other_epic, 8, "Deliver marble")
+    epicless = Factories.job_record(
+      user: user,
+      repository: repo,
+      epic: nil,
+      issue_number: 9,
+      issue_title: "Borrow cart"
+    )
+
+    EpicDependency.create!(epic: dependent_epic, depends_on_epic: epic, derived: false)
+    JobDependency.create!(job: local_a, depends_on_job: blocker, source: "manual", created_by_user: user)
+    JobDependency.create!(job: local_b, depends_on_job: blocker, source: "manual", created_by_user: user)
+    JobDependency.create!(job: local_b, depends_on_job: epicless, source: "manual", created_by_user: user)
+
+    result = described_class.new(epic).render
+
+    expect(result.node_count).to eq(5)
+    expect(result.epic_dependency_count).to eq(2)
+    expect(result.job_blocker_count).to eq(2)
+    expect(result.definition.scan("job_#{blocker.id}[")).to contain_exactly("job_#{blocker.id}[")
+    expect(result.definition.scan("epic_#{epic.id} --> job_#{blocker.id}")).to contain_exactly("epic_#{epic.id} --> job_#{blocker.id}")
+    expect(result.definition).to include("epic_#{epic.id} --> epic_#{other_epic.id}")
+    expect(result.definition).to include("epic_#{dependent_epic.id} --> epic_#{epic.id}")
+    expect(result.definition).to include("epic_#{epic.id} --> job_#{epicless.id}")
+  end
+
+  it "does not render child Jobs or internal Job dependencies for the current Epic" do
+    epic = Factories.epic(user: user, repository: repo, title: "Forum restoration")
+    first = epic_job(epic, 10, "Survey ruins")
+    second = epic_job(epic, 11, "Rebuild columns")
+    JobDependency.create!(job: second, depends_on_job: first, source: "manual", created_by_user: user)
+
+    result = described_class.new(epic).render
+
+    expect(result).to be_empty
+    expect(result.definition).not_to include("job_#{first.id}")
+    expect(result.definition).not_to include("job_#{second.id}")
+    expect(result.definition).not_to include("#10 Survey ruins")
+    expect(result.definition).not_to include("#11 Rebuild columns")
   end
 end
