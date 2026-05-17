@@ -52,7 +52,10 @@ export default class extends Controller {
     if (!this.screenshotInputTarget.files.length) {
       event.preventDefault()
       window.alert("Choose a screenshot before submitting.")
+      return
     }
+
+    this.close()
   }
 
   captureViewport() {
