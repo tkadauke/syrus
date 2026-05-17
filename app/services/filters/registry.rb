@@ -164,7 +164,17 @@ module Filters
       name: :workflow,
       model: Workflow,
       chips: {
-        "attention" => "Filters::Chips::Workflows::Attention"
+        "state"            => "Filters::Chips::Workflows::State",
+        "trigger_kind"     => "Filters::Chips::Workflows::TriggerKind",
+        "job_id"           => "Filters::Chips::Workflows::JobId",
+        "agent_provider"   => "Filters::Chips::Workflows::AgentProvider",
+        "started_at"       => "Filters::Chips::Workflows::StartedAt",
+        "finished_at"      => "Filters::Chips::Workflows::FinishedAt",
+        "failure_reason"   => "Filters::Chips::Workflows::FailureReason",
+        "has_failed_steps" => "Filters::Chips::Workflows::HasFailedSteps",
+        "is_stuck"         => "Filters::Chips::Workflows::IsStuck",
+        "run_count"        => "Filters::Chips::Workflows::RunCount",
+        "attention"        => "Filters::Chips::Workflows::Attention"
       }
     )
   }.freeze
