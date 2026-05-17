@@ -49,7 +49,8 @@ export default class extends Controller {
 
   submit(event) {
     this.syncSelectedScreenshot()
-    if (!this.screenshotInputTarget.files.length) {
+
+    if (!this.noneRadioTarget.checked && this.screenshotInputTarget.files.length === 0) {
       event.preventDefault()
       window.alert("Choose a screenshot before submitting.")
       return

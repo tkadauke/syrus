@@ -78,3 +78,19 @@ test("keeps the dialog open when submit has no screenshot", async () => {
   assert.equal(wasClosed(), false)
   assert.equal(alertMessage, "Choose a screenshot before submitting.")
 })
+
+test("allows submit when no screenshot is explicitly selected", async () => {
+  const { default: Controller } = await loadController()
+  const { controller, wasClosed } = buildController(Controller, { capture: null })
+  controller.noneRadioTarget.checked = true
+  let prevented = false
+
+  controller.submit({
+    preventDefault() {
+      prevented = true
+    }
+  })
+
+  assert.equal(prevented, false)
+  assert.equal(wasClosed(), true)
+})
