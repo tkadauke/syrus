@@ -155,7 +155,10 @@ Rails.application.routes.draw do
     query = request.query_parameters.except("subject").to_query
     query.present? ? "/?subject=job&#{query}" : "/?subject=job"
   }
-  get "workflows", to: redirect("/dashboard/workflows", status: 302)
+  get "workflows", to: redirect(status: 302) { |_params, request|
+    query = request.query_parameters.except("subject").to_query
+    query.present? ? "/?subject=workflow&#{query}" : "/?subject=workflow"
+  }
 
   get "epics", to: redirect(status: 302) { |_params, request|
     query = request.query_parameters.except("subject").to_query

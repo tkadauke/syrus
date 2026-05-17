@@ -76,6 +76,7 @@ class SmartFolder < ApplicationRecord
   end.freeze
 
   EPIC_BUILTIN_DEFINITIONS = EPIC_BUILTINS
+  WORKFLOW_BUILTIN_DEFINITIONS = WORKFLOW_BUILTINS
 
   KINDS = %w[ builtin user_defined ].freeze
   SUBJECT_TYPES = %w[ job epic workflow ].freeze
@@ -113,7 +114,7 @@ class SmartFolder < ApplicationRecord
   end
 
   def self.ensure_workflow_builtins!
-    ensure_builtin_set!(:workflow, WORKFLOW_BUILTINS)
+    ensure_builtin_set!(:workflow, WORKFLOW_BUILTIN_DEFINITIONS)
   end
 
   def self.ensure_builtin_set!(subject, definitions)

@@ -1,0 +1,34 @@
+<% job = workflow.job %>
+<tr>
+  <td class="px-4 py-3 align-top font-mono text-sm">
+    <%= link_to "##{workflow.id}", job_path(job, anchor: "workflow_#{workflow.id}"), class: "text-blue-600 underline hover:no-underline" %>
+    <div class="mt-1 sm:hidden flex flex-wrap items-center gap-1.5 font-sans">
+      <%= trigger_pill(workflow.trigger_kind) %>
+      <%= state_pill(workflow.state) %>
+    </div>
+  </td>
+  <td class="px-4 py-3 align-top">
+    <%= link_to "##{job.id}", job_path(job), class: "font-mono text-blue-600 underline hover:no-underline" %>
+    <% if job.issue_title.present? %>
+      <span class="ml-1 text-gray-700"><%= job.issue_title %></span>
+    <% end %>
+    <div class="mt-1 text-xs font-mono text-gray-500">
+      <%= link_to job.repository.slug, repository_path(job.repository), class: "hover:underline" %>
+    </div>
+    <div class="mt-1 md:hidden text-xs text-gray-500">
+      Started <%= relative_timestamp(workflow.started_at || workflow.created_at) %>
+      <% if workflow.finished_at %>
+        · finished <%= relative_timestamp(workflow.finished_at) %>
+      <% end %>
+    </div>
+  </td>
+  <td class="hidden sm:table-cell px-4 py-3 align-top"><%= trigger_pill(workflow.trigger_kind) %></td>
+  <td class="hidden sm:table-cell px-4 py-3 align-top"><%= state_pill(workflow.state) %></td>
+  <td class="hidden md:table-cell px-4 py-3 align-top text-gray-500"><%= relative_timestamp(workflow.started_at || workflow.created_at) %></td>
+  <td class="hidden md:table-cell px-4 py-3 align-top text-gray-500">
+    <%= workflow.finished_at ? relative_timestamp(workflow.finished_at) : "—" %>
+  </td>
+  <td class="hidden sm:table-cell px-4 py-3 align-top">
+    <%= colored_pill(JobsHelper::AGENT_PROVIDER_LABELS[workflow.agent_provider] || workflow.agent_provider, classes: JobsHelper::AGENT_PROVIDER_STYLES[workflow.agent_provider] || ApplicationHelper::PILL_FALLBACK_CLASSES) %>
+  </td>
+</tr>

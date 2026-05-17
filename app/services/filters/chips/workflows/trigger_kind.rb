@@ -5,7 +5,7 @@ module Filters
         filter_name "trigger_kind"
         label "Trigger"
         column :trigger_kind
-        values "initial", "pr_comment", "ci_failure", "retry", "manual", "rebase", "resume"
+        values(*Workflow::TRIGGER_KINDS)
       end
     end
   end

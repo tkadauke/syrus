@@ -7,6 +7,7 @@ RSpec.describe SmartFolder do
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
     expect(described_class::EPIC_BUILTINS).to eq(described_class::EPIC_BUILTIN_DEFINITIONS)
+    expect(described_class::WORKFLOW_BUILTINS).to eq(described_class::WORKFLOW_BUILTIN_DEFINITIONS)
     expect(described_class.builtins.pluck(:name)).to eq([
       "Pinned",
       "In progress",

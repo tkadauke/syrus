@@ -170,6 +170,8 @@ module Filters
         "agent_provider"   => "Filters::Chips::Workflows::AgentProvider",
         "started_at"       => "Filters::Chips::Workflows::StartedAt",
         "finished_at"      => "Filters::Chips::Workflows::FinishedAt",
+        "created_at"       => "Filters::Chips::CreatedAt",
+        "updated_at"       => "Filters::Chips::UpdatedAt",
         "failure_reason"   => "Filters::Chips::Workflows::FailureReason",
         "has_failed_steps" => "Filters::Chips::Workflows::HasFailedSteps",
         "is_stuck"         => "Filters::Chips::Workflows::IsStuck",

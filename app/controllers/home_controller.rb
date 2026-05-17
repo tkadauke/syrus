@@ -1,6 +1,6 @@
 class HomeController < ApplicationController
   PER_PAGE = 25
-  DASHBOARD_SUBJECTS = %w[job epic].freeze
+  DASHBOARD_SUBJECTS = %w[job epic workflow].freeze
   DASHBOARD_VIEWS = %w[list kanban].freeze
   DEFAULT_DASHBOARD_SUBJECT = "epic"
   DEFAULT_DASHBOARD_VIEW = "list"
@@ -11,6 +11,8 @@ class HomeController < ApplicationController
     { key: "succeeded", title: "Succeeded" },
     { key: "failed", title: "Failed" }
   ].freeze
+  WORKFLOW_KANBAN_COLUMNS = %w[queued running done].freeze
+  WORKFLOW_DONE_STATES = %w[succeeded failed cancelled].freeze
 
   before_action :persist_dashboard_preferences_from_params, only: %i[index epics jobs workflows]
 
@@ -21,6 +23,8 @@ class HomeController < ApplicationController
     case [ @dashboard_subject, @dashboard_view ]
     when [ "job", "list" ], [ "job", "kanban" ]
       jobs
+    when [ "workflow", "list" ], [ "workflow", "kanban" ]
+      workflows
     when [ "epic", "kanban" ]
       epics
     else
@@ -45,7 +49,7 @@ class HomeController < ApplicationController
   def workflows
     @active_tab = "workflows"
     set_dashboard_view
-    load_dashboard
+    load_workflows_dashboard
     render :index
   end
 
@@ -169,11 +173,16 @@ class HomeController < ApplicationController
     # the other subject, 0 when a shared chip name compiles cleanly
     # but matches nothing). Total is stable across tabs.
     @jobs_matching_count = jobs_total_for_dashboard
+    @workflows_matching_count = workflows_total_for_dashboard
     @epics = @epics.order(updated_at: :desc, id: :desc).offset((@page - 1) * EpicsController::PER_PAGE).limit(EpicsController::PER_PAGE)
   end
 
   def set_dashboard_view
-    @dashboard_subject = @active_tab == "epics" ? "epic" : "job"
+    @dashboard_subject = case @active_tab
+    when "epics" then "epic"
+    when "workflows" then "workflow"
+    else "job"
+    end
     @dashboard_view = params[:view].to_s.presence_in(%w[list kanban]) || (@dashboard_subject == "epic" ? "kanban" : "list")
   end
 
@@ -205,6 +214,7 @@ class HomeController < ApplicationController
     @epics_matching_count = @epics_total
     # See epic_list — inactive-tab badge is the unfiltered total.
     @jobs_matching_count = jobs_total_for_dashboard(active_repo_ids)
+    @workflows_matching_count = workflows_total_for_dashboard(active_repo_ids)
   end
 
   def load_dashboard
@@ -237,6 +247,7 @@ class HomeController < ApplicationController
     # Inactive-tab badge — see comment in epic_list. Total epics across
     # the user's active repos, not the active job filter cross-applied.
     @epics_matching_count = epics_total_for_dashboard(active_repo_ids)
+    @workflows_matching_count = workflows_total_for_dashboard(active_repo_ids)
     @epics = epics_for_active_smart_folder(active_repo_ids)
     @smart_folder_counts = smart_folder_counts(Current.user.jobs.where(repository_id: active_repo_ids))
     @landing_queue_entries = LandingQueueProcessor.entries(Current.user.jobs.where(repository_id: active_repo_ids)).index_by(&:job_id)
@@ -287,14 +298,53 @@ class HomeController < ApplicationController
     @jobs = @jobs.is_a?(Array) ? @jobs.slice((@page - 1) * PER_PAGE, PER_PAGE) || [] : @jobs.offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
     @pinned_job_ids = Current.user.job_pins.where(job_id: @jobs.map(&:id)).pluck(:job_id)
 
-    # Workflows tab — every burst of work, newest first. Eager-load
-    # job→repository for the row, plus steps so the "currently"
-    # caption can name the active step without an extra query.
-    @workflows = Workflow.joins(:job)
+  end
+
+  def load_workflows_dashboard
+    active_repo_ids = Current.user.repositories.active.pluck(:id)
+    @page = [ params[:page].to_i, 1 ].max
+    @dashboard_view = params[:view] == "kanban" ? "kanban" : "list"
+
+    SmartFolder.ensure_builtins!
+    SmartFolder.ensure_workflow_builtins!
+    @schema = ::Filters::Schema.for(subject: :workflow, user: Current.user)
+    @active_smart_folder = workflow_smart_folder_from_params
+    @workflow_filter = ::Workflows::Filter.from_params(params, smart_folder: @active_smart_folder, user: Current.user)
+    @builtin_smart_folders = SmartFolder.for_subject(:workflow).built_in_sidebar_order
+    @user_smart_folders = SmartFolder.for_user(Current.user, subject: :workflow)
+
+    base_scope = Workflow.joins(:job)
                          .where(jobs: { user_id: Current.user.id, repository_id: active_repo_ids })
-                         .includes(:steps, job: :repository)
+    @workflows_unfiltered_count = base_scope.count
+    @smart_folder_counts = workflow_smart_folder_counts(base_scope)
+    @primary_builtin_smart_folders, @more_builtin_smart_folders = split_builtin_smart_folders
+
+    @workflows = @workflow_filter.apply(base_scope)
+                                 .includes(:steps, job: :repository)
     @workflows_total = @workflows.count
-    @workflows = @workflows.order(created_at: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    @workflows_matching_count = @workflows_total
+    @jobs_matching_count = jobs_total_for_dashboard(active_repo_ids)
+    @epics_matching_count = epics_total_for_dashboard(active_repo_ids)
+
+    if @dashboard_view == "kanban"
+      load_workflow_kanban
+    else
+      @workflows = @workflows.order(created_at: :desc, id: :desc)
+                             .offset((@page - 1) * PER_PAGE)
+                             .limit(PER_PAGE)
+    end
+  end
+
+  def load_workflow_kanban
+    @workflow_kanban_cap_hit = @workflows_total > KANBAN_PER_PAGE
+    workflows = @workflows.order(created_at: :desc, id: :desc)
+                          .limit(KANBAN_PER_PAGE)
+                          .to_a
+    @workflow_kanban_records = WORKFLOW_KANBAN_COLUMNS.to_h { |column| [ column, [] ] }
+    workflows.each do |workflow|
+      column = WORKFLOW_DONE_STATES.include?(workflow.state) ? "done" : workflow.state
+      @workflow_kanban_records[column] << workflow if @workflow_kanban_records.key?(column)
+    end
   end
 
   def load_job_kanban
@@ -429,6 +479,13 @@ class HomeController < ApplicationController
       SmartFolder.for_user(Current.user).find_by(id: params[:smart_folder_id])
   end
 
+  def workflow_smart_folder_from_params
+    return if params[:smart_folder_id].blank?
+
+    SmartFolder.for_subject(:workflow).builtin.where(user_id: nil).find_by(id: params[:smart_folder_id]) ||
+      SmartFolder.for_subject(:workflow).where(user: Current.user).find_by(id: params[:smart_folder_id])
+  end
+
   def epic_smart_folder_from_params
     return if params[:smart_folder_id].blank?
 
@@ -483,6 +540,53 @@ class HomeController < ApplicationController
 
   def epics_total_for_dashboard(active_repo_ids = Current.user.repositories.active.select(:id))
     Current.user.epics.where(repository_id: active_repo_ids).count
+  end
+
+  def workflows_total_for_dashboard(active_repo_ids = Current.user.repositories.active.select(:id))
+    Workflow.joins(:job).where(jobs: { user_id: Current.user.id, repository_id: active_repo_ids }).count
+  end
+
+  def split_builtin_smart_folders
+    primary = []
+    more = []
+
+    @builtin_smart_folders.each do |folder|
+      case folder.visibility
+      when :always
+        primary << folder
+      when :on_demand
+        more << folder
+      when :when_present
+        primary << folder if @smart_folder_counts[folder.id].to_i.positive? || @active_smart_folder == folder
+      else
+        primary << folder
+      end
+    end
+
+    [ primary, more ]
+  end
+
+  def workflow_smart_folder_counts(base_scope)
+    (@builtin_smart_folders + @user_smart_folders).to_h do |folder|
+      [ folder.id, ::Workflows::Filter.from_tree(folder.filter, user: Current.user).apply(base_scope).count ]
+    end
+  end
+
+  def epic_filter_params
+    params.permit(:repository_id, :blocked, :done, :sort).to_h.compact_blank
+  end
+
+  def sort_epics_for_board(epics, sort)
+    case sort
+    when "updated_asc"
+      epics.sort_by { |epic| [ epic.updated_at || Time.zone.at(0), epic.id ] }
+    else
+      epics.sort_by { |epic| [ epic.updated_at || Time.zone.at(0), epic.id ] }.reverse
+    end
+  end
+
+  def epic_blocked_for_board?(epic)
+    epic.dependencies.any? { |dependency| !dependency.depends_on_epic.done? }
   end
 
   def smart_folder_counts(base_scope)

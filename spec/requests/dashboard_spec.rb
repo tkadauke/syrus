@@ -123,9 +123,10 @@ RSpec.describe "Dashboard", type: :request do
       subject_nav = document.at_css("nav[aria-label='Dashboard subject']")
       view_nav = document.at_css("nav[aria-label='Dashboard view']")
 
-      expect(subject_nav.text.squish).to include("Epics 1", "Jobs 1")
+      expect(subject_nav.text.squish).to include("Epics 1", "Jobs 1", "Workflows")
       expect(subject_nav.at_css("a[href='/?subject=epic&view=list']")["title"]).to eq("1 epic matches the current filter")
       expect(subject_nav.at_css("a[href='/?subject=job&view=list']")["class"]).to include("bg-blue-600")
+      expect(subject_nav.at_css("a[href='/?subject=workflow&view=list']")).to be_present
       expect(view_nav.at_css("a[href='/?subject=job&view=list']")["class"]).to include("bg-gray-800")
       expect(view_nav.at_css("a[href='/?subject=job&view=kanban']")["data-turbo-frame"]).to eq("dashboard_content")
     end
@@ -365,7 +366,7 @@ RSpec.describe "Dashboard", type: :request do
 
       get "/workflows"
       expect(response).to have_http_status(:found)
-      expect(response).to redirect_to(dashboard_workflows_path)
+      expect(response).to redirect_to("/?subject=workflow")
     end
 
     it "lists the current user's recent jobs" do
@@ -1042,17 +1043,20 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).to include("No workflows yet")
       end
 
-      it "lists workflows for the current user with their trigger and step caption" do
+      it "lists workflows for the current user with dashboard fields" do
         repo = Factories.repository(user: user, owner: "acme", name: "widgets")
-        Factories.job(repository: repo, issue_number: 7)
-        # Job's after_create_commit instantiated a Workflows::Initial
-        # — prepare → loop(implement, grade) → summarize → pr_open. Show that on
-        # the Workflows tab.
-        get dashboard_workflows_path
+        job = Factories.job(repository: repo, issue_number: 7, issue_title: "Raise the aqueduct")
+        workflow = job.latest_workflow
+        workflow.update!(state: "running", started_at: 10.minutes.ago, agent_provider: "codex")
+
+        get root_path, params: { subject: "workflow", view: "list" }
+
+        document = Nokogiri::HTML(response.body)
         expect(response.body).to include("acme/widgets")
-        expect(response.body).to include("initial")              # trigger pill
-        expect(response.body).to include("Prepare workspace")    # human-readable step kind label (first step now)
-        expect(response.body).to include("(1/5)")                # step counter
+        expect(response.body).to include("Raise the aqueduct")
+        expect(document.at_css("a[href='#{job_path(job, anchor: "workflow_#{workflow.id}")}']").text).to include("##{workflow.id}")
+        expect(document.at_css("a[href='#{job_path(job)}']").text).to include("##{job.id}")
+        expect(response.body).to include("initial", "running", "Codex")
       end
 
       it "merges workflow state into the issue column on mobile" do
@@ -1065,14 +1069,12 @@ RSpec.describe "Dashboard", type: :request do
         document = Nokogiri::HTML(response.body)
         state_header = document.css("thead th").find { |th| th.text.strip == "State" }
         row = document.at_css("tbody tr")
-        mobile_state_summary = row.css("td")[3].css("[class]").find do |node|
+        mobile_state_summary = row.css("td")[0].css("[class]").find do |node|
           node["class"].to_s.include?("sm:hidden") && node.text.include?("running")
         end
 
         expect(state_header["class"]).to include("hidden sm:table-cell")
-        expect(row.css("td")[0]["class"]).to include("hidden sm:table-cell")
         expect(mobile_state_summary.text).to include("initial")
-        expect(mobile_state_summary.text).to include("acme/widgets")
       end
 
       it "scopes to the current user (no leakage)" do
@@ -1083,6 +1085,70 @@ RSpec.describe "Dashboard", type: :request do
         get dashboard_workflows_path
         expect(response.body).to include("acme/widgets")
         expect(response.body).not_to include("globex/things")
+      end
+
+      it "shows the default non-terminal or recent workflow filter as the chip-bar tree" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        recent_job = Factories.job(repository: repo, issue_number: 1, issue_title: "Recent failure")
+        recent_job.latest_workflow.update!(state: "failed", finished_at: 2.days.ago)
+        old_job = Factories.job(repository: repo, issue_number: 2, issue_title: "Ancient failure")
+        old_job.latest_workflow.update!(state: "failed", finished_at: 8.days.ago)
+
+        get root_path, params: { subject: "workflow", view: "list" }
+
+        document = Nokogiri::HTML(response.body)
+        tree = JSON.parse(document.at_css("[data-chip-bar-tree-value]")["data-chip-bar-tree-value"])
+        expect(tree).to eq(Workflows::Filter.default_tree)
+        expect(response.body).to include("Recent failure")
+        expect(response.body).not_to include("Ancient failure")
+      end
+
+      it "lets an explicit workflow chip filter narrow the list" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        running = Factories.job(repository: repo, issue_number: 1, issue_title: "Still marching")
+        running.latest_workflow.update!(state: "running", started_at: 5.minutes.ago)
+        queued = Factories.job(repository: repo, issue_number: 2, issue_title: "Awaiting orders")
+        queued.latest_workflow.update!(state: "queued")
+        q = Filters::QueryParam.encode("and" => [ { "field" => "state", "op" => "is", "value" => "running" } ])
+
+        get root_path, params: { subject: "workflow", view: "list", q: q }
+
+        expect(response.body).to include("Still marching")
+        expect(response.body).not_to include("Awaiting orders")
+      end
+
+      it "renders the Workflow kanban as queued, running, and done columns without drag handles" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        queued = Factories.job(repository: repo, issue_number: 1, issue_title: "Await the trumpet")
+        queued.latest_workflow.update!(state: "queued")
+        running = Factories.job(repository: repo, issue_number: 2, issue_title: "Cross the Rubicon")
+        running.latest_workflow.update!(state: "running", started_at: 4.minutes.ago)
+        failed = Factories.job(repository: repo, issue_number: 3, issue_title: "Misplace the laurel")
+        failed.latest_workflow.update!(state: "failed", finished_at: 12.minutes.ago)
+
+        get root_path, params: { subject: "workflow", view: "kanban" }
+
+        document = Nokogiri::HTML(response.body)
+        expect(document.css("[data-kanban-lane] h2").map { |heading| heading.text.strip }).to eq([ "Queued", "Running", "Done" ])
+        expect(document.at_css("[data-controller='kanban']")).to be_nil
+        expect(document.at_css("[data-kanban-lane='queued']").text).to include("Await the trumpet")
+        expect(document.at_css("[data-kanban-lane='running']").text).to include("Cross the Rubicon", "running for")
+        expect(document.at_css("[data-kanban-lane='done']").text).to include("Misplace the laurel", "failed")
+        expect(document.css("[data-workflow-id]").map { |card| card["draggable"] }).to all(be_nil)
+      end
+
+      it "caps workflow kanban at the shared kanban page size" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        (HomeController::KANBAN_PER_PAGE + 1).times do |idx|
+          job = Factories.job(repository: repo, issue_number: idx + 1, issue_title: "Workflow #{idx + 1}")
+          job.latest_workflow.update!(state: "queued")
+        end
+
+        get root_path, params: { subject: "workflow", view: "kanban" }
+
+        document = Nokogiri::HTML(response.body)
+        expect(document.css("[data-workflow-id]").size).to eq(HomeController::KANBAN_PER_PAGE)
+        expect(response.body).to include("Showing the newest #{HomeController::KANBAN_PER_PAGE} matching workflows")
       end
     end
 

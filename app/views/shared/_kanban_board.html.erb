@@ -2,11 +2,14 @@
 <% empty_column_messages ||= {} %>
 <% board_data = drag_enabled ? { controller: "kanban", kanban_subject_value: subject.to_s } : {} %>
 
-<div class="grid gap-4 xl:grid-cols-4 lg:grid-cols-2" <%= tag.attributes(data: board_data) %>>
+<% grid_classes = columns.size == 3 ? "grid gap-4 lg:grid-cols-3" : "grid gap-4 xl:grid-cols-4 lg:grid-cols-2" %>
+
+<div class="<%= grid_classes %>" <%= tag.attributes(data: board_data) %>>
   <% columns.each do |column| %>
     <% column_key = column.to_s %>
     <% column_records = grouped_records.fetch(column_key, []) %>
     <section class="min-w-0 rounded-lg border border-gray-200 bg-gray-50"
+             data-kanban-lane="<%= column_key %>"
              <% if drag_enabled %>
                data-kanban-target="lane"
                data-kanban-state="<%= column_key %>"

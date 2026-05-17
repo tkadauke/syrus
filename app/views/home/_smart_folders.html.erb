@@ -1,10 +1,20 @@
 <% folder_link_classes = ->(active) { "flex items-center justify-between rounded-md px-2 py-1.5 text-sm #{active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}" } %>
+<%
+  smart_folder_subject = local_assigns.fetch(:subject, @dashboard_subject || :job).to_s
+  smart_folder_path = ->(folder) {
+    case smart_folder_subject
+    when "workflow" then root_path(subject: "workflow", view: @dashboard_view, smart_folder_id: folder.id)
+    when "epic" then root_path(subject: "epic", view: @dashboard_view, smart_folder_id: folder.id)
+    else dashboard_jobs_path(smart_folder_id: folder.id)
+    end
+  }
+%>
 <div class="bg-white border border-gray-200 rounded-lg p-3">
   <div class="mb-2 text-xs font-semibold uppercase text-gray-500">Attention</div>
   <nav class="space-y-1">
     <% @primary_builtin_smart_folders.each do |folder| %>
       <% active = @active_smart_folder == folder %>
-      <%= link_to dashboard_jobs_path(smart_folder_id: folder.id),
+      <%= link_to smart_folder_path.call(folder),
             class: folder_link_classes.call(active) do %>
         <span><%= folder.name %></span>
         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>
@@ -33,7 +43,7 @@
       <nav class="mt-1 space-y-1">
         <% @more_builtin_smart_folders.each do |folder| %>
           <% active = @active_smart_folder == folder %>
-          <%= link_to dashboard_jobs_path(smart_folder_id: folder.id),
+          <%= link_to smart_folder_path.call(folder),
                 class: folder_link_classes.call(active) do %>
             <span><%= folder.name %></span>
             <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>
@@ -52,7 +62,7 @@
   <nav class="space-y-1">
     <% @user_smart_folders.each do |folder| %>
       <% active = @active_smart_folder == folder %>
-      <%= link_to dashboard_jobs_path(smart_folder_id: folder.id),
+      <%= link_to smart_folder_path.call(folder),
             class: "flex items-center justify-between rounded-md px-2 py-1.5 text-sm #{active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}" do %>
         <span class="truncate"><%= folder.name %></span>
         <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>

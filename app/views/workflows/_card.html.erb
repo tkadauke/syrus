@@ -1,0 +1,30 @@
+<% workflow = record %>
+<% job = workflow.job %>
+<% signal_time = workflow.finished_at || workflow.started_at || workflow.created_at %>
+<% time_phrase =
+  if workflow.running?
+    "running for #{distance_of_time_in_words(signal_time, Time.current)}"
+  elsif workflow.queued?
+    "queued for #{distance_of_time_in_words(signal_time, Time.current)}"
+  else
+    "#{workflow.state} #{time_ago_in_words(signal_time)} ago"
+  end %>
+
+<%= link_to job_path(job, anchor: "workflow_#{workflow.id}"),
+      class: "block rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm hover:border-blue-300 hover:shadow",
+      data: { workflow_id: workflow.id } do %>
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <div class="font-medium text-gray-900">
+        <span class="font-mono text-blue-600">#<%= workflow.id %></span>
+        <span class="text-gray-400">·</span>
+        <span><%= workflow.trigger_kind_humanized %></span>
+      </div>
+      <div class="mt-1 truncate text-gray-700"><%= job.issue_title.presence || "Job ##{job.id}" %></div>
+    </div>
+    <% if HomeController::WORKFLOW_DONE_STATES.include?(workflow.state) %>
+      <%= state_pill(workflow.state, classes: "shrink-0") %>
+    <% end %>
+  </div>
+  <div class="mt-2 text-xs text-gray-500"><%= time_phrase %></div>
+<% end %>

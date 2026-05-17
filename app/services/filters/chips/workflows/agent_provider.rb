@@ -5,7 +5,7 @@ module Filters
         filter_name "agent_provider"
         label "Agent"
         column :agent_provider
-        values(*AgentProviders::REGISTRY.keys)
+        values(*User::AGENT_PROVIDERS)
       end
     end
   end

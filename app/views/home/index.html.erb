@@ -78,6 +78,15 @@
             <%= number_with_delimiter(@jobs_matching_count.to_i) %>
           </span>
         <% end %>
+        <%= link_to root_path(subject: "workflow", view: current_view),
+              class: subject_link_classes.call(@active_tab == "workflows"),
+              title: count_title.call(@workflows_matching_count.to_i, "workflow"),
+              data: { turbo_frame: "_top" } do %>
+          <span>Workflows</span>
+          <span class="<%= @active_tab == 'workflows' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600' %> rounded-full px-2 py-0.5 text-xs">
+            <%= number_with_delimiter(@workflows_matching_count.to_i) %>
+          </span>
+        <% end %>
       </nav>
       </div>
 
@@ -688,66 +697,72 @@
       </div>
     </div>
   <% else %>
-    <% if @workflows.any? || @page > 1 %>
+    <details class="group rounded-lg border border-gray-200 bg-white lg:hidden">
+      <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-gray-700">
+        <span>Folders and filters</span>
+        <span class="text-gray-400 group-open:hidden">Show</span>
+        <span class="hidden text-gray-400 group-open:inline">Hide</span>
+      </summary>
+      <div class="space-y-4 border-t border-gray-200 p-3">
+        <%= render "smart_folders", subject: :workflow %>
+        <%= render "chip_bar",
+              subject: :workflow,
+              filter: @workflow_filter,
+              schema: @schema,
+              action_url: root_path(subject: "workflow", view: current_view),
+              class_name: "relative flex flex-col gap-3" %>
+      </div>
+    </details>
+
+    <div class="grid gap-5 lg:grid-cols-[16rem_1fr]">
+      <aside class="hidden space-y-4 lg:block">
+        <%= render "smart_folders", subject: :workflow %>
+      </aside>
+
+      <div class="space-y-4">
+        <%= render "chip_bar",
+              subject: :workflow,
+              filter: @workflow_filter,
+              schema: @schema,
+              action_url: root_path(subject: "workflow", view: current_view),
+              class_name: "relative hidden lg:block" %>
+
+        <% if @active_smart_folder %>
+          <div class="hidden rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 lg:block">
+            Showing smart folder: <strong><%= @active_smart_folder.name %></strong>
+          </div>
+        <% end %>
+
+    <% if current_view == "kanban" %>
+      <% if @workflow_kanban_cap_hit %>
+        <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Showing the newest <%= HomeController::KANBAN_PER_PAGE %> matching workflows.
+        </div>
+      <% end %>
+      <%= render "shared/kanban_board",
+            subject: :workflow,
+            records: @workflow_kanban_records,
+            column_attribute: :state,
+            columns: HomeController::WORKFLOW_KANBAN_COLUMNS,
+            card_partial: "workflows/card",
+            drag_enabled: false %>
+    <% elsif @workflows.any? || @page > 1 %>
       <% workflows_total_pages = (@workflows_total.to_f / HomeController::PER_PAGE).ceil %>
       <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
+              <th class="px-4 py-2 text-left">Workflow</th>
+              <th class="px-4 py-2 text-left">Job</th>
               <th class="hidden sm:table-cell px-4 py-2 text-left">Trigger</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
-              <th class="px-4 py-2 text-left">Issue</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Step</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
-              <th class="hidden sm:table-cell px-4 py-2"></th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
+              <th class="hidden md:table-cell px-4 py-2 text-left">Started</th>
+              <th class="hidden md:table-cell px-4 py-2 text-left">Finished</th>
+              <th class="hidden sm:table-cell px-4 py-2 text-left">Agent</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 text-sm">
-            <% @workflows.each do |wf| %>
-              <tr>
-                <td class="hidden sm:table-cell px-4 py-3 align-top"><%= state_pill(wf.state) %></td>
-                <td class="hidden sm:table-cell px-4 py-3 align-top"><%= trigger_pill(wf.trigger_kind) %></td>
-                <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
-                  <%= link_to wf.job.repository.slug, repository_path(wf.job.repository), class: "text-gray-700 hover:underline" %>
-                </td>
-                <td class="px-4 py-3">
-                  <div class="sm:hidden flex flex-wrap items-center gap-1.5 mb-0.5">
-                    <%= state_pill(wf.state) %>
-                    <%= trigger_pill(wf.trigger_kind) %>
-                    <span class="text-xs font-mono text-gray-500">
-                      <%= link_to wf.job.repository.slug, repository_path(wf.job.repository), class: "hover:underline" %>
-                    </span>
-                  </div>
-                  <%= job_source_label_html(wf.job) %>
-                  <% if wf.job.issue_title.present? %>
-                    <%= link_to wf.job.issue_title, job_path(wf.job), class: "ml-1 text-gray-700 hover:underline" %>
-                  <% end %>
-                  <% if wf.job.pr_number %>
-                    <span class="ml-1 text-xs text-indigo-700">
-                      →
-                      <%= link_to "PR ##{wf.job.pr_number}", job_pr_url(wf.job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
-                    </span>
-                  <% end %>
-                  <% if wf.job.external_pr_number %>
-                    <span class="ml-1 text-xs text-violet-700">
-                      ↪
-                      <%= link_to "PR ##{wf.job.external_pr_number}", external_pr_url(wf.job), target: "_blank", rel: "noopener", class: "underline hover:no-underline" %>
-                    </span>
-                  <% end %>
-                  <div class="sm:hidden text-xs text-gray-400 mt-1 flex items-center gap-1.5">
-                    <span><%= workflow_step_caption(wf) %></span>
-                    <span>·</span>
-                    <span><%= relative_timestamp(wf.started_at || wf.created_at) %></span>
-                  </div>
-                </td>
-                <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= workflow_step_caption(wf) %></td>
-                <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(wf.started_at || wf.created_at) %></td>
-                <td class="hidden sm:table-cell px-4 py-3 text-right">
-                  <%= link_to "View", job_path(wf.job), class: "text-blue-600 underline hover:no-underline" %>
-                </td>
-              </tr>
-            <% end %>
+            <%= render partial: "workflows/row", collection: @workflows, as: :workflow %>
           </tbody>
         </table>
       </div>
@@ -758,13 +773,13 @@
           <span>Showing <%= first_item %>–<%= last_item %> of <%= @workflows_total %></span>
           <div class="flex gap-2">
             <% if @page > 1 %>
-              <%= link_to "← Previous", dashboard_workflows_path(request.query_parameters.merge("page" => @page - 1)),
+              <%= link_to "← Previous", root_path(request.query_parameters.merge("subject" => "workflow", "view" => current_view, "page" => @page - 1)),
                     class: "px-3 py-1 border border-gray-300 rounded hover:bg-gray-50" %>
             <% else %>
               <span class="px-3 py-1 border border-gray-200 rounded text-gray-300">← Previous</span>
             <% end %>
             <% if @page < workflows_total_pages %>
-              <%= link_to "Next →", dashboard_workflows_path(request.query_parameters.merge("page" => @page + 1)),
+              <%= link_to "Next →", root_path(request.query_parameters.merge("subject" => "workflow", "view" => current_view, "page" => @page + 1)),
                     class: "px-3 py-1 border border-gray-300 rounded hover:bg-gray-50" %>
             <% else %>
               <span class="px-3 py-1 border border-gray-200 rounded text-gray-300">Next →</span>
@@ -774,9 +789,15 @@
       <% end %>
     <% else %>
       <div class="bg-white border border-gray-200 rounded-lg p-6 text-sm text-gray-600">
-        No workflows yet.
+        <% if @workflows_unfiltered_count.to_i.positive? && @workflow_filter.active? %>
+          No workflows match the current filters.
+        <% else %>
+          No workflows yet.
+        <% end %>
       </div>
     <% end %>
+      </div>
+    </div>
   <% end %>
   <% end %>
 

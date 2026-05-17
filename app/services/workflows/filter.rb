@@ -11,6 +11,7 @@ module Workflows
       folder_tree = smart_folder&.filter.presence
 
       tree = [ folder_tree, q_tree, url_tree ].compact.reduce { |acc, next_tree| merge_and(acc, next_tree) }
+      tree ||= default_tree unless params.key?(Filters::QueryParam::PARAM_NAME) || smart_folder
       tree ||= Filters::Ast.serialize(Filters::Ast::EMPTY)
 
       new(tree, user: user)
@@ -43,24 +44,6 @@ module Workflows
 
     def to_query_param
       Filters::QueryParam.encode(to_h)
-    end
-
-    private
-
-    def chips
-      collected = []
-      walk = ->(node) {
-        case node
-        when Filters::Ast::Chip
-          collected << node
-        when Filters::Ast::AndNode, Filters::Ast::OrNode
-          node.children.each(&walk)
-        when Filters::Ast::NotNode
-          walk.call(node.child)
-        end
-      }
-      walk.call(@ast)
-      collected
     end
 
     def self.build_tree_from_url_params(params)
@@ -98,6 +81,15 @@ module Workflows
     end
     private_class_method :chip
 
+    def self.default_tree
+      {
+        "or" => [
+          { "field" => "state", "op" => "is_one_of", "value" => %w[ queued running ] },
+          { "field" => "finished_at", "op" => "within_last", "value" => { "n" => 7, "unit" => "days" } }
+        ]
+      }
+    end
+
     def self.merge_and(left_tree, right_tree)
       children = [ left_tree, right_tree ].flat_map do |tree|
         if tree.is_a?(Hash) && tree["and"].is_a?(Array)
@@ -109,5 +101,22 @@ module Workflows
       { "and" => children }
     end
     private_class_method :merge_and
+
+    private
+
+    def chips
+      collected = []
+      walk = ->(node) {
+        case node
+        when Filters::Ast::Chip then collected << node
+        when Filters::Ast::AndNode, Filters::Ast::OrNode
+          node.children.each(&walk)
+        when Filters::Ast::NotNode
+          walk.call(node.child)
+        end
+      }
+      walk.call(@ast)
+      collected
+    end
   end
 end
