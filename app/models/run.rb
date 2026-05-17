@@ -22,6 +22,10 @@ class Run < ApplicationRecord
     step&.workflow
   end
 
+  def workflow_id
+    step&.workflow_id
+  end
+
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
 
@@ -244,13 +248,13 @@ class Run < ApplicationRecord
 
   def enqueue_run_job
     return if terminal?
-    # When a RunJob is currently driving the chain inline, the next
-    # Step's Run was just created here (by StepDispatcher) but should
-    # NOT bounce through SolidQueue — the in-flight RunJob will pick
-    # it up directly via its loop. Skipping the perform_later avoids
-    # a queue round-trip that would land at the back of FIFO and
-    # spread one Workflow across multiple worker pickups.
-    return if Thread.current[:syrus_in_run_job]
+    # When a RunJob is currently driving this workflow inline, the
+    # next Step's Run was just created by StepDispatcher and should
+    # not bounce through SolidQueue. Runs created for other workflows
+    # in the same thread still need their own queue dispatch.
+    current_workflow_id = Thread.current[:syrus_current_run]&.workflow_id
+    return if current_workflow_id && current_workflow_id == workflow_id
+
     RunJob.set(priority: job.solid_queue_priority).perform_later(id)
   end
 end

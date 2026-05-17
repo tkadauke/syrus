@@ -215,6 +215,17 @@ RSpec.describe Run do
   end
 
   describe "auto-enqueue RunJob on commit" do
+    around do |example|
+      old_in_run_job = Thread.current[:syrus_in_run_job]
+      old_current_run = Thread.current[:syrus_current_run]
+      Thread.current[:syrus_in_run_job] = nil
+      Thread.current[:syrus_current_run] = nil
+      example.run
+    ensure
+      Thread.current[:syrus_in_run_job] = old_in_run_job
+      Thread.current[:syrus_current_run] = old_current_run
+    end
+
     it "enqueues a RunJob with the new Run's id" do
       job  # force creation outside the expect block so its initial-Run
       # enqueue isn't counted against this assertion
@@ -243,6 +254,47 @@ RSpec.describe Run do
       Run.create!(job: job, trigger_kind: "pr_comment")
       run_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |j| j[:job] == RunJob }
       expect(run_jobs.last[:priority]).to eq(Job::PRIORITY_TO_SQ["medium"])
+    end
+
+    it "enqueues when a RunJob thread creates a Run for a different workflow" do
+      current_run = job.initial_run
+      other_job = Factories.job
+      other_workflow = Workflow.create!(
+        job: other_job,
+        trigger_kind: "rebase",
+        agent_provider: other_job.agent_provider
+      )
+      other_step = Step.create!(workflow: other_workflow, kind: "agent_rebase", position: 0)
+      Thread.current[:syrus_in_run_job] = true
+      Thread.current[:syrus_current_run] = current_run
+
+      expect {
+        other_step.runs.create!(job: other_job, trigger_kind: "rebase")
+      }.to have_enqueued_job(RunJob).with { |id|
+        expect(Run.find(id).workflow_id).to eq(other_workflow.id)
+      }
+    end
+
+    it "does not enqueue when a RunJob thread creates another Run in the current workflow" do
+      current_run = job.initial_run
+      next_step = Step.create!(workflow: current_run.workflow, kind: "implement", position: 99)
+      Thread.current[:syrus_in_run_job] = true
+      Thread.current[:syrus_current_run] = current_run
+
+      expect {
+        next_step.runs.create!(job: job, trigger_kind: "initial")
+      }.not_to have_enqueued_job(RunJob)
+    end
+
+    it "enqueues a workflow-backed Run when there is no current RunJob thread" do
+      current_run = job.initial_run
+      next_step = Step.create!(workflow: current_run.workflow, kind: "implement", position: 99)
+
+      expect {
+        next_step.runs.create!(job: job, trigger_kind: "initial")
+      }.to have_enqueued_job(RunJob).with { |id|
+        expect(Run.find(id).workflow_id).to eq(current_run.workflow_id)
+      }
     end
   end
 
