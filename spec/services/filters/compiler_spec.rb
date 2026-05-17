@@ -71,4 +71,10 @@ RSpec.describe Filters::Compiler do
       compile("field" => "made_up_filter", "op" => "is", "value" => "x")
     }.to raise_error(Filters::UnknownFilterField)
   end
+
+  it "raises a clear error for unknown subjects" do
+    expect {
+      described_class.call(Filters::Ast.parse({}), scope: Job.all, subject: :made_up)
+    }.to raise_error(ArgumentError, "unknown subject: made_up")
+  end
 end

@@ -9,6 +9,8 @@ module Filters
       class_name.constantize
     end
 
+    alias_method :find_chip, :chip_class
+
     def fields
       chips.keys
     end

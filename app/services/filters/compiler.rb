@@ -11,7 +11,7 @@ module Filters
     def initialize(scope:, user: nil, subject: :job)
       @scope = scope
       @user = user
-      @subject = subject.to_sym
+      @subject = Filters.subject_for(subject)
     end
 
     def compile(node)
@@ -29,7 +29,7 @@ module Filters
 
     def compile_and(node)
       node.children.reduce(@scope) do |scope, child|
-        self.class.new(scope: scope, user: @user, subject: @subject).compile(child)
+        self.class.new(scope: scope, user: @user, subject: @subject.name).compile(child)
       end
     end
 
@@ -38,7 +38,7 @@ module Filters
 
       primary_key = @scope.model.primary_key
       matched_ids = node.children.flat_map do |child|
-        self.class.new(scope: @scope, user: @user, subject: @subject).compile(child).pluck(primary_key)
+        self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(child).pluck(primary_key)
       end.uniq
 
       @scope.where(primary_key => matched_ids)
@@ -46,12 +46,12 @@ module Filters
 
     def compile_not(node)
       primary_key = @scope.model.primary_key
-      matched_ids = self.class.new(scope: @scope, user: @user, subject: @subject).compile(node.child).pluck(primary_key)
+      matched_ids = self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(node.child).pluck(primary_key)
       @scope.where.not(primary_key => matched_ids)
     end
 
     def compile_chip(node)
-      chip_class = Registry.find_for(@subject, node.field)
+      chip_class = @subject.find_chip(node.field)
       chip_class.new(scope: @scope, op: node.op, value: node.value, user: @user).apply
     end
   end

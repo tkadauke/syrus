@@ -9,15 +9,15 @@ module Filters
     # Returns an Array<Hash> with one entry per registered chip,
     # ordered by Registry::CHIPS' declaration order so the add-filter
     # menu shows fields in the logical grouping the registry uses.
-    def for_user(user)
-      public_send(:for, subject: :job, user: user)
+    def for(subject: :job, user: nil)
+      Registry.fields(subject: subject).map { |field| chip_for(field, user: user, subject: subject) }
     end
 
-    define_singleton_method(:for) do |subject: :job, user: nil|
-      Registry.fields(subject: subject).map { |field| chip_for(field, subject: subject, user: user) }
+    def for_user(user, subject: :job)
+      self.for(subject: subject, user: user)
     end
 
-    def chip_for(field, subject: :job, user: nil)
+    def chip_for(field, user: nil, subject: :job)
       chip = Registry.find(field, subject: subject)
       meta = {
         "field"     => field,

@@ -66,24 +66,24 @@ module Filters
       "attention"                     => "Filters::Chips::Attention"
     }.freeze
 
-    define_singleton_method(:for) do |subject|
-      Filters::SUBJECTS.fetch(subject.to_sym) { raise ArgumentError, "unknown filter subject: #{subject.inspect}" }
+    def self.for(subject = :job)
+      Filters.subject_for(subject)
     end
 
     def self.find(field, subject: :job)
-      find_for(subject, field)
+      self.for(subject).find_chip(field)
     end
 
     def self.find_for(subject, field)
-      public_send(:for, subject).chip_class(field)
+      self.for(subject).find_chip(field)
     end
 
     def self.fields(subject: :job)
-      public_send(:for, subject).fields
+      self.for(subject).fields
     end
 
     def self.exists?(field, subject: :job)
-      public_send(:for, subject).chips.key?(field.to_s)
+      self.for(subject).chips.key?(field.to_s)
     end
   end
 
@@ -118,6 +118,8 @@ module Filters
   }.freeze
 
   def self.subject(name)
-    SUBJECTS.fetch(name.to_sym) { raise ArgumentError, "unknown filter subject: #{name.inspect}" }
+    SUBJECTS.fetch(name.to_sym) { raise ArgumentError, "unknown subject: #{name}" }
   end
+
+  singleton_class.alias_method :subject_for, :subject
 end

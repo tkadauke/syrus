@@ -1,6 +1,20 @@
 require "rails_helper"
 
 RSpec.describe Filters::Schema do
+  describe ".for" do
+    it "returns the job subject schema by default" do
+      fields = described_class.for.map { |chip| chip["field"] }
+
+      expect(fields).to eq(Filters::Registry::CHIPS.keys)
+    end
+
+    it "raises a clear error for unknown subjects" do
+      expect {
+        described_class.for(subject: :made_up)
+      }.to raise_error(ArgumentError, "unknown subject: made_up")
+    end
+  end
+
   describe ".chip_for" do
     # Regression: class instance variables in Ruby do NOT inherit
     # through `<`. Before the fix, AgentProvider (EnumColumn subclass)
