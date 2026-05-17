@@ -180,7 +180,7 @@ class JobsController < ApplicationController
     end
 
     @job.approve!(via: "operator", by_user: Current.user)
-    github_note = propagate_approval_to_github
+    github_note = Job::ApprovalPropagator.approve(@job, user: Current.user).message
     redirect_to job_path(@job), notice: [ "Job approved.", github_note ].compact.join(" ")
   end
 
@@ -192,7 +192,7 @@ class JobsController < ApplicationController
 
     review_id = @job.approval_evidence&.dig("github_review_id")
     @job.unapprove!
-    github_note = dismiss_github_review(review_id)
+    github_note = Job::ApprovalPropagator.dismiss(@job, review_id, user: Current.user).message
     redirect_to job_path(@job), notice: [ "Job unapproved.", github_note ].compact.join(" ")
   end
 
@@ -630,45 +630,6 @@ class JobsController < ApplicationController
 
     redirect_to job_path(@job), alert: "That agent is not configured."
     false
-  end
-
-  # Best-effort: file an APPROVE review on the Job's PR using the
-  # operator's GitHub token so branch protection requiring a review
-  # passes at merge time. The Syrus-side approval is the source of
-  # truth either way (AutoMergeGate honors Job#approved? regardless),
-  # so we deliberately swallow review-write failures and return a
-  # human-readable note for the flash so the operator knows.
-  def propagate_approval_to_github
-    return nil unless @job.repository.approval_propagates_to_github
-    return nil if @job.pr_number.blank?
-
-    client = GithubClient.for(repository: @job.repository, user: Current.user)
-    review = client.create_pr_review(
-      @job.repository.slug,
-      @job.pr_number,
-      event: "APPROVE",
-      body: "Approved by @#{Current.user.email_address} via Syrus."
-    )
-    review_id = review.respond_to?(:id) ? review.id : review[:id]
-    @job.approval_evidence = (@job.approval_evidence || {}).merge("github_review_id" => review_id) if review_id
-    @job.save! if @job.changed?
-    "GitHub review left."
-  rescue Octokit::Error => e
-    Rails.logger.warn("[JobsController#approve] GitHub review failed for Job #{@job.id}: #{e.class}: #{e.message}")
-    "GitHub review failed: #{e.message}."
-  end
-
-  def dismiss_github_review(review_id)
-    return nil if review_id.blank?
-    return nil unless @job.repository.approval_propagates_to_github
-    return nil if @job.pr_number.blank?
-
-    client = GithubClient.for(repository: @job.repository, user: Current.user)
-    client.dismiss_pr_review(@job.repository.slug, @job.pr_number, review_id, message: "Dismissed via Syrus.")
-    "GitHub review dismissed."
-  rescue Octokit::Error => e
-    Rails.logger.warn("[JobsController#unapprove] GitHub dismiss failed for Job #{@job.id}: #{e.class}: #{e.message}")
-    "GitHub review dismiss failed: #{e.message}."
   end
 
   def find_or_create_tag_from_params

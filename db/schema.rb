@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_17_222557) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_17_225759) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -453,7 +453,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_222557) do
   create_table "repositories", force: :cascade do |t|
     t.string "agent_provider"
     t.string "allow_operator_chat", default: "disabled", null: false
-    t.boolean "approval_propagates_to_github"
+    t.boolean "approval_propagates_to_github", default: true
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
     t.boolean "auto_merge_enabled", default: false, null: false

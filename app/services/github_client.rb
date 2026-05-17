@@ -274,7 +274,7 @@ class GithubClient
 
   # Files a PR review under whichever identity owns the token on this
   # client (operator's PAT or the GitHub App installation). Used by
-  # JobsController#approve to propagate Syrus-side approval onto the
+  # Job::ApprovalPropagator to propagate Syrus-side approval onto the
   # PR so branch-protection rules requiring an approving review pass
   # at merge time. event is "APPROVE", "REQUEST_CHANGES", or "COMMENT".
   def create_pr_review(repo_slug, pr_number, event:, body: nil)

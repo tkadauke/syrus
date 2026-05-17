@@ -358,6 +358,7 @@ class HomeController < ApplicationController
   def bulk_approve_jobs(jobs)
     batch_id = SecureRandom.uuid
     approved = 0
+    approved_jobs = []
 
     ActiveRecord::Base.transaction do
       jobs.each do |job|
@@ -369,14 +370,16 @@ class HomeController < ApplicationController
           evidence: { "batch_id" => batch_id }
         )
         approved += 1
+        approved_jobs << job
       end
     end
 
     if approved.zero?
       redirect_back fallback_location: dashboard_jobs_path, alert: "No selected jobs were awaiting approval."
     else
+      github_note = bulk_github_approval_note(approved_jobs)
       redirect_back fallback_location: dashboard_jobs_path,
-                    notice: "Approved #{helpers.pluralize(approved, 'job')} in batch #{batch_id}."
+                    notice: [ "Approved #{helpers.pluralize(approved, 'job')} in batch #{batch_id}.", github_note ].compact.join(" ")
     end
   end
 
@@ -408,6 +411,7 @@ class HomeController < ApplicationController
 
     batch_id = SecureRandom.uuid
     approved = 0
+    approved_jobs = []
     ActiveRecord::Base.transaction do
       reviewed_jobs.each do |job|
         job.approve!(
@@ -416,10 +420,23 @@ class HomeController < ApplicationController
           evidence: { "batch_id" => batch_id }
         )
         approved += 1
+        approved_jobs << job
       end
     end
 
-    redirect_to dashboard_jobs_path, notice: "Approved #{helpers.pluralize(approved, 'job')} in batch #{batch_id}."
+    github_note = bulk_github_approval_note(approved_jobs)
+    redirect_to dashboard_jobs_path,
+                notice: [ "Approved #{helpers.pluralize(approved, 'job')} in batch #{batch_id}.", github_note ].compact.join(" ")
+  end
+
+  def bulk_github_approval_note(jobs)
+    results = jobs.map { |job| Job::ApprovalPropagator.approve(job, user: Current.user) }
+    successes = results.count(&:success?)
+    failures = results.select(&:failure?)
+    notes = []
+    notes << "GitHub reviews left for #{helpers.pluralize(successes, 'job')}." if successes.positive?
+    notes << failures.map(&:message).uniq.join(" ") if failures.any?
+    notes.presence&.join(" ")
   end
 
   def smart_folder_from_params

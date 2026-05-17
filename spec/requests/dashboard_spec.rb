@@ -960,6 +960,55 @@ RSpec.describe "Dashboard", type: :request do
         expect(second.approval_evidence.fetch("batch_id")).to eq(first.approval_evidence.fetch("batch_id"))
       end
 
+      it "bulk approve files APPROVE reviews for opted-in repositories" do
+        first = Factories.job(repository: repo, issue_number: 1)
+        second = Factories.job(repository: repo, issue_number: 2)
+        first.update!(state: "implemented", pr_number: 101)
+        second.update!(state: "implemented", pr_number: 102)
+        client = instance_double(GithubClient)
+        allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(client)
+        expect(client).to receive(:create_pr_review)
+          .with(repo.slug, 101, event: "APPROVE", body: a_string_including("Syrus"))
+          .and_return(Struct.new(:id).new(901))
+        expect(client).to receive(:create_pr_review)
+          .with(repo.slug, 102, event: "APPROVE", body: a_string_including("Syrus"))
+          .and_return(Struct.new(:id).new(902))
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ first.id, second.id ], bulk_action: "approve" }
+
+        expect(first.reload.approval_evidence).to include("batch_id", "github_review_id" => 901)
+        expect(second.reload.approval_evidence).to include("batch_id", "github_review_id" => 902)
+        expect(flash[:notice]).to include("GitHub reviews left for 2 jobs")
+      end
+
+      it "bulk approve skips GitHub reviews for opted-out repositories" do
+        repo.update!(approval_propagates_to_github: false)
+        job = Factories.job(repository: repo, issue_number: 1)
+        job.update!(state: "implemented", pr_number: 101)
+        expect(GithubClient).not_to receive(:for)
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ job.id ], bulk_action: "approve" }
+
+        expect(job.reload.state).to eq("approved")
+        expect(job.approval_evidence).not_to have_key("github_review_id")
+        expect(flash[:notice]).to match(/\AApproved 1 job in batch/)
+      end
+
+      it "bulk approve keeps Syrus approvals and flashes when GitHub review propagation fails" do
+        job = Factories.job(repository: repo, issue_number: 1)
+        job.update!(state: "implemented", pr_number: 101)
+        client = instance_double(GithubClient)
+        allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(client)
+        allow(client).to receive(:create_pr_review)
+          .and_raise(Octokit::UnprocessableEntity.new(body: { message: "Pull request author can't approve their own pull request" }))
+
+        post bulk_dashboard_jobs_path, params: { job_ids: [ job.id ], bulk_action: "approve" }
+
+        expect(job.reload.state).to eq("approved")
+        expect(job.approval_evidence).not_to have_key("github_review_id")
+        expect(flash[:notice]).to include("GitHub review failed")
+      end
+
       it "renders a sequential review drawer for selected implemented jobs" do
         first = Factories.job(repository: repo, issue_number: 1, issue_title: "Review the aqueduct")
         second = Factories.job(repository: repo, issue_number: 2, issue_title: "Review the forum")
