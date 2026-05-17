@@ -103,7 +103,7 @@ export default class extends Controller {
   }
 
   syncSelectedScreenshot() {
-    if (this.noneRadioTarget.checked) {
+    if (this.hasNoneRadioTarget && this.noneRadioTarget.checked) {
       this.screenshotInputTarget.value = ""
       return true
     }
