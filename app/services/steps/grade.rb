@@ -2,6 +2,7 @@ module Steps
   class Grade < Base
     TIMEOUT_EXIT_CODE = 124
     SKIPPED_REASON = "earlier required grader failed".freeze
+    OUTPUT_INLINE_BYTES = 16 * 1024
 
     def call
       workspace.setup
@@ -116,7 +117,8 @@ module Steps
         "exit_code" => exit_code,
         "duration_s" => duration_s.round(1),
         "log_path" => log_path.to_s,
-        "log_bytes" => absolute_log_path.size
+        "log_bytes" => absolute_log_path.size,
+        "output" => grader_output_excerpt(absolute_log_path)
       }.tap do |result|
         result["reason"] = reason if reason
       end
@@ -131,6 +133,15 @@ module Steps
 
     def grader_log_path(grader)
       Pathname.new(".syrus/grade-output/iteration-#{run.iteration}/#{grader.name}.log")
+    end
+
+    def grader_output_excerpt(path)
+      return "" unless path.exist?
+
+      output = path.binread
+      output = output.byteslice(-OUTPUT_INLINE_BYTES, OUTPUT_INLINE_BYTES) if output.bytesize > OUTPUT_INLINE_BYTES
+
+      output.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
     end
 
     def env

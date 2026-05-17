@@ -57,7 +57,8 @@ RSpec.describe Steps::Implement do
             "status" => "failed",
             "required" => true,
             "exit_code" => 1,
-            "log_path" => ".syrus/grade-output/iteration-1/tests.log"
+            "log_path" => ".syrus/grade-output/iteration-1/tests.log",
+            "output" => "expected greeting helper to exist"
           }
         ]
       ])
@@ -69,6 +70,7 @@ RSpec.describe Steps::Implement do
       expect(run.reload.prompt).to include("The previous iteration's quality graders flagged issues")
       expect(run.reload.prompt).to include("Iteration 1")
       expect(run.reload.prompt).to include("tests (exit 1)")
+      expect(run.reload.prompt).to include("expected greeting helper to exist")
     end
 
     it "skips prompt rebuild when run.prompt is already set" do

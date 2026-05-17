@@ -161,8 +161,9 @@ class StepDispatcher
   end
 
   def exhaust_loop!
-    cancel_post_loop_steps!("loop_exhausted")
-    hard_fail_workflow!("loop_exhausted")
+    cancel_post_loop_steps!("loop_exhausted_after_grader_failure")
+    @workflow.increment!(:failure_count)
+    hard_fail_workflow!("loop_exhausted_after_grader_failure")
   end
 
   def cancel_post_loop_steps!(reason)

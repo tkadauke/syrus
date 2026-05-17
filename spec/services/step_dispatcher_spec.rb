@@ -143,7 +143,7 @@ RSpec.describe StepDispatcher do
     end
   end
 
-  describe ".fail_from", skip: "Pending: .fail_from + cancellation_reason + failure_reason were part of the dropped #332 design — see follow-up issue" do
+  describe ".fail_from" do
     it "materializes the next loop iteration when grade fails with budget remaining" do
       loop_wf = workflow_with_loop(max_iterations: 3)
       implement = loop_wf.steps.find_by!(kind: "implement", iteration: 1)
@@ -166,6 +166,26 @@ RSpec.describe StepDispatcher do
       expect(new_steps.first.runs.last.iteration).to eq(2)
     end
 
+    it "spends the loop budget before failing the workflow after repeated grade failures" do
+      loop_wf = workflow_with_loop(max_iterations: 3)
+      loop_wf.start!; loop_wf.save!
+
+      described_class.fail_from(loop_wf.steps.find_by!(kind: "grade", iteration: 1))
+      expect(loop_wf.reload).to be_running
+      expect(loop_wf.failure_count).to eq(0)
+      expect(loop_wf.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 2 ])
+
+      described_class.fail_from(loop_wf.steps.find_by!(kind: "grade", iteration: 2))
+      expect(loop_wf.reload).to be_running
+      expect(loop_wf.failure_count).to eq(0)
+      expect(loop_wf.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 2, 3 ])
+
+      described_class.fail_from(loop_wf.steps.find_by!(kind: "grade", iteration: 3))
+      expect(loop_wf.reload).to be_failed
+      expect(loop_wf.failure_reason).to eq("loop_exhausted_after_grader_failure")
+      expect(loop_wf.failure_count).to eq(1)
+    end
+
     it "fails the workflow and cancels post-loop steps when grade exhausts the loop budget" do
       loop_wf = workflow_with_loop(max_iterations: 1)
       loop_wf.start!; loop_wf.save!
@@ -176,11 +196,12 @@ RSpec.describe StepDispatcher do
       described_class.fail_from(grade)
 
       expect(loop_wf.reload).to be_failed
-      expect(loop_wf.failure_reason).to eq("loop_exhausted")
+      expect(loop_wf.failure_reason).to eq("loop_exhausted_after_grader_failure")
+      expect(loop_wf.failure_count).to eq(1)
       expect(summarize.reload).to be_cancelled
-      expect(summarize.cancellation_reason).to eq("loop_exhausted")
+      expect(summarize.cancellation_reason).to eq("loop_exhausted_after_grader_failure")
       expect(pr_open.reload).to be_cancelled
-      expect(pr_open.cancellation_reason).to eq("loop_exhausted")
+      expect(pr_open.cancellation_reason).to eq("loop_exhausted_after_grader_failure")
     end
 
     it "hard-fails the workflow when a non-grade step inside a loop fails" do
@@ -243,6 +264,19 @@ RSpec.describe StepDispatcher do
       s1.start!; s1.save!
       expect(described_class).to receive(:fail_from).with(s1)
       s1.fail!; s1.save!
+    end
+
+    it "routes failed loop grade steps through the dispatcher without failing early" do
+      loop_wf = workflow_with_loop(max_iterations: 3)
+      loop_wf.start!; loop_wf.save!
+      grade = loop_wf.steps.find_by!(kind: "grade", iteration: 1)
+
+      grade.start!; grade.save!
+      grade.fail!; grade.save!
+
+      expect(loop_wf.reload).to be_running
+      expect(loop_wf.failure_count).to eq(0)
+      expect(loop_wf.steps.find_by(kind: "implement", iteration: 2)).to be_present
     end
   end
 

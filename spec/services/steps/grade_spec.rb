@@ -66,6 +66,7 @@ RSpec.describe Steps::Grade do
     entries = artifact_entries
     expect(entries.map { |entry| entry["status"] }).to eq(%w[failed skipped])
     expect(entries.first["exit_code"]).to eq(7)
+    expect(entries.first["output"]).to include("boom")
     expect(entries.last["reason"]).to eq("earlier required grader failed")
     expect(@ws_path.join(entries.last["log_path"]).read).to include("[skipped: earlier required grader failed]")
   end

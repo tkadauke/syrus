@@ -124,6 +124,7 @@ RSpec.describe RunJob do
         [ 1, "failed" ],
         [ 2, "succeeded" ]
       ])
+      expect(wf.failure_count).to eq(0)
       expect(wf.steps.find_by(kind: "implement", iteration: 2).runs.first.parent_session_id).to eq("S-1")
       expect(job.reload.pr_number).to eq(123)
       expect(@pr_stub).to have_been_requested
@@ -163,10 +164,11 @@ RSpec.describe RunJob do
         [ 1, "failed" ],
         [ 2, "succeeded" ]
       ])
+      expect(wf.failure_count).to eq(0)
       expect(wf.steps.find_by(kind: "implement", iteration: 2).runs.first).to be_succeeded
     end
 
-    it "fails with loop_exhausted when grade never passes and does not open a PR" do
+    it "fails with loop_exhausted_after_grader_failure when grade never passes and does not open a PR" do
       AppSetting.current.update!(grade_max_iterations: 2)
       commit_file_to_remote(".syrus.yml", <<~YAML)
         grade:
@@ -179,7 +181,8 @@ RSpec.describe RunJob do
 
       wf = job.workflows.last
       expect(wf.reload.state).to eq("failed")
-      expect(wf.artifact("failure_reason")).to eq("loop_exhausted")
+      expect(wf.artifact("failure_reason")).to eq("loop_exhausted_after_grader_failure")
+      expect(wf.failure_count).to eq(1)
       expect(wf.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 2 ])
       expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
         [ 1, "failed" ],
@@ -401,7 +404,7 @@ RSpec.describe RunJob do
       expect(wf.steps.find_by(kind: "push").runs.first).to be_succeeded
     end
 
-    it "fails with loop_exhausted when review feedback grading never passes" do
+    it "fails with loop_exhausted_after_grader_failure when review feedback grading never passes" do
       AppSetting.current.update!(grade_max_iterations: 2)
       RunJob.agent_runner = ->(workspace_path:, **_) {
         current = Run.last
@@ -426,7 +429,8 @@ RSpec.describe RunJob do
       drain_workflow!(job)
 
       expect(wf.reload.state).to eq("failed")
-      expect(wf.artifact("failure_reason")).to eq("loop_exhausted")
+      expect(wf.artifact("failure_reason")).to eq("loop_exhausted_after_grader_failure")
+      expect(wf.failure_count).to eq(1)
       expect(wf.steps.where(kind: "respond").pluck(:iteration)).to eq([ 1, 2 ])
       expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
         [ 1, "failed" ],
@@ -485,7 +489,7 @@ RSpec.describe RunJob do
       expect(wf.steps.find_by(kind: "pr_open").runs.first).to be_succeeded
     end
 
-    it "fails with loop_exhausted when retry grading never passes" do
+    it "fails with loop_exhausted_after_grader_failure when retry grading never passes" do
       AppSetting.current.update!(grade_max_iterations: 2)
       RunJob.agent_runner = ->(workspace_path:, **_) {
         current = Run.last
@@ -507,7 +511,8 @@ RSpec.describe RunJob do
       drain_workflow!(job)
 
       expect(wf.reload.state).to eq("failed")
-      expect(wf.artifact("failure_reason")).to eq("loop_exhausted")
+      expect(wf.artifact("failure_reason")).to eq("loop_exhausted_after_grader_failure")
+      expect(wf.failure_count).to eq(1)
       expect(wf.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 2 ])
       expect(wf.steps.where(kind: "grade").pluck(:iteration, :state)).to eq([
         [ 1, "failed" ],
