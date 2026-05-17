@@ -1,4 +1,7 @@
 module Epics
+  # Epic-side wrapper over Filters::Ast + Filters::Compiler. It mirrors
+  # Jobs::Filter's public interface while keeping Epic-specific legacy
+  # URL-param translation intentionally small.
   class Filter
     LEGACY_URL_KEYS = %w[ state repository_id attention ].freeze
 
@@ -28,6 +31,10 @@ module Epics
 
     def active?
       chips.any?
+    end
+
+    def pinned?
+      chips.any? { |chip| chip.field == "attention" && chip.value.to_s == "pinned" }
     end
 
     def to_h
