@@ -27,7 +27,7 @@ module SyrusMcp
 
     class << self
       def call(question:, context:, server_context:)
-        run = server_context[:run].reload
+        run = SyrusMcp.run_from_context(server_context)
         question = question.to_s.strip
         context = context.to_s.strip
 
@@ -47,6 +47,9 @@ module SyrusMcp
         MCP::Tool::Response.new([ { type: "text", text: "Question sent. End your turn now so Syrus can wait for the operator." } ])
       rescue ChatChannel::ConfigurationError => e
         invalid(run, "#{e.message}. Mark this run failed with category `needs_clarification` instead.")
+      rescue StandardError => e
+        Rails.logger.error("[SyrusMcp::AskOperatorTool] #{e.class}: #{e.message}")
+        MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
 
       private

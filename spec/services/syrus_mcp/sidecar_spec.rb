@@ -12,7 +12,7 @@ RSpec.describe SyrusMcp::Sidecar do
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
       tools: [ SyrusMcp::SubmitSummaryTool, SyrusMcp::AskOperatorTool ],
-      server_context: { run: run }
+      server_context: { run_id: run.id }
     )
   end
 
@@ -80,9 +80,10 @@ RSpec.describe SyrusMcp::Sidecar do
   end
 
   describe ".new(run_id:)" do
-    it "loads the Run from the DB by id" do
+    it "validates the Run id and stores only the id for later tool calls" do
       sidecar = described_class.new(run_id: run.id)
-      expect(sidecar.instance_variable_get(:@run)).to eq(run)
+      expect(sidecar.instance_variable_get(:@run_id)).to eq(run.id)
+      expect(sidecar.instance_variable_get(:@run)).to be_nil
     end
 
     it "raises ActiveRecord::RecordNotFound for an unknown run_id" do

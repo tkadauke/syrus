@@ -43,11 +43,11 @@ particular, NEVER run any of these mid-run:
   - `git commit-tree` produced by yourself, then attached to HEAD
 
 If a tool gives you trouble (a Rails task fails because dev gems
-aren't installed, a linter blows up, etc.), surface that in your
-`submit_summary` instead of working around it via destructive git
-ops. Syrus would rather record "I couldn't do X because Y" and
-let the operator decide than have your branch silently land on an
-orphan and lose the work.
+aren't installed, a linter blows up, etc.), surface that in the
+run's requested reporting channel instead of working around it via
+destructive git ops. Syrus would rather record "I couldn't do X
+because Y" and let the operator decide than have your branch
+silently land on an orphan and lose the work.
 
 Sane git ops are fine — `git status`, `git log`, `git diff`,
 `git add`, `git commit`, `git restore`, `git stash` (if you pop

@@ -11,6 +11,26 @@ RSpec.describe SyrusMcp::SubmitSummaryTool do
   end
 
   describe "happy path" do
+    it "accepts a run_id-only sidecar context" do
+      described_class.call(
+        pr_title: "Add greet",
+        pr_body: "Adds it.",
+        summary: "Done.",
+        server_context: { run_id: run.id }
+      )
+
+      expect(run.reload.agent_pr_title).to eq("Add greet")
+    end
+
+    it "verifies the database connection before touching the Run" do
+      verified = false
+      allow(ActiveRecord::Base.connection).to receive(:verify!) { verified = true }
+
+      call(pr_title: "Add greet")
+
+      expect(verified).to be(true)
+    end
+
     it "persists all three fields on the Run" do
       call(pr_title: "Add greet", pr_body: "Adds it.", summary: "Done.")
       expect(run.reload).to have_attributes(
@@ -40,6 +60,16 @@ RSpec.describe SyrusMcp::SubmitSummaryTool do
       expect(response).to be_a(MCP::Tool::Response)
       expect(response).not_to be_error
       expect(response.content.first[:text]).to eq("Saved.")
+    end
+
+    it "returns a tool error instead of raising when the sidecar hits an unexpected exception" do
+      allow(SyrusMcp).to receive(:write_log).and_raise(ActiveRecord::ConnectionNotEstablished, "server closed")
+
+      response = nil
+      expect { response = call(pr_title: "Add greet") }.not_to raise_error
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("ActiveRecord::ConnectionNotEstablished")
     end
   end
 

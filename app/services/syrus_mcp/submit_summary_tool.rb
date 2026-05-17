@@ -40,7 +40,7 @@ module SyrusMcp
       MAX_TITLE_LENGTH = 120
 
       def call(pr_title:, pr_body:, summary:, server_context:)
-        run = server_context[:run].reload
+        run = SyrusMcp.run_from_context(server_context)
 
         title   = pr_title.to_s.strip
         body    = pr_body.to_s.strip
@@ -59,6 +59,9 @@ module SyrusMcp
         SyrusMcp.write_log(run, "[mcp] submit_summary received: #{title.inspect}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
+      rescue StandardError => e
+        Rails.logger.error("[SyrusMcp::SubmitSummaryTool] #{e.class}: #{e.message}")
+        MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
 
       private
