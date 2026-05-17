@@ -72,92 +72,15 @@
         <% end %>
       <% end %>
 
-      <div class="grid gap-4 xl:grid-cols-4 lg:grid-cols-2"
-           data-controller="epic-kanban">
-        <% Epic::STATES.each do |state| %>
-          <% lane_epics = @epic_lanes.fetch(state, []) %>
-          <section class="min-w-0 rounded-lg border border-gray-200 bg-gray-50"
-                   data-epic-kanban-target="lane"
-                   data-epic-state="<%= state %>"
-                   data-action="dragover->epic-kanban#dragOver drop->epic-kanban#drop">
-            <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2">
-              <h2 class="text-sm font-semibold text-gray-900"><%= epic_lane_title(state) %></h2>
-              <span class="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600"><%= lane_epics.size %></span>
-            </div>
-            <div class="space-y-3 p-3">
-              <% if state == "done" && !@show_done_epics %>
-                <div class="rounded-md border border-dashed border-gray-300 bg-white px-3 py-4 text-center text-sm text-gray-500">
-                  Done epics hidden.
-                </div>
-              <% elsif lane_epics.any? %>
-                <% lane_epics.each do |epic| %>
-                  <div class="rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm hover:border-blue-300 hover:shadow"
-                       draggable="<%= epic.ready? %>"
-                       data-action="dragstart->epic-kanban#dragStart"
-                       data-epic-id="<%= epic.id %>"
-                       data-epic-state="<%= epic.state %>"
-                       data-epic-state-url="<%= state_epic_path(epic) %>">
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <%= link_to epic_path(epic), class: "block font-medium text-gray-900 break-words hover:text-blue-700" do %>
-                          <span class="font-mono text-xs font-semibold text-gray-500"><%= epic.display_number %></span>
-                          <span class="text-gray-400">·</span>
-                          <span><%= epic.title %></span>
-                        <% end %>
-                      </div>
-                      <div class="flex shrink-0 items-start gap-1">
-                        <% if epic_blocked?(epic) %>
-                          <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-700"
-                                title="Blocked"
-                                aria-label="Blocked">
-                            <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                              <path d="M3 2.25A.75.75 0 0 1 3.75 1h7.5a.75.75 0 0 1 .53 1.28L9.56 4.5l2.22 2.22a.75.75 0 0 1-.53 1.28h-6.5v6.25a.75.75 0 0 1-1.5 0v-12Z" />
-                            </svg>
-                          </span>
-                        <% end %>
-                        <details class="relative">
-                          <summary class="flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                                   aria-label="Epic actions">
-                            &hellip;
-                          </summary>
-                          <div class="absolute right-0 z-10 mt-1 w-48 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
-                            <div class="mb-1 text-xs font-medium text-gray-500">Override state</div>
-                            <% (Epic::STATES - [ epic.state ]).each do |target_state| %>
-                              <%= button_to epic_lane_title(target_state),
-                                    state_epic_path(epic),
-                                    method: :patch,
-                                    params: { target_state: target_state, override: "1" },
-                                    class: "block w-full rounded px-2 py-1 text-left text-sm text-gray-700 hover:bg-gray-50" %>
-                            <% end %>
-                          </div>
-                        </details>
-                      </div>
-                    </div>
-                    <div class="mt-3 flex flex-wrap items-center gap-1.5">
-                      <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                        <%= epic_done_jobs_count(epic) %>/<%= epic_total_jobs_count(epic) %> done
-                      </span>
-                      <% epic_child_repositories(epic).each do |repository| %>
-                        <span class="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-700"><%= repository.slug %></span>
-                      <% end %>
-                      <span class="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
-                        <%= pluralize(epic_dependency_edge_count(epic), "dep") %>
-                      </span>
-                    </div>
-                    <div class="mt-2 text-xs text-gray-500">
-                      Updated <%= relative_timestamp(epic.updated_at) %>
-                    </div>
-                  </div>
-                <% end %>
-              <% else %>
-                <div class="rounded-md border border-dashed border-gray-300 bg-white px-3 py-4 text-center text-sm text-gray-500">
-                  No epics.
-                </div>
-              <% end %>
-            </div>
-          </section>
-        <% end %>
-      </div>
+      <%= render "shared/kanban_board",
+            subject: :epic,
+            records: @epic_records,
+            column_attribute: :state,
+            columns: Epic::STATES,
+            card_partial: "epics/card",
+            drag_enabled: true,
+            drop_endpoint: ->(epic) { state_epic_path(epic) },
+            empty_column_messages: ({ "done" => "Done epics hidden." } unless @show_done_epics) || {} %>
     </div>
   <% elsif @active_tab == "jobs" %>
     <details class="group rounded-lg border border-gray-200 bg-white lg:hidden">

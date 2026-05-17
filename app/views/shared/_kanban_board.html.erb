@@ -1,0 +1,32 @@
+<% grouped_records = records.is_a?(Hash) ? records.transform_keys(&:to_s) : records.group_by { |record| record.public_send(column_attribute).to_s } %>
+<% empty_column_messages ||= {} %>
+<% board_data = drag_enabled ? { controller: "kanban", kanban_subject_value: subject.to_s } : {} %>
+
+<div class="grid gap-4 xl:grid-cols-4 lg:grid-cols-2" <%= tag.attributes(data: board_data) %>>
+  <% columns.each do |column| %>
+    <% column_key = column.to_s %>
+    <% column_records = grouped_records.fetch(column_key, []) %>
+    <section class="min-w-0 rounded-lg border border-gray-200 bg-gray-50"
+             <% if drag_enabled %>
+               data-kanban-target="lane"
+               data-kanban-state="<%= column_key %>"
+               data-action="dragover->kanban#dragOver drop->kanban#drop"
+             <% end %>>
+      <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2">
+        <h2 class="text-sm font-semibold text-gray-900"><%= column_key.humanize.titleize %></h2>
+        <span class="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600"><%= column_records.size %></span>
+      </div>
+      <div class="space-y-3 p-3">
+        <% if column_records.any? %>
+          <% column_records.each do |record| %>
+            <%= render card_partial, record: record, subject: subject, drag_enabled: drag_enabled, drop_endpoint: local_assigns[:drop_endpoint] %>
+          <% end %>
+        <% else %>
+          <div class="rounded-md border border-dashed border-gray-300 bg-white px-3 py-4 text-center text-sm text-gray-500">
+            <%= empty_column_messages.fetch(column_key, "No #{subject.to_s.humanize.downcase.pluralize}.") %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+</div>

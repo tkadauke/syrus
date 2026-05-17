@@ -120,7 +120,7 @@ class HomeController < ApplicationController
     end
 
     epics = sort_epics_for_board(epics, @epic_filter_params["sort"])
-    @epic_lanes = Epic::STATES.index_with { |state| epics.select { |epic| epic.state == state } }
+    @epic_records = epics
   end
 
   def load_dashboard

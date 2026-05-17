@@ -2,15 +2,15 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
 
-const controllerPath = new URL("../../app/javascript/controllers/epic_kanban_controller.js", import.meta.url)
+const controllerPath = new URL("../../app/javascript/controllers/kanban_controller.js", import.meta.url)
 
 async function loadController() {
   const source = await readFile(controllerPath, "utf8")
   const testableSource = source
     .replace('import { Controller } from "@hotwired/stimulus"', "class Controller {}")
-    .replace("export default class extends Controller", "class EpicKanbanController extends Controller")
+    .replace("export default class extends Controller", "class KanbanController extends Controller")
 
-  return import(`data:text/javascript,${encodeURIComponent(`${testableSource}\nexport default EpicKanbanController`)}`)
+  return import(`data:text/javascript,${encodeURIComponent(`${testableSource}\nexport default KanbanController`)}`)
 }
 
 class DataTransfer {
@@ -33,7 +33,10 @@ function event({ cardState = "ready", laneState = "in_progress" } = {}) {
       dataset: {
         epicId: "123",
         epicState: cardState,
-        epicStateUrl: "/epics/123/state"
+        epicStateUrl: "/epics/123/state",
+        kanbanId: "123",
+        kanbanState: cardState,
+        kanbanStateUrl: "/epics/123/state"
       }
     },
     dataTransfer: new DataTransfer(),
@@ -51,6 +54,7 @@ function event({ cardState = "ready", laneState = "in_progress" } = {}) {
 test("dragStart only permits ready cards", async () => {
   const { default: Controller } = await loadController()
   const controller = new Controller()
+  controller.subjectValue = "epic"
   const ready = event({ cardState: "ready" })
 
   controller.dragStart(ready)
@@ -70,14 +74,15 @@ test("dragStart only permits ready cards", async () => {
 test("dragOver rejects every lane except ready to in_progress", async () => {
   const { default: Controller } = await loadController()
   const controller = new Controller()
+  controller.subjectValue = "epic"
   const drag = event({ cardState: "ready" })
   controller.dragStart(drag)
 
-  const allowed = { currentTarget: { dataset: { epicState: "in_progress" } }, dataTransfer: drag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
+  const allowed = { currentTarget: { dataset: { kanbanState: "in_progress" } }, dataTransfer: drag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
   controller.dragOver(allowed)
   assert.equal(allowed.defaultPrevented, true)
 
-  const rejected = { currentTarget: { dataset: { epicState: "done" } }, dataTransfer: drag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
+  const rejected = { currentTarget: { dataset: { kanbanState: "done" } }, dataTransfer: drag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
   controller.dragOver(rejected)
   assert.equal(rejected.defaultPrevented, false)
 })
@@ -85,6 +90,7 @@ test("dragOver rejects every lane except ready to in_progress", async () => {
 test("drop patches the Epic state endpoint for an allowed move", async () => {
   const { default: Controller } = await loadController()
   const controller = new Controller()
+  controller.subjectValue = "epic"
   const drag = event({ cardState: "ready" })
   controller.dragStart(drag)
 
@@ -104,7 +110,7 @@ test("drop patches the Epic state endpoint for an allowed move", async () => {
     return { ok: true }
   }
 
-  const drop = { currentTarget: { dataset: { epicState: "in_progress" } }, dataTransfer: drag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
+  const drop = { currentTarget: { dataset: { kanbanState: "in_progress" } }, dataTransfer: drag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
   await controller.drop(drop)
 
   assert.equal(drop.defaultPrevented, true)

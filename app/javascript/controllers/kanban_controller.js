@@ -2,21 +2,22 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static targets = ["lane"]
+  static values = { subject: String }
 
   dragStart(event) {
     const card = event.currentTarget
-    const state = card.dataset.epicState
+    const state = card.dataset.kanbanState
 
-    if (state !== "ready") {
+    if (!this.allowsDrag(state)) {
       event.preventDefault()
       return
     }
 
     event.dataTransfer.effectAllowed = "move"
     event.dataTransfer.setData("text/plain", JSON.stringify({
-      id: card.dataset.epicId,
+      id: card.dataset.kanbanId,
       state,
-      url: card.dataset.epicStateUrl
+      url: card.dataset.kanbanStateUrl
     }))
   }
 
@@ -53,7 +54,13 @@ export default class extends Controller {
     const payload = this.dragPayload(event)
     const lane = event.currentTarget
 
-    return payload?.state === "ready" && lane.dataset.epicState === "in_progress"
+    return this.subjectValue === "epic" &&
+      payload?.state === "ready" &&
+      lane.dataset.kanbanState === "in_progress"
+  }
+
+  allowsDrag(state) {
+    return this.subjectValue === "epic" && state === "ready"
   }
 
   dragPayload(event) {

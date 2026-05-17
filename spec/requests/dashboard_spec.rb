@@ -86,6 +86,7 @@ RSpec.describe "Dashboard", type: :request do
 
       expect(response).to have_http_status(:ok)
       document = Nokogiri::HTML(response.body)
+      expect(document.at_css("[data-controller='kanban'][data-kanban-subject-value='epic']")).to be_present
       lane_titles = document.css("section h2").map { |heading| heading.text.strip }
       expect(lane_titles).to eq([ "Backlog", "Ready", "In Progress", "Done" ])
 
@@ -93,6 +94,7 @@ RSpec.describe "Dashboard", type: :request do
       expect(kanban_card.text).to include("EPIC-#{epic.number}", "Launch board", "1/2 done", "acme/widgets", "1 dep")
       expect(kanban_card.at_css("[aria-label='Blocked']")).to be_present
       expect(kanban_card["draggable"]).to eq("true")
+      expect(kanban_card["data-kanban-state-url"]).to eq(state_epic_path(epic))
       expect(kanban_card["data-epic-state-url"]).to eq(state_epic_path(epic))
       expect(response.body).to include("Override state")
       expect(response.body).to include("Done epics hidden")
