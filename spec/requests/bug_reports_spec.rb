@@ -26,6 +26,7 @@ RSpec.describe "Bug reports", type: :request do
       expect(response.body).to include('data-bug-context="Home#jobs"')
       expect(response.body).to include("Report a bug")
       expect(response.body).to include("bug_reports")
+      expect(response.body).to include('class="fixed inset-0 m-auto max-h-[calc(100vh-2rem)]')
     end
 
     it "does not render the bug-report control on auth pages" do
