@@ -46,7 +46,7 @@ RSpec.describe AgentProviders::Claude do
       saved.each { |k, v| ENV[k] = v }
     end
 
-    it "invokes AgentInvocation with Claude-specific MCP config" do
+    it "invokes ClaudeInvocation with Claude-specific MCP config" do
       received = nil
       mcp_config = nil
       RunJob.agent_runner = ->(**kwargs) {

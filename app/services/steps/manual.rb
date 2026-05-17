@@ -6,7 +6,7 @@ module Steps
   #
   # Resume:  identical pattern, with parent_session_id set on the
   #          Run (carried over from the dead Run that's being
-  #          resumed) so AgentInvocation passes `--resume` and
+  #          resumed) so ClaudeInvocation passes `--resume` and
   #          claude continues the prior conversation.
   #
   # Either way: the agent runs against the workspace, makes

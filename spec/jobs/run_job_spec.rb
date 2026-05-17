@@ -310,7 +310,7 @@ RSpec.describe RunJob do
   # ----- Resume Workflow -----------------------------------------
 
   describe "Resume workflow (continuation via --resume)" do
-    it "creates a manual-step Run carrying parent_session_id so AgentInvocation passes --resume" do
+    it "creates a manual-step Run carrying parent_session_id so ClaudeInvocation passes --resume" do
       wf = Workflows::Resume.instantiate(job: job)
       StepDispatcher.start_workflow(wf, parent_session_id: "S-prior")
 

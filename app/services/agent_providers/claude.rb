@@ -77,7 +77,7 @@ module AgentProviders
     end
 
     def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:)
-      AgentInvocation.new(
+      ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
         oauth_token: job.user.claude_oauth_token,

@@ -17,7 +17,7 @@ module Steps
   class Prepare < Base
     PER_COMMAND_TIMEOUT = 10.minutes.to_i
 
-    # Mirror of AgentInvocation::AGENT_ENV_FORWARD. Prep commands
+    # Mirror of AgentInvocation::ENV_FORWARD. Prep commands
     # run with EXACTLY this env (unsetenv_others: true) so the
     # worker pod's BUNDLE_PATH=/usr/local/bundle, BUNDLE_DEPLOYMENT=1,
     # BUNDLE_WITHOUT="development:test", RAILS_ENV=production, etc.

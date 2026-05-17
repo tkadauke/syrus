@@ -3,9 +3,6 @@ require "json"
 
 class CodexInvocation
   DEFAULT_TIMEOUT_SECONDS = AgentInvocation::DEFAULT_TIMEOUT_SECONDS
-  CODEX_ENV_FORWARD = %w[
-    HOME USER LOGNAME PATH TERM LANG LC_ALL LC_CTYPE TZ HOSTNAME TMPDIR SHELL
-  ].freeze
 
   def initialize(workspace_path, prompt:, api_key: nil,
                  log_sink: ->(*, **) { },
@@ -115,7 +112,7 @@ class CodexInvocation
 
   def codex_env(api_key:, codex_home:)
     ProcessRunner.forwarded_env(
-      CODEX_ENV_FORWARD,
+      AgentInvocation::ENV_FORWARD,
       extra: {
         "CODEX_HOME" => codex_home,
         "CODEX_API_KEY" => api_key.presence

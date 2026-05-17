@@ -34,7 +34,7 @@ class ChatTurnJob < ApplicationJob
     parent_session_id = @chat.claude_session&.session_id
 
     result = with_chat_mcp_config do |mcp_config|
-      AgentInvocation.new(
+      ClaudeInvocation.new(
         workspace_path,
         prompt: prompt_for(parent_session_id),
         oauth_token: @chat.user.claude_oauth_token,

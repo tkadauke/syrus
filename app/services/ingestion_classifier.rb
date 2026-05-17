@@ -239,7 +239,7 @@ class IngestionClassifier
       Dir.mktmpdir("syrus-ingestion-classifier") do |workspace_path|
         case @provider
         when "claude"
-          AgentInvocation.new(
+          ClaudeInvocation.new(
             workspace_path,
             prompt: prompt,
             oauth_token: @user.claude_oauth_token,
