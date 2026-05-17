@@ -7,7 +7,7 @@ class BugReportsController < ApplicationController
   def create
     repository = Current.user.repositories.active.find_by(owner: TARGET_OWNER, name: TARGET_NAME)
     unless repository
-      redirect_back fallback_location: root_path, alert: "Bug report repository #{TARGET_OWNER}/#{TARGET_NAME} is not configured."
+      report_failure("Bug report repository #{TARGET_OWNER}/#{TARGET_NAME} is not configured.")
       return
     end
 
@@ -17,7 +17,7 @@ class BugReportsController < ApplicationController
     screenshot = params[:screenshot]
 
     if screenshot.present? && screenshot.content_type != "image/png"
-      redirect_back fallback_location: root_path, alert: "Screenshot must be a PNG."
+      report_failure("Screenshot must be a PNG.")
       return
     end
 
@@ -38,12 +38,22 @@ class BugReportsController < ApplicationController
       attach_screenshot!(job, screenshot) if screenshot.present?
     end
 
-    redirect_to job_path(job), notice: "Bug report queued."
+    respond_to do |format|
+      format.html { redirect_back fallback_location: root_path, notice: "Bug report queued." }
+      format.json { render json: { message: "Bug report queued.", job_id: job.id }, status: :created }
+    end
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: root_path, alert: e.record.errors.full_messages.to_sentence
+    report_failure(e.record.errors.full_messages.to_sentence)
   end
 
   private
+
+  def report_failure(message)
+    respond_to do |format|
+      format.html { redirect_back fallback_location: root_path, alert: message }
+      format.json { render json: { error: message }, status: :unprocessable_entity }
+    end
+  end
 
   def attach_screenshot!(job, upload)
     body = upload.read

@@ -49,7 +49,7 @@ RSpec.describe "Bug reports", type: :request do
           title: "Home#index bug",
           description: "The dashboard fell over.",
           screenshot: upload_png
-        }
+        }, headers: { "ACCEPT" => "application/json" }
       }.to change(Job, :count).by(1)
        .and change(Document, :count).by(1)
        .and change(Workflow, :count).by(1)
@@ -57,7 +57,8 @@ RSpec.describe "Bug reports", type: :request do
       expect(Run.count).to eq(0)
 
       job = Job.last
-      expect(response).to redirect_to(job_path(job))
+      expect(response).to have_http_status(:created)
+      expect(JSON.parse(response.body)).to include("message" => "Bug report queued.", "job_id" => job.id)
       expect(job).to have_attributes(
         user: user,
         repository: repository,
@@ -84,13 +85,14 @@ RSpec.describe "Bug reports", type: :request do
         post bug_reports_path, params: {
           title: "Home#index bug",
           description: "The dashboard fell over."
-        }
+        }, headers: { "ACCEPT" => "application/json" }
       }.to change(Job, :count).by(1)
        .and change(Document, :count).by(0)
        .and change(Workflow, :count).by(1)
 
       job = Job.last
-      expect(response).to redirect_to(job_path(job))
+      expect(response).to have_http_status(:created)
+      expect(JSON.parse(response.body)).to include("message" => "Bug report queued.", "job_id" => job.id)
       expect(job).to have_attributes(
         user: user,
         repository: repository,
@@ -100,6 +102,19 @@ RSpec.describe "Bug reports", type: :request do
         issue_body: "Home#index bug\n\nThe dashboard fell over."
       )
       expect(job.job_attachments).to be_empty
+    end
+
+    it "keeps the HTML fallback on the originating page instead of the new job" do
+      Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+      origin = dashboard_jobs_url
+
+      post bug_reports_path, params: {
+        title: "Home#index bug",
+        description: "The dashboard fell over."
+      }, headers: { "HTTP_REFERER" => origin }
+
+      expect(response).to redirect_to(origin)
+      expect(response).not_to redirect_to(job_path(Job.last))
     end
 
     it "requires the hardcoded repository to be configured for the user" do

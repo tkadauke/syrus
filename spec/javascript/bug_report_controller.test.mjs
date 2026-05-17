@@ -23,10 +23,17 @@ class FakeDataTransfer {
   }
 }
 
+class FakeFormData {
+  constructor(form) {
+    this.form = form
+  }
+}
+
 function buildController(Controller, { capture = { name: "bug-report-viewport.png" }, existingFiles = [], noneChecked = false } = {}) {
   let closed = false
   const controller = new Controller()
   controller.captures = { viewport: capture }
+  controller.formTarget = { action: "/bug_reports", method: "post" }
   controller.dialogTarget = {
     close() {
       closed = true
@@ -46,53 +53,89 @@ function buildController(Controller, { capture = { name: "bug-report-viewport.pn
 }
 
 globalThis.DataTransfer = FakeDataTransfer
-globalThis.window = { alert() {} }
+globalThis.FormData = FakeFormData
 
-test("closes the dialog after a valid bug report submit starts", async () => {
+function resetBrowserStubs() {
+  globalThis.window = { alert() {} }
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === "meta[name='csrf-token']") return { content: "csrf-token" }
+      if (selector === "main") return { prepend() {} }
+      return null
+    },
+    getElementById() {
+      return null
+    },
+    createElement() {
+      return { dataset: {} }
+    }
+  }
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ message: "Bug report queued." })
+  })
+}
+
+test("submits a valid bug report without navigating away", async () => {
+  resetBrowserStubs()
   const { default: Controller } = await loadController()
   const { controller, wasClosed } = buildController(Controller)
   let prevented = false
+  let request = null
+  globalThis.fetch = async (url, options) => {
+    request = { url, options }
+    return {
+      ok: true,
+      json: async () => ({ message: "Bug report queued." })
+    }
+  }
 
-  controller.submit({
+  await controller.submit({
     preventDefault() {
       prevented = true
     }
   })
 
-  assert.equal(prevented, false)
+  assert.equal(prevented, true)
   assert.equal(wasClosed(), true)
   assert.equal(controller.screenshotInputTarget.files.length, 1)
+  assert.equal(request.url, "/bug_reports")
+  assert.equal(request.options.method, "POST")
+  assert.equal(request.options.headers.Accept, "application/json")
+  assert.equal(request.options.headers["X-CSRF-Token"], "csrf-token")
 })
 
 test("clears the screenshot and closes when no screenshot is selected", async () => {
+  resetBrowserStubs()
   const { default: Controller } = await loadController()
   const { controller, wasClosed } = buildController(Controller, { noneChecked: true })
   let prevented = false
 
-  controller.submit({
+  await controller.submit({
     preventDefault() {
       prevented = true
     }
   })
 
-  assert.equal(prevented, false)
+  assert.equal(prevented, true)
   assert.equal(wasClosed(), true)
   assert.equal(controller.screenshotInputTarget.value, "")
 })
 
 test("allows submit when no screenshot is explicitly selected", async () => {
+  resetBrowserStubs()
   const { default: Controller } = await loadController()
   const { controller, wasClosed } = buildController(Controller, { capture: null })
   controller.noneRadioTarget.checked = true
   let prevented = false
 
-  controller.submit({
+  await controller.submit({
     preventDefault() {
       prevented = true
     }
   })
 
-  assert.equal(prevented, false)
+  assert.equal(prevented, true)
   assert.equal(wasClosed(), true)
   assert.equal(controller.screenshotInputTarget.value, "")
 })

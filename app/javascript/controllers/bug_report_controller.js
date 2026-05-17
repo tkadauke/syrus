@@ -47,14 +47,36 @@ export default class extends Controller {
     this.syncSelectedScreenshot()
   }
 
-  submit(event) {
+  async submit(event) {
+    event.preventDefault()
+
     if (!this.syncSelectedScreenshot()) {
-      event.preventDefault()
       window.alert("Choose a screenshot before submitting.")
       return
     }
 
-    this.close()
+    try {
+      const response = await fetch(this.formTarget.action, {
+        method: this.formTarget.method.toUpperCase(),
+        body: new FormData(this.formTarget),
+        headers: {
+          "Accept": "application/json",
+          "X-CSRF-Token": this.csrfToken()
+        },
+        credentials: "same-origin"
+      })
+      const payload = await response.json()
+
+      if (response.ok) {
+        this.close()
+        this.showFlash(payload.message || "Bug report queued.", "notice")
+      } else {
+        window.alert(payload.error || "Bug report could not be queued.")
+      }
+    } catch (error) {
+      window.alert("Bug report could not be queued.")
+      console.error(error)
+    }
   }
 
   captureViewport() {
@@ -125,5 +147,25 @@ export default class extends Controller {
     this.buttonTarget.disabled = busy
     this.buttonTarget.classList.toggle("opacity-60", busy)
     this.buttonTarget.classList.toggle("cursor-wait", busy)
+  }
+
+  csrfToken() {
+    return document.querySelector("meta[name='csrf-token']")?.content || ""
+  }
+
+  showFlash(message, kind) {
+    const id = kind === "alert" ? "alert" : "notice"
+    const existing = document.getElementById(id)
+    const flash = existing || document.createElement("p")
+    flash.id = id
+    flash.dataset.controller = "flash"
+    flash.className = kind === "alert"
+      ? "py-2 px-3 bg-red-50 mb-5 text-red-500 font-medium rounded-lg inline-block"
+      : "py-2 px-3 bg-green-50 mb-5 text-green-500 font-medium rounded-lg inline-block"
+    flash.textContent = message
+
+    if (!existing) {
+      document.querySelector("main")?.prepend(flash)
+    }
   }
 }
