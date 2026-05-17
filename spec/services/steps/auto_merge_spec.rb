@@ -20,6 +20,9 @@ RSpec.describe Steps::AutoMerge do
   end
 
   before do
+    job.mark_implemented! if job.may_mark_implemented?
+    job.save!
+
     workflow.start!
     workflow.save!
     step.start!
@@ -34,7 +37,14 @@ RSpec.describe Steps::AutoMerge do
     allow(client).to receive(:pr_commits).and_return([])
   end
 
+  def octokit_error(error_class, status:, message:)
+    error_class.new(status: status, body: { message: message })
+  end
+
   it "re-verifies gates, merges via GitHub, comments, and closes the Job" do
+    job.approve!(via: "github_review")
+    job.start_landing!
+    job.save!
     allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
     allow(client).to receive(:add_issue_comment)
 
@@ -67,7 +77,7 @@ RSpec.describe Steps::AutoMerge do
     expect(client).not_to have_received(:merge_pull_request)
     expect(workflow.reload.artifact("pending_auto_merge")).to eq("waiting_for_parent")
     expect(run.reload).to be_cancelled
-    expect(run.job_logs.pluck(:chunk)).to include(include("waiting for parent #6 to merge"))
+    expect(run.job_logs.find { |log| log.chunk.include?("waiting for parent #6 to merge") }.kind).to eq("system")
   end
 
   {
@@ -106,5 +116,49 @@ RSpec.describe Steps::AutoMerge do
       expect(step.reload).to be_running
       expect(workflow.reload).to be_running
     end
+  end
+
+  [
+    [ Octokit::MethodNotAllowed, 405, "Base branch was modified. Review and try the merge." ],
+    [ Octokit::Conflict, 409, "Pull request head is changing." ],
+    [ Octokit::ServiceUnavailable, 503, "GitHub is temporarily unavailable." ],
+    [ Octokit::InternalServerError, 500, "GitHub had an internal error." ]
+  ].each do |error_class, status, message|
+    it "defers cleanly when merge_pull_request raises #{error_class}" do
+      job.approve!(via: "github_review")
+      job.start_landing!
+      job.save!
+      allow(client).to receive(:merge_pull_request)
+        .and_raise(octokit_error(error_class, status: status, message: message))
+
+      expect {
+        described_class.new(run).call
+      }.not_to change { job.reload.failure_count }
+      expect(workflow.reload.failure_count).to eq(0)
+      expect(job.reload).to be_implemented
+      expect(run.reload).to be_cancelled
+      expect(step.reload).to be_cancelled
+      expect(workflow.reload).to be_cancelled
+
+      log = run.job_logs.find { |entry| entry.chunk.include?("auto_merge: deferred") }
+      expect(log.kind).to eq("system")
+      expect(log.chunk).to include("auto_merge: deferred")
+      expect(log.chunk).to include(message)
+    end
+  end
+
+  it "raises StepFailed for persistent Octokit merge errors" do
+    job.approve!(via: "github_review")
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:merge_pull_request)
+      .and_raise(octokit_error(Octokit::Forbidden, status: 403, message: "Branch protection blocked the merge."))
+
+    expect {
+      described_class.new(run).call
+    }.to raise_error(Steps::Base::StepFailed, /GitHub merge failed/)
+
+    expect(run.reload).to be_running
+    expect(workflow.reload).to be_running
   end
 end

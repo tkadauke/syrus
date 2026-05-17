@@ -21,6 +21,7 @@ RSpec.describe PollMergeStateJob do
 
   before do
     job.mark_implemented! if job.may_mark_implemented?
+    job.save!
     job.workflows.update_all(state: "succeeded")
     allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr)
     allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
@@ -34,6 +35,17 @@ RSpec.describe PollMergeStateJob do
     }.to change { job.reload.state }.to("approved")
 
     expect(job.approved_at).to be_present
+  end
+
+  it "re-approves after a cancelled transient auto-merge attempt" do
+    cancelled = Workflows::AutoMerge.instantiate(job: job)
+    cancelled.cancel!
+    cancelled.save!
+    job.update!(state: "implemented", approved_at: nil)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to change { job.reload.state }.from("implemented").to("approved")
   end
 
   it "queues a clean child instead of merging it before its parent" do

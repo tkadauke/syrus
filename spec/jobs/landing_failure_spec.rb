@@ -26,7 +26,7 @@ RSpec.describe "landing failure handling" do
   end
 
   it "returns a failed landing Job to implemented with a reason" do
-    job.approve!
+    job.approve!(via: "github_review")
     job.start_landing!
     job.save!
     workflow = Workflows::AutoMerge.instantiate(job: job)

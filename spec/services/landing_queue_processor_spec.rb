@@ -13,7 +13,7 @@ RSpec.describe LandingQueueProcessor do
       parent_job: parent_job,
       state: "open"
     ).tap do |job|
-      job.approve!
+      job.approve!(via: "github_review")
       job.update!(approved_at: approved_at)
     end
   end

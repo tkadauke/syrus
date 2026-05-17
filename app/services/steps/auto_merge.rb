@@ -1,5 +1,12 @@
 module Steps
   class AutoMerge < Base
+    TRANSIENT_MERGE_ERRORS = [
+      Octokit::MethodNotAllowed,
+      Octokit::Conflict,
+      Octokit::ServiceUnavailable,
+      Octokit::InternalServerError
+    ].freeze
+
     def call
       client = GithubClient.for(repository: repository, user: job.user)
 
@@ -27,12 +34,9 @@ module Steps
 
       raise StepFailed, "auto_merge: #{gate.reason}" unless gate.merge_ready?
 
-      merge = client.merge_pull_request(
-        repository.slug,
-        job.pr_number,
-        commit_title: "Merge #{repository.slug}##{job.pr_number} via Syrus",
-        merge_method: "rebase"
-      )
+      merge = merge_pull_request(client)
+      return unless merge
+
       raise StepFailed, "auto_merge: GitHub did not report the PR as merged" unless merge.respond_to?(:merged) ? merge.merged : merge[:merged]
 
       comment = "Merged automatically by Syrus after approval and green checks. Job ##{job.id}: #{job_url}"
@@ -42,6 +46,27 @@ module Steps
     end
 
     private
+
+    def merge_pull_request(client)
+      client.merge_pull_request(
+        repository.slug,
+        job.pr_number,
+        commit_title: "Merge #{repository.slug}##{job.pr_number} via Syrus",
+        merge_method: "rebase"
+      )
+    rescue *TRANSIENT_MERGE_ERRORS => e
+      log("auto_merge: deferred - #{transient_error_message(e)}", kind: "system")
+      job.defer_landing! if job.may_defer_landing?
+      job.save! if job.changed?
+      cancel_workflow!
+      nil
+    rescue Octokit::Error => e
+      raise StepFailed, "auto_merge: GitHub merge failed: #{e.message}"
+    end
+
+    def transient_error_message(error)
+      error.message.to_s[0, 121]
+    end
 
     def waiting_for_parent_merge?
       parent = job.parent_job

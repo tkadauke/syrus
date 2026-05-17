@@ -190,6 +190,12 @@ class Job < ApplicationRecord
       }
     end
 
+    event :defer_landing do
+      transitions from: :landing, to: :implemented, after: -> {
+        self.approved_at = nil
+      }
+    end
+
     # Undoes a close. Clears closure_reason + finished_at so the thread
     # looks alive again. Doesn't un-cancel any cancelled Runs (those
     # invocations really did stop) — the user follows up with
