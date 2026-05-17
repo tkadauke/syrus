@@ -26,7 +26,7 @@ RSpec.describe Filters::Subject do
     it "resolves chips through the subject chip map" do
       subject = Filters.subject_for(:job)
 
-      expect(subject.find_chip("state")).to eq(Filters::Chips::State)
+      expect(subject.find_chip("state")).to eq(Filters::Chips::Jobs::State)
     end
 
     it "raises UnknownFilterField for fields outside the subject chip map" do
