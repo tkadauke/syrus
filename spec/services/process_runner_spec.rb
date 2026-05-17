@@ -1,4 +1,5 @@
 require "rails_helper"
+require "rbconfig"
 require "tmpdir"
 
 RSpec.describe ProcessRunner do
@@ -10,7 +11,7 @@ RSpec.describe ProcessRunner do
   end
 
   it "returns a successful result for exit 0" do
-    result = run_command("ruby", "-e", "exit 0")
+    result = run_command(ruby, "-e", "exit 0")
 
     expect(result).to be_success
     expect(result.exit_status).to eq(0)
@@ -18,7 +19,7 @@ RSpec.describe ProcessRunner do
   end
 
   it "returns a failed result for nonzero exit" do
-    result = run_command("ruby", "-e", "exit 7")
+    result = run_command(ruby, "-e", "exit 7")
 
     expect(result).not_to be_success
     expect(result.exit_status).to eq(7)
@@ -30,7 +31,7 @@ RSpec.describe ProcessRunner do
 
     result = described_class.new(
       env: {},
-      command: [ "ruby", "-e", "puts 'one'; print 'two'" ],
+      command: [ ruby, "-e", "puts 'one'; print 'two'" ],
       chdir: @dir,
       timeout: 5,
       on_output_line: ->(line) { lines << line },
@@ -46,7 +47,7 @@ RSpec.describe ProcessRunner do
   it "times out and terminates the process group" do
     result = described_class.new(
       env: {},
-      command: [ "ruby", "-e", "sleep 10" ],
+      command: [ ruby, "-e", "sleep 10" ],
       chdir: @dir,
       timeout: 0.05,
       kill_grace_seconds: 0
@@ -63,7 +64,7 @@ RSpec.describe ProcessRunner do
 
     result = described_class.new(
       env: {},
-      command: [ "ruby", "-e", "STDOUT.sync = true; puts 'ready'; sleep 10" ],
+      command: [ ruby, "-e", "STDOUT.sync = true; puts 'ready'; sleep 10" ],
       chdir: @dir,
       timeout: 5,
       kill_grace_seconds: 0,
@@ -87,7 +88,7 @@ RSpec.describe ProcessRunner do
 
     described_class.new(
       env: { "VISIBLE" => "yes", "PATH" => ENV.fetch("PATH") },
-      command: [ "ruby", "-e", "puts ENV.fetch('VISIBLE'); puts ENV.key?('SHOULD_NOT_LEAK')" ],
+      command: [ ruby, "-e", "puts ENV.fetch('VISIBLE'); puts ENV.key?('SHOULD_NOT_LEAK')" ],
       chdir: @dir,
       timeout: 5,
       on_output_chunk: ->(chunk) { chunks << chunk }
@@ -111,5 +112,9 @@ RSpec.describe ProcessRunner do
 
   def run_command(*command)
     described_class.new(env: {}, command: command, chdir: @dir, timeout: 5).run
+  end
+
+  def ruby
+    RbConfig.ruby
   end
 end
