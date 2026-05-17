@@ -97,6 +97,21 @@ RSpec.describe User do
     end
   end
 
+  describe "#dashboard_preferences" do
+    it "returns dashboard defaults when the column is nil" do
+      user = User.create!(attrs)
+
+      expect(user.dashboard_preferences).to eq("last_subject" => "epic", "last_view" => "list")
+    end
+
+    it "normalizes assigned preference keys and values" do
+      user = User.create!(attrs)
+      user.dashboard_preferences = { last_subject: :jobs, last_view: :kanban }
+
+      expect(user.dashboard_preferences).to eq("last_subject" => "job", "last_view" => "kanban")
+    end
+  end
+
   describe "#configured_agent_providers" do
     it "includes Claude when a Claude token is set" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-test"))

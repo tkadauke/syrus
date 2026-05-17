@@ -14,22 +14,25 @@ RSpec.describe "Dashboard", type: :request do
   context "signed in" do
     before { sign_in_as(user) }
 
-    it "redirects the Chats default to the most recently active chat" do
-      older_repo = Factories.repository(user: user, owner: "acme", name: "older")
-      newer_repo = Factories.repository(user: user, owner: "acme", name: "newer")
-      ChatSession.create!(repository: older_repo, user: user, last_message_at: 2.hours.ago)
-      newer_chat = ChatSession.create!(repository: newer_repo, user: user, last_message_at: 1.hour.ago)
-      ChatSession.create!(repository: newer_repo, user: user, created_at: Time.current)
-
+    it "redirects first-time root visits to the default Dashboard preference" do
       get root_path
 
-      expect(response).to redirect_to(chat_path(newer_chat))
+      expect(response).to redirect_to(dashboard_epics_path(view: "list"))
     end
 
-    it "redirects the Chats default to a fresh top-level chat when no chats exist" do
+    it "redirects root visits without params to the stored Dashboard preference" do
+      user.update!(dashboard_preferences: { last_subject: "job", last_view: "list" })
+
       get root_path
 
-      expect(response).to redirect_to(new_chat_path)
+      expect(response).to redirect_to(dashboard_jobs_path(view: "list"))
+    end
+
+    it "persists explicit Dashboard preference params before redirecting" do
+      get root_path, params: { subject: "epic", view: "kanban" }
+
+      expect(response).to redirect_to(dashboard_epics_path(view: "kanban"))
+      expect(user.reload.dashboard_preferences).to eq("last_subject" => "epic", "last_view" => "kanban")
     end
 
     it "renders top-level navigation and points Dashboard at the default Epics subtab" do
@@ -55,11 +58,20 @@ RSpec.describe "Dashboard", type: :request do
       expect(document.at_css("a[href='#{dashboard_workflows_path}']").text).to include("Workflows")
     end
 
-    it "uses Epics as the default Dashboard subtab" do
+    it "uses the default Dashboard preference on /dashboard" do
       get "/dashboard"
 
       expect(response).to have_http_status(:found)
-      expect(response).to redirect_to(dashboard_epics_path)
+      expect(response).to redirect_to(dashboard_epics_path(view: "list"))
+    end
+
+    it "updates only the explicit Dashboard preference field" do
+      user.update!(dashboard_preferences: { last_subject: "epic", last_view: "kanban" })
+
+      get "/dashboard", params: { subject: "jobs" }
+
+      expect(response).to redirect_to(dashboard_jobs_path(view: "kanban"))
+      expect(user.reload.dashboard_preferences).to eq("last_subject" => "job", "last_view" => "kanban")
     end
 
     it "renders the Epics Kanban board with real cards" do

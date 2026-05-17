@@ -19,6 +19,10 @@ class User < ApplicationRecord
 
   AGENT_PROVIDERS = %w[ claude codex ].freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
+  DASHBOARD_PREFERENCES_DEFAULTS = {
+    "last_subject" => "epic",
+    "last_view" => "list"
+  }.freeze
 
   encrypts :claude_oauth_token
   encrypts :codex_api_key
@@ -65,6 +69,22 @@ class User < ApplicationRecord
 
   def display_name
     name.presence || email_address
+  end
+
+  def dashboard_preferences
+    DASHBOARD_PREFERENCES_DEFAULTS.merge(normalized_dashboard_preferences(read_attribute(:dashboard_preferences)))
+  end
+
+  def dashboard_preferences=(value)
+    write_attribute(:dashboard_preferences, normalized_dashboard_preferences(value).presence)
+  end
+
+  def update_dashboard_preferences!(subject: nil, view: nil)
+    updated = dashboard_preferences
+    updated["last_subject"] = normalize_dashboard_preference_subject(subject) if subject.present?
+    updated["last_view"] = view.to_s if view.present?
+
+    update!(dashboard_preferences: updated) if updated != dashboard_preferences
   end
 
   def configured_agent_providers
@@ -139,6 +159,24 @@ class User < ApplicationRecord
     else
       false
     end
+  end
+
+  def normalized_dashboard_preferences(value)
+    case value
+    when Hash
+      value.each_with_object({}) do |(key, preference), hash|
+        next if preference.blank?
+
+        normalized_key = key.to_s
+        hash[normalized_key] = normalized_key == "last_subject" ? normalize_dashboard_preference_subject(preference) : preference.to_s
+      end
+    else
+      {}
+    end
+  end
+
+  def normalize_dashboard_preference_subject(subject)
+    subject.to_s.delete_suffix("s")
   end
 
   def promote_first_user_to_admin

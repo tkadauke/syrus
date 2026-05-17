@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_17_005947) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_17_040949) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -662,6 +662,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_005947) do
     t.text "codex_auth_json"
     t.string "codex_auth_mode", default: "api_key", null: false
     t.datetime "created_at", null: false
+    t.json "dashboard_preferences"
     t.string "email_address", null: false
     t.integer "epic_reopen_window", default: 30, null: false
     t.datetime "gh_api_blocked_at"

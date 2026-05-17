@@ -133,7 +133,7 @@ Rails.application.routes.draw do
       post :fire_now    # manually fire an active task without waiting for cron
     end
   end
-  get "dashboard", to: redirect("/dashboard/epics", status: 302)
+  get "dashboard", to: "home#index"
   get "dashboard/epics", to: "home#epics", as: :dashboard_epics
   patch "dashboard/epics/:id/auto_approval", to: "home#update_epic_auto_approval", as: :dashboard_epic_auto_approval
   get "dashboard/jobs", to: "home#jobs", as: :dashboard_jobs

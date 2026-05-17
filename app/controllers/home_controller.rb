@@ -1,8 +1,15 @@
 class HomeController < ApplicationController
   PER_PAGE = 25
+  DASHBOARD_SUBJECT_PATHS = {
+    "epic" => :dashboard_epics_path,
+    "job" => :dashboard_jobs_path,
+    "workflow" => :dashboard_workflows_path
+  }.freeze
+
+  before_action :persist_dashboard_preferences_from_params, only: %i[index epics jobs workflows]
 
   def index
-    redirect_to default_chat_path
+    redirect_to dashboard_preference_path
   end
 
   def epics
@@ -68,6 +75,28 @@ class HomeController < ApplicationController
   end
 
   private
+
+  def persist_dashboard_preferences_from_params
+    return unless Current.user
+    return unless params.key?(:subject) || params.key?(:view)
+
+    Current.user.update_dashboard_preferences!(
+      subject: params[:subject].presence,
+      view: params[:view].presence
+    )
+  end
+
+  def dashboard_preference_path
+    preferences = Current.user.dashboard_preferences
+    subject = normalize_dashboard_subject(preferences["last_subject"])
+    path_helper = DASHBOARD_SUBJECT_PATHS.fetch(subject, :dashboard_epics_path)
+
+    public_send(path_helper, view: preferences["last_view"])
+  end
+
+  def normalize_dashboard_subject(subject)
+    subject.to_s.presence&.delete_suffix("s") || User::DASHBOARD_PREFERENCES_DEFAULTS.fetch("last_subject")
+  end
 
   def load_epics_dashboard
     active_repositories = Current.user.repositories.active.order(:owner, :name)

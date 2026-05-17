@@ -33,6 +33,7 @@ function buildController(Controller, { capture = { name: "bug-report-viewport.pn
     }
   }
   controller.fullPageRadioTarget = { checked: false }
+  controller.noneRadioTarget = { checked: false }
   controller.screenshotInputTarget = { files: existingFiles }
 
   return { controller, wasClosed: () => closed }

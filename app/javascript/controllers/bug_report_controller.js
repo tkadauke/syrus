@@ -47,8 +47,14 @@ export default class extends Controller {
     this.syncSelectedScreenshot()
   }
 
-  submit() {
+  submit(event) {
     this.syncSelectedScreenshot()
+    if (!this.screenshotInputTarget.files.length) {
+      event.preventDefault()
+      window.alert("Choose a screenshot before submitting.")
+      return
+    }
+
     this.close()
   }
 
