@@ -25,6 +25,7 @@ RSpec.describe "Bug reports", type: :request do
       expect(response.body).to include('data-controller="bug-report"')
       expect(response.body).to include('data-bug-context="Home#jobs"')
       expect(response.body).to include("Report a bug")
+      expect(response.body).to include("No screenshot")
       expect(response.body).to include("bug_reports")
       expect(response.body).to include('class="fixed inset-0 m-auto max-h-[calc(100vh-2rem)]')
     end
@@ -74,6 +75,31 @@ RSpec.describe "Bug reports", type: :request do
       expect(attachment.content_type).to eq("image/png")
       expect(attachment.file).to be_attached
       expect(attachment.file.download).to include("screenshot")
+    end
+
+    it "creates a queued direct Job without an attachment when no screenshot is selected" do
+      repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+
+      expect {
+        post bug_reports_path, params: {
+          title: "Home#index bug",
+          description: "The dashboard fell over."
+        }
+      }.to change(Job, :count).by(1)
+       .and change(Document, :count).by(0)
+       .and change(Workflow, :count).by(1)
+
+      job = Job.last
+      expect(response).to redirect_to(job_path(job))
+      expect(job).to have_attributes(
+        user: user,
+        repository: repository,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "Home#index bug",
+        issue_body: "Home#index bug\n\nThe dashboard fell over."
+      )
+      expect(job.job_attachments).to be_empty
     end
 
     it "requires the hardcoded repository to be configured for the user" do

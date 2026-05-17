@@ -4,7 +4,7 @@ import html2canvas from "html2canvas"
 export default class extends Controller {
   static targets = [
     "button", "dialog", "form", "title", "description", "screenshotInput",
-    "viewportPreview", "fullPagePreview", "viewportRadio", "fullPageRadio"
+    "viewportPreview", "fullPagePreview", "viewportRadio", "fullPageRadio", "noneRadio"
   ]
 
   connect() {
@@ -47,14 +47,8 @@ export default class extends Controller {
     this.syncSelectedScreenshot()
   }
 
-  submit(event) {
+  submit() {
     this.syncSelectedScreenshot()
-    if (!this.screenshotInputTarget.files.length) {
-      event.preventDefault()
-      window.alert("Choose a screenshot before submitting.")
-      return
-    }
-
     this.close()
   }
 
@@ -104,6 +98,11 @@ export default class extends Controller {
   }
 
   syncSelectedScreenshot() {
+    if (this.noneRadioTarget.checked) {
+      this.screenshotInputTarget.value = ""
+      return
+    }
+
     const selected = this.fullPageRadioTarget.checked ? this.captures.fullPage : this.captures.viewport
     if (!selected) return
 

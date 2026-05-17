@@ -16,11 +16,7 @@ class BugReportsController < ApplicationController
     prompt_text = [ title, description ].reject(&:blank?).join("\n\n")
     screenshot = params[:screenshot]
 
-    unless screenshot.present?
-      redirect_back fallback_location: root_path, alert: "Screenshot is required."
-      return
-    end
-    unless screenshot.content_type == "image/png"
+    if screenshot.present? && screenshot.content_type != "image/png"
       redirect_back fallback_location: root_path, alert: "Screenshot must be a PNG."
       return
     end
@@ -39,7 +35,7 @@ class BugReportsController < ApplicationController
 
       job.advance_after_triage!
       Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
-      attach_screenshot!(job, screenshot)
+      attach_screenshot!(job, screenshot) if screenshot.present?
     end
 
     redirect_to job_path(job), notice: "Bug report queued."

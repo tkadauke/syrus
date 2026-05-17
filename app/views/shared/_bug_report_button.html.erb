@@ -55,7 +55,7 @@
 
     <fieldset>
       <legend class="mb-2 block text-sm font-medium text-gray-700">Screenshot</legend>
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <label class="cursor-pointer rounded-md border border-gray-200 bg-white p-2 has-[:checked]:border-blue-500 has-[:checked]:ring-2 has-[:checked]:ring-blue-500">
           <input type="radio"
                  name="screenshot_choice"
@@ -77,6 +77,19 @@
                  class="sr-only">
           <img data-bug-report-target="fullPagePreview" alt="Full page screenshot preview" class="aspect-video w-full rounded border border-gray-100 object-cover object-top">
           <span class="mt-2 block text-sm font-medium text-gray-800">Full page</span>
+        </label>
+
+        <label class="flex cursor-pointer flex-col justify-between rounded-md border border-gray-200 bg-white p-2 has-[:checked]:border-blue-500 has-[:checked]:ring-2 has-[:checked]:ring-blue-500">
+          <input type="radio"
+                 name="screenshot_choice"
+                 value="none"
+                 data-bug-report-target="noneRadio"
+                 data-action="change->bug-report#choose"
+                 class="sr-only">
+          <span class="flex aspect-video w-full items-center justify-center rounded border border-dashed border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
+            None
+          </span>
+          <span class="mt-2 block text-sm font-medium text-gray-800">No screenshot</span>
         </label>
       </div>
     </fieldset>
