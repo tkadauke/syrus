@@ -10,8 +10,17 @@ module Steps
 
       gate = AutoMergeGate.new(job: job, client: client, bypass_cache: true).evaluate
 
-      if gate.closed?
-        log("auto_merge: PR ##{job.pr_number} is already closed; cancelling workflow")
+      case gate.outcome
+      when :closed
+        log("auto_merge: PR ##{job.pr_number} is already closed; cancelling workflow", kind: "system")
+        cancel_workflow!
+        return
+      when :transient
+        log("auto_merge: deferred - mergeable_state=#{deferred_mergeable_state(gate)}", kind: "system")
+        cancel_workflow!
+        return
+      when :needs_rebase
+        log("auto_merge: deferred - mergeable_state=#{deferred_mergeable_state(gate)}; rebase workflow will handle it", kind: "system")
         cancel_workflow!
         return
       end
@@ -55,6 +64,12 @@ module Steps
       step.save!
       workflow.cancel! if workflow.may_cancel?
       workflow.save!
+    end
+
+    def deferred_mergeable_state(gate)
+      pr = gate.pr
+      state = pr.mergeable_state if pr.respond_to?(:mergeable_state)
+      state || "nil"
     end
 
     def job_url

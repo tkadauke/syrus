@@ -46,6 +46,7 @@ RSpec.describe AutoMergeGate do
     result = described_class.new(job: job, client: client).evaluate
 
     expect(result).to be_merge_ready
+    expect(result.outcome).to eq(:ready)
   end
 
   it "allows a write-access slash approval from the PR author of record" do
@@ -104,5 +105,36 @@ RSpec.describe AutoMergeGate do
 
     expect(result).not_to be_merge_ready
     expect(result.reason).to include("dependencies")
+  end
+
+  it "reports a closed PR as closed" do
+    allow(client).to receive(:pull_request).and_return(pr(state: "closed"))
+    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+
+    result = described_class.new(job: job, client: client).evaluate
+
+    expect(result.outcome).to eq(:closed)
+    expect(result).to be_closed
+  end
+
+  {
+    "unknown" => :transient,
+    "has_hooks" => :transient,
+    "behind" => :needs_rebase,
+    "dirty" => :blocked,
+    "blocked" => :blocked,
+    "clean" => :ready,
+    "unstable" => :blocked
+  }.each do |mergeable_state, outcome|
+    it "returns #{outcome.inspect} for mergeable_state=#{mergeable_state.inspect}" do
+      allow(client).to receive(:pull_request).and_return(pr(mergeable_state: mergeable_state))
+      allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+
+      result = described_class.new(job: job, client: client).evaluate
+
+      expect(result.outcome).to eq(outcome)
+      expect(result.merge_ready?).to eq(outcome == :ready)
+      expect(result.reason).to include(mergeable_state) unless outcome == :ready
+    end
   end
 end

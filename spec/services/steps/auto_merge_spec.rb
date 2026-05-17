@@ -10,10 +10,10 @@ RSpec.describe Steps::AutoMerge do
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "auto_merge") }
   let(:client) { instance_double(GithubClient) }
 
-  def pr(state: "open")
+  def pr(state: "open", mergeable_state: "clean")
     OpenStruct.new(
       state: state,
-      mergeable_state: "clean",
+      mergeable_state: mergeable_state,
       labels: [],
       head: OpenStruct.new(sha: "abc")
     )
@@ -35,9 +35,6 @@ RSpec.describe Steps::AutoMerge do
   end
 
   it "re-verifies gates, merges via GitHub, comments, and closes the Job" do
-    job.approve!
-    job.start_landing!
-    job.save!
     allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
     allow(client).to receive(:add_issue_comment)
 
@@ -70,6 +67,44 @@ RSpec.describe Steps::AutoMerge do
     expect(client).not_to have_received(:merge_pull_request)
     expect(workflow.reload.artifact("pending_auto_merge")).to eq("waiting_for_parent")
     expect(run.reload).to be_cancelled
-    expect(run.job_logs.last.chunk).to include("waiting for parent #6 to merge")
+    expect(run.job_logs.pluck(:chunk)).to include(include("waiting for parent #6 to merge"))
+  end
+
+  {
+    "unknown" => "deferred - mergeable_state=unknown",
+    "has_hooks" => "deferred - mergeable_state=has_hooks",
+    "behind" => "deferred - mergeable_state=behind"
+  }.each do |mergeable_state, log_message|
+    it "cancels cleanly when mergeable_state is #{mergeable_state.inspect}" do
+      allow(client).to receive(:pull_request).and_return(pr(mergeable_state: mergeable_state))
+      allow(client).to receive(:merge_pull_request)
+
+      expect { described_class.new(run).call }.not_to raise_error
+
+      expect(client).not_to have_received(:merge_pull_request)
+      expect(run.reload).to be_cancelled
+      expect(step.reload).to be_cancelled
+      expect(workflow.reload).to be_cancelled
+      expect(job.reload.failure_count).to eq(0)
+      expect(run.job_logs.pluck(:chunk)).to include(include(log_message))
+    end
+  end
+
+  {
+    "dirty" => "PR mergeable_state is \"dirty\"",
+    "blocked" => "PR mergeable_state is \"blocked\"",
+    "unstable" => "PR mergeable_state is \"unstable\""
+  }.each do |mergeable_state, error_message|
+    it "raises StepFailed when mergeable_state is #{mergeable_state.inspect}" do
+      allow(client).to receive(:pull_request).and_return(pr(mergeable_state: mergeable_state))
+
+      expect {
+        described_class.new(run).call
+      }.to raise_error(Steps::Base::StepFailed, /#{Regexp.escape(error_message)}/)
+
+      expect(run.reload).to be_running
+      expect(step.reload).to be_running
+      expect(workflow.reload).to be_running
+    end
   end
 end

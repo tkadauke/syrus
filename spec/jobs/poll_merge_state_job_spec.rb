@@ -20,6 +20,7 @@ RSpec.describe PollMergeStateJob do
   end
 
   before do
+    job.mark_implemented! if job.may_mark_implemented?
     job.workflows.update_all(state: "succeeded")
     allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr)
     allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
@@ -60,6 +61,18 @@ RSpec.describe PollMergeStateJob do
     expect {
       described_class.perform_now(job.id)
     }.not_to change(Workflow, :count)
+  end
+
+  [ "unknown", "has_hooks" ].each do |mergeable_state|
+    it "waits while mergeable_state is #{mergeable_state.inspect}" do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(mergeable_state: mergeable_state, mergeable: nil))
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change(Workflow, :count)
+
+      expect(job.reload).to be_implemented
+    end
   end
 
   it "skips when any non-terminal workflow exists" do

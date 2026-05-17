@@ -1,11 +1,15 @@
 class AutoMergeGate
   OPT_OUT_LABEL = "syrus-no-automerge".freeze
   WRITE_ASSOCIATIONS = %w[OWNER MEMBER COLLABORATOR].freeze
+  TRANSIENT_MERGEABLE_STATES = %w[unknown has_hooks].freeze
 
-  Result = Struct.new(:merge_ready, :closed, :approved, :reason, :pr, keyword_init: true) do
-    def merge_ready? = merge_ready
-    def closed? = closed
+  Result = Struct.new(:outcome, :approved, :reason, :pr, keyword_init: true) do
+    def merge_ready? = outcome == :ready
+    def closed? = outcome == :closed
     def approved? = approved
+    def transient? = outcome == :transient
+    def needs_rebase? = outcome == :needs_rebase
+    def blocked? = outcome == :blocked
   end
 
   def initialize(job:, client: GithubClient.for(repository: job.repository, user: job.user), bypass_cache: false, pr: nil)
@@ -23,28 +27,32 @@ class AutoMergeGate
     return blocked("job has unsatisfied dependencies") unless @job.dependencies_satisfied?
 
     pr = @pr || @client.pull_request(@repository.slug, @job.pr_number, bypass_cache: @bypass_cache)
-    return Result.new(merge_ready: false, closed: true, approved: false, reason: "PR is closed", pr: pr) if pr.state == "closed"
+    return Result.new(outcome: :closed, approved: false, reason: "PR is closed", pr: pr) if pr.state == "closed"
     return blocked("PR has #{OPT_OUT_LABEL}", pr: pr) if has_label?(pr, OPT_OUT_LABEL)
 
     approved = approved?(pr)
     return blocked("PR is not approved", pr: pr, approved: false) unless approved
-    return blocked("PR mergeable_state is #{mergeable_state(pr).inspect}", pr: pr, approved: true) unless clean?(pr)
 
-    Result.new(merge_ready: true, closed: false, approved: true, reason: "approved and clean", pr: pr)
+    case mergeable_state(pr)
+    when "clean"
+      Result.new(outcome: :ready, approved: true, reason: "approved and clean", pr: pr)
+    when "behind"
+      Result.new(outcome: :needs_rebase, approved: true, reason: "PR mergeable_state is \"behind\"", pr: pr)
+    when *TRANSIENT_MERGEABLE_STATES
+      Result.new(outcome: :transient, approved: true, reason: "PR mergeable_state is #{mergeable_state(pr).inspect}", pr: pr)
+    else
+      blocked("PR mergeable_state is #{mergeable_state(pr).inspect}", pr: pr, approved: true)
+    end
   end
 
   private
 
   def blocked(reason, pr: nil, approved: false)
-    Result.new(merge_ready: false, closed: false, approved: approved, reason: reason, pr: pr)
+    Result.new(outcome: :blocked, approved: approved, reason: reason, pr: pr)
   end
 
   def has_label?(pr, name)
     Array(pr.labels).any? { |label| label.name == name }
-  end
-
-  def clean?(pr)
-    mergeable_state(pr) == "clean"
   end
 
   def mergeable_state(pr)
