@@ -48,9 +48,7 @@ export default class extends Controller {
   }
 
   submit(event) {
-    this.syncSelectedScreenshot()
-
-    if (!this.noneRadioTarget.checked && this.screenshotInputTarget.files.length === 0) {
+    if (!this.syncSelectedScreenshot()) {
       event.preventDefault()
       window.alert("Choose a screenshot before submitting.")
       return
@@ -107,15 +105,16 @@ export default class extends Controller {
   syncSelectedScreenshot() {
     if (this.noneRadioTarget.checked) {
       this.screenshotInputTarget.value = ""
-      return
+      return true
     }
 
     const selected = this.fullPageRadioTarget.checked ? this.captures.fullPage : this.captures.viewport
-    if (!selected) return
+    if (!selected) return false
 
     const transfer = new DataTransfer()
     transfer.items.add(selected)
     this.screenshotInputTarget.files = transfer.files
+    return true
   }
 
   contextLabel() {

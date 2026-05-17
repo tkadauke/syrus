@@ -88,4 +88,5 @@ test("allows submit when no screenshot is explicitly selected", async () => {
 
   assert.equal(prevented, false)
   assert.equal(wasClosed(), true)
+  assert.equal(controller.screenshotInputTarget.value, "")
 })
