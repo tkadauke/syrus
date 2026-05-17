@@ -5,6 +5,15 @@ export default class extends Controller {
 
   connect() {
     this.sync()
+    document.addEventListener("turbo:render", this.sync)
+    document.addEventListener("turbo:frame-render", this.sync)
+    document.addEventListener("turbo:morph", this.sync)
+  }
+
+  disconnect() {
+    document.removeEventListener("turbo:render", this.sync)
+    document.removeEventListener("turbo:frame-render", this.sync)
+    document.removeEventListener("turbo:morph", this.sync)
   }
 
   toggleAll(event) {
@@ -14,7 +23,7 @@ export default class extends Controller {
     this.sync()
   }
 
-  sync() {
+  sync = () => {
     const selectedCount = this.checkboxTargets.filter((checkbox) => checkbox.checked).length
     this.actionsTarget.classList.toggle("hidden", selectedCount === 0)
     this.countTargets.forEach((target) => {

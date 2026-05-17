@@ -5,11 +5,11 @@ RSpec.describe "Form validation feedback", type: :request do
 
   before { sign_in_as(user) }
 
-  it "mounts one validation controller for all rendered forms" do
+  it "mounts global form state controllers on the body" do
     get new_job_path
 
     expect(response).to be_successful
-    expect(response.body).to include('data-controller="form-validation"')
+    expect(response.body).to include('data-controller="form-validation checkbox-persistence"')
   end
 
   it "keeps the new job repository and prompt fields browser-validatable" do
