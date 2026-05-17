@@ -21,7 +21,7 @@ RSpec.describe "Bug reports", type: :request do
 
       get dashboard_jobs_path
 
-      expect(response.body).to include('data-controller="form-validation"')
+      expect(response.body).to match(/data-controller="[^"]*\bform-validation\b/)
       expect(response.body).to include('data-controller="bug-report"')
       expect(response.body).to include('data-bug-context="Home#jobs"')
       expect(response.body).to include("Report a bug")

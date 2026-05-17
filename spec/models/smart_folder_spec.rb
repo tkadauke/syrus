@@ -113,7 +113,8 @@ RSpec.describe SmartFolder do
     workflow_with_state("succeeded", finished_at: Time.current)
 
     mark_workflow_run_running(running, last_heartbeat_at: Time.current, started_at: Time.current)
-    mark_workflow_run_running(stuck, last_heartbeat_at: 10.minutes.ago, started_at: 10.minutes.ago)
+    stale_at = (Run::STALE_HEARTBEAT_THRESHOLD + 1.minute).ago
+    mark_workflow_run_running(stuck, last_heartbeat_at: stale_at, started_at: stale_at)
     described_class.ensure_workflow_builtins!
 
     results = described_class.builtins(:workflow).to_h do |folder|
