@@ -29,6 +29,7 @@ export default class extends Controller {
       this.fullPagePreviewTarget.src = URL.createObjectURL(this.captures.fullPage)
       this.viewportRadioTarget.checked = true
       this.titleTarget.value = `${this.contextLabel()} bug`
+      this.descriptionTarget.value = ""
       this.syncSelectedScreenshot()
       this.dialogTarget.showModal()
     } catch (error) {

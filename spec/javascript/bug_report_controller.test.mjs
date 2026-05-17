@@ -54,6 +54,36 @@ function buildController(Controller, { capture = { name: "bug-report-viewport.pn
 
 globalThis.DataTransfer = FakeDataTransfer
 globalThis.FormData = FakeFormData
+globalThis.window = { alert() {} }
+globalThis.URL = { createObjectURL: (file) => `blob:${file.name}` }
+
+test("clears a previous description when opening a fresh bug report", async () => {
+  const { default: Controller } = await loadController()
+  const { controller } = buildController(Controller)
+  let shown = false
+
+  controller.captureViewport = async () => "viewport canvas"
+  controller.captureFullPage = async () => "full page canvas"
+  controller.canvasToFile = async (_canvas, name) => ({ name })
+  controller.buttonTarget = {
+    disabled: false,
+    classList: { toggle() {} }
+  }
+  controller.titleTarget = { value: "Old title" }
+  controller.descriptionTarget = { value: "This text was typed into the last bug report." }
+  controller.viewportPreviewTarget = { src: "" }
+  controller.fullPagePreviewTarget = { src: "" }
+  controller.dialogTarget.showModal = () => {
+    shown = true
+  }
+  controller.element = { dataset: { bugContext: "Dashboard" } }
+
+  await controller.open()
+
+  assert.equal(shown, true)
+  assert.equal(controller.titleTarget.value, "Dashboard bug")
+  assert.equal(controller.descriptionTarget.value, "")
+})
 
 function resetBrowserStubs() {
   globalThis.window = { alert() {} }
