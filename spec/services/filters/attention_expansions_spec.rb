@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Filters::Chips::Attention do
+RSpec.describe Filters::Chips::Jobs::Attention do
   describe ".expansion_for" do
     it "returns a single chip for simple presets" do
       expect(described_class.expansion_for("pinned")).to eq(

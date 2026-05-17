@@ -14,5 +14,9 @@ module Filters
     def fields
       chips.keys
     end
+
+    def exists?(field)
+      chips.key?(field.to_s)
+    end
   end
 end

@@ -49,78 +49,86 @@ module Filters
   class Registry
     CHIPS = {
       # Thread / metadata
-      "state"                         => "Filters::Chips::State",
-      "kind"                          => "Filters::Chips::Kind",
-      "priority"                      => "Filters::Chips::Priority",
-      "agent_provider"                => "Filters::Chips::AgentProvider",
-      "closure_reason"                => "Filters::Chips::ClosureReason",
-      "triaging_reason"               => "Filters::Chips::TriagingReason",
-      "validity"                      => "Filters::Chips::Validity",
+      "state"                         => "Filters::Chips::Jobs::State",
+      "kind"                          => "Filters::Chips::Jobs::Kind",
+      "priority"                      => "Filters::Chips::Jobs::Priority",
+      "agent_provider"                => "Filters::Chips::Jobs::AgentProvider",
+      "closure_reason"                => "Filters::Chips::Jobs::ClosureReason",
+      "triaging_reason"               => "Filters::Chips::Jobs::TriagingReason",
+      "validity"                      => "Filters::Chips::Jobs::Validity",
 
       # Latest-X derivations
-      "latest_workflow_state"         => "Filters::Chips::LatestWorkflowState",
-      "latest_workflow_trigger_kind"  => "Filters::Chips::LatestWorkflowTriggerKind",
-      "latest_run_state"              => "Filters::Chips::LatestRunState",
+      "latest_workflow_state"         => "Filters::Chips::Jobs::LatestWorkflowState",
+      "latest_workflow_trigger_kind"  => "Filters::Chips::Jobs::LatestWorkflowTriggerKind",
+      "latest_run_state"              => "Filters::Chips::Jobs::LatestRunState",
 
       # PR-related
-      "pr_present"                    => "Filters::Chips::PrPresent",
-      "pr_mergeable"                  => "Filters::Chips::PrMergeable",
+      "pr_present"                    => "Filters::Chips::Jobs::PrPresent",
+      "pr_mergeable"                  => "Filters::Chips::Jobs::PrMergeable",
 
       # FKs
       "repository_id"                 => "Filters::Chips::RepositoryId",
-      "epic_id"                       => "Filters::Chips::EpicId",
-      "parent_job_id"                 => "Filters::Chips::ParentJobId",
+      "epic_id"                       => "Filters::Chips::Jobs::EpicId",
+      "parent_job_id"                 => "Filters::Chips::Jobs::ParentJobId",
 
       # Strings (free-text)
-      "title"                         => "Filters::Chips::Title",
-      "description"                   => "Filters::Chips::Description",
-      "branch_name"                   => "Filters::Chips::BranchName",
-      "pr_title"                      => "Filters::Chips::PrTitle",
+      "title"                         => "Filters::Chips::Jobs::Title",
+      "description"                   => "Filters::Chips::Jobs::Description",
+      "branch_name"                   => "Filters::Chips::Jobs::BranchName",
+      "pr_title"                      => "Filters::Chips::Jobs::PrTitle",
 
       # Numbers
-      "issue_number"                  => "Filters::Chips::IssueNumber",
-      "pr_number"                     => "Filters::Chips::PrNumber",
+      "issue_number"                  => "Filters::Chips::Jobs::IssueNumber",
+      "pr_number"                     => "Filters::Chips::Jobs::PrNumber",
 
       # Dates
-      "age"                           => "Filters::Chips::Age",
+      "age"                           => "Filters::Chips::Jobs::Age",
       "created_at"                    => "Filters::Chips::CreatedAt",
       "updated_at"                    => "Filters::Chips::UpdatedAt",
-      "finished_at"                   => "Filters::Chips::FinishedAt",
-      "last_seen_comment_at"          => "Filters::Chips::LastSeenCommentAt",
+      "finished_at"                   => "Filters::Chips::Jobs::FinishedAt",
+      "last_seen_comment_at"          => "Filters::Chips::Jobs::LastSeenCommentAt",
 
       # Booleans (predicates)
-      "pinned_by_me"                  => "Filters::Chips::PinnedByMe",
-      "has_unread_feedback"           => "Filters::Chips::HasUnreadFeedback",
-      "has_active_run"                => "Filters::Chips::HasActiveRun",
-      "has_blocked_deps"              => "Filters::Chips::HasBlockedDeps",
-      "has_parent_job"                => "Filters::Chips::HasParentJob",
-      "has_child_jobs"                => "Filters::Chips::HasChildJobs",
+      "pinned_by_me"                  => "Filters::Chips::Jobs::PinnedByMe",
+      "has_unread_feedback"           => "Filters::Chips::Jobs::HasUnreadFeedback",
+      "has_active_run"                => "Filters::Chips::Jobs::HasActiveRun",
+      "has_blocked_deps"              => "Filters::Chips::Jobs::HasBlockedDeps",
+      "has_parent_job"                => "Filters::Chips::Jobs::HasParentJob",
+      "has_child_jobs"                => "Filters::Chips::Jobs::HasChildJobs",
 
       # Collection
-      "tags"                          => "Filters::Chips::Tags",
+      "tags"                          => "Filters::Chips::Jobs::Tags",
 
       # Preset macro (composite)
-      "attention"                     => "Filters::Chips::Attention"
+      "attention"                     => "Filters::Chips::Jobs::Attention"
     }.freeze
 
     def self.for(subject = :job)
-      Filters.subject_for(subject)
+      Filters.subject(subject).chips
     end
 
     def self.find(field, subject: :job)
-      self.for(subject).find_chip(field)
+      find_for(subject, field)
     end
 
     def self.find_for(subject, field)
-      self.for(subject).find_chip(field)
+      Filters.subject(subject).chip_class(field)
     end
 
     def self.fields(subject: :job)
-      self.for(subject).fields
+      Filters.subject(subject).fields
+    end
+
+    def self.fields_for(subject)
+      fields(subject: subject)
     end
 
     def self.exists?(field, subject: :job)
-      self.for(subject).chips.key?(field.to_s)
+      Filters.subject(subject).exists?(field)
+    end
+
+    def self.exists_for?(field, subject: :job)
+      exists?(field, subject: subject)
     end
   end
 
@@ -158,5 +166,7 @@ module Filters
     SUBJECTS.fetch(name.to_sym) { raise ArgumentError, "unknown subject: #{name}" }
   end
 
-  singleton_class.alias_method :subject_for, :subject
+  def self.subject_for(name)
+    subject(name)
+  end
 end
