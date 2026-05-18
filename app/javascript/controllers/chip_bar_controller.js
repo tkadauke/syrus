@@ -40,7 +40,9 @@ export default class extends Controller {
     // DOM to match the new HTML deletes every rendered chip. We
     // re-render after every Turbo render pass to put them back.
     this.handleTurboRender = () => {
-      if (this.hasChipsTarget) this.renderChips()
+      if (!this.hasChipsTarget) return
+      this.refreshTreeValueFromElement()
+      this.renderChips()
     }
     document.addEventListener("turbo:render", this.handleTurboRender)
     document.addEventListener("turbo:frame-render", this.handleTurboRender)
@@ -80,6 +82,17 @@ export default class extends Controller {
   // re-render so the chips stay synchronized with the tree.
   treeValueChanged() {
     if (this.hasChipsTarget) this.renderChips()
+  }
+
+  refreshTreeValueFromElement() {
+    const raw = this.element?.dataset?.chipBarTreeValue
+    if (!raw) return
+
+    try {
+      this.treeValue = JSON.parse(raw)
+    } catch (_error) {
+      // Keep the existing tree if a partial morph leaves invalid JSON.
+    }
   }
 
   handleDocumentClick = (event) => {

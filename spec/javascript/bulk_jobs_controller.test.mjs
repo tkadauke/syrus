@@ -35,7 +35,7 @@ function buildController(Controller) {
   const controller = new Controller()
   controller.actionsTarget = { classList: new ClassList([ "hidden" ]) }
   controller.countTargets = [ { textContent: "0" } ]
-  controller.checkboxTargets = [ { checked: true }, { checked: false } ]
+  controller.checkboxTargets = [ { checked: true, value: "1" }, { checked: false, value: "2" } ]
   controller.selectAllTarget = { checked: false, indeterminate: false }
   controller.hasSelectAllTarget = true
   return controller
@@ -50,6 +50,8 @@ test("syncs bulk action state after Turbo morph events", async () => {
     },
     removeEventListener() {}
   }
+  globalThis.location = { pathname: "/dashboard/jobs", search: "" }
+  globalThis.sessionStorage = new MemoryStorage()
   const controller = buildController(Controller)
 
   controller.connect()
@@ -67,3 +69,46 @@ test("syncs bulk action state after Turbo morph events", async () => {
   assert.equal(controller.countTargets[0].textContent, "1")
   assert.equal(controller.selectAllTarget.indeterminate, true)
 })
+
+test("restores checkbox selection from sessionStorage after Turbo morphs", async () => {
+  const { default: Controller } = await loadController()
+  const listeners = new Map()
+  globalThis.document = {
+    addEventListener(name, listener) {
+      listeners.set(name, listener)
+    },
+    removeEventListener() {}
+  }
+  globalThis.location = { pathname: "/dashboard/jobs", search: "?subject=job" }
+  globalThis.sessionStorage = new MemoryStorage()
+  globalThis.sessionStorage.setItem("bulk-jobs:/dashboard/jobs?subject=job", JSON.stringify([ "2" ]))
+
+  const controller = buildController(Controller)
+  controller.checkboxTargets = [ { checked: false, value: "1" }, { checked: false, value: "2" } ]
+
+  controller.connect()
+  assert.deepEqual(controller.checkboxTargets.map((checkbox) => checkbox.checked), [ false, true ])
+
+  controller.checkboxTargets.forEach((checkbox) => {
+    checkbox.checked = false
+  })
+  listeners.get("turbo:morph")()
+
+  assert.deepEqual(controller.checkboxTargets.map((checkbox) => checkbox.checked), [ false, true ])
+  assert.equal(controller.countTargets[0].textContent, "1")
+  assert.equal(controller.actionsTarget.classList.contains("hidden"), false)
+})
+
+class MemoryStorage {
+  constructor() {
+    this.values = new Map()
+  }
+
+  getItem(key) {
+    return this.values.get(key) || null
+  }
+
+  setItem(key, value) {
+    this.values.set(key, value)
+  }
+}

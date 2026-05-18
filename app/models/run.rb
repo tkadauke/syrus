@@ -159,9 +159,8 @@ class Run < ApplicationRecord
   # a stable, non-nil stream identifier makes the broadcast a no-op
   # in that case (no subscriber on that stream).
   broadcasts_refreshes_to ->(run) { run.job || [ "dead_run", run.id ] }
-  broadcasts_refreshes_to ->(run) {
-    run.job ? [ run.job.user, "jobs" ] : [ "dead_run", run.id, "jobs" ]
-  }
+  after_commit :broadcast_dashboard_refresh_on_state_change,
+               if: :saved_change_to_state?
 
   def self.average_duration_for(trigger_kind)
     # `where.not(a: nil, b: nil)` compiles to `NOT (a IS NULL AND b IS NULL)`
@@ -241,6 +240,10 @@ class Run < ApplicationRecord
   end
 
   private
+
+  def broadcast_dashboard_refresh_on_state_change
+    broadcast_refresh_later_to(job ? [ job.user, "jobs" ] : [ "dead_run", id, "jobs" ])
+  end
 
   def clear_transcript_on_success!
     claude_session&.update_column(:transcript_jsonl, nil)

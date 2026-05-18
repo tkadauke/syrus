@@ -96,6 +96,11 @@ class Element {
     return null
   }
 
+  contains(other) {
+    if (other === this) return true
+    return this.children.some((child) => child instanceof Element && child.contains(other))
+  }
+
   getBoundingClientRect() {
     return { top: 0, left: 0, bottom: 0 }
   }
@@ -117,9 +122,12 @@ function matchesSelector(element, selector) {
 }
 
 function installDocument() {
+  globalThis.Element = Element
   globalThis.document = {
     createElement: (tagName) => new Element(tagName),
-    createTextNode: (text) => text
+    createTextNode: (text) => text,
+    addEventListener() {},
+    removeEventListener() {}
   }
 }
 
@@ -127,9 +135,11 @@ function buildController(Controller, { tree, schema }) {
   installDocument()
 
   const controller = new Controller()
+  controller.element = new Element()
   controller.treeValue = tree
   controller.schemaValue = schema
   controller.chipsTarget = new Element()
+  controller.hasChipsTarget = true
   return controller
 }
 
@@ -270,6 +280,64 @@ test("typeahead renders an error state when the search request fails", async () 
   } finally {
     globalThis.fetch = originalFetch
   }
+})
+
+test("turbo morph refreshes chips from the tree data attribute", async () => {
+  const { default: Controller } = await loadController()
+  const listeners = new Map()
+
+  const controller = buildController(Controller, {
+    tree: { and: [ { field: "state", op: "is", value: "queued" } ] },
+    schema: [
+      {
+        field: "state",
+        label: "State",
+        bucket: "enum",
+        operators: [ "is" ],
+        values: [ { value: "queued", label: "Queued" }, { value: "running", label: "Running" } ]
+      }
+    ]
+  })
+  controller.element.dataset.chipBarTreeValue = JSON.stringify({ and: [ { field: "state", op: "is", value: "running" } ] })
+  controller.addMenuTarget = new Element()
+  controller.editorTarget = new Element()
+  controller.hasAddMenuTarget = true
+  controller.hasEditorTarget = true
+  globalThis.document.addEventListener = (name, listener) => listeners.set(name, listener)
+  globalThis.document.removeEventListener = () => {}
+
+  controller.connect()
+  listeners.get("turbo:morph")()
+
+  assert.deepEqual(controller.treeValue, { and: [ { field: "state", op: "is", value: "running" } ] })
+  assert.match(controller.chipsTarget.textContent, /StateisRunning/)
+})
+
+test("open popovers prevent Turbo element morphs", async () => {
+  const { default: Controller } = await loadController()
+  const listeners = new Map()
+
+  const controller = buildController(Controller, {
+    tree: { and: [] },
+    schema: []
+  })
+  controller.addMenuTarget = new Element()
+  controller.editorTarget = new Element()
+  controller.hasAddMenuTarget = true
+  controller.hasEditorTarget = true
+  controller.element.append(controller.addMenuTarget, controller.editorTarget)
+  controller.addMenuTarget.className = "absolute"
+  globalThis.document.addEventListener = (name, listener) => listeners.set(name, listener)
+  globalThis.document.removeEventListener = () => {}
+  let prevented = false
+
+  controller.connect()
+  listeners.get("turbo:before-morph-element")({
+    target: controller.addMenuTarget,
+    preventDefault() { prevented = true }
+  })
+
+  assert.equal(prevented, true)
 })
 
 function typeaheadWrapper() {

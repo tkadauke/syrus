@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "pathname"
+
+root = Pathname.new(__dir__).join("..").expand_path
+view_root = root.join("app/views")
+offenses = []
+
+view_root.glob("**/*.erb").each do |path|
+  lines = path.readlines
+  lines.each_with_index do |line, index|
+    next unless line.include?("turbo_frame_tag")
+    next if line.lstrip.start_with?("<%#")
+
+    snippet = line.dup
+    cursor = index + 1
+    until snippet.include?("%>") || cursor >= lines.length
+      snippet << lines[cursor]
+      cursor += 1
+    end
+
+    next if snippet.include?("target:")
+
+    offenses << "#{path.relative_path_from(root)}:#{index + 1}"
+  end
+end
+
+if offenses.any?
+  warn "[turbo-defaults] turbo_frame_tag calls must pass target: or use safe_turbo_frame:"
+  offenses.each { |offense| warn "  #{offense}" }
+  exit 1
+end
+
+puts "[turbo-defaults] all view turbo_frame_tag calls declare target: explicitly"

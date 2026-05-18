@@ -164,6 +164,27 @@ RSpec.describe Run do
     end
   end
 
+  describe "dashboard refresh broadcasts" do
+    it "does not refresh the dashboard for heartbeat-only saves" do
+      run = job.initial_run
+
+      allow(run).to receive(:broadcast_refresh_later_to)
+      expect(run).not_to receive(:broadcast_refresh_later_to).with([ job.user, "jobs" ])
+
+      run.update!(last_heartbeat_at: Time.current)
+    end
+
+    it "refreshes the dashboard when state changes" do
+      run = job.initial_run
+
+      allow(run).to receive(:broadcast_refresh_later_to)
+      expect(run).to receive(:broadcast_refresh_later_to).with([ job.user, "jobs" ]).once
+
+      run.start!
+      run.save!
+    end
+  end
+
   describe ".average_duration_for" do
     it "returns nil when no completed runs of that trigger kind exist" do
       Factories.job  # one queued initial run, not terminal

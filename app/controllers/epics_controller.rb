@@ -55,7 +55,7 @@ class EpicsController < ApplicationController
       initially_open: true,
       drawer: ActiveModel::Type::Boolean.new.cast(params[:drawer])
     })
-    render html: helpers.turbo_frame_tag("epic_graph_drawer_body") { html.html_safe }
+    render html: helpers.safe_turbo_frame("epic_graph_drawer_body") { html.html_safe }
   end
 
   private

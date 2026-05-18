@@ -25,6 +25,10 @@ grade:
     run: bin/check-migration-collisions
     timeout_minutes: 1
 
+  - name: turbo-defaults
+    run: bin/check-turbo-defaults
+    timeout_minutes: 1
+
   # Full RSpec suite. CLAUDE.md "Tests are not optional" is the rule;
   # this grader is the enforcement. The agent gets push-back when a
   # spec fails — newly added behavior without coverage, OR a stale
