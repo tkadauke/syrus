@@ -623,7 +623,9 @@ broadcasts work between web and worker.
 ## Deployment topology
 
 - Two Kubernetes Deployments behind one Service: `syrus-web` (Puma)
-  and `syrus-worker` (`bin/jobs`). MySQL runs in its own pod.
+  and `syrus-worker` (`bin/jobs`). The worker process supervises separate
+  Solid Queue pools for `runs`, `chat`, and `default` jobs. MySQL runs in
+  its own pod.
 - Traefik ingress at `syrus.internal.green-acres.estate`.
 - Persistent volume mounted at `$SYRUS_DATA_ROOT` (default
   `/home/rails/.syrus`) on worker pods, holding active per-Run clones

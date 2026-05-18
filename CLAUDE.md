@@ -186,10 +186,11 @@ preserve scroll position across morphs.
   keyed on `job_id` so two Workflows on the same Job never overlap. (Was
   per-repo; changed because the shared WorkflowWorkspace path is per-Workflow-id,
   so the collision risk is within a Job, not across repos.)
-- **Two SolidQueue queues** — `runs` (dedicated worker) for long agent
-  invocations; `default` for pollers, Turbo broadcasts, and reaper jobs.
-  Splitting prevents long RunJobs from starving the reaper and making the UI
-  feel frozen.
+- **Three SolidQueue queues** — `runs` (dedicated worker) for long agent
+  invocations; `chat` (dedicated low-concurrency worker) for ChatTurnJob and
+  ChatWorkspaceJob; `default` for pollers, Turbo broadcasts, and reaper jobs.
+  Splitting prevents long RunJobs from starving chat, the reaper, and UI
+  broadcasts.
 - **Per-user max-turns** — `User#agent_max_turns` (default 200, range
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
   per-run 30-minute timeout still bounds runaway loops). Threaded through
@@ -616,7 +617,7 @@ app/controllers/api/                         # REST admin API (Bearer-token auth
 bin/syrus-mcp-sidecar                        # Ruby binstub, claude spawns this
 bin/jobs                                     # Solid Queue worker entry
 config/database.yml                          # 4-DB prod (primary/cache/queue/cable)
-config/queue.yml                             # SolidQueue: `runs` + `default` worker split
+config/queue.yml                             # SolidQueue: `runs` + `chat` + `default` worker split
 config/recurring.yml                         # Solid Queue recurring job schedule
 ROADMAP.md                                   # milestone plan + future work
 ```

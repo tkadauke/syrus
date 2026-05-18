@@ -5,6 +5,12 @@ RSpec.describe ChatWorkspaceJob, type: :job do
   let(:repository) { Factories.repository(user: user, default_branch: "main") }
   let!(:chat_session) { ChatSession.create!(repository: repository, user: user, last_message_at: 1.hour.ago) }
 
+  it "enqueues chat workspace work on the chat queue" do
+    expect {
+      described_class.perform_later(chat_session.id, action: :refresh)
+    }.to have_enqueued_job(described_class).with(chat_session.id, action: :refresh).on_queue("chat")
+  end
+
   it "serializes with chat turns for the same chat session" do
     user_message = chat_session.messages.create!(role: "user", content: { "text" => "Refresh after this" })
 

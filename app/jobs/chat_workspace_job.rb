@@ -1,5 +1,5 @@
 class ChatWorkspaceJob < ApplicationJob
-  queue_as :runs
+  queue_as :chat
   limits_concurrency to: 1,
                      group: ChatTurnJob::CONCURRENCY_GROUP,
                      key: ->(chat_session_id, **) { "chat:#{chat_session_id}" }

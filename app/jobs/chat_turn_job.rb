@@ -3,7 +3,7 @@ require "tempfile"
 class ChatTurnJob < ApplicationJob
   CONCURRENCY_GROUP = "repository_chat"
 
-  queue_as :runs
+  queue_as :chat
   discard_on StandardError
 
   limits_concurrency to: 1, group: CONCURRENCY_GROUP, key: ->(chat_session_id, *) {

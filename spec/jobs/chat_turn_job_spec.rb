@@ -10,6 +10,12 @@ RSpec.describe ChatTurnJob do
   let(:workspace_path) { workspace_root.join("chat") }
   let(:user_message) { chat.messages.create!(role: "user", content: { text: "What is the plan?" }) }
 
+  it "enqueues chat turns on the chat queue" do
+    expect {
+      described_class.perform_later(chat.id, user_message.id)
+    }.to have_enqueued_job(described_class).with(chat.id, user_message.id).on_queue("chat")
+  end
+
   before do
     ChatTurnJob.agent_runner = nil
     allow(ChatWorkspace).to receive(:path_for).with(chat).and_return(workspace_path)

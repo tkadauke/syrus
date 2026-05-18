@@ -11,6 +11,13 @@ default: &default
       threads: <%= ENV.fetch("JOB_CONCURRENCY", 3) %>
       processes: 1
       polling_interval: 0.1
+    # User-facing chat turns and chat workspace maintenance get a
+    # separate low-concurrency pool. They may invoke agents too, but
+    # must not sit behind saturated multi-hour RunJobs.
+    - queues: "chat"
+      threads: <%= ENV.fetch("CHAT_CONCURRENCY", 2) %>
+      processes: 1
+      polling_interval: 0.1
     # Everything else — recurring reapers / pollers, Turbo
     # broadcasts, prune jobs. All short-lived; sharing a small
     # thread pool is fine. Critically, this worker is independent

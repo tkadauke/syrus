@@ -28,13 +28,14 @@ grade:
   # Full RSpec suite. CLAUDE.md "Tests are not optional" is the rule;
   # this grader is the enforcement. The agent gets push-back when a
   # spec fails — newly added behavior without coverage, OR a stale
-  # spec left red by a refactor. The suite runs in ~90s on a fresh
-  # worker checkout; allow up to 5 minutes for cold-start + parallel
-  # sandbox I/O. `db:test:prepare` runs first so schema changes
-  # landed in the same workflow are picked up before spec collection.
+  # spec left red by a refactor. The suite usually runs quickly, but
+  # cold workers can spend nearly 5 minutes in RSpec itself; allow
+  # enough margin for process shutdown too. `db:test:prepare` runs
+  # first so schema changes landed in the same workflow are picked up
+  # before spec collection.
   - name: rspec
     run: bin/rails db:test:prepare && bin/rspec
-    timeout_minutes: 5
+    timeout_minutes: 10
 
   # JS controller specs via `node --test`. Separate grader from
   # rspec so failures report distinctly — when the agent breaks a
