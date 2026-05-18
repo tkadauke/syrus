@@ -147,6 +147,31 @@ RSpec.describe Steps::Grade do
     expect(iterations[1].first["name"]).to eq("tests")
   end
 
+  it "persists multi-iteration grader artifacts larger than MySQL TEXT" do
+    output = "x" * (15 * 1024)
+    iterations = 5.times.map do |iteration|
+      4.times.map do |grader|
+        {
+          "name" => "grader-#{iteration}-#{grader}",
+          "required" => true,
+          "status" => "failed",
+          "exit_code" => 1,
+          "duration_s" => 1.0,
+          "log_path" => ".syrus/grade-output/iteration-#{iteration + 1}/grader-#{grader}.log",
+          "log_bytes" => output.bytesize,
+          "output" => output
+        }
+      end
+    end
+    artifacts = { "iterations" => iterations }
+    artifact_bytes = JSON.dump(artifacts).bytesize
+
+    expect(artifact_bytes).to be > 65_535
+    expect(Workflow.columns_hash.fetch("artifacts").limit).to be >= artifact_bytes
+    expect { workflow.update!(artifacts: artifacts) }.not_to raise_error
+    expect(workflow.reload.artifact("iterations").size).to eq(5)
+  end
+
   def write_config(contents)
     File.write(@ws_path.join(".syrus.yml"), contents)
   end

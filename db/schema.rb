@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_17_225759) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_18_123718) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -740,7 +740,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_225759) do
 
   create_table "workflows", force: :cascade do |t|
     t.string "agent_provider", default: "claude", null: false
-    t.text "artifacts"
+    t.text "artifacts", limit: 16777215
     t.text "chain_template"
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false
