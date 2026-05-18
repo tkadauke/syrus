@@ -11,6 +11,51 @@ RSpec.describe JobsHelper, type: :helper do
     end
   end
 
+  describe "#job_attention_status" do
+    it "has a style for queued attention status" do
+      expect(described_class::ATTENTION_STATUS_STYLES["queued"]).to eq("bg-gray-100 text-gray-700")
+    end
+
+    it "returns queued when the only run is queued" do
+      job = Factories.job
+
+      expect(helper.job_attention_status(job)).to eq("queued")
+    end
+
+    it "returns running when a run is running" do
+      job = Factories.job
+      job.initial_run.update!(state: "running")
+
+      expect(helper.job_attention_status(job)).to eq("running")
+    end
+
+    it "prioritizes running when queued and running runs are both present" do
+      job = Factories.job
+      step = job.initial_run.step
+      job.initial_run.update!(state: "running")
+      step.runs.create!(
+        job: job,
+        trigger_kind: "manual",
+        agent_provider: job.agent_provider
+      )
+
+      expect(helper.job_attention_status(job)).to eq("running")
+    end
+
+    it "falls back to awaiting feedback when there are no workflows or runs" do
+      job = Factories.job_record(state: "open")
+
+      expect(helper.job_attention_status(job)).to eq("awaiting feedback")
+    end
+
+    it "returns running when a run is awaiting operator input" do
+      job = Factories.job
+      job.initial_run.update!(state: "awaiting_operator")
+
+      expect(helper.job_attention_status(job)).to eq("running")
+    end
+  end
+
   describe "#approval_caption" do
     let(:job) do
       j = Factories.job

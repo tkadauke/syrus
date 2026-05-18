@@ -129,6 +129,7 @@ module JobsHelper
   end
 
   ATTENTION_STATUS_STYLES = {
+    "queued" => "bg-gray-100 text-gray-700",
     "running" => "bg-blue-100 text-blue-700",
     "approved" => "bg-green-100 text-green-700",
     "blocked" => "bg-amber-100 text-amber-800",
@@ -136,10 +137,22 @@ module JobsHelper
   }.freeze
 
   def job_attention_status(job)
-    has_active_run = if job.runs.loaded?
-      job.runs.any? { |run| %w[queued running awaiting_operator].include?(run.state) }
+    has_latest_workflow = if job.has_attribute?(:latest_workflow_id)
+      job[:latest_workflow_id].present?
     else
-      job.any_active_run?
+      job.latest_workflow.present?
+    end
+
+    has_running_run = if job.runs.loaded?
+      job.runs.any? { |run| %w[running awaiting_operator].include?(run.state) }
+    else
+      job.runs.where(state: %w[running awaiting_operator]).exists?
+    end
+
+    has_queued_run = if job.runs.loaded?
+      job.runs.any? { |run| run.state == "queued" }
+    else
+      job.runs.where(state: "queued").exists?
     end
 
     blocked_by_dependency = if job.dependencies.loaded?
@@ -150,7 +163,8 @@ module JobsHelper
       false
     end
 
-    return "running" if job.latest_workflow_state == "running" || has_active_run
+    return "running" if job.latest_workflow_state == "running" || has_running_run
+    return "queued" if (has_latest_workflow && job.latest_workflow_state == "queued") || has_queued_run
     return "approved" if job.approved? || job.landing? || job.merged? || job.approved_at.present?
     return "blocked" if job.blocked_by_epic? || job.pr_mergeable == false || blocked_by_dependency
     return "awaiting feedback" if job.pr_number.present? || job.external_pr_number.present?
