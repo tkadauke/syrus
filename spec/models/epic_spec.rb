@@ -108,6 +108,22 @@ RSpec.describe Epic do
       .and change(Run, :count).by(1)
   end
 
+  it "allows in-progress Epics to move back to ready and restores child Epic blocks" do
+    epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+
+    epic.start!
+    run = job.reload.runs.first
+
+    expect {
+      epic.unstart!
+    }.to change { epic.reload.state }.from("in_progress").to("ready")
+      .and change { job.reload.state }.from("queued").to("blocked_by_epic")
+
+    expect(run.reload).to be_cancelled
+    expect(job.workflows.first).to be_cancelled
+  end
+
   it "auto-completes in-progress Epics when all child Jobs are merged" do
     epic = described_class.create!(user: user, repository: repository, title: "Ship", state: "in_progress")
     first_job = child_job(epic: epic, number: 30)

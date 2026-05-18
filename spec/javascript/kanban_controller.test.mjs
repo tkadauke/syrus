@@ -51,7 +51,7 @@ function event({ cardState = "ready", laneState = "in_progress" } = {}) {
   }
 }
 
-test("dragStart only permits ready cards", async () => {
+test("dragStart permits ready and in_progress Epic cards", async () => {
   const { default: Controller } = await loadController()
   const controller = new Controller()
   controller.subjectValue = "epic"
@@ -66,12 +66,22 @@ test("dragStart only permits ready cards", async () => {
     url: "/epics/123/state"
   })
 
+  const inProgress = event({ cardState: "in_progress" })
+  controller.dragStart(inProgress)
+
+  assert.equal(inProgress.defaultPrevented, false)
+  assert.deepEqual(JSON.parse(inProgress.dataTransfer.getData("text/plain")), {
+    id: "123",
+    state: "in_progress",
+    url: "/epics/123/state"
+  })
+
   const backlog = event({ cardState: "backlog" })
   controller.dragStart(backlog)
   assert.equal(backlog.defaultPrevented, true)
 })
 
-test("dragOver rejects every lane except ready to in_progress", async () => {
+test("dragOver rejects every lane except ready to in_progress and in_progress to ready", async () => {
   const { default: Controller } = await loadController()
   const controller = new Controller()
   controller.subjectValue = "epic"
@@ -85,6 +95,19 @@ test("dragOver rejects every lane except ready to in_progress", async () => {
   const rejected = { currentTarget: { dataset: { kanbanState: "done" } }, dataTransfer: drag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
   controller.dragOver(rejected)
   assert.equal(rejected.defaultPrevented, false)
+
+  const reverseDrag = event({ cardState: "in_progress" })
+  controller.dragStart(reverseDrag)
+
+  const reverseAllowed = { currentTarget: { dataset: { kanbanState: "ready" } }, dataTransfer: reverseDrag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
+  controller.dragOver(reverseAllowed)
+  assert.equal(reverseAllowed.defaultPrevented, true)
+
+  for (const laneState of [ "backlog", "in_progress", "done" ]) {
+    const reverseRejected = { currentTarget: { dataset: { kanbanState: laneState } }, dataTransfer: reverseDrag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
+    controller.dragOver(reverseRejected)
+    assert.equal(reverseRejected.defaultPrevented, false)
+  }
 })
 
 test("drop patches the Epic state endpoint for an allowed move", async () => {
@@ -122,4 +145,35 @@ test("drop patches the Epic state endpoint for an allowed move", async () => {
     url: "http://example.test/dashboard/epics",
     options: { action: "replace" }
   })
+})
+
+test("drop patches ready when an in_progress Epic is dropped on the ready lane", async () => {
+  const { default: Controller } = await loadController()
+  const controller = new Controller()
+  controller.subjectValue = "epic"
+  const drag = event({ cardState: "in_progress" })
+  controller.dragStart(drag)
+
+  global.document = {
+    querySelector() {
+      return { content: "csrf-token" }
+    }
+  }
+  global.window = {
+    location: { href: "http://example.test/dashboard/epics" },
+    Turbo: { visit(url, options) { this.visited = { url, options } } }
+  }
+
+  let request
+  global.fetch = async (url, options) => {
+    request = { url, options }
+    return { ok: true }
+  }
+
+  const drop = { currentTarget: { dataset: { kanbanState: "ready" } }, dataTransfer: drag.dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
+  await controller.drop(drop)
+
+  assert.equal(drop.defaultPrevented, true)
+  assert.equal(request.url, "/epics/123/state")
+  assert.deepEqual(JSON.parse(request.options.body), { target_state: "ready" })
 })

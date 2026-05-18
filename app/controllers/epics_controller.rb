@@ -34,6 +34,9 @@ class EpicsController < ApplicationController
     elsif @epic.ready? && target_state == "in_progress"
       @epic.start!
       respond_to_state_update
+    elsif @epic.in_progress? && target_state == "ready"
+      @epic.unstart!
+      respond_to_state_update
     else
       respond_to do |format|
         format.html { redirect_back fallback_location: dashboard_epics_path, alert: "That Epic transition is not available from the board." }

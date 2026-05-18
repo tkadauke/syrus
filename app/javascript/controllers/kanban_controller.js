@@ -33,7 +33,8 @@ export default class extends Controller {
 
     event.preventDefault()
     const payload = this.dragPayload(event)
-    if (!payload) return
+    const targetState = this.targetStateFor(payload, event.currentTarget)
+    if (!targetState) return
 
     const response = await fetch(payload.url, {
       method: "PATCH",
@@ -42,7 +43,7 @@ export default class extends Controller {
         "Content-Type": "application/json",
         "X-CSRF-Token": this.csrfToken()
       },
-      body: JSON.stringify({ target_state: "in_progress" })
+      body: JSON.stringify({ target_state: targetState })
     })
 
     if (response.ok) {
@@ -54,13 +55,18 @@ export default class extends Controller {
     const payload = this.dragPayload(event)
     const lane = event.currentTarget
 
-    return this.subjectValue === "epic" &&
-      payload?.state === "ready" &&
-      lane.dataset.kanbanState === "in_progress"
+    return this.subjectValue === "epic" && Boolean(this.targetStateFor(payload, lane))
   }
 
   allowsDrag(state) {
-    return this.subjectValue === "epic" && state === "ready"
+    return this.subjectValue === "epic" && (state === "ready" || state === "in_progress")
+  }
+
+  targetStateFor(payload, lane) {
+    if (payload?.state === "ready" && lane.dataset.kanbanState === "in_progress") return "in_progress"
+    if (payload?.state === "in_progress" && lane.dataset.kanbanState === "ready") return "ready"
+
+    return null
   }
 
   dragPayload(event) {

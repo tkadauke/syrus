@@ -49,6 +49,13 @@ class Epic < ApplicationRecord
       }
     end
 
+    event :unstart do
+      transitions from: :in_progress, to: :ready, after: -> {
+        self.state = "ready"
+        restore_child_epic_blocks!
+      }
+    end
+
     event :auto_complete do
       transitions from: :in_progress, to: :done, guard: :complete?, after: :stamp_done_at
     end

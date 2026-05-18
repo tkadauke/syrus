@@ -266,6 +266,22 @@ RSpec.describe "Dashboard", type: :request do
       expect(job.reload).to be_queued
     end
 
+    it "unsticks an in-progress Epic from the Kanban transition endpoint and restores child Job blocks" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      epic = Factories.epic(user: user, repository: repo, state: "ready")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, state: "blocked_by_epic")
+      epic.start!
+
+      patch state_epic_path(epic),
+            params: { target_state: "ready" },
+            headers: { "ACCEPT" => "application/json" }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to include("state" => "ready")
+      expect(epic.reload).to be_ready
+      expect(job.reload).to be_blocked_by_epic
+    end
+
     it "rejects non-ready-to-in-progress Kanban transitions server-side" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       epic = Factories.epic(user: user, repository: repo, state: "backlog")
