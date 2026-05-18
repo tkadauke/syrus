@@ -1,10 +1,10 @@
 module AgentInvocation
-  DEFAULT_TIMEOUT_SECONDS = 30.minutes.to_i
+  DEFAULT_TIMEOUT_SECONDS = 90.minutes.to_i
   # Kill the agent subprocess if it produces no output for this long.
   # Sized to accommodate long tool execs: a full test suite, a
   # `bundle install`, or a slow `git fetch` invoked from inside the
   # agent can legitimately silence the JSONL stream for many minutes.
-  # The wall-clock DEFAULT_TIMEOUT_SECONDS (30 min) is the absolute
+  # The wall-clock DEFAULT_TIMEOUT_SECONDS (90 min) is the absolute
   # ceiling; 20 min of silence is the "wedged, not slow" heuristic.
   SILENT_TIMEOUT_SECONDS = 20.minutes.to_i
   # Fallback only for callers that don't pass max_turns. RunJob threads
