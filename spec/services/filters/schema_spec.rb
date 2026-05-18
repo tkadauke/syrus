@@ -132,24 +132,27 @@ RSpec.describe Filters::Schema do
       expect(schema.find { |chip| chip["field"] == "attention" }["values"].map { |v| v["value"] }).to include("ready_to_start", "recently_done")
     end
 
-    # Regression: the Workflows-side job_id chip had no branch in
-    # dynamic_values so the picker showed nothing — operators
-    # couldn't filter workflows by Job at all. Mirror the
-    # parent_job_id pattern (most-recent 200, labelled with
-    # issue_number + title). The forthcoming typeahead refactor
-    # replaces this static cap with server-side search.
-    it "exposes the Workflows job_id picker with per-user Job options" do
+    it "marks typeahead chips without embedding inline values" do
       user = Factories.user
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       Factories.job_record(user: user, repository: repo, issue_number: 42, issue_title: "Add greeting")
-      Factories.job_record(user: user, repository: repo, issue_number: 43, issue_title: "Remove greeting")
 
       schema = described_class.chip_for("job_id", user: user, subject: :workflow)
-      values = schema["values"]
 
-      expect(values).to be_an(Array)
-      expect(values.size).to eq(2)
-      expect(values.map { |v| v["label"] }).to include("#42 Add greeting", "#43 Remove greeting")
+      expect(schema["typeahead"]).to eq(true)
+      expect(schema).not_to have_key("values")
+    end
+
+    it "keeps non-typeahead FK chips on the inline values path" do
+      user = Factories.user
+      Factories.repository(user: user, owner: "acme", name: "widgets")
+
+      schema = described_class.chip_for("repository_id", user: user)
+
+      expect(schema).not_to have_key("typeahead")
+      expect(schema["values"]).to eq([
+        { "value" => user.repositories.first.id, "label" => "acme/widgets" }
+      ])
     end
   end
 end

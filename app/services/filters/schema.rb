@@ -23,9 +23,13 @@ module Filters
         "field"     => field,
         "label"     => chip.label,
         "bucket"    => chip.bucket.to_s,
-        "operators" => chip.operators.map(&:to_s),
-        "values"    => humanize_values(dynamic_values(chip, user) || chip.values)
+        "operators" => chip.operators.map(&:to_s)
       }
+      if chip.respond_to?(:typeahead) && chip.typeahead
+        meta["typeahead"] = true
+      else
+        meta["values"] = humanize_values(dynamic_values(chip, user) || chip.values)
+      end
       meta["expansions"] = chip.expansions if chip.respond_to?(:expansions)
       meta
     end
@@ -74,29 +78,10 @@ module Filters
     def dynamic_values(chip, user)
       return nil unless user
 
-      case chip.filter_name
-      when "repository_id"
-        user.repositories.active.order(:owner, :name).map { |r| { "value" => r.id, "label" => r.slug } }
-      when "epic_id"
-        user.epics.includes(:repository).order(:title).map { |e| { "value" => e.id, "label" => epic_label(e) } }
-      when "parent_job_id"
-        user.jobs.where.not(branch_name: nil).order(created_at: :desc).limit(200).map do |job|
-          { "value" => job.id, "label" => "##{job.issue_number || job.id} #{job.issue_title}".strip }
-        end
-      when "job_id"
-        # Workflows-side FK chip. Same shape as parent_job_id but
-        # without the branch_name filter (any Job's workflows are
-        # filterable, not just stack-able parents). Capped at 200
-        # most-recent for now — the upcoming typeahead refactor
-        # (see issue) replaces the limit with server-side search.
-        user.jobs.order(created_at: :desc).limit(200).map do |job|
-          { "value" => job.id, "label" => "##{job.issue_number || job.id} #{job.issue_title}".strip }
-        end
-      when "tags"
-        user.tags.order(Arel.sql("LOWER(tags.name)")).map { |t| { "value" => t.id, "label" => t.name } }
-      else
-        nil
-      end
+      return nil unless Filters::FkOptionsResolver::FIELDS.include?(chip.filter_name)
+
+      limit = %w[ parent_job_id job_id ].include?(chip.filter_name) ? 200 : nil
+      Filters::FkOptionsResolver.new(user: user).resolve(field: chip.filter_name, limit:)
     rescue NoMethodError
       # If the user model doesn't expose one of these associations
       # (test fixtures, partial migrations, etc.) — fall back to the

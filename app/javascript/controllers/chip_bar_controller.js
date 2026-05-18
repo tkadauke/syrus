@@ -31,6 +31,7 @@ export default class extends Controller {
   connect() {
     this.editingChipPath = null
     this.pendingAddTarget = null  // null = top-level AND; { path } = append to OR group at path
+    this.typeaheadSearchSeq = 0
     this.renderChips()
     document.addEventListener("click", this.handleDocumentClick)
     // Turbo's morph-based refreshes can wipe the chips container —
@@ -213,6 +214,7 @@ export default class extends Controller {
       elements.push(this.topElement(node, i))
     })
     this.chipsTarget.replaceChildren(...elements)
+    this.resolveVisibleTypeaheadLabels()
   }
 
   topElement(node, index) {
@@ -534,6 +536,7 @@ export default class extends Controller {
 
   valueEditorFor(chip, meta) {
     if (isPredicateOp(chip.op)) return null
+    if (meta.typeahead) return typeaheadEditor(chip, meta, this)
 
     switch (meta.bucket) {
       case "enum":
@@ -645,6 +648,125 @@ export default class extends Controller {
     if (!current) return
     this.replaceNodeAtPath(this.editingChipPath, { ...current, value: newValue })
     this.openEditorForPath(this.editingChipPath)
+  }
+
+  typeaheadSearchInput(event) {
+    const wrapper = event.currentTarget.closest("[data-role='typeahead']")
+    if (!wrapper) return
+    clearTimeout(wrapper._typeaheadTimer)
+    wrapper._typeaheadTimer = setTimeout(() => this.fetchTypeaheadSearch(wrapper), 200)
+  }
+
+  typeaheadKeydown(event) {
+    const wrapper = event.currentTarget.closest("[data-role='typeahead']")
+    if (!wrapper) return
+
+    const options = Array.from(wrapper.querySelectorAll("button[data-role='typeahead-option']"))
+    if (options.length === 0) return
+
+    const current = Number(wrapper.dataset.activeIndex || 0)
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      setTypeaheadActiveOption(wrapper, Math.min(current + 1, options.length - 1))
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault()
+      setTypeaheadActiveOption(wrapper, Math.max(current - 1, 0))
+    } else if (event.key === "Enter") {
+      event.preventDefault()
+      options[current] ? options[current].click() : options[0].click()
+    }
+  }
+
+  selectTypeaheadOption(event) {
+    const option = event.currentTarget
+    const wrapper = option.closest("[data-role='typeahead']")
+    if (!wrapper) return
+
+    event.stopPropagation()
+    const selected = JSON.parse(wrapper.dataset.selected || "[]")
+    const value = option.dataset.value
+    if (wrapper.dataset.multi === "true") {
+      if (!selected.some(v => String(v) === String(value))) selected.push(value)
+      wrapper.dataset.selected = JSON.stringify(selected)
+    } else {
+      wrapper.dataset.selected = JSON.stringify([ value ])
+    }
+
+    const meta = this.metaFor(wrapper.dataset.field)
+    addMetaOption(meta, { value, label: option.textContent })
+    renderTypeaheadState(wrapper, meta)
+    const input = wrapper.querySelector("[data-role='typeahead-search']")
+    if (input) {
+      input.value = ""
+      input.focus()
+    }
+  }
+
+  removeTypeaheadSelection(event) {
+    const button = event.currentTarget
+    const wrapper = button.closest("[data-role='typeahead']")
+    if (!wrapper) return
+
+    event.stopPropagation()
+    const selected = JSON.parse(wrapper.dataset.selected || "[]")
+    wrapper.dataset.selected = JSON.stringify(selected.filter(value => String(value) !== String(button.dataset.value)))
+    renderTypeaheadState(wrapper, this.metaFor(wrapper.dataset.field))
+  }
+
+  fetchTypeaheadSearch(wrapper) {
+    const input = wrapper.querySelector("[data-role='typeahead-search']")
+    const list = wrapper.querySelector("[data-role='typeahead-options']")
+    if (!input || !list) return
+
+    const field = wrapper.dataset.field
+    const query = input.value || ""
+    const requestId = String(++this.typeaheadSearchSeq)
+    wrapper.dataset.requestId = requestId
+
+    this.fetchTypeaheadOptions(field, { q: query })
+      .then(options => {
+        if (wrapper.dataset.requestId !== requestId) return
+        renderTypeaheadOptions(wrapper, options)
+      })
+      .catch(() => {
+        if (wrapper.dataset.requestId !== requestId) return
+        renderTypeaheadError(wrapper)
+      })
+  }
+
+  fetchTypeaheadOptions(field, { q = null, ids = [] } = {}) {
+    const params = new URLSearchParams()
+    params.set("field", field)
+    if (q !== null) params.set("q", q)
+    ids.forEach(id => params.append("ids[]", id))
+
+    return fetch(`/filters/fk_options?${params.toString()}`, {
+      headers: { Accept: "application/json" }
+    }).then(response => {
+      if (!response.ok) throw new Error(`typeahead request failed: ${response.status}`)
+      return response.json()
+    })
+  }
+
+  resolveVisibleTypeaheadLabels() {
+    if (typeof fetch !== "function") return
+
+    const idsByField = new Map()
+    collectTypeaheadChipValues(this.topChildren(), field => this.metaFor(field)).forEach((ids, field) => {
+      const meta = this.metaFor(field)
+      const missing = Array.from(ids).filter(value => !optionExists(meta, value))
+      if (missing.length > 0) idsByField.set(field, missing)
+    })
+
+    idsByField.forEach((ids, field) => {
+      this.fetchTypeaheadOptions(field, { ids })
+        .then(options => {
+          const meta = this.metaFor(field)
+          options.forEach(option => addMetaOption(meta, option))
+          this.renderChips()
+        })
+        .catch(() => {})
+    })
   }
 
   closePopovers() {
@@ -825,6 +947,41 @@ function labelForOption(value, meta) {
   const match = meta.values.find(v => String(typeof v === "object" ? v.value : v) === String(value))
   if (!match) return String(value)
   return typeof match === "object" ? match.label : match
+}
+
+function addMetaOption(meta, option) {
+  if (!meta) return
+  if (!Array.isArray(meta.values)) meta.values = []
+  if (optionExists(meta, option.value)) return
+  meta.values.push({ value: option.value, label: option.label })
+}
+
+function optionExists(meta, value) {
+  if (!meta || !Array.isArray(meta.values)) return false
+  return meta.values.some(v => String(typeof v === "object" ? v.value : v) === String(value))
+}
+
+function collectTypeaheadChipValues(nodes, metaFor) {
+  const idsByField = new Map()
+
+  const visit = node => {
+    if (!node || typeof node !== "object") return
+    if (node.not) return visit(node.not)
+    if (Array.isArray(node.or)) return node.or.forEach(visit)
+    if (!("field" in node)) return
+
+    const meta = metaFor(node.field)
+    if (!meta || !meta.typeahead || isPredicateOp(node.op)) return
+
+    const values = Array.isArray(node.value) ? node.value : [ node.value ]
+    values.filter(value => value !== null && value !== undefined && value !== "").forEach(value => {
+      if (!idsByField.has(node.field)) idsByField.set(node.field, new Set())
+      idsByField.get(node.field).add(String(value))
+    })
+  }
+
+  nodes.forEach(visit)
+  return idsByField
 }
 
 // ---- Per-bucket value editors ----
@@ -1085,10 +1242,126 @@ function dateInput(value) {
 }
 
 function collectionEditor(chip, meta) {
+  if (meta.typeahead) return null
   // Always use the multi-pill picker — the schema embeds the user's
   // tag list via dynamic_values, so this works for tags and any
   // future collection chip with a known value set.
   return multiPillEditor(chip, meta)
+}
+
+function typeaheadEditor(chip, meta, controller) {
+  const multi = [ "is_one_of", "is_none_of", "contains_any", "contains_all", "contains_none" ].includes(chip.op)
+  const wrapper = document.createElement("div")
+  wrapper.className = "rounded-md border border-gray-300 bg-white"
+  wrapper.dataset.chipBarTarget = "editorInput"
+  wrapper.dataset.role = "typeahead"
+  wrapper.dataset.field = meta.field
+  wrapper.dataset.multi = multi ? "true" : "false"
+  wrapper.dataset.selected = JSON.stringify(normalizedSelectedValues(chip.value, multi))
+  wrapper.dataset.activeIndex = "0"
+
+  const selectedRow = document.createElement("div")
+  selectedRow.className = "flex flex-wrap gap-1 p-2"
+  selectedRow.dataset.role = "typeahead-selected"
+
+  const input = document.createElement("input")
+  input.type = "search"
+  input.placeholder = "Search..."
+  input.autocomplete = "off"
+  input.className = "block w-full border-0 border-t border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-0"
+  input.dataset.role = "typeahead-search"
+  input.dataset.action = "input->chip-bar#typeaheadSearchInput keydown->chip-bar#typeaheadKeydown"
+
+  const list = document.createElement("div")
+  list.className = "max-h-40 overflow-y-auto border-t border-gray-200 text-sm"
+  list.dataset.role = "typeahead-options"
+
+  wrapper.append(selectedRow, input, list)
+  renderTypeaheadState(wrapper, meta)
+  controller.fetchTypeaheadSearch(wrapper)
+
+  return wrapper
+}
+
+function normalizedSelectedValues(value, multi) {
+  if (multi) return Array.isArray(value) ? value.map(String) : []
+  if (value === null || value === undefined || value === "") return []
+  return [ String(value) ]
+}
+
+function renderTypeaheadState(wrapper, meta) {
+  const selected = JSON.parse(wrapper.dataset.selected || "[]").map(String)
+  const selectedRow = wrapper.querySelector("[data-role='typeahead-selected']")
+
+  selectedRow.replaceChildren(...selected.map(value => {
+    const pill = document.createElement("span")
+    pill.className = "inline-flex items-center gap-1 rounded bg-indigo-100 px-2 py-0.5 text-xs text-indigo-800"
+    const text = document.createElement("span")
+    text.textContent = labelForOption(value, meta)
+    const remove = document.createElement("button")
+    remove.type = "button"
+    remove.dataset.role = "typeahead-remove"
+    remove.dataset.value = value
+    remove.dataset.action = "click->chip-bar#removeTypeaheadSelection"
+    remove.className = "text-indigo-500 hover:text-indigo-900 cursor-pointer"
+    remove.textContent = "×"
+    pill.append(text, remove)
+    return pill
+  }))
+
+  if (selected.length === 0) {
+    const placeholder = document.createElement("span")
+    placeholder.className = "text-xs text-gray-400"
+    placeholder.textContent = "Nothing selected yet"
+    selectedRow.append(placeholder)
+  }
+}
+
+function renderTypeaheadOptions(wrapper, options) {
+  const selected = new Set(JSON.parse(wrapper.dataset.selected || "[]").map(String))
+  const list = wrapper.querySelector("[data-role='typeahead-options']")
+  const visible = options.filter(option => !selected.has(String(option.value)))
+
+  list.replaceChildren(...visible.map((option, index) => {
+    const button = document.createElement("button")
+    button.type = "button"
+    button.dataset.role = "typeahead-option"
+    button.dataset.value = option.value
+    button.dataset.action = "click->chip-bar#selectTypeaheadOption"
+    button.className = typeaheadOptionClass(index === 0)
+    button.textContent = option.label
+    return button
+  }))
+
+  wrapper.dataset.activeIndex = "0"
+  if (visible.length === 0) {
+    const empty = document.createElement("div")
+    empty.className = "px-3 py-1.5 text-xs text-gray-400"
+    empty.textContent = "No matches"
+    list.append(empty)
+  }
+}
+
+function renderTypeaheadError(wrapper) {
+  const list = wrapper.querySelector("[data-role='typeahead-options']")
+  const error = document.createElement("div")
+  error.className = "px-3 py-1.5 text-xs text-rose-500"
+  error.textContent = "Options unavailable"
+  list.replaceChildren(error)
+}
+
+function setTypeaheadActiveOption(wrapper, index) {
+  const options = Array.from(wrapper.querySelectorAll("button[data-role='typeahead-option']"))
+  wrapper.dataset.activeIndex = String(index)
+  options.forEach((option, i) => {
+    option.className = typeaheadOptionClass(i === index)
+  })
+}
+
+function typeaheadOptionClass(active) {
+  return active
+    ? "flex w-full items-center justify-between gap-2 bg-blue-50 px-3 py-1.5 text-left cursor-pointer"
+    : "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-gray-50 cursor-pointer"
 }
 
 function readEditorValue(editor, op) {
@@ -1106,6 +1379,12 @@ function readEditorValue(editor, op) {
   const multiPill = editor.querySelector('[data-role="multi-pill"]')
   if (multiPill) {
     return JSON.parse(multiPill.dataset.selected || "[]")
+  }
+
+  const typeahead = editor.querySelector('[data-role="typeahead"]')
+  if (typeahead) {
+    const selected = JSON.parse(typeahead.dataset.selected || "[]")
+    return typeahead.dataset.multi === "true" ? selected : (selected[0] || null)
   }
 
   if (inputs.length === 1) {

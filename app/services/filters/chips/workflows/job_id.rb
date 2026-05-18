@@ -5,6 +5,7 @@ module Filters
         filter_name "job_id"
         label "Job"
         column :job_id
+        typeahead true
       end
     end
   end

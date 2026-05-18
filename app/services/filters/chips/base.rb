@@ -65,6 +65,12 @@ module Filters
           return @values if defined?(@values) && @values&.any?
           superclass.respond_to?(:values) ? superclass.values : [].freeze
         end
+
+        def typeahead(enabled = nil)
+          @typeahead = enabled unless enabled.nil?
+          return @typeahead if defined?(@typeahead)
+          superclass.respond_to?(:typeahead) ? superclass.typeahead : false
+        end
       end
 
       def initialize(scope:, op:, value:, user: nil)

@@ -145,6 +145,7 @@ Rails.application.routes.draw do
       post :fire_now    # manually fire an active task without waiting for cron
     end
   end
+  get "filters/fk_options", to: "filters/fk_options#index"
   get "dashboard", to: "home#index"
   get "dashboard/epics", to: "home#epics", as: :dashboard_epics
   patch "dashboard/epics/:id/auto_approval", to: "home#update_epic_auto_approval", as: :dashboard_epic_auto_approval
