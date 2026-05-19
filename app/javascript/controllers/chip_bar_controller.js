@@ -104,7 +104,10 @@ export default class extends Controller {
 
   topChildren() {
     const tree = this.treeValue || {}
-    return Array.isArray(tree.and) ? tree.and : []
+    if (!tree || typeof tree !== "object") return []
+    if (Array.isArray(tree.and)) return tree.and
+    if (Array.isArray(tree.or) || tree.not !== undefined || "field" in tree) return [ tree ]
+    return []
   }
 
   setTopChildren(children) {

@@ -138,6 +138,9 @@ function buildController(Controller, { tree, schema }) {
   controller.element = new Element()
   controller.treeValue = tree
   controller.schemaValue = schema
+  controller.qInputTarget = new Element("input")
+  controller.formTarget = new Element("form")
+  controller.formTarget.requestSubmit = () => {}
   controller.chipsTarget = new Element()
   controller.hasChipsTarget = true
   return controller
@@ -201,6 +204,52 @@ test("fetches labels for typeahead chip values on initial render", async () => {
   } finally {
     globalThis.fetch = originalFetch
   }
+})
+
+test("renders a top-level OR tree as ordinary removable chips", async () => {
+  const { default: Controller } = await loadController()
+  const controller = buildController(Controller, {
+    tree: {
+      or: [
+        { field: "state", op: "is_one_of", value: [ "queued", "running" ] },
+        { field: "finished_at", op: "within_last", value: { n: 7, unit: "days" } }
+      ]
+    },
+    schema: workflowSchema()
+  })
+
+  controller.renderChips()
+
+  assert.match(controller.chipsTarget.textContent, /Stateis any ofQueued, Running/)
+  assert.match(controller.chipsTarget.textContent, /Finishedwithin last7 days/)
+  assert.match(controller.chipsTarget.textContent, /or/)
+  assert.equal(controller.chipsTarget.querySelectorAll("[data-chip-path='[0,0]']").length, 2)
+  assert.equal(controller.chipsTarget.querySelectorAll("[data-chip-path='[0,1]']").length, 2)
+})
+
+test("removing chips from a top-level OR tree writes an explicit q tree", async () => {
+  const { default: Controller } = await loadController()
+  const controller = buildController(Controller, {
+    tree: {
+      or: [
+        { field: "state", op: "is_one_of", value: [ "queued", "running" ] },
+        { field: "finished_at", op: "within_last", value: { n: 7, unit: "days" } }
+      ]
+    },
+    schema: workflowSchema()
+  })
+  const submissions = []
+  controller.formTarget.requestSubmit = () => submissions.push(decodeTree(controller.qInputTarget.value))
+
+  controller.removeChip({ currentTarget: { dataset: { chipPath: "[0,0]" } } })
+
+  assert.deepEqual(submissions.at(-1), {
+    and: [ { field: "finished_at", op: "within_last", value: { n: 7, unit: "days" } } ]
+  })
+
+  controller.removeChip({ currentTarget: { dataset: { chipPath: "[0]" } } })
+
+  assert.deepEqual(submissions.at(-1), { and: [] })
 })
 
 test("debounces rapid typeahead input into one search request", async () => {
@@ -364,4 +413,31 @@ function optionElement(value, label) {
   option.dataset.value = value
   option.textContent = label
   return option
+}
+
+function workflowSchema() {
+  return [
+    {
+      field: "state",
+      label: "State",
+      bucket: "enum",
+      operators: [ "is", "is_one_of" ],
+      values: [
+        { value: "queued", label: "Queued" },
+        { value: "running", label: "Running" }
+      ]
+    },
+    {
+      field: "finished_at",
+      label: "Finished",
+      bucket: "date",
+      operators: [ "within_last" ]
+    }
+  ]
+}
+
+function decodeTree(encoded) {
+  const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/")
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")
+  return JSON.parse(Buffer.from(padded, "base64").toString("utf8"))
 }

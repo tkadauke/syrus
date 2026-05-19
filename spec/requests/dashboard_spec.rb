@@ -1199,6 +1199,21 @@ RSpec.describe "Dashboard", type: :request do
         expect(tbody_text).not_to include("Ancient failure")
       end
 
+      it "preserves an explicit empty workflow q param instead of re-applying the default" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        old_job = Factories.job(repository: repo, issue_number: 1, issue_title: "Ancient failure")
+        old_job.latest_workflow.update!(state: "failed", finished_at: 8.days.ago)
+        q = Filters::QueryParam.encode("and" => [])
+
+        get root_path, params: { subject: "workflow", view: "list", q: q }
+
+        document = Nokogiri::HTML(response.body)
+        tree = JSON.parse(document.at_css("[data-chip-bar-tree-value]")["data-chip-bar-tree-value"])
+        expect(tree).to eq("and" => [])
+        expect(document.at_css("tbody").text).to include("Ancient failure")
+        expect(document.css("button").map(&:text).map(&:strip)).not_to include("Clear")
+      end
+
       it "lets an explicit workflow chip filter narrow the list" do
         repo = Factories.repository(user: user, owner: "acme", name: "widgets")
         running = Factories.job(repository: repo, issue_number: 1, issue_title: "Still marching")
