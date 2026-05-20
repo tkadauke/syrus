@@ -127,6 +127,49 @@ RSpec.describe PollRepositoryJob do
       )
     end
 
+    it "parses Epic Depends-on references while ingesting an Epic marker declaration" do
+      prerequisite = Factories.epic(
+        user: user,
+        repository: repository,
+        title: "Universal dashboard",
+        github_issue_url: "https://github.com/acme/widgets/issues/534"
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 535, body: "Epic: Workflows\n\nDepends-on: #534") ])
+
+      described_class.perform_now(repository.id)
+
+      epic = Epic.find_by!(github_issue_url: "https://github.com/acme/widgets/issues/535")
+      expect(epic.depends_on_epics).to contain_exactly(prerequisite)
+    end
+
+    it "resolves pending Epic Depends-on references when the target Epic is ingested later" do
+      dependent = issue(number: 535, body: "Epic: Workflows\n\nDepends-on: #534")
+      prerequisite = issue(number: 534, body: "Epic: Universal dashboard")
+      poll_count = 0
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do
+        poll_count += 1
+        poll_count == 1 ? [ dependent ] : [ prerequisite ]
+      end
+
+      described_class.perform_now(repository.id)
+
+      epic = Epic.find_by!(github_issue_url: "https://github.com/acme/widgets/issues/535")
+      expect(epic.depends_on_epics).to be_empty
+      expect(epic.pending_epic_dependency_refs).to contain_exactly(
+        "owner" => "acme",
+        "repo" => "widgets",
+        "number" => 534,
+        "github_issue_url" => "https://github.com/acme/widgets/issues/534"
+      )
+
+      described_class.perform_now(repository.id)
+
+      prerequisite_epic = Epic.find_by!(github_issue_url: "https://github.com/acme/widgets/issues/534")
+      expect(epic.reload.depends_on_epics).to contain_exactly(prerequisite_epic)
+      expect(epic.pending_epic_dependency_refs).to eq([])
+    end
+
     it "attaches a child issue to an already-ingested Epic and leaves triage for the Epic block" do
       epic = Factories.epic(
         user: user,

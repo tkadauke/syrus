@@ -27,8 +27,11 @@ class Epic < ApplicationRecord
   validates :state, presence: true, inclusion: { in: STATES }
   validate :repository_belongs_to_user
 
+  after_initialize :default_pending_epic_dependency_refs
   before_validation :assign_number, on: :create
   after_create :resolve_pending_child_jobs
+  after_create :seed_parsed_epic_dependencies
+  after_create :resolve_pending_epic_dependencies_targeting_self
 
   broadcasts_refreshes_to ->(epic) { [ epic.user, "jobs" ] }
   broadcasts_refreshes_to ->(epic) { [ epic.repository, "jobs" ] }
@@ -147,6 +150,10 @@ class Epic < ApplicationRecord
     self.number ||= (self.class.maximum(:number) || 0) + 1
   end
 
+  def default_pending_epic_dependency_refs
+    self.pending_epic_dependency_refs ||= []
+  end
+
   def repository_belongs_to_user
     return unless repository && user
     return if repository.user_id == user_id
@@ -174,6 +181,91 @@ class Epic < ApplicationRecord
         .where(triaging_reason: "pending_epic_ref")
         .find_each do |job|
       job.resolve_pending_epic_ref!(self)
+    end
+  end
+
+  def seed_parsed_epic_dependencies
+    text = description.to_s
+    return if text.blank?
+
+    pending_refs = pending_epic_dependency_refs.to_a.map(&:to_h)
+
+    JobDependencyParser.parse(text: text, default_repository: repository).each do |reference|
+      if (target_epic = epic_for_dependency_reference(reference))
+        create_parsed_epic_dependency!(target_epic, reference)
+      else
+        pending_ref = pending_epic_dependency_ref(reference)
+        next if pending_refs.any? { |ref| ref.slice("owner", "repo", "number") == pending_ref.slice("owner", "repo", "number") }
+
+        pending_refs << pending_ref
+        Rails.logger.info(
+          "[EpicDependency] epic ##{id}: Depends-on: " \
+          "#{reference.owner}/#{reference.repo}##{reference.number} - " \
+          "no Syrus Epic exists yet; recorded as pending"
+        )
+      end
+    end
+
+    update!(pending_epic_dependency_refs: pending_refs) if pending_refs != pending_epic_dependency_refs
+  end
+
+  def resolve_pending_epic_dependencies_targeting_self
+    return if github_issue_url.blank?
+
+    user.epics.where.not(id: id).find_each do |dependent_epic|
+      pending_refs = dependent_epic.pending_epic_dependency_refs.to_a.map(&:to_h)
+      matches, remaining = pending_refs.partition { |ref| pending_epic_dependency_ref_targets_self?(ref) }
+      next if matches.empty?
+
+      matches.each do |reference|
+        dependent_epic.send(:create_parsed_epic_dependency!, self, reference)
+      end
+      dependent_epic.update!(pending_epic_dependency_refs: remaining)
+    end
+  end
+
+  def epic_for_dependency_reference(reference)
+    referenced_repository = user.repositories.find_by(owner: reference.owner, name: reference.repo)
+    return unless referenced_repository
+
+    referenced_repository.epics.find_by(github_issue_url: github_issue_url_for(reference))
+  end
+
+  def create_parsed_epic_dependency!(target_epic, reference)
+    dependencies.find_or_create_by!(depends_on_epic: target_epic, derived: false)
+  rescue ActiveRecord::RecordInvalid => e
+    message = "[EpicDependency] epic ##{id}: rejected parsed Depends-on: " \
+              "#{reference_slug(reference)} - #{e.record.errors.full_messages.to_sentence}"
+    Rails.logger.warn(message)
+  rescue ActiveRecord::RecordNotUnique => e
+    Rails.logger.warn(
+      "[EpicDependency] epic ##{id}: duplicate parsed Depends-on: " \
+      "#{reference_slug(reference)} - #{e.message}"
+    )
+  end
+
+  def pending_epic_dependency_ref(reference)
+    {
+      "owner" => reference.owner,
+      "repo" => reference.repo,
+      "number" => reference.number,
+      "github_issue_url" => github_issue_url_for(reference)
+    }
+  end
+
+  def pending_epic_dependency_ref_targets_self?(reference)
+    reference.to_h["github_issue_url"] == github_issue_url
+  end
+
+  def github_issue_url_for(reference)
+    "https://github.com/#{reference.owner}/#{reference.repo}/issues/#{reference.number}"
+  end
+
+  def reference_slug(reference)
+    if reference.respond_to?(:owner)
+      "#{reference.owner}/#{reference.repo}##{reference.number}"
+    else
+      "#{reference["owner"]}/#{reference["repo"]}##{reference["number"]}"
     end
   end
 end

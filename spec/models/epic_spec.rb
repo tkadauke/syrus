@@ -17,7 +17,7 @@ RSpec.describe Epic do
   end
 
   let(:user) { Factories.user }
-  let(:repository) { Factories.repository(user: user) }
+  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
   def child_job(epic:, number:, closure_reason: nil)
     job = Factories.job_record(user: user, repository: repository, issue_number: number, epic: epic)
@@ -54,6 +54,114 @@ RSpec.describe Epic do
 
     expect(epic.reload).to be_backlog
     expect(epic.may_auto_ready?).to be false
+  end
+
+  context "with Depends-on refs in description" do
+    it "creates an EpicDependency for a same-repository GitHub issue reference" do
+      prerequisite = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Universal dashboard",
+        github_issue_url: "https://github.com/acme/widgets/issues/534"
+      )
+
+      epic = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Workflows as a third subject",
+        github_issue_url: "https://github.com/acme/widgets/issues/535",
+        description: "Depends-on: #534"
+      )
+
+      expect(epic.depends_on_epics).to contain_exactly(prerequisite)
+      expect(epic.dependencies.first).not_to be_derived
+      expect(epic.pending_epic_dependency_refs).to eq([])
+    end
+
+    it "creates dependencies for cross-repository references, comma-separated refs, and synonyms" do
+      other_repository = Factories.repository(user: user, owner: "acme", name: "api")
+      same_repo_blocker = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Same repo blocker",
+        github_issue_url: "https://github.com/acme/widgets/issues/10"
+      )
+      cross_repo_blocker = described_class.create!(
+        user: user,
+        repository: other_repository,
+        title: "Cross repo blocker",
+        github_issue_url: "https://github.com/acme/api/issues/11"
+      )
+      synonym_blocker = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Synonym blocker",
+        github_issue_url: "https://github.com/acme/widgets/issues/12"
+      )
+
+      epic = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Dependent",
+        github_issue_url: "https://github.com/acme/widgets/issues/13",
+        description: "Depends on: #10, acme/api#11\nBlocked-by: #12"
+      )
+
+      expect(epic.depends_on_epics).to contain_exactly(same_repo_blocker, cross_repo_blocker, synonym_blocker)
+    end
+
+    it "stores unresolved references and resolves them when the target Epic is later ingested" do
+      epic = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Dependent",
+        github_issue_url: "https://github.com/acme/widgets/issues/535",
+        description: "Depends-on: #534"
+      )
+
+      expect(epic.dependencies).to be_empty
+      expect(epic.pending_epic_dependency_refs).to eq([
+        {
+          "owner" => "acme",
+          "repo" => "widgets",
+          "number" => 534,
+          "github_issue_url" => "https://github.com/acme/widgets/issues/534"
+        }
+      ])
+
+      prerequisite = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Universal dashboard",
+        github_issue_url: "https://github.com/acme/widgets/issues/534"
+      )
+
+      expect(epic.reload.depends_on_epics).to contain_exactly(prerequisite)
+      expect(epic.pending_epic_dependency_refs).to eq([])
+    end
+
+    it "logs and skips parsed dependencies rejected by cycle validation" do
+      first = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "First",
+        github_issue_url: "https://github.com/acme/widgets/issues/1"
+      )
+      second = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Second",
+        github_issue_url: "https://github.com/acme/widgets/issues/2"
+      )
+      EpicDependency.create!(epic: first, depends_on_epic: second)
+
+      expect(Rails.logger).to receive(:warn).with(/rejected parsed Depends-on: acme\/widgets#1.*would create a cycle/)
+
+      second.update!(description: "Depends-on: #1")
+      second.send(:seed_parsed_epic_dependencies)
+
+      expect(second.reload.depends_on_epics).to be_empty
+    end
   end
 
   it "keeps ready to in_progress manual and unblocks queued child workflows when started" do
