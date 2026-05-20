@@ -98,6 +98,28 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include("name=\"message_id\"")
     end
 
+    it "does not render manual bookmark controls for tool call rows" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      chat.messages.create!(role: "assistant", content: { "text" => "Real message." })
+      chat.messages.create!(role: "tool_use", tool_name: "Read", proposal: ChatProposal.create!(
+        chat_session: chat,
+        slug: "draft-job",
+        title: "Draft job",
+        body: "Draft a job."
+      ), content: { "input" => { "slug" => "draft-job" } })
+      chat.messages.create!(role: "tool_result", tool_name: "Read", content: { "result" => [ { "type" => "text", "text" => "contents" } ] })
+      chat.messages.create!(role: "system", content: { "text" => "System note." })
+
+      get chat_path(chat)
+
+      document = Nokogiri::HTML(response.body)
+      bookmark_buttons = document.css("button").select { |button| button.text.squish == "Bookmark this" }
+      bookmark_dialogs = document.css("dialog[id^='bookmark-modal-message-']")
+
+      expect(bookmark_buttons.size).to eq(1)
+      expect(bookmark_dialogs.size).to eq(1)
+    end
+
     it "renders usage, workspace controls, and the chat side-panel shell" do
       chat = ChatSession.create!(
         user: user,

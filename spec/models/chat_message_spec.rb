@@ -52,6 +52,14 @@ RSpec.describe ChatMessage do
     expect { message.destroy }.to change { ChatBookmark.where(id: bookmark.id).count }.by(-1)
   end
 
+  it "only treats user and assistant rows as manually bookmarkable" do
+    bookmarkable_roles = described_class::ROLES.select do |role|
+      described_class.new(chat_session: session, role: role, content: {}).bookmarkable?
+    end
+
+    expect(bookmarkable_roles).to eq(%w[user assistant])
+  end
+
   # Regression: before this fix the compose form was rendered once
   # (server-side, with turn_in_flight: true) and never refreshed when
   # the turn ended, leaving the Send button disabled until the operator

@@ -24,6 +24,10 @@ class ChatMessage < ApplicationRecord
     role == "assistant" && proposal_id.present?
   end
 
+  def bookmarkable?
+    role.in?(%w[user assistant])
+  end
+
   private
 
   def content_is_present
