@@ -4,6 +4,24 @@ export default class extends Controller {
   static targets = ["lane"]
   static values = { subject: String }
 
+  connect() {
+    this.handleBeforeMorphElement = (event) => {
+      const el = event.target
+      if (!(el instanceof Element)) return
+      if (!this.element.contains(el)) return
+
+      const openMenu = el.closest("details[open]")
+      if (openMenu && this.element.contains(openMenu)) {
+        event.preventDefault()
+      }
+    }
+    document.addEventListener("turbo:before-morph-element", this.handleBeforeMorphElement)
+  }
+
+  disconnect() {
+    document.removeEventListener("turbo:before-morph-element", this.handleBeforeMorphElement)
+  }
+
   dragStart(event) {
     const card = event.currentTarget
     const state = card.dataset.kanbanState

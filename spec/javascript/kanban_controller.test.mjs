@@ -27,6 +27,46 @@ class DataTransfer {
   }
 }
 
+class Element {
+  constructor(tagName = "div") {
+    this.tagName = tagName.toUpperCase()
+    this.children = []
+    this.attributes = {}
+    this.parentElement = null
+  }
+
+  append(...children) {
+    children.forEach((child) => {
+      if (child instanceof Element) child.parentElement = this
+      this.children.push(child)
+    })
+  }
+
+  setAttribute(name, value) {
+    this.attributes[name] = value
+  }
+
+  closest(selector) {
+    let node = this
+    while (node) {
+      if (matchesSelector(node, selector)) return node
+      node = node.parentElement
+    }
+    return null
+  }
+
+  contains(other) {
+    if (other === this) return true
+    return this.children.some((child) => child instanceof Element && child.contains(other))
+  }
+}
+
+function matchesSelector(element, selector) {
+  return selector === "details[open]" &&
+    element.tagName === "DETAILS" &&
+    Object.hasOwn(element.attributes, "open")
+}
+
 function event({ cardState = "ready", laneState = "in_progress" } = {}) {
   return {
     currentTarget: {
@@ -50,6 +90,34 @@ function event({ cardState = "ready", laneState = "in_progress" } = {}) {
     }
   }
 }
+
+test("open card menus prevent Turbo element morphs", async () => {
+  const { default: Controller } = await loadController()
+  const listeners = new Map()
+  globalThis.Element = Element
+  globalThis.document = {
+    addEventListener: (name, listener) => listeners.set(name, listener),
+    removeEventListener() {}
+  }
+
+  const controller = new Controller()
+  controller.element = new Element()
+  const menu = new Element("details")
+  const menuItem = new Element("button")
+  menu.setAttribute("open", "")
+  menu.append(menuItem)
+  controller.element.append(menu)
+
+  controller.connect()
+
+  let prevented = false
+  listeners.get("turbo:before-morph-element")({
+    target: menuItem,
+    preventDefault() { prevented = true }
+  })
+
+  assert.equal(prevented, true)
+})
 
 test("dragStart permits ready and in_progress Epic cards", async () => {
   const { default: Controller } = await loadController()
