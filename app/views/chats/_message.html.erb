@@ -80,6 +80,6 @@
       <%= render "chats/tool_result_card", message: message, repository: repository %>
     <% end %>
   <% when "system" %>
-    <p class="text-center text-sm italic text-gray-500"><%= text %></p>
+    <%= render_chat_system_message(text) %>
   <% end %>
 </div>

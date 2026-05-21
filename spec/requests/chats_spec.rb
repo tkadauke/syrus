@@ -120,6 +120,27 @@ RSpec.describe "Chats", type: :request do
       expect(bookmark_dialogs.size).to eq(1)
     end
 
+    it "renders raw agent system metadata as readable status chips" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      chat.messages.create!(
+        role: "system",
+        content: {
+          "text" => "[result] subtype=success, is_error=false, turns=4, duration_ms=170223, total_cost_usd=0.37236969999999997"
+        }
+      )
+      chat.messages.create!(
+        role: "system",
+        content: { "text" => "[mcp_servers] syrus-chat-sidecar=connected" }
+      )
+
+      get chat_path(chat)
+
+      expect(response.body).to include("Agent run succeeded")
+      expect(response.body).to include("$0.37")
+      expect(response.body).not_to include("0.37236969999999997")
+      expect(response.body).to include("MCP connected: syrus-chat-sidecar")
+    end
+
     it "renders usage, workspace controls, and the chat side-panel shell" do
       chat = ChatSession.create!(
         user: user,
@@ -639,5 +660,4 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include(chat_proposal_reject_path(chat, ui))
     end
   end
-
 end
