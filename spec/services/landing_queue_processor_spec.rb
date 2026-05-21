@@ -4,7 +4,7 @@ RSpec.describe LandingQueueProcessor do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
-  def queue_job(issue_number:, approved_at:, parent_job: nil, pr_number: issue_number)
+  def queue_job(issue_number:, approved_at:, parent_job: nil, pr_number: issue_number, repository: self.repository)
     # Start in :implemented so approve! works directly; mirrors the
     # production flow where mark_implemented! happens before approval
     # (post audit, :open → :implemented → :approved is the only
@@ -59,7 +59,44 @@ RSpec.describe LandingQueueProcessor do
     expect(described_class.call.job).to eq(job)
   end
 
-  it "waits while any Job is already landing" do
+  it "lands approved Jobs in different repositories in the same tick" do
+    other_repository = Factories.repository(user: user, auto_merge_enabled: true, name: "other")
+    first = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    second = queue_job(issue_number: 2, approved_at: 1.minute.ago, repository: other_repository)
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(first)
+    expect(first.reload).to be_landing
+    expect(second.reload).to be_landing
+    expect(Workflow.where(trigger_kind: "auto_merge").pluck(:job_id)).to contain_exactly(first.id, second.id)
+  end
+
+  it "lands only the oldest approved Job per repository in the same tick" do
+    older = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    newer = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(older)
+    expect(older.reload).to be_landing
+    expect(newer.reload).to be_approved
+  end
+
+  it "lands an approved Job from another repository while a repository is already landing" do
+    other_repository = Factories.repository(user: user, auto_merge_enabled: true, name: "other")
+    landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    ready = queue_job(issue_number: 2, approved_at: 1.minute.ago, repository: other_repository)
+    landing.start_landing!
+    landing.save!
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(ready)
+    expect(ready.reload).to be_landing
+  end
+
+  it "skips an approved Job whose repository is already landing" do
     landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
     ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
     landing.start_landing!
@@ -115,7 +152,7 @@ RSpec.describe LandingQueueProcessor do
       expect(job.reload).to be_approved
     end
 
-    it "no-ops when another Job is already landing" do
+    it "no-ops when another Job in the same repository is already landing" do
       already_landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
       already_landing.start_landing!
       already_landing.save!
@@ -124,6 +161,20 @@ RSpec.describe LandingQueueProcessor do
 
       expect(described_class.try_land!(target)).to be_nil
       expect(target.reload).to be_approved
+    end
+
+    it "dispatches when another repository is already landing" do
+      other_repository = Factories.repository(user: user, auto_merge_enabled: true, name: "other")
+      already_landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+      already_landing.start_landing!
+      already_landing.save!
+
+      target = queue_job(issue_number: 2, approved_at: 1.minute.ago, repository: other_repository)
+
+      workflow = described_class.try_land!(target)
+
+      expect(workflow.job).to eq(target)
+      expect(target.reload).to be_landing
     end
   end
 end

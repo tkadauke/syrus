@@ -19,12 +19,11 @@ module Steps
 
       # Every early-exit path here must transition the Job out of
       # :landing before cancelling the workflow — otherwise
-      # LandingQueueProcessor#landing_in_progress? sees a Job in
-      # :landing with no active auto_merge workflow and blocks the
-      # entire queue indefinitely. defer_landing preserves the
-      # approval and sends the Job back to :approved so it
-      # re-enters the landing queue after the blocker clears; the
-      # :closed case closes the Job to match the PR.
+      # LandingQueueProcessor keeps treating that repository as
+      # occupied. defer_landing preserves the approval and sends the
+      # Job back to :approved so it re-enters the landing queue after
+      # the blocker clears; the :closed case closes the Job to match
+      # the PR.
       case gate.outcome
       when :closed
         log("auto_merge: PR ##{job.pr_number} is already closed; cancelling workflow", kind: "system")

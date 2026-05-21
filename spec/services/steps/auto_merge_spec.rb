@@ -70,8 +70,8 @@ RSpec.describe Steps::AutoMerge do
   it "closes the Job when the PR was already closed externally so the landing queue isn't blocked" do
     # Job 340 regression: when the gate evaluated to :closed, the
     # old code cancelled the workflow without transitioning the Job
-    # out of :landing, leaving LandingQueueProcessor#landing_in_progress?
-    # permanently true.
+    # out of :landing, leaving the repository permanently occupied
+    # in the landing queue.
     job.approve!(via: "github_review")
     job.start_landing!
     job.save!

@@ -18,11 +18,11 @@ class LandingQueueProcessor
   # recurring tick — e.g. a Rebase workflow's success callback when
   # the Job is still approved. Returns the dispatched Workflow or
   # nil if the Job wasn't landable (not approved, blockage present,
-  # landing already in progress).
+  # landing already in progress for the same repository).
   def self.try_land!(job) = new.try_land!(job)
 
   def try_land!(job)
-    return if landing_in_progress?
+    return if landing_in_progress_for_repository?(job.repository_id)
     return unless job.approved?
     return unless blockage_for(job)[:blocked_reason].blank?
 
@@ -30,14 +30,21 @@ class LandingQueueProcessor
   end
 
   def call
-    return if landing_in_progress?
+    occupied_repo_ids = Set.new(Job.landing.pluck(:repository_id))
+    landed_workflows = []
 
     entries(Job.approved.includes(:user, :repository, :epic, :parent_job, dependencies: :depends_on_job)).each do |entry|
+      next if occupied_repo_ids.include?(entry.job.repository_id)
       next unless entry.eligible?
 
-      return land(entry.job)
+      workflow = land(entry.job)
+      next unless workflow
+
+      landed_workflows << workflow
+      occupied_repo_ids << entry.job.repository_id
     end
-    nil
+
+    landed_workflows.first
   end
 
   def entries(scope = Job.all)
@@ -58,9 +65,8 @@ class LandingQueueProcessor
     workflow = nil
     landed = false
     Job.transaction do
-      raise ActiveRecord::Rollback if landing_in_progress?
-
       job.lock!
+      raise ActiveRecord::Rollback if landing_in_progress_for_repository?(job.repository_id)
       raise ActiveRecord::Rollback unless job.approved?
       raise ActiveRecord::Rollback unless blockage_for(job)[:blocked_reason].blank?
 
@@ -76,8 +82,8 @@ class LandingQueueProcessor
     workflow
   end
 
-  def landing_in_progress?
-    Job.landing.exists? || Workflow.active.where(trigger_kind: "auto_merge").exists?
+  def landing_in_progress_for_repository?(repository_id)
+    Job.landing.where(repository_id: repository_id).exists?
   end
 
   def blockage_for(job)

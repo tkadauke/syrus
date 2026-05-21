@@ -23,8 +23,8 @@ module Workflows
     # immediately re-dispatch auto_merge so the merge happens
     # without waiting for the next LandingQueueProcessor tick.
     # LandingQueueProcessor.try_land! re-runs the standard
-    # blockage / landing_in_progress / approved guards, so this is
-    # race-safe with the recurring loop.
+    # blockage / per-repository landing / approved guards, so this
+    # is race-safe with the recurring loop.
     def self.after_success(workflow)
       return unless workflow.job&.approved?
 
