@@ -108,6 +108,25 @@ RSpec.describe "Epics", type: :request do
       expect(response.body).to include(%(value="#{q}"))
     end
 
+    it "renders a save form for non-empty Epic filters" do
+      sign_in_as(user)
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "state", "op" => "is", "value" => "ready" }
+        ]
+      )
+
+      get root_path, params: { subject: "epic", view: "list", q: q }
+
+      document = Nokogiri::HTML(response.body)
+      form = document.at_css("form[action='#{smart_folders_path}']")
+
+      expect(form).to be_present
+      expect(form.at_css("input[name='subject_type'][value='epic']")).to be_present
+      expect(form.at_css("input[name='filter']")).to be_present
+      expect(form.text).to include("Save current filter as")
+    end
+
     it "hides archived Epics by default but shows them through the Archived folder" do
       sign_in_as(user)
       SmartFolder.ensure_epic_builtins!
@@ -124,6 +143,33 @@ RSpec.describe "Epics", type: :request do
 
       expect(response.body).to include(archived.title)
       expect(response.body).not_to include(active.title)
+    end
+
+    it "saves a non-empty Epic filter as an Epic smart folder" do
+      sign_in_as(user)
+      filter = {
+        "and" => [
+          { "field" => "state", "op" => "is", "value" => "ready" },
+          { "field" => "title", "op" => "contains", "value" => "Forum" }
+        ]
+      }
+
+      post smart_folders_path, params: {
+        subject_type: "epic",
+        filter: filter.to_json,
+        smart_folder: { name: "Ready forums" }
+      }
+
+      folder = user.smart_folders.find_by!(name: "Ready forums")
+      expect(folder.subject_type).to eq("epic")
+      expect(folder.filter).to eq(filter)
+      expect(response).to redirect_to(epics_path(smart_folder_id: folder.id))
+
+      get root_path, params: { subject: "epic", view: "list" }
+
+      document = Nokogiri::HTML(response.body)
+      saved_links = document.css("a[href='#{epics_path(smart_folder_id: folder.id)}']").map { |link| link.text.strip }
+      expect(saved_links).to include(a_string_matching(/Ready forums/))
     end
   end
 

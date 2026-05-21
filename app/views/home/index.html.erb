@@ -163,6 +163,7 @@
                 schema: @schema,
                 action_url: root_path(subject: "epic", view: current_view),
                 class_name: "relative flex flex-col gap-3" %>
+          <%= render "epics/save_smart_folder_form", class_name: "flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm" %>
         </div>
       </details>
 
@@ -172,6 +173,7 @@
         </aside>
 
         <div class="space-y-4">
+          <%= render "epics/save_smart_folder_form", class_name: "hidden flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm lg:flex" %>
           <%= mobile_sort_select(subject: :epic, current_sort: @epic_sort) %>
           <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <div class="hidden justify-end border-b border-gray-200 px-3 py-2 sm:flex">
@@ -273,6 +275,7 @@
                 schema: @schema,
                 action_url: root_path(subject: "epic", view: current_view),
                 class_name: "relative flex flex-col gap-3" %>
+          <%= render "epics/save_smart_folder_form", class_name: "flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm" %>
         </div>
       </details>
 
@@ -282,6 +285,7 @@
         </aside>
 
         <div class="space-y-4">
+          <%= render "epics/save_smart_folder_form", class_name: "hidden flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm lg:flex" %>
           <%= render "shared/kanban_board",
                 subject: :epic,
                 records: @epic_records,
