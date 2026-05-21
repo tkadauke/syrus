@@ -80,6 +80,31 @@
       </nav>
       </div>
 
+      <% if current_view == "kanban" %>
+        <div class="flex items-center gap-2" data-kanban-limit-selector>
+          <span class="text-xs font-medium uppercase tracking-wide text-gray-500">Limit</span>
+          <details class="relative">
+            <summary class="flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 [&::-webkit-details-marker]:hidden">
+              <span><%= @kanban_limit || HomeController::KANBAN_PER_PAGE %></span>
+              <span class="text-gray-400">cards</span>
+            </summary>
+            <div class="absolute left-0 z-20 mt-2 w-32 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg">
+              <% HomeController::KANBAN_LIMIT_OPTIONS.each do |limit| %>
+                <% limit_params = request.query_parameters.except("page").merge("subject" => @dashboard_subject, "view" => "kanban", "kanban_limit" => limit) %>
+                <%= link_to root_path(limit_params),
+                      class: "flex items-center justify-between px-3 py-2 text-gray-700 hover:bg-gray-50 #{limit == @kanban_limit ? 'font-semibold' : ''}",
+                      data: { turbo_frame: "dashboard_content", turbo_action: "advance" } do %>
+                  <span><%= limit %></span>
+                  <% if limit == @kanban_limit %>
+                    <span class="text-xs text-blue-600">Current</span>
+                  <% end %>
+                <% end %>
+              <% end %>
+            </div>
+          </details>
+        </div>
+      <% end %>
+
       <%# flex-1 lets the chip bar swell to fill the gap; min-w-0
           keeps the chip bar's wrap behavior correct inside a flex
           parent. Per-tab branch picks the right filter ivar. %>
@@ -292,15 +317,8 @@
       <div class="space-y-4">
         <%= render "save_smart_folder_form", class_name: "hidden flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm lg:flex" %>
 
-        <%# The List/Kanban toggle now lives in the top-level dashboard
-            nav (around line 68); the second copy that used to live here
-            was a leftover from before the nav-level toggle existed.
-            Keep only the Kanban-cap notice. %>
-        <% if @dashboard_view == "kanban" && @job_kanban_cap_hit %>
-          <div class="text-sm text-amber-700">
-            Showing the first <%= HomeController::KANBAN_PER_PAGE %> jobs; refine filters to narrow the board.
-          </div>
-        <% end %>
+        <%# The List/Kanban toggle and Kanban limit selector live in the
+            top-level dashboard controls. %>
     <% if @epics&.any? %>
       <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div class="px-4 py-3 border-b border-gray-200">
@@ -751,11 +769,6 @@
         <% end %>
 
     <% if current_view == "kanban" %>
-      <% if @workflow_kanban_cap_hit %>
-        <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Showing the newest <%= HomeController::KANBAN_PER_PAGE %> matching workflows.
-        </div>
-      <% end %>
       <%= render "shared/kanban_board",
             subject: :workflow,
             records: @workflow_kanban_records,

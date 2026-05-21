@@ -313,6 +313,22 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include("#77", "Count the tablets")
     end
 
+    it "shows the Kanban limit selector only in Kanban mode" do
+      Factories.repository(user: user, owner: "acme", name: "widgets")
+
+      %w[epic job workflow].each do |subject|
+        get root_path, params: { subject: subject, view: "kanban" }
+        document = Nokogiri::HTML(response.body)
+        selector = document.at_css("[data-kanban-limit-selector]")
+        expect(selector).to be_present
+        expect(selector.text).to include("Limit", "10", "25", "50", "100")
+      end
+
+      get root_path, params: { subject: "job", view: "list" }
+      document = Nokogiri::HTML(response.body)
+      expect(document.at_css("[data-kanban-limit-selector]")).to be_nil
+    end
+
     it "renders the Epics Kanban board with real cards" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       prerequisite = Factories.epic(user: user, repository: repo, title: "Gatekeeper", state: "backlog")
@@ -337,6 +353,19 @@ RSpec.describe "Dashboard", type: :request do
       expect(kanban_card["data-epic-state-url"]).to eq(state_epic_path(epic))
       expect(response.body).to include("Override state")
       expect(kanban_card.at_css("button[data-action='kanban#closeMenuOnSelect']")).to be_present
+    end
+
+    it "applies the Kanban limit selector to Epic boards" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      11.times do |index|
+        Factories.epic(user: user, repository: repo, title: "Epic #{index + 1}", state: "ready")
+      end
+
+      get root_path, params: { subject: "epic", view: "kanban", kanban_limit: 10 }
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("[data-epic-id]").size).to eq(10)
+      expect(document.at_css("[data-kanban-limit-selector]").text).to include("10", "Current")
     end
 
     it "renders the smart-folders sidebar and chip bar on the Epics Kanban view" do
@@ -641,17 +670,17 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).not_to include("Wrong province")
     end
 
-    it "caps the Job Kanban board at the first 100 filtered jobs" do
+    it "applies the Kanban limit selector to Job boards" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
-      101.times do |index|
+      11.times do |index|
         Factories.job_record(repository: repo, issue_number: index + 1, issue_title: "Inscription #{index + 1}")
       end
 
-      get dashboard_jobs_path, params: { view: "kanban" }
+      get dashboard_jobs_path, params: { view: "kanban", kanban_limit: 10 }
 
       document = Nokogiri::HTML(response.body)
-      expect(document.css("[data-job-id]").size).to eq(100)
-      expect(response.body).to include("Showing the first 100 jobs; refine filters to narrow the board.")
+      expect(document.css("[data-job-id]").size).to eq(10)
+      expect(response.body).not_to include("Showing the first 100 jobs")
     end
 
     it "shows pinned jobs for the current user sorted by pinned time via the pinned smart folder" do
@@ -1356,18 +1385,18 @@ RSpec.describe "Dashboard", type: :request do
         expect(document.css("[data-workflow-id]").map { |card| card["draggable"] }).to all(be_nil)
       end
 
-      it "caps workflow kanban at the shared kanban page size" do
+      it "applies the Kanban limit selector to Workflow boards" do
         repo = Factories.repository(user: user, owner: "acme", name: "widgets")
-        (HomeController::KANBAN_PER_PAGE + 1).times do |idx|
+        11.times do |idx|
           job = Factories.job(repository: repo, issue_number: idx + 1, issue_title: "Workflow #{idx + 1}")
           job.latest_workflow.update!(state: "queued")
         end
 
-        get root_path, params: { subject: "workflow", view: "kanban" }
+        get root_path, params: { subject: "workflow", view: "kanban", kanban_limit: 10 }
 
         document = Nokogiri::HTML(response.body)
-        expect(document.css("[data-workflow-id]").size).to eq(HomeController::KANBAN_PER_PAGE)
-        expect(response.body).to include("Showing the newest #{HomeController::KANBAN_PER_PAGE} matching workflows")
+        expect(document.css("[data-workflow-id]").size).to eq(10)
+        expect(response.body).not_to include("Showing the newest")
       end
     end
 

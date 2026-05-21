@@ -4,6 +4,7 @@ class HomeController < ApplicationController
   DASHBOARD_VIEWS = %w[list kanban].freeze
   DEFAULT_DASHBOARD_SUBJECT = "epic"
   DEFAULT_DASHBOARD_VIEW = "list"
+  KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
   KANBAN_PER_PAGE = 100
   JOB_KANBAN_LANES = [
     { key: "queued", title: "Queued" },
@@ -229,6 +230,7 @@ class HomeController < ApplicationController
     else "job"
     end
     @dashboard_view = params[:view].to_s.presence_in(%w[list kanban]) || (@dashboard_subject == "epic" ? "kanban" : "list")
+    @kanban_limit = kanban_limit
   end
 
   def load_epics_dashboard
@@ -256,7 +258,11 @@ class HomeController < ApplicationController
                                           { jobs: :repository },
                                           { dependencies: :depends_on_epic },
                                           { dependent_links: :epic })
-    @epic_records = @filter.apply(kanban_scope).where(state: Epic::BOARD_STATES).order(updated_at: :desc, id: :desc).to_a
+    @epic_records = @filter.apply(kanban_scope)
+                            .where(state: Epic::BOARD_STATES)
+                            .order(updated_at: :desc, id: :desc)
+                            .limit(@kanban_limit)
+                            .to_a
     @epic_lanes = Epic::BOARD_STATES.index_with { |state| @epic_records.select { |epic| epic.state == state } }
     @epics_matching_count = @epics_total
     # See epic_list — inactive-tab badge is the unfiltered total.
@@ -461,9 +467,8 @@ class HomeController < ApplicationController
   end
 
   def load_workflow_kanban
-    @workflow_kanban_cap_hit = @workflows_total > KANBAN_PER_PAGE
     workflows = @workflows.order(created_at: :desc, id: :desc)
-                          .limit(KANBAN_PER_PAGE)
+                          .limit(@kanban_limit)
                           .to_a
     @workflow_kanban_records = WORKFLOW_KANBAN_COLUMNS.to_h { |column| [ column, [] ] }
     workflows.each do |workflow|
@@ -473,12 +478,11 @@ class HomeController < ApplicationController
   end
 
   def load_job_kanban
-    @job_kanban_cap_hit = @jobs_total > KANBAN_PER_PAGE
     kanban_jobs = @jobs
       .with_latest_workflow_snapshot
       .includes(:repository, :runs, { dependencies: :depends_on_job }, :tags)
       .order(created_at: :desc)
-      .limit(KANBAN_PER_PAGE)
+      .limit(@kanban_limit)
       .to_a
 
     @job_kanban_lanes = JOB_KANBAN_LANES.to_h { |lane| [ lane.fetch(:key), [] ] }
@@ -490,6 +494,13 @@ class HomeController < ApplicationController
 
   def tag_filter_ids
     Current.user.tags.where(id: Array(params[:tag_ids]).compact_blank).pluck(:id)
+  end
+
+  def kanban_limit
+    requested_limit = params[:kanban_limit].to_i
+    return requested_limit if requested_limit.in?(KANBAN_LIMIT_OPTIONS)
+
+    KANBAN_PER_PAGE
   end
 
   def bulk_retry_jobs(jobs, agent_provider: nil)
