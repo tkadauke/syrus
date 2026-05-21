@@ -1,7 +1,7 @@
 class EpicsController < ApplicationController
   PER_PAGE = 25
 
-  before_action :load_epic, except: :index
+  before_action :load_epic, except: %i[ index new create ]
 
   def index
     SmartFolder.ensure_builtins!
@@ -31,6 +31,31 @@ class EpicsController < ApplicationController
     else
       @epic.archive!
       redirect_to epics_path, notice: "Epic archived."
+    end
+  end
+
+  def new
+    @epic = Current.user.epics.new
+  end
+
+  def create
+    @epic = Current.user.epics.new(epic_params)
+
+    if @epic.save
+      redirect_to epic_path(@epic)
+    else
+      render :new, status: :unprocessable_content
+    end
+  end
+
+  def edit
+  end
+
+  def update
+    if @epic.update(epic_params)
+      redirect_to epic_path(@epic)
+    else
+      render :edit, status: :unprocessable_content
     end
   end
 
@@ -107,6 +132,10 @@ class EpicsController < ApplicationController
 
   def load_epic
     @epic = Current.user.epics.includes(:repository).find(params[:id])
+  end
+
+  def epic_params
+    params.require(:epic).permit(:title, :description, :repository_id, :github_issue_url)
   end
 
   def respond_to_state_update

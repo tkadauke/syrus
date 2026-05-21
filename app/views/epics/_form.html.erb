@@ -1,0 +1,47 @@
+<%= form_with model: epic, class: "space-y-5" do |form| %>
+  <% if epic.errors.any? %>
+    <div class="bg-red-50 border border-red-200 text-red-800 rounded-md p-3 text-sm">
+      <ul class="list-disc list-inside">
+        <% epic.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :title, "Title", class: "block text-sm font-medium text-gray-700" %>
+    <%= form.text_field :title,
+          required: true,
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+  </div>
+
+  <div>
+    <%= form.label :description, "Description", class: "block text-sm font-medium text-gray-700" %>
+    <%= form.text_area :description,
+          rows: 8,
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+  </div>
+
+  <div>
+    <%= form.label :repository_id, "Repository", class: "block text-sm font-medium text-gray-700" %>
+    <%= form.select :repository_id,
+          Current.user.repositories.order(:name).map { |repository| [ repository.slug, repository.id ] },
+          { include_blank: "Select a repository" },
+          required: true,
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full bg-white" %>
+  </div>
+
+  <div>
+    <%= form.label :github_issue_url, "GitHub issue URL", class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500 mt-1">Optional. Links this Epic to an upstream GitHub issue.</p>
+    <%= form.text_field :github_issue_url,
+          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <%= form.submit submit_label,
+          class: "rounded-md px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
+    <%= link_to "Cancel", cancel_url, class: "text-sm text-gray-600 hover:text-gray-900" %>
+  </div>
+<% end %>

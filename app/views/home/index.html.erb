@@ -237,6 +237,11 @@
         </aside>
 
         <div class="space-y-4">
+          <div class="flex justify-end">
+            <%= link_to "New Epic", new_epic_path,
+                  class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium" %>
+          </div>
+
           <%= render "shared/kanban_board",
                 subject: :epic,
                 records: @epic_records,

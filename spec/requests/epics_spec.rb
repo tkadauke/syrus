@@ -258,4 +258,87 @@ RSpec.describe "Epics", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "POST /epics" do
+    it "creates an epic belonging to the current user and redirects to its show page" do
+      sign_in_as(user)
+
+      expect {
+        post epics_path, params: {
+          epic: {
+            title: "Raise the forum",
+            description: "Install tasteful columns.",
+            repository_id: repo.id,
+            github_issue_url: "https://github.com/acme/widgets/issues/12"
+          }
+        }
+      }.to change { user.epics.count }.by(1)
+
+      epic = user.epics.order(:id).last
+      expect(epic.title).to eq("Raise the forum")
+      expect(epic.description).to eq("Install tasteful columns.")
+      expect(epic.repository).to eq(repo)
+      expect(epic.github_issue_url).to eq("https://github.com/acme/widgets/issues/12")
+      expect(response).to redirect_to(epic_path(epic))
+    end
+
+    it "re-renders new with an error when title is missing" do
+      sign_in_as(user)
+
+      expect {
+        post epics_path, params: {
+          epic: {
+            title: "",
+            repository_id: repo.id
+          }
+        }
+      }.not_to change { user.epics.count }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.body).to include("New Epic")
+      expect(response.body).to include("Title can&#39;t be blank")
+    end
+  end
+
+  describe "PATCH /epics/:id" do
+    it "updates the epic and redirects to its show page" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repo, title: "Raise the forum")
+      other_repo = Factories.repository(user: user, owner: "acme", name: "marble")
+
+      patch epic_path(epic), params: {
+        epic: {
+          title: "Raise the basilica",
+          description: "Install louder columns.",
+          repository_id: other_repo.id,
+          github_issue_url: "https://github.com/acme/marble/issues/7"
+        }
+      }
+
+      expect(response).to redirect_to(epic_path(epic))
+      expect(epic.reload).to have_attributes(
+        title: "Raise the basilica",
+        description: "Install louder columns.",
+        repository_id: other_repo.id,
+        github_issue_url: "https://github.com/acme/marble/issues/7"
+      )
+    end
+
+    it "returns 404 for another user's epic" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      epic = Factories.epic(user: other_user, repository: other_repo, title: "Private aqueduct")
+      sign_in_as(user)
+
+      patch epic_path(epic), params: {
+        epic: {
+          title: "Rename it",
+          repository_id: repo.id
+        }
+      }
+
+      expect(response).to have_http_status(:not_found)
+      expect(epic.reload.title).to eq("Private aqueduct")
+    end
+  end
 end
