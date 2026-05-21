@@ -144,6 +144,31 @@ RSpec.describe "Dashboard", type: :request do
       expect(user.reload.dashboard_sort(:jobs)).to eq(column: "created_at", direction: "desc")
     end
 
+    it "hides omitted optional Epic list columns from desktop table cells" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.epic(user: user, repository: repo, title: "Column treaty", state: "ready")
+      user.update_dashboard_columns!(subject: "epics", columns: %w[state updated])
+
+      get root_path, params: { subject: "epic", view: "list" }
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("thead th").map { |th| th.text.strip }).not_to include("Repository")
+      expect(document.css("tbody td.hidden.sm\\:table-cell").map(&:text).join).not_to include("acme/widgets")
+    end
+
+    it "renders required Dashboard columns even when stored prefs omit them" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.job_record(repository: repo, issue_number: 7, issue_title: "Required aqueduct")
+      user.update_column(:dashboard_preferences, { "visible_columns" => { "jobs" => %w[state] } })
+
+      get root_path, params: { subject: "job", view: "list" }
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("thead th").map { |th| th.text.strip }).to include("Issue")
+      expect(document.at_css("tbody").text).to include("Required aqueduct")
+      expect(document.at_css("input[name='job_ids[]']")).to be_present
+    end
+
     it "renders subject and view toggles on the parameterized dashboard" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       Factories.job_record(repository: repo, issue_number: 7)

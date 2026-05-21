@@ -25,17 +25,17 @@ class User < ApplicationRecord
     "epics" => {
       "sort_column" => "updated_at",
       "sort_direction" => "desc",
-      "visible_columns" => %w[state title repository updated_at]
+      "visible_columns" => %w[epic state repository updated]
     },
     "jobs" => {
       "sort_column" => "created_at",
       "sort_direction" => "desc",
-      "visible_columns" => %w[state repository title latest workflows started_at]
+      "visible_columns" => %w[checkbox issue state repository latest workflows_count started]
     },
     "workflows" => {
       "sort_column" => "created_at",
       "sort_direction" => "desc",
-      "visible_columns" => %w[title job trigger state started_at finished_at agent]
+      "visible_columns" => %w[workflow job trigger state started finished agent]
     }
   }.freeze
   DASHBOARD_SORT_COLUMNS = {
@@ -44,9 +44,14 @@ class User < ApplicationRecord
     workflows: %w[title state started_at finished_at]
   }.freeze
   DASHBOARD_REQUIRED_COLUMNS = {
-    epics: %w[title],
-    jobs: %w[title],
-    workflows: %w[title job]
+    "epics" => %w[epic],
+    "jobs" => %w[checkbox issue],
+    "workflows" => %w[workflow job]
+  }.freeze
+  DASHBOARD_OPTIONAL_COLUMNS = {
+    "epics" => %w[state repository updated],
+    "jobs" => %w[state repository latest workflows_count started],
+    "workflows" => %w[trigger state started finished agent]
   }.freeze
 
   encrypts :claude_oauth_token
@@ -127,7 +132,7 @@ class User < ApplicationRecord
 
   def dashboard_visible_columns(subject)
     subject_key = normalize_dashboard_preference_table(subject)
-    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key.to_sym)
+    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key)
     columns = Array(dashboard_preferences.fetch(subject_key)["visible_columns"]).map(&:to_s)
 
     (required_columns + columns).uniq
@@ -158,7 +163,7 @@ class User < ApplicationRecord
   def update_dashboard_columns!(subject:, columns:)
     subject_key = normalize_dashboard_preference_table(subject)
     known_columns = dashboard_known_columns(subject_key)
-    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key.to_sym)
+    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key)
     columns = Array(columns).map(&:to_s).reject(&:blank?)
     unknown_columns = columns - known_columns
 
@@ -255,6 +260,13 @@ class User < ApplicationRecord
         next if preference.blank?
 
         normalized_key = key.to_s
+        if normalized_key == "visible_columns"
+          normalized_dashboard_visible_columns(preference).each do |subject, columns|
+            hash[subject] = (hash[subject] || {}).merge("visible_columns" => columns)
+          end
+          next
+        end
+
         hash[normalized_key] = normalize_dashboard_preference_value(normalized_key, preference)
       end
     else
@@ -299,10 +311,10 @@ class User < ApplicationRecord
   end
 
   def dashboard_known_columns(subject_key)
-    default_columns = DASHBOARD_PREFERENCES_DEFAULTS.fetch(subject_key).fetch("visible_columns")
-    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key.to_sym)
+    optional_columns = DASHBOARD_OPTIONAL_COLUMNS.fetch(subject_key)
+    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key)
 
-    (default_columns + required_columns).uniq
+    (required_columns + optional_columns).uniq
   end
 
   def deep_merge_dashboard_preferences(defaults, preferences)
@@ -312,6 +324,33 @@ class User < ApplicationRecord
       else
         preference_value
       end
+    end
+  end
+
+  def normalize_dashboard_columns_subject(subject)
+    subject.to_s.pluralize.presence_in(DASHBOARD_REQUIRED_COLUMNS.keys)
+  end
+
+  def dashboard_default_columns_for(subject)
+    DASHBOARD_REQUIRED_COLUMNS.fetch(subject) + DASHBOARD_OPTIONAL_COLUMNS.fetch(subject, [])
+  end
+
+  def normalize_dashboard_columns(subject, columns)
+    allowed = dashboard_default_columns_for(subject)
+    required = DASHBOARD_REQUIRED_COLUMNS.fetch(subject)
+    requested = Array(columns).map(&:to_s)
+
+    (required + requested).select { |column| allowed.include?(column) }.uniq
+  end
+
+  def normalized_dashboard_visible_columns(value)
+    return {} unless value.is_a?(Hash)
+
+    value.each_with_object({}) do |(subject, columns), hash|
+      normalized_subject = normalize_dashboard_columns_subject(subject)
+      next unless normalized_subject
+
+      hash[normalized_subject] = normalize_dashboard_columns(normalized_subject, columns)
     end
   end
 

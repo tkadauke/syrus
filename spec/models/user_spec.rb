@@ -149,6 +149,16 @@ RSpec.describe User do
     end
   end
 
+  describe "#update_dashboard_columns!" do
+    it "re-adds required Dashboard columns when optional choices omit them" do
+      user = User.create!(attrs)
+
+      user.update_dashboard_columns!(subject: "jobs", columns: %w[state])
+
+      expect(user.dashboard_visible_columns("jobs")).to include("checkbox", "issue", "state")
+    end
+  end
+
   describe "#configured_agent_providers" do
     it "includes Claude when a Claude token is set" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-test"))

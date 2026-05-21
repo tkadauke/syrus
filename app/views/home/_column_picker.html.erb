@@ -1,0 +1,52 @@
+<div class="relative hidden sm:inline-flex" data-controller="column-picker">
+  <button type="button"
+          class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+          aria-label="Choose visible columns"
+          title="Choose visible columns"
+          data-action="column-picker#toggle">
+    <svg aria-hidden="true" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M4 5h16" />
+      <path d="M4 12h16" />
+      <path d="M4 19h16" />
+      <path d="M9 5v14" />
+      <path d="M15 5v14" />
+    </svg>
+  </button>
+
+  <div class="absolute right-0 z-20 mt-9 hidden w-56 rounded-md border border-gray-200 bg-white p-3 text-sm normal-case text-gray-700 shadow-lg"
+       data-column-picker-target="panel">
+    <%= form_with url: dashboard_preferences_path,
+          method: :patch,
+          data: { action: "submit->column-picker#save" },
+          class: "space-y-3" do %>
+      <%= hidden_field_tag :subject, subject %>
+
+      <div class="space-y-1.5">
+        <% dashboard_required_columns(subject).each do |column| %>
+          <label class="flex items-center gap-2 text-gray-400" title="This column can't be hidden.">
+            <%= check_box_tag nil, column, true, disabled: true, class: "rounded border-gray-300 text-blue-600" %>
+            <span><%= dashboard_column_label(subject, column) %></span>
+          </label>
+        <% end %>
+
+        <% dashboard_optional_columns(subject).each do |column| %>
+          <label class="flex items-center gap-2 text-gray-700">
+            <%= check_box_tag "visible_columns[]",
+                  column,
+                  dashboard_column_visible?(subject, column),
+                  id: "dashboard_#{subject}_#{column}",
+                  class: "rounded border-gray-300 text-blue-600 focus:ring-blue-500" %>
+            <span><%= dashboard_column_label(subject, column) %></span>
+          </label>
+        <% end %>
+      </div>
+
+      <div class="flex justify-end border-t border-gray-100 pt-2">
+        <button type="submit"
+                class="rounded-md bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 cursor-pointer">
+          Done
+        </button>
+      </div>
+    <% end %>
+  </div>
+</div>

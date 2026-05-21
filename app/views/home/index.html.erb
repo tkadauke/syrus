@@ -144,20 +144,31 @@
 
         <div class="space-y-4">
           <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div class="hidden justify-end border-b border-gray-200 px-3 py-2 sm:flex">
+              <%= render "home/column_picker", subject: "epics" %>
+            </div>
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
-                  <th class="px-4 py-2 text-left">State</th>
+                  <% if dashboard_column_visible?("epics", "state") %>
+                    <th class="px-4 py-2 text-left">State</th>
+                  <% end %>
                   <th class="px-4 py-2 text-left">Epic</th>
-                  <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
-                  <th class="hidden sm:table-cell px-4 py-2 text-left">Updated</th>
+                  <% if dashboard_column_visible?("epics", "repository") %>
+                    <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
+                  <% end %>
+                  <% if dashboard_column_visible?("epics", "updated") %>
+                    <th class="hidden sm:table-cell px-4 py-2 text-left">Updated</th>
+                  <% end %>
                   <th class="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 text-sm">
                 <% @epics.each do |epic| %>
                   <tr>
-                    <td class="px-4 py-3 align-top"><%= state_pill(epic.state) %></td>
+                    <% if dashboard_column_visible?("epics", "state") %>
+                      <td class="px-4 py-3 align-top"><%= state_pill(epic.state) %></td>
+                    <% end %>
                     <td class="px-4 py-3">
                       <div class="font-medium text-gray-900">
                         <span class="font-mono text-xs text-gray-500"><%= epic.display_number %></span>
@@ -170,10 +181,14 @@
                         <%= link_to epic.repository.slug, repository_path(epic.repository), class: "hover:underline" %>
                       </div>
                     </td>
-                    <td class="hidden sm:table-cell px-4 py-3 font-mono">
-                      <%= link_to epic.repository.slug, repository_path(epic.repository), class: "text-gray-700 hover:underline" %>
-                    </td>
-                    <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(epic.updated_at) %></td>
+                    <% if dashboard_column_visible?("epics", "repository") %>
+                      <td class="hidden sm:table-cell px-4 py-3 font-mono">
+                        <%= link_to epic.repository.slug, repository_path(epic.repository), class: "text-gray-700 hover:underline" %>
+                      </td>
+                    <% end %>
+                    <% if dashboard_column_visible?("epics", "updated") %>
+                      <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(epic.updated_at) %></td>
+                    <% end %>
                     <td class="px-4 py-3 text-right">
                       <%= link_to "View", epic_path(epic), class: "text-blue-600 underline hover:no-underline" %>
                     </td>
@@ -181,7 +196,7 @@
                 <% end %>
                 <% if @epics.empty? %>
                   <tr>
-                    <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-500">No epics match these filters.</td>
+                    <td colspan="<%= Current.user.dashboard_visible_columns("epics").size + 1 %>" class="px-4 py-8 text-center text-sm text-gray-500">No epics match these filters.</td>
                   </tr>
                 <% end %>
               </tbody>
@@ -407,6 +422,9 @@
         </div>
 
         <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div class="hidden justify-end border-b border-gray-200 px-3 py-2 sm:flex">
+            <%= render "home/column_picker", subject: "jobs" %>
+          </div>
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
@@ -417,12 +435,22 @@
                          aria-label="Select all jobs"
                          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                 </th>
-                <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
-                <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
+                <% if dashboard_column_visible?("jobs", "state") %>
+                  <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
+                <% end %>
+                <% if dashboard_column_visible?("jobs", "repository") %>
+                  <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
+                <% end %>
                 <th class="px-4 py-2 text-left">Issue</th>
-                <th class="hidden sm:table-cell px-4 py-2 text-left">Latest</th>
-                <th class="hidden sm:table-cell px-4 py-2 text-left">Workflows</th>
-                <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
+                <% if dashboard_column_visible?("jobs", "latest") %>
+                  <th class="hidden sm:table-cell px-4 py-2 text-left">Latest</th>
+                <% end %>
+                <% if dashboard_column_visible?("jobs", "workflows_count") %>
+                  <th class="hidden sm:table-cell px-4 py-2 text-left">Workflows</th>
+                <% end %>
+                <% if dashboard_column_visible?("jobs", "started") %>
+                  <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
+                <% end %>
                 <th class="hidden sm:table-cell px-4 py-2"></th>
               </tr>
             </thead>
@@ -438,16 +466,20 @@
                           aria: { label: "Select job #{job.id}" },
                           class: "rounded border-gray-300 text-blue-600 focus:ring-blue-500" %>
                   </td>
-                  <td class="hidden sm:table-cell px-4 py-3 align-top">
-                    <%= state_pill(job_summary_state(job)) %>
-                    <% if job.priority != "medium" %>
-                      <%= priority_pill(job.priority) %>
-                    <% end %>
-                    <div class="mt-1 text-xs text-gray-500"><%= cost_caption(job.total_cost_usd) %></div>
-                  </td>
-                  <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
-                    <%= link_to job.repository.slug, repository_path(job.repository), class: "text-gray-700 hover:underline" %>
-                  </td>
+                  <% if dashboard_column_visible?("jobs", "state") %>
+                    <td class="hidden sm:table-cell px-4 py-3 align-top">
+                      <%= state_pill(job_summary_state(job)) %>
+                      <% if job.priority != "medium" %>
+                        <%= priority_pill(job.priority) %>
+                      <% end %>
+                      <div class="mt-1 text-xs text-gray-500"><%= cost_caption(job.total_cost_usd) %></div>
+                    </td>
+                  <% end %>
+                  <% if dashboard_column_visible?("jobs", "repository") %>
+                    <td class="hidden sm:table-cell px-4 py-3 font-mono align-top">
+                      <%= link_to job.repository.slug, repository_path(job.repository), class: "text-gray-700 hover:underline" %>
+                    </td>
+                  <% end %>
                   <td class="px-4 py-3">
                     <div class="sm:hidden mb-1 flex flex-wrap items-center gap-1.5">
                       <%= state_pill(job_summary_state(job)) %>
@@ -530,18 +562,24 @@
                       <span><%= relative_timestamp(job.started_at) %></span>
                     </div>
                   </td>
-                  <td class="hidden sm:table-cell px-4 py-3 align-top">
-                    <% if latest_workflow %>
-                      <div class="flex flex-wrap items-center gap-1">
-                        <%= trigger_pill(latest_workflow.trigger_kind) %>
-                        <%= state_pill(latest_workflow.state) %>
-                      </div>
-                    <% else %>
-                      <span class="text-gray-400">—</span>
-                    <% end %>
-                  </td>
-                  <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= job.workflows.size %></td>
-                  <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
+                  <% if dashboard_column_visible?("jobs", "latest") %>
+                    <td class="hidden sm:table-cell px-4 py-3 align-top">
+                      <% if latest_workflow %>
+                        <div class="flex flex-wrap items-center gap-1">
+                          <%= trigger_pill(latest_workflow.trigger_kind) %>
+                          <%= state_pill(latest_workflow.state) %>
+                        </div>
+                      <% else %>
+                        <span class="text-gray-400">—</span>
+                      <% end %>
+                    </td>
+                  <% end %>
+                  <% if dashboard_column_visible?("jobs", "workflows_count") %>
+                    <td class="hidden sm:table-cell px-4 py-3 text-gray-600"><%= job.workflows.size %></td>
+                  <% end %>
+                  <% if dashboard_column_visible?("jobs", "started") %>
+                    <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
+                  <% end %>
                   <td class="hidden sm:table-cell px-4 py-3 text-right">
                     <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>
                   </td>
@@ -705,16 +743,29 @@
     <% elsif @workflows.any? || @page > 1 %>
       <% workflows_total_pages = (@workflows_total.to_f / HomeController::PER_PAGE).ceil %>
       <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div class="hidden justify-end border-b border-gray-200 px-3 py-2 sm:flex">
+          <%= render "home/column_picker", subject: "workflows" %>
+        </div>
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
               <th class="px-4 py-2 text-left">Workflow</th>
               <th class="px-4 py-2 text-left">Job</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Trigger</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
-              <th class="hidden md:table-cell px-4 py-2 text-left">Started</th>
-              <th class="hidden md:table-cell px-4 py-2 text-left">Finished</th>
-              <th class="hidden sm:table-cell px-4 py-2 text-left">Agent</th>
+              <% if dashboard_column_visible?("workflows", "trigger") %>
+                <th class="hidden sm:table-cell px-4 py-2 text-left">Trigger</th>
+              <% end %>
+              <% if dashboard_column_visible?("workflows", "state") %>
+                <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
+              <% end %>
+              <% if dashboard_column_visible?("workflows", "started") %>
+                <th class="hidden md:table-cell px-4 py-2 text-left">Started</th>
+              <% end %>
+              <% if dashboard_column_visible?("workflows", "finished") %>
+                <th class="hidden md:table-cell px-4 py-2 text-left">Finished</th>
+              <% end %>
+              <% if dashboard_column_visible?("workflows", "agent") %>
+                <th class="hidden sm:table-cell px-4 py-2 text-left">Agent</th>
+              <% end %>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 text-sm">

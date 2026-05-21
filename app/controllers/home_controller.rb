@@ -128,6 +128,15 @@ class HomeController < ApplicationController
     redirect_back fallback_location: dashboard_jobs_path, notice: Current.user.landing_paused? ? "Landing paused." : "Landing resumed."
   end
 
+  def preferences
+    Current.user.update_dashboard_columns!(
+      subject: params.require(:subject),
+      columns: params.fetch(:visible_columns, [])
+    )
+
+    head :no_content
+  end
+
   private
 
   def persist_dashboard_preferences_from_params
