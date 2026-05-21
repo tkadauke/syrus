@@ -258,6 +258,11 @@ class Run < ApplicationRecord
     current_workflow_id = Thread.current[:syrus_current_run]&.workflow_id
     return if current_workflow_id && current_workflow_id == workflow_id
 
-    RunJob.set(priority: job.solid_queue_priority).perform_later(id)
+    queue = workflow_template_class.agentic? ? :runs : :merges
+    RunJob.set(queue: queue, priority: job.solid_queue_priority).perform_later(id)
+  end
+
+  def workflow_template_class
+    Workflows.for(trigger_kind: workflow&.trigger_kind || trigger_kind)
   end
 end

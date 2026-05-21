@@ -11,6 +11,12 @@ default: &default
       threads: <%= ENV.fetch("JOB_CONCURRENCY", 3) %>
       processes: 1
       polling_interval: 0.1
+    # Deterministic landing and merge work runs outside the agent
+    # pool so quick non-agentic steps do not consume Claude slots.
+    - queues: "merges"
+      threads: <%= ENV.fetch("MERGE_CONCURRENCY", 5) %>
+      processes: 1
+      polling_interval: 0.1
     # User-facing chat turns and chat workspace maintenance get a
     # separate low-concurrency pool. They may invoke agents too, but
     # must not sit behind saturated multi-hour RunJobs.

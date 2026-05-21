@@ -10,5 +10,6 @@ module Workflows
     steps :apply_suggestions, :auto_merge
 
     def self.trigger_kind = "auto_merge"
+    def self.agentic? = false
   end
 end

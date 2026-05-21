@@ -31,6 +31,8 @@ module Workflows
       raise NotImplementedError, "#{name} must define `trigger_kind`"
     end
 
+    def self.agentic? = true
+
     # Lifecycle hooks. The Workflow model invokes the matching hook
     # on the workflow-template class via Workflow#dispatch_hook after
     # the model handles generic concerns (timestamps, workspace
