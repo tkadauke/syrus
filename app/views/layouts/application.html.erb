@@ -26,7 +26,7 @@
 
   <% show_bug_report = Current.user.present? && controller_name != "bug_reports" %>
   <body class="bg-gray-50 text-gray-900"
-        data-controller="form-validation checkbox-persistence"
+        data-controller="form-validation checkbox-persistence details-persistence"
         data-bug-context="<%= "#{controller_name.camelize}##{action_name}" if show_bug_report %>">
     <header class="bg-white border-b border-gray-200">
       <nav class="container mx-auto px-5 py-4 flex items-center justify-between">

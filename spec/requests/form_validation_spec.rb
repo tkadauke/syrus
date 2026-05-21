@@ -9,7 +9,7 @@ RSpec.describe "Form validation feedback", type: :request do
     get new_job_path
 
     expect(response).to be_successful
-    expect(response.body).to include('data-controller="form-validation checkbox-persistence"')
+    expect(response.body).to include('data-controller="form-validation checkbox-persistence details-persistence"')
   end
 
   it "keeps the new job repository and prompt fields browser-validatable" do

@@ -1774,6 +1774,7 @@ RSpec.describe "Dashboard", type: :request do
         details = document.at_css("aside details")
         expect(details).to be_present
         expect(details["open"]).to be_nil
+        expect(details["data-details-persistence-key"]).to eq("smart-folders-more-job")
         # Post-cleanup: only Merged this week is on_demand. Invalid
         # and Awaiting Epic moved out to :when_present.
         expect(details.text).to include("Merged this week")

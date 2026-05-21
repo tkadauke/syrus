@@ -12,7 +12,9 @@
 
   <% if @more_builtin_smart_folders.any? %>
     <% more_open = @more_builtin_smart_folders.include?(@smart_folder) %>
-    <details class="group/more mt-1" <%= "open" if more_open %>>
+    <details class="group/more mt-1"
+             data-details-persistence-key="smart-folders-more-epic-list"
+             <%= "open" if more_open %>>
       <summary class="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-gray-500 select-none hover:bg-gray-50 hover:text-gray-700">
         <span class="text-gray-400 transition-transform group-open/more:rotate-90">▸</span>
         <span>More</span>
