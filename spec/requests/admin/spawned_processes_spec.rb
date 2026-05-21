@@ -40,6 +40,19 @@ RSpec.describe "Admin spawned processes (HTML)", type: :request do
       expect(shown_rows).to eq(1)
     end
 
+    it "filters by an encoded state chip" do
+      running = fixture
+      finished = fixture(command: "finished command", started_at: 10.minutes.ago, finished_at: 1.minute.ago, outcome: "succeeded", exit_status: 0)
+      q = Filters::QueryParam.encode("field" => "state", "op" => "is", "value" => "running")
+
+      get admin_processes_path, params: { q: q }
+
+      expect(response.body).to include(running.command)
+      expect(response.body).not_to include(finished.command)
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.css("tbody tr").size).to eq(1)
+    end
+
     it "filters by ?kind=" do
       fixture(kind: "agent")
       grader = fixture(kind: "grader", command: "bin/rspec")

@@ -11,123 +11,116 @@
     <%= render "admin/nav" %>
   </div>
 
-  <%# Filter row %>
-  <form action="<%= admin_processes_path %>" method="get" class="flex flex-wrap items-center gap-3 text-sm bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
-    <label class="flex items-center gap-1">
-      <span class="text-gray-600">State:</span>
-      <% { "" => "Active + recent (1h)", "running" => "Running only", "finished" => "Finished only", "all" => "All" }.each do |k, label| %>
-        <%= link_to label, admin_processes_path(request.query_parameters.merge("state" => k)),
-              class: "rounded px-2 py-0.5 #{(params[:state] || '') == k ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'}" %>
-      <% end %>
-    </label>
-    <label class="flex items-center gap-1">
-      <span class="text-gray-600">Kind:</span>
-      <select name="kind" onchange="this.form.submit()" class="rounded border border-gray-300 px-2 py-0.5">
-        <option value="">All</option>
-        <% @kinds.each do |kind| %>
-          <option value="<%= kind %>" <%= "selected" if params[:kind] == kind %>><%= kind %></option>
-        <% end %>
-      </select>
-    </label>
-    <% if @hostnames.size > 1 %>
-      <label class="flex items-center gap-1">
-        <span class="text-gray-600">Host:</span>
-        <select name="hostname" onchange="this.form.submit()" class="rounded border border-gray-300 px-2 py-0.5 max-w-xs truncate">
-          <option value="">All</option>
-          <% @hostnames.each do |host| %>
-            <option value="<%= host %>" <%= "selected" if params[:hostname] == host %>><%= host %></option>
-          <% end %>
-        </select>
-      </label>
-    <% end %>
-    <div class="ml-auto text-xs text-gray-500">
-      <strong><%= @running_count %></strong> running ·
-      <strong><%= @processes.size %></strong> shown
+  <details class="group rounded-lg border border-gray-200 bg-white lg:hidden">
+    <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-gray-700">
+      <span>Folders and filters</span>
+      <span class="text-gray-400 group-open:hidden">Show</span>
+      <span class="hidden text-gray-400 group-open:inline">Hide</span>
+    </summary>
+    <div class="space-y-4 border-t border-gray-200 p-3">
+      <%= render "home/smart_folders", subject: :spawned_process, folder_heading: "Processes" %>
+      <%= render "home/chip_bar", subject: :spawned_process, filter: @filter, schema: @schema, action_url: admin_processes_path, class_name: "relative flex flex-col gap-3" %>
     </div>
-  </form>
+  </details>
 
-  <% if @processes.empty? %>
-    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-6 text-emerald-800">
-      No processes match this filter.
+  <div class="grid gap-5 lg:grid-cols-[16rem_1fr]">
+    <aside class="hidden space-y-4 lg:block">
+      <%= render "home/smart_folders", subject: :spawned_process, folder_heading: "Processes" %>
+    </aside>
+
+    <div class="space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+        <%= render "home/chip_bar", subject: :spawned_process, filter: @filter, schema: @schema, action_url: admin_processes_path, class_name: "relative" %>
+        <div class="text-xs text-gray-500">
+          <strong><%= @running_count %></strong> running ·
+          <strong><%= @processes.size %></strong> shown
+        </div>
+      </div>
+
+      <% if @processes.empty? %>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-6 text-emerald-800">
+          No processes match this filter.
+        </div>
+      <% else %>
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+              <tr>
+                <th class="px-3 py-2 text-left">Kind</th>
+                <th class="px-3 py-2 text-left">Command</th>
+                <th class="px-3 py-2 text-left">Host / pid</th>
+                <th class="px-3 py-2 text-left">Started</th>
+                <th class="px-3 py-2 text-left">Last chunk</th>
+                <th class="px-3 py-2 text-left">Duration</th>
+                <th class="px-3 py-2 text-left">Outcome</th>
+                <th class="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <% @processes.each do |sp| %>
+                <tr class="<%= 'bg-amber-50' if sp.stale? %>">
+                  <td class="px-3 py-2 align-top">
+                    <span class="rounded px-2 py-0.5 text-xs font-medium <%= kind_pill_class(sp.kind) %>"><%= sp.kind %></span>
+                  </td>
+                  <td class="px-3 py-2 align-top font-mono text-xs text-gray-700 max-w-md truncate" title="<%= sp.command %>">
+                    <%= sp.command %>
+                    <% if sp.run_id %>
+                      <div class="text-gray-500 mt-0.5">
+                        Run <%= link_to "##{sp.run_id}", admin_run_transcript_path(sp.run_id), class: "text-blue-600 hover:underline" %>
+                      </div>
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 align-top text-xs text-gray-600 font-mono">
+                    <%= sp.hostname %>
+                    <% if sp.pid %>
+                      <div class="text-gray-500">pid <%= sp.pid %></div>
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 align-top text-xs text-gray-700 whitespace-nowrap">
+                    <%= relative_timestamp(sp.started_at) %>
+                  </td>
+                  <td class="px-3 py-2 align-top text-xs whitespace-nowrap">
+                    <% if sp.last_chunk_at %>
+                      <%= relative_timestamp(sp.last_chunk_at) %>
+                    <% else %>
+                      <span class="text-gray-400">no output yet</span>
+                    <% end %>
+                    <% if sp.stale? %>
+                      <span class="ml-1 rounded bg-amber-200 px-1 text-amber-900 text-[0.65rem] uppercase font-semibold">stale</span>
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 align-top text-xs text-gray-700">
+                    <%= duration_label(sp.duration_s) %>
+                    <% if sp.wall_timeout_s %>
+                      <div class="text-gray-400">of <%= duration_label(sp.wall_timeout_s) %></div>
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 align-top text-xs">
+                    <% if sp.finished? %>
+                      <span class="rounded px-2 py-0.5 font-medium <%= outcome_pill_class(sp.outcome) %>"><%= sp.outcome %></span>
+                      <% if sp.exit_status %>
+                        <div class="text-gray-400">exit <%= sp.exit_status %></div>
+                      <% end %>
+                    <% elsif sp.kill_requested? %>
+                      <span class="rounded bg-amber-100 text-amber-800 px-2 py-0.5 font-medium">kill requested</span>
+                    <% else %>
+                      <span class="rounded bg-blue-100 text-blue-800 px-2 py-0.5 font-medium">running</span>
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 align-top whitespace-nowrap">
+                    <%= link_to "Detail", admin_process_path(sp), class: "text-blue-600 hover:underline text-xs" %>
+                    <% if sp.running? && !sp.kill_requested? %>
+                      <%= button_to "Kill", kill_admin_process_path(sp), method: :post,
+                            data: { turbo_confirm: "Send SIGTERM (then SIGKILL after 5s) to #{sp.kind} ##{sp.id}?" },
+                            class: "ml-2 inline-flex items-center rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-red-700 cursor-pointer" %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
     </div>
-  <% else %>
-    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-      <table class="min-w-full divide-y divide-gray-200 text-sm">
-        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
-          <tr>
-            <th class="px-3 py-2 text-left">Kind</th>
-            <th class="px-3 py-2 text-left">Command</th>
-            <th class="px-3 py-2 text-left">Host / pid</th>
-            <th class="px-3 py-2 text-left">Started</th>
-            <th class="px-3 py-2 text-left">Last chunk</th>
-            <th class="px-3 py-2 text-left">Duration</th>
-            <th class="px-3 py-2 text-left">Outcome</th>
-            <th class="px-3 py-2"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <% @processes.each do |sp| %>
-            <tr class="<%= 'bg-amber-50' if sp.stale? %>">
-              <td class="px-3 py-2 align-top">
-                <span class="rounded px-2 py-0.5 text-xs font-medium <%= kind_pill_class(sp.kind) %>"><%= sp.kind %></span>
-              </td>
-              <td class="px-3 py-2 align-top font-mono text-xs text-gray-700 max-w-md truncate" title="<%= sp.command %>">
-                <%= sp.command %>
-                <% if sp.run_id %>
-                  <div class="text-gray-500 mt-0.5">
-                    Run <%= link_to "##{sp.run_id}", admin_run_transcript_path(sp.run_id), class: "text-blue-600 hover:underline" %>
-                  </div>
-                <% end %>
-              </td>
-              <td class="px-3 py-2 align-top text-xs text-gray-600 font-mono">
-                <%= sp.hostname %>
-                <% if sp.pid %>
-                  <div class="text-gray-500">pid <%= sp.pid %></div>
-                <% end %>
-              </td>
-              <td class="px-3 py-2 align-top text-xs text-gray-700 whitespace-nowrap">
-                <%= relative_timestamp(sp.started_at) %>
-              </td>
-              <td class="px-3 py-2 align-top text-xs whitespace-nowrap">
-                <% if sp.last_chunk_at %>
-                  <%= relative_timestamp(sp.last_chunk_at) %>
-                <% else %>
-                  <span class="text-gray-400">no output yet</span>
-                <% end %>
-                <% if sp.stale? %>
-                  <span class="ml-1 rounded bg-amber-200 px-1 text-amber-900 text-[0.65rem] uppercase font-semibold">stale</span>
-                <% end %>
-              </td>
-              <td class="px-3 py-2 align-top text-xs text-gray-700">
-                <%= duration_label(sp.duration_s) %>
-                <% if sp.wall_timeout_s %>
-                  <div class="text-gray-400">of <%= duration_label(sp.wall_timeout_s) %></div>
-                <% end %>
-              </td>
-              <td class="px-3 py-2 align-top text-xs">
-                <% if sp.finished? %>
-                  <span class="rounded px-2 py-0.5 font-medium <%= outcome_pill_class(sp.outcome) %>"><%= sp.outcome %></span>
-                  <% if sp.exit_status %>
-                    <div class="text-gray-400">exit <%= sp.exit_status %></div>
-                  <% end %>
-                <% elsif sp.kill_requested? %>
-                  <span class="rounded bg-amber-100 text-amber-800 px-2 py-0.5 font-medium">kill requested</span>
-                <% else %>
-                  <span class="rounded bg-blue-100 text-blue-800 px-2 py-0.5 font-medium">running</span>
-                <% end %>
-              </td>
-              <td class="px-3 py-2 align-top whitespace-nowrap">
-                <%= link_to "Detail", admin_process_path(sp), class: "text-blue-600 hover:underline text-xs" %>
-                <% if sp.running? && !sp.kill_requested? %>
-                  <%= button_to "Kill", kill_admin_process_path(sp), method: :post,
-                        data: { turbo_confirm: "Send SIGTERM (then SIGKILL after 5s) to #{sp.kind} ##{sp.id}?" },
-                        class: "ml-2 inline-flex items-center rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-red-700 cursor-pointer" %>
-                <% end %>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  <% end %>
+  </div>
 </div>

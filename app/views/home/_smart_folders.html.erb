@@ -5,13 +5,15 @@
     case smart_folder_subject
     when "workflow" then root_path(subject: "workflow", view: @dashboard_view, smart_folder_id: folder.id)
     when "epic" then root_path(subject: "epic", view: @dashboard_view, smart_folder_id: folder.id)
+    when "spawned_process" then admin_processes_path(smart_folder_id: folder.id)
     else dashboard_jobs_path(smart_folder_id: folder.id)
     end
   }
   user_smart_folders = @smart_folders || @user_smart_folders
+  folder_heading = local_assigns.fetch(:folder_heading, "Attention")
 %>
 <div class="bg-white border border-gray-200 rounded-lg p-3">
-  <div class="mb-2 text-xs font-semibold uppercase text-gray-500">Attention</div>
+  <div class="mb-2 text-xs font-semibold uppercase text-gray-500"><%= folder_heading %></div>
   <nav class="space-y-1">
     <% @primary_builtin_smart_folders.each do |folder| %>
       <% active = @active_smart_folder == folder %>

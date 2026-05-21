@@ -9,17 +9,18 @@ module Admin
     PER_PAGE = 50
 
     def index
-      scope = SpawnedProcess.order(started_at: :desc).limit(PER_PAGE * 4)
-      scope = apply_state_filter(scope)
-      scope = scope.where(kind: params[:kind]) if SpawnedProcess::KINDS.include?(params[:kind])
-      scope = scope.where(hostname: params[:hostname]) if params[:hostname].present?
-      scope = scope.where(run_id: params[:run_id]) if params[:run_id].present?
-      scope = scope.where(workflow_id: params[:workflow_id]) if params[:workflow_id].present?
+      SmartFolder.ensure_spawned_process_builtins!
 
-      @processes = scope.to_a
+      @active_smart_folder = smart_folder_from_params
+      @filter = Admin::SpawnedProcesses::Filter.from_params(params, smart_folder: @active_smart_folder, user: Current.user)
+      @schema = ::Filters::Schema.for(subject: :spawned_process, user: Current.user)
+      @builtin_smart_folders = SmartFolder.for_subject(:spawned_process).built_in_sidebar_order
+      @smart_folders = SmartFolder.for_user(Current.user, subject: :spawned_process)
+      @smart_folder_counts = smart_folder_counts(SpawnedProcess.all)
+      @primary_builtin_smart_folders, @more_builtin_smart_folders = split_builtin_smart_folders
+
+      @processes = @filter.apply(SpawnedProcess.all).order(started_at: :desc).limit(PER_PAGE * 4).to_a
       @running_count = SpawnedProcess.running.count
-      @kinds = SpawnedProcess::KINDS
-      @hostnames = SpawnedProcess.where("started_at > ?", 24.hours.ago).distinct.pluck(:hostname).sort
     end
 
     def show
@@ -40,19 +41,35 @@ module Admin
 
     private
 
-    # Defaults to "active or recently finished" — the most useful view
-    # for the operator who's debugging right now. ?state=all returns
-    # the whole table, ?state=running just live rows, ?state=finished
-    # just done rows.
-    def apply_state_filter(scope)
-      case params[:state]
-      when "running"  then scope.running
-      when "finished" then scope.finished
-      when "all"      then scope
-      else
-        cutoff = 1.hour.ago
-        scope.where("finished_at IS NULL OR finished_at >= ?", cutoff)
+    def smart_folder_from_params
+      return if params[:smart_folder_id].blank?
+
+      SmartFolder.for_subject(:spawned_process).builtin.where(user_id: nil).find_by(id: params[:smart_folder_id]) ||
+        SmartFolder.for_subject(:spawned_process).where(user: Current.user).find_by(id: params[:smart_folder_id])
+    end
+
+    def smart_folder_counts(base_scope)
+      (@builtin_smart_folders + @smart_folders).to_h do |folder|
+        [ folder.id, Admin::SpawnedProcesses::Filter.from_tree(folder.filter, user: Current.user).apply(base_scope).count ]
       end
+    end
+
+    def split_builtin_smart_folders
+      primary = []
+      more = []
+
+      @builtin_smart_folders.each do |folder|
+        case folder.visibility
+        when :always
+          primary << folder
+        when :when_present
+          primary << folder if @smart_folder_counts[folder.id].to_i.positive? || @active_smart_folder == folder
+        else
+          more << folder
+        end
+      end
+
+      [ primary, more ]
     end
   end
 end

@@ -73,6 +73,7 @@ RSpec.describe SmartFolder do
     described_class.create!(name: "Ghost", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)
     described_class.create!(name: "Ghost", subject_type: "epic", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)
     described_class.create!(name: "Ghost", subject_type: "workflow", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)
+    described_class.create!(name: "Ghost", subject_type: "spawned_process", kind: "builtin", filter: { "field" => "stale", "op" => "is", "value" => "true" }, position: 99)
 
     expect { described_class.ensure_builtins! }.to change { described_class.exists?(name: "Ghost") }.from(true).to(false)
   end

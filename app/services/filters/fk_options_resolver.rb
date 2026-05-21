@@ -1,7 +1,7 @@
 module Filters
   class FkOptionsResolver
     LIMIT = 50
-    FIELDS = %w[ repository_id epic_id parent_job_id job_id tags ].freeze
+    FIELDS = %w[ repository_id epic_id parent_job_id job_id tags hostname ].freeze
 
     UnknownField = Class.new(ArgumentError)
 
@@ -14,7 +14,9 @@ module Filters
       raise UnknownField, field unless FIELDS.include?(field)
 
       scope = send("#{field}_scope")
-      scope = scope.where(id: Array(ids).reject(&:blank?)) if ids.present?
+      if ids.present?
+        scope = field == "hostname" ? scope.where(hostname: Array(ids).reject(&:blank?)) : scope.where(id: Array(ids).reject(&:blank?))
+      end
       scope = apply_search(field, scope, q.to_s.strip) if ids.blank? && q.present?
       scope = apply_order(field, scope)
       scope = scope.limit(limit) if ids.blank? && limit
@@ -45,6 +47,10 @@ module Filters
       user.tags
     end
 
+    def hostname_scope
+      SpawnedProcess.where("started_at > ?", 24.hours.ago).where.not(hostname: [ nil, "" ]).select(:hostname).distinct
+    end
+
     def apply_search(field, scope, query)
       pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
 
@@ -57,6 +63,8 @@ module Filters
         jobs_search(scope, query, pattern)
       when "tags"
         scope.where("tags.name LIKE ?", pattern)
+      when "hostname"
+        scope.where("spawned_processes.hostname LIKE ?", pattern)
       else
         scope
       end
@@ -82,6 +90,8 @@ module Filters
         scope.order(created_at: :desc)
       when "tags"
         scope.order(Arel.sql("LOWER(tags.name)"))
+      when "hostname"
+        scope.order(Arel.sql("LOWER(spawned_processes.hostname)"))
       else
         scope
       end
@@ -89,7 +99,7 @@ module Filters
 
     def option_for(field, record)
       {
-        "value" => record.id,
+        "value" => field == "hostname" ? record.hostname : record.id,
         "label" => label_for(field, record)
       }
     end
@@ -104,6 +114,8 @@ module Filters
         "##{record.issue_number || record.id} #{record.issue_title}".strip
       when "tags"
         record.name
+      when "hostname"
+        record.hostname
       end
     end
   end

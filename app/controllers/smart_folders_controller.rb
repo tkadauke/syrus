@@ -71,6 +71,8 @@ class SmartFoldersController < ApplicationController
       Workflows::Filter.from_params(params).to_h
     when "epic"
       Epics::Filter.from_params(params).to_h
+    when "spawned_process"
+      Admin::SpawnedProcesses::Filter.from_params(params).to_h
     else
       Jobs::Filter.from_params(params).to_h
     end
@@ -82,6 +84,8 @@ class SmartFoldersController < ApplicationController
       dashboard_workflows_path(query)
     when "epic"
       dashboard_epics_path(query)
+    when "spawned_process"
+      admin_processes_path(query)
     else
       dashboard_jobs_path(query)
     end

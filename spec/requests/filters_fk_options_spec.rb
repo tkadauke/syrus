@@ -85,11 +85,17 @@ RSpec.describe "Filter FK options", type: :request do
       expect(JSON.parse(response.body).size).to eq(50)
     end
 
-    it "searches repositories, epics, and tags through their label columns" do
+    it "searches repositories, epics, tags, and hostnames through their label columns" do
       user = Factories.user
       repo = Factories.repository(user:, owner: "acme", name: "widgets")
       epic = Factories.epic(user:, repository: repo, title: "Typeahead migration")
       tag = Factories.tag(user:, name: "backend")
+      SpawnedProcess.create!(
+        kind: "agent",
+        command: "claude --print",
+        hostname: "syrus-worker-alpha",
+        started_at: 1.minute.ago
+      )
       sign_in_as(user)
 
       get "/filters/fk_options", params: { field: "repository_id", q: "widg" }
@@ -100,6 +106,9 @@ RSpec.describe "Filter FK options", type: :request do
 
       get "/filters/fk_options", params: { field: "tags", q: "back" }
       expect(JSON.parse(response.body)).to eq([{ "value" => tag.id, "label" => "backend" }])
+
+      get "/filters/fk_options", params: { field: "hostname", q: "alpha" }
+      expect(JSON.parse(response.body)).to eq([{ "value" => "syrus-worker-alpha", "label" => "syrus-worker-alpha" }])
     end
   end
 end
