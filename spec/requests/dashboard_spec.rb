@@ -230,6 +230,7 @@ RSpec.describe "Dashboard", type: :request do
       expect(kanban_card["data-kanban-state-url"]).to eq(state_epic_path(epic))
       expect(kanban_card["data-epic-state-url"]).to eq(state_epic_path(epic))
       expect(response.body).to include("Override state")
+      expect(kanban_card.at_css("button[data-action='kanban#closeMenuOnSelect']")).to be_present
     end
 
     it "renders the smart-folders sidebar and chip bar on the Epics Kanban view" do

@@ -42,6 +42,7 @@
                   state_epic_path(epic),
                   method: :patch,
                   params: { target_state: target_state, override: "1" },
+                  data: { action: "kanban#closeMenuOnSelect" },
                   class: "block w-full rounded px-2 py-1 text-left text-sm text-gray-700 hover:bg-gray-50" %>
           <% end %>
         </div>

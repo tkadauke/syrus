@@ -46,6 +46,10 @@ class Element {
     this.attributes[name] = value
   }
 
+  removeAttribute(name) {
+    delete this.attributes[name]
+  }
+
   closest(selector) {
     let node = this
     while (node) {
@@ -117,6 +121,19 @@ test("open card menus prevent Turbo element morphs", async () => {
   })
 
   assert.equal(prevented, true)
+})
+
+test("selecting a card menu option closes the menu", async () => {
+  const { default: Controller } = await loadController()
+  const controller = new Controller()
+  const menu = new Element("details")
+  const menuItem = new Element("button")
+  menu.setAttribute("open", "")
+  menu.append(menuItem)
+
+  controller.closeMenuOnSelect({ currentTarget: menuItem })
+
+  assert.equal(Object.hasOwn(menu.attributes, "open"), false)
 })
 
 test("dragStart permits ready and in_progress Epic cards", async () => {

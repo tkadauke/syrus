@@ -22,6 +22,11 @@ export default class extends Controller {
     document.removeEventListener("turbo:before-morph-element", this.handleBeforeMorphElement)
   }
 
+  closeMenuOnSelect(event) {
+    const menu = event.currentTarget.closest("details[open]")
+    if (menu) menu.removeAttribute("open")
+  }
+
   dragStart(event) {
     const card = event.currentTarget
     const state = card.dataset.kanbanState
