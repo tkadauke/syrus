@@ -50,11 +50,16 @@
         <% @jobs.each do |job| %>
           <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div class="min-w-0">
-              <%= link_to job.direct? ? "Direct" : (job.issue_number.present? ? "##{job.issue_number}" : "Job ##{job.id}"),
-                    job_path(job),
-                    class: "font-medium text-blue-600 underline hover:no-underline" %>
+              <% job_label = job.direct? ? "Direct" : (job.issue_number.present? ? "##{job.issue_number}" : "Job ##{job.id}") %>
               <% if job.issue_title.present? %>
-                <span class="text-gray-700"><%= job.issue_title %></span>
+                <span class="font-medium text-gray-600"><%= job_label %></span>
+                <%= link_to job.issue_title,
+                      job_path(job),
+                      class: "ml-1 text-gray-700 hover:underline" %>
+              <% else %>
+                <%= link_to job_label,
+                      job_path(job),
+                      class: "font-medium text-blue-600 underline hover:no-underline" %>
               <% end %>
             </div>
             <%= state_pill(job_summary_state(job)) %>

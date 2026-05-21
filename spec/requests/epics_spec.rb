@@ -185,6 +185,18 @@ RSpec.describe "Epics", type: :request do
       expect(response.body).not_to include("data-controller=\"mermaid-graph\"")
     end
 
+    it "links child Job titles to their Job pages" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repo, title: "Restore forum")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 20, issue_title: "Survey forum")
+
+      get epic_path(epic)
+
+      document = Nokogiri::HTML(response.body)
+      title_link = document.at_css("a[href='#{job_path(job)}']")
+      expect(title_link.text).to eq("Survey forum")
+    end
+
     it "renders a drawer graph frame for Kanban cards" do
       sign_in_as(user)
       epic = Factories.epic(user: user, repository: repo, title: "Restore forum")
