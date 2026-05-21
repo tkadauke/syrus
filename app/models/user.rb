@@ -28,20 +28,15 @@ class User < ApplicationRecord
       "visible_columns" => %w[epic state repository updated]
     },
     "jobs" => {
-      "sort_column" => "created_at",
+      "sort_column" => "started_at",
       "sort_direction" => "desc",
       "visible_columns" => %w[checkbox issue state repository latest workflows_count started]
     },
     "workflows" => {
-      "sort_column" => "created_at",
+      "sort_column" => "started_at",
       "sort_direction" => "desc",
       "visible_columns" => %w[workflow job trigger state started finished agent]
     }
-  }.freeze
-  DASHBOARD_SORT_COLUMNS = {
-    epics: %w[title state repository updated_at],
-    jobs: %w[title state repository started_at],
-    workflows: %w[title state started_at finished_at]
   }.freeze
   DASHBOARD_REQUIRED_COLUMNS = {
     "epics" => %w[epic],
@@ -53,6 +48,17 @@ class User < ApplicationRecord
     "jobs" => %w[state repository latest workflows_count started],
     "workflows" => %w[trigger state started finished agent]
   }.freeze
+  DASHBOARD_SORT_COLUMNS = {
+    "epic" => %w[title state repository updated_at],
+    "job" => %w[title state repository started_at],
+    "workflow" => %w[title state started_at finished_at]
+  }.freeze
+  DASHBOARD_SORT_DEFAULTS = {
+    "epic" => { "column" => "updated_at", "direction" => "desc" },
+    "job" => { "column" => "started_at", "direction" => "desc" },
+    "workflow" => { "column" => "started_at", "direction" => "desc" }
+  }.freeze
+  DASHBOARD_SORT_DIRECTIONS = %w[asc desc].freeze
 
   encrypts :claude_oauth_token
   encrypts :codex_api_key
@@ -122,12 +128,14 @@ class User < ApplicationRecord
 
   def dashboard_sort(subject)
     subject_key = normalize_dashboard_preference_table(subject)
+    normalized_subject = normalize_dashboard_preference_subject(subject)
     preferences = dashboard_preferences.fetch(subject_key)
+    column = preferences["sort_column"].to_s.presence_in(DASHBOARD_SORT_COLUMNS.fetch(normalized_subject)) ||
+             DASHBOARD_SORT_DEFAULTS.fetch(normalized_subject).fetch("column")
+    direction = preferences["sort_direction"].to_s.presence_in(DASHBOARD_SORT_DIRECTIONS) ||
+                DASHBOARD_SORT_DEFAULTS.fetch(normalized_subject).fetch("direction")
 
-    {
-      column: preferences.fetch("sort_column"),
-      direction: preferences.fetch("sort_direction")
-    }
+    { "column" => column, "direction" => direction }
   end
 
   def dashboard_visible_columns(subject)
@@ -140,14 +148,15 @@ class User < ApplicationRecord
 
   def update_dashboard_sort!(subject:, column:, direction:)
     subject_key = normalize_dashboard_preference_table(subject)
+    normalized_subject = normalize_dashboard_preference_subject(subject)
     column = column.to_s
     direction = direction.to_s
 
-    unless DASHBOARD_SORT_COLUMNS.fetch(subject_key.to_sym).include?(column)
+    unless DASHBOARD_SORT_COLUMNS.fetch(normalized_subject).include?(column)
       raise ArgumentError, "Unknown dashboard sort column: #{column}"
     end
 
-    unless %w[asc desc].include?(direction)
+    unless DASHBOARD_SORT_DIRECTIONS.include?(direction)
       raise ArgumentError, "Unknown dashboard sort direction: #{direction}"
     end
 
@@ -267,6 +276,17 @@ class User < ApplicationRecord
           next
         end
 
+        if normalized_key == "dashboard_sorts"
+          normalized_dashboard_sorts(preference).each do |subject, sort|
+            subject_key = normalize_dashboard_preference_table(subject)
+            hash[subject_key] = (hash[subject_key] || {}).merge(
+              "sort_column" => sort.fetch("column"),
+              "sort_direction" => sort.fetch("direction")
+            )
+          end
+          next
+        end
+
         hash[normalized_key] = normalize_dashboard_preference_value(normalized_key, preference)
       end
     else
@@ -295,6 +315,23 @@ class User < ApplicationRecord
 
       normalized_key = key.to_s
       hash[normalized_key] = normalized_key == "visible_columns" ? Array(value).map(&:to_s) : value.to_s
+    end
+  end
+
+  def normalized_dashboard_sorts(value)
+    return {} unless value.is_a?(Hash)
+
+    value.each_with_object({}) do |(subject, sort), hash|
+      normalized_subject = normalize_dashboard_preference_subject(subject)
+      next unless DASHBOARD_SORT_COLUMNS.key?(normalized_subject)
+      next unless sort.is_a?(Hash)
+
+      column = sort["column"] || sort[:column]
+      direction = sort["direction"] || sort[:direction]
+      next unless column.to_s.in?(DASHBOARD_SORT_COLUMNS.fetch(normalized_subject))
+      next unless direction.to_s.in?(DASHBOARD_SORT_DIRECTIONS)
+
+      hash[normalized_subject] = { "column" => column.to_s, "direction" => direction.to_s }
     end
   end
 

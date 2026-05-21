@@ -216,7 +216,10 @@ class HomeController < ApplicationController
     # but matches nothing). Total is stable across tabs.
     @jobs_matching_count = jobs_total_for_dashboard
     @workflows_matching_count = workflows_total_for_dashboard
-    @epics = @epics.order(updated_at: :desc, id: :desc).offset((@page - 1) * EpicsController::PER_PAGE).limit(EpicsController::PER_PAGE)
+    @epic_sort = resolved_dashboard_sort(:epic)
+    @epics = apply_dashboard_sort(@epics, :epic)
+             .offset((@page - 1) * EpicsController::PER_PAGE)
+             .limit(EpicsController::PER_PAGE)
   end
 
   def set_dashboard_view
@@ -245,7 +248,8 @@ class HomeController < ApplicationController
 
     @epics = @filter.apply(default_scope.includes(:repository))
     @epics_total = @epics.count
-    @epics = @epics.order(updated_at: :desc, id: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    @epic_sort = resolved_dashboard_sort(:epic)
+    @epics = apply_dashboard_sort(@epics, :epic).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
 
     kanban_scope = default_scope
                                 .includes(:repository,
@@ -323,6 +327,8 @@ class HomeController < ApplicationController
 
     @jobs_total = @jobs.count
     @jobs = @jobs.includes(:tags)
+    @job_sort = resolved_dashboard_sort(:job)
+    @custom_job_ordering = landing_queue_folder? || @job_filter.pinned?
 
     if @active_tab == "jobs" && @dashboard_view == "kanban"
       load_job_kanban
@@ -336,7 +342,7 @@ class HomeController < ApplicationController
       # the pin's created_at puts the most recently pinned jobs first.
       @jobs.order("job_pins.created_at DESC", created_at: :desc)
     else
-      @jobs.order(created_at: :desc)
+      apply_dashboard_sort(@jobs, :job)
     end
     @jobs = @jobs.is_a?(Array) ? @jobs.slice((@page - 1) * PER_PAGE, PER_PAGE) || [] : @jobs.offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
     @pinned_job_ids = Current.user.job_pins.where(job_id: @jobs.map(&:id)).pluck(:job_id)
@@ -372,10 +378,86 @@ class HomeController < ApplicationController
     if @dashboard_view == "kanban"
       load_workflow_kanban
     else
-      @workflows = @workflows.order(created_at: :desc, id: :desc)
+      @workflow_sort = resolved_dashboard_sort(:workflow)
+      @workflows = apply_dashboard_sort(@workflows, :workflow)
                              .offset((@page - 1) * PER_PAGE)
                              .limit(PER_PAGE)
     end
+  end
+
+  def resolved_dashboard_sort(subject)
+    normalized_subject = subject.to_s
+    valid_columns = User::DASHBOARD_SORT_COLUMNS.fetch(normalized_subject)
+    valid_directions = User::DASHBOARD_SORT_DIRECTIONS
+    requested_column = params[:sort_column].to_s
+    requested_direction = params[:sort_direction].to_s
+
+    if params.key?(:sort_column) || params.key?(:sort_direction)
+      if requested_column.in?(valid_columns) && requested_direction.in?(valid_directions)
+        Current.user.update_dashboard_sort!(
+          subject: normalized_subject,
+          column: requested_column,
+          direction: requested_direction
+        )
+      end
+    end
+
+    Current.user.dashboard_sort(normalized_subject)
+  end
+
+  def apply_dashboard_sort(scope, subject)
+    sort = instance_variable_get("@#{subject}_sort") || resolved_dashboard_sort(subject)
+    relation = sort.fetch("column") == "repository" ? scope.joins(:repository) : scope
+    relation.reorder(*dashboard_sort_order_clauses(subject.to_s, sort))
+  end
+
+  def dashboard_sort_order_clauses(subject, sort)
+    direction = sort.fetch("direction").to_sym
+
+    case subject
+    when "epic"
+      epic_sort_order_clauses(sort.fetch("column"), direction)
+    when "job"
+      job_sort_order_clauses(sort.fetch("column"), direction)
+    when "workflow"
+      workflow_sort_order_clauses(sort.fetch("column"), direction)
+    end
+  end
+
+  def epic_sort_order_clauses(column, direction)
+    table = Epic.arel_table
+    order_attribute = case column
+    when "title" then table[:title]
+    when "state" then table[:state]
+    when "repository" then Repository.arel_table[:name]
+    else table[:updated_at]
+    end
+
+    [ order_attribute.public_send(direction), table[:id].public_send(direction) ]
+  end
+
+  def job_sort_order_clauses(column, direction)
+    table = Job.arel_table
+    order_attribute = case column
+    when "title" then table[:issue_title]
+    when "state" then table[:state]
+    when "repository" then Repository.arel_table[:name]
+    else table[:created_at]
+    end
+
+    [ order_attribute.public_send(direction), table[:id].public_send(direction) ]
+  end
+
+  def workflow_sort_order_clauses(column, direction)
+    table = Workflow.arel_table
+    order_attribute = case column
+    when "title" then table[:id]
+    when "state" then table[:state]
+    when "finished_at" then table[:finished_at]
+    else table[:created_at]
+    end
+
+    [ order_attribute.public_send(direction), table[:id].public_send(direction) ]
   end
 
   def load_workflow_kanban

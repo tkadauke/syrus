@@ -143,22 +143,23 @@
         </aside>
 
         <div class="space-y-4">
+          <%= mobile_sort_select(subject: :epic, current_sort: @epic_sort) %>
           <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <div class="hidden justify-end border-b border-gray-200 px-3 py-2 sm:flex">
               <%= render "home/column_picker", subject: "epics" %>
             </div>
             <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+              <thead class="hidden bg-gray-50 text-xs uppercase text-gray-500 sm:table-header-group">
                 <tr>
                   <% if dashboard_column_visible?("epics", "state") %>
-                    <th class="px-4 py-2 text-left">State</th>
+                    <%= sort_header(subject: :epic, column: :state, current_sort: @epic_sort, th_class: "px-4 py-2 text-left") %>
                   <% end %>
-                  <th class="px-4 py-2 text-left">Epic</th>
+                  <%= sort_header(subject: :epic, column: :title, current_sort: @epic_sort, th_class: "px-4 py-2 text-left") %>
                   <% if dashboard_column_visible?("epics", "repository") %>
-                    <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
+                    <%= sort_header(subject: :epic, column: :repository, current_sort: @epic_sort, th_class: "hidden sm:table-cell px-4 py-2 text-left") %>
                   <% end %>
                   <% if dashboard_column_visible?("epics", "updated") %>
-                    <th class="hidden sm:table-cell px-4 py-2 text-left">Updated</th>
+                    <%= sort_header(subject: :epic, column: :updated_at, current_sort: @epic_sort, th_class: "hidden sm:table-cell px-4 py-2 text-left") %>
                   <% end %>
                   <th class="px-4 py-2"></th>
                 </tr>
@@ -382,6 +383,9 @@
       <% end %>
     <% elsif @jobs.any? || @page > 1 %>
       <% jobs_total_pages = (@jobs_total.to_f / HomeController::PER_PAGE).ceil %>
+      <% unless @custom_job_ordering %>
+        <%= mobile_sort_select(subject: :job, current_sort: @job_sort) %>
+      <% end %>
       <%= form_with url: bulk_dashboard_jobs_path, method: :post,
             data: { controller: "bulk-jobs" },
             class: "space-y-3" do %>
@@ -431,7 +435,7 @@
             <%= render "home/column_picker", subject: "jobs" %>
           </div>
           <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+            <thead class="hidden bg-gray-50 text-xs uppercase text-gray-500 sm:table-header-group">
               <tr>
                 <th class="px-4 py-2 text-left w-10">
                   <input type="checkbox"
@@ -440,13 +444,23 @@
                          aria-label="Select all jobs"
                          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                 </th>
-                <% if dashboard_column_visible?("jobs", "state") %>
-                  <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
+                <% if @custom_job_ordering %>
+                  <% if dashboard_column_visible?("jobs", "state") %>
+                    <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
+                  <% end %>
+                  <% if dashboard_column_visible?("jobs", "repository") %>
+                    <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
+                  <% end %>
+                  <th class="px-4 py-2 text-left">Issue</th>
+                <% else %>
+                  <% if dashboard_column_visible?("jobs", "state") %>
+                    <%= sort_header(subject: :job, column: :state, current_sort: @job_sort, th_class: "hidden sm:table-cell px-4 py-2 text-left") %>
+                  <% end %>
+                  <% if dashboard_column_visible?("jobs", "repository") %>
+                    <%= sort_header(subject: :job, column: :repository, current_sort: @job_sort, th_class: "hidden sm:table-cell px-4 py-2 text-left") %>
+                  <% end %>
+                  <%= sort_header(subject: :job, column: :title, current_sort: @job_sort, th_class: "px-4 py-2 text-left") %>
                 <% end %>
-                <% if dashboard_column_visible?("jobs", "repository") %>
-                  <th class="hidden sm:table-cell px-4 py-2 text-left">Repository</th>
-                <% end %>
-                <th class="px-4 py-2 text-left">Issue</th>
                 <% if dashboard_column_visible?("jobs", "latest") %>
                   <th class="hidden sm:table-cell px-4 py-2 text-left">Latest</th>
                 <% end %>
@@ -454,7 +468,11 @@
                   <th class="hidden sm:table-cell px-4 py-2 text-left">Workflows</th>
                 <% end %>
                 <% if dashboard_column_visible?("jobs", "started") %>
-                  <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
+                <% if @custom_job_ordering %>
+                    <th class="hidden sm:table-cell px-4 py-2 text-left">Started</th>
+                <% else %>
+                    <%= sort_header(subject: :job, column: :started_at, current_sort: @job_sort, th_class: "hidden sm:table-cell px-4 py-2 text-left") %>
+                  <% end %>
                 <% end %>
                 <th class="hidden sm:table-cell px-4 py-2"></th>
               </tr>
@@ -747,26 +765,27 @@
             drag_enabled: false %>
     <% elsif @workflows.any? || @page > 1 %>
       <% workflows_total_pages = (@workflows_total.to_f / HomeController::PER_PAGE).ceil %>
+      <%= mobile_sort_select(subject: :workflow, current_sort: @workflow_sort) %>
       <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div class="hidden justify-end border-b border-gray-200 px-3 py-2 sm:flex">
           <%= render "home/column_picker", subject: "workflows" %>
         </div>
         <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+          <thead class="hidden bg-gray-50 text-xs uppercase text-gray-500 sm:table-header-group">
             <tr>
-              <th class="px-4 py-2 text-left">Workflow</th>
+              <%= sort_header(subject: :workflow, column: :title, current_sort: @workflow_sort, th_class: "px-4 py-2 text-left") %>
               <th class="px-4 py-2 text-left">Job</th>
               <% if dashboard_column_visible?("workflows", "trigger") %>
                 <th class="hidden sm:table-cell px-4 py-2 text-left">Trigger</th>
               <% end %>
               <% if dashboard_column_visible?("workflows", "state") %>
-                <th class="hidden sm:table-cell px-4 py-2 text-left">State</th>
+                <%= sort_header(subject: :workflow, column: :state, current_sort: @workflow_sort, th_class: "hidden sm:table-cell px-4 py-2 text-left") %>
               <% end %>
               <% if dashboard_column_visible?("workflows", "started") %>
-                <th class="hidden md:table-cell px-4 py-2 text-left">Started</th>
+                <%= sort_header(subject: :workflow, column: :started_at, current_sort: @workflow_sort, th_class: "hidden md:table-cell px-4 py-2 text-left") %>
               <% end %>
               <% if dashboard_column_visible?("workflows", "finished") %>
-                <th class="hidden md:table-cell px-4 py-2 text-left">Finished</th>
+                <%= sort_header(subject: :workflow, column: :finished_at, current_sort: @workflow_sort, th_class: "hidden md:table-cell px-4 py-2 text-left") %>
               <% end %>
               <% if dashboard_column_visible?("workflows", "agent") %>
                 <th class="hidden sm:table-cell px-4 py-2 text-left">Agent</th>

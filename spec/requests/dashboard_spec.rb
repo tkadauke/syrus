@@ -69,6 +69,42 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).not_to include("Filed in the vault")
     end
 
+    it "sorts the Epics list by a valid sort request" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.epic(user: user, repository: repo, title: "Ready work", state: "ready")
+      Factories.epic(user: user, repository: repo, title: "Backlog work", state: "backlog")
+
+      get root_path, params: { subject: "epic", view: "list", sort_column: "state", sort_direction: "asc" }
+
+      document = Nokogiri::HTML(response.body)
+      rows = document.css("tbody tr").map(&:text)
+      expect(rows.first).to include("Backlog work")
+      expect(rows.second).to include("Ready work")
+    end
+
+    it "ignores an invalid Epic sort column and falls back to the stored preference" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.epic(user: user, repository: repo, title: "Alpha", state: "ready")
+      Factories.epic(user: user, repository: repo, title: "Zulu", state: "ready")
+      user.update_dashboard_sort!(subject: :epic, column: "title", direction: "desc")
+
+      get root_path, params: { subject: "epic", view: "list", sort_column: "nonsense", sort_direction: "asc" }
+
+      document = Nokogiri::HTML(response.body)
+      rows = document.css("tbody tr").map(&:text)
+      expect(rows.first).to include("Zulu")
+      expect(rows.second).to include("Alpha")
+    end
+
+    it "persists a valid dashboard sort request" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.epic(user: user, repository: repo, title: "Persistent order", state: "ready")
+
+      get root_path, params: { subject: "epic", view: "list", sort_column: "state", sort_direction: "asc" }
+
+      expect(user.reload.dashboard_sort(:epic)).to eq("column" => "state", "direction" => "asc")
+    end
+
     it "falls back to default dashboard params for invalid values" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       Factories.epic(user: user, repository: repo, title: "Default forum", state: "ready")

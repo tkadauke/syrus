@@ -91,6 +91,88 @@ module ApplicationHelper
     tag.span(label, class: "#{PILL_BASE_CLASSES} #{classes} #{extra}".strip)
   end
 
+  DASHBOARD_SORT_LABELS = {
+    "epic" => {
+      "title" => "Epic",
+      "state" => "State",
+      "repository" => "Repository",
+      "updated_at" => "Updated"
+    },
+    "job" => {
+      "title" => "Issue",
+      "state" => "State",
+      "repository" => "Repository",
+      "started_at" => "Started"
+    },
+    "workflow" => {
+      "title" => "Workflow",
+      "state" => "State",
+      "started_at" => "Started",
+      "finished_at" => "Finished"
+    }
+  }.freeze
+
+  def sort_header(subject:, column:, current_sort:, th_class: "px-4 py-2 text-left", label: nil)
+    active = current_sort["column"] == column.to_s
+    current_direction = current_sort["direction"]
+    next_direction = active && current_direction == "asc" ? "desc" : "asc"
+    indicator = if active
+      current_direction == "asc" ? "↑" : "↓"
+    else
+      "↕"
+    end
+
+    content_tag(:th, class: th_class) do
+      link_to url_for(sort_url_params(column, next_direction)),
+              class: "inline-flex items-center gap-1 hover:text-gray-900 #{active ? 'font-semibold text-gray-900' : ''}".strip,
+              data: { turbo_frame: "dashboard_content", turbo_action: "advance" } do
+        safe_join([
+          tag.span(label || dashboard_sort_label(subject, column)),
+          tag.span("", class: "text-gray-400 after:content-[attr(data-indicator)]", data: { indicator: indicator }, aria: { hidden: true })
+        ], " ")
+      end
+    end
+  end
+
+  def mobile_sort_select(subject:, current_sort:, class_name: nil)
+    select_tag :dashboard_sort,
+               options_for_select(dashboard_sort_options(subject), "#{current_sort['column']}:#{current_sort['direction']}"),
+               class: [
+                 "sm:hidden w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700",
+                 class_name
+               ].compact.join(" "),
+               aria: { label: "Sort #{subject.to_s.pluralize}" },
+               data: { controller: "sort-select", action: "sort-select#change" }
+  end
+
+  def dashboard_sort_options(subject)
+    normalized_subject = subject.to_s
+    User::DASHBOARD_SORT_COLUMNS.fetch(normalized_subject).flat_map do |column|
+      User::DASHBOARD_SORT_DIRECTIONS.map do |direction|
+        [ "#{dashboard_sort_label(normalized_subject, column)} (#{dashboard_sort_direction_label(column, direction)})", "#{column}:#{direction}" ]
+      end
+    end
+  end
+
+  def dashboard_sort_label(subject, column)
+    DASHBOARD_SORT_LABELS.fetch(subject.to_s).fetch(column.to_s)
+  end
+
+  def dashboard_sort_direction_label(column, direction)
+    case column.to_s
+    when "updated_at", "started_at", "finished_at"
+      direction == "desc" ? "newest first" : "oldest first"
+    when "title", "repository", "state"
+      direction == "asc" ? "A-Z" : "Z-A"
+    else
+      direction == "asc" ? "ascending" : "descending"
+    end
+  end
+
+  def sort_url_params(column, direction)
+    request.query_parameters.merge("sort_column" => column.to_s, "sort_direction" => direction.to_s)
+  end
+
   # Background + hover + text classes shared between a SplitButton's
   # primary action and its chevron toggle. Add a new theme by
   # appending here; the partial reads via split_button_theme.
