@@ -1,15 +1,15 @@
 module Api
   module V1
     module Admin
-      # Mirror of Admin::UsersController. Same Admin::UsersFilter
+      # Mirror of Admin::UsersController. Same Admin::Users::Filter
       # so HTML + API never drift.
       #
       #   GET /api/v1/admin/users          — filtered list
       #   GET /api/v1/admin/users/:id      — full user detail
       class UsersController < BaseController
         def index
-          filter = ::Admin::UsersFilter.new(filter_params)
-          users  = filter.scope.order(:email_address).limit(500)
+          filter = ::Admin::Users::Filter.from_params(params, user: Current.user)
+          users = filter.apply(User.all).order(:email_address).limit(500)
           render json: {
             filters: filter.active_filters,
             count:   users.size,
@@ -23,12 +23,6 @@ module Api
         end
 
         private
-
-        FILTER_PARAM_KEYS = %w[ email admin has_github_token has_claude_token has_codex_token gh_rate ].freeze
-
-        def filter_params
-          params.to_unsafe_h.slice(*FILTER_PARAM_KEYS).symbolize_keys
-        end
 
         def serialize_user_row(user)
           {

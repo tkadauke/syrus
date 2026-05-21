@@ -60,6 +60,22 @@ RSpec.describe "Admin users", type: :request do
       expect(response.body).not_to include(ok_user.email_address)
     end
 
+    it "honors q= email chip filters" do
+      sign_in_as(admin)
+      matching = Factories.user(email_address: "chip-match@example.com")
+      other = Factories.user(email_address: "other@example.com")
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "email", "op" => "contains", "value" => "chip-match" }
+        ]
+      )
+
+      get "/admin/users", params: { q: q }
+
+      expect(response.body).to include(matching.email_address)
+      expect(response.body).not_to include(other.email_address)
+    end
+
     it "honors ?has_codex_token=true filter" do
       sign_in_as(admin)
       codex_user = Factories.user(email_address: "codex@example.com", codex_api_key: "sk_test")
@@ -79,6 +95,20 @@ RSpec.describe "Admin users", type: :request do
       sign_in_as(admin)
       get "/admin/users", params: { email: "absolutely-no-match-#{SecureRandom.hex(4)}" }
       expect(response.body).to include("No users match these filters")
+    end
+
+    it "renders the admin user chip bar and smart folder sidebar" do
+      sign_in_as(admin)
+
+      get "/admin/users"
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.text).to include("Attention", "Missing GitHub token", "Saved")
+      chip_bar = document.css("[data-controller~='chip-bar']").find do |el|
+        el["data-filter-memory-subject-value"] == "admin_user"
+      end
+      expect(chip_bar).to be_present
+      expect(chip_bar["data-chip-bar-schema-value"]).to include("has_github_token")
     end
   end
 

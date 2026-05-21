@@ -866,6 +866,7 @@ const OP_LABELS = {
   is_empty:             "is empty",
   is_not_empty:         "is not empty",
   contains:             "contains",
+  not_contains:         "doesn't contain",
   does_not_contain:     "doesn't contain",
   starts_with:          "starts with",
   does_not_start_with:  "doesn't start with",

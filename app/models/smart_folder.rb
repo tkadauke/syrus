@@ -114,14 +114,7 @@ class SmartFolder < ApplicationRecord
   after_initialize :seed_defaults, if: :new_record?
 
   enum :kind, { builtin: "builtin", user_defined: "user_defined" }, validate: true
-  enum :subject_type, {
-    job: "job",
-    epic: "epic",
-    workflow: "workflow",
-    admin_user: "admin_user",
-    admin_queue: "admin_queue",
-    spawned_process: "spawned_process"
-  }, validate: true
+  enum :subject_type, SUBJECT_TYPES.index_with(&:itself), validate: true
 
   validates :name, presence: true
   validates :kind, presence: true, inclusion: { in: KINDS }

@@ -1,124 +1,95 @@
 <div class="space-y-6">
+  <% folder_link_classes = ->(active) { "flex items-center justify-between rounded-md px-2 py-1.5 text-sm #{active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}" } %>
+
   <div class="flex items-center justify-between gap-3">
     <h1 class="font-bold text-2xl">Users</h1>
     <div class="flex items-center gap-3">
-      <%# "N matching" is signal but not load-bearing — hide on
-          mobile to give the admin nav room. The result rows below
-          implicitly communicate the count. %>
       <span class="hidden sm:inline text-sm text-gray-500"><%= @users.size %> matching</span>
       <%= render "admin/nav" %>
     </div>
   </div>
 
-  <%# Filter strip — GET form, query params drive Admin::UsersFilter.
-      A second click on an applied filter drops it (the link below
-      points at the current params minus that key). %>
-  <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
-    <%= form_with url: admin_users_path, method: :get, local: true, class: "flex flex-wrap items-end gap-3" do |f| %>
-      <div>
-        <label class="block text-xs uppercase text-gray-500 mb-1">Email contains</label>
-        <%= f.text_field :email, value: params[:email], class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
-      </div>
+  <details class="group rounded-lg border border-gray-200 bg-white lg:hidden">
+    <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-gray-700">
+      <span>Folders and filters</span>
+      <span class="text-gray-400 group-open:hidden">Show</span>
+      <span class="hidden text-gray-400 group-open:inline">Hide</span>
+    </summary>
+    <div class="space-y-4 border-t border-gray-200 p-3">
+      <%= render "admin/users/smart_folders", folder_link_classes: folder_link_classes %>
+      <%= render "home/chip_bar", subject: :admin_user, filter: @filter, action_url: admin_users_path, schema: @schema, class_name: "relative flex flex-col gap-3" %>
+    </div>
+  </details>
 
-      <div>
-        <label class="block text-xs uppercase text-gray-500 mb-1">Admin</label>
-        <%= f.select :admin, [ [ "—", "" ], [ "Yes", "true" ], [ "No", "false" ] ],
-              { selected: params[:admin] }, class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
-      </div>
+  <div class="grid gap-5 lg:grid-cols-[16rem_1fr]">
+    <aside class="hidden space-y-4 lg:block">
+      <%= render "admin/users/smart_folders", folder_link_classes: folder_link_classes %>
+    </aside>
 
-      <div>
-        <label class="block text-xs uppercase text-gray-500 mb-1">GitHub token</label>
-        <%= f.select :has_github_token, [ [ "—", "" ], [ "Set", "true" ], [ "Missing", "false" ] ],
-              { selected: params[:has_github_token] }, class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
-      </div>
+    <div class="space-y-4">
+      <%= render "home/chip_bar", subject: :admin_user, filter: @filter, action_url: admin_users_path, schema: @schema, class_name: "relative hidden lg:block" %>
 
-      <div>
-        <label class="block text-xs uppercase text-gray-500 mb-1">Claude token</label>
-        <%= f.select :has_claude_token, [ [ "—", "" ], [ "Set", "true" ], [ "Missing", "false" ] ],
-              { selected: params[:has_claude_token] }, class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr>
+              <th class="px-4 py-2 text-left">User</th>
+              <th class="px-4 py-2 text-left">GitHub</th>
+              <th class="px-4 py-2 text-left">Admin</th>
+              <th class="px-4 py-2 text-left">Agent</th>
+              <th class="px-4 py-2 text-left">Scheduling</th>
+              <th class="px-4 py-2 text-left">GH token</th>
+              <th class="px-4 py-2 text-left">Claude token</th>
+              <th class="px-4 py-2 text-left">Codex auth</th>
+              <th class="px-4 py-2 text-left">API token</th>
+              <th class="px-4 py-2 text-left">GH API</th>
+              <th class="px-4 py-2 text-left">Max turns</th>
+              <th class="px-4 py-2 text-left">GH rate</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <% if @users.empty? %>
+              <tr><td colspan="12" class="px-4 py-6 text-center text-gray-500">No users match these filters.</td></tr>
+            <% end %>
+            <% @users.each do |user| %>
+              <% pct = if user.gh_rate_limit_limit.to_i > 0
+                        user.gh_rate_limit_remaining.to_f / user.gh_rate_limit_limit
+                      end %>
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-2">
+                  <%= link_to user.display_name, admin_user_path(user), class: "text-blue-600 hover:underline" %>
+                  <% if user.display_name != user.email_address %>
+                    <div class="text-xs text-gray-500"><%= user.email_address %></div>
+                  <% end %>
+                </td>
+                <td class="px-4 py-2"><%= user.github_handle.present? ? "@#{user.github_handle}" : "—" %></td>
+                <td class="px-4 py-2"><%= user.admin? ? "yes" : "—" %></td>
+                <td class="px-4 py-2"><%= user.agent_provider %></td>
+                <td class="px-4 py-2"><%= user.scheduling_paused? ? "paused" : "active" %></td>
+                <td class="px-4 py-2"><%= user.github_token.present? ? "✓" : "—" %></td>
+                <td class="px-4 py-2"><%= user.claude_oauth_token.present? ? "✓" : "—" %></td>
+                <td class="px-4 py-2">
+                  <%= user.codex_auth_mode %>
+                  <%= (user.codex_api_key.present? || user.codex_auth_json.present?) ? "✓" : "—" %>
+                </td>
+                <td class="px-4 py-2"><%= user.api_token.present? ? "✓" : "—" %></td>
+                <td class="px-4 py-2"><%= user.gh_api_blocked? ? "blocked" : "ok" %></td>
+                <td class="px-4 py-2"><%= user.agent_max_turns %></td>
+                <td class="px-4 py-2">
+                  <% if pct.nil? %>
+                    <span class="text-gray-400">—</span>
+                  <% else %>
+                    <span class="<%= pct < 0.10 ? 'text-red-600 font-semibold' : (pct < 0.30 ? 'text-amber-700' : 'text-gray-700') %>">
+                      <%= user.gh_rate_limit_remaining %> / <%= user.gh_rate_limit_limit %>
+                      (<%= (pct * 100).round %>%)
+                    </span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
       </div>
-
-      <div>
-        <label class="block text-xs uppercase text-gray-500 mb-1">Codex credential</label>
-        <%= f.select :has_codex_token, [ [ "—", "" ], [ "Set", "true" ], [ "Missing", "false" ] ],
-              { selected: params[:has_codex_token] }, class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
-      </div>
-
-      <div>
-        <label class="block text-xs uppercase text-gray-500 mb-1">GH rate</label>
-        <%= f.select :gh_rate, [ [ "—", "" ], [ "Low (< 10%)", "low" ], [ "Exhausted", "exhausted" ] ],
-              { selected: params[:gh_rate] }, class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
-      </div>
-
-      <div class="flex gap-2">
-        <%= f.submit "Apply", class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer" %>
-        <% if @filter.any? %>
-          <%= link_to "Clear", admin_users_path, class: "rounded-md px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-sm font-medium" %>
-        <% end %>
-      </div>
-    <% end %>
-  </div>
-
-  <%# Result table %>
-  <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-    <table class="min-w-full divide-y divide-gray-200 text-sm">
-      <thead class="bg-gray-50 text-xs uppercase text-gray-500">
-        <tr>
-          <th class="px-4 py-2 text-left">User</th>
-          <th class="px-4 py-2 text-left">GitHub</th>
-          <th class="px-4 py-2 text-left">Admin</th>
-          <th class="px-4 py-2 text-left">Agent</th>
-          <th class="px-4 py-2 text-left">Scheduling</th>
-          <th class="px-4 py-2 text-left">GH token</th>
-          <th class="px-4 py-2 text-left">Claude token</th>
-          <th class="px-4 py-2 text-left">Codex auth</th>
-          <th class="px-4 py-2 text-left">API token</th>
-          <th class="px-4 py-2 text-left">GH API</th>
-          <th class="px-4 py-2 text-left">Max turns</th>
-          <th class="px-4 py-2 text-left">GH rate</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-100">
-        <% if @users.empty? %>
-          <tr><td colspan="12" class="px-4 py-6 text-center text-gray-500">No users match these filters.</td></tr>
-        <% end %>
-        <% @users.each do |user| %>
-          <% pct = if user.gh_rate_limit_limit.to_i > 0
-                    user.gh_rate_limit_remaining.to_f / user.gh_rate_limit_limit
-                  end %>
-          <tr class="hover:bg-gray-50">
-            <td class="px-4 py-2">
-              <%= link_to user.display_name, admin_user_path(user), class: "text-blue-600 hover:underline" %>
-              <% if user.display_name != user.email_address %>
-                <div class="text-xs text-gray-500"><%= user.email_address %></div>
-              <% end %>
-            </td>
-            <td class="px-4 py-2"><%= user.github_handle.present? ? "@#{user.github_handle}" : "—" %></td>
-            <td class="px-4 py-2"><%= user.admin? ? "yes" : "—" %></td>
-            <td class="px-4 py-2"><%= user.agent_provider %></td>
-            <td class="px-4 py-2"><%= user.scheduling_paused? ? "paused" : "active" %></td>
-            <td class="px-4 py-2"><%= user.github_token.present? ? "✓" : "—" %></td>
-            <td class="px-4 py-2"><%= user.claude_oauth_token.present? ? "✓" : "—" %></td>
-            <td class="px-4 py-2">
-              <%= user.codex_auth_mode %>
-              <%= (user.codex_api_key.present? || user.codex_auth_json.present?) ? "✓" : "—" %>
-            </td>
-            <td class="px-4 py-2"><%= user.api_token.present? ? "✓" : "—" %></td>
-            <td class="px-4 py-2"><%= user.gh_api_blocked? ? "blocked" : "ok" %></td>
-            <td class="px-4 py-2"><%= user.agent_max_turns %></td>
-            <td class="px-4 py-2">
-              <% if pct.nil? %>
-                <span class="text-gray-400">—</span>
-              <% else %>
-                <span class="<%= pct < 0.10 ? 'text-red-600 font-semibold' : (pct < 0.30 ? 'text-amber-700' : 'text-gray-700') %>">
-                  <%= user.gh_rate_limit_remaining %> / <%= user.gh_rate_limit_limit %>
-                  (<%= (pct * 100).round %>%)
-                </span>
-              <% end %>
-            </td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
+    </div>
   </div>
 </div>

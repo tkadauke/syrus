@@ -67,6 +67,8 @@ class SmartFoldersController < ApplicationController
 
   def legacy_filter_tree(subject_type)
     case subject_type
+    when "admin_user"
+      Admin::Users::Filter.from_params(params, user: Current.user).to_h
     when "workflow"
       Workflows::Filter.from_params(params).to_h
     when "epic"
@@ -78,6 +80,8 @@ class SmartFoldersController < ApplicationController
 
   def dashboard_path_for(subject_type, **query)
     case subject_type
+    when "admin_user"
+      admin_users_path(query)
     when "workflow"
       dashboard_workflows_path(query)
     when "epic"

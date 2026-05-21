@@ -175,6 +175,18 @@ RSpec.describe SmartFolder do
     ])
   end
 
+  it "applies the Missing GitHub token admin user built-in through Admin::Users::Filter" do
+    with_token = Factories.user(email_address: "token@example.com", github_token: "ghp_x")
+    without_token = Factories.user(email_address: "missing@example.com")
+    described_class.ensure_admin_user_builtins!
+
+    folder = described_class.builtins(:admin_user).find_by!(name: "Missing GitHub token")
+    result = Admin::Users::Filter.from_tree(folder.filter, user: without_token).apply(User.all)
+
+    expect(result).to include(without_token)
+    expect(result).not_to include(with_token)
+  end
+
   it "seeds the Archived Epic built-in as an on-demand state filter" do
     described_class.ensure_epic_builtins!
 
