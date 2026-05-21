@@ -102,6 +102,7 @@ module ApplicationHelper
       "title" => "Issue",
       "state" => "State",
       "repository" => "Repository",
+      "created_at" => "Created",
       "started_at" => "Started"
     },
     "workflow" => {
@@ -113,8 +114,9 @@ module ApplicationHelper
   }.freeze
 
   def sort_header(subject:, column:, current_sort:, th_class: "px-4 py-2 text-left", label: nil)
-    active = current_sort["column"] == column.to_s
-    current_direction = current_sort["direction"]
+    current_column = current_sort["column"] || current_sort[:column]
+    current_direction = current_sort["direction"] || current_sort[:direction]
+    active = current_column == column.to_s
     next_direction = active && current_direction == "asc" ? "desc" : "asc"
     indicator = if active
       current_direction == "asc" ? "↑" : "↓"
@@ -135,8 +137,11 @@ module ApplicationHelper
   end
 
   def mobile_sort_select(subject:, current_sort:, class_name: nil)
+    current_column = current_sort["column"] || current_sort[:column]
+    current_direction = current_sort["direction"] || current_sort[:direction]
+
     select_tag :dashboard_sort,
-               options_for_select(dashboard_sort_options(subject), "#{current_sort['column']}:#{current_sort['direction']}"),
+               options_for_select(dashboard_sort_options(subject), "#{current_column}:#{current_direction}"),
                class: [
                  "sm:hidden w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700",
                  class_name

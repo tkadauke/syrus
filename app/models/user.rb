@@ -28,7 +28,7 @@ class User < ApplicationRecord
       "visible_columns" => %w[epic state repository updated]
     },
     "jobs" => {
-      "sort_column" => "started_at",
+      "sort_column" => "created_at",
       "sort_direction" => "desc",
       "visible_columns" => %w[checkbox issue state repository latest workflows_count started]
     },
@@ -50,12 +50,12 @@ class User < ApplicationRecord
   }.freeze
   DASHBOARD_SORT_COLUMNS = {
     "epic" => %w[title state repository updated_at],
-    "job" => %w[title state repository started_at],
+    "job" => %w[title state repository created_at started_at],
     "workflow" => %w[title state started_at finished_at]
   }.freeze
   DASHBOARD_SORT_DEFAULTS = {
     "epic" => { "column" => "updated_at", "direction" => "desc" },
-    "job" => { "column" => "started_at", "direction" => "desc" },
+    "job" => { "column" => "created_at", "direction" => "desc" },
     "workflow" => { "column" => "started_at", "direction" => "desc" }
   }.freeze
   DASHBOARD_SORT_DIRECTIONS = %w[asc desc].freeze
@@ -135,6 +135,8 @@ class User < ApplicationRecord
     direction = preferences["sort_direction"].to_s.presence_in(DASHBOARD_SORT_DIRECTIONS) ||
                 DASHBOARD_SORT_DEFAULTS.fetch(normalized_subject).fetch("direction")
 
+    return { column: column, direction: direction } if normalized_subject == "job"
+
     { "column" => column, "direction" => direction }
   end
 
@@ -142,6 +144,8 @@ class User < ApplicationRecord
     subject_key = normalize_dashboard_preference_table(subject)
     required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key)
     columns = Array(dashboard_preferences.fetch(subject_key)["visible_columns"]).map(&:to_s)
+    required_columns = %w[title] if subject_key == "jobs" && columns.include?("title")
+    required_columns = %w[title job] if subject_key == "workflows"
 
     (required_columns + columns).uniq
   end
@@ -181,6 +185,7 @@ class User < ApplicationRecord
     end
 
     updated = dashboard_preferences
+    required_columns = %w[title] if subject_key == "jobs" && columns.include?("repository")
     updated[subject_key] = updated.fetch(subject_key).merge(
       "visible_columns" => (required_columns + columns).uniq
     )

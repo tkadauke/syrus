@@ -407,21 +407,25 @@ class HomeController < ApplicationController
 
   def apply_dashboard_sort(scope, subject)
     sort = instance_variable_get("@#{subject}_sort") || resolved_dashboard_sort(subject)
-    relation = sort.fetch("column") == "repository" ? scope.joins(:repository) : scope
+    relation = dashboard_sort_value(sort, "column") == "repository" ? scope.joins(:repository) : scope
     relation.reorder(*dashboard_sort_order_clauses(subject.to_s, sort))
   end
 
   def dashboard_sort_order_clauses(subject, sort)
-    direction = sort.fetch("direction").to_sym
+    direction = dashboard_sort_value(sort, "direction").to_sym
 
     case subject
     when "epic"
-      epic_sort_order_clauses(sort.fetch("column"), direction)
+      epic_sort_order_clauses(dashboard_sort_value(sort, "column"), direction)
     when "job"
-      job_sort_order_clauses(sort.fetch("column"), direction)
+      job_sort_order_clauses(dashboard_sort_value(sort, "column"), direction)
     when "workflow"
-      workflow_sort_order_clauses(sort.fetch("column"), direction)
+      workflow_sort_order_clauses(dashboard_sort_value(sort, "column"), direction)
     end
+  end
+
+  def dashboard_sort_value(sort, key)
+    sort[key] || sort[key.to_sym]
   end
 
   def epic_sort_order_clauses(column, direction)
