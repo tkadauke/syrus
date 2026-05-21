@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe LandingQueueProcessor do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
@@ -126,6 +128,12 @@ RSpec.describe LandingQueueProcessor do
   end
 
   describe ".try_land!" do
+    it "enqueues an immediate landing-queue pass when no specific Job is given" do
+      expect {
+        described_class.try_land!
+      }.to have_enqueued_job(LandingQueueProcessorJob)
+    end
+
     it "dispatches an AutoMerge workflow for a specific approved Job" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
 

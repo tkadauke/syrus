@@ -406,6 +406,25 @@ describe "Job state propagation (Phase 2)" do
     end
   end
 
+  describe "#succeed (AutoMerge → next landing handoff)" do
+    let(:user) { Factories.user(github_token: "ghp_test") }
+    let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
+
+    it "kicks the landing queue once when an auto_merge workflow succeeds" do
+      job = Factories.job_record(user: user, repository: repository, issue_number: 1,
+                                  pr_number: 1, state: "landing")
+      auto_merge_wf = Workflows::AutoMerge.instantiate(job: job)
+      auto_merge_wf.update!(state: "running")
+
+      allow(LandingQueueProcessor).to receive(:try_land!)
+
+      auto_merge_wf.succeed!
+      auto_merge_wf.save!
+
+      expect(LandingQueueProcessor).to have_received(:try_land!).once.with(no_args)
+    end
+  end
+
   describe "#dispatch_hook (workflow-class hook dispatcher)" do
     let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
 

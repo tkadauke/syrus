@@ -11,5 +11,9 @@ module Workflows
 
     def self.trigger_kind = "auto_merge"
     def self.agentic? = false
+
+    def self.after_success(_workflow)
+      LandingQueueProcessor.try_land!
+    end
   end
 end

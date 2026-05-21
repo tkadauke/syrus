@@ -18,8 +18,14 @@ class LandingQueueProcessor
   # recurring tick — e.g. a Rebase workflow's success callback when
   # the Job is still approved. Returns the dispatched Workflow or
   # nil if the Job wasn't landable (not approved, blockage present,
-  # landing already in progress for the same repository).
-  def self.try_land!(job) = new.try_land!(job)
+  # landing already in progress for the same repository). With no Job,
+  # kick the queue job immediately so it can choose the next eligible
+  # approved Job.
+  def self.try_land!(job = nil)
+    return LandingQueueProcessorJob.perform_later unless job
+
+    new.try_land!(job)
+  end
 
   def try_land!(job)
     return if landing_in_progress_for_repository?(job.repository_id)
