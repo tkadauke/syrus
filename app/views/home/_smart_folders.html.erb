@@ -8,6 +8,7 @@
     else dashboard_jobs_path(smart_folder_id: folder.id)
     end
   }
+  user_smart_folders = @smart_folders || @user_smart_folders
 %>
 <div class="bg-white border border-gray-200 rounded-lg p-3">
   <div class="mb-2 text-xs font-semibold uppercase text-gray-500">Attention</div>
@@ -57,10 +58,10 @@
 
   <div class="mb-2 flex items-center justify-between">
     <span class="text-xs font-semibold uppercase text-gray-500">Saved</span>
-    <%= link_to "Manage", smart_folders_path, class: "text-xs text-blue-600 underline hover:no-underline" %>
+    <%= link_to "Manage", smart_folders_path(subject_type: smart_folder_subject), class: "text-xs text-blue-600 underline hover:no-underline" %>
   </div>
   <nav class="space-y-1">
-    <% @user_smart_folders.each do |folder| %>
+    <% user_smart_folders.each do |folder| %>
       <% active = @active_smart_folder == folder %>
       <%= link_to smart_folder_path.call(folder),
             class: "flex items-center justify-between rounded-md px-2 py-1.5 text-sm #{active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}" do %>
@@ -68,7 +69,7 @@
         <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>
       <% end %>
     <% end %>
-    <% if @user_smart_folders.empty? %>
+    <% if user_smart_folders.empty? %>
       <div class="px-2 py-1.5 text-sm text-gray-400">No saved folders</div>
     <% end %>
   </nav>

@@ -360,7 +360,7 @@ class HomeController < ApplicationController
     @active_smart_folder = workflow_smart_folder_from_params
     @workflow_filter = ::Workflows::Filter.from_params(params, smart_folder: @active_smart_folder, user: Current.user)
     @builtin_smart_folders = SmartFolder.for_subject(:workflow).built_in_sidebar_order
-    @user_smart_folders = SmartFolder.for_user(Current.user, subject: :workflow)
+    @smart_folders = SmartFolder.for_user(Current.user, subject: :workflow)
 
     base_scope = Workflow.joins(:job)
                          .where(jobs: { user_id: Current.user.id, repository_id: active_repo_ids })
@@ -728,7 +728,7 @@ class HomeController < ApplicationController
   end
 
   def workflow_smart_folder_counts(base_scope)
-    (@builtin_smart_folders + @user_smart_folders).to_h do |folder|
+    (@builtin_smart_folders + @smart_folders).to_h do |folder|
       [ folder.id, ::Workflows::Filter.from_tree(folder.filter, user: Current.user).apply(base_scope).count ]
     end
   end

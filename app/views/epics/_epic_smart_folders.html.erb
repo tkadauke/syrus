@@ -33,7 +33,7 @@
 
   <div class="mb-2 flex items-center justify-between">
     <span class="text-xs font-semibold uppercase text-gray-500">Saved</span>
-    <%= link_to "Manage", smart_folders_path, class: "text-xs text-blue-600 underline hover:no-underline" %>
+    <%= link_to "Manage", smart_folders_path(subject_type: :epic), class: "text-xs text-blue-600 underline hover:no-underline" %>
   </div>
   <nav class="space-y-1">
     <% @smart_folders.each do |folder| %>
