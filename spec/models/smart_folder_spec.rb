@@ -2,12 +2,16 @@ require "rails_helper"
 
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
-    # 11 Job built-ins (post "In review" removal) + 7 Epic + 4 Workflow = 22.
-    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(22)
+    # 11 Job built-ins + 7 Epic + 4 Workflow + 4 Admin User
+    # + 3 Spawned Process + 2 Admin Queue = 31.
+    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(31)
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
     expect(described_class::EPIC_BUILTINS).to eq(described_class::EPIC_BUILTIN_DEFINITIONS)
     expect(described_class::WORKFLOW_BUILTINS).to eq(described_class::WORKFLOW_BUILTIN_DEFINITIONS)
+    expect(described_class::ADMIN_USER_BUILTINS).to eq(described_class::ADMIN_USER_BUILTIN_DEFINITIONS)
+    expect(described_class::ADMIN_QUEUE_BUILTINS).to eq(described_class::ADMIN_QUEUE_BUILTIN_DEFINITIONS)
+    expect(described_class::SPAWNED_PROCESS_BUILTINS).to eq(described_class::SPAWNED_PROCESS_BUILTIN_DEFINITIONS)
     expect(described_class.builtins.pluck(:name)).to eq([
       "Pinned",
       "In progress",
@@ -42,6 +46,27 @@ RSpec.describe SmartFolder do
     ])
     expect(described_class.builtins(:workflow).pluck(:user_id).uniq).to eq([ nil ])
     expect(described_class.builtins(:workflow).pluck(:subject_type).uniq).to eq([ "workflow" ])
+    expect(described_class.builtins(:admin_user).pluck(:name)).to eq([
+      "Admins",
+      "Missing GitHub token",
+      "Missing Claude token",
+      "Rate limit low"
+    ])
+    expect(described_class.builtins(:admin_user).pluck(:user_id).uniq).to eq([ nil ])
+    expect(described_class.builtins(:admin_user).pluck(:subject_type).uniq).to eq([ "admin_user" ])
+    expect(described_class.builtins(:admin_queue).pluck(:name)).to eq([
+      "Failed today",
+      "Failed this hour"
+    ])
+    expect(described_class.builtins(:admin_queue).pluck(:user_id).uniq).to eq([ nil ])
+    expect(described_class.builtins(:admin_queue).pluck(:subject_type).uniq).to eq([ "admin_queue" ])
+    expect(described_class.builtins(:spawned_process).pluck(:name)).to eq([
+      "Running",
+      "Stale",
+      "Recently failed"
+    ])
+    expect(described_class.builtins(:spawned_process).pluck(:user_id).uniq).to eq([ nil ])
+    expect(described_class.builtins(:spawned_process).pluck(:subject_type).uniq).to eq([ "spawned_process" ])
   end
 
   it "sweeps retired built-ins on next ensure_builtins!" do
@@ -77,6 +102,48 @@ RSpec.describe SmartFolder do
     expect(workflow_by_name["Stuck"]).to eq(:when_present)
     expect(workflow_by_name["Just failed"]).to eq(:when_present)
     expect(workflow_by_name["Queued"]).to eq(:on_demand)
+
+    admin_user_by_name = described_class.builtins(:admin_user).to_h { |f| [ f.name, f.visibility ] }
+    expect(admin_user_by_name["Admins"]).to eq(:on_demand)
+    expect(admin_user_by_name["Missing GitHub token"]).to eq(:when_present)
+
+    admin_queue_by_name = described_class.builtins(:admin_queue).to_h { |f| [ f.name, f.visibility ] }
+    expect(admin_queue_by_name["Failed today"]).to eq(:always)
+    expect(admin_queue_by_name["Failed this hour"]).to eq(:when_present)
+
+    spawned_process_by_name = described_class.builtins(:spawned_process).to_h { |f| [ f.name, f.visibility ] }
+    expect(spawned_process_by_name["Running"]).to eq(:always)
+    expect(spawned_process_by_name["Stale"]).to eq(:when_present)
+  end
+
+  it "accepts admin subject types" do
+    user = Factories.user
+
+    %w[admin_user admin_queue spawned_process].each do |subject_type|
+      folder = described_class.new(
+        user: user,
+        name: "#{subject_type} folder",
+        kind: "user_defined",
+        subject_type: subject_type,
+        filter: { "field" => "state", "op" => "is", "value" => "running" }
+      )
+
+      expect(folder).to be_valid
+    end
+  end
+
+  it "seeds admin user built-ins idempotently" do
+    described_class.ensure_admin_user_builtins!
+
+    expect(described_class.builtins(:admin_user).pluck(:name)).to eq([
+      "Admins",
+      "Missing GitHub token",
+      "Missing Claude token",
+      "Rate limit low"
+    ])
+    expect {
+      described_class.ensure_admin_user_builtins!
+    }.not_to change { described_class.for_subject(:admin_user).count }
   end
 
   it "seeds workflow built-ins idempotently without touching user-defined workflow folders" do

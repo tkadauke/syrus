@@ -178,6 +178,39 @@ module Filters
         "run_count"        => "Filters::Chips::Workflows::RunCount",
         "attention"        => "Filters::Chips::Workflows::Attention"
       }
+    ),
+    admin_user: Subject.new(
+      name: :admin_user,
+      model: User,
+      chips: {
+        "email"            => "Filters::Chips::AdminUsers::Email",
+        "admin"            => "Filters::Chips::AdminUsers::Admin",
+        "has_github_token" => "Filters::Chips::AdminUsers::HasGithubToken",
+        "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken",
+        "has_codex_token"  => "Filters::Chips::AdminUsers::HasCodexToken",
+        "gh_rate"          => "Filters::Chips::AdminUsers::GhRate"
+      }
+    ),
+    admin_queue: Subject.new(
+      name: :admin_queue,
+      model: SolidQueue::Job,
+      chips: {
+        "queue_name"   => "Filters::Chips::AdminQueue::QueueName",
+        "job_class"    => "Filters::Chips::AdminQueue::JobClass",
+        "failed_since" => "Filters::Chips::AdminQueue::FailedSince"
+      }
+    ),
+    spawned_process: Subject.new(
+      name: :spawned_process,
+      model: SpawnedProcess,
+      chips: {
+        "state"       => "Filters::Chips::SpawnedProcesses::State",
+        "kind"        => "Filters::Chips::SpawnedProcesses::Kind",
+        "hostname"    => "Filters::Chips::SpawnedProcesses::Hostname",
+        "run_id"      => "Filters::Chips::SpawnedProcesses::RunId",
+        "workflow_id" => "Filters::Chips::SpawnedProcesses::WorkflowId",
+        "stale"       => "Filters::Chips::SpawnedProcesses::Stale"
+      }
     )
   }.freeze
 

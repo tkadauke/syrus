@@ -66,10 +66,31 @@ class SmartFolder < ApplicationRecord
     { key: "workflows_queued",      name: "Queued",      visibility: :on_demand,    filter: workflow_attention("queued") }
   ].freeze
 
+  ADMIN_USER_BUILTINS = [
+    { key: "admins",               name: "Admins",               visibility: :on_demand,    filter: { "and" => [ { "field" => "admin", "op" => "is", "value" => true } ] } },
+    { key: "missing_github_token", name: "Missing GitHub token", visibility: :when_present, filter: { "and" => [ { "field" => "has_github_token", "op" => "is", "value" => false } ] } },
+    { key: "missing_claude_token", name: "Missing Claude token", visibility: :when_present, filter: { "and" => [ { "field" => "has_claude_token", "op" => "is", "value" => false } ] } },
+    { key: "gh_rate_low",          name: "Rate limit low",       visibility: :when_present, filter: { "and" => [ { "field" => "gh_rate", "op" => "is", "value" => "low" } ] } }
+  ].freeze
+
+  SPAWNED_PROCESS_BUILTINS = [
+    { key: "running",         name: "Running",         visibility: :always,       filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] } },
+    { key: "stale",           name: "Stale",           visibility: :when_present, filter: { "and" => [ { "field" => "stale", "op" => "is", "value" => true } ] } },
+    { key: "recently_failed", name: "Recently failed", visibility: :when_present, filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "failed" }, { "field" => "started_at", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } }
+  ].freeze
+
+  ADMIN_QUEUE_BUILTINS = [
+    { key: "failed_today",     name: "Failed today",     visibility: :always,       filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "days" } } ] } },
+    { key: "failed_this_hour", name: "Failed this hour", visibility: :when_present, filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } }
+  ].freeze
+
   BUILTINS_BY_SUBJECT = {
     "job" => JOB_BUILTINS,
     "epic" => EPIC_BUILTINS,
-    "workflow" => WORKFLOW_BUILTINS
+    "workflow" => WORKFLOW_BUILTINS,
+    "admin_user" => ADMIN_USER_BUILTINS,
+    "admin_queue" => ADMIN_QUEUE_BUILTINS,
+    "spawned_process" => SPAWNED_PROCESS_BUILTINS
   }.freeze
 
   VISIBILITY_BY_SUBJECT_AND_NAME = BUILTINS_BY_SUBJECT.transform_values do |definitions|
@@ -78,9 +99,12 @@ class SmartFolder < ApplicationRecord
 
   EPIC_BUILTIN_DEFINITIONS = EPIC_BUILTINS
   WORKFLOW_BUILTIN_DEFINITIONS = WORKFLOW_BUILTINS
+  ADMIN_USER_BUILTIN_DEFINITIONS = ADMIN_USER_BUILTINS
+  ADMIN_QUEUE_BUILTIN_DEFINITIONS = ADMIN_QUEUE_BUILTINS
+  SPAWNED_PROCESS_BUILTIN_DEFINITIONS = SPAWNED_PROCESS_BUILTINS
 
   KINDS = %w[ builtin user_defined ].freeze
-  SUBJECT_TYPES = %w[ job epic workflow ].freeze
+  SUBJECT_TYPES = %w[ job epic workflow admin_user admin_queue spawned_process ].freeze
 
   belongs_to :user, optional: true
 
@@ -90,7 +114,14 @@ class SmartFolder < ApplicationRecord
   after_initialize :seed_defaults, if: :new_record?
 
   enum :kind, { builtin: "builtin", user_defined: "user_defined" }, validate: true
-  enum :subject_type, { job: "job", epic: "epic", workflow: "workflow" }, validate: true
+  enum :subject_type, {
+    job: "job",
+    epic: "epic",
+    workflow: "workflow",
+    admin_user: "admin_user",
+    admin_queue: "admin_queue",
+    spawned_process: "spawned_process"
+  }, validate: true
 
   validates :name, presence: true
   validates :kind, presence: true, inclusion: { in: KINDS }
@@ -108,6 +139,9 @@ class SmartFolder < ApplicationRecord
     ensure_builtin_set!(:job, BUILTIN_DEFINITIONS)
     ensure_epic_builtins!
     ensure_workflow_builtins!
+    ensure_admin_user_builtins!
+    ensure_admin_queue_builtins!
+    ensure_spawned_process_builtins!
   end
 
   def self.ensure_epic_builtins!
@@ -116,6 +150,18 @@ class SmartFolder < ApplicationRecord
 
   def self.ensure_workflow_builtins!
     ensure_builtin_set!(:workflow, WORKFLOW_BUILTIN_DEFINITIONS)
+  end
+
+  def self.ensure_admin_user_builtins!
+    ensure_builtin_set!(:admin_user, ADMIN_USER_BUILTIN_DEFINITIONS)
+  end
+
+  def self.ensure_admin_queue_builtins!
+    ensure_builtin_set!(:admin_queue, ADMIN_QUEUE_BUILTIN_DEFINITIONS)
+  end
+
+  def self.ensure_spawned_process_builtins!
+    ensure_builtin_set!(:spawned_process, SPAWNED_PROCESS_BUILTIN_DEFINITIONS)
   end
 
   def self.ensure_builtin_set!(subject, definitions)

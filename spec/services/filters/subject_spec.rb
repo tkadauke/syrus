@@ -15,6 +15,22 @@ RSpec.describe Filters::Subject do
       expect(Filters.subject_for("job").name).to eq(:job)
     end
 
+    it "returns the admin user subject" do
+      subject = Filters.subject_for(:admin_user)
+
+      expect(subject).to be_a(described_class)
+      expect(subject.name).to eq(:admin_user)
+      expect(subject.model).to eq(User)
+      expect(Filters::Registry.fields(subject: :admin_user)).to eq(%w[
+        email
+        admin
+        has_github_token
+        has_claude_token
+        has_codex_token
+        gh_rate
+      ])
+    end
+
     it "raises a clear error for unknown subjects" do
       expect {
         Filters.subject_for(:made_up)
