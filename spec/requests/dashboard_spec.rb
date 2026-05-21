@@ -239,6 +239,28 @@ RSpec.describe "Dashboard", type: :request do
       expect(view_nav.at_css("a[href='/?subject=job&view=kanban']")["data-turbo-frame"]).to eq("dashboard_content")
     end
 
+    it "renders the New Epic action before New job on every dashboard tab" do
+      [
+        { subject: "epic", view: "list" },
+        { subject: "epic", view: "kanban" },
+        { subject: "job", view: "list" },
+        { subject: "job", view: "kanban" },
+        { subject: "workflow", view: "list" },
+        { subject: "workflow", view: "kanban" }
+      ].each do |params|
+        get root_path, params: params
+
+        expect(response).to have_http_status(:ok)
+        document = Nokogiri::HTML(response.body)
+        header = document.at_xpath("//h1[normalize-space()='Dashboard']/parent::*")
+        links = header.css("a")
+
+        expect(links.map { |link| link.text.strip }).to eq([ "New Epic", "New job" ])
+        expect(links.map { |link| link["href"] }).to eq([ new_epic_path, new_job_path ])
+        expect(document.css("a[href='#{new_epic_path}']").size).to eq(1)
+      end
+    end
+
     # Regression: subject-toggle badges used to swing wildly between
     # tabs because the inactive-tab badge was computed by applying the
     # active tab's filter to the other subject's scope (cross-subject
