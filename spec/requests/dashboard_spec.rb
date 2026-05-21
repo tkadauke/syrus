@@ -174,7 +174,7 @@ RSpec.describe "Dashboard", type: :request do
       expect(preferences).to include(
         "sort_column" => "started_at",
         "sort_direction" => "asc",
-        "visible_columns" => %w[title state repository]
+        "visible_columns" => %w[checkbox issue state repository]
       )
     end
 
@@ -189,7 +189,7 @@ RSpec.describe "Dashboard", type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.body).to include("Unknown dashboard sort column: priority")
-      expect(user.reload.dashboard_sort(:jobs)).to eq(column: "created_at", direction: "desc")
+      expect(user.reload.dashboard_sort(:jobs)).to eq("column" => "started_at", "direction" => "desc")
     end
 
     it "hides omitted optional Epic list columns from desktop table cells" do

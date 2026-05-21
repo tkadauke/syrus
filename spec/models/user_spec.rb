@@ -115,7 +115,7 @@ RSpec.describe User do
     it "returns default sort for a user with no stored preferences" do
       user = User.create!(attrs)
 
-      expect(user.dashboard_sort(:jobs)).to eq(column: "created_at", direction: "desc")
+      expect(user.dashboard_sort(:jobs)).to eq("column" => "started_at", "direction" => "desc")
     end
 
     it "always includes required visible columns when stored preferences omit them" do
@@ -129,7 +129,7 @@ RSpec.describe User do
         )
       )
 
-      expect(user.dashboard_visible_columns(:workflows)).to eq(%w[title job state finished_at])
+      expect(user.dashboard_visible_columns(:workflows)).to eq(%w[workflow job state finished_at])
     end
 
     it "rejects unknown dashboard sort columns" do
@@ -145,7 +145,7 @@ RSpec.describe User do
 
       user.update_dashboard_columns!(subject: :jobs, columns: %w[state repository])
 
-      expect(user.reload.dashboard_visible_columns(:jobs)).to eq(%w[title state repository])
+      expect(user.reload.dashboard_visible_columns(:jobs)).to eq(%w[checkbox issue state repository])
     end
   end
 
