@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["stream", "newMessagesPill", "textarea", "sendButton", "stopButton", "whiteboard", "whiteboardPlaceholder", "proposalDialog"]
+  static targets = ["stream", "newMessagesPill", "textarea", "sendButton", "stopButton", "whiteboard", "whiteboardPlaceholder"]
   static values = {
     turnInFlight: Boolean,
     olderMessagesUrl: String,
@@ -107,21 +107,6 @@ export default class extends Controller {
 
     event.preventDefault()
     submitter.click()
-  }
-
-  openProposalModal(event) {
-    const dialogId = event.currentTarget?.dataset?.chatProposalDialogId
-    const dialog = this.proposalDialogTargets.find((candidate) => candidate.id === dialogId)
-    if (!dialog || typeof dialog.showModal !== "function") return
-
-    dialog.showModal()
-  }
-
-  closeProposalModal(event) {
-    const dialog = event.currentTarget?.closest?.("dialog")
-    if (!dialog || typeof dialog.close !== "function") return
-
-    dialog.close()
   }
 
   isMobileInput() {

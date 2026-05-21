@@ -101,24 +101,6 @@ class ChatsController < ApplicationController
     end
   end
 
-  def create_proposal
-    unless @chat_session.repository
-      redirect_to chat_path(@chat_session), alert: "Attach a repository before proposing work."
-      return
-    end
-
-    proposal = ChatProposalProposer.new(
-      chat_session: @chat_session,
-      allowed_kinds: manual_proposal_allowed_kinds
-    ).propose!(**manual_proposal_attributes)
-
-    redirect_to chat_path(@chat_session), notice: "#{proposal.kind.humanize} proposal created."
-  rescue ActiveRecord::RecordInvalid => e
-    redirect_to chat_path(@chat_session), alert: e.record.errors.full_messages.to_sentence
-  rescue ArgumentError => e
-    redirect_to chat_path(@chat_session), alert: e.message
-  end
-
   def stop
     @chat_session.update!(stop_requested_at: Time.current)
     @chat_session.broadcast_controls
@@ -277,27 +259,6 @@ class ChatsController < ApplicationController
 
   def message_text
     params.dig(:chat_message, :text).to_s.strip
-  end
-
-  def manual_proposal_attributes
-    permitted = params.require(:chat_proposal).permit(:slug, :title, :body, :kind, :labels, :depends_on)
-    {
-      slug: permitted[:slug],
-      title: permitted[:title],
-      body: permitted[:body],
-      kind: permitted[:kind],
-      labels: split_list(permitted[:labels]),
-      depends_on: split_list(permitted[:depends_on])
-    }
-  end
-
-  def manual_proposal_allowed_kinds
-    kind = params.dig(:chat_proposal, :kind).to_s
-    kind == "epic" ? %w[epic] : %w[syrus_issue]
-  end
-
-  def split_list(value)
-    value.to_s.split(",").map(&:strip).reject(&:blank?)
   end
 
   def bookmark_label

@@ -202,33 +202,6 @@ test("mobile Enter inserts a newline instead of submitting", async () => {
   assert.equal(clicked, false)
 })
 
-test("opens and closes manual proposal dialogs", async () => {
-  const { default: Controller } = await loadController()
-  const { controller } = buildController(Controller)
-  let opened = false
-  let closed = false
-  const dialog = {
-    id: "proposal-dialog",
-    showModal() {
-      opened = true
-    },
-    close() {
-      closed = true
-    },
-  }
-  controller.proposalDialogTargets = [dialog]
-
-  controller.openProposalModal({
-    currentTarget: { dataset: { chatProposalDialogId: "proposal-dialog" } },
-  })
-  controller.closeProposalModal({
-    currentTarget: { closest: () => dialog },
-  })
-
-  assert.equal(opened, true)
-  assert.equal(closed, true)
-})
-
 test("stop disables the stop button and flips its label immediately", async () => {
   const { default: Controller } = await loadController()
   const { controller, stopButton } = buildController(Controller)
