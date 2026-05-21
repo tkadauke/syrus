@@ -6,6 +6,10 @@ require "rails_helper"
 # behavior (with the queue DB present) is tested by hand via the
 # admin UI on staging.
 RSpec.describe "Admin queue inspector", type: :request do
+  before(:all) { ensure_solid_queue_test_tables! }
+  after(:all) { drop_solid_queue_test_tables! }
+  before { clear_solid_queue_test_tables! }
+
   let(:admin) { Factories.user }
   let(:non_admin) do
     admin
@@ -46,6 +50,52 @@ RSpec.describe "Admin queue inspector", type: :request do
     it "ignores an unknown tab — route constraint returns 404" do
       get "/admin/queue/bogus"
       expect(response).to have_http_status(:not_found)
+    end
+
+    it "filters active claimed executions by queue_name chip" do
+      runs_job = SolidQueue::Job.create!(
+        class_name: "RunJob",
+        queue_name: "runs",
+        priority: 0,
+        arguments: { "arguments" => [ 1 ] },
+        created_at: Time.current,
+        updated_at: Time.current
+      )
+      chat_job = SolidQueue::Job.create!(
+        class_name: "ChatTurnJob",
+        queue_name: "chat",
+        priority: 0,
+        arguments: { "arguments" => [ 2 ] },
+        created_at: Time.current,
+        updated_at: Time.current
+      )
+      process = SolidQueue::Process.create!(
+        kind: "Worker",
+        name: "worker-1",
+        hostname: "test-host",
+        pid: 123,
+        last_heartbeat_at: Time.current,
+        created_at: Time.current,
+        metadata: {}
+      )
+      SolidQueue::ClaimedExecution.create!(job: runs_job, process: process, created_at: Time.current)
+      SolidQueue::ClaimedExecution.create!(job: chat_job, process: process, created_at: Time.current)
+
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "queue_name", "op" => "is", "value" => "runs" }
+        ]
+      )
+
+      get "/admin/queue/active", params: { q: q }
+
+      expect(response).to be_successful
+      document = Nokogiri::HTML(response.body)
+      rows = document.css("table tbody tr").map(&:text).join("\n")
+      expect(rows).to include("RunJob")
+      expect(rows).to include("runs")
+      expect(rows).not_to include("ChatTurnJob")
+      expect(rows).not_to include("chat")
     end
   end
 

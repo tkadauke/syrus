@@ -1,5 +1,7 @@
 <%# Queued, not yet claimed. Backlog tile — long pending lists +
     short active list = workers are starved (the Job 65 pattern). %>
+<%= render "filters" %>
+
 <% if @pending.any? %>
   <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
     <table class="min-w-full divide-y divide-gray-200 text-sm">

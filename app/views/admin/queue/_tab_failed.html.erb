@@ -3,9 +3,8 @@
     the post-deploy / post-OOM zombies that ReapStaleRunsJob keys
     off; surfacing them here means we can spot a crashed worker
     immediately. %>
-<p class="text-xs text-gray-500 mb-2">
-  Showing failures since <%= @failed_since.iso8601 %> (<%= relative_timestamp(@failed_since) %>).
-</p>
+<%= render "filters" %>
+
 <% if @failed.any? %>
   <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
     <table class="min-w-full divide-y divide-gray-200 text-sm">

@@ -21,9 +21,15 @@ module Admin
 
       with_queue_tables do
         case @tab
-        when "active"     then load_active
-        when "pending"    then load_pending
-        when "failed"     then load_failed
+        when "active"
+          prepare_filter(:active)
+          load_active
+        when "pending"
+          prepare_filter(:pending)
+          load_pending
+        when "failed"
+          prepare_filter(:failed)
+          load_failed
         when "recurring"  then load_recurring
         when "workers"    then load_workers
         else
@@ -60,32 +66,35 @@ module Admin
     end
 
     def load_active
-      @active = SolidQueue::Job
-        .joins(:claimed_execution)
+      base = SolidQueue::Job.joins(:claimed_execution)
+      @active = @filter
+        .apply(base)
         .order("solid_queue_claimed_executions.created_at DESC")
         .limit(PER_PAGE)
         .to_a  # materialize — keep the rescue around the query
+      load_smart_folder_counts(base)
     end
 
     def load_pending
       base = SolidQueue::Job.joins(:ready_execution)
-      @pending_total = base.count
-      @pending = base
+      filtered = @filter.apply(base)
+      @pending_total = filtered.count
+      @pending = filtered
         .order("solid_queue_ready_executions.created_at ASC")
         .limit(PER_PAGE)
         .offset((@page - 1) * PER_PAGE)
         .to_a
+      load_smart_folder_counts(base)
     end
 
     def load_failed
-      since = params[:since].present? ? Time.iso8601(params[:since]) : 24.hours.ago
-      @failed = SolidQueue::FailedExecution
-        .includes(:job)
-        .where("created_at >= ?", since)
+      base = SolidQueue::FailedExecution.includes(:job).references(:job)
+      @failed = @filter
+        .apply(base)
         .order(created_at: :desc)
         .limit(PER_PAGE)
         .to_a
-      @failed_since = since
+      load_smart_folder_counts(base)
     end
 
     def load_recurring
@@ -104,6 +113,29 @@ module Admin
     def load_workers
       @workers = SolidQueue::Process.where(kind: "Worker").order(:hostname, :pid).to_a
       @processes_all = SolidQueue::Process.order(:kind, :hostname, :pid).to_a
+    end
+
+    def prepare_filter(tab)
+      SmartFolder.ensure_admin_queue_builtins!
+      @active_smart_folder = admin_queue_smart_folder_from_params
+      @filter = Admin::Queue::Filter.from_params(params, smart_folder: @active_smart_folder, user: Current.user, tab: tab)
+      @schema = ::Filters::Schema.for(subject: :admin_queue, user: Current.user)
+      @smart_folders = SmartFolder.for_subject(:admin_queue).where(user: Current.user).order(:position, :id)
+      @builtin_smart_folders = SmartFolder.for_subject(:admin_queue).built_in_sidebar_order
+    end
+
+    def admin_queue_smart_folder_from_params
+      return if params[:smart_folder_id].blank?
+
+      SmartFolder.for_subject(:admin_queue).builtin.where(user_id: nil).find_by(id: params[:smart_folder_id]) ||
+        SmartFolder.for_subject(:admin_queue).where(user: Current.user).find_by(id: params[:smart_folder_id])
+    end
+
+    def load_smart_folder_counts(base_scope)
+      @smart_folder_counts = (@builtin_smart_folders + @smart_folders).to_h do |folder|
+        count = Admin::Queue::Filter.from_tree(folder.filter, user: Current.user).apply(base_scope).count
+        [ folder.id, count ]
+      end
     end
   end
 end

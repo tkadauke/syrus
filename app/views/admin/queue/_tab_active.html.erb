@@ -1,6 +1,8 @@
 <%# Currently-claimed jobs (i.e. some worker thread is executing
     them right now). Empty list is the healthy steady state for
     short jobs; long entries with old claimed_at are the suspect. %>
+<%= render "filters" %>
+
 <% if @active.any? %>
   <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
     <table class="min-w-full divide-y divide-gray-200 text-sm">

@@ -69,6 +69,8 @@ class SmartFoldersController < ApplicationController
     case subject_type
     when "admin_user"
       Admin::Users::Filter.from_params(params, user: Current.user).to_h
+    when "admin_queue"
+      Admin::Queue::Filter.from_params(params, tab: :active).to_h
     when "workflow"
       Workflows::Filter.from_params(params).to_h
     when "epic"
@@ -82,6 +84,8 @@ class SmartFoldersController < ApplicationController
     case subject_type
     when "admin_user"
       admin_users_path(query)
+    when "admin_queue"
+      admin_queue_path(params[:admin_queue_tab].to_s.presence_in(%w[ active pending failed ]) || "active", query)
     when "workflow"
       dashboard_workflows_path(query)
     when "epic"

@@ -1,0 +1,58 @@
+<% folder_link_classes = ->(active) { "flex items-center justify-between rounded-md px-2 py-1.5 text-sm #{active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}" } %>
+
+<div class="grid gap-4 lg:grid-cols-[14rem_1fr]">
+  <aside class="rounded-lg border border-gray-200 bg-white p-3">
+    <div class="mb-2 text-xs font-semibold uppercase text-gray-500">Queues</div>
+    <nav class="space-y-1">
+      <% @builtin_smart_folders.each do |folder| %>
+        <% active = @active_smart_folder == folder %>
+        <%= link_to admin_queue_path(@tab, smart_folder_id: folder.id), class: folder_link_classes.call(active) do %>
+          <span><%= folder.name %></span>
+          <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>
+        <% end %>
+      <% end %>
+    </nav>
+
+    <div class="my-3 border-t border-gray-200"></div>
+
+    <div class="mb-2 flex items-center justify-between">
+      <span class="text-xs font-semibold uppercase text-gray-500">Saved</span>
+      <%= link_to "Manage", smart_folders_path(subject_type: :admin_queue), class: "text-xs text-blue-600 underline hover:no-underline" %>
+    </div>
+    <nav class="space-y-1">
+      <% @smart_folders.each do |folder| %>
+        <% active = @active_smart_folder == folder %>
+        <%= link_to admin_queue_path(@tab, smart_folder_id: folder.id), class: folder_link_classes.call(active) do %>
+          <span class="truncate"><%= folder.name %></span>
+          <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"><%= @smart_folder_counts[folder.id] %></span>
+        <% end %>
+      <% end %>
+      <% if @smart_folders.empty? %>
+        <div class="px-2 py-1.5 text-sm text-gray-400">No saved folders</div>
+      <% end %>
+    </nav>
+  </aside>
+
+  <div class="space-y-3">
+    <%= render "home/chip_bar",
+          subject: :admin_queue,
+          filter: @filter,
+          schema: @schema,
+          action_url: admin_queue_path(@tab),
+          class_name: "relative" %>
+
+    <% if @filter.active? && @active_smart_folder.nil? %>
+      <%= form_with url: smart_folders_path, method: :post,
+            class: "flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm" do |f| %>
+        <%= hidden_field_tag "subject_type", "admin_queue" %>
+        <%= hidden_field_tag "admin_queue_tab", @tab %>
+        <%= hidden_field_tag "filter", @filter.to_h.to_json %>
+        <%= f.label :name, "Save current filter as", class: "text-gray-600" %>
+        <%= f.text_field :name, name: "smart_folder[name]", required: true, placeholder: "Folder name",
+              class: "w-52 rounded-md border border-gray-300 px-2 py-1.5 text-sm" %>
+        <%= f.submit "Save smart folder",
+              class: "rounded-md bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -81,7 +81,11 @@ class SmartFolder < ApplicationRecord
 
   ADMIN_QUEUE_BUILTINS = [
     { key: "failed_today",     name: "Failed today",     visibility: :always,       filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "days" } } ] } },
-    { key: "failed_this_hour", name: "Failed this hour", visibility: :when_present, filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } }
+    { key: "failed_this_hour", name: "Failed this hour", visibility: :when_present, filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } },
+    { key: "admin_queue_runs",    name: "Runs",    visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "runs" } ] } },
+    { key: "admin_queue_chat",    name: "Chat",    visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "chat" } ] } },
+    { key: "admin_queue_default", name: "Default", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "default" } ] } },
+    { key: "admin_queue_merges",  name: "Merges",  visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "merges" } ] } }
   ].freeze
 
   BUILTINS_BY_SUBJECT = {
