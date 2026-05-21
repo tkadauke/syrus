@@ -192,10 +192,12 @@ class HomeController < ApplicationController
     @schema = ::Filters::Schema.for(subject: :epic, user: Current.user)
     @smart_folders = SmartFolder.for_subject(:epic).where(user: Current.user).order(:position, :id)
     @builtin_smart_folders = SmartFolder.for_subject(:epic).built_in_sidebar_order
-    @smart_folder_counts = epic_list_smart_folder_counts(Current.user.epics)
+    base_scope = Current.user.epics
+    default_scope = @filter.includes_archived_state? ? base_scope : base_scope.where.not(state: "archived")
+    @smart_folder_counts = epic_list_smart_folder_counts(base_scope)
     @primary_builtin_smart_folders, @more_builtin_smart_folders = split_epic_list_builtin_smart_folders
 
-    @epics = @filter.apply(Current.user.epics.includes(:repository))
+    @epics = @filter.apply(default_scope.includes(:repository))
     @epics_total = @epics.count
     @epics_matching_count = @epics_total
     # Inactive-tab badge shows the unfiltered total, not the active
@@ -227,15 +229,16 @@ class HomeController < ApplicationController
     @filter = ::Epics::Filter.from_params(params, smart_folder: @smart_folder, user: Current.user)
     @smart_folders = SmartFolder.for_subject(:epic).where(user: Current.user).order(:position, :id)
     @builtin_smart_folders = SmartFolder.for_subject(:epic).built_in_sidebar_order
-    @smart_folder_counts = epic_smart_folder_counts(Current.user.epics.where(repository_id: active_repo_ids))
+    active_scope = Current.user.epics.where(repository_id: active_repo_ids)
+    default_scope = active_scope.where.not(state: "archived")
+    @smart_folder_counts = epic_smart_folder_counts(active_scope)
     @primary_builtin_smart_folders, @more_builtin_smart_folders = split_epic_builtin_smart_folders
 
-    @epics = @filter.apply(Current.user.epics.includes(:repository).where(repository_id: active_repo_ids))
+    @epics = @filter.apply(default_scope.includes(:repository))
     @epics_total = @epics.count
     @epics = @epics.order(updated_at: :desc, id: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
 
-    kanban_scope = Current.user.epics
-                                .where(repository_id: active_repo_ids)
+    kanban_scope = default_scope
                                 .includes(:repository,
                                           { jobs: :repository },
                                           { dependencies: :depends_on_epic },
@@ -606,7 +609,7 @@ class HomeController < ApplicationController
   end
 
   def epics_total_for_dashboard(active_repo_ids = Current.user.repositories.active.select(:id))
-    Current.user.epics.where(repository_id: active_repo_ids).count
+    Current.user.epics.where(repository_id: active_repo_ids).where.not(state: "archived").count
   end
 
   def workflows_total_for_dashboard(active_repo_ids = Current.user.repositories.active.select(:id))

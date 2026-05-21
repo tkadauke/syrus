@@ -107,6 +107,24 @@ RSpec.describe "Epics", type: :request do
       expect(response.body).not_to include("Bathhouse tiles")
       expect(response.body).to include(%(value="#{q}"))
     end
+
+    it "hides archived Epics by default but shows them through the Archived folder" do
+      sign_in_as(user)
+      SmartFolder.ensure_epic_builtins!
+      active = Factories.epic(user: user, repository: repo, title: "Living aqueduct", state: "ready")
+      archived = Factories.epic(user: user, repository: repo, title: "Buried aqueduct", state: "archived", archived_at: Time.current)
+      folder = SmartFolder.for_subject(:epic).built_in_sidebar_order.find_by!(name: "Archived")
+
+      get root_path, params: { subject: "epic", view: "list" }
+
+      expect(response.body).to include(active.title)
+      expect(response.body).not_to include(archived.title)
+
+      get root_path, params: { subject: "epic", view: "list", smart_folder_id: folder.id }
+
+      expect(response.body).to include(archived.title)
+      expect(response.body).not_to include(active.title)
+    end
   end
 
   describe "filter memory controller" do

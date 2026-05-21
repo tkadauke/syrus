@@ -252,6 +252,27 @@ RSpec.describe Epic do
     expect(job.workflows.first).to be_cancelled
   end
 
+  it "archives Epics, stamps archived_at, and restores child Epic blocks" do
+    epic = described_class.create!(user: user, repository: repository, title: "Retire", state: "ready")
+    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+    epic.start!
+    run = job.reload.runs.first
+
+    expect(epic).to receive(:restore_child_epic_blocks!).and_call_original
+
+    freeze_time do
+      expect {
+        epic.archive!
+      }.to change { epic.reload.state }.from("in_progress").to("archived")
+        .and change { job.reload.state }.from("queued").to("blocked_by_epic")
+
+      expect(epic.archived_at).to eq(Time.current)
+    end
+
+    expect(run.reload).to be_cancelled
+    expect(job.workflows.first).to be_cancelled
+  end
+
   it "auto-completes in-progress Epics when all child Jobs are merged" do
     epic = described_class.create!(user: user, repository: repository, title: "Ship", state: "in_progress")
     first_job = child_job(epic: epic, number: 30)
@@ -281,6 +302,21 @@ RSpec.describe Epic do
       epic.override_state!("done")
       expect(epic.reload.state).to eq("done")
       expect(epic.done_at).to eq(Time.current)
+    end
+  end
+
+  it "allows operator override into archived with child Epic block restoration" do
+    epic = described_class.create!(user: user, repository: repository, title: "Archive override", state: "ready")
+    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+    epic.start!
+
+    freeze_time do
+      expect {
+        epic.override_state!("archived")
+      }.to change { job.reload.state }.from("queued").to("blocked_by_epic")
+
+      expect(epic.reload).to be_archived
+      expect(epic.archived_at).to eq(Time.current)
     end
   end
 

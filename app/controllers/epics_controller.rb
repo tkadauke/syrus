@@ -12,10 +12,12 @@ class EpicsController < ApplicationController
     @schema = ::Filters::Schema.for(subject: :epic, user: Current.user)
     @smart_folders = SmartFolder.for_subject(:epic).where(user: Current.user).order(:position, :id)
     @builtin_smart_folders = SmartFolder.for_subject(:epic).built_in_sidebar_order
-    @smart_folder_counts = smart_folder_counts(Current.user.epics)
+    base_scope = Current.user.epics
+    default_scope = @filter.includes_archived_state? ? base_scope : base_scope.where.not(state: "archived")
+    @smart_folder_counts = smart_folder_counts(base_scope)
     @primary_builtin_smart_folders, @more_builtin_smart_folders = split_builtin_smart_folders
 
-    @epics = @filter.apply(Current.user.epics.includes(:repository))
+    @epics = @filter.apply(default_scope.includes(:repository))
     @epics_total = @epics.count
     @epics = @epics.order(updated_at: :desc, id: :desc).offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
   end

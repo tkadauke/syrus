@@ -37,6 +37,10 @@ module Epics
       chips.any? { |chip| chip.field == "attention" && chip.value.to_s == "pinned" }
     end
 
+    def includes_archived_state?
+      chips.any? { |chip| chip.field == "state" && chip.value.to_s == "archived" }
+    end
+
     def to_h
       Filters::Ast.serialize(@ast)
     end

@@ -54,6 +54,14 @@ RSpec.describe Epics::Filter do
       )
     end
 
+    it "accepts archived as an Epic state legacy URL param" do
+      result = filter_for({ state: "archived" })
+
+      expect(result["and"]).to contain_exactly(
+        a_hash_including("field" => "state", "value" => "archived")
+      )
+    end
+
     it "ignores a malformed q= without raising" do
       expect { filter_for({ q: "not!valid!base64" }) }.not_to raise_error
     end
@@ -84,6 +92,14 @@ RSpec.describe Epics::Filter do
 
       expect(filter.apply(scope)).to eq(scope)
     end
+
+    it "filters archived Epics by state" do
+      archived = Factories.epic(user: user, repository: repo, state: "archived", archived_at: Time.current)
+      Factories.epic(user: user, repository: repo, state: "ready")
+      filter = described_class.from_params({ state: "archived" }, user: user)
+
+      expect(filter.apply(Epic.where(user: user))).to contain_exactly(archived)
+    end
   end
 
   describe "public helpers" do
@@ -107,6 +123,14 @@ RSpec.describe Epics::Filter do
 
       expect(filter).to be_active
       expect(filter).to be_pinned
+    end
+
+    it "reports whether the filter explicitly includes archived state" do
+      archived = described_class.from_params({ state: "archived" }, user: user)
+      ready = described_class.from_params({ state: "ready" }, user: user)
+
+      expect(archived).to be_includes_archived_state
+      expect(ready).not_to be_includes_archived_state
     end
 
     it "round-trips through the q= query param format" do

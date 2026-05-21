@@ -2,8 +2,8 @@ require "rails_helper"
 
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
-    # 11 Job built-ins (post "In review" removal) + 6 Epic + 4 Workflow = 21.
-    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(21)
+    # 11 Job built-ins (post "In review" removal) + 7 Epic + 4 Workflow = 22.
+    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(22)
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
     expect(described_class::EPIC_BUILTINS).to eq(described_class::EPIC_BUILTIN_DEFINITIONS)
@@ -29,7 +29,8 @@ RSpec.describe SmartFolder do
       "Blocked",
       "Stalled",
       "Empty",
-      "Recently done"
+      "Recently done",
+      "Archived"
     ])
     expect(described_class.builtins(:epic).pluck(:user_id).uniq).to eq([ nil ])
     expect(described_class.builtins(:epic).pluck(:subject_type).uniq).to eq([ "epic" ])
@@ -69,6 +70,7 @@ RSpec.describe SmartFolder do
     expect(epic_by_name["In progress"]).to eq(:always)
     expect(epic_by_name["Ready"]).to eq(:when_present)
     expect(epic_by_name["Empty"]).to eq(:on_demand)
+    expect(epic_by_name["Archived"]).to eq(:on_demand)
 
     workflow_by_name = described_class.builtins(:workflow).to_h { |f| [ f.name, f.visibility ] }
     expect(workflow_by_name["Running"]).to eq(:always)
@@ -104,6 +106,19 @@ RSpec.describe SmartFolder do
       [ "workflows_just_failed", described_class.workflow_attention("just_failed") ],
       [ "workflows_queued", described_class.workflow_attention("queued") ]
     ])
+  end
+
+  it "seeds the Archived Epic built-in as an on-demand state filter" do
+    described_class.ensure_epic_builtins!
+
+    archived = described_class.builtins(:epic).find_by!(name: "Archived")
+
+    expect(archived.visibility).to eq(:on_demand)
+    expect(archived.filter).to eq(
+      "and" => [
+        { "field" => "state", "op" => "is", "value" => "archived" }
+      ]
+    )
   end
 
   it "compiles each workflow built-in filter against Workflow.all" do

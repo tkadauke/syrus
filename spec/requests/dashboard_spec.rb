@@ -57,6 +57,18 @@ RSpec.describe "Dashboard", type: :request do
       expect(user.reload.dashboard_preferences).to include("last_subject" => "epic", "last_view" => "kanban")
     end
 
+    it "hides archived Epics from the dashboard kanban lanes" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.epic(user: user, repository: repo, title: "Still marching", state: "ready")
+      Factories.epic(user: user, repository: repo, title: "Filed in the vault", state: "archived", archived_at: Time.current)
+
+      get root_path, params: { subject: "epic", view: "kanban" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Still marching")
+      expect(response.body).not_to include("Filed in the vault")
+    end
+
     it "falls back to default dashboard params for invalid values" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       Factories.epic(user: user, repository: repo, title: "Default forum", state: "ready")

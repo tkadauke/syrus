@@ -66,7 +66,11 @@ class Epic < ApplicationRecord
     end
 
     event :archive do
-      transitions from: BOARD_STATES.map(&:to_sym), to: :archived
+      transitions from: %i[backlog ready in_progress done], to: :archived, after: -> {
+        self.state = "archived"
+        self.archived_at = Time.current
+        restore_child_epic_blocks!
+      }
     end
   end
 
@@ -109,10 +113,14 @@ class Epic < ApplicationRecord
 
     transaction do
       was_in_progress = in_progress?
-      update!(state: target_state, done_at: target_state == "done" ? Time.current : nil)
+      update!(
+        state: target_state,
+        done_at: target_state == "done" ? Time.current : nil,
+        archived_at: target_state == "archived" ? Time.current : nil
+      )
       if target_state == "in_progress"
         unblock_child_jobs!
-      elsif was_in_progress && %w[backlog ready].include?(target_state)
+      elsif (was_in_progress && %w[backlog ready].include?(target_state)) || target_state == "archived"
         restore_child_epic_blocks!
       end
     end
