@@ -174,7 +174,7 @@ RSpec.describe "Dashboard", type: :request do
       expect(preferences).to include(
         "sort_column" => "started_at",
         "sort_direction" => "asc",
-        "visible_columns" => %w[title state repository]
+        "visible_columns" => %w[checkbox issue state repository]
       )
     end
 
@@ -189,7 +189,7 @@ RSpec.describe "Dashboard", type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.body).to include("Unknown dashboard sort column: priority")
-      expect(user.reload.dashboard_sort(:jobs)).to eq(column: "created_at", direction: "desc")
+      expect(user.reload.dashboard_sort(:jobs)).to eq("column" => "started_at", "direction" => "desc")
     end
 
     it "hides omitted optional Epic list columns from desktop table cells" do
@@ -993,6 +993,18 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).to include("Review and approve")
         expect(response.body).to include("Apply tag")
         expect(response.body).to include("epic:attachments")
+      end
+
+      it "renders the jobs column picker outside the bulk actions form" do
+        Factories.job(repository: repo, issue_number: 7)
+
+        get dashboard_jobs_path
+
+        column_picker_form = response.body.index(%(action="#{dashboard_preferences_path}"))
+        bulk_form = response.body.index(%(action="#{bulk_dashboard_jobs_path}"))
+        expect(column_picker_form).to be_present
+        expect(bulk_form).to be_present
+        expect(column_picker_form).to be < bulk_form
       end
 
       it "renders all configured agent retry choices when more than one agent is configured" do

@@ -386,6 +386,9 @@
       <% unless @custom_job_ordering %>
         <%= mobile_sort_select(subject: :job, current_sort: @job_sort) %>
       <% end %>
+      <div class="hidden justify-end sm:flex">
+        <%= render "home/column_picker", subject: "jobs" %>
+      </div>
       <%= form_with url: bulk_dashboard_jobs_path, method: :post,
             data: { controller: "bulk-jobs" },
             class: "space-y-3" do %>
@@ -431,9 +434,6 @@
         </div>
 
         <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div class="hidden justify-end border-b border-gray-200 px-3 py-2 sm:flex">
-            <%= render "home/column_picker", subject: "jobs" %>
-          </div>
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="hidden bg-gray-50 text-xs uppercase text-gray-500 sm:table-header-group">
               <tr>
