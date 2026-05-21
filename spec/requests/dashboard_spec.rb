@@ -117,10 +117,6 @@ RSpec.describe "Dashboard", type: :request do
     end
 
     it "renders top-level navigation and points Dashboard at the default Epics subtab" do
-      # The "+ New chat" link in the global nav is gated on having a
-      # Claude OAuth token (per /repositories/.../chats spec). Set
-      # one up so this nav-presence test exercises the chat-available
-      # path; the token-missing path is covered separately.
       user.update!(claude_oauth_token: "oat-test")
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       chat = ChatSession.create!(repository: repo, user: user, last_message_at: Time.current)
@@ -132,7 +128,7 @@ RSpec.describe "Dashboard", type: :request do
       new_chat_links = document.css("a[href='#{new_chat_path}']").map { |link| link.text.strip }
       dashboard_links = document.css("a[href='#{dashboard_epics_path}']").map { |link| link.text.strip }
       expect(chat_links).to eq([ "Syrus" ])
-      expect(new_chat_links).to include("+ New chat")
+      expect(new_chat_links).to be_empty
       expect(dashboard_links).to include("Dashboard", "Epics")
       expect(document.at_css("a[href='#{repositories_path}']").text).to include("Repositories")
       expect(document.at_css("a[href='#{dashboard_jobs_path}']").text).to include("Jobs")
