@@ -4,7 +4,7 @@ RSpec.describe "Filters::Chips::Workflows" do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
-  def job(issue_number = SecureRandom.random_number(10_000))
+  def job(issue_number = SecureRandom.random_number(10_000) + 1)
     Factories.job_record(repository: repo, issue_number: issue_number)
   end
 
