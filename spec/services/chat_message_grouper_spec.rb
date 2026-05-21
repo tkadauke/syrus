@@ -87,6 +87,18 @@ RSpec.describe ChatMessageGrouper do
     expect(details).to eq([ "git status", "TODO in app" ])
   end
 
+  it "shortens chat workspace paths to repository-relative details" do
+    root = ChatWorkspace.repo_path_for(chat, repo).to_s
+
+    items = described_class.group([
+      tool_use("Read", { "file_path" => "#{root}/app/models/widget.rb" }),
+      tool_use("Bash", { "command" => "find #{root} -type f -name '*.rb'" })
+    ], repository: repo)
+
+    details = items.map { |i| i[:calls].first[:detail] }
+    expect(details).to eq([ "app/models/widget.rb", "find . -type f -name '*.rb'" ])
+  end
+
   it "leaves tool_use messages with a proposal as standalone passthroughs" do
     proposal = ChatProposal.create!(chat_session: chat, slug: "x", title: "X", body: "x.")
     m = chat.messages.create!(role: "tool_use", tool_name: "propose_issue", proposal: proposal, content: { "input" => { "slug" => "x" } })

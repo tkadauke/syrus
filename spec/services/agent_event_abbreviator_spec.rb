@@ -17,6 +17,24 @@ RSpec.describe AgentEventAbbreviator do
         .to eq("● Read(/syrus-home/foo.rb)")
     end
 
+    it "shortens absolute paths under a supplied repository root" do
+      root = "/syrus-home/.syrus/chat-workspaces/4/repositories/acme/widgets"
+
+      expect(described_class.tool_use(
+        "Read",
+        { "file_path" => "#{root}/app/models/widget.rb" },
+        path_roots: [ root ]
+      ))
+        .to eq("● Read(app/models/widget.rb)")
+
+      expect(described_class.tool_use(
+        "Bash",
+        { "command" => "find #{root} -type f -name '*.rb'" },
+        path_roots: [ root ]
+      ))
+        .to eq("● Bash(find . -type f -name '*.rb')")
+    end
+
     it "Edit and Write → file path" do
       expect(described_class.tool_use("Edit", { "file_path" => "x.rb" })).to include("Edit(x.rb)")
       expect(described_class.tool_use("Write", { "file_path" => "x.rb" })).to include("Write(x.rb)")

@@ -152,7 +152,11 @@ class ClaudeInvocation
           log_sink.call(block["text"], kind: "assistant_text") if block["text"].present?
         when "tool_use"
           log_sink.call(
-            AgentEventAbbreviator.tool_use(block["name"], block["input"]),
+            AgentEventAbbreviator.tool_use(
+              block["name"],
+              block["input"],
+              path_roots: [ @workspace_path ]
+            ),
             kind: "tool_call",
             tool_name: block["name"],
             tool_input: block["input"]

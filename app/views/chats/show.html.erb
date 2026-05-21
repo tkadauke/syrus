@@ -194,7 +194,7 @@
              data-action="scroll->chat#scroll">
           <% if @messages.any? %>
             <%= render "chats/message_stream",
-                  items: ChatMessageGrouper.group(@messages),
+                  items: ChatMessageGrouper.group(@messages, repository: repository),
                   repository: repository %>
           <% else %>
             <div class="flex h-full items-center justify-center text-sm text-gray-500">

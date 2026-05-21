@@ -19,17 +19,17 @@
          data-chat-target="message"
          data-tool-call="true"
          data-tool-name="<%= tool %>">
-  <summary class="flex cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 select-none hover:text-gray-900">
+  <summary class="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 select-none hover:text-gray-900">
     <span class="text-gray-400 group-open/tool:rotate-90 transition-transform">▸</span>
     <span class="font-mono font-medium text-gray-900" data-tool-name><%= tool %></span>
-    <span class="font-mono text-gray-600 truncate" data-tool-detail><%= details.join(", ") %></span>
+    <span class="min-w-0 flex-1 truncate font-mono text-gray-600" data-tool-detail><%= details.join(", ") %></span>
     <span class="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 <%= 'hidden' if calls.size < 2 %>"
           data-tool-call-count><%= calls.size %></span>
   </summary>
   <div class="mt-1 ml-5 space-y-2 border-l border-gray-200 pl-3 text-xs" data-tool-call-body>
     <% calls.each do |call| %>
       <div>
-        <div class="font-mono text-gray-700">
+        <div class="break-words font-mono text-gray-700">
           <%= tool %><% if call[:detail].present? %>(<%= call[:detail] %>)<% end %>
         </div>
         <% if call[:result] %>

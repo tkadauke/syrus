@@ -4,8 +4,8 @@ module ChatMessageGrouper
   # Wrap a single tool_use message in the same shape the initial-render
   # grouper produces, so a Turbo Stream append of one message can
   # reuse the tool_call_group partial.
-  def single_call_group(message)
-    tool, detail = tool_signature(message)
+  def single_call_group(message, repository: nil)
+    tool, detail = tool_signature(message, repository: repository)
     { type: :tool_group, tool: tool, calls: [ { message: message, detail: detail } ] }
   end
 
@@ -19,13 +19,13 @@ module ChatMessageGrouper
   # standalone items — they're attached to the preceding tool_use
   # call's `:result`. tool_use messages that carry a proposal stay
   # as passthroughs so the proposal card keeps its dedicated layout.
-  def group(messages)
+  def group(messages, repository: nil)
     items = []
     current_group = nil
 
     messages.each do |message|
       if groupable_tool_use?(message)
-        tool, detail = tool_signature(message)
+        tool, detail = tool_signature(message, repository: repository)
         call = { message: message, detail: detail }
 
         if current_group && current_group[:tool] == tool
@@ -63,12 +63,24 @@ module ChatMessageGrouper
   # render time off the raw tool name and content["input"], and the
   # display name is the abbreviator's human-readable label (which
   # strips the "mcp__<server>__" prefix MCP tools come over as).
-  def tool_signature(message)
+  def tool_signature(message, repository: nil)
     raw_name = message.tool_name.to_s
     input = message.content.is_a?(Hash) ? message.content["input"] : nil
     [
       AgentEventAbbreviator.tool_label(raw_name),
-      AgentEventAbbreviator.tool_detail(raw_name, input || {}).to_s
+      AgentEventAbbreviator.tool_detail(
+        raw_name,
+        input || {},
+        path_roots: path_roots_for(message, repository)
+      ).to_s
     ]
+  end
+
+  def path_roots_for(message, repository)
+    chat_session = message.chat_session
+    repository ||= chat_session&.repository
+    return [] unless chat_session && repository
+
+    [ ChatWorkspace.repo_path_for(chat_session, repository).to_s ]
   end
 end

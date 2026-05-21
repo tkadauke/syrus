@@ -67,7 +67,7 @@
           chat controller's mutation observer merges adjacent same-tool
           appends and pulls the matching tool_result into the body. %>
       <%= render "chats/tool_call_group",
-            group: ChatMessageGrouper.single_call_group(message),
+            group: ChatMessageGrouper.single_call_group(message, repository: repository),
             repository: repository %>
     <% else %>
       <%= render "chats/tool_use_card", message: message, repository: repository %>

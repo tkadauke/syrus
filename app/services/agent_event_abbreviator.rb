@@ -14,10 +14,10 @@ module AgentEventAbbreviator
 
   module_function
 
-  def tool_use(name, input)
+  def tool_use(name, input, path_roots: [])
     input = {} unless input.is_a?(Hash)
     head = "● #{tool_label(name)}"
-    detail = tool_detail(name, input)
+    detail = tool_detail(name, input, path_roots: path_roots)
     detail.present? ? "#{head}(#{truncate(detail, MAX_CMD)})" : head
   end
 
@@ -42,8 +42,8 @@ module AgentEventAbbreviator
   # both by tool_use (to format the abbreviated string for JobLog)
   # and by the chat presentation layer (to derive the summary
   # detail off a structured ChatMessage at render time).
-  def tool_detail(name, input)
-    case name.to_s
+  def tool_detail(name, input, path_roots: [])
+    detail = case name.to_s
     when "Bash"           then first_line(input["command"].to_s)
     when "Read"           then input["file_path"].to_s
     when "Edit", "Write"  then input["file_path"].to_s
@@ -65,6 +65,8 @@ module AgentEventAbbreviator
       # Unknown tool — show the input compactly
       first_line(input.to_json)
     end
+
+    shorten_paths(detail.to_s, path_roots)
   end
 
   def result_body(content)
@@ -120,4 +122,16 @@ module AgentEventAbbreviator
     s.length > n ? "#{s[0, n - 1]}…" : s
   end
   private_class_method :truncate
+
+  def shorten_paths(text, path_roots)
+    roots = Array(path_roots).filter_map { |root| root.to_s.presence&.delete_suffix("/") }
+                             .uniq
+                             .sort_by { |root| -root.length }
+    roots.reduce(text.to_s) do |out, root|
+      escaped = Regexp.escape(root)
+      out.gsub(%r{#{escaped}/}, "")
+         .gsub(/#{escaped}(?=$|[\s'"`),:;\]}])/, ".")
+    end
+  end
+  private_class_method :shorten_paths
 end

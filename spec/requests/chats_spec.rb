@@ -207,6 +207,46 @@ RSpec.describe "Chats", type: :request do
       expect(summary).to include("a.py, b.py")
     end
 
+    it "renders grouped tool calls with repository-relative paths" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      root = ChatWorkspace.repo_path_for(chat, repo).to_s
+      chat.messages.create!(
+        role: "tool_use",
+        tool_name: "Read",
+        content: { "input" => { "file_path" => "#{root}/app/models/widget.rb" } }
+      )
+      chat.messages.create!(
+        role: "tool_use",
+        tool_name: "Bash",
+        content: { "input" => { "command" => "find #{root} -type f -name '*.rb'" } }
+      )
+
+      get chat_path(chat)
+
+      document = Nokogiri::HTML(response.body)
+      details = document.css('details[data-tool-call="true"] [data-tool-detail]')
+                        .map { |node| node.text.squish }
+      expect(details).to include("app/models/widget.rb", "find . -type f -name '*.rb'")
+      expect(response.body).not_to include(root)
+    end
+
+    it "renders live tool call appends with repository-relative paths" do
+      chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
+      root = ChatWorkspace.repo_path_for(chat, repo).to_s
+      message = chat.messages.create!(
+        role: "tool_use",
+        tool_name: "Read",
+        content: { "input" => { "file_path" => "#{root}/app/models/widget.rb" } }
+      )
+
+      get chat_messages_path(chat), params: { before: message.id + 1 }
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.at_css('details[data-tool-call="true"] [data-tool-detail]').text)
+        .to eq("app/models/widget.rb")
+      expect(response.body).not_to include(root)
+    end
+
     it "hides standalone tool result rows in the default grouped view" do
       chat = ChatSession.create!(user: user, repository: repo, last_message_at: Time.current)
       chat.messages.create!(role: "tool_use", tool_name: "Read", content: { "input" => { "file_path" => "a.py" } })
