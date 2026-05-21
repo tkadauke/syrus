@@ -2,9 +2,10 @@
   <div class="flex items-center justify-between">
     <div>
       <h1 class="font-bold text-3xl">Smart folders</h1>
-      <p class="mt-1 text-sm text-gray-600">Rename, reorder, or delete your saved job filters.</p>
+      <p class="mt-1 text-sm text-gray-600">Rename, reorder, or delete your saved <%= @subject_type %> filters.</p>
     </div>
-    <%= link_to "Back to dashboard", dashboard_jobs_path, class: "text-sm text-blue-600 underline hover:no-underline" %>
+    <% dashboard_path = @subject_type == "workflow" ? dashboard_workflows_path : (@subject_type == "epic" ? dashboard_epics_path : dashboard_jobs_path) %>
+    <%= link_to "Back to dashboard", dashboard_path, class: "text-sm text-blue-600 underline hover:no-underline" %>
   </div>
 
   <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -21,7 +22,7 @@
         <tbody class="divide-y divide-gray-100 text-sm">
           <% @smart_folders.each do |folder| %>
             <tr>
-              <%= form_with model: folder, class: "contents" do |form| %>
+              <%= form_with model: folder, url: smart_folder_path(folder, subject_type: @subject_type), class: "contents" do |form| %>
                 <td class="px-4 py-3">
                   <%= form.text_field :name, required: true,
                         class: "w-full max-w-xs text-sm border border-gray-300 rounded-md px-2 py-1.5" %>
@@ -36,7 +37,7 @@
                 <td class="px-4 py-3 text-right space-x-2">
                   <%= form.submit "Save",
                         class: "rounded-md px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
-                  <%= link_to "Delete", smart_folder_path(folder),
+                  <%= link_to "Delete", smart_folder_path(folder, subject_type: @subject_type),
                         data: { turbo_method: :delete, turbo_confirm: "Delete #{folder.name}?" },
                         class: "text-red-600 underline hover:no-underline" %>
                 </td>

@@ -34,6 +34,10 @@ module Workflows
       chips.any?
     end
 
+    def default?
+      to_h == self.class.default_tree
+    end
+
     def pinned?
       false
     end

@@ -735,6 +735,7 @@
               schema: @schema,
               action_url: root_path(subject: "workflow", view: current_view),
               class_name: "relative flex flex-col gap-3" %>
+        <%= render "save_workflow_smart_folder_form", class_name: "flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm" %>
       </div>
     </details>
 
@@ -744,6 +745,8 @@
       </aside>
 
       <div class="space-y-4">
+        <%= render "save_workflow_smart_folder_form", class_name: "hidden flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm lg:flex" %>
+
         <% if @active_smart_folder %>
           <div class="hidden rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 lg:block">
             Showing smart folder: <strong><%= @active_smart_folder.name %></strong>

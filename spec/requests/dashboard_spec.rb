@@ -1306,6 +1306,66 @@ RSpec.describe "Dashboard", type: :request do
         expect(tbody_text).not_to include("Ancient failure")
       end
 
+      it "renders a save-smart-folder form for non-default workflow filters" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        Factories.job(repository: repo, issue_number: 1).latest_workflow.update!(state: "failed", finished_at: Time.current)
+
+        get dashboard_workflows_path, params: { state: "failed" }
+
+        document = Nokogiri::HTML(response.body)
+        form = document.at_css("form[action='#{smart_folders_path}']")
+        filter = JSON.parse(form.at_css("input[name='filter']")["value"])
+
+        expect(form.at_css("input[name='subject_type']")["value"]).to eq("workflow")
+        expect(filter).to eq("and" => [ { "field" => "state", "op" => "is", "value" => "failed" } ])
+      end
+
+      it "links workflow smart-folder management to workflow folders only" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        Factories.job(repository: repo, issue_number: 1)
+
+        get dashboard_workflows_path
+
+        document = Nokogiri::HTML(response.body)
+        manage_link = document.at_css("aside a[href='#{smart_folders_path(subject_type: "workflow")}']")
+        expect(manage_link.text).to eq("Manage")
+      end
+
+      it "does not render the workflow smart-folder save form for the default filter" do
+        get dashboard_workflows_path
+
+        document = Nokogiri::HTML(response.body)
+        workflow_forms = document.css("form[action='#{smart_folders_path}']").select do |form|
+          form.at_css("input[name='subject_type'][value='workflow']")
+        end
+
+        expect(workflow_forms).to be_empty
+      end
+
+      it "saves workflow filters as workflow smart folders and shows them in the sidebar" do
+        repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+        job = Factories.job(repository: repo, issue_number: 1, issue_title: "Burned grain")
+        job.latest_workflow.update!(state: "failed", finished_at: Time.current)
+
+        filter = { "and" => [ { "field" => "state", "op" => "is", "value" => "failed" } ] }
+        post smart_folders_path, params: {
+          subject_type: "workflow",
+          filter: filter.to_json,
+          smart_folder: { name: "Failed workflows" }
+        }
+
+        folder = user.smart_folders.find_by!(name: "Failed workflows")
+        expect(folder.subject_type).to eq("workflow")
+        expect(folder.filter).to eq(filter)
+        expect(response).to redirect_to(dashboard_workflows_path(smart_folder_id: folder.id))
+
+        follow_redirect!
+        document = Nokogiri::HTML(response.body)
+        aside = document.at_css("aside")
+        expect(aside.text).to include("Saved", "Failed workflows")
+        expect(response.body).to include("Burned grain")
+      end
+
       it "preserves an explicit empty workflow q param instead of re-applying the default" do
         repo = Factories.repository(user: user, owner: "acme", name: "widgets")
         old_job = Factories.job(repository: repo, issue_number: 1, issue_title: "Ancient failure")
