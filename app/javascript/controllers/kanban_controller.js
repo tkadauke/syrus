@@ -15,16 +15,27 @@ export default class extends Controller {
         event.preventDefault()
       }
     }
+    this.handleDocumentClick = (event) => {
+      this.closeMenusOutside(event.target)
+    }
     document.addEventListener("turbo:before-morph-element", this.handleBeforeMorphElement)
+    document.addEventListener("click", this.handleDocumentClick)
   }
 
   disconnect() {
     document.removeEventListener("turbo:before-morph-element", this.handleBeforeMorphElement)
+    document.removeEventListener("click", this.handleDocumentClick)
   }
 
   closeMenuOnSelect(event) {
     const menu = event.currentTarget.closest("details[open]")
     if (menu) menu.removeAttribute("open")
+  }
+
+  closeMenusOutside(target) {
+    this.element.querySelectorAll("details[open]").forEach((menu) => {
+      if (!menu.contains(target)) menu.removeAttribute("open")
+    })
   }
 
   dragStart(event) {

@@ -63,6 +63,17 @@ class Element {
     if (other === this) return true
     return this.children.some((child) => child instanceof Element && child.contains(other))
   }
+
+  querySelectorAll(selector) {
+    const matches = []
+    if (matchesSelector(this, selector)) matches.push(this)
+
+    this.children.forEach((child) => {
+      if (child instanceof Element) matches.push(...child.querySelectorAll(selector))
+    })
+
+    return matches
+  }
 }
 
 function matchesSelector(element, selector) {
@@ -134,6 +145,55 @@ test("selecting a card menu option closes the menu", async () => {
   controller.closeMenuOnSelect({ currentTarget: menuItem })
 
   assert.equal(Object.hasOwn(menu.attributes, "open"), false)
+})
+
+test("clicking outside an open card menu closes it", async () => {
+  const { default: Controller } = await loadController()
+  const listeners = new Map()
+  globalThis.Element = Element
+  globalThis.document = {
+    addEventListener: (name, listener) => listeners.set(name, listener),
+    removeEventListener() {}
+  }
+
+  const controller = new Controller()
+  controller.element = new Element()
+  const menu = new Element("details")
+  const menuItem = new Element("button")
+  const outside = new Element("button")
+  menu.setAttribute("open", "")
+  menu.append(menuItem)
+  controller.element.append(menu)
+
+  controller.connect()
+
+  listeners.get("click")({ target: outside })
+
+  assert.equal(Object.hasOwn(menu.attributes, "open"), false)
+})
+
+test("clicking inside an open card menu leaves it open", async () => {
+  const { default: Controller } = await loadController()
+  const listeners = new Map()
+  globalThis.Element = Element
+  globalThis.document = {
+    addEventListener: (name, listener) => listeners.set(name, listener),
+    removeEventListener() {}
+  }
+
+  const controller = new Controller()
+  controller.element = new Element()
+  const menu = new Element("details")
+  const menuItem = new Element("button")
+  menu.setAttribute("open", "")
+  menu.append(menuItem)
+  controller.element.append(menu)
+
+  controller.connect()
+
+  listeners.get("click")({ target: menuItem })
+
+  assert.equal(Object.hasOwn(menu.attributes, "open"), true)
 })
 
 test("dragStart permits ready and in_progress Epic cards", async () => {
