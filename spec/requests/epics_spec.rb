@@ -23,6 +23,43 @@ RSpec.describe "Epics", type: :request do
     end
   end
 
+  describe "PATCH /epics/:id/archive" do
+    it "archives an active Epic and redirects to the Epic dashboard" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repo, state: "ready")
+
+      patch archive_epic_path(epic)
+
+      expect(response).to redirect_to(epics_path)
+      expect(flash[:notice]).to eq("Epic archived.")
+      expect(epic.reload).to be_archived
+    end
+
+    it "returns 404 for another user's Epic" do
+      sign_in_as(user)
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      epic = Factories.epic(user: other_user, repository: other_repo, state: "ready")
+
+      patch archive_epic_path(epic)
+
+      expect(response).to have_http_status(:not_found)
+      expect(epic.reload).to be_ready
+    end
+
+    it "redirects neutrally when the Epic is already archived" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repo, state: "ready")
+      epic.archive!
+
+      patch archive_epic_path(epic)
+
+      expect(response).to redirect_to(epics_path)
+      expect(flash[:notice]).to eq("Epic already archived.")
+      expect(epic.reload).to be_archived
+    end
+  end
+
   describe "GET /?subject=epic&view=list" do
     it "renders a subject-aware chip bar and Epic SmartFolder sidebar" do
       sign_in_as(user)

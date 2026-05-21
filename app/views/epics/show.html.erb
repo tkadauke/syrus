@@ -16,6 +16,15 @@
         · <%= pluralize(@epic.jobs.size, "Job") %>
         · updated <%= relative_timestamp(@epic.updated_at) %>
       </p>
+      <% unless @epic.archived? %>
+        <div class="mt-3">
+          <%= button_to "Archive",
+                archive_epic_path(@epic),
+                method: :patch,
+                form: { data: { turbo_confirm: "Archive this Epic?" } },
+                class: "rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50" %>
+        </div>
+      <% end %>
       <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
         <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
           <%= epic_done_jobs_count(@epic) %>/<%= epic_total_jobs_count(@epic) %> done

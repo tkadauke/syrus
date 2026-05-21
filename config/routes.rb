@@ -165,8 +165,9 @@ Rails.application.routes.draw do
     query = request.query_parameters.except("subject").to_query
     query.present? ? "/?subject=epic&#{query}" : "/?subject=epic"
   }, as: :epics
-  resources :epics, only: %i[ show ] do
+  resources :epics, only: %i[ show new create edit update ] do
     member do
+      patch :archive
       patch :state, action: :update_state
     end
   end

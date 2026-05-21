@@ -25,6 +25,15 @@ class EpicsController < ApplicationController
     @jobs = @epic.jobs.includes(:repository, :dependencies, :dependent_links).order(:id)
   end
 
+  def archive
+    if @epic.archived?
+      redirect_back fallback_location: epics_path, notice: "Epic already archived."
+    else
+      @epic.archive!
+      redirect_to epics_path, notice: "Epic archived."
+    end
+  end
+
   def update_state
     target_state = params[:target_state].to_s
 

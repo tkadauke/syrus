@@ -2,7 +2,9 @@ class Epic < ApplicationRecord
   include AASM
   include AutoApproveModes
 
-  STATES = %w[ backlog ready in_progress done ].freeze
+  BOARD_STATES = %w[ backlog ready in_progress done ].freeze
+  ARCHIVED_STATE = "archived"
+  STATES = (BOARD_STATES + [ ARCHIVED_STATE ]).freeze
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
 
   attr_readonly :number
@@ -39,7 +41,7 @@ class Epic < ApplicationRecord
 
   aasm column: :state, whiny_transitions: false do
     state :backlog, initial: true
-    state :ready, :in_progress, :done
+    state :ready, :in_progress, :done, :archived
 
     event :auto_ready do
       transitions from: :backlog, to: :ready, guard: :ready_to_start?
@@ -61,6 +63,10 @@ class Epic < ApplicationRecord
 
     event :auto_complete do
       transitions from: :in_progress, to: :done, guard: :complete?, after: :stamp_done_at
+    end
+
+    event :archive do
+      transitions from: BOARD_STATES.map(&:to_sym), to: :archived
     end
   end
 

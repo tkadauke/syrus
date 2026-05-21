@@ -209,8 +209,8 @@ class HomeController < ApplicationController
                                           { jobs: :repository },
                                           { dependencies: :depends_on_epic },
                                           { dependent_links: :epic })
-    @epic_records = @filter.apply(kanban_scope).order(updated_at: :desc, id: :desc).to_a
-    @epic_lanes = Epic::STATES.index_with { |state| @epic_records.select { |epic| epic.state == state } }
+    @epic_records = @filter.apply(kanban_scope).where(state: Epic::BOARD_STATES).order(updated_at: :desc, id: :desc).to_a
+    @epic_lanes = Epic::BOARD_STATES.index_with { |state| @epic_records.select { |epic| epic.state == state } }
     @epics_matching_count = @epics_total
     # See epic_list — inactive-tab badge is the unfiltered total.
     @jobs_matching_count = jobs_total_for_dashboard(active_repo_ids)

@@ -241,7 +241,7 @@
                 subject: :epic,
                 records: @epic_records,
                 column_attribute: :state,
-                columns: Epic::STATES,
+                columns: Epic::BOARD_STATES,
                 card_partial: "epics/card",
                 drag_enabled: true,
                 drop_endpoint: ->(epic) { state_epic_path(epic) },
