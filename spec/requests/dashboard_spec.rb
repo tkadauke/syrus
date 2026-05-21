@@ -54,7 +54,7 @@ RSpec.describe "Dashboard", type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("Backlog", "Ready", "In Progress", "Done")
       expect(response.body).to include("Launch board")
-      expect(user.reload.dashboard_preferences).to eq("last_subject" => "epic", "last_view" => "kanban")
+      expect(user.reload.dashboard_preferences).to include("last_subject" => "epic", "last_view" => "kanban")
     end
 
     it "falls back to default dashboard params for invalid values" do
@@ -108,7 +108,40 @@ RSpec.describe "Dashboard", type: :request do
       get "/dashboard", params: { subject: "jobs" }
 
       expect(response).to have_http_status(:ok)
-      expect(user.reload.dashboard_preferences).to eq("last_subject" => "job", "last_view" => "kanban")
+      expect(user.reload.dashboard_preferences).to include("last_subject" => "job", "last_view" => "kanban")
+    end
+
+    it "persists dashboard sort and visible column preferences" do
+      patch dashboard_preferences_path,
+            params: {
+              subject: "jobs",
+              sort_column: "started_at",
+              sort_direction: "asc",
+              visible_columns: %w[state repository]
+            },
+            headers: { "HTTP_REFERER" => dashboard_jobs_path }
+
+      expect(response).to redirect_to(dashboard_jobs_path)
+      preferences = user.reload.dashboard_preferences.fetch("jobs")
+      expect(preferences).to include(
+        "sort_column" => "started_at",
+        "sort_direction" => "asc",
+        "visible_columns" => %w[title state repository]
+      )
+    end
+
+    it "returns an error for invalid dashboard sort columns" do
+      patch dashboard_preferences_path,
+            params: {
+              subject: "jobs",
+              sort_column: "priority",
+              sort_direction: "asc"
+            },
+            headers: { "ACCEPT" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.body).to include("Unknown dashboard sort column: priority")
+      expect(user.reload.dashboard_sort(:jobs)).to eq(column: "created_at", direction: "desc")
     end
 
     it "renders subject and view toggles on the parameterized dashboard" do

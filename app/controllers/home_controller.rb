@@ -59,6 +59,37 @@ class HomeController < ApplicationController
     redirect_back fallback_location: dashboard_epics_path, notice: "Epic auto-approval updated."
   end
 
+  def update_preferences
+    subject = params.require(:subject)
+
+    if params.key?(:sort_column) || params.key?(:sort_direction)
+      Current.user.update_dashboard_sort!(
+        subject: subject,
+        column: params.require(:sort_column),
+        direction: params.require(:sort_direction)
+      )
+    end
+
+    if params.key?(:visible_columns)
+      Current.user.update_dashboard_columns!(
+        subject: subject,
+        columns: params[:visible_columns]
+      )
+    end
+
+    respond_to do |format|
+      format.turbo_stream { head :ok }
+      format.html do
+        redirect_back fallback_location: dashboard_path, notice: "Dashboard preferences updated."
+      end
+    end
+  rescue ActionController::ParameterMissing, ArgumentError => e
+    respond_to do |format|
+      format.turbo_stream { render plain: e.message, status: :unprocessable_content }
+      format.html { redirect_back fallback_location: dashboard_path, alert: e.message }
+    end
+  end
+
   def bulk_jobs
     job_ids = Array(params[:job_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
     if job_ids.empty?

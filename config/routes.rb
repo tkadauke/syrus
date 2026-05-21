@@ -147,6 +147,7 @@ Rails.application.routes.draw do
   end
   get "filters/fk_options", to: "filters/fk_options#index"
   get "dashboard", to: "home#index"
+  patch "dashboard/preferences", to: "home#update_preferences", as: :dashboard_preferences
   get "dashboard/epics", to: "home#epics", as: :dashboard_epics
   patch "dashboard/epics/:id/auto_approval", to: "home#update_epic_auto_approval", as: :dashboard_epic_auto_approval
   get "dashboard/jobs", to: "home#jobs", as: :dashboard_jobs

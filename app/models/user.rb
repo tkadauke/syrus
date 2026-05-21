@@ -21,7 +21,32 @@ class User < ApplicationRecord
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",
-    "last_view" => "list"
+    "last_view" => "list",
+    "epics" => {
+      "sort_column" => "updated_at",
+      "sort_direction" => "desc",
+      "visible_columns" => %w[state title repository updated_at]
+    },
+    "jobs" => {
+      "sort_column" => "created_at",
+      "sort_direction" => "desc",
+      "visible_columns" => %w[state repository title latest workflows started_at]
+    },
+    "workflows" => {
+      "sort_column" => "created_at",
+      "sort_direction" => "desc",
+      "visible_columns" => %w[title job trigger state started_at finished_at agent]
+    }
+  }.freeze
+  DASHBOARD_SORT_COLUMNS = {
+    epics: %w[title state repository updated_at],
+    jobs: %w[title state repository started_at],
+    workflows: %w[title state started_at finished_at]
+  }.freeze
+  DASHBOARD_REQUIRED_COLUMNS = {
+    epics: %w[title],
+    jobs: %w[title],
+    workflows: %w[title job]
   }.freeze
 
   encrypts :claude_oauth_token
@@ -72,7 +97,10 @@ class User < ApplicationRecord
   end
 
   def dashboard_preferences
-    DASHBOARD_PREFERENCES_DEFAULTS.merge(normalized_dashboard_preferences(read_attribute(:dashboard_preferences)))
+    deep_merge_dashboard_preferences(
+      DASHBOARD_PREFERENCES_DEFAULTS,
+      normalized_dashboard_preferences(read_attribute(:dashboard_preferences))
+    )
   end
 
   def dashboard_preferences=(value)
@@ -83,6 +111,65 @@ class User < ApplicationRecord
     updated = dashboard_preferences
     updated["last_subject"] = normalize_dashboard_preference_subject(subject) if subject.present?
     updated["last_view"] = view.to_s if view.present?
+
+    update!(dashboard_preferences: updated) if updated != dashboard_preferences
+  end
+
+  def dashboard_sort(subject)
+    subject_key = normalize_dashboard_preference_table(subject)
+    preferences = dashboard_preferences.fetch(subject_key)
+
+    {
+      column: preferences.fetch("sort_column"),
+      direction: preferences.fetch("sort_direction")
+    }
+  end
+
+  def dashboard_visible_columns(subject)
+    subject_key = normalize_dashboard_preference_table(subject)
+    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key.to_sym)
+    columns = Array(dashboard_preferences.fetch(subject_key)["visible_columns"]).map(&:to_s)
+
+    (required_columns + columns).uniq
+  end
+
+  def update_dashboard_sort!(subject:, column:, direction:)
+    subject_key = normalize_dashboard_preference_table(subject)
+    column = column.to_s
+    direction = direction.to_s
+
+    unless DASHBOARD_SORT_COLUMNS.fetch(subject_key.to_sym).include?(column)
+      raise ArgumentError, "Unknown dashboard sort column: #{column}"
+    end
+
+    unless %w[asc desc].include?(direction)
+      raise ArgumentError, "Unknown dashboard sort direction: #{direction}"
+    end
+
+    updated = dashboard_preferences
+    updated[subject_key] = updated.fetch(subject_key).merge(
+      "sort_column" => column,
+      "sort_direction" => direction
+    )
+
+    update!(dashboard_preferences: updated) if updated != dashboard_preferences
+  end
+
+  def update_dashboard_columns!(subject:, columns:)
+    subject_key = normalize_dashboard_preference_table(subject)
+    known_columns = dashboard_known_columns(subject_key)
+    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key.to_sym)
+    columns = Array(columns).map(&:to_s).reject(&:blank?)
+    unknown_columns = columns - known_columns
+
+    if unknown_columns.any?
+      raise ArgumentError, "Unknown dashboard columns: #{unknown_columns.to_sentence}"
+    end
+
+    updated = dashboard_preferences
+    updated[subject_key] = updated.fetch(subject_key).merge(
+      "visible_columns" => (required_columns + columns).uniq
+    )
 
     update!(dashboard_preferences: updated) if updated != dashboard_preferences
   end
@@ -168,15 +255,64 @@ class User < ApplicationRecord
         next if preference.blank?
 
         normalized_key = key.to_s
-        hash[normalized_key] = normalized_key == "last_subject" ? normalize_dashboard_preference_subject(preference) : preference.to_s
+        hash[normalized_key] = normalize_dashboard_preference_value(normalized_key, preference)
       end
     else
       {}
     end
   end
 
+  def normalize_dashboard_preference_value(key, preference)
+    case key
+    when "last_subject"
+      normalize_dashboard_preference_subject(preference)
+    when "last_view"
+      preference.to_s
+    when "epics", "jobs", "workflows"
+      normalize_dashboard_table_preferences(preference)
+    else
+      preference.to_s
+    end
+  end
+
+  def normalize_dashboard_table_preferences(preference)
+    return {} unless preference.is_a?(Hash)
+
+    preference.each_with_object({}) do |(key, value), hash|
+      next if value.blank?
+
+      normalized_key = key.to_s
+      hash[normalized_key] = normalized_key == "visible_columns" ? Array(value).map(&:to_s) : value.to_s
+    end
+  end
+
   def normalize_dashboard_preference_subject(subject)
     subject.to_s.delete_suffix("s")
+  end
+
+  def normalize_dashboard_preference_table(subject)
+    key = subject.to_s
+    key = "#{key}s" unless key.end_with?("s")
+    return key if DASHBOARD_PREFERENCES_DEFAULTS.key?(key) && DASHBOARD_PREFERENCES_DEFAULTS.fetch(key).is_a?(Hash)
+
+    raise ArgumentError, "Unknown dashboard subject: #{subject}"
+  end
+
+  def dashboard_known_columns(subject_key)
+    default_columns = DASHBOARD_PREFERENCES_DEFAULTS.fetch(subject_key).fetch("visible_columns")
+    required_columns = DASHBOARD_REQUIRED_COLUMNS.fetch(subject_key.to_sym)
+
+    (default_columns + required_columns).uniq
+  end
+
+  def deep_merge_dashboard_preferences(defaults, preferences)
+    defaults.merge(preferences) do |_key, default_value, preference_value|
+      if default_value.is_a?(Hash) && preference_value.is_a?(Hash)
+        deep_merge_dashboard_preferences(default_value, preference_value)
+      else
+        preference_value
+      end
+    end
   end
 
   def promote_first_user_to_admin

@@ -101,14 +101,51 @@ RSpec.describe User do
     it "returns dashboard defaults when the column is nil" do
       user = User.create!(attrs)
 
-      expect(user.dashboard_preferences).to eq("last_subject" => "epic", "last_view" => "list")
+      expect(user.dashboard_preferences).to eq(User::DASHBOARD_PREFERENCES_DEFAULTS)
     end
 
     it "normalizes assigned preference keys and values" do
       user = User.create!(attrs)
       user.dashboard_preferences = { last_subject: :jobs, last_view: :kanban }
 
-      expect(user.dashboard_preferences).to eq("last_subject" => "job", "last_view" => "kanban")
+      expect(user.dashboard_preferences).to include("last_subject" => "job", "last_view" => "kanban")
+      expect(user.dashboard_preferences["jobs"]).to eq(User::DASHBOARD_PREFERENCES_DEFAULTS.fetch("jobs"))
+    end
+
+    it "returns default sort for a user with no stored preferences" do
+      user = User.create!(attrs)
+
+      expect(user.dashboard_sort(:jobs)).to eq(column: "created_at", direction: "desc")
+    end
+
+    it "always includes required visible columns when stored preferences omit them" do
+      user = User.create!(
+        attrs.merge(
+          dashboard_preferences: {
+            workflows: {
+              visible_columns: %w[state finished_at]
+            }
+          }
+        )
+      )
+
+      expect(user.dashboard_visible_columns(:workflows)).to eq(%w[title job state finished_at])
+    end
+
+    it "rejects unknown dashboard sort columns" do
+      user = User.create!(attrs)
+
+      expect {
+        user.update_dashboard_sort!(subject: :jobs, column: "priority", direction: "asc")
+      }.to raise_error(ArgumentError, "Unknown dashboard sort column: priority")
+    end
+
+    it "persists required columns with selected dashboard columns" do
+      user = User.create!(attrs)
+
+      user.update_dashboard_columns!(subject: :jobs, columns: %w[state repository])
+
+      expect(user.reload.dashboard_visible_columns(:jobs)).to eq(%w[title state repository])
     end
   end
 
