@@ -104,6 +104,14 @@ RSpec.describe User do
       expect(user.dashboard_preferences).to eq(User::DASHBOARD_PREFERENCES_DEFAULTS)
     end
 
+    it "keeps newly selectable timestamp columns out of the default dashboard columns" do
+      user = User.create!(attrs)
+
+      expect(user.dashboard_visible_columns(:epics)).to eq(%w[epic state repository updated])
+      expect(user.dashboard_visible_columns(:jobs)).to eq(%w[checkbox issue state repository latest workflows_count started])
+      expect(user.dashboard_visible_columns(:workflows)).to eq(%w[title job workflow trigger state started finished agent])
+    end
+
     it "normalizes assigned preference keys and values" do
       user = User.create!(attrs)
       user.dashboard_preferences = { last_subject: :jobs, last_view: :kanban }
@@ -156,6 +164,18 @@ RSpec.describe User do
       user.update_dashboard_columns!(subject: "jobs", columns: %w[state])
 
       expect(user.dashboard_visible_columns("jobs")).to include("checkbox", "issue", "state")
+    end
+
+    it "allows timestamp columns for Epics, Jobs, and Workflows" do
+      user = User.create!(attrs)
+
+      user.update_dashboard_columns!(subject: "epics", columns: %w[created_at updated_at done_at archived_at])
+      user.update_dashboard_columns!(subject: "jobs", columns: %w[created_at updated_at started_at finished_at approved_at dependencies_overridden_at last_feedback_addressed_at last_seen_comment_at pr_mergeable_checked_at])
+      user.update_dashboard_columns!(subject: "workflows", columns: %w[created_at updated_at started_at finished_at cleaned_up_at])
+
+      expect(user.dashboard_visible_columns("epics")).to include("created_at", "updated_at", "done_at", "archived_at")
+      expect(user.dashboard_visible_columns("jobs")).to include("created_at", "updated_at", "started_at", "finished_at", "approved_at", "dependencies_overridden_at", "last_feedback_addressed_at", "last_seen_comment_at", "pr_mergeable_checked_at")
+      expect(user.dashboard_visible_columns("workflows")).to include("created_at", "updated_at", "started_at", "finished_at", "cleaned_up_at")
     end
   end
 

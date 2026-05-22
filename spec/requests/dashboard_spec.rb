@@ -200,6 +200,82 @@ RSpec.describe "Dashboard", type: :request do
       expect(document.css("tbody td.hidden.sm\\:table-cell").map(&:text).join).not_to include("acme/widgets")
     end
 
+    it "renders selected Epic timestamp columns" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      epic = Factories.epic(user: user, repository: repo, title: "Chronicle the forum", state: "ready")
+      epic.update!(done_at: 2.days.ago, archived_at: 1.day.ago)
+      user.update_dashboard_columns!(subject: "epics", columns: %w[state created_at updated_at done_at archived_at])
+
+      get root_path, params: { subject: "epic", view: "list" }
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("thead th").map { |th| th.text.strip }).to include("Created at", "Updated at", "Done at", "Archived at")
+    end
+
+    it "renders selected Job timestamp columns" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      Factories.job_record(
+        repository: repo,
+        issue_number: 7,
+        issue_title: "Chronometer aqueduct",
+        approved_at: 6.hours.ago,
+        dependencies_overridden_at: 5.hours.ago,
+        last_feedback_addressed_at: 4.hours.ago,
+        last_seen_comment_at: 3.hours.ago,
+        pr_mergeable_checked_at: 2.hours.ago,
+        started_at: 1.hour.ago,
+        finished_at: 30.minutes.ago
+      )
+      user.update_dashboard_columns!(
+        subject: "jobs",
+        columns: %w[
+          state created_at updated_at started_at finished_at approved_at
+          dependencies_overridden_at last_feedback_addressed_at
+          last_seen_comment_at pr_mergeable_checked_at
+        ]
+      )
+
+      get root_path, params: { subject: "job", view: "list" }
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("thead th").map { |th| th.text.strip }).to include(
+        "Created at",
+        "Updated at",
+        "Started at",
+        "Finished at",
+        "Approved at",
+        "Dependencies overridden at",
+        "Last feedback addressed at",
+        "Last seen comment at",
+        "PR mergeable checked at"
+      )
+    end
+
+    it "renders selected Workflow timestamp columns" do
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repo, issue_number: 7, issue_title: "Workflow sundial")
+      job.latest_workflow.update!(
+        started_at: 3.hours.ago,
+        finished_at: 2.hours.ago,
+        cleaned_up_at: 1.hour.ago
+      )
+      user.update_dashboard_columns!(
+        subject: "workflows",
+        columns: %w[state created_at updated_at started_at finished_at cleaned_up_at]
+      )
+
+      get root_path, params: { subject: "workflow", view: "list" }
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.css("thead th").map { |th| th.text.strip }).to include(
+        "Created at",
+        "Updated at",
+        "Started at",
+        "Finished at",
+        "Cleaned up at"
+      )
+    end
+
     it "renders required Dashboard columns even when stored prefs omit them" do
       repo = Factories.repository(user: user, owner: "acme", name: "widgets")
       Factories.job_record(repository: repo, issue_number: 7, issue_title: "Required aqueduct")

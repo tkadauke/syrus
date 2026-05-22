@@ -189,6 +189,11 @@
                   <% if dashboard_column_visible?("epics", "updated") %>
                     <%= sort_header(subject: :epic, column: :updated_at, current_sort: @epic_sort, th_class: "hidden sm:table-cell px-4 py-2 text-left") %>
                   <% end %>
+                  <% dashboard_timestamp_columns("epics").each do |column| %>
+                    <% if dashboard_column_visible?("epics", column) %>
+                      <th class="hidden sm:table-cell px-4 py-2 text-left"><%= dashboard_column_label("epics", column) %></th>
+                    <% end %>
+                  <% end %>
                   <th class="px-4 py-2 text-right">
                     <%= render "home/column_picker", subject: "epics" %>
                   </th>
@@ -219,6 +224,11 @@
                     <% end %>
                     <% if dashboard_column_visible?("epics", "updated") %>
                       <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(epic.updated_at) %></td>
+                    <% end %>
+                    <% dashboard_timestamp_columns("epics").each do |column| %>
+                      <% if dashboard_column_visible?("epics", column) %>
+                        <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(epic.public_send(column)) %></td>
+                      <% end %>
                     <% end %>
                     <td class="px-4 py-3 text-right">
                       <%= link_to "View", epic_path(epic), class: "text-blue-600 underline hover:no-underline" %>
@@ -491,6 +501,11 @@
                     <%= sort_header(subject: :job, column: :started_at, current_sort: @job_sort, th_class: "hidden sm:table-cell px-4 py-2 text-left") %>
                   <% end %>
                 <% end %>
+                <% dashboard_timestamp_columns("jobs").each do |column| %>
+                  <% if dashboard_column_visible?("jobs", column) %>
+                    <th class="hidden sm:table-cell px-4 py-2 text-left"><%= dashboard_column_label("jobs", column) %></th>
+                  <% end %>
+                <% end %>
                 <th class="hidden sm:table-cell px-4 py-2 text-right">
                   <%= render "home/column_picker", subject: "jobs" %>
                 </th>
@@ -621,6 +636,11 @@
                   <% end %>
                   <% if dashboard_column_visible?("jobs", "started") %>
                     <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.started_at) %></td>
+                  <% end %>
+                  <% dashboard_timestamp_columns("jobs").each do |column| %>
+                    <% if dashboard_column_visible?("jobs", column) %>
+                      <td class="hidden sm:table-cell px-4 py-3 text-gray-500"><%= relative_timestamp(job.public_send(column)) %></td>
+                    <% end %>
                   <% end %>
                   <td class="hidden sm:table-cell px-4 py-3 text-right">
                     <%= link_to "View", job_path(job), class: "text-blue-600 underline hover:no-underline" %>
@@ -803,6 +823,11 @@
               <% end %>
               <% if dashboard_column_visible?("workflows", "agent") %>
                 <th class="hidden sm:table-cell px-4 py-2 text-left">Agent</th>
+              <% end %>
+              <% dashboard_timestamp_columns("workflows").each do |column| %>
+                <% if dashboard_column_visible?("workflows", column) %>
+                  <th class="hidden sm:table-cell px-4 py-2 text-left"><%= dashboard_column_label("workflows", column) %></th>
+                <% end %>
               <% end %>
               <th class="hidden sm:table-cell px-4 py-2 text-right w-10">
                 <%= render "home/column_picker", subject: "workflows" %>

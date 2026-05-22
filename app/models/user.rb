@@ -44,9 +44,17 @@ class User < ApplicationRecord
     "workflows" => %w[workflow job]
   }.freeze
   DASHBOARD_OPTIONAL_COLUMNS = {
-    "epics" => %w[state repository updated],
-    "jobs" => %w[state repository latest workflows_count started],
-    "workflows" => %w[trigger state started finished agent]
+    "epics" => %w[state repository updated created_at updated_at done_at archived_at],
+    "jobs" => %w[
+      state repository latest workflows_count started
+      created_at updated_at started_at finished_at approved_at
+      dependencies_overridden_at last_feedback_addressed_at
+      last_seen_comment_at pr_mergeable_checked_at
+    ],
+    "workflows" => %w[
+      trigger state started finished agent
+      created_at updated_at started_at finished_at cleaned_up_at
+    ]
   }.freeze
   DASHBOARD_SORT_COLUMNS = {
     "epic" => %w[title state repository updated_at],
