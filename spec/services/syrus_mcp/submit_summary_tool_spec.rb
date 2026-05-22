@@ -113,6 +113,24 @@ RSpec.describe SyrusMcp::SubmitSummaryTool do
       expect(described_class.tool_name).to eq("submit_summary")
     end
 
+    it "describes the tool without directing the agent to invoke it" do
+      description = described_class.description_value
+
+      expect(description).to include("Stores a PR title, PR body, and operator-facing summary")
+      expect(description).to include("implement and respond steps do not require it")
+      [
+        "Call this",
+        "call this",
+        "always call",
+        "near the end of every run",
+        "when you finish",
+        "must call",
+        "required to call"
+      ].each do |directive|
+        expect(description).not_to include(directive)
+      end
+    end
+
     it "marks all three fields as required" do
       schema = described_class.input_schema_value.to_h
       expect(schema[:required]).to match_array(%w[pr_title pr_body summary])

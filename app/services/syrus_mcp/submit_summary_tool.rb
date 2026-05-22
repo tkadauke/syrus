@@ -1,21 +1,21 @@
 require "mcp"
 
 module SyrusMcp
-  # The single MCP tool exposed by the per-run sidecar. The agent calls
-  # this near the end of every run with the PR title, PR body, and an
-  # operator-facing summary. Values land on the Run record; RunJob reads
-  # them when opening (or skipping) the GitHub PR.
+  # The single MCP tool exposed by the per-run sidecar. Values land on
+  # the Run record; RunJob reads them when opening (or skipping) the
+  # GitHub PR.
   class SubmitSummaryTool < MCP::Tool
     tool_name "submit_summary"
 
     description <<~DESC
-      Hand a PR title, PR body, and operator-facing summary back to Syrus.
-      Call this near the end of every run. On the initial run Syrus uses
-      pr_title and pr_body to open the GitHub PR. On follow-up runs (pr_comment,
-      retry, etc.) the PR already exists — pr_title becomes the git commit
-      message for this revision's commit (describe what changed in this pass,
-      not the whole PR), and pr_body is stored per-run but not pushed to GitHub.
-      summary is shown on the Syrus job page either way.
+      Stores a PR title, PR body, and operator-facing summary on the current Run.
+      The Syrus harness invokes this tool from the summarize / summarize_amend
+      step; the implement and respond steps do not require it. On the initial
+      workflow, pr_title and pr_body are used to open the GitHub PR. On follow-up
+      workflows (pr_comment, retry, etc.), the PR already exists; pr_title becomes
+      the git commit message for this revision's commit, and pr_body is stored
+      per-run but not pushed to GitHub. summary is shown on the Syrus job page
+      either way.
     DESC
 
     input_schema(
