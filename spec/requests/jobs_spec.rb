@@ -199,8 +199,12 @@ RSpec.describe "Jobs", type: :request do
 
         document = Nokogiri::HTML(response.body)
         pin = document.at_css("a[href='#{job_pin_path(job)}'][aria-label='Unpin job']")
+        actions = document.at_css("[data-job-actions]")
         expect(pin).to be_present
         expect(pin["data-turbo-method"]).to eq("delete")
+        expect(actions).to be_present
+        expect(actions.css("a[href='#{job_pin_path(job)}']")).to include(pin)
+        expect(actions.to_html).to match(/Cancel &amp; close.*aria-label="Unpin job"/m)
       end
 
       it "shows the credential mode in the job header" do

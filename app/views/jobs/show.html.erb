@@ -4,11 +4,12 @@
       (`flex items-center justify-between`), which jammed on mobile
       (long titles wrap, buttons clip off-screen) and crowded the
       header on desktop too. Stacking is uniformly cleaner and
-      lets the action row wrap naturally with `flex-wrap`. %>
+      lets the action row wrap naturally with `flex-wrap`. Keep the
+      pin with the rest of the actions so it doesn't consume its own
+      row on narrow screens. %>
   <div class="space-y-3">
     <div>
       <div class="flex flex-wrap items-center gap-2">
-        <%= job_pin_button(@job, pinned: @job_pinned) %>
         <h1 class="font-bold text-2xl">
           <span class="font-mono"><%= @job.repository.slug %></span>
           <span class="text-gray-400">·</span>
@@ -31,7 +32,7 @@
         <% end %>
       </p>
     </div>
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3" data-job-actions>
       <%= state_pill(job_summary_state(@job)) %>
       <% if @job.direct? && @job.open? && @job.runs.empty? %>
         <%= button_to "Start Run", start_job_path(@job), method: :post,
@@ -164,6 +165,7 @@
               class: "rounded-md px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium cursor-pointer",
               form: { class: "inline" } %>
       <% end %>
+      <%= job_pin_button(@job, pinned: @job_pinned) %>
     </div>
   </div>
 
