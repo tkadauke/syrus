@@ -101,14 +101,9 @@
         </div>
         <div class="text-xs text-gray-500">
           <% if run.running? && run.started_at %>
-            <% avg = Run.average_duration_for(run.trigger_kind) %>
             <span data-controller="run-timer"
-                  data-run-timer-started-at-value="<%= run.started_at.iso8601 %>"
-                  data-run-timer-estimated-seconds-value="<%= avg || 0 %>">
+                  data-run-timer-started-at-value="<%= run.started_at.iso8601 %>">
               <span data-run-timer-target="elapsed">…</span>
-              <% if avg %>
-                · <span data-run-timer-target="remaining"></span>
-              <% end %>
             </span>
             <% if run.last_heartbeat_at %>
               · heartbeat <%= relative_timestamp(run.last_heartbeat_at) %>

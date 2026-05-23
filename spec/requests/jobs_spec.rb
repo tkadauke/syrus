@@ -221,6 +221,19 @@ RSpec.describe "Jobs", type: :request do
         expect(response.body).to match(/<h1.*acme\/widgets.*<\/h1>.*App/m)
       end
 
+      it "shows elapsed time for a running run without an ETA" do
+        run = job.initial_run
+        run.step.start!; run.step.save!
+        run.start!; run.save!
+
+        get job_path(job)
+
+        expect(response.body).to include('data-controller="run-timer"')
+        expect(response.body).to include("data-run-timer-started-at-value")
+        expect(response.body).not_to include("data-run-timer-estimated-seconds-value")
+        expect(response.body).not_to include("data-run-timer-target=\"remaining\"")
+      end
+
       it "shows aggregate cost in the header and per-run cost details" do
         run = job.initial_run
         run.update!(

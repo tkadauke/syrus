@@ -164,19 +164,6 @@ class Run < ApplicationRecord
   after_commit :broadcast_dashboard_refresh_on_state_change,
                if: :saved_change_to_state?
 
-  def self.average_duration_for(trigger_kind)
-    # `where.not(a: nil, b: nil)` compiles to `NOT (a IS NULL AND b IS NULL)`
-    # — it only excludes rows where BOTH are nil, not where either is.
-    # Rows with one nil slip through and break the subtraction below.
-    # Chain the two excludes so we filter rows where EITHER is nil.
-    completed = terminal.where(trigger_kind: trigger_kind)
-                        .where.not(started_at: nil)
-                        .where.not(finished_at: nil)
-    return nil if completed.empty?
-    total = completed.sum { |r| r.finished_at - r.started_at }
-    (total / completed.size).to_i
-  end
-
   def initial?
     trigger_kind == "initial"
   end

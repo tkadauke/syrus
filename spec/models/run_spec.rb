@@ -185,56 +185,6 @@ RSpec.describe Run do
     end
   end
 
-  describe ".average_duration_for" do
-    it "returns nil when no completed runs of that trigger kind exist" do
-      Factories.job  # one queued initial run, not terminal
-      expect(Run.average_duration_for("initial")).to be_nil
-    end
-
-    it "averages finished_at - started_at across terminal runs of the trigger kind" do
-      r1 = Factories.run  # initial
-      r1.update_columns(state: "succeeded", started_at: 100.seconds.ago, finished_at: 70.seconds.ago)  # 30s
-      r2 = Factories.run
-      r2.update_columns(state: "succeeded", started_at: 50.seconds.ago, finished_at: 0.seconds.ago)   # 50s
-      Factories.run.update_columns(state: "queued")  # not terminal — ignored
-      expect(Run.average_duration_for("initial")).to eq(40)
-    end
-
-    it "scopes by trigger_kind — pr_comment runs don't count toward initial average" do
-      initial_run = Factories.run
-      initial_run.update_columns(state: "succeeded", started_at: 100.seconds.ago, finished_at: 90.seconds.ago)  # 10s
-      followup_job = Factories.job
-      followup = Run.create!(job: followup_job, trigger_kind: "pr_comment")
-      followup.update_columns(state: "succeeded", started_at: 100.seconds.ago, finished_at: 0.seconds.ago)  # 100s
-      expect(Run.average_duration_for("initial")).to eq(10)
-      expect(Run.average_duration_for("pr_comment")).to eq(100)
-    end
-
-    # Production 500 reproducer (2026-05-04): a terminal Run with
-    # started_at set but finished_at nil (e.g. crash path that didn't
-    # transition cleanly) used to slip through `where.not(a: nil, b: nil)`
-    # — that compiles to `NOT (a IS NULL AND b IS NULL)`, only excluding
-    # rows where BOTH are nil. The block then did `nil - Time` and the
-    # whole jobs/show page 500'd.
-    it "ignores terminal runs with finished_at unset (crash recovery survivor)" do
-      ok = Factories.run
-      ok.update_columns(state: "succeeded", started_at: 100.seconds.ago, finished_at: 70.seconds.ago)  # 30s
-      crashed = Factories.run
-      crashed.update_columns(state: "failed", started_at: 200.seconds.ago, finished_at: nil)
-      expect { Run.average_duration_for("initial") }.not_to raise_error
-      expect(Run.average_duration_for("initial")).to eq(30)
-    end
-
-    it "ignores terminal runs with started_at unset" do
-      ok = Factories.run
-      ok.update_columns(state: "succeeded", started_at: 100.seconds.ago, finished_at: 60.seconds.ago)  # 40s
-      weird = Factories.run
-      weird.update_columns(state: "failed", started_at: nil, finished_at: 1.second.ago)
-      expect { Run.average_duration_for("initial") }.not_to raise_error
-      expect(Run.average_duration_for("initial")).to eq(40)
-    end
-  end
-
   describe "auto-enqueue RunJob on commit" do
     around do |example|
       old_in_run_job = Thread.current[:syrus_in_run_job]

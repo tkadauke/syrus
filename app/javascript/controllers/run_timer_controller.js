@@ -1,8 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["elapsed", "remaining"]
-  static values = { startedAt: String, estimatedSeconds: Number }
+  static targets = ["elapsed"]
+  static values = { startedAt: String }
 
   connect() {
     this.tick()
@@ -18,16 +18,6 @@ export default class extends Controller {
 
     if (this.hasElapsedTarget) {
       this.elapsedTarget.textContent = this.formatDuration(elapsed)
-    }
-
-    if (this.hasRemainingTarget) {
-      const estimated = this.estimatedSecondsValue
-      if (estimated > 0) {
-        const remaining = estimated - elapsed
-        this.remainingTarget.textContent = remaining > 0
-          ? `~${this.formatDuration(remaining)} left`
-          : "finishing up…"
-      }
     }
   }
 
