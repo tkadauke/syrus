@@ -32,7 +32,7 @@
               <td class="px-4 py-3"><%= task.kind %></td>
               <td class="px-4 py-3 font-mono text-xs">
                 <% if task.cron? %>
-                  <%= task.smeared_cron_expression %>
+                  <%= task.hourly_cron_expression %>
                 <% else %>
                   <%= task.fire_at&.utc&.strftime("%Y-%m-%d %H:%M UTC") || "—" %>
                 <% end %>

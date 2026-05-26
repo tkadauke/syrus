@@ -32,8 +32,6 @@ class ScheduledTask < ApplicationRecord
   validate  :cron_expression_is_parseable_and_hourly, if: :cron?
   validate  :fire_at_is_in_the_future_at_create,      if: -> { one_shot? && new_record? }
 
-  before_validation :seed_minute_offset_for_cron, on: :create
-
   def cron?
     kind == "cron"
   end
@@ -62,46 +60,61 @@ class ScheduledTask < ApplicationRecord
     state == "fired"
   end
 
-  # Cron expression with the minute slot rewritten to the task's stored
-  # offset, so that two tasks created with the same nominal cron don't
-  # collide on the same minute. Fugit does the parsing, we splice the
-  # offset into the standard 5-field minute slot.
-  def smeared_cron_expression
+  # Cron expression used for scheduling. Syrus intentionally ignores the
+  # minute field for MVP scheduled tasks: a cron task is evaluated as an
+  # hourly window, and can fire at most once inside that window.
+  def hourly_cron_expression
     return nil unless cron? && cron_expression.present?
     fields = cron_expression.split(/\s+/, 5)
     return cron_expression if fields.size < 5
-    [ minute_offset.to_s, *fields[1..] ].join(" ")
+    [ "0", *fields[1..] ].join(" ")
   end
 
   # When does this task fire next, after `from`? Returns nil if it
   # won't (paused, archived, fired one_shot, malformed cron). For
-  # cron tasks the smeared expression is what's evaluated.
+  # cron tasks, the minute field is ignored and the next hourly window
+  # is returned.
   def next_fire_at(from: Time.current)
     return nil unless active?
 
     if one_shot?
       fire_at && fire_at > from ? fire_at : nil
     else
-      cron = parsed_smeared_cron
+      current_window = scheduled_fire_window_start(now: from)
+      return current_window if current_window.present? && !fired_in_window?(current_window)
+
+      cron = parsed_hourly_cron
       cron && cron.next_time(from).to_t
     end
   end
 
-  # Has the next scheduled fire time arrived? Uses last_fired_at as the
-  # baseline reference (so we don't double-fire within a single window),
-  # falling back to created_at the first time around.
+  # Has this task's current fire window arrived? Cron windows are one
+  # hour wide and keyed by their UTC hour, so a poller that runs several
+  # times during the same hour still sees only one intended fire.
   def due?(now: Time.current)
     return false unless active?
 
     if one_shot?
       fire_at.present? && fire_at <= now
     else
-      cron = parsed_smeared_cron
-      return false unless cron
-      reference = last_fired_at || created_at
-      next_after_reference = cron.next_time(reference).to_t
-      next_after_reference.present? && next_after_reference <= now
+      window_start = scheduled_fire_window_start(now: now)
+      window_start.present? && !fired_in_window?(window_start)
     end
+  end
+
+  def fire_window_start(now: Time.current, manual: false)
+    if one_shot?
+      fire_at || now
+    elsif manual
+      now.utc.change(min: 0, sec: 0, usec: 0)
+    else
+      scheduled_fire_window_start(now: now)
+    end
+  end
+
+  def fired_in_window?(window_start)
+    return false if last_fired_at.blank? || window_start.blank?
+    last_fired_at >= window_start && last_fired_at < window_start + 1.hour
   end
 
   # Does this task already have a Job whose PR is still open on GitHub
@@ -159,29 +172,29 @@ class ScheduledTask < ApplicationRecord
 
   private
 
+  def scheduled_fire_window_start(now: Time.current)
+    cron = parsed_hourly_cron
+    return nil unless cron
+
+    window_start = now.utc.change(min: 0, sec: 0, usec: 0)
+    previous_tick = cron.next_time(window_start - 1.second).to_t
+    previous_tick == window_start ? window_start : nil
+  end
+
   # Always interpret cron expressions in UTC. v1 is UTC-only by design;
   # without an explicit zone Fugit uses the host's local TZ, which makes
   # behavior depend on where the worker happens to run. Force the zone
   # by appending "UTC" before parsing.
-  def parsed_smeared_cron
-    expr = smeared_cron_expression
+  def parsed_hourly_cron
+    expr = hourly_cron_expression
     return nil if expr.blank?
     Fugit.parse("#{expr} UTC")
   end
 
-  def seed_minute_offset_for_cron
-    return unless cron?
-    return if minute_offset_changed? && minute_offset != 0
-    self.minute_offset = SecureRandom.random_number(60)
-  end
-
   # Fugit accepts a wide range of cron syntaxes; we narrow to "fires at
-  # most once per hour" so the smear-by-minute-offset trick still spaces
-  # tasks out, and so we don't accidentally enqueue 60 Jobs in an hour
-  # from a `* * * * *` pasted in a hurry. Fugit 1.x doesn't expose a
-  # ready-made #frequency, so we sample 60 consecutive fires and check
-  # the smallest gap — robust enough for any human-readable cron (the
-  # "min interval" period for sane crons cycles within an hour).
+  # most once per hour" after normalizing the ignored minute slot. This
+  # lets users paste ordinary five-field cron while making the hourly
+  # window semantics explicit.
   def cron_expression_is_parseable_and_hourly
     cron = Fugit.parse(cron_expression)
     if cron.nil? || !cron.is_a?(Fugit::Cron)
@@ -189,7 +202,8 @@ class ScheduledTask < ApplicationRecord
       return
     end
 
-    min_gap = min_consecutive_gap(cron)
+    hourly_cron = Fugit.parse(hourly_cron_expression)
+    min_gap = min_consecutive_gap(hourly_cron)
     if min_gap < MIN_CRON_INTERVAL.to_i
       errors.add(:cron_expression, "must fire at most once per hour (smallest interval seen: #{min_gap / 60} minutes)")
     end

@@ -27,14 +27,14 @@
     <%= form.label :cron_expression, "Cron expression", class: "block text-sm font-medium text-gray-700" %>
     <p class="text-xs text-gray-500 mt-1">
       Standard 5-field cron: <code>min hour day-of-month month day-of-week</code>.
-      Must fire at most once per hour. The minute slot will be replaced with a per-task
-      random offset when this template is applied to a repository.
+      Syrus ignores the minute slot and treats each match as a UTC hour window,
+      so tasks created from this template can fire at most once during that hour.
     </p>
     <p class="text-xs text-gray-500 mt-1">
-      Examples — <code>0 * * * *</code> (top of every hour),
-      <code>0 9 * * *</code> (9am daily UTC),
-      <code>0 9 * * 1</code> (Monday 9am UTC),
-      <code>0 0 1 * *</code> (1st of each month).
+      Examples — <code>0 * * * *</code> (every hour),
+      <code>0 9 * * *</code> (the 9am UTC hour daily),
+      <code>0 9 * * 1</code> (the Monday 9am UTC hour),
+      <code>0 0 1 * *</code> (the first UTC hour on the 1st of each month).
     </p>
     <%= form.text_field :cron_expression, placeholder: "0 9 * * 1",
           class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full font-mono" %>

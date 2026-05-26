@@ -24,7 +24,8 @@ class CronTemplate < ApplicationRecord
       errors.add(:cron_expression, "is not a valid cron expression")
       return
     end
-    min_gap = min_consecutive_gap(cron)
+    hourly_cron = Fugit.parse(hourly_cron_expression)
+    min_gap = min_consecutive_gap(hourly_cron)
     if min_gap < MIN_CRON_INTERVAL.to_i
       errors.add(:cron_expression, "must fire at most once per hour (smallest interval seen: #{min_gap / 60} minutes)")
     end
@@ -40,5 +41,11 @@ class CronTemplate < ApplicationRecord
       times << cursor
     end
     times.each_cons(2).map { |a, b| (b - a).to_i }.min
+  end
+
+  def hourly_cron_expression
+    fields = cron_expression.to_s.split(/\s+/, 5)
+    return cron_expression if fields.size < 5
+    [ "0", *fields[1..] ].join(" ")
   end
 end

@@ -19,8 +19,8 @@
         <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
           <tr>
             <th class="px-4 py-3">Name</th>
-            <th class="px-4 py-3">Cron</th>
-            <th class="px-4 py-3">Next Fire</th>
+            <th class="px-4 py-3">Hourly schedule</th>
+            <th class="px-4 py-3">Next Window</th>
             <th class="px-4 py-3">State</th>
             <th class="px-4 py-3 text-right">Actions</th>
           </tr>
@@ -34,7 +34,7 @@
                 <div class="font-medium text-gray-900"><%= task.name %></div>
                 <div class="mt-1 max-w-xl truncate text-xs text-gray-500"><%= task.prompt %></div>
               </td>
-              <td class="px-4 py-3 font-mono text-xs text-gray-700"><%= task.cron_expression %></td>
+              <td class="px-4 py-3 font-mono text-xs text-gray-700"><%= task.hourly_cron_expression %></td>
               <td class="px-4 py-3 text-gray-700">
                 <%= next_fire ? l(next_fire, format: :short) : "—" %>
               </td>

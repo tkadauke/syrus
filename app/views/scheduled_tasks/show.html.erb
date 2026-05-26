@@ -41,9 +41,9 @@
       <% if @task.cron? %>
         <dt class="text-gray-500">Cron expression (entered)</dt>
         <dd class="font-mono"><%= @task.cron_expression %></dd>
-        <dt class="text-gray-500">Cron expression (smeared)</dt>
-        <dd class="font-mono"><%= @task.smeared_cron_expression %></dd>
-        <dt class="text-gray-500">Next fire</dt>
+        <dt class="text-gray-500">Hourly schedule used</dt>
+        <dd class="font-mono"><%= @task.hourly_cron_expression %></dd>
+        <dt class="text-gray-500">Next fire window</dt>
         <dd><%= @task.next_fire_at&.utc&.iso8601 || '—' %></dd>
       <% else %>
         <dt class="text-gray-500">Fire at</dt>

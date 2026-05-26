@@ -52,6 +52,31 @@ RSpec.describe ScheduledTaskFire do
       end
     end
 
+    it "does not spawn a second Job in the same hourly fire window" do
+      now = Time.utc(2026, 5, 4, 9, 10, 0)
+      first_copy = ScheduledTask.find(task.id)
+      second_copy = ScheduledTask.find(task.id)
+
+      expect {
+        described_class.new(first_copy, now: now).call
+        result = described_class.new(second_copy, now: now + 20.minutes).call
+        expect(result).not_to be_fired
+        expect(result.reason).to eq("already_fired_window")
+      }.to change { Job.count }.by(1)
+    end
+
+    it "uses the same window guard for poll and manual fires" do
+      task.update!(cron_expression: "37 9 * * 1")
+      now = Time.utc(2026, 5, 4, 9, 5, 0)
+
+      poll_result = described_class.new(task, now: now, require_due: true).call
+      manual_result = described_class.new(task, now: now + 10.minutes).call
+
+      expect(poll_result).to be_fired
+      expect(manual_result).not_to be_fired
+      expect(manual_result.reason).to eq("already_fired_window")
+    end
+
     context "skip policy" do
       it "does not spawn a Job when a prior PR is still open" do
         make_open_pr_job

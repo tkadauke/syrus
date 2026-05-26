@@ -36,10 +36,9 @@ RSpec.describe CronTemplate do
       expect(build_template(pr_pileup_policy: "merge")).not_to be_valid
     end
 
-    it "rejects a cron expression that fires more than once per hour" do
+    it "accepts a cron expression with a sub-hour minute field because minutes are ignored" do
       t = build_template(cron_expression: "*/30 * * * *")
-      expect(t).not_to be_valid
-      expect(t.errors[:cron_expression].join).to match(/at most once per hour/)
+      expect(t).to be_valid
     end
 
     it "rejects a malformed cron expression" do

@@ -17,7 +17,7 @@ class PollScheduledTasksJob < ApplicationJob
                  .find_each do |task|
       next unless task.due?(now: now)
 
-      result = ScheduledTaskFire.new(task, now: now).call
+      result = ScheduledTaskFire.new(task, now: now, require_due: true).call
       if result.skipped
         Rails.logger.info("[PollScheduledTasksJob] task ##{task.id} skipped: #{result.reason}")
       else

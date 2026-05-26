@@ -85,11 +85,11 @@ RSpec.describe "Scheduled tasks", type: :request do
         expect(task.auto_approve_mode).to eq("if_graders_pass")
       end
 
-      it "rejects invalid cron expressions" do
+      it "rejects malformed cron expressions" do
         post repository_scheduled_tasks_path(repository),
-             params: { scheduled_task: valid_cron_attrs.merge(cron_expression: "*/5 * * * *") }
+             params: { scheduled_task: valid_cron_attrs.merge(cron_expression: "not cron") }
         expect(response).to have_http_status(:unprocessable_content)
-        expect(response.body).to include("at most once per hour")
+        expect(response.body).to include("valid cron expression")
       end
 
       it "creates a one_shot task" do

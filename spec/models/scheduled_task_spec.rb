@@ -74,10 +74,9 @@ RSpec.describe ScheduledTask do
       expect(task.errors[:fire_at]).to be_present
     end
 
-    it "rejects a cron expression that fires more than once per hour" do
+    it "accepts a cron expression with a sub-hour minute field because minutes are ignored" do
       task = build_cron(cron_expression: "*/30 * * * *")
-      expect(task).not_to be_valid
-      expect(task.errors[:cron_expression].join).to match(/at most once per hour/)
+      expect(task).to be_valid
     end
 
     it "rejects a malformed cron expression" do
@@ -91,56 +90,41 @@ RSpec.describe ScheduledTask do
     end
   end
 
-  describe "minute_offset seeding" do
-    it "seeds a random 0..59 offset for cron tasks at create" do
-      allow(SecureRandom).to receive(:random_number).with(60).and_return(37)
-
-      task = build_cron
+  describe "#hourly_cron_expression" do
+    it "normalizes the ignored minute slot to the top of the hour" do
+      task = build_cron(cron_expression: "37 9 * * 1", minute_offset: 23)
       task.valid?
-
-      expect(task.minute_offset).to eq(37)
-    end
-
-    it "respects an explicitly-passed non-zero minute_offset" do
-      task = build_cron(minute_offset: 17)
-      task.valid?
-      expect(task.minute_offset).to eq(17)
-    end
-  end
-
-  describe "#smeared_cron_expression" do
-    it "rewrites the minute slot to match the offset" do
-      task = build_cron(cron_expression: "0 9 * * 1", minute_offset: 23)
-      task.valid?
-      expect(task.smeared_cron_expression).to eq("23 9 * * 1")
+      expect(task.hourly_cron_expression).to eq("0 9 * * 1")
     end
 
     it "is nil for one_shot tasks" do
-      expect(build_one_shot.smeared_cron_expression).to be_nil
+      expect(build_one_shot.hourly_cron_expression).to be_nil
     end
   end
 
   describe "#due?" do
     it "is true for an active cron task once the next scheduled time has passed" do
-      # 9am Mondays UTC, force minute_offset to 0 post-create (the
-      # before_validation hook randomizes it on create — and AR can't
-      # distinguish "user passed 0" from "not set" because 0 is the
-      # column default, so we override afterwards).
-      task = build_cron(cron_expression: "0 9 * * 1")
+      task = build_cron(cron_expression: "37 9 * * 1")
       task.save!
-      task.update_columns(minute_offset: 0)
       monday_9am = Time.utc(2026, 5, 4, 9, 0, 0)  # Mon 2026-05-04 09:00 UTC
       task.update_columns(last_fired_at: monday_9am - 1.hour, created_at: monday_9am - 1.hour)
       expect(task.due?(now: monday_9am + 1.minute)).to be true
     end
 
     it "is false right before the next scheduled time" do
-      task = build_cron(cron_expression: "0 9 * * 1")
+      task = build_cron(cron_expression: "37 9 * * 1")
       task.save!
-      task.update_columns(minute_offset: 0)
       monday_9am = Time.utc(2026, 5, 4, 9, 0, 0)
       task.update_columns(last_fired_at: monday_9am - 1.hour, created_at: monday_9am - 1.hour)
       expect(task.due?(now: monday_9am - 1.minute)).to be false
+    end
+
+    it "is false after the task already fired in the current hourly window" do
+      task = build_cron(cron_expression: "37 9 * * 1")
+      task.save!
+      monday_9am = Time.utc(2026, 5, 4, 9, 0, 0)
+      task.update_columns(last_fired_at: monday_9am + 5.minutes)
+      expect(task.due?(now: monday_9am + 30.minutes)).to be false
     end
 
     it "is true for one_shot tasks once fire_at has passed" do
@@ -168,6 +152,16 @@ RSpec.describe ScheduledTask do
       task.save!
       task.mark_fired_one_shot!
       expect(task.due?(now: 1.year.from_now)).to be false
+    end
+  end
+
+  describe "#next_fire_at" do
+    it "returns the current hourly window when it is due and has not fired" do
+      task = build_cron(cron_expression: "37 9 * * 1")
+      task.save!
+      monday_9am = Time.utc(2026, 5, 4, 9, 0, 0)
+
+      expect(task.next_fire_at(from: monday_9am + 30.minutes)).to eq(monday_9am)
     end
   end
 

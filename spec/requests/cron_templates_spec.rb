@@ -56,11 +56,11 @@ RSpec.describe "Cron templates", type: :request do
         expect(tmpl.user).to eq(user)
       end
 
-      it "rejects an invalid cron expression" do
+      it "rejects a malformed cron expression" do
         post cron_templates_path,
-             params: { cron_template: valid_attrs.merge(cron_expression: "*/5 * * * *") }
+             params: { cron_template: valid_attrs.merge(cron_expression: "not cron") }
         expect(response).to have_http_status(:unprocessable_content)
-        expect(response.body).to include("at most once per hour")
+        expect(response.body).to include("valid cron expression")
       end
 
       it "rejects a missing name" do
