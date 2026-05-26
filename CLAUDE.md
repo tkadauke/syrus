@@ -54,8 +54,8 @@ same Workflow pipeline.
   preempted Job's external PR can still need rebases), skips
   `commit_agent_changes` (rebase rewrites history, not the working
   tree), uses `git push --force` instead of fast-forward, and skips
-  the PR-opening step. Triggered by `PollAllRebasesJob` when a PR is
-  `mergeable: false` and we control the head branch.
+  the PR-opening step. Triggered by `PollAllMergeStatesJob` when a PR
+  is `mergeable: false` and we control the head branch.
 - `resume` — restores a prior Claude Code session. Chain:
   `agent_rebase → summarize_amend → push`. The session JSONL captured at
   end-of-session (stored in `ClaudeSession`) is copied back to the workspace
@@ -475,7 +475,7 @@ serialization; grep for the bits you need:
 ```bash
 kubectl --kubeconfig ~/.kube/config-production -n syrus-production \
   logs deployment/syrus-worker --tail=500 \
-  | grep -E "PollAllRebases|PollRebaseJob|preempted|RunJob|FAIL"
+  | grep -E "PollAllMergeStates|PollMergeStateJob|PollRebaseJob|preempted|RunJob|FAIL"
 ```
 
 **Rails console / runner.** Don't try to inline complex Ruby into

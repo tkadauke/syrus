@@ -57,11 +57,11 @@ out to per-target jobs.
                                         │
        ┌──────────────────┬─────────────┼──────────────┬──────────────────┐
        ▼                  ▼             ▼              ▼                  ▼
-PollAllRepos…    PollAllPullRequests… PollAllRebases…  PollScheduledTasks…  ReapStaleRuns…
+PollAllRepos…    PollAllPullRequests… PollAllMergeStates… PollScheduledTasks… ReapStaleRuns…
   (fan-out)         (fan-out)          (fan-out)        (in-process)      (sweeper)
        │                  │             │                  │                  │
        ▼                  ▼             ▼                  ▼                  ▼
-PollRepositoryJob  PollPullRequestJob  PollRebaseJob   ScheduledTaskFire   marks running
+PollRepositoryJob  PollPullRequestJob  PollMergeStateJob ScheduledTaskFire marks running
   per repo           per Job-with-PR    per Job-with-PR  service per task   Runs as failed
        │                  │             │                  │                  ▼
        │       creates    │   creates   │   creates        │              (no enqueue)
@@ -259,11 +259,11 @@ the Job with `external_pr_number` set to that PR's number,
 `closure_reason="preempted"`, and `state=closed` from the start — no
 agent work is scheduled. The point is awareness (the operator sees
 the issue in the dashboard with a "preempted" pill) and the option
-to keep the PR mergeable: `PollAllRebasesJob` still rebases external
-PRs whose head we control, even on closed Jobs. See
+to keep the PR mergeable: `PollAllMergeStatesJob` still checks
+external PRs whose head we control, even on closed Jobs. See
 `app/jobs/poll_repository_job.rb` for the detection logic and
-`app/jobs/poll_all_rebases_job.rb` for why rebase polling deliberately
-ignores Job state.
+`app/jobs/poll_all_merge_states_job.rb` for why merge-state polling
+deliberately includes preempted Jobs.
 
 ## Recurring schedule
 
@@ -273,7 +273,7 @@ ignores Job state.
 |---|---|---|
 | `PollAllRepositoriesJob` | every 5 min | Fans out to `PollRepositoryJob` per active repo |
 | `PollAllPullRequestsJob` | every 5 min | Fans out to `PollPullRequestJob` per Job-with-PR |
-| `PollAllRebasesJob` | every 5 min | Fans out to `PollRebaseJob` per Job-with-PR |
+| `PollAllMergeStatesJob` | every 5 min | Fans out to `PollMergeStateJob` per Job-with-PR |
 | `PollScheduledTasksJob` | every 1 min | Finds due `ScheduledTask`s; fires via `ScheduledTaskFire` |
 | `ReapStaleRunsJob` | every 1 min | Marks Runs whose heartbeat is older than 30 min as `failed` |
 | `ClaudeSessionPruneJob` | daily 3am | Drops sessions for terminal Runs older than the retention window |
@@ -333,8 +333,8 @@ configurable skip-by-login filter will go here.
 ### Rebase loop
 
 ```
-PollAllRebasesJob (no Job-state filter — preempted threads still need rebases)
-  → PollRebaseJob per Job with pr_number OR external_pr_number
+PollAllMergeStatesJob (includes preempted threads that still need merge-state checks)
+  → PollMergeStateJob per Job with pr_number OR external_pr_number
       → fetch PR, persist pr_mergeable + pr_mergeable_checked_at
       → bail if merged / closed / mergeable in (true, nil)
       → bail if head is from a fork (we don't push)
@@ -478,8 +478,9 @@ What happens to a single labeled issue, from label to merge:
      same branch.
    - `PollPullRequestJob` watches CI checks. Failing check on the
      head SHA → `ci_failure` follow-up Run on the same branch.
-   - `PollRebaseJob` watches mergeability. Unmergeable + we control
-     the head → `rebase` Run that re-anchors the branch.
+   - `PollMergeStateJob` watches mergeability. Unmergeable + we
+     control the head → `PollRebaseJob` may create a `rebase` Run
+     that re-anchors the branch.
 7. **PR is merged.** Today: nothing automatic. The Job stays open
    until the operator clicks "Close thread", or until
    `failure_count` from later runs trips the auto-close threshold.

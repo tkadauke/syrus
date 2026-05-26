@@ -1,2 +1,0 @@
-class PollAllRebasesJob < PollAllMergeStatesJob
-end
