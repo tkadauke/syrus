@@ -28,7 +28,7 @@ RSpec.describe "Repository scheduled tasks", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(task.name)
-    expect(response.body).to include(task.cron_expression)
+    expect(response.body).to include(task.hourly_cron_expression)
   end
 
   it "disables and enables a scheduled task via state transitions" do

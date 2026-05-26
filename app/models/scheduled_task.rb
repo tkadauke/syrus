@@ -32,6 +32,8 @@ class ScheduledTask < ApplicationRecord
   validate  :cron_expression_is_parseable_and_hourly, if: :cron?
   validate  :fire_at_is_in_the_future_at_create,      if: -> { one_shot? && new_record? }
 
+  before_validation :seed_minute_offset_for_cron, on: :create
+
   def cron?
     kind == "cron"
   end
@@ -61,13 +63,15 @@ class ScheduledTask < ApplicationRecord
   end
 
   # Cron expression used for scheduling. Syrus intentionally ignores the
-  # minute field for MVP scheduled tasks: a cron task is evaluated as an
-  # hourly window, and can fire at most once inside that window.
+  # user-supplied minute field for MVP scheduled tasks: a cron task is
+  # evaluated as an hourly window, and can fire at most once inside that
+  # window. The stored minute_offset is still spliced in so tasks with the
+  # same nominal hourly schedule are spread across the hour.
   def hourly_cron_expression
     return nil unless cron? && cron_expression.present?
     fields = cron_expression.split(/\s+/, 5)
     return cron_expression if fields.size < 5
-    [ "0", *fields[1..] ].join(" ")
+    [ minute_offset.to_s, *fields[1..] ].join(" ")
   end
 
   # When does this task fire next, after `from`? Returns nil if it
@@ -177,8 +181,11 @@ class ScheduledTask < ApplicationRecord
     return nil unless cron
 
     window_start = now.utc.change(min: 0, sec: 0, usec: 0)
-    previous_tick = cron.next_time(window_start - 1.second).to_t
-    previous_tick == window_start ? window_start : nil
+    scheduled_tick = cron.next_time(window_start - 1.second).to_t
+    return nil unless scheduled_tick >= window_start && scheduled_tick < window_start + 1.hour
+    return nil if scheduled_tick > now
+
+    window_start
   end
 
   # Always interpret cron expressions in UTC. v1 is UTC-only by design;
@@ -189,6 +196,13 @@ class ScheduledTask < ApplicationRecord
     expr = hourly_cron_expression
     return nil if expr.blank?
     Fugit.parse("#{expr} UTC")
+  end
+
+  def seed_minute_offset_for_cron
+    return unless cron?
+    return if minute_offset_changed? && !minute_offset.nil?
+
+    self.minute_offset = SecureRandom.random_number(60)
   end
 
   # Fugit accepts a wide range of cron syntaxes; we narrow to "fires at

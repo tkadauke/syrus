@@ -28,7 +28,7 @@
     <p class="text-xs text-gray-500 mt-1">
       Standard 5-field cron: <code>min hour day-of-month month day-of-week</code>.
       Syrus ignores the minute slot and treats each match as a UTC hour window,
-      so tasks created from this template can fire at most once during that hour.
+      then assigns each task a stable random minute inside that hour to spread load.
     </p>
     <p class="text-xs text-gray-500 mt-1">
       Examples — <code>0 * * * *</code> (every hour),

@@ -12,6 +12,7 @@ RSpec.describe ScheduledTask do
       prompt: "Write missing tests.",
       kind: "cron",
       cron_expression: "0 9 * * 1",
+      minute_offset: 5,
       pr_pileup_policy: "skip"
     }.merge(overrides))
   end
@@ -91,36 +92,43 @@ RSpec.describe ScheduledTask do
   end
 
   describe "#hourly_cron_expression" do
-    it "normalizes the ignored minute slot to the top of the hour" do
+    it "replaces the ignored user minute slot with the stored smear offset" do
       task = build_cron(cron_expression: "37 9 * * 1", minute_offset: 23)
       task.valid?
-      expect(task.hourly_cron_expression).to eq("0 9 * * 1")
+      expect(task.hourly_cron_expression).to eq("23 9 * * 1")
     end
 
     it "is nil for one_shot tasks" do
       expect(build_one_shot.hourly_cron_expression).to be_nil
     end
+
+    it "seeds new cron tasks with a random minute offset when unset" do
+      task = build_cron(minute_offset: nil)
+      task.save!
+
+      expect(task.minute_offset).to be_between(0, 59)
+    end
   end
 
   describe "#due?" do
     it "is true for an active cron task once the next scheduled time has passed" do
-      task = build_cron(cron_expression: "37 9 * * 1")
+      task = build_cron(cron_expression: "37 9 * * 1", minute_offset: 5)
       task.save!
       monday_9am = Time.utc(2026, 5, 4, 9, 0, 0)  # Mon 2026-05-04 09:00 UTC
       task.update_columns(last_fired_at: monday_9am - 1.hour, created_at: monday_9am - 1.hour)
-      expect(task.due?(now: monday_9am + 1.minute)).to be true
+      expect(task.due?(now: monday_9am + 6.minutes)).to be true
     end
 
-    it "is false right before the next scheduled time" do
-      task = build_cron(cron_expression: "37 9 * * 1")
+    it "is false before the task's smeared minute inside the scheduled hour" do
+      task = build_cron(cron_expression: "37 9 * * 1", minute_offset: 5)
       task.save!
       monday_9am = Time.utc(2026, 5, 4, 9, 0, 0)
       task.update_columns(last_fired_at: monday_9am - 1.hour, created_at: monday_9am - 1.hour)
-      expect(task.due?(now: monday_9am - 1.minute)).to be false
+      expect(task.due?(now: monday_9am + 4.minutes)).to be false
     end
 
     it "is false after the task already fired in the current hourly window" do
-      task = build_cron(cron_expression: "37 9 * * 1")
+      task = build_cron(cron_expression: "37 9 * * 1", minute_offset: 5)
       task.save!
       monday_9am = Time.utc(2026, 5, 4, 9, 0, 0)
       task.update_columns(last_fired_at: monday_9am + 5.minutes)
@@ -157,7 +165,7 @@ RSpec.describe ScheduledTask do
 
   describe "#next_fire_at" do
     it "returns the current hourly window when it is due and has not fired" do
-      task = build_cron(cron_expression: "37 9 * * 1")
+      task = build_cron(cron_expression: "37 9 * * 1", minute_offset: 5)
       task.save!
       monday_9am = Time.utc(2026, 5, 4, 9, 0, 0)
 
