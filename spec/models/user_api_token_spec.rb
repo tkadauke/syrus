@@ -16,6 +16,14 @@ RSpec.describe User, "API token" do
       expect(User.find_by(api_token: token)).to eq(user)
     end
 
+    it "keeps a unique index for deterministic encrypted lookup" do
+      index = User.connection.indexes(:users).find { |candidate| candidate.name == "index_users_on_api_token" }
+
+      expect(index).to be_present
+      expect(index.columns).to eq([ "api_token" ])
+      expect(index.unique).to be(true)
+    end
+
     it "rotates — a new call invalidates the prior token" do
       first = user.generate_api_token!
       second = user.generate_api_token!

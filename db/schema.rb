@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_22_011405) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_26_013332) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -719,10 +719,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_011405) do
     t.boolean "admin", default: false, null: false
     t.integer "agent_max_turns", default: 200, null: false
     t.string "agent_provider", default: "claude", null: false
-    t.string "api_token"
+    t.text "api_token"
     t.string "auto_approve_mode", default: "never", null: false
-    t.string "claude_oauth_token"
-    t.string "codex_api_key"
+    t.text "claude_oauth_token"
+    t.text "codex_api_key"
     t.text "codex_auth_json"
     t.string "codex_auth_mode", default: "api_key", null: false
     t.datetime "created_at", null: false
@@ -737,7 +737,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_011405) do
     t.datetime "gh_rate_limit_reset_at"
     t.string "gh_rate_limit_resource", limit: 32
     t.string "github_handle"
-    t.string "github_token"
+    t.text "github_token"
     t.boolean "landing_paused", default: false, null: false
     t.string "name"
     t.string "password_digest", null: false

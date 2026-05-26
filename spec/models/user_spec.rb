@@ -24,6 +24,13 @@ RSpec.describe User do
   end
 
   describe "encrypted credentials" do
+    it "stores variable-length encrypted secret payloads in text columns" do
+      column_types = User.columns.index_by(&:name).transform_values(&:type)
+
+      expect(column_types.values_at("claude_oauth_token", "codex_api_key", "github_token", "api_token"))
+        .to all(eq(:text))
+    end
+
     it "round-trips claude_oauth_token, codex credentials, github_token, and telegram_chat_id" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-abc",
                                       codex_api_key: "sk-codex",
@@ -43,6 +50,18 @@ RSpec.describe User do
       row = User.connection.select_one("SELECT claude_oauth_token, telegram_chat_id FROM users WHERE id = #{user.id}")
       expect(row["claude_oauth_token"]).not_to include("oat-secret")
       expect(row["telegram_chat_id"]).not_to include("123456")
+    end
+
+    it "round-trips encrypted credential payloads larger than a string column" do
+      long_token = "oat-" + ("x" * 1_024)
+
+      user = User.create!(attrs.merge(claude_oauth_token: long_token,
+                                      codex_api_key: "sk-" + ("y" * 1_024),
+                                      github_token: "ghp_" + ("z" * 1_024)))
+
+      expect(user.reload.claude_oauth_token).to eq(long_token)
+      expect(user.codex_api_key).to eq("sk-" + ("y" * 1_024))
+      expect(user.github_token).to eq("ghp_" + ("z" * 1_024))
     end
   end
 
