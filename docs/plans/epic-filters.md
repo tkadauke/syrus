@@ -519,7 +519,7 @@ Workflow-specific column chips (new files under `Filters::Chips::Workflows::*`):
 | Chip | Type | Column / values |
 |---|---|---|
 | `State` | EnumColumn | `queued`, `running`, `succeeded`, `failed`, `cancelled` |
-| `TriggerKind` | EnumColumn | `initial`, `pr_comment`, `ci_failure`, `retry`, `manual`, `rebase`, `resume` |
+| `TriggerKind` | EnumColumn | `initial`, `pr_comment`, `ci_failure`, `retry`, `manual`, `rebase` |
 | `JobId` | FkColumn | `column :job_id` |
 | `AgentProvider` | EnumColumn | from `AgentProviders::REGISTRY` |
 | `StartedAt` | DateColumn | `column :started_at` |

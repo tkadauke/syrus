@@ -48,7 +48,7 @@ admin UI's "warning" tier disappear).
 |---|---|
 | `WorkflowWorkspacePruneJob::RETAIN_AFTER_SUCCESS_OR_CANCEL` | `2.hours` |
 | `WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE` | `7.days` |
-| `ClaudeSession::RETAIN_AFTER_TERMINAL` | `14.days` |
+| Provider transcript retention | `14.days` |
 | `RunDiagnostic::RETAIN_AFTER` | `30.days` |
 | `RunHealthSnapshot::RETAIN_AFTER` | `7.days` |
 | `Invitation::DEFAULT_TTL` | `7.days` |

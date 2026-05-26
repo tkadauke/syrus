@@ -23,7 +23,7 @@ Per `ROADMAP.md` opening and `ARCHITECTURE.md` (last reviewed
 
 - Rails 8.1.3 + Solid Queue (MySQL prod / SQLite dev/test), Tailwind +
   Turbo Streams + Stimulus UI, Octokit, AASM state machines.
-- Polling daemon — never accepts webhooks. Ingests issues, PR comments,
+- Polling daemon — never accepts inbound GitHub callbacks. Ingests issues, PR comments,
   CI failures, scheduled tasks, rebases.
 - Domain model is `Workflow → Step → Run` (the v1 linear chain shipped;
   agent-authored DAG extensions are v2/v3 backlog).
@@ -162,7 +162,7 @@ assembled four projects.
 
 1. **Multi-tenant, self-hosted, BYOK.** Almost everyone is single-user
    OSS or single-tenant SaaS.
-2. **Polling-only, no webhooks.** Deliberate operational simplification
+2. **Polling-only, no inbound callbacks.** Deliberate operational simplification
    almost no one else makes.
 3. **Orchestrator around `claude-code` CLI.** Doesn't reimplement the
    agent loop; benefits from Anthropic's roadmap automatically.

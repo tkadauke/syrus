@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-05-03 (against `main`)._
+_Last reviewed: 2026-05-26 (against the MVP cleanup branch)._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -17,10 +17,10 @@ domain concepts. File paths are repo-relative.
 
 - [Stack](#stack)
 - [The big picture](#the-big-picture)
-- [Domain model](#domain-model) — Job, Run, JobLog, Repository, User, ScheduledTask, ClaudeSession
+- [Domain model](#domain-model) — Job, Workflow, Step, Run, JobLog, Repository, User, ScheduledTask
 - [Recurring schedule](#recurring-schedule)
 - [Per-poller flow](#per-poller-flow) — issue ingest, PR feedback, rebase, scheduled tasks, reaping
-- [Per-Run pipeline](#per-run-pipeline) — initial/follow-up path and rebase path
+- [Per-Workflow pipeline](#per-workflow-pipeline) — initial/follow-up path and rebase path
 - [End-to-end GitHub workflow](#end-to-end-github-workflow)
 - [Services](#services)
 - [MCP sidecar](#mcp-sidecar)
@@ -44,7 +44,7 @@ domain concepts. File paths are repo-relative.
 
 ## The big picture
 
-Polling drives everything — Syrus never receives a webhook. Every
+Polling drives everything — Syrus never receives inbound GitHub callbacks. Every
 external interaction (GitHub issue ingestion, PR comment ingestion,
 rebase trigger detection) is initiated by a recurring job that fans
 out to per-target jobs.
@@ -75,7 +75,7 @@ PollRepositoryJob  PollPullRequestJob  PollMergeStateJob ScheduledTaskFire marks
                                   RunJob.perform_later
                                         │
                                         ▼
-                       JobWorkspace + AgentInvocation +
+                       WorkflowWorkspace + AgentInvocation +
                        MCP sidecar + PullRequestOpener
 ```
 
@@ -86,8 +86,10 @@ never call `RunJob.perform_later` directly. `ReapStaleRunsJob` does
 not enqueue runs at all — it transitions stuck `running` Runs to
 `failed` and cleans up their worktrees.
 
-`Job` is the thread (one per GitHub issue or per scheduled-task fire).
-`Run` is the attempt (one per agent invocation). A Job has many Runs.
+`Job` is the thread (one per GitHub issue, scheduled-task fire, or direct
+operator prompt). `Workflow` is an attempt to move that Job forward.
+`Step` is a stage in that attempt, and `Run` is one execution attempt for a
+Step.
 
 ## Domain model
 
@@ -98,12 +100,12 @@ fire). Carries the GitHub identifiers and lifecycle state.
 
 | Column | Meaning |
 |---|---|
-| `kind` | `"issue"` (created from a labeled issue) or `"cron"` (created from a `ScheduledTask` fire) |
+| `kind` | `"issue"` (created from a labeled issue), `"cron"` (created from a `ScheduledTask` fire), or `"direct"` (created from an operator prompt) |
 | `state` | `"open"` ⇄ `"closed"` (AASM) |
 | `repository_id`, `user_id` | scope |
 | `issue_number` | nullable for cron jobs |
 | `issue_title`, `issue_body` | cached at ingest |
-| `branch_name` | `syrus/issue-{N}-{job_id}` (issue Jobs) or `syrus/scheduled-{task_id}-{job_id}` (cron Jobs); assigned by the first Run's `JobWorkspace.setup` and persisted on the Job for follow-up Runs to reuse |
+| `branch_name` | `syrus/issue-{N}-{job_id}` (issue Jobs), `syrus/scheduled-{task_id}-{job_id}` (cron Jobs), or a direct-job branch; assigned by workspace setup and persisted on the Job for follow-up Workflows to reuse |
 | `pr_number` | the Syrus-opened PR, if any |
 | `external_pr_number` | the *preempted* path — see below |
 | `pr_mergeable`, `pr_mergeable_checked_at` | latest from GitHub; updated by `PollRebaseJob` |
@@ -135,20 +137,25 @@ event :close   { from: :open,   to: :closed }
 event :reopen  { from: :closed, to: :open }   # clears closure_reason, finished_at, failure_count
 ```
 
-### Run — the *attempt*
+### Workflow, Step, Run — the *attempt machinery*
 
-Lives in `app/models/run.rb`. One per agent invocation. Owns the
-prompt, the agent metadata, and the resulting diff.
+`Workflow` is the top-level attempt on a Job. `Step` rows materialize
+the Workflow template. Each Step owns one or more Runs. A Run lives in
+`app/models/run.rb` and carries the prompt, transcript metadata,
+diff/head SHA, cost metadata, and provider-specific result for a single
+Step execution.
 
 | Column | Meaning |
 |---|---|
 | `state` | AASM (see diagram below) |
-| `trigger_kind` | what the Run is *for* (see table below) |
+| `trigger_kind` | what the Workflow/Run is *for* (see table below) |
 | `prompt` | the full prompt the agent sees |
 | `agent_turns`, `agent_outcome`, `agent_diff`, `head_sha` | populated from the stream-json `result` event + post-run git capture |
 | `agent_pr_title`, `agent_pr_body`, `agent_summary` | written by the agent via the MCP `submit_summary` tool |
 | `parent_session_id` | prior session id used for supported same-workflow continuations such as summarize/amend and loop iterations |
 | `last_heartbeat_at` | bumped on every `JobLog` write; used by `ReapStaleRunsJob` |
+
+Workflows, Steps, and Runs use the same terminal-state shape:
 
 ```ruby
 state :queued, initial: true
@@ -175,9 +182,10 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `initial` | `Job` create (issue Jobs auto-spawn the first Run; cron Jobs do it via `PollScheduledTasksJob`) | makes the branch + opens the PR |
 | `pr_comment` | `PollPullRequestJob` finds new review comments since `last_seen_comment_at` | reuses the same branch |
 | `ci_failure` | `PollPullRequestJob` finds failing checks on the head SHA | reuses the same branch; gated on `last_ci_handled_sha` |
-| `rebase` | `PollRebaseJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; force-pushes |
+| `rebase` | `PollRebaseJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; pushes with an explicit `--force-with-lease` lease |
 | `retry` | operator: "Run again" | new Run on the existing branch |
 | `manual` | operator: explicit manual prompt | freeform |
+| `local_dev` | local CLI path | runs against a local checkout without opening a PR |
 
 State changes broadcast Turbo refreshes; see [UI surface](#ui-surface)
 for how broadcasts land in the browser.
@@ -185,7 +193,7 @@ for how broadcasts land in the browser.
 ### JobLog — the transcript
 
 Append-only chunks per Run (`belongs_to :run`). `RunJob#log`,
-`AgentInvocation`, the MCP sidecar, and `JobWorkspace` all write to
+`AgentInvocation`, the MCP sidecar, and `WorkflowWorkspace` all write to
 it. Unique on `(run_id, sequence)`. `before_update` raises
 `ReadOnlyRecord` — once written, never edited.
 
@@ -237,8 +245,8 @@ is still open at the next fire:
 | `replace` | cancel the prior Job's active Runs and close it (`closure_reason=replaced_by_scheduled_task`), then fire |
 
 A `consecutive_failure` counter on the task auto-pauses the schedule
-once `AppSetting.max_job_failures` is hit; the operator must re-enable
-the task to resume scheduling.
+once `AppSetting.max_job_failures` is hit; the operator must click
+Unpause to re-enable.
 
 ### ClaudeSession
 
@@ -276,8 +284,6 @@ deliberately includes preempted Jobs.
 | `PollAllMergeStatesJob` | every 5 min | Fans out to `PollMergeStateJob` per Job-with-PR |
 | `PollScheduledTasksJob` | every 1 min | Finds due `ScheduledTask`s; fires via `ScheduledTaskFire` |
 | `ReapStaleRunsJob` | every 1 min | Marks Runs whose heartbeat is older than 30 min as `failed` |
-| `ClaudeSessionPruneJob` | daily 3am | Drops sessions for terminal Runs older than the retention window |
-
 Plus one Solid Queue housekeeping entry, `clear_solid_queue_finished_jobs`,
 which is production-only because dev wipes the Solid Queue tables
 often enough on its own. It runs hourly and `delete_all`s finished
@@ -299,7 +305,7 @@ PollRepositoryJob (per repo, serialized via SolidQueue concurrency key)
           RunJob.perform_later(run_id) hits SolidQueue
 ```
 
-The initial Run is autostart for issue-kind Jobs only. Cron-kind Jobs
+The initial Workflow is autostart for issue-kind Jobs only. Cron-kind Jobs
 have their initial Run created explicitly by `PollScheduledTasksJob`
 with a pre-rendered prompt (so `{{date}}` and friends reflect fire
 time, not RunJob start time).
@@ -341,7 +347,8 @@ PollAllMergeStatesJob (includes preempted threads that still need merge-state ch
       → bail if a rebase Run is already active
       → bail if rebase attempt cap reached
       → AutoRebase.try first (non-interactive `git rebase`):
-          clean? force-push, mark Job mergeable, done — no Run created
+          clean? force-with-lease push against the observed branch SHA,
+          mark Job mergeable, done — no Run created
           conflict? fall through to:
       → Run.create!(trigger_kind: "rebase")
 ```
@@ -364,13 +371,19 @@ PollScheduledTasksJob (every minute)
         → bump last_fired_at, last_successful_fire_at, etc.
 ```
 
+Cron expressions are interpreted in UTC. For the MVP, recurring tasks are
+hourly-window schedules: Syrus ignores the minute field for matching,
+normalizes it to `0` when computing due windows, and fires at most once per
+matching UTC hour. A per-task `minute_offset` spreads otherwise-identical
+schedules across poll ticks.
+
 ### Stale Run reaping
 
 ```
 ReapStaleRunsJob (every minute)
   → Run.running.where("last_heartbeat_at < ?", 30.minutes.ago)
       → mark as failed (agent_outcome: "worker_died")
-      → JobWorkspace.cleanup
+      → workflow workspace cleanup when the Workflow reaches terminal state
 ```
 
 The 30-minute threshold is generous on purpose: claude-code can be
@@ -378,12 +391,13 @@ quiet for several minutes during long thinking phases. The heartbeat
 is bumped on every `JobLog#log` write — not on a separate timer — so
 "agent producing transcript output" implicitly counts as alive.
 
-## Per-Run pipeline (`RunJob#perform`)
+## Per-Workflow pipeline (`RunJob#perform`)
 
 There are two pipelines depending on `trigger_kind`. The
 **initial / follow-up** path (everything except `rebase`) edits files
 and produces a diff. The **rebase** path rewrites history and
-force-pushes; it skips diff capture and PR opening entirely.
+pushes with an explicit `--force-with-lease=<branch>:<observed_sha>` lease;
+it skips diff capture and PR opening entirely.
 
 Both pipelines share the front matter:
 
@@ -393,13 +407,13 @@ Both pipelines share the front matter:
    immediately rather than starting again — the only way that state
    arises is recovery from a crashed prior worker.
 3. AASM `start!`; record `started_at`.
-4. `JobWorkspace.setup(@run)`:
-   - Fresh shallow clone (`--depth 50`) at `$SYRUS_DATA_ROOT/runs/<run_id>/`.
-     No shared state across concurrent Runs — each gets its own isolated clone.
+4. `WorkflowWorkspace.setup(@workflow)`:
+   - Fresh shallow clone (`--depth 50`) at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`.
+     All Steps in a Workflow share this workspace.
    - Always clones the default branch so it is a local ref for three-dot diff.
    - Branch: fetches and checks out existing for follow-up Runs; creates new for initial Runs.
 5. Compose the prompt via the appropriate `Prompts::*` class
-   (`Initial`, `PrFeedback`, `CiFailure`, `Rebase`, or
+   (`Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `DirectJob`, or
    the pre-rendered `ScheduledTask` body).
 6. Spawn the agent via `AgentInvocation`:
    - `claude --print --output-format stream-json --dangerously-skip-permissions`
@@ -434,13 +448,16 @@ Both pipelines share the front matter:
 
 ### Rebase tail
 
-8. Force-push the rebased branch (`git push --force-with-lease`).
+8. Force-push the rebased branch with
+   `git push --force-with-lease=<branch>:<observed_sha>`.
 9. AASM `succeed!`. No commit, no diff capture, no PR opening — the
    PR already exists; we've just moved its head SHA.
 
 ### Cleanup and error handling
 
-- `ensure`: `JobWorkspace.cleanup` deletes the run directory (`rm -rf $SYRUS_DATA_ROOT/runs/<run_id>`).
+- Terminal Workflow transitions clean up or retain the shared workspace
+  according to state; `WorkflowWorkspacePruneJob` removes old terminal
+  workspaces.
 - On exception: AASM `fail!`; record `agent_outcome`; `Job#record_run_failure!`
   for non-rebase Runs (rebase failures don't bump `failure_count`).
 - On SIGTERM: Solid Queue's graceful-shutdown timeout lets the current
@@ -495,10 +512,10 @@ Core (the agent loop):
 
 | Service | Purpose |
 |---|---|
-| `JobWorkspace` | Fresh per-Run clone at `$SYRUS_DATA_ROOT/runs/<run_id>/`. Default root `~/.syrus` (override with `SYRUS_DATA_ROOT`). Clones never live inside `Rails.root` — protects the operator's checkout from agent chdir mishaps. |
+| `WorkflowWorkspace` | Fresh per-Workflow clone at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`. Default root `~/.syrus` (override with `SYRUS_DATA_ROOT`). Clones never live inside `Rails.root` — protects the operator's checkout from agent chdir mishaps. |
 | `AgentInvocation` | Spawns `claude-code` via `Open3.popen2e`, parses stream-json, threads stdout chunks into `JobLog`, returns a `Result` struct (turns, outcome, exit status, final text, session id). Wires the MCP sidecar. Enforces the 30-minute wall-clock timeout. |
 | `SyrusMcp::Sidecar` | In-process MCP server the agent talks to over stdio. Exposes `submit_summary`. See [MCP sidecar](#mcp-sidecar). |
-| `Prompts::*` | One class per Run kind: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, plus `PullRequestSummary` for `PrSummarizer` and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `Prompts::*` | One class per Run kind: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, plus `PullRequestSummary` for `PrSummarizer` and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 
 Git and GitHub:
 
@@ -526,7 +543,8 @@ wasteful — `claude` boot-up alone costs more than the rebase itself.
 `AutoRebase.try` checks out the PR's branch in a worktree, runs
 `git rebase origin/<base>` non-interactively, and:
 
-- **Clean rebase** → force-pushes the rebased branch, marks the Job
+- **Clean rebase** → pushes the rebased branch with an explicit
+  `--force-with-lease` lease, marks the Job
   mergeable, and `PollRebaseJob` skips creating a `rebase` Run. The
   whole thing happens inside the polling job; no worker handoff.
 - **Conflict** → aborts the rebase, leaves the worktree clean, and
@@ -563,8 +581,9 @@ Several layers, each catching different failure modes:
    `--max-turns` for users with `agent_max_turns > 0`). Either kills
    the `claude` subprocess and returns a `Result` with `timed_out:
    true`. `RunJob` calls `fail!`.
-2. **`RunJob#ensure`** — always calls `JobWorkspace.cleanup`. Cleanup
-   failures are logged but don't suppress the original exception.
+2. **Workflow terminal cleanup** — terminal transitions clean up or retain
+   the shared workspace according to state. Cleanup failures are logged but
+   don't suppress the original exception.
 3. **Heartbeat reaper** — `RunJob#log` bumps `last_heartbeat_at` on
    every `JobLog` write. `ReapStaleRunsJob` runs every minute and
    fails any `running` Run whose heartbeat is older than 30 min
@@ -597,8 +616,7 @@ Several layers, each catching different failure modes:
 - **`/jobs/:id`** — the operational hub for a single thread:
   live-streaming transcript per Run, agent diff, PR + branch links,
   action buttons (`run_again`, `restart`, `cancel`, `reopen`,
-  `poll_feedback`, `rebase`, `check_mergeability`,
-  `stop_run`).
+  `poll_feedback`, `rebase`, `check_mergeability`, `stop_run`).
 - **`/scheduled_tasks`** — cron task management.
 - **`/credentials/edit`** — paste GH PAT and Claude OAuth token
   (write-only, never echoed).

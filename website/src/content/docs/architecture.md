@@ -33,11 +33,11 @@ metadata.
 
 ## Why Polling
 
-Syrus uses external polling instead of webhooks so a self-hosted instance
+Syrus uses external polling instead of inbound GitHub callbacks so a self-hosted instance
 does not need a public inbound HTTP endpoint. That keeps the deployment
 story simple for homelabs, private clusters, and small teams behind NAT.
 The trade-off is that reactions happen on poll cadence rather than at
-webhook speed, but the architecture stays portable and avoids exposing the
+callback speed, but the architecture stays portable and avoids exposing the
 operator's network.
 
 ## MCP Sidecar
@@ -49,7 +49,7 @@ When the agent calls it, the sidecar writes structured artifacts onto the
 Workflow and appends an audit log line. Later Steps consume those artifacts:
 `pr_open` reads PR copy, and `summarize_amend` provides follow-up commit
 messages. The tool name and sidecar binary name intentionally match so
-session continuations keep the same callable tool.
+the provider can invoke the registered MCP tool.
 
 ## Credential Encryption
 
@@ -59,6 +59,14 @@ the encryption keys, so `RAILS_MASTER_KEY` is required for any web, worker,
 console, or test process that touches users. Push credentials are also kept
 off disk: clone remotes use anonymous GitHub URLs, and Syrus constructs a
 token-bearing URL only for the individual push command.
+
+## MVP Trust Boundary
+
+The MVP assumes trusted users and trusted repositories. Agent commands run in
+worker-managed workspaces outside the Syrus checkout, but those workspaces
+are not hardened untrusted-code sandboxes. Register repositories whose setup
+commands you are willing to execute, scope GitHub tokens narrowly, and
+review generated PRs before merging.
 
 ## State Machines
 

@@ -174,8 +174,10 @@ remotes anonymous and constructs a token-bearing push URL only for the
 individual `git push` call.
 
 For token rotation, users update their GitHub and agent credentials in the
-credentials UI. Admin API tokens are rotated separately and displayed only
-once. For Rails encryption key rotation, follow Rails Active Record
-Encryption rotation practice: deploy the new scheme while retaining read
-access to old ciphertext, rewrite encrypted attributes, then remove the old
-scheme after verification.
+credentials UI by submitting a replacement value. Admin API tokens are
+rotated separately and displayed only once; admins can also revoke the token
+from the same credentials page, which immediately removes API access until a
+new token is generated. For Rails encryption key rotation, follow Rails
+Active Record Encryption rotation practice: deploy the new scheme while
+retaining read access to old ciphertext, rewrite encrypted attributes, then
+remove the old scheme after verification.

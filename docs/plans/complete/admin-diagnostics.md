@@ -17,8 +17,8 @@ the top.
 | Job 26 / 28 (max_turns) | "What did the agent actually do in 6 turns?" | Wrote runner script, dumped JSONL, parsed tool calls by hand | Click through to a transcript view |
 | Job 65 (stuck running) | "Why isn't the reaper picking this up?" | Queried `SolidQueue::Job` + ran reaper manually | Queue inspector showing pending recurring jobs |
 | Mergeability check broken | "Did the poll job actually run? Did GH return 304?" | Inferred from `pr_mergeable_checked_at` not moving | Per-Job timeline / GH API call log |
-| ClaudeSession capture failing | "Are sessions ever being captured?" | Queried `ClaudeSession.count` (zero!) — went looking for the bug | System overview with a "session capture rate" tile |
-| MCP tools missing on --resume | "Was `submit_summary` registered when implement started?" | Dug through JSONL for the system init event | Transcript view that surfaces session init events |
+| Provider transcript capture failing | "Are transcripts ever being captured?" | Queried transcript storage — went looking for the bug | System overview with a "transcript capture rate" tile |
+| MCP tools missing | "Was `submit_summary` registered when implement started?" | Dug through JSONL for the system init event | Transcript view that surfaces session init events |
 
 The thread: each debug needed answers to "what's the hidden state
 right now?" — disk, queue tables, claude session JSONL, MCP tool
@@ -125,8 +125,8 @@ five places."
     24h. Click → list.
   - **GitHub rate limits** — per-user, current / total. Red if
     any user is below 10%.
-  - **Claude session capture rate** — % of agentic Runs in last
-    24h that have a captured `ClaudeSession`. Red if < 80% (the
+  - **Provider transcript capture rate** — % of agentic Runs in last
+    24h that have a captured provider transcript. Red if < 80% (the
     canonical-path bug would have shown 0% here).
   - **Stuck workflows watchlist** — workflows in `running` state
     older than the median, queued runs older than the median,
@@ -237,7 +237,7 @@ logic.
 - **MCP tool registration verifier as standalone feature** — the
   system init event in A's transcript view shows the tool list
   directly. No need for a parallel UI.
-- **ClaudeSession inspector as standalone** — A subsumes it.
+- **Provider transcript inspector as standalone** — A subsumes it.
 
 ---
 

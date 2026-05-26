@@ -112,9 +112,9 @@ Admins also get a full transcript viewer:
 /admin/runs/<run_id>/transcript/download
 ```
 
-The inline transcript is stored as `JobLog` rows. Full agent JSONL
-transcripts are stored in `ClaudeSession` while needed for failed,
-cancelled, and resumable runs. Succeeded transcripts may be pruned.
+The inline transcript is stored as `JobLog` rows. Provider JSONL
+transcripts may be retained for debugging while failed or cancelled runs
+are still useful to inspect. Succeeded transcripts may be pruned.
 
 For deployment logs, use the platform:
 
@@ -137,8 +137,8 @@ Open the Job and click **Cancel & close**. Syrus cancels any active Runs
 and closes the Job thread. Follow-up polling for PR comments and CI
 failures stops for that Job.
 
-If you want to stop one active Run but keep the Job open for a retry,
-use the Run-level stop action on the Job page.
+If you want to stop one active Run but keep the Job open for a retry, use
+the Run-level stop action on the Job page.
 
 For PR-level opt-out, add the `syrus-stop` label to the PR. The next PR
 poll closes the Job with reason `syrus_stop`.
@@ -205,7 +205,7 @@ Check:
 6. The default queue worker is running `PollScheduledTasksJob`.
 
 If the task repeatedly failed, Syrus may auto-pause it after the
-configured failure threshold. Resume the task after fixing the underlying
+configured failure threshold. Unpause the task after fixing the underlying
 prompt, credentials, or repository problem.
 
 ## The agent burned through my Anthropic or OpenAI credits

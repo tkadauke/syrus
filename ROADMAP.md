@@ -7,6 +7,12 @@ execution DAG (Workflow → Step → Run) all shipped. What's left
 organizes into hardening work on the running deployment and a
 backlog of feature directions.
 
+Current MVP limits are explicit: Syrus is polling-only, assumes trusted
+users and trusted repositories, runs agents in worker-managed workspaces
+rather than a hardened sandbox, and does not ship captured-session
+continuation, out-of-band human escalation, shared drawing surfaces, or
+native GitHub suggestion application.
+
 ---
 
 ## Hardening
@@ -148,22 +154,12 @@ wants run.
   Agent either fixes and resubmits, or calls `submit_summary` to
   open the PR.
 
-**Continue prior session vs new session for the follow-up:**
+**Follow-up session policy:**
 
-Default to **continue** the agent's prior session (`--resume <session_id>`,
-infrastructure already in place). Reasoning: the agent wrote the plan;
-the agent knows the intent of its changes; the prompt cache makes
-continuation cheap within TTL.
-
-Two bail-outs to a new session:
-
-1. **Cache cold** — prior session ended longer ago than the extended
-   prompt-cache TTL (~1h). Continuation cost approaches new-session cost
-   anyway, so spend the budget on a fresh perspective.
-2. **Repeat failures** — same plan-and-fix loop has failed 2–3
-   times. The agent is patching symptoms; force a new session as a
-   "fresh eyes" reset. Same logic as the rebase attempt cap, scoped
-   to test-plan iteration.
+Default to a fresh agent session with the produced diff, test plan, and
+grader output in prompt context. Captured-session continuation is not part
+of the MVP surface; if it returns later, it should be documented as a new
+capability rather than assumed by this plan.
 
 **Interactions:**
 
@@ -245,8 +241,8 @@ across PRs.
 Today's `JobLog` captures streamed transcript chunks per Run. The
 richer version: structured tool-call timelines, token/latency
 breakdowns per turn, searchable across runs, linkable, diff-able.
-Replayable sessions (the JSONL captured for `--resume` already
-covers part of this).
+Replayable transcripts can be layered on later if the storage model needs
+more than today's streamed `JobLog` rows.
 
 ### REST API
 
@@ -552,11 +548,6 @@ and what to consciously not do.
   Labels work but are unfamiliar to people coming from those tools.
   Cheap to add — same poller path with extra predicates. Lowers
   onboarding friction.
-- **GitHub "suggested change" auto-apply.** When a reviewer leaves a
-  native suggested-change block on a Syrus PR, apply it directly with
-  no agent invocation. Skip burning tokens on stuff GitHub already
-  structured for you. Trivial to detect, big UX improvement on the
-  PR-comment loop.
 - **`triage` as a first-class Step kind, default-on.** Gru.ai's
   15-step pipeline starts with triage; Devin v3 does dynamic planning.
   A 1-turn `triage` Step that just answers "is this ready, does it
@@ -707,10 +698,10 @@ in under feature-comparison pressure later.
   runner." Provider abstraction across CLIs (which is partly already
   in flight) is fine; replacing the CLI with a homemade agent loop is
   not.
-- **Webhook-based triggers as a v2 add-on.** `README.md` and
+- **Inbound callback triggers as a v2 add-on.** `README.md` and
   `ARCHITECTURE.md` say polling-only is deliberate. Stay disciplined.
-  The operational simplification is a feature; webhooks would force
-  us to deal with delivery retries, signature validation, and a
+  The operational simplification is a feature; inbound delivery would
+  force us to deal with delivery retries, signature validation, and a
   deploy-boundary problem. Don't fold under user pressure.
 - **DAG v2 (parallel branches) before v3 (agent-authored edges).**
   Already noted in the [Job as execution DAG: v2 + v3](#job-as-execution-dag-v2--v3)

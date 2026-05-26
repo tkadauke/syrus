@@ -46,7 +46,9 @@ unmergeable. Steps: `auto_rebase -> agent_rebase -> force_push`. Syrus first
 tries a deterministic `git rebase`. If that succeeds, it cancels
 `agent_rebase` and proceeds to `force_push`; if conflicts remain, the agent
 resolves them. A successful workflow force-pushes the rebased branch and
-does not open or rewrite PR copy.
+does not open or rewrite PR copy. The push uses an explicit
+`git push --force-with-lease=<branch>:<observed_sha>` lease so Syrus does
+not overwrite an unexpected remote update.
 
 ### Retry
 
@@ -86,13 +88,13 @@ same Job.
 | `implement` | Yes | Make the requested code change for Initial, Retry, cron, and direct work |
 | `respond` | Yes | Address PR review feedback on an existing branch |
 | `analyze_and_fix` | Yes | Diagnose failed CI checks and commit a fix |
-| `summarize` | Yes | Continue from the implementation session and collect PR title/body/summary through MCP |
+| `summarize` | Yes | Collect PR title/body/summary through MCP |
 | `summarize_amend` | Yes | Produce follow-up commit copy for PR feedback and CI-failure workflows |
 | `pr_open` | No | Push the branch and open the pull request if one does not already exist |
 | `push` | No | Push commits to an existing PR branch and update the cost footer |
 | `auto_rebase` | No | Try a deterministic rebase before involving an agent |
 | `agent_rebase` | Yes | Resolve rebase conflicts with the agent |
-| `force_push` | No | Force-push a rebased branch |
+| `force_push` | No | Force-push a rebased branch with an explicit `--force-with-lease` lease |
 | `manual` | Yes | Run an operator-supplied prompt |
 
 Planned Step kinds include

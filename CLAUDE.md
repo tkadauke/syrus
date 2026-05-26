@@ -13,7 +13,7 @@ Solid Queue + Solid Cache + Solid Cable · Tailwind via
 
 ## Architecture in 60 seconds
 
-External polling drives everything — no webhooks. `PollAllRepositoriesJob`
+External polling drives everything — no inbound GitHub callbacks. `PollAllRepositoriesJob`
 fans out to one `PollRepositoryJob` per active repository, which lists
 issues with the configured trigger label. Each new labeled issue creates
 a `Job` (the *thread*), which auto-creates an initial `Workflow` (the
@@ -53,9 +53,10 @@ same Workflow pipeline.
   when the PR has gone unmergeable. Skips the closed-Job guard (a
   preempted Job's external PR can still need rebases), skips
   `commit_agent_changes` (rebase rewrites history, not the working
-  tree), uses `git push --force` instead of fast-forward, and skips
-  the PR-opening step. Triggered by `PollAllMergeStatesJob` when a PR
-  is `mergeable: false` and we control the head branch.
+  tree), uses `git push --force-with-lease=<branch>:<observed_sha>`
+  instead of fast-forward, and skips the PR-opening step. Triggered by
+  `PollAllMergeStatesJob` when a PR is `mergeable: false` and we control
+  the head branch.
 
 ### Per-Workflow pipeline (`app/jobs/run_job.rb`, `app/services/workflows/`, `app/services/steps/`)
 
@@ -93,10 +94,10 @@ Key steps:
 - **`auto_rebase`** / **`agent_rebase`** / **`force_push`** — Rebase chain:
   first try deterministic `git rebase`; if clean, cancel only `agent_rebase`
   and still `force_push`. On conflict, `agent_rebase` resolves it, then
-  `force_push` updates the PR branch.
+  `force_push` updates the PR branch with an explicit `--force-with-lease`
+  against the branch SHA Syrus observed.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
-  `--resume`s the prior session and asks the agent to call `submit_summary`.
-  The session JSONL is on disk in the shared workspace — no DB roundtrip.
+  asks the agent to call `submit_summary`.
   If the implement step already called `submit_summary` (artifacts contain
   `agent_pr_title`), the summarize step skips the agent call entirely and
   promotes artifacts directly — saving a full agent turn.
@@ -107,10 +108,9 @@ Key steps:
 via a per-step `mcp.json` tempfile. Exposes one tool,
 `submit_summary(pr_title, pr_body, summary)`, which writes directly onto
 the Workflow's `artifacts` bag and appends a `JobLog` audit line.
-`alwaysLoad: true` in the mcp.json keeps sidecar tools in the agent's
-active toolset even after `--resume`. The config key and binary basename
-must match (`syrus-mcp-sidecar`) — misalignment causes the resumed agent
-to invoke a tool name that doesn't exist. See `app/services/syrus_mcp/`.
+The config key and binary basename must match (`syrus-mcp-sidecar`) so the
+agent can invoke the tool name registered in the MCP config. See
+`app/services/syrus_mcp/`.
 
 **PR copy degradation** — `open_pull_request_if_missing` reads
 `workflow.artifacts["pr_title"]`/`["pr_body"]` first; falls through to
@@ -147,7 +147,7 @@ there on branch `syrus/scheduled-<task_id>-<job_id>`.
 still open at next tick: `skip` (default, don't fire), `pile` (fire
 anyway), `replace` (cancel the old Job and fire). Auto-pause kicks in
 when consecutive failure count hits the `AppSetting.max_job_failures`
-threshold; operator must re-enable the task to resume scheduling.
+threshold; the operator must unpause the task to re-enable it.
 
 "No changes" is the explicit happy path for cron Jobs — the agent
 surveys, calls `submit_summary` with a one-line note, and the Job closes
@@ -311,7 +311,7 @@ preserve scroll position across morphs.
 
   Add an `after_initialize` callback on the model that seeds `{}` for
   new records so the column stays non-null going forward without a DB
-  default. SmartFolder + Whiteboard already do this; copy that pattern.
+  default. Copy an existing guarded JSON-column pattern.
 - **Three-dot diffs only** — `git diff <base>...HEAD`, never two-dot.
   Lesson learned the hard way (commit `67b2bf9`).
 - **Clones live outside the repo** — under `$SYRUS_DATA_ROOT` (default
@@ -613,8 +613,7 @@ Required runtime env:
   :c, :json, default: {}` works on SQLite, crashes prod with `BLOB,
   TEXT, GEOMETRY or JSON column ... can't have a default value`. Add
   nullable, backfill `{}` via `execute`, then `change_column_null`,
-  with an `after_initialize` seed on the model. SmartFolder and
-  Whiteboard do this; copy the pattern. See Conventions.
+  with an `after_initialize` seed on the model. See Conventions.
 - **Hand-written migration timestamps collide across branches.** Two
   PRs both picking `20260513120100_*.rb` will install identical rows
   in `schema_migrations` on whichever environment merges them first,
@@ -641,12 +640,10 @@ app/services/pr_summarizer.rb                # second-shot fallback
 app/jobs/poll_*.rb                           # polling jobs (cron-style; see config/recurring.yml)
 app/jobs/reap_stale_runs_job.rb              # kills zombie Runs every minute
 app/jobs/workflow_workspace_prune_job.rb     # daily sweep of old terminal workspaces
-app/jobs/claude_session_prune_job.rb         # drops old ClaudeSession rows daily
 app/models/{job,run,workflow,step}.rb        # core models + AASM
 app/models/{repository,user}.rb             # repo + user (user has api_token, cron_templates)
 app/models/scheduled_task.rb                 # cron/one-shot task attached to a repo
 app/models/cron_template.rb                 # per-user reusable schedule+prompt template
-app/models/claude_session.rb                 # captured JSONL for --resume flows
 app/controllers/api/                         # REST admin API (Bearer-token auth)
 bin/syrus-mcp-sidecar                        # Ruby binstub, claude spawns this
 bin/jobs                                     # Solid Queue worker entry

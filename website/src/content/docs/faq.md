@@ -33,7 +33,7 @@ repositories without becoming a single-user desktop tool.
 good fit when one repo needs a lightweight `@claude` flow.
 
 Syrus centralizes state outside GitHub Actions. It polls GitHub instead
-of receiving webhooks, works across repositories from one deployment,
+of receiving inbound callbacks, works across repositories from one deployment,
 keeps Job and Run history in its own database, supports scheduled and
 ad-hoc Jobs, and does not require installing a workflow file in every
 repo.
@@ -62,10 +62,11 @@ worker, web process, and persistent clone/workspace storage.
 ## Is the agent safe to give my repo access?
 
 Treat it like giving a powerful developer access to the repo and a shell.
-Syrus creates isolated per-Workflow workspaces and pushes through your
-GitHub token, but the current agent invocation is intentionally capable:
-it can read and edit the checkout and run commands needed to complete the
-task.
+Syrus creates per-Workflow workspaces outside the application checkout and
+pushes through your GitHub token, but the current agent invocation is
+intentionally capable: it can read and edit the checkout and run commands
+needed to complete the task. The MVP assumes trusted users and trusted
+repositories; the workspace is not a hardened untrusted-code sandbox.
 
 The roadmap includes stronger sandboxing and policy controls, including
 disposable containers per Run and tighter boundaries around what the
@@ -91,11 +92,11 @@ trust model: the operator would hold user code, model credentials,
 transcripts, and GitHub tokens. That is not the project this is trying to
 be.
 
-## Why polling instead of webhooks?
+## Why polling instead of inbound callbacks?
 
 Polling is less fashionable and much easier to operate. Syrus does not
-need a public ingress endpoint, webhook secret rotation, delivery replay
-handling, or per-repo webhook installation. The worker asks GitHub what
+need a public ingress endpoint, callback secret rotation, delivery replay
+handling, or per-repo callback installation. The worker asks GitHub what
 changed and records what it did.
 
 The trade-off is latency. Most automation runs on the next poll tick

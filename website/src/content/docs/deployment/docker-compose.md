@@ -73,7 +73,7 @@ The first signup becomes an admin. In **Credentials**, add:
    `implement`, `summarize`, and `pr_open`.
 6. Follow the PR link when the run succeeds.
 
-Syrus polls GitHub instead of receiving webhooks, so the Job may not
+Syrus polls GitHub instead of receiving inbound callbacks, so the Job may not
 appear instantly. If nothing appears after a couple of polling intervals,
 check the repository's trigger label, token permissions, and whether
 polling is enabled.

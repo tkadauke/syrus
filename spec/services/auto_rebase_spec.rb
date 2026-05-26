@@ -176,6 +176,22 @@ RSpec.describe AutoRebase do
     end
   end
 
+  it "uses force-with-lease when pushing a rebased branch" do
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "ghp_test_token")
+
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+    allow(repository).to receive(:authenticated_push_url).with("ghp_test_token").and_return("https://push.example/repo.git")
+
+    expect(git).to receive(:run).with(
+      "push", "--force-with-lease=refs/heads/#{job.branch_name}:old-sha", "https://push.example/repo.git",
+      "HEAD:refs/heads/#{job.branch_name}",
+      chdir: kind_of(String), env: { "GIT_TERMINAL_PROMPT" => "0" }
+    )
+
+    described_class.new(job, git: git).send(:force_push, expected_sha: "old-sha")
+  end
+
   # ---- helpers --------------------------------------------------------
 
   def seed_remote(bare_path)

@@ -43,12 +43,10 @@ Job pipeline.
 
 ## Decisions locked
 
-1. **Process model: one-shot `claude --resume` per turn.** Each
-   user message enqueues a `ChatTurnJob`; the worker spawns
-   claude with `--resume <session_id>` (after the first turn),
-   streams events back via Turbo, exits. Re-uses every piece of
-   agent infrastructure already used by same-workflow session continuation
-   trigger kind. No long-lived agent processes to babysit.
+1. **Process model: one agent invocation per turn.** Each user message
+   enqueues a `ChatTurnJob`; the worker spawns the configured provider,
+   streams events back via Turbo, exits, and persists conversation state.
+   No long-lived agent processes to babysit.
 2. **One mutable workspace per repository at
    `$SYRUS_DATA_ROOT/chats/<repository_id>/`.** Persistent across
    turns and across chat sessions on the same repo. The agent
@@ -66,7 +64,7 @@ Job pipeline.
 5. **Proposals are repo-scoped, not chat-scoped, for the
    operator.** A repo-level **Proposals** tab aggregates every
    `pending` proposal across every chat. Proposals retain their
-   `chat_session_id` for traceability + future "resume this chat"
+   `chat_session_id` for traceability + future "continue this chat"
    context, but the review/file/discard UI lives at the repo
    level so proposals outlive the visible chat.
 6. **Proposals form a DAG with cascade-filing.** Each proposal
@@ -165,12 +163,14 @@ create_table :chat_proposal_dependencies do |t|
 end
 add_index :chat_proposal_dependencies, [ :proposal_id, :depends_on_id ], unique: true
 
-# db/migrate/<ts5>_make_claude_session_polymorphic.rb
-# ClaudeSession currently belongs_to :run. Make it polymorphic so a
-# ChatSession can own one too.
-add_reference :claude_sessions, :resumable, polymorphic: true
-# Backfill: UPDATE claude_sessions SET resumable_type='Run', resumable_id=run_id
-remove_column :claude_sessions, :run_id   # AFTER backfill, in a separate migration
+# db/migrate/<ts5>_create_chat_transcripts.rb
+# Persist provider transcript metadata for ChatSession rows when needed.
+create_table :chat_transcripts do |t|
+  t.references :chat_session, null: false, foreign_key: true
+  t.string :provider
+  t.string :path
+  t.timestamps
+end
 ```
 
 `ChatSession#cumulative_input_tokens` / `_output_tokens` are
@@ -234,8 +234,7 @@ pattern as the existing sidecar.
 | `repo_info()` | Returns repo metadata (default branch, recent commits on default, list of branches with HEAD shas) — saves the agent shell turns. |
 
 Explicitly NOT exposed: `submit_summary`, `file_proposal`, any
-write-to-workspace tool. The sidecar config sets `alwaysLoad:
-true` per the existing convention so tools survive `--resume`.
+write-to-workspace tool.
 
 ### 4. `ChatTurnJob`
 
@@ -260,10 +259,9 @@ class ChatTurnJob < ApplicationJob
     # 2. ensure workspace exists (may block on first clone — broadcast a
     #    system message before/after)
     # 3. write the chat sidecar's mcp.json to a tempfile
-    # 4. compose the prompt: this turn's user content + system prompt
-    #    only on first turn (subsequent turns rely on --resume to carry
-    #    system context)
-    # 5. spawn AgentInvocation with --resume <session_id> if present,
+    # 4. compose the prompt from system context, durable chat history,
+    #    and this turn's user content
+    # 5. spawn AgentInvocation,
     #    NO --max-turns
     # 6. stream events:
     #     - on each completed assistant / tool_use / tool_result,
@@ -271,15 +269,14 @@ class ChatTurnJob < ApplicationJob
     #     - between events, check chat.reload.stop_requested_at;
     #       if set, SIGTERM the subprocess and record a system
     #       "cancelled by user" message
-    # 7. on exit: persist ClaudeSession (polymorphic attach to chat),
-    #    update chat.last_message_at + cumulative tokens
+    # 7. on exit: update chat.last_message_at + cumulative tokens
   end
 end
 ```
 
-`AgentInvocation` already handles `--resume <session_id>`,
-stream-json parsing, `--mcp-config`, and SIGTERM cleanup. The
-only new wiring is the chat-specific mcp.json content (pointing
+`AgentInvocation` already handles stream-json parsing, `--mcp-config`,
+and SIGTERM cleanup. The only new wiring is the chat-specific mcp.json
+content (pointing
 at `bin/syrus-chat-sidecar` instead of `bin/syrus-mcp-sidecar`)
 and the chat-specific event handling.
 
@@ -302,7 +299,7 @@ When stop is detected:
 3. Persist whatever ChatMessage rows already landed.
 4. Write a `role: system, content: { text: "Cancelled by
    operator." }` ChatMessage.
-5. Update `chat.last_message_at`, capture partial ClaudeSession
+5. Update `chat.last_message_at`, capture partial transcript metadata
    if any was written to disk.
 6. Release concurrency lock.
 
@@ -514,8 +511,8 @@ module Prompts
 end
 ```
 
-The system prompt is included only on the first turn; subsequent
-turns rely on `--resume` to carry it forward.
+The prompt includes enough durable chat history each turn to preserve
+conversation context without captured-session continuation.
 
 ### 9. Repository wiring
 
@@ -591,7 +588,7 @@ credential).
 - `config/routes.rb` — nested routes under repositories for
   chats, proposals.
 - `app/services/agent_invocation.rb` — verify no changes needed;
-  the existing `--resume` + `--mcp-config` paths cover this.
+  the existing stream-json + `--mcp-config` paths cover this.
   Document the chat use case in the class comment.
 - `README.md` — short blurb on per-repo chat in the feature list.
 - `CLAUDE.md` — agent guide entry for the chat sidecar +
@@ -603,8 +600,8 @@ Ship as 4 PRs:
 
 1. **Data model + ChatWorkspace.** Migrations,
    `ChatSession` / `ChatMessage` / `ChatProposal` /
-   `ChatProposalDependency` models, polymorphic `ClaudeSession`
-   migration + backfill, `ChatWorkspace` service. No UI yet.
+  `ChatProposalDependency` models, chat transcript metadata,
+  `ChatWorkspace` service. No UI yet.
    Tests cover model validations, workspace lifecycle, DAG
    topo sort + cycle rejection.
 2. **MCP sidecar + ChatTurnJob.** `bin/syrus-chat-sidecar` and
@@ -680,10 +677,10 @@ Ship as 4 PRs:
   accumulates fetched objects, scratch branches, etc. No
   automatic gc here; if operator notices bloat, they hit
   "Reset workspace." Could add a periodic `git gc --auto` later.
-- **Idle-session token usage in Anthropic's caching window.**
-  --resume should benefit from prompt caching across turns
-  within 5 minutes of each other. Long pauses between turns
-  pay the full cost on the next turn. Document but don't
+- **Idle-session token usage in provider caching windows.**
+  Prompt caching may reduce cost across turns within provider-specific
+  cache windows. Long pauses between turns may pay the full cost again.
+  Document but don't
   mitigate.
 - **Pricing constants.** Cost surface hard-codes Claude's
   current input/output token prices. When prices change or new

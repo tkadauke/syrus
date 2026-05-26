@@ -34,10 +34,10 @@ What the admin API redacts vs returns verbatim:
 - `Run#agent_diff` (via `/transcript/raw`-equivalent paths) and
   `Run#agent_summary` / `agent_pr_title` / `agent_pr_body` — the
   operator owns the output of their own agents.
-- `ClaudeSession#transcript_jsonl` — the operator's own claude
-  conversation, including the prompts they sent and the agent's
-  reasoning. Required for transcript inspection via the UI/API to
-  serve any debugging purpose at all.
+- Provider transcript JSONL — the operator's own agent conversation,
+  including the prompts they sent and the agent's output. Required for
+  transcript inspection via the UI/API to serve any debugging purpose at
+  all.
 - `RunDiagnostic#error_message`, `JobLog#chunk` — plaintext stack
   traces, agent stdout. Token-redaction (above) is the only filter.
 - `User#email_address`, `gh_rate_limit_*` — surfaced to admins for

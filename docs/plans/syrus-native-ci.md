@@ -34,8 +34,8 @@ removing the round-trip through GitHub.
 Going one step further: the agent should iterate on grader output
 inside one Workflow, not via a follow-up `ci_failure` Workflow.
 This plan introduces a `Loop` chain primitive that wraps implement
-+ grade in a bounded retry, with the agent's session continuing
-across iterations via `--resume`.
++ grade in a bounded retry, with each iteration receiving the prior
+attempt's diff, grader output, and summary as prompt context.
 
 ## Decisions locked
 
@@ -47,10 +47,10 @@ across iterations via `--resume`.
    into a bounded retry. Default max iterations is 5, hard ceiling
    10, per-repo override via `.syrus.yml`, fleet-wide default in
    `AppSetting.grade_max_iterations`.
-3. **Session continuity across iterations via `--resume`.** Each
-   iteration's implement Run sets `parent_session_id` to the prior
-   iteration's `ClaudeSession.session_id`. The agent keeps full
-   memory of what it tried.
+3. **Iteration continuity through explicit context.** Each iteration's
+   implement Run receives the prior attempt's diff, grader output, and
+   notes in prompt context. Captured-session continuation is not part of
+   the MVP contract.
 4. **Full grader output flows to the agent, with a size escape
    hatch.** Up to 32 KB inline; over 32 KB → head 4 KB + tail 8 KB
    + path pointer to the full log on disk. Agent can `cat` /
@@ -224,8 +224,8 @@ After a grade Step terminates:
   3. Wire new iteration's grade's `next_step_id` → original
      post-loop step (looked up by walking the original chain
      definition; cached on `Workflow#chain_template`).
-  4. Enqueue the new implement Run with `parent_session_id`
-     copied from the prior iteration's `ClaudeSession`.
+  4. Enqueue the new implement Run with prior iteration context in
+     the prompt.
 - **Failed**, `iteration == loop.max_iterations`:
   Workflow fails with `failure_reason: "loop_exhausted"`. Last
   iteration's grade artifacts stay visible. No PR is opened.
@@ -272,13 +272,11 @@ file directly if the head+tail excerpt isn't sufficient.
 path that Initial / PrFeedback already use, so the
 `submit_summary` contract carries through every iteration.
 
-### 6. AgentInvocation — pass through `parent_session_id`
+### 6. AgentInvocation — pass through iteration context
 
-Already exists for the `resume` trigger kind. Reuse: when
-`Run#iteration > 1`, the implement Step sets
-`resume_session_id: run.parent_session_id` on the AgentInvocation
-constructor, exactly like `Steps::Base` does for the existing
-`resume` chain.
+When `Run#iteration > 1`, the implement Step includes the prior
+iteration's diff, grader output, and failure summary in the prompt so the
+agent can continue without relying on captured-session continuation.
 
 ### 7. UI: iteration switcher on the job show page
 
@@ -401,9 +399,8 @@ Ship as 4 PRs so each is independently reviewable and revertible:
 4. **Workspace exclusion:** after a workflow runs, `git status`
    inside the workspace clone is clean — no `.syrus/` directory
    listed.
-5. **Session continuity:** in iteration 2's claude transcript,
-   confirm `session_id` matches iteration 1's (proves `--resume`
-   threaded through, not a fresh session).
+5. **Iteration continuity:** in iteration 2's transcript, confirm the
+   prompt includes iteration 1's grader output and failure summary.
 6. **GitHub Actions removed:** `gh run list --limit 5` after a
    push shows no entries (no workflows on the repo).
 

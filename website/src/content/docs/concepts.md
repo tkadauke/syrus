@@ -149,8 +149,6 @@ signals are:
 
 | Signal | Purpose |
 | --- | --- |
-| `comment` | Leave an operator-facing note or progress message. |
-| `mark_failed` | Report that the agent cannot finish cleanly and why. |
 | `submit_summary` | Provide PR title, PR body, and a short run summary. |
 
 `submit_summary` is the core PR-copy path: the PR opener reads the

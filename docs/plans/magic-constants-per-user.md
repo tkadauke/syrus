@@ -48,7 +48,7 @@ ALTER TABLE users
   ADD COLUMN notify_on_run_failure  BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN notify_on_pr_review    BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN notify_email           VARCHAR(255) NULL,  -- NULL = email_address
-  ADD COLUMN notify_slack_webhook   TEXT NULL;          -- NULL = no Slack
+  ADD COLUMN notify_slack_url       TEXT NULL;          -- NULL = no Slack
 ```
 
 Only relevant once a notification system ships. Listed for future
@@ -78,7 +78,7 @@ No global churn needed; each field is independently shippable.
   generous floor preventing accidental "0 budget").
 - `concurrent_run_cap`: NULL or 1..100.
 - `notify_email`: NULL or matches the model's existing email format.
-- `notify_slack_webhook`: NULL or starts with `https://hooks.slack.com/`.
+- `notify_slack_url`: NULL or starts with `https://hooks.slack.com/`.
 
 ## Out of scope
 

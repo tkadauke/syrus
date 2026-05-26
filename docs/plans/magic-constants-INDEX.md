@@ -69,7 +69,7 @@ For reference, the constants the survey turned up, by destination:
 | `Run::STALE_HEARTBEAT_THRESHOLD` | 30.minutes | site-wide |
 | `WorkflowWorkspacePruneJob::RETAIN_AFTER_SUCCESS_OR_CANCEL` | 2.hours | site-wide |
 | `WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE` | 7.days | site-wide |
-| `ClaudeSession::RETAIN_AFTER_TERMINAL` | 14.days | site-wide |
+| Provider transcript retention | 14.days | site-wide |
 | `RunDiagnostic::RETAIN_AFTER` | 30.days | site-wide |
 | `RunHealthSnapshot::RETAIN_AFTER` | 7.days | site-wide |
 | `Invitation::DEFAULT_TTL` | 7.days | site-wide |

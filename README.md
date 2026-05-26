@@ -3,10 +3,9 @@
 > *Bis dat qui cito dat.*
 > He gives twice who gives quickly. — Publilius Syrus
 
-A multi-user, cross-repo issue→PR automation harness. Replaces the per-repo
-`process-issues` / `process-prs` / `implement-issue` Claude skills with a
-single Rails app that owns the deterministic plumbing — worktrees, branches,
-PRs, cleanup — so Claude can focus on writing code.
+A multi-user, cross-repo issue→PR automation harness. Syrus owns the
+deterministic plumbing — clones, branches, PRs, cleanup, retries, scheduled
+tasks, and rebases — so coding agents can focus on writing code.
 
 ## What problem this solves
 
@@ -17,36 +16,46 @@ and PR-creation boilerplate. When that mechanics layer goes off the rails
 
 **Syrus owns the mechanics. The agent only writes code.**
 
-## Architecture (locked in)
+## MVP Surface
 
 | Choice | Decision |
 | --- | --- |
 | Stack | Rails 8 + Solid Queue (MySQL in prod, SQLite in dev/test) |
-| Trigger model | Polling (no webhooks for v1 — keeps deploy boundary clean) |
+| Trigger model | External polling for GitHub issues, PR feedback, CI failures, merge state, and scheduled tasks |
 | Auth | Multi-user, first signup = admin, then invite-only |
-| Credentials | Per-user, encrypted at rest (Claude API key + GitHub token) |
+| Credentials | Per-user, encrypted at rest (GitHub token, Claude credential, Codex credential, admin API token) |
 | Workers | Separate container from the web app |
 | Deploy target | K3s via `green_acres`, alongside Winston/Gloria |
 | Domain | `agents.green-acres.estate`, overrideable via `SYRUS_APP_HOST` |
 
-Inspiration: tiny_ci's lightweight self-host posture. Not a fork — fresh app.
+Syrus ships these MVP workflows:
 
-## Roadmap
+- Labeled GitHub issue → prepare → implement → summarize → open PR.
+- PR feedback or failing checks → prepare → agent follow-up → summarize
+  amendment → push to the same PR.
+- Unmergeable controlled PR branch → deterministic rebase first, then an
+  agent rebase only if conflicts need judgment, followed by
+  `git push --force-with-lease` against the branch SHA Syrus observed.
+- Scheduled cron or one-shot task → normal issue-to-PR pipeline with
+  pile-up policy (`skip`, `pile`, or `replace`).
+- Direct operator-created Job → normal issue-to-PR pipeline without a
+  GitHub issue.
 
-The make-or-break milestone is **M3** — once the deterministic harness opens
-empty PRs reliably, swapping in the agent at M4 is mechanical.
+The MVP deliberately does **not** include inbound GitHub delivery, hosted
+multi-tenant sandboxing, out-of-band human escalation, shared drawing
+surfaces, native GitHub suggestion application, or captured-session
+continuation.
 
-| Milestone | Goal |
-| --- | --- |
-| **M0** | Rails 8 scaffold: SQLite (dev/test) + MySQL (prod), Solid Queue, Procfile, dev bootstrap |
-| **M1** | Data model: User (first=admin), encrypted creds, RepositoryRegistry, Job state machine |
-| **M2** | GitHub poller: per-user token, label-triggered issue ingestion, dedup |
-| **M3** | Deterministic harness — clones, branches, opens an empty PR, cleans up. **No AI yet.** |
-| **M4** | Agent invocation: replace the placeholder commit with `claude-code`, stream transcript |
-| **M5** | Web UI: repo registry CRUD, job dashboard, live transcript, retry/cancel |
-| **M6** | PR feedback loop: poll review comments, dispatch follow-up jobs |
-| **M7** | Hardening: worker isolation, resource limits, k8s secrets, Prometheus metrics, retention |
-| **M8** | Rollout: deploy to K3s, migrate first real repo, retire per-repo claude skills |
+## Security Posture
+
+The MVP assumes trusted users operating on trusted repositories. Agent runs
+execute in worker-managed per-Workflow workspaces under `SYRUS_DATA_ROOT`, not
+inside a hardened untrusted-code sandbox. This protects the operator checkout
+from accidental agent `chdir` mistakes, but it is not a security boundary.
+
+Run Syrus on infrastructure you control, register repositories whose code and
+setup commands you are willing to execute, scope GitHub tokens narrowly, keep
+secrets out of repositories, and review generated PRs before merging.
 
 ## Getting started
 
@@ -77,6 +86,22 @@ Syrus recognizes `syrus-skip-prepare` on a source issue as an escape hatch for
 broken prepare commands. Jobs ingested with that label skip the prepare step and
 start at implementation; removing the label restores the normal prepare-first
 workflow on the next ingest.
+
+## Scheduled Tasks
+
+Cron tasks use five-field cron expressions in UTC, but the MVP treats them
+as hourly windows: the minute field is ignored for schedule matching, and a
+task fires at most once in a matching UTC hour. Syrus stores a per-task
+minute offset so many tasks with the same nominal schedule do not all fire on
+the same poll tick.
+
+## Credential Controls
+
+Users can replace GitHub and agent credentials from **My credentials** by
+submitting a new value. Admin API tokens are controlled separately: admins can
+generate, rotate, or revoke them from the same page. Rotating invalidates the
+old token immediately; revoking removes API access until a new token is
+generated.
 
 ## Naming
 

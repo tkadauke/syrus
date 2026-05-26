@@ -80,8 +80,8 @@ unification (option (c)) all hang off it.
 - New model `AgentSession`, `belongs_to :repository`,
   `has_many :messages`. Multiple concurrent per repo.
 - New table `agent_messages`: turn-by-turn conversation log.
-- `--resume` threading via existing `ClaudeSession` infrastructure
-  (already battle-tested by the workflow chains).
+- Thread continuity via explicit chat-session state and persisted
+  message history.
 - Browser UI: full-page session view with streamed turns, tool-use
   cards, attach-file. Stimulus controller for the streaming side;
   Turbo Streams for new-message pushes.

@@ -59,7 +59,7 @@ comments, and line comments. When it sees new feedback, it creates a
 prepare -> respond -> summarize_amend -> push
 ```
 
-There is no GitHub webhook to install and no per-repo GitHub Action.
+There is no GitHub inbound callback to install and no per-repo GitHub Action.
 Leave polling enabled for the repository and comment on the PR normally:
 
 ```text
@@ -105,10 +105,11 @@ Prompt:
   report no changes.
 ```
 
-Cron expressions are five-field cron in UTC. Syrus enforces a minimum
-one-hour interval and replaces the minute field with a stable random
-offset, so many tasks scheduled for `0 9 * * 1` do not all fire at the
-same wall-clock minute.
+Cron expressions are five-field cron in UTC. In the MVP, Syrus treats
+cron tasks as hourly windows: the minute field is ignored for matching,
+and a task can fire at most once in a matching UTC hour. Syrus stores a
+stable per-task minute offset, so many tasks scheduled for the same hour
+do not all fire on the same poll tick.
 
 The `pr_pileup_policy` controls what happens when the previous scheduled
 PR is still open:
@@ -117,10 +118,10 @@ PR is still open:
 - `pile`: create another Job anyway.
 - `replace`: close the previous scheduled PR and open a fresh one.
 
-Expected outcome: on the next due minute, Syrus creates a `cron` Job on a
-branch like `syrus/scheduled-<task_id>-<job_id>`. If the agent finds no
-useful change, "no changes" is a successful outcome and the Job closes
-without a PR.
+Expected outcome: during the next matching hourly window, Syrus creates a
+`cron` Job on a branch like `syrus/scheduled-<task_id>-<job_id>`. If the
+agent finds no useful change, "no changes" is a successful outcome and the
+Job closes without a PR.
 
 Troubleshooting: see
 [Scheduled tasks are not firing](/docs/troubleshooting#scheduled-tasks-are-not-firing).
