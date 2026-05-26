@@ -117,6 +117,7 @@ Rails.application.routes.draw do
     # the top-level /chats/* resource (see `resources :chats` below).
     # The repository chat home (no tab, no UI entry point) is gone;
     # the per-repo controller was pure duplication of ChatsController.
+    resource :whiteboard, only: %i[ show update ], controller: "repositories/whiteboards"
     resources :notes, only: %i[ create destroy ], controller: "repositories/notes"
     resources :documents, only: %i[ index create destroy ], controller: "repositories/documents", shallow: true
     resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals" do
@@ -208,10 +209,10 @@ Rails.application.routes.draw do
       post :poll_feedback  # manually trigger PollPullRequestJob for this Job
       post :rebase         # manually trigger a rebase Run on this Job's PR
       post :check_mergeability  # ask GitHub for the latest mergeable status now
+      post :resume         # continue a failed Run via claude --resume
       post :stop_run       # cancel a single active Run without closing the thread
       post :retry_step     # re-run the failed step in a failed Workflow (keeps the existing workspace)
       post :push_commits   # push uncommitted/committed local changes from a failed Workflow's workspace
-      post :operator_response # answer an ask_operator question and requeue the Run
       post :tags, action: :add_tag
       delete "tags/:tag_id", action: :remove_tag, as: :tag
       get  :source         # browse the repo source at any branch commit or merge base
@@ -289,8 +290,6 @@ Rails.application.routes.draw do
   end
 
   post "github_app/webhook", to: "github_app_webhooks#create", as: :github_app_webhook
-  post "telegram/webhook", to: "telegram_webhooks#create", as: :telegram_webhook
-
   post "dashboard/jobs/bulk", to: "home#bulk_jobs", as: :bulk_dashboard_jobs
   root "home#index"
 

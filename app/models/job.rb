@@ -5,7 +5,6 @@ class Job < ApplicationRecord
   KINDS = %w[ issue cron direct ].freeze
   CREDENTIAL_MODES = %w[ app pat ].freeze
   PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
-  OPERATOR_CHAT_OPT_OUT_LABEL = "syrus-no-chat".freeze
 
   PRIORITIES = %w[ high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze
@@ -40,7 +39,6 @@ class Job < ApplicationRecord
   has_many :job_attachments, -> { order(:created_at, :id) }, as: :attachable, class_name: "Document", dependent: :destroy
   has_many :job_tags, dependent: :destroy
   has_many :tags, -> { order(Arel.sql("LOWER(tags.name) ASC")) }, through: :job_tags
-  has_many :operator_questions, dependent: :destroy
   has_many :dependencies,
            class_name: "JobDependency",
            dependent: :destroy,
@@ -602,7 +600,7 @@ class Job < ApplicationRecord
 
   def restore_epic_block_if_not_started!
     return false unless queued?
-    return false if runs.where(state: %w[running awaiting_operator succeeded failed]).exists?
+    return false if runs.where(state: %w[running succeeded failed]).exists?
 
     transaction do
       workflows.where(state: "queued").find_each do |workflow|
@@ -640,11 +638,9 @@ class Job < ApplicationRecord
     issue = GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, issue_number)
     names = Workflows.label_names(issue.labels)
     skip = names.include?(Workflows::SKIP_PREPARE_LABEL)
-    no_chat = names.include?(OPERATOR_CHAT_OPT_OUT_LABEL)
 
     updates = {}
     updates[:skip_prepare] = skip if skip_prepare? != skip
-    updates[:operator_chat_disabled] = no_chat if operator_chat_disabled? != no_chat
     update!(updates) if updates.any?
 
     skip

@@ -48,12 +48,6 @@ RSpec.describe JobsHelper, type: :helper do
       expect(helper.job_attention_status(job)).to eq("awaiting feedback")
     end
 
-    it "returns running when a run is awaiting operator input" do
-      job = Factories.job
-      job.initial_run.update!(state: "awaiting_operator")
-
-      expect(helper.job_attention_status(job)).to eq("running")
-    end
   end
 
 describe "#job_summary_state" do

@@ -30,19 +30,13 @@ module Filters
         # of the preset, not every edge case in `apply_*`. Re-selecting
         # the preset is always available if the expansion drifts.
         #
-        # Presets without a clean primitive mapping (`inbox`, which
-        # depends on awaiting_operator state that has no chip) return
-        # nil — the UI hides the Expand button for those.
+        # Presets without a clean primitive mapping return nil — the
+        # UI hides the Expand button for those.
         EXPANSIONS = {
           "pinned"             => -> { chip_node("pinned_by_me", "is_true", nil) },
           "in_progress"        => -> { chip_node("state", "is_one_of", %w[running landing]) },
           # `inbox` is the union of every reason a Job might be sitting
-          # in the operator's queue. apply_inbox also includes
-          # `awaiting_operator_ids` (runs in operator-question state),
-          # which has no primitive chip — the expansion is intentionally
-          # lossy on that branch. Re-selecting the preset is always
-          # available if the expansion misses a Job the apply scope
-          # would have caught.
+          # in the operator's queue.
           "inbox"              => -> {
             and_node(
               chip_node("state", "is", "open"),
@@ -139,8 +133,7 @@ module Filters
 
         def apply_inbox
           open = scope.open_threads
-          open.where(id: awaiting_operator_ids)
-              .or(open.where(id: unread_feedback_ids))
+          open.where(id: unread_feedback_ids)
               .or(open.where(state: "failed"))
               .or(open.where(id: awaiting_epic_ids))
               .or(open.where(id: needs_review_ids))
@@ -184,10 +177,6 @@ module Filters
 
         def apply_landing_queue
           scope.landing_queue
-        end
-
-        def awaiting_operator_ids
-          Run.where(state: "awaiting_operator").select(:job_id)
         end
 
         def latest_failed_run_ids

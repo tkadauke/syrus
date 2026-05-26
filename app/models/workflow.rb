@@ -9,7 +9,6 @@ class Workflow < ApplicationRecord
 
   belongs_to :job
   has_many :steps, -> { order(:position) }, dependent: :destroy
-  has_many :operator_questions, dependent: :destroy
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
@@ -125,7 +124,7 @@ class Workflow < ApplicationRecord
   # so that the Step's terminal transition observes Runs already
   # cancelled — keeps the per-Run audit trail honest. Idempotent:
   # already-terminal records are skipped (may_cancel? returns false).
-  # Cancel any :queued / :running / :awaiting_operator Runs left on
+  # Cancel any :queued / :running Runs left on
   # this workflow when it transitions to :failed. Unlike
   # cancel_active_descendants! (used by Workflow#cancel), this
   # deliberately does NOT cancel Steps — Workflow#fail preserves the

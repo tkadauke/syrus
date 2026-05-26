@@ -75,27 +75,6 @@ RSpec.describe Run do
       expect { run.fail! }.to change(run, :state).from("queued").to("failed")
     end
 
-    it "running → awaiting_operator via await_operator" do
-      run = job.initial_run
-      run.start!
-      expect { run.await_operator! }.to change(run, :state).from("running").to("awaiting_operator")
-      expect(run.finished_at).to be_nil
-    end
-
-    it "awaiting_operator → failed via fail" do
-      run = job.initial_run
-      run.start!
-      run.await_operator!
-      expect { run.fail! }.to change(run, :state).from("awaiting_operator").to("failed")
-    end
-
-    it "awaiting_operator → cancelled via cancel" do
-      run = job.initial_run
-      run.start!
-      run.await_operator!
-      expect { run.cancel! }.to change(run, :state).from("awaiting_operator").to("cancelled")
-    end
-
     it "cannot succeed without starting" do
       run = job.initial_run
       expect(run.may_succeed?).to be false
@@ -147,13 +126,13 @@ RSpec.describe Run do
   end
 
   describe "scopes" do
-    it "active = queued + running + awaiting_operator" do
+    it "active = queued + running" do
       a = job.initial_run
       Run.create!(job: job, trigger_kind: "pr_comment")  # queued
       a.start!; a.save!
-      awaiting = Run.create!(job: job, trigger_kind: "manual")
-      awaiting.update_columns(state: "awaiting_operator")
-      expect(job.runs.active.count).to eq(3)
+      failed = Run.create!(job: job, trigger_kind: "manual")
+      failed.update_columns(state: "failed")
+      expect(job.runs.active.count).to eq(2)
     end
 
     it "terminal = succeeded + failed + cancelled" do

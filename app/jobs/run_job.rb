@@ -118,11 +118,6 @@ class RunJob < ApplicationJob
       return
     end
 
-    if @run.awaiting_operator?
-      log("run awaiting operator input; leaving parked")
-      return
-    end
-
     if @run.running?
       # Worker died mid-perform on a prior attempt (or SQ re-claimed
       # us after a process prune). Fail with worker_died so the
@@ -166,7 +161,6 @@ class RunJob < ApplicationJob
 
     return if @run.terminal? || @step.terminal? || @workflow.terminal?
 
-    @run.agent_outcome = "awaiting_operator" if @run.operator_questions.exists?
     @run.succeed!
     @run.save!
     @step.succeed!

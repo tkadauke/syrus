@@ -82,12 +82,6 @@ RSpec.describe Prompts::PrFeedback do
     expect(out).to end_with(Prompts::SubmitSummaryInstructions::TEXT)
   end
 
-  it "includes the operator clarification instruction" do
-    out = described_class.new(issue: issue, comments: [ conversation ]).to_s
-
-    expect(out).to include(Prompts::OperatorClarificationInstructions::TEXT)
-  end
-
   it "renders inline comments with path:line + indented diff_hunk" do
     out = described_class.new(issue: issue, comments: [ inline ]).to_s
 

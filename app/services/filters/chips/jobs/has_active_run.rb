@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module Jobs
-      # "Active" matches Run's scope: queued / running / awaiting_operator.
+      # "Active" matches Run's scope: queued / running.
       class HasActiveRun < Base
         filter_name "has_active_run"
         label "Has active run"

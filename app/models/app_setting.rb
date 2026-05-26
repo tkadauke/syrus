@@ -12,8 +12,6 @@ class AppSetting < ApplicationRecord
 
   encrypts :github_app_private_key_pem
   encrypts :github_app_webhook_secret
-  encrypts :telegram_bot_token
-  encrypts :telegram_webhook_secret
 
   # Singleton row. .current returns the only record, creating it if missing.
   def self.current

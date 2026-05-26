@@ -31,25 +31,22 @@ RSpec.describe User do
         .to all(eq(:text))
     end
 
-    it "round-trips claude_oauth_token, codex credentials, github_token, and telegram_chat_id" do
+    it "round-trips claude_oauth_token, codex credentials, and github_token" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-abc",
                                       codex_api_key: "sk-codex",
                                       codex_auth_json: Factories.codex_auth_json(access_token: "codex-access"),
-                                      github_token: "ghp_xyz",
-                                      telegram_chat_id: "123456"))
+                                      github_token: "ghp_xyz"))
       reloaded = User.find(user.id)
       expect(reloaded.claude_oauth_token).to eq("oat-abc")
       expect(reloaded.codex_api_key).to eq("sk-codex")
       expect(reloaded.codex_auth_json).to include("codex-access")
       expect(reloaded.github_token).to eq("ghp_xyz")
-      expect(reloaded.telegram_chat_id).to eq("123456")
     end
 
     it "stores ciphertext, not plaintext, in the column" do
-      user = User.create!(attrs.merge(claude_oauth_token: "oat-secret", telegram_chat_id: "123456"))
-      row = User.connection.select_one("SELECT claude_oauth_token, telegram_chat_id FROM users WHERE id = #{user.id}")
+      user = User.create!(attrs.merge(claude_oauth_token: "oat-secret"))
+      row = User.connection.select_one("SELECT claude_oauth_token FROM users WHERE id = #{user.id}")
       expect(row["claude_oauth_token"]).not_to include("oat-secret")
-      expect(row["telegram_chat_id"]).not_to include("123456")
     end
 
     it "round-trips encrypted credential payloads larger than a string column" do

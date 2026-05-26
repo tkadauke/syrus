@@ -52,18 +52,6 @@ RSpec.describe WorkflowWorkspacePruneJob do
     described_class.perform_now
   end
 
-  it "db_sweep preserves succeeded workflows while a run is awaiting operator input" do
-    wf = make_workflow(
-      state: "succeeded",
-      finished_at: (described_class::RETAIN_AFTER_SUCCESS_OR_CANCEL + 1.minute).ago
-    )
-    step = Step.create!(workflow: wf, kind: "implement", position: 0, state: "running")
-    Run.create!(job: wf.job, step: step, trigger_kind: "initial", state: "awaiting_operator")
-
-    expect(WorkflowWorkspace).not_to receive(:cleanup_for).with(wf)
-    described_class.perform_now
-  end
-
   # ---- db_sweep: failed uses long retention -----------------------
 
   it "db_sweep cleans failed workflows past RETAIN_AFTER_FAILURE" do
@@ -103,18 +91,6 @@ RSpec.describe WorkflowWorkspacePruneJob do
   it "db_sweep skips active workflows even if they're old" do
     active = make_workflow(state: "running", finished_at: nil)
     expect(WorkflowWorkspace).not_to receive(:cleanup_for).with(active)
-    described_class.perform_now
-  end
-
-  it "db_sweep preserves failed workflows while a run is awaiting operator input" do
-    wf = make_workflow(
-      state: "failed",
-      finished_at: (described_class::RETAIN_AFTER_FAILURE + 1.day).ago
-    )
-    step = Step.create!(workflow: wf, kind: "implement", position: 0, state: "running")
-    Run.create!(job: wf.job, step: step, trigger_kind: "initial", state: "awaiting_operator")
-
-    expect(WorkflowWorkspace).not_to receive(:cleanup_for).with(wf)
     described_class.perform_now
   end
 
@@ -163,24 +139,6 @@ RSpec.describe WorkflowWorkspacePruneJob do
     described_class.perform_now
 
     expect(wf_path).to exist
-  end
-
-  it "filesystem_sweep preserves a failed workflow dir while a run is awaiting operator input" do
-    allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
-
-    wf = make_workflow(
-      state: "failed",
-      finished_at: (described_class::RETAIN_AFTER_FAILURE + 1.day).ago
-    )
-    step = Step.create!(workflow: wf, kind: "implement", position: 0, state: "running")
-    Run.create!(job: wf.job, step: step, trigger_kind: "initial", state: "awaiting_operator")
-    wf_path = Pathname.new(data_root).join("workflows", wf.id.to_s)
-    FileUtils.mkdir_p(wf_path.to_s)
-
-    described_class.perform_now
-
-    expect(wf_path).to exist
-    expect(wf.reload.cleaned_up_at).to be_nil
   end
 
   it "filesystem_sweep is a no-op when the workflows/ dir does not exist" do

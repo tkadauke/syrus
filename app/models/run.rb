@@ -2,7 +2,7 @@ class Run < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  TRIGGER_KINDS = %w[ initial pr_comment ci_failure retry manual rebase auto_merge local_dev ].freeze
+  TRIGGER_KINDS = %w[ initial pr_comment ci_failure retry manual rebase auto_merge resume local_dev ].freeze
 
   belongs_to :job
   # Step is optional during the migration window: existing Runs
@@ -16,7 +16,6 @@ class Run < ApplicationRecord
   has_many :run_health_snapshots, -> { order(:created_at) }, dependent: :destroy
   has_one :claude_session, as: :resumable, dependent: :destroy
   has_one :run_diagnostic, dependent: :destroy
-  has_many :operator_questions, dependent: :destroy
 
   # Convenience walk up to Workflow when step is set.
   def workflow
@@ -40,7 +39,7 @@ class Run < ApplicationRecord
   # reads, broad greps, multi-file edits).
   STALE_HEARTBEAT_THRESHOLD = 30.minutes
 
-  scope :active, -> { where(state: %w[ queued running awaiting_operator ]) }
+  scope :active, -> { where(state: %w[ queued running ]) }
   scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
   scope :ordered, -> { order(:created_at) }
   scope :stale, -> {
@@ -52,7 +51,7 @@ class Run < ApplicationRecord
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
     state :queued, initial: true
-    state :running, :awaiting_operator, :succeeded, :failed, :cancelled
+    state :running, :succeeded, :failed, :cancelled
 
     event :start do
       transitions from: :queued, to: :running, after: -> { self.started_at = Time.current }
@@ -63,27 +62,13 @@ class Run < ApplicationRecord
     end
 
     event :fail do
-      transitions from: [ :queued, :running, :awaiting_operator ], to: :failed, after: -> { self.finished_at = Time.current }
+      transitions from: [ :queued, :running ], to: :failed, after: -> { self.finished_at = Time.current }
     end
 
     event :cancel do
-      transitions from: [ :queued, :running, :awaiting_operator ], to: :cancelled, after: -> { self.finished_at = Time.current }
-    end
-
-    event :await_operator do
-      transitions from: :running, to: :awaiting_operator
-    end
-
-    event :queue_after_operator_response do
-      transitions from: :awaiting_operator, to: :queued, after: -> {
-        self.started_at = nil
-        self.finished_at = nil
-      }
+      transitions from: [ :queued, :running ], to: :cancelled, after: -> { self.finished_at = Time.current }
     end
   end
-
-  after_update_commit :enqueue_run_job_after_operator_response,
-                      if: :saved_change_to_state_to_queued_from_awaiting_operator?
 
   after_create_commit :enqueue_run_job
 
@@ -114,16 +99,6 @@ class Run < ApplicationRecord
 
   def saved_change_to_state_to_succeeded?
     saved_change_to_state? && state == "succeeded"
-  end
-
-  def saved_change_to_state_to_queued_from_awaiting_operator?
-    saved_change_to_state? &&
-      state == "queued" &&
-      saved_change_to_state&.first == "awaiting_operator"
-  end
-
-  def enqueue_run_job_after_operator_response
-    RunJob.set(priority: job.solid_queue_priority).perform_later(id)
   end
 
   def cascade_cancel_to_workflow!
@@ -177,20 +152,12 @@ class Run < ApplicationRecord
     trigger_kind == "rebase"
   end
 
-  def continue_after_operator_response!(response_text: operator_chat_response)
-    text = response_text.to_s.strip
-    return false if text.blank?
-
-    self.operator_chat_response = text if has_attribute?(:operator_chat_response)
-    self.prompt = [
-      prompt.presence,
-      "The operator replied to your clarification question:",
-      text
-    ].compact.join("\n\n")
-    self.agent_outcome = "operator_responded"
-
-    queue_after_operator_response! if may_queue_after_operator_response?
-    save!
+  # Resume Runs continue an agent session whose worker died
+  # mid-flight. RunJob restores the prior session's JSONL to disk
+  # before invoking the provider's resume path, and uses Prompts::Resume
+  # as the new prompt so the agent knows what just happened.
+  def resume?
+    trigger_kind == "resume"
   end
 
   def terminal?

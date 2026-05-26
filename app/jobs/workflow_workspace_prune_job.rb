@@ -34,7 +34,6 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     Workflow.where(state: %w[ succeeded cancelled ])
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", sc_cutoff)
-            .where.not(id: awaiting_operator_workflow_ids)
             .find_each do |wf|
       WorkflowWorkspace.cleanup_for(wf)
       n += 1
@@ -45,7 +44,6 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     Workflow.where(state: "failed")
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", f_cutoff)
-            .where.not(id: awaiting_operator_workflow_ids)
             .find_each do |wf|
       WorkflowWorkspace.cleanup_for(wf)
       n += 1
@@ -79,7 +77,6 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       end
 
       next unless wf.terminal?
-      next if awaiting_operator_workflow_ids.exists?(id: wf.id)
       next unless wf.finished_at
 
       retention = (wf.succeeded? || wf.cancelled?) ? RETAIN_AFTER_SUCCESS_OR_CANCEL : RETAIN_AFTER_FAILURE
@@ -92,12 +89,6 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     end
 
     Rails.logger.info("[WorkflowWorkspacePrune] filesystem_sweep removed #{n} orphaned workflow dirs") if n > 0
-  end
-
-  def awaiting_operator_workflow_ids
-    Workflow.joins(steps: :runs)
-            .where(runs: { state: "awaiting_operator" })
-            .select(:id)
   end
 
   def chat_workspace_sweep

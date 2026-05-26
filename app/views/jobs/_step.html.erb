@@ -158,10 +158,6 @@
         </details>
       <% end %>
 
-      <% run.operator_questions.includes(:operator_responses).order(:asked_at, :created_at).each do |question| %>
-        <%= render "operator_question", job: job, run: run, question: question %>
-      <% end %>
-
       <%# Skip the transcript for steps that haven't started yet —
           the agent hasn't been spawned, there's nothing to show,
           and the empty "(empty)" placeholder + collapsible just

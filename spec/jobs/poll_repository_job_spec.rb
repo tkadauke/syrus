@@ -54,17 +54,6 @@ RSpec.describe PollRepositoryJob do
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize pr_open ])
     end
 
-    it "recognizes string-shaped operator-chat opt-out labels" do
-      github_issue = issue(labels: [])
-      github_issue.labels = [ "syrus", Job::OPERATOR_CHAT_OPT_OUT_LABEL ]
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ github_issue ])
-
-      described_class.perform_now(repository.id)
-
-      expect(Job.find_by!(repository: repository, issue_number: 42)).to be_operator_chat_disabled
-    end
-
     it "keeps the initial workflow starting with prepare when the skip-prepare label is absent" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(labels: [ "syrus" ]) ])
@@ -364,24 +353,6 @@ RSpec.describe PollRepositoryJob do
       workflow = job.latest_workflow
       expect(workflow.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize pr_open ])
       expect(workflow.artifact("prepare_skipped_reason")).to eq("issue_label")
-    end
-
-    it "stores the operator-chat opt-out when the issue has the no-chat label" do
-      label = Struct.new(:name)
-      issue = Struct.new(:number, :state, :pull_request, :labels).new(
-        99,
-        "open",
-        nil,
-        [
-          label.new("syrus"),
-          label.new(Job::OPERATOR_CHAT_OPT_OUT_LABEL)
-        ]
-      )
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue ])
-
-      described_class.perform_now(repository.id)
-
-      expect(Job.find_by!(repository: repository, issue_number: 99)).to be_operator_chat_disabled
     end
 
     it "dedups against any prior Job (open or closed) — prevents the duplicate-PR loop" do

@@ -35,7 +35,7 @@ module Prompts
       ].compact
 
       body = sections.join("\n\n---\n\n")
-      [ body, OperatorClarificationInstructions::TEXT, GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].join("\n\n")
+      [ body, GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].join("\n\n")
     end
 
     private

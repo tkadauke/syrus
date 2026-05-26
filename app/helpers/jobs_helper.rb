@@ -5,7 +5,6 @@ module JobsHelper
     "succeeded" => "bg-green-100 text-green-700",
     "failed"    => "bg-red-100 text-red-700",
     "cancelled" => "bg-amber-100 text-amber-700",
-    "awaiting_operator" => "bg-fuchsia-100 text-fuchsia-700",
     "open"      => "bg-emerald-100 text-emerald-700",
     "triaging"  => "bg-sky-100 text-sky-700",
     "blocked_by_epic" => "bg-amber-100 text-amber-700",
@@ -151,9 +150,9 @@ module JobsHelper
     end
 
     has_running_run = if job.runs.loaded?
-      job.runs.any? { |run| %w[running awaiting_operator].include?(run.state) }
+      job.runs.any? { |run| run.state == "running" }
     else
-      job.runs.where(state: %w[running awaiting_operator]).exists?
+      job.runs.where(state: "running").exists?
     end
 
     has_queued_run = if job.runs.loaded?

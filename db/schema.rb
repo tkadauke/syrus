@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_26_014720) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -62,8 +62,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
     t.boolean "polling_paused", default: false, null: false
     t.boolean "runs_paused", default: false, null: false
     t.boolean "signups_open", default: false, null: false
-    t.text "telegram_bot_token"
-    t.text "telegram_webhook_secret"
     t.datetime "updated_at", null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
   end
@@ -393,7 +391,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
     t.string "last_ci_handled_sha"
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
-    t.boolean "operator_chat_disabled", default: false, null: false
     t.integer "parent_job_id"
     t.json "pending_epic_reference", null: false
     t.boolean "pr_mergeable"
@@ -427,34 +424,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
     t.index ["validity"], name: "index_jobs_on_validity"
   end
 
-  create_table "operator_questions", force: :cascade do |t|
-    t.datetime "asked_at", null: false
-    t.json "context", null: false
-    t.datetime "created_at", null: false
-    t.integer "job_id", null: false
-    t.integer "run_id", null: false
-    t.text "text", null: false
-    t.datetime "updated_at", null: false
-    t.integer "workflow_id", null: false
-    t.index ["job_id"], name: "index_operator_questions_on_job_id"
-    t.index ["run_id", "asked_at"], name: "index_operator_questions_on_run_id_and_asked_at"
-    t.index ["run_id"], name: "index_operator_questions_on_run_id"
-    t.index ["workflow_id"], name: "index_operator_questions_on_workflow_id"
-  end
-
-  create_table "operator_responses", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "operator_question_id", null: false
-    t.datetime "responded_at", null: false
-    t.text "text", null: false
-    t.datetime "updated_at", null: false
-    t.index ["operator_question_id", "responded_at"], name: "index_operator_responses_on_question_and_responded_at"
-    t.index ["operator_question_id"], name: "index_operator_responses_on_operator_question_id"
-  end
-
   create_table "repositories", force: :cascade do |t|
     t.string "agent_provider"
-    t.string "allow_operator_chat", default: "disabled", null: false
     t.boolean "approval_propagates_to_github", default: true
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
@@ -491,6 +462,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
     t.integer "repository_id", null: false
     t.index ["repository_id", "removed_at", "created_at"], name: "index_repo_notes_on_active_order"
     t.index ["repository_id"], name: "index_repository_notes_on_repository_id"
+  end
+
+  create_table "repository_whiteboards", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.json "scene_json", null: false
+    t.datetime "updated_at", null: false
+    t.integer "version", default: 0, null: false
+    t.index ["repository_id"], name: "index_repository_whiteboards_on_repository_id", unique: true
   end
 
   create_table "run_diagnostics", force: :cascade do |t|
@@ -556,9 +536,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
     t.integer "iteration", default: 1, null: false
     t.integer "job_id", null: false
     t.datetime "last_heartbeat_at"
-    t.boolean "nudge_sent", default: false, null: false
-    t.text "operator_chat_response"
-    t.string "operator_chat_thread_id"
     t.integer "output_tokens"
     t.string "parent_session_id"
     t.text "prompt"
@@ -569,10 +546,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
     t.datetime "updated_at", null: false
     t.index ["job_id", "state"], name: "index_runs_on_job_id_and_state"
     t.index ["job_id"], name: "index_runs_on_job_id"
-    t.index ["operator_chat_thread_id"], name: "index_runs_on_operator_chat_thread_id"
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
-    t.index ["state", "nudge_sent", "created_at"], name: "index_runs_on_operator_nudge_window"
     t.index ["step_id"], name: "index_runs_on_step_id"
   end
 
@@ -733,7 +708,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
     t.string "name"
     t.string "password_digest", null: false
     t.boolean "scheduling_paused", default: false, null: false
-    t.text "telegram_chat_id"
     t.datetime "updated_at", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
@@ -811,13 +785,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
   add_foreign_key "jobs", "users"
   add_foreign_key "jobs", "users", column: "approved_by_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
-  add_foreign_key "operator_questions", "jobs"
-  add_foreign_key "operator_questions", "runs"
-  add_foreign_key "operator_questions", "workflows"
-  add_foreign_key "operator_responses", "operator_questions"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "repository_notes", "repositories"
+  add_foreign_key "repository_whiteboards", "repositories"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "runs", "jobs"
