@@ -12,6 +12,8 @@ require "fileutils"
 # before running rebase. No Ruby/Rails-specific knowledge in Syrus;
 # the driver lives in (and is shipped by) the target repo.
 class AutoRebase
+  class LeaseRejected < StandardError; end
+
   class Result
     attr_reader :succeeded, :reason, :note, :changed, :pre_sha, :post_sha, :base_sha
 
@@ -77,6 +79,7 @@ class AutoRebase
 
     base_sha = base_head_sha
     pre_sha = head_sha
+    @expected_remote_sha = pre_sha
 
     if rebase_succeeded?
       post_sha = head_sha
@@ -90,8 +93,10 @@ class AutoRebase
       end
     else
       abort_rebase
-      Result.new(false, "conflict", nil)
+      Result.new(false, "conflict", nil, pre_sha: pre_sha, base_sha: base_sha)
     end
+  rescue LeaseRejected => e
+    Result.new(false, "lease_rejected", e.message, pre_sha: @expected_remote_sha)
   rescue StandardError => e
     abort_rebase
     Rails.logger.warn("[AutoRebase] job #{@job.id} unexpected error: #{e.class}: #{e.message}")
@@ -193,9 +198,23 @@ class AutoRebase
   end
 
   def force_push
-    @git.run("push", "--force", authenticated_url,
+    @git.run("push", force_with_lease_arg, authenticated_url,
              "HEAD:refs/heads/#{@job.branch_name}",
              chdir: clone_path.to_s, env: @env)
+  rescue GitRunner::GitError => e
+    raise e unless lease_rejected?(e)
+
+    raise LeaseRejected,
+      "Lease rejected while pushing rebased branch #{@job.branch_name}. " \
+      "The remote branch moved after Syrus fetched it; refusing to overwrite newer remote work."
+  end
+
+  def force_with_lease_arg
+    "--force-with-lease=refs/heads/#{@job.branch_name}:#{@expected_remote_sha}"
+  end
+
+  def lease_rejected?(error)
+    error.output.to_s.match?(/stale info|fetch first|rejected/i)
   end
 
   def head_sha

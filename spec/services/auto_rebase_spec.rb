@@ -45,14 +45,16 @@ RSpec.describe AutoRebase do
     FileUtils.rm_rf(syrus_data_root)
   end
 
-  it "force-pushes a deterministic rebase when there are no conflicts" do
+  it "pushes a deterministic rebase with an explicit force-with-lease when there are no conflicts" do
     # Make a feature branch with one commit, then advance main with a
     # disjoint commit so the feature branch is "behind".
     feature = "syrus/issue-42-#{job.id}"
     push_branch_with_file(feature, "feature.rb", "FEATURE\n", "feature commit")
     push_main_advance("README.md", "README\n", "main moves forward")
 
-    result = described_class.new(job).call
+    git = RecordingGitRunner.new
+
+    result = described_class.new(job, git: git).call
     expect(result).to be_succeeded
     expect(result.reason).to eq("rebased")
     expect(result.changed?).to be true
@@ -63,6 +65,27 @@ RSpec.describe AutoRebase do
     # Branch on origin should now contain BOTH the README and feature.rb
     files = `git --git-dir=#{bare_remote_dir} ls-tree --name-only #{feature}`.split("\n")
     expect(files).to include("feature.rb").and include("README.md")
+
+    push_args = git.commands.find { |args| args.first == "push" }
+    expect(push_args).to include("--force-with-lease=refs/heads/#{feature}:#{result.pre_sha}")
+    expect(push_args).not_to include("--force")
+  end
+
+  it "fails safely when the remote branch moves before the lease-protected push" do
+    feature = "syrus/issue-42-#{job.id}"
+    push_branch_with_file(feature, "feature.rb", "FEATURE\n", "feature commit")
+    push_main_advance("README.md", "README\n", "main moves forward")
+    pre_branch_sha = `git --git-dir=#{bare_remote_dir} rev-parse #{feature}`.strip
+
+    git = RecordingGitRunner.new(before_push: -> { append_to_branch(feature, "human.rb", "HUMAN\n", "human push") })
+
+    result = described_class.new(job, git: git).call
+
+    expect(result).not_to be_succeeded
+    expect(result.reason).to eq("lease_rejected")
+    expect(result.note).to include("remote branch moved")
+    expect(`git --git-dir=#{bare_remote_dir} rev-parse #{feature}^`.strip).to eq(pre_branch_sha)
+    expect(`git --git-dir=#{bare_remote_dir} ls-tree --name-only #{feature}`.split("\n")).to include("human.rb")
   end
 
   it "is a no-op when the branch is already up-to-date with base" do
@@ -116,6 +139,7 @@ RSpec.describe AutoRebase do
     result = described_class.new(job).call
     expect(result).not_to be_succeeded
     expect(result.reason).to eq("conflict")
+    expect(result.pre_sha).to eq(pre_branch_sha)
 
     # Branch on origin must be unchanged — we did NOT force-push a
     # half-rebased branch.
@@ -184,10 +208,41 @@ RSpec.describe AutoRebase do
     end
   end
 
+  def append_to_branch(branch, file, content, message)
+    Dir.mktmpdir("push-branch") do |w|
+      sh("git clone -q file://#{bare_remote_dir} #{w}")
+      sh("git -C #{w} checkout -q #{branch}")
+      File.write(File.join(w, file), content)
+      sh("git -C #{w} add .")
+      sh("git -C #{w} -c user.email=t@e -c user.name=t commit -q -m '#{message}'")
+      sh("git -C #{w} push -q origin #{branch}")
+    end
+  end
+
   def sh(cmd)
     out, err, status = Open3.capture3({ "GIT_AUTHOR_NAME" => "T", "GIT_AUTHOR_EMAIL" => "t@e",
                                         "GIT_COMMITTER_NAME" => "T", "GIT_COMMITTER_EMAIL" => "t@e" }, cmd)
     raise "shell failed: #{cmd}\n#{out}\n#{err}" unless status.success?
     out
+  end
+
+  class RecordingGitRunner
+    attr_reader :commands
+
+    def initialize(before_push: nil)
+      @delegate = GitRunner.new
+      @before_push = before_push
+      @commands = []
+      @before_push_called = false
+    end
+
+    def run(*args, **kwargs)
+      @commands << args
+      if args.first == "push" && !@before_push_called
+        @before_push_called = true
+        @before_push&.call
+      end
+      @delegate.run(*args, **kwargs)
+    end
   end
 end
