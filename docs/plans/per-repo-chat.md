@@ -47,7 +47,7 @@ Job pipeline.
    user message enqueues a `ChatTurnJob`; the worker spawns
    claude with `--resume <session_id>` (after the first turn),
    streams events back via Turbo, exits. Re-uses every piece of
-   agent infrastructure already battle-tested by the Resume
+   agent infrastructure already used by same-workflow session continuation
    trigger kind. No long-lived agent processes to babysit.
 2. **One mutable workspace per repository at
    `$SYRUS_DATA_ROOT/chats/<repository_id>/`.** Persistent across

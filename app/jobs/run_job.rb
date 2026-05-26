@@ -30,11 +30,11 @@ class RunJob < ApplicationJob
   # so RunJob's job is to:
   #
   #   1. Pre-flight: skip already-terminal Runs, abort if the
-  #      parent Workflow / Step is already terminal (something else
-  #      reaped or cancelled this chain).
+  #      parent Workflow is already terminal (something else reaped
+  #      or cancelled this chain).
   #   2. Re-entrancy guard: a Run found in `running` state on entry
   #      means the prior worker died mid-perform — fail it with
-  #      `worker_died` so the operator can use Retry/Resume.
+  #      `worker_died` so the operator can use Retry.
   #   3. Bring Workflow + Step + Run all to `running`.
   #   4. Dispatch to the per-kind handler in Steps::*. Handlers do
   #      not manage state — they just do the work or raise.

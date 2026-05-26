@@ -1,6 +1,6 @@
 module Prompts
   # Trailing block appended to every primary-agent prompt (Initial,
-  # PrFeedback, Resume, ScheduledTask, Rebase) telling the agent what
+  # PrFeedback, ScheduledTask, Rebase) telling the agent what
   # Syrus is and what git invariants its pipeline assumes. Lives in
   # the prompt — not the target repo's CLAUDE.md — because these are
   # *Syrus* contracts, not per-repo conventions, and they apply to

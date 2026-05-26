@@ -196,7 +196,7 @@ class DiagnoseRunJob < ApplicationJob
     if age && age > CRITICAL_HEARTBEAT.to_i
       base = "Heartbeat #{age_str} stale (past #{CRITICAL_HEARTBEAT.inspect} threshold)"
       if snapshot.claude_process_running == false
-        return "#{base} and agent process not found — recommend Retry or Resume."
+        return "#{base} and agent process not found — recommend Retry."
       end
       return "#{base} — reaper will auto-cancel soon; use Cancel now to act first."
     end

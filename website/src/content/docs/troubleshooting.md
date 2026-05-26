@@ -137,8 +137,8 @@ Open the Job and click **Cancel & close**. Syrus cancels any active Runs
 and closes the Job thread. Follow-up polling for PR comments and CI
 failures stops for that Job.
 
-If you want to stop one active Run but keep the Job open for a retry or
-resume, use the Run-level stop action on the Job page.
+If you want to stop one active Run but keep the Job open for a retry,
+use the Run-level stop action on the Job page.
 
 For PR-level opt-out, add the `syrus-stop` label to the PR. The next PR
 poll closes the Job with reason `syrus_stop`.
@@ -152,10 +152,6 @@ continues from the same workspace.
 Use **Run again** when you want a fresh follow-up Workflow on the same
 Job and branch. Add replay context if the previous attempt failed for a
 specific reason.
-
-Use **Resume** only when the failed or cancelled Run captured an agent
-session. Resume restores the previous session transcript and asks the
-agent to continue from there.
 
 If the workspace has already been cleaned up, retry-in-place is no longer
 available. Use Run again or start over.

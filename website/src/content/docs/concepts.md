@@ -51,7 +51,6 @@ Common trigger kinds are:
 | `rebase` | Maintenance attempt that rebases a controlled branch onto the base branch. |
 | `retry` | Operator asks Syrus to run the normal attempt again. |
 | `manual` | Operator supplies an explicit manual prompt. |
-| `resume` | Operator resumes a captured agent session. |
 | `local_dev` | Synchronous local-development path, used for local evaluation flows. |
 
 Each trigger kind maps to a Workflow template: a sequence of Steps.
@@ -86,8 +85,8 @@ It carries per-attempt state:
 - head SHA
 - PR title, PR body, and operator-facing summary
 
-If a Step is retried or resumed, the new attempt is represented by a
-new Run rather than mutating history.
+If a Step is retried, the new attempt is represented by a new Run rather
+than mutating history.
 
 ## State Machines
 
@@ -173,8 +172,8 @@ GitHub issue with label
   -> GitHub pull request
 ```
 
-Follow-up comments, failing CI, retries, rebases, and resumes create
-new Workflows on the same Job instead of creating a second thread.
+Follow-up comments, failing CI, retries, and rebases create new Workflows
+on the same Job instead of creating a second thread.
 
 Next: [Workflows](/docs/workflows) explains how those templates map
 to stages and future DAG-shaped execution.

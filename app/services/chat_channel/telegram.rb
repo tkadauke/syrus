@@ -80,7 +80,7 @@ module ChatChannel
         run.update!(operator_chat_response: text)
         run.operator_questions.order(:asked_at, :created_at).last&.record_response!(text: text)
       end
-      run.resume_after_operator_response!(response_text: text)
+      run.continue_after_operator_response!(response_text: text)
     end
 
     def self.thread_id(chat_id:, message_id:)

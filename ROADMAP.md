@@ -81,7 +81,7 @@ MCP call inserts a new node and edges into the existing graph.
   organically.
 - **Step detail panel**: list of attempts (Runs) under the step,
   with each Run's transcript / diff / agent metadata. Clicking
-  "Resume failed step" retries just that step, not the whole Job.
+  "Retry failed step" retries just that step, not the whole Job.
 
 ### Non-GitHub task sources
 
@@ -148,19 +148,19 @@ wants run.
   Agent either fixes and resubmits, or calls `submit_summary` to
   open the PR.
 
-**Resume vs new session for the follow-up:**
+**Continue prior session vs new session for the follow-up:**
 
-Default to **resume** the agent's prior session (`--resume <session_id>`,
+Default to **continue** the agent's prior session (`--resume <session_id>`,
 infrastructure already in place). Reasoning: the agent wrote the plan;
 the agent knows the intent of its changes; the prompt cache makes
-resume cheap within TTL.
+continuation cheap within TTL.
 
 Two bail-outs to a new session:
 
 1. **Cache cold** — prior session ended longer ago than the extended
-   prompt-cache TTL (~1h). Resume cost approaches new-session cost
+   prompt-cache TTL (~1h). Continuation cost approaches new-session cost
    anyway, so spend the budget on a fresh perspective.
-2. **Repeat failures** — same plan-and-resume loop has failed 2–3
+2. **Repeat failures** — same plan-and-fix loop has failed 2–3
    times. The agent is patching symptoms; force a new session as a
    "fresh eyes" reset. Same logic as the rebase attempt cap, scoped
    to test-plan iteration.
@@ -361,9 +361,6 @@ shape — that's central to the design, not an edge case:
   plans or summaries.
 - **CI failure** (`ci_failure`):
   `analyze_failure → fix → test_plan → test_run → push`
-- **Resume** (`resume`):
-  inherits the parent Run's failed step — pick up from there, not
-  from the top of the DAG.
 - **Retry** (`retry`):
   same DAG as `initial` but on the existing branch.
 - **Manual** (`manual`):
@@ -427,7 +424,7 @@ graph.
   read on where the Job is.
 - **Step detail panel**: list of attempts (Runs) under the step,
   with each Run's transcript / diff / agent metadata. Clicking
-  "Resume failed step" retries just that step, not the whole Job.
+  "Retry failed step" retries just that step, not the whole Job.
 
 **Failure semantics:**
 

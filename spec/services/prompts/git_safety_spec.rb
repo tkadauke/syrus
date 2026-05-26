@@ -38,10 +38,6 @@ RSpec.describe "primary-agent prompts include GitSafety::TEXT" do
     expect(Prompts::PrFeedback.new(issue: issue, comments: []).to_s).to include(Prompts::GitSafety::TEXT)
   end
 
-  it "Resume" do
-    expect(Prompts::Resume.new.to_s).to include(Prompts::GitSafety::TEXT)
-  end
-
   it "Rebase" do
     expect(
       Prompts::Rebase.new(

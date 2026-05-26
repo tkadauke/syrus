@@ -31,7 +31,7 @@ module AgentProviders
           provider: provider,
           session_id: result.session_id,
           transcript_jsonl: nil,
-          missing_message: "[agent_session] no JSONL at #{path} - Resume won't be available for this Run"
+          missing_message: "[agent_session] no JSONL at #{path} - session continuation won't be available for this Run"
         )
       end
     end
@@ -50,7 +50,7 @@ module AgentProviders
         provider: provider,
         session_id: result.session_id,
         transcript_jsonl: nil,
-        missing_message: "[agent_session] invalid Claude session id - Resume won't be available for this Run"
+        missing_message: "[agent_session] invalid Claude session id - session continuation won't be available for this Run"
       )
     end
 

@@ -315,26 +315,6 @@ RSpec.describe RunJob do
     end
   end
 
-  # ----- Resume Workflow -----------------------------------------
-
-  describe "Resume workflow (continuation via --resume)" do
-    it "creates a manual-step Run carrying parent_session_id so ClaudeInvocation passes --resume" do
-      wf = Workflows::Resume.instantiate(job: job)
-      StepDispatcher.start_workflow(wf, parent_session_id: "S-prior")
-
-      run = wf.first_step.runs.first
-      expect(run.parent_session_id).to eq("S-prior")
-      # Mark prompt so Steps::Manual's "manual step requires a prompt"
-      # guard doesn't fire — Resume normally inherits a prompt from
-      # Prompts::Resume composed elsewhere.
-      run.update!(prompt: "Continue from where you left off")
-
-      RunJob.perform_now(run.id)
-      expect(run.reload.state).to eq("succeeded")
-      expect(wf.reload.state).to eq("succeeded")
-    end
-  end
-
   # ----- PrFeedback workflow -------------------------------------
 
   describe "PrFeedback workflow (pr_comment → respond → grade → summarize_amend → push)" do

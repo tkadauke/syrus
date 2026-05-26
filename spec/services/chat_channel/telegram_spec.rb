@@ -74,13 +74,11 @@ RSpec.describe ChatChannel::Telegram do
     expect(followup.reload.operator_chat_thread_id).to eq("telegram:123456:42")
   end
 
-  it "records an inbound reply and routes it through the resume workflow" do
+  it "records an inbound reply and requeues the awaiting run" do
     run.update!(
-      state: "failed",
-      finished_at: Time.current,
+      state: "awaiting_operator",
       operator_chat_thread_id: "telegram:123456:99"
     )
-    ClaudeSession.create!(run: run, session_id: "claude-session-1", provider: "claude")
 
     expect {
       described_class.new(http: http, token: "bot-token").receive_update!(
@@ -90,12 +88,13 @@ RSpec.describe ChatChannel::Telegram do
           "text" => "Yes, rename it."
         }
       )
-    }.to change { Workflow.where(trigger_kind: "resume").count }.by(1)
+    }.not_to change(Workflow, :count)
 
-    resume_run = job.reload.current_run
-    expect(run.reload.operator_chat_response).to eq("Yes, rename it.")
-    expect(resume_run.trigger_kind).to eq("resume")
-    expect(resume_run.parent_session_id).to eq("claude-session-1")
-    expect(resume_run.prompt).to include("Yes, rename it.")
+    expect(run.reload).to have_attributes(
+      state: "queued",
+      operator_chat_response: "Yes, rename it.",
+      agent_outcome: "operator_responded"
+    )
+    expect(run.prompt).to include("Yes, rename it.")
   end
 end

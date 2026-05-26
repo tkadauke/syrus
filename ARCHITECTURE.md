@@ -147,7 +147,7 @@ prompt, the agent metadata, and the resulting diff.
 | `prompt` | the full prompt the agent sees |
 | `agent_turns`, `agent_outcome`, `agent_diff`, `head_sha` | populated from the stream-json `result` event + post-run git capture |
 | `agent_pr_title`, `agent_pr_body`, `agent_summary` | written by the agent via the MCP `submit_summary` tool |
-| `parent_session_id` | for `resume` Runs: the prior Run's `claude --resume` session id (links into `ClaudeSession`, not directly to a parent Run row) |
+| `parent_session_id` | prior session id used for supported same-workflow continuations such as summarize/amend and loop iterations |
 | `last_heartbeat_at` | bumped on every `JobLog` write; used by `ReapStaleRunsJob` |
 
 ```ruby
@@ -178,7 +178,6 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `rebase` | `PollRebaseJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; force-pushes |
 | `retry` | operator: "Run again" | new Run on the existing branch |
 | `manual` | operator: explicit manual prompt | freeform |
-| `resume` | operator: "Resume failed run" | continues a prior Run via `claude --resume` from `ClaudeSession.transcript_jsonl` |
 
 State changes broadcast Turbo refreshes; see [UI surface](#ui-surface)
 for how broadcasts land in the browser.
@@ -238,14 +237,15 @@ is still open at the next fire:
 | `replace` | cancel the prior Job's active Runs and close it (`closure_reason=replaced_by_scheduled_task`), then fire |
 
 A `consecutive_failure` counter on the task auto-pauses the schedule
-once `AppSetting.max_job_failures` is hit; the operator must click
-Resume to re-enable.
+once `AppSetting.max_job_failures` is hit; the operator must re-enable
+the task to resume scheduling.
 
 ### ClaudeSession
 
 One row per Run that completes a `claude` invocation, holding the
-`session_id` and the JSONL transcript path on disk. Used by `resume`
-Runs to call `claude --resume <session_id>`. Retained for **14 days
+`session_id` and the JSONL transcript path on disk. Used by supported
+same-workflow continuations to call `claude --resume <session_id>`.
+Retained for **14 days
 after the parent Run reaches a terminal state**
 (`ClaudeSession::RETAIN_AFTER_TERMINAL`), then deleted by
 `ClaudeSessionPruneJob` (daily at 3am). Sessions whose parent Run is
@@ -399,7 +399,7 @@ Both pipelines share the front matter:
    - Always clones the default branch so it is a local ref for three-dot diff.
    - Branch: fetches and checks out existing for follow-up Runs; creates new for initial Runs.
 5. Compose the prompt via the appropriate `Prompts::*` class
-   (`Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `Resume`, or
+   (`Initial`, `PrFeedback`, `CiFailure`, `Rebase`, or
    the pre-rendered `ScheduledTask` body).
 6. Spawn the agent via `AgentInvocation`:
    - `claude --print --output-format stream-json --dangerously-skip-permissions`
@@ -498,7 +498,7 @@ Core (the agent loop):
 | `JobWorkspace` | Fresh per-Run clone at `$SYRUS_DATA_ROOT/runs/<run_id>/`. Default root `~/.syrus` (override with `SYRUS_DATA_ROOT`). Clones never live inside `Rails.root` — protects the operator's checkout from agent chdir mishaps. |
 | `AgentInvocation` | Spawns `claude-code` via `Open3.popen2e`, parses stream-json, threads stdout chunks into `JobLog`, returns a `Result` struct (turns, outcome, exit status, final text, session id). Wires the MCP sidecar. Enforces the 30-minute wall-clock timeout. |
 | `SyrusMcp::Sidecar` | In-process MCP server the agent talks to over stdio. Exposes `submit_summary`. See [MCP sidecar](#mcp-sidecar). |
-| `Prompts::*` | One class per Run kind: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `Resume`, `ScheduledTask`, plus `PullRequestSummary` for `PrSummarizer` and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `Prompts::*` | One class per Run kind: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, plus `PullRequestSummary` for `PrSummarizer` and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 
 Git and GitHub:
 
@@ -576,13 +576,7 @@ Several layers, each catching different failure modes:
    already `terminal?` (idempotent retry). Only if the Run is
    already in `running` state — which only happens when the prior
    worker crashed — does it call `fail!` and skip execution.
-5. **Resume** — operator opens a Run with `trigger_kind: "resume"`,
-   `parent_session_id` pointing at a prior `ClaudeSession`. RunJob
-   copies the JSONL transcript back into Claude's per-project path
-   on the new worktree and passes `--resume <session_id>`. The
-   `Prompts::Resume` body tells the agent it was interrupted and to
-   re-orient via `git status` / `git log`.
-6. **`failure_count` and auto-close** — `Job#record_run_failure!` is
+5. **`failure_count` and auto-close** — `Job#record_run_failure!` is
    called by `RunJob` after a non-rebase Run fails. It increments
    `failure_count`; if the result hits `AppSetting.max_job_failures`,
    the Job auto-closes with `closure_reason="too_many_failures"`.
@@ -603,7 +597,7 @@ Several layers, each catching different failure modes:
 - **`/jobs/:id`** — the operational hub for a single thread:
   live-streaming transcript per Run, agent diff, PR + branch links,
   action buttons (`run_again`, `restart`, `cancel`, `reopen`,
-  `poll_feedback`, `rebase`, `check_mergeability`, `resume`,
+  `poll_feedback`, `rebase`, `check_mergeability`,
   `stop_run`).
 - **`/scheduled_tasks`** — cron task management.
 - **`/credentials/edit`** — paste GH PAT and Claude OAuth token

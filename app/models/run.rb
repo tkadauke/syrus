@@ -2,7 +2,7 @@ class Run < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  TRIGGER_KINDS = %w[ initial pr_comment ci_failure retry manual rebase auto_merge resume local_dev ].freeze
+  TRIGGER_KINDS = %w[ initial pr_comment ci_failure retry manual rebase auto_merge local_dev ].freeze
 
   belongs_to :job
   # Step is optional during the migration window: existing Runs
@@ -74,7 +74,7 @@ class Run < ApplicationRecord
       transitions from: :running, to: :awaiting_operator
     end
 
-    event :resume_after_operator_response do
+    event :queue_after_operator_response do
       transitions from: :awaiting_operator, to: :queued, after: -> {
         self.started_at = nil
         self.finished_at = nil
@@ -82,7 +82,7 @@ class Run < ApplicationRecord
     end
   end
 
-  after_update_commit :enqueue_run_job_on_resume,
+  after_update_commit :enqueue_run_job_after_operator_response,
                       if: :saved_change_to_state_to_queued_from_awaiting_operator?
 
   after_create_commit :enqueue_run_job
@@ -122,7 +122,7 @@ class Run < ApplicationRecord
       saved_change_to_state&.first == "awaiting_operator"
   end
 
-  def enqueue_run_job_on_resume
+  def enqueue_run_job_after_operator_response
     RunJob.set(priority: job.solid_queue_priority).perform_later(id)
   end
 
@@ -177,43 +177,20 @@ class Run < ApplicationRecord
     trigger_kind == "rebase"
   end
 
-  # Resume Runs continue an agent session whose worker died
-  # mid-flight. RunJob restores the prior session's JSONL to disk
-  # before invoking the provider's resume path, and uses Prompts::Resume
-  # as the new prompt so the agent knows what just happened.
-  def resume?
-    trigger_kind == "resume"
-  end
-
-  def resume_after_operator_response!(response_text: operator_chat_response)
+  def continue_after_operator_response!(response_text: operator_chat_response)
     text = response_text.to_s.strip
     return false if text.blank?
 
-    session = claude_session
-    return false unless session
-
     self.operator_chat_response = text if has_attribute?(:operator_chat_response)
-
-    if awaiting_operator? && may_fail?
-      self.agent_outcome = "operator_responded"
-      fail!
-      save!
-
-      if step&.may_fail?
-        step.fail!
-        step.save!
-      end
-    end
-    save! if changed?
-
-    prompt = [
-      Prompts::Resume.new.to_s,
+    self.prompt = [
+      prompt.presence,
       "The operator replied to your clarification question:",
       text
-    ].join("\n\n")
+    ].compact.join("\n\n")
+    self.agent_outcome = "operator_responded"
 
-    workflow = Workflows::Resume.instantiate(job: job, agent_provider: session.provider)
-    StepDispatcher.start_workflow(workflow, parent_session_id: session.session_id, prompt: prompt)
+    queue_after_operator_response! if may_queue_after_operator_response?
+    save!
   end
 
   def terminal?

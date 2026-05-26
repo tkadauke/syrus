@@ -28,7 +28,6 @@ module Workflows
     "auto_merge" => :AutoMerge,
     "retry"      => :Retry,
     "manual"     => :Manual,
-    "resume"     => :Resume,
     "local_dev"  => :LocalDev
   }.freeze
 

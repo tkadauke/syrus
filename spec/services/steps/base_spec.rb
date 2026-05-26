@@ -125,8 +125,8 @@ RSpec.describe Steps::Base do
       expect(h.parent_session_id).to eq("S-implement")
     end
 
-    it "an explicit run.parent_session_id wins over the chain (Resume semantics)" do
-      run = Run.create!(job: job, step: current_step, trigger_kind: "resume",
+    it "an explicit run.parent_session_id wins over the chain" do
+      run = Run.create!(job: job, step: current_step, trigger_kind: "manual",
                         parent_session_id: "S-explicit")
       h = handler_class.new(run)
       expect(h.parent_session_id).to eq("S-explicit")

@@ -13,7 +13,6 @@ RSpec.describe Workflows do
       expect(described_class.for(trigger_kind: "auto_merge")).to eq(Workflows::AutoMerge)
       expect(described_class.for(trigger_kind: "retry")).to      eq(Workflows::Retry)
       expect(described_class.for(trigger_kind: "manual")).to     eq(Workflows::Manual)
-      expect(described_class.for(trigger_kind: "resume")).to     eq(Workflows::Resume)
     end
 
     it "raises on an unknown trigger_kind" do
@@ -112,11 +111,6 @@ RSpec.describe Workflows do
     it "records the job's current agent provider on the workflow" do
       job.update!(agent_provider: "codex")
       wf = Workflows::Initial.instantiate(job: job)
-      expect(wf.agent_provider).to eq("codex")
-    end
-
-    it "allows callers to override agent_provider for resume workflows" do
-      wf = Workflows::Resume.instantiate(job: job, agent_provider: "codex")
       expect(wf.agent_provider).to eq("codex")
     end
 
@@ -242,11 +236,6 @@ RSpec.describe Workflows do
       wf = Workflows::Manual.instantiate(job: job)
       expect(wf.steps.pluck(:kind)).to eq(%w[ manual ])
       expect(wf.steps.first.next_step).to be_nil
-    end
-
-    it "instantiates Resume with a single 'manual' step (continuation via --resume)" do
-      wf = Workflows::Resume.instantiate(job: job)
-      expect(wf.steps.pluck(:kind)).to eq(%w[ manual ])
     end
 
     it "rolls back the workflow + steps if any step creation fails" do

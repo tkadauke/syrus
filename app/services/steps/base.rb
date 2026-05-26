@@ -11,7 +11,7 @@ module Steps
   #   SummarizeAmend, AnalyzeAndFix, AgentRebase, Manual) spawn
   #   the Workflow's configured agent provider. They share the helpers
   #   in this base class for prompt resolution, generic session capture,
-  #   and cross-step resume threading.
+  #   and cross-step session continuation.
   #
   # - **Non-agentic handlers** (PrOpen, Push, AutoRebase,
   #   ForcePush) just run service code (PullRequestOpener,
@@ -119,7 +119,7 @@ module Steps
     # ---- Agentic helpers (used by agent-spawning handlers) ----
 
     # Drive the configured agent provider in this Workflow's workspace,
-    # threading `--resume` from the upstream step's session when
+    # continuing from the upstream step's session when
     # one is available. Streams transcript chunks into JobLog,
     # captures the new session transcript on success, raises StepFailed
     # on any of the non-success outcomes.
@@ -155,7 +155,7 @@ module Steps
       )
     end
 
-    # Resume threading. v1 contract: `--resume` only crosses Step
+    # Session continuation. v1 contract: `--resume` only crosses Step
     # boundaries *within the same Workflow*. Cross-Workflow chains
     # (Initial → PrFeedback) start a fresh session — the
     # downstream prompt carries enough context (issue body +

@@ -232,35 +232,6 @@ class JobsController < ApplicationController
     redirect_to job_path(@job), notice: notice
   end
 
-  # Continue a failed/cancelled Run by reloading its agent session
-  # in a NEW Run. Carries `parent_session_id` so RunJob restores the
-  # JSONL to disk before invoking the provider's resume path. The new Run uses
-  # Prompts::Resume as its prompt — resume invocations still
-  # needs an arg, and silent re-invocation with the original prompt
-  # would confuse the model.
-  def resume
-    source_run = @job.runs.find_by(id: params[:source_run_id])
-    unless source_run
-      redirect_to job_path(@job), alert: "Source Run not found."
-      return
-    end
-    unless %w[failed cancelled].include?(source_run.state)
-      redirect_to job_path(@job), alert: "Only failed or cancelled Runs are resumable."
-      return
-    end
-    session = source_run.claude_session
-    unless session
-      redirect_to job_path(@job), alert: "No agent session captured for that Run — try Retry instead."
-      return
-    end
-
-    workflow = Workflows::Resume.instantiate(job: @job, agent_provider: session.provider)
-    # The first (and only) step of Resume is `manual` — pass the
-    # parent session id so the provider can resume the captured session.
-    StepDispatcher.start_workflow(workflow, parent_session_id: session.session_id)
-    redirect_to job_path(@job), notice: "Resume workflow enqueued."
-  end
-
   # Manually trigger PollRebaseJob for this Job — same poller that
   # runs every 15min, just operator-initiated when they don't want
   # to wait. Persists pr_mergeable + checked_at on the Job (and
@@ -307,7 +278,7 @@ class JobsController < ApplicationController
 
   # Stop a single active Run without closing the thread. Useful when
   # a run is clearly stuck. The thread stays open so the operator can
-  # retry, resume, or run again after stopping.
+  # retry the failed workflow or run again after stopping.
   def stop_run
     run = @job.runs.find_by(id: params[:run_id])
     unless run
@@ -408,7 +379,7 @@ class JobsController < ApplicationController
 
     question.record_response!(text: text)
     run = question.run
-    run.resume_after_operator_response!(response_text: text) if run.awaiting_operator?
+    run.continue_after_operator_response!(response_text: text) if run.awaiting_operator?
 
     redirect_to job_path(@job, anchor: "operator-question-#{question.id}"), notice: "Response sent."
   end

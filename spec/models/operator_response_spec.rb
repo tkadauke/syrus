@@ -13,7 +13,7 @@ RSpec.describe OperatorResponse do
   end
 
   it "defaults responded_at when a controller creates a reply" do
-    response = described_class.create!(operator_question: question, text: "Resume with option B.")
+    response = described_class.create!(operator_question: question, text: "Use option B.")
 
     expect(response.responded_at).to be_present
     expect(response.operator_question).to eq(question)

@@ -15,7 +15,7 @@ require "fileutils"
 #
 # All Steps + Runs in a Workflow share this workspace. That's the
 # whole point of the v1 chain: implement commits locally, summarize
-# `--resume`s in the same workspace (and finds the prior session's
+# same-workflow session continuations in the same workspace (and finds the prior session's
 # JSONL on disk where claude already wrote it, no DB roundtrip),
 # pr_open / push run `git push` from the same workspace's HEAD.
 #
@@ -125,7 +125,7 @@ class WorkflowWorkspace
   # restore-to-clean (retry-within-step after a crashed prior Run).
   #
   # Restore semantics on retry: committed work survives, uncommitted
-  # edits don't. Same contract as Resume Runs today.
+  # edits don't.
   def setup
     if path.exist?
       ensure_exclude_entry
@@ -229,7 +229,7 @@ class WorkflowWorkspace
   # after a crash. The working tree may be dirty (uncommitted edits
   # the prior agent had in flight). Restore tracked files to HEAD
   # and remove untracked ones so the new Run sees a known starting
-  # point. Committed work survives — same contract as Resume Runs.
+  # point. Committed work survives.
   def ensure_clean_working_tree
     status = @git.run("status", "--porcelain", chdir: path.to_s)
     return if status.strip.empty?

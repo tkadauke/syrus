@@ -1,15 +1,10 @@
 module Steps
-  # Single step of Manual + Resume workflows.
+  # Single step of Manual workflows.
   #
   # Manual:  whatever prompt the operator passed in, no PR
   #          opening, no template — pure freeform agent run.
   #
-  # Resume:  identical pattern, with parent_session_id set on the
-  #          Run (carried over from the dead Run that's being
-  #          resumed) so ClaudeInvocation passes `--resume` and
-  #          claude continues the prior conversation.
-  #
-  # Either way: the agent runs against the workspace, makes
+  # The agent runs against the workspace, makes
   # whatever changes it wants, this handler doesn't push or open
   # a PR. If the operator wants the work persisted, they manually
   # promote it via the UI ("push branch" / "open PR") in a

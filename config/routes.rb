@@ -209,11 +209,10 @@ Rails.application.routes.draw do
       post :poll_feedback  # manually trigger PollPullRequestJob for this Job
       post :rebase         # manually trigger a rebase Run on this Job's PR
       post :check_mergeability  # ask GitHub for the latest mergeable status now
-      post :resume         # continue a failed Run via claude --resume
       post :stop_run       # cancel a single active Run without closing the thread
       post :retry_step     # re-run the failed step in a failed Workflow (keeps the existing workspace)
       post :push_commits   # push uncommitted/committed local changes from a failed Workflow's workspace
-      post :operator_response # answer an ask_operator question and resume the Run
+      post :operator_response # answer an ask_operator question and requeue the Run
       post :tags, action: :add_tag
       delete "tags/:tag_id", action: :remove_tag, as: :tag
       get  :source         # browse the repo source at any branch commit or merge base

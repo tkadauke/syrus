@@ -16,8 +16,7 @@ class StepDispatcher
   # and let SQ pick it up.
   #
   # Idempotent — if the workflow's first step already has a Run,
-  # this is a no-op (e.g. Resume that pre-creates a Run with a
-  # parent_session_id before calling start_workflow).
+  # this is a no-op.
   def self.start_workflow(workflow, parent_session_id: nil, prompt: nil)
     first = workflow.first_step
     return unless first

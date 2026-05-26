@@ -49,7 +49,7 @@ When the agent calls it, the sidecar writes structured artifacts onto the
 Workflow and appends an audit log line. Later Steps consume those artifacts:
 `pr_open` reads PR copy, and `summarize_amend` provides follow-up commit
 messages. The tool name and sidecar binary name intentionally match so
-resumed sessions keep the same callable tool.
+session continuations keep the same callable tool.
 
 ## Credential Encryption
 

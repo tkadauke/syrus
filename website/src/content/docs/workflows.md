@@ -63,14 +63,6 @@ prompt is passed directly to the configured agent provider. Manual
 workflows capture transcript and diff information, but they do not push or
 open a PR by themselves.
 
-### Resume
-
-Trigger: an operator clicks Resume on a failed or cancelled Run that has a
-captured Claude session. Steps: `manual`. The Run carries the prior session
-ID so the provider can resume the agent conversation. In v1 this is a
-single continuation step; future DAG work can resume from the failed node
-and continue downstream.
-
 ### LocalDev
 
 Trigger: `bin/syrus dev` against a local checkout. Steps:
@@ -94,7 +86,7 @@ same Job.
 | `implement` | Yes | Make the requested code change for Initial, Retry, cron, and direct work |
 | `respond` | Yes | Address PR review feedback on an existing branch |
 | `analyze_and_fix` | Yes | Diagnose failed CI checks and commit a fix |
-| `summarize` | Yes | Resume the implementation session and collect PR title/body/summary through MCP |
+| `summarize` | Yes | Continue from the implementation session and collect PR title/body/summary through MCP |
 | `summarize_amend` | Yes | Produce follow-up commit copy for PR feedback and CI-failure workflows |
 | `pr_open` | No | Push the branch and open the pull request if one does not already exist |
 | `push` | No | Push commits to an existing PR branch and update the cost footer |
@@ -122,7 +114,6 @@ Syrus chooses the template from the trigger kind:
 | `rebase` | `Workflows::Rebase` |
 | `retry` | `Workflows::Retry` |
 | `manual` | `Workflows::Manual` |
-| `resume` | `Workflows::Resume` |
 | `local_dev` | `Workflows::LocalDev` |
 
 The template creates a Workflow row, creates each Step row in order, and

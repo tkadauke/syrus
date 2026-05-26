@@ -38,8 +38,8 @@ module Prompts
             closed. A Job may have an `epic` and a `parent_job` (stack).
           - **Workflow** — one *attempt* on a Job. A Job may have
             multiple Workflows over its lifetime (initial run,
-            pr_comment follow-ups, ci_failure retries, rebases, resumes
-            from a session, manual retries). Each Workflow owns a chain
+            pr_comment follow-ups, ci_failure retries, rebases, manual
+            retries). Each Workflow owns a chain
             of Steps that compose the attempt (`prepare`, `implement`,
             `summarize`, `pr_open`, etc.).
           - **Run** — one execution of one Step. Carries the agent

@@ -66,7 +66,6 @@ module JobsHelper
     "retry"      => "Retry",
     "replay"     => "Retry",
     "manual"     => "Manual",
-    "resume"     => "Resume"
   }.freeze
 
   def workflow_label(trigger_kind)
@@ -80,7 +79,6 @@ module JobsHelper
     "retry"       => "bg-amber-100 text-amber-700",
     "manual"      => "bg-gray-100 text-gray-700",
     "rebase"      => "bg-teal-100 text-teal-700",
-    "resume"      => "bg-fuchsia-100 text-fuchsia-700"
   }.freeze
 
   def state_pill(state, classes: nil)

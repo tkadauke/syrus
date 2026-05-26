@@ -463,7 +463,7 @@ RSpec.describe "Jobs", type: :request do
   describe "POST /jobs/:id/operator_response" do
     before { sign_in_as(user) }
 
-    it "persists the response and resumes the awaiting Run" do
+    it "persists the response and requeues the awaiting Run" do
       run = job.initial_run
       run.step.start!; run.step.save!
       run.start!; run.await_operator!; run.save!
@@ -473,7 +473,11 @@ RSpec.describe "Jobs", type: :request do
         run: run,
         text: "Which file should I edit?"
       )
-      ClaudeSession.create!(resumable: run, session_id: "operator-session-1", transcript_jsonl: "{}\n")
+
+      workflow_count = job.workflows.count
+      run_job = instance_double(ActiveJob::ConfiguredJob)
+      expect(RunJob).to receive(:set).with(priority: job.solid_queue_priority).and_return(run_job)
+      expect(run_job).to receive(:perform_later).with(run.id)
 
       expect {
         post operator_response_job_path(job), params: {
@@ -481,20 +485,15 @@ RSpec.describe "Jobs", type: :request do
           text: "Use app/models/run.rb."
         }
       }.to change(OperatorResponse, :count).by(1)
-        .and change { job.workflows.where(trigger_kind: "resume").count }.by(1)
+      expect(job.reload.workflows.count).to eq(workflow_count)
 
-      resume_run = job.reload.current_run
       expect(question.operator_responses.last.text).to eq("Use app/models/run.rb.")
       expect(run.reload).to have_attributes(
-        state: "failed",
-        operator_chat_response: "Use app/models/run.rb."
+        state: "queued",
+        operator_chat_response: "Use app/models/run.rb.",
+        agent_outcome: "operator_responded"
       )
-      expect(resume_run).to have_attributes(
-        trigger_kind: "resume",
-        parent_session_id: "operator-session-1"
-      )
-      expect(resume_run.prompt).to include("Use app/models/run.rb.")
-      expect(RunJob).to have_been_enqueued.with(resume_run.id)
+      expect(run.prompt).to include("Use app/models/run.rb.")
       expect(response).to redirect_to(job_path(job, anchor: "operator-question-#{question.id}"))
     end
 
@@ -1011,66 +1010,6 @@ RSpec.describe "Jobs", type: :request do
     end
   end
 
-  describe "POST /jobs/:id/resume" do
-    before { sign_in_as(user) }
-
-    let(:failed_run) do
-      r = job.initial_run
-      r.start!; r.fail!; r.save!
-      r
-    end
-
-    it "instantiates a Resume workflow carrying parent_session_id from a Codex-backed captured session" do
-      ClaudeSession.create!(resumable: failed_run, provider: "codex",
-                            session_id: "uuid-deadbeef", transcript_jsonl: "{}\n")
-
-      expect {
-        post resume_job_path(job, source_run_id: failed_run.id)
-      }.to change { job.workflows.where(trigger_kind: "resume").count }.by(1)
-
-      wf = job.workflows.where(trigger_kind: "resume").last
-      first_run = wf.first_step.runs.first
-      expect(first_run.parent_session_id).to eq("uuid-deadbeef")
-      expect(response).to redirect_to(job_path(job))
-      expect(flash[:notice]).to match(/Resume workflow enqueued/)
-    end
-
-    it "refuses when the source Run isn't failed/cancelled" do
-      open_run = job.initial_run  # state=queued
-      ClaudeSession.create!(resumable: open_run, session_id: "x", transcript_jsonl: "x")
-
-      expect {
-        post resume_job_path(job, source_run_id: open_run.id)
-      }.not_to change { job.workflows.where(trigger_kind: "resume").count }
-      expect(flash[:alert]).to match(/Only failed or cancelled/)
-    end
-
-    it "refuses when the source Run has no captured agent session" do
-      expect {
-        post resume_job_path(job, source_run_id: failed_run.id)
-      }.not_to change { job.workflows.where(trigger_kind: "resume").count }
-      expect(flash[:alert]).to match(/No agent session captured/)
-      expect(flash[:alert]).not_to match(/Claude session|ClaudeSession/)
-    end
-
-    it "refuses when the source_run_id doesn't belong to this Job" do
-      other_job = Factories.job(repository: repository, issue_number: 99)
-      stranger = other_job.initial_run
-      stranger.start!; stranger.fail!; stranger.save!
-      ClaudeSession.create!(resumable: stranger, session_id: "y", transcript_jsonl: "y")
-
-      post resume_job_path(job, source_run_id: stranger.id)
-      expect(flash[:alert]).to match(/not found/)
-    end
-
-    it "404s for another user's job" do
-      foreign_repo = Factories.repository(user: other)
-      foreign_job = Factories.job(repository: foreign_repo, issue_number: 1)
-      post resume_job_path(foreign_job, source_run_id: 1)
-      expect(response).to have_http_status(:not_found)
-    end
-  end
-
   describe "show page button visibility + confirmations" do
     before { sign_in_as(user) }
 
@@ -1122,6 +1061,16 @@ RSpec.describe "Jobs", type: :request do
       expect(response.body).to include("data-controller=\"retry-context\"")
       expect(response.body).not_to include("Replay")
       expect(response.body).not_to include("replay-context")
+    end
+
+    it "does not offer Resume for failed runs with captured sessions" do
+      run = job.initial_run
+      run.start!; run.fail!; run.save!
+      ClaudeSession.create!(resumable: run, session_id: "captured-session", transcript_jsonl: "{}\n")
+
+      get job_path(job)
+
+      expect(response.body).not_to include(">Resume<")
     end
 
     it "offers agent choices for PR feedback and rebase manual actions" do

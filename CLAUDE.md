@@ -56,12 +56,6 @@ same Workflow pipeline.
   tree), uses `git push --force` instead of fast-forward, and skips
   the PR-opening step. Triggered by `PollAllMergeStatesJob` when a PR
   is `mergeable: false` and we control the head branch.
-- `resume` — restores a prior Claude Code session. Chain:
-  `agent_rebase → summarize_amend → push`. The session JSONL captured at
-  end-of-session (stored in `ClaudeSession`) is copied back to the workspace
-  at the project-encoded path; `--resume <session_id>` is passed to claude.
-  Operator clicks "Resume" on any failed/cancelled Run that has a captured
-  `ClaudeSession`.
 
 ### Per-Workflow pipeline (`app/jobs/run_job.rb`, `app/services/workflows/`, `app/services/steps/`)
 
@@ -80,7 +74,6 @@ pr_comment:  prepare → respond → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
 retry:       prepare → implement → summarize → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
-resume:      agent_rebase → summarize_amend → push
 ```
 
 Key steps:
@@ -154,7 +147,7 @@ there on branch `syrus/scheduled-<task_id>-<job_id>`.
 still open at next tick: `skip` (default, don't fire), `pile` (fire
 anyway), `replace` (cancel the old Job and fire). Auto-pause kicks in
 when consecutive failure count hits the `AppSetting.max_job_failures`
-threshold; operator must Resume to re-enable.
+threshold; operator must re-enable the task to resume scheduling.
 
 "No changes" is the explicit happy path for cron Jobs — the agent
 surveys, calls `submit_summary` with a one-line note, and the Job closes
@@ -200,7 +193,7 @@ preserve scroll position across morphs.
 
 - **Prompts** all live under `app/services/prompts/` as PORO classes
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
-  `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`, `Prompts::Resume`,
+  `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`). Each has a `to_s`. Compose
   by appending; never inline prompt text in jobs/services.
 - **Encrypted attributes** — `User#github_token`, `User#claude_oauth_token`
