@@ -63,6 +63,23 @@ RSpec.describe User do
       expect(user.codex_api_key).to eq("sk-" + ("y" * 1_024))
       expect(user.github_token).to eq("ghp_" + ("z" * 1_024))
     end
+
+    it "clears only declared clearable credentials" do
+      user = User.create!(attrs.merge(github_token: "ghp_xyz", claude_oauth_token: "oat-abc"))
+
+      user.clear_credential!("github_token")
+
+      expect(user.reload.github_token).to be_nil
+      expect(user.claude_oauth_token).to eq("oat-abc")
+    end
+
+    it "rejects clearing non-credential attributes" do
+      user = User.create!(attrs)
+
+      expect {
+        user.clear_credential!("email_address")
+      }.to raise_error(ArgumentError, "Unknown credential: email_address")
+    end
   end
 
   describe "agent_provider" do

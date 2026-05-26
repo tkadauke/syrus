@@ -5,7 +5,8 @@ RSpec.describe "Credentials", type: :request do
     Factories.user(claude_oauth_token: "sk-existing",
                    codex_api_key: "sk-codex-existing",
                    codex_auth_json: Factories.codex_auth_json(access_token: "codex-access-existing"),
-                   github_token: "ghp_existing")
+                   github_token: "ghp_existing",
+                   telegram_chat_id: "123456")
   end
 
   it "requires authentication" do
@@ -36,6 +37,8 @@ RSpec.describe "Credentials", type: :request do
       expect(response.body).not_to include("sk-codex-existing")
       expect(response.body).not_to include("codex-access-existing")
       expect(response.body).not_to include("ghp_existing")
+      expect(response.body).not_to include("123456")
+      expect(response.body).to include("Blank update fields will not clear it")
       expect(response.body).to include("Currently set")
     end
 
@@ -94,15 +97,42 @@ RSpec.describe "Credentials", type: :request do
       expect(user.codex_api_key).to eq("sk-codex-existing")
       expect(user.codex_auth_json).to include("codex-access-existing")
       expect(user.github_token).to eq("ghp_existing")
+      expect(user.telegram_chat_id).to eq("123456")
     end
 
     it "leaves both unchanged when both fields are blank" do
-      patch credentials_path, params: { user: { claude_oauth_token: "", codex_api_key: "", codex_auth_json: "", github_token: "" } }
+      patch credentials_path, params: { user: { claude_oauth_token: "", codex_api_key: "", codex_auth_json: "", github_token: "", telegram_chat_id: "" } }
       user.reload
       expect(user.claude_oauth_token).to eq("sk-existing")
       expect(user.codex_api_key).to eq("sk-codex-existing")
       expect(user.codex_auth_json).to include("codex-access-existing")
       expect(user.github_token).to eq("ghp_existing")
+      expect(user.telegram_chat_id).to eq("123456")
+    end
+
+    it "clears each stored credential only through the explicit clear control" do
+      User::CLEARABLE_CREDENTIALS.each_key do |credential|
+        patch credentials_path, params: { clear_credential: credential }
+        expect(response).to redirect_to(edit_credentials_path)
+        expect(flash[:notice]).to include("cleared")
+        expect(user.reload.public_send(credential)).to be_nil
+      end
+    end
+
+    it "shows cleared credentials as not set after clearing" do
+      patch credentials_path, params: { clear_credential: "github_token" }
+      get edit_credentials_path
+
+      expect(response.body).to include("GitHub token")
+      expect(credentials_document.text).to include("Not set.")
+    end
+
+    it "rejects unknown clear credential names" do
+      patch credentials_path, params: { clear_credential: "email_address" }
+
+      expect(response).to redirect_to(edit_credentials_path)
+      expect(flash[:alert]).to eq("Unknown credential.")
+      expect(user.reload.email_address).to be_present
     end
 
     it "updates the agent provider" do
@@ -141,7 +171,7 @@ RSpec.describe "Credentials", type: :request do
     it "rejects a non-numeric telegram_chat_id" do
       patch credentials_path, params: { user: { telegram_chat_id: "not-a-chat" } }
       expect(response).to have_http_status(:unprocessable_content)
-      expect(user.reload.telegram_chat_id).to be_nil
+      expect(user.reload.telegram_chat_id).to eq("123456")
     end
 
     it "rejects an out-of-range agent_max_turns" do

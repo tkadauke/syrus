@@ -1,4 +1,9 @@
 class AppSetting < ApplicationRecord
+  CLEARABLE_SECRETS = {
+    "telegram_bot_token" => "Telegram bot token",
+    "telegram_webhook_secret" => "Telegram webhook secret"
+  }.freeze
+
   validates :grade_max_iterations, numericality: {
     only_integer: true,
     greater_than_or_equal_to: 1,
@@ -49,5 +54,12 @@ class AppSetting < ApplicationRecord
 
   def github_app_registered?
     github_app_id.present?
+  end
+
+  def clear_secret!(secret)
+    secret = secret.to_s
+    raise ArgumentError, "Unknown secret: #{secret}" unless CLEARABLE_SECRETS.key?(secret)
+
+    update!(secret => nil)
   end
 end

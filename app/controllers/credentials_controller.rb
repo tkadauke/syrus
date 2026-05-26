@@ -7,6 +7,11 @@ class CredentialsController < ApplicationController
   end
 
   def update
+    if params[:clear_credential].present?
+      clear_credential(params[:clear_credential])
+      return
+    end
+
     attrs = credentials_params.to_h.reject { |_, v| v.blank? }
     if Current.user.update(attrs)
       redirect_to edit_credentials_path, notice: "Credentials updated."
@@ -36,6 +41,14 @@ class CredentialsController < ApplicationController
   end
 
   private
+
+  def clear_credential(credential)
+    label = User::CLEARABLE_CREDENTIALS[credential.to_s]
+    redirect_to edit_credentials_path, alert: "Unknown credential." and return unless label
+
+    Current.user.clear_credential!(credential)
+    redirect_to edit_credentials_path, notice: "#{label} cleared."
+  end
 
   def credentials_params
     params.expect(user: [ :name, :github_handle, :agent_provider, :claude_oauth_token, :codex_auth_mode,

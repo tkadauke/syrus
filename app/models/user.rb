@@ -19,6 +19,13 @@ class User < ApplicationRecord
 
   AGENT_PROVIDERS = %w[ claude codex ].freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
+  CLEARABLE_CREDENTIALS = {
+    "github_token" => "GitHub token",
+    "claude_oauth_token" => "Claude OAuth token",
+    "codex_api_key" => "Codex API key",
+    "codex_auth_json" => "Codex ChatGPT auth.json",
+    "telegram_chat_id" => "Telegram chat ID"
+  }.freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",
     "last_view" => "list",
@@ -274,6 +281,13 @@ class User < ApplicationRecord
 
   def revoke_api_token!
     update!(api_token: nil)
+  end
+
+  def clear_credential!(credential)
+    credential = credential.to_s
+    raise ArgumentError, "Unknown credential: #{credential}" unless CLEARABLE_CREDENTIALS.key?(credential)
+
+    update!(credential => nil)
   end
 
   # Toggle for the dashboard banner. Set when a GitHub API call

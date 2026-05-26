@@ -4,7 +4,35 @@
     <%= render "admin/nav" %>
   </div>
 
+  <div class="rounded-md border border-gray-200 divide-y divide-gray-200">
+    <% AppSetting::CLEARABLE_SECRETS.each do |secret, label| %>
+      <% set = @setting.public_send(secret).present? %>
+      <div class="flex items-center justify-between gap-3 p-3">
+        <div>
+          <div class="text-sm font-medium text-gray-900"><%= label %></div>
+          <% if set %>
+            <div class="mt-1 text-xs text-gray-500">Currently set. Blank update fields will not clear it.</div>
+          <% else %>
+            <div class="mt-1 text-xs text-amber-600">Not set.</div>
+          <% end %>
+        </div>
+        <% if set %>
+          <%= button_to "Clear",
+                settings_path,
+                method: :patch,
+                params: { clear_secret: secret },
+                class: "rounded-md px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium cursor-pointer",
+                form: { data: { turbo_confirm: "Clear #{label}? Telegram delivery will fail until you add a new value or set the ENV fallback." } } %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
   <%= form_with model: @setting, url: settings_path, scope: :app_setting, method: :patch, class: "bg-white border border-gray-200 rounded-lg p-6 space-y-4" do |form| %>
+    <p class="text-sm text-gray-600">
+      Leaving secret fields blank keeps the stored value unchanged. Use the Clear controls above to remove a secret.
+    </p>
+
     <div class="flex items-start gap-3">
       <%= form.check_box :signups_open, class: "mt-1 rounded border-gray-400" %>
       <div>
@@ -14,6 +42,24 @@
           When disabled, signup is invitation-only — but invitation links still work either way.
         </p>
       </div>
+    </div>
+
+    <div>
+      <%= form.label :telegram_bot_token, "Telegram bot token", class: "block text-sm font-medium text-gray-700" %>
+      <p class="text-xs text-gray-500 mt-1">
+        Optional app-wide fallback for Telegram operator chat. ENV <code>TELEGRAM_BOT_TOKEN</code> still takes precedence.
+      </p>
+      <%= form.password_field :telegram_bot_token, value: "", autocomplete: "off",
+            class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+    </div>
+
+    <div>
+      <%= form.label :telegram_webhook_secret, "Telegram webhook secret", class: "block text-sm font-medium text-gray-700" %>
+      <p class="text-xs text-gray-500 mt-1">
+        Optional app-wide fallback for validating Telegram webhook requests. ENV <code>TELEGRAM_WEBHOOK_SECRET</code> still takes precedence.
+      </p>
+      <%= form.password_field :telegram_webhook_secret, value: "", autocomplete: "off",
+            class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
     </div>
 
     <%= form.submit "Save", class: "rounded-md px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium cursor-pointer" %>
