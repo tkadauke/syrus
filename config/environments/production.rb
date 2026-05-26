@@ -2,6 +2,12 @@ require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
+  env_boolean = ->(key, default) { ActiveModel::Type::Boolean.new.cast(ENV.fetch(key, default)) }
+  app_host = ENV.fetch("SYRUS_APP_HOST", "agents.green-acres.estate")
+  allowed_hosts = ENV.fetch("SYRUS_ALLOWED_HOSTS", app_host)
+    .split(",")
+    .map(&:strip)
+    .reject(&:blank?)
 
   # Code is not reloaded between requests.
   config.enable_reloading = false
@@ -18,23 +24,23 @@ Rails.application.configure do
   # Cache assets for far-future expiry since they are all digest stamped.
   config.public_file_server.headers = { "cache-control" => "public, max-age=#{1.year.to_i}" }
 
-  # Enable serving of images, stylesheets, and JavaScripts from an asset server.
-  # config.asset_host = "http://assets.example.com"
-
   # Store uploaded files in the in-cluster MinIO via S3-compatible API.
   # See config/storage.yml#minio. Env vars (S3_ENDPOINT, S3_BUCKET,
   # S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY) are injected by the
   # green_acres pod spec for both web and worker pods.
   config.active_storage.service = :minio
 
-  # Assume all access to the app is happening through a SSL-terminating reverse proxy.
-  # config.assume_ssl = true
+  # Production traffic is terminated by the cluster ingress before reaching Rails.
+  # Keep generated URLs, redirects, HSTS, and secure cookies aligned with that
+  # proxy boundary unless an alternate deploy explicitly opts out.
+  config.assume_ssl = env_boolean.call("SYRUS_ASSUME_SSL", "true")
+  config.force_ssl = env_boolean.call("SYRUS_FORCE_SSL", "true")
+  config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
 
-  # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  # config.force_ssl = true
-
-  # Skip http-to-https redirect for the default health check endpoint.
-  # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
+  # Enable DNS rebinding protection and other `Host` header attacks. Add extra
+  # ingress names with SYRUS_ALLOWED_HOSTS as a comma-separated list.
+  config.hosts.concat(allowed_hosts)
+  config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   # Log to STDOUT with the current request id as a default log tag.
   config.log_tags = [ :request_id ]
@@ -56,21 +62,24 @@ Rails.application.configure do
   config.active_job.queue_adapter = :solid_queue
   config.solid_queue.connects_to = { database: { writing: :queue } }
 
-  # Ignore bad email addresses and do not raise email delivery errors.
-  # Set this to true and configure the email server for immediate delivery to raise delivery errors.
-  # config.action_mailer.raise_delivery_errors = false
+  smtp_configured = ENV["SMTP_ADDRESS"].present?
+  config.action_mailer.raise_delivery_errors = env_boolean.call(
+    "SYRUS_MAILER_RAISE_DELIVERY_ERRORS",
+    smtp_configured.to_s
+  )
+  config.action_mailer.default_url_options = { host: app_host, protocol: "https" }
 
-  # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
-
-  # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
-  # config.action_mailer.smtp_settings = {
-  #   user_name: Rails.application.credentials.dig(:smtp, :user_name),
-  #   password: Rails.application.credentials.dig(:smtp, :password),
-  #   address: "smtp.example.com",
-  #   port: 587,
-  #   authentication: :plain
-  # }
+  if smtp_configured
+    config.action_mailer.delivery_method = :smtp
+    config.action_mailer.smtp_settings = {
+      address: ENV.fetch("SMTP_ADDRESS"),
+      port: ENV.fetch("SMTP_PORT", 587).to_i,
+      user_name: ENV["SMTP_USERNAME"],
+      password: ENV["SMTP_PASSWORD"],
+      authentication: ENV.fetch("SMTP_AUTHENTICATION", "plain").to_sym,
+      enable_starttls_auto: env_boolean.call("SMTP_ENABLE_STARTTLS_AUTO", "true")
+    }.compact
+  end
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).
@@ -81,13 +90,4 @@ Rails.application.configure do
 
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
-
-  # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts = [
-  #   "example.com",     # Allow requests from example.com
-  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
-  # ]
-  #
-  # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 end

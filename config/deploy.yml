@@ -13,16 +13,10 @@ servers:
   #     - 192.168.0.1
   #   cmd: bin/jobs
 
-# Enable SSL auto certification via Let's Encrypt and allow for multiple apps on a single web server.
-# If used with Cloudflare, set encryption mode in SSL/TLS setting to "Full" to enable CF-to-app encryption.
-#
-# Using an SSL proxy like this requires turning on config.assume_ssl and config.force_ssl in production.rb!
-#
-# Don't use this when deploying to multiple web servers (then you have to terminate SSL at your load balancer).
-#
-# proxy:
-#   ssl: true
-#   host: app.example.com
+# The MVP deployment is fronted by the K3s ingress, which terminates TLS
+# before traffic reaches Rails. Production Rails config assumes that proxy
+# boundary by default; set SYRUS_APP_HOST to the public hostname and use
+# SYRUS_ALLOWED_HOSTS only when the ingress serves additional hostnames.
 
 # Where you keep your container images.
 registry:
