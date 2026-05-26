@@ -21,7 +21,6 @@ class Repository < ApplicationRecord
   has_many :repository_notes, dependent: :destroy
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :repository_documents, as: :attachable, class_name: "Document", dependent: :destroy
-  has_one :repository_whiteboard, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy
   has_many :operator_questions, through: :jobs
 

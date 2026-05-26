@@ -1,10 +1,7 @@
 require "rails_helper"
 
-# Chat whiteboards moved off the repository-scoped controller in the
-# /repositories/:id/chats/* deprecation; the canonical endpoint is
-# now /chats/:chat_id/whiteboard handled by ChatWhiteboardsController.
-# These specs are the per-chat counterparts to the repo whiteboard
-# request specs that stayed in spec/requests/repositories/whiteboards_spec.rb.
+# Chat whiteboards are intentionally scoped to a ChatSession. The retired
+# repository-wide whiteboard endpoint is covered only as an unroutable path.
 RSpec.describe "Chat whiteboards", type: :request do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }

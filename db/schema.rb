@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_013332) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_26_014022) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -493,15 +493,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_013332) do
     t.index ["repository_id"], name: "index_repository_notes_on_repository_id"
   end
 
-  create_table "repository_whiteboards", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "repository_id", null: false
-    t.json "scene_json", null: false
-    t.datetime "updated_at", null: false
-    t.integer "version", default: 0, null: false
-    t.index ["repository_id"], name: "index_repository_whiteboards_on_repository_id", unique: true
-  end
-
   create_table "run_diagnostics", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "environment_snapshot"
@@ -827,7 +818,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_013332) do
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "repository_notes", "repositories"
-  add_foreign_key "repository_whiteboards", "repositories"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "runs", "jobs"

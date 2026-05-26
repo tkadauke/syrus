@@ -151,9 +151,9 @@ Layout:
 
 ### 3. Server endpoint for scene updates
 
-`app/controllers/repositories/whiteboards_controller.rb` (new):
+`app/controllers/chat_whiteboards_controller.rb`:
 
-- `PATCH /repositories/:repo_id/chats/:chat_id/whiteboard` —
+- `PATCH /chats/:chat_id/whiteboard` —
   body is `{ elements: [...], expected_version: 14 }`. The
   controller:
   1. Loads the whiteboard (creates one if absent).
@@ -233,7 +233,7 @@ shapes are there).
 
 - `db/migrate/<ts>_create_whiteboards.rb`
 - `app/models/whiteboard.rb`
-- `app/controllers/repositories/whiteboards_controller.rb`
+- `app/controllers/chat_whiteboards_controller.rb`
 - `app/views/repositories/chats/_whiteboard.html.erb` (canvas pane)
 - `app/javascript/controllers/whiteboard_controller.js`
 - `app/services/syrus_chat_mcp/excalidraw_id.rb`
@@ -254,7 +254,7 @@ shapes are there).
 - `app/views/repositories/chats/show.html.erb` — two-pane layout, mount the whiteboard partial, show-canvas toggle.
 - `app/javascript/controllers/chat_controller.js` — coordinate with the whiteboard controller (e.g. mobile tab switching).
 - `app/services/syrus_chat_mcp/sidecar.rb` — register the 8 new tools.
-- `config/routes.rb` — `PATCH/GET /repositories/:repo_id/chats/:chat_id/whiteboard`.
+- `config/routes.rb` — `PATCH/GET /chats/:chat_id/whiteboard`.
 - `app/services/prompts/chat_system.rb` — add a paragraph about the whiteboard's existence + when to use the canvas vs prose.
 
 ## Build order

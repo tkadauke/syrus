@@ -117,7 +117,6 @@ Rails.application.routes.draw do
     # the top-level /chats/* resource (see `resources :chats` below).
     # The repository chat home (no tab, no UI entry point) is gone;
     # the per-repo controller was pure duplication of ChatsController.
-    resource :whiteboard, only: %i[ show update ], controller: "repositories/whiteboards"
     resources :notes, only: %i[ create destroy ], controller: "repositories/notes"
     resources :documents, only: %i[ index create destroy ], controller: "repositories/documents", shallow: true
     resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals" do
