@@ -303,6 +303,7 @@ RSpec.describe "Chats", type: :request do
       expect(response.body).to include("Proposed")
       expect(response.body).to include(chat_proposal_confirm_path(chat, proposal))
       expect(response.body).to include(chat_proposal_reject_path(chat, proposal))
+      expect(response.body).not_to include("/repositories/#{repo.id}/proposals")
     end
 
     it "does not render manual proposal buttons or modal forms in the composer" do

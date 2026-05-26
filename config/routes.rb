@@ -120,16 +120,6 @@ Rails.application.routes.draw do
     resource :whiteboard, only: %i[ show update ], controller: "repositories/whiteboards"
     resources :notes, only: %i[ create destroy ], controller: "repositories/notes"
     resources :documents, only: %i[ index create destroy ], controller: "repositories/documents", shallow: true
-    resources :proposals, only: %i[ index update destroy ], controller: "repositories/proposals" do
-      member do
-        get :file
-        post :file
-      end
-      collection do
-        get :file_bulk
-        post :file_bulk
-      end
-    end
     resources :scheduled_tasks, only: %i[ index update destroy ], controller: "repositories/scheduled_tasks"
     resources :scheduled_tasks, only: %i[ new create ]
   end

@@ -7,8 +7,7 @@
   Locals:
     repository: the Repository instance
     active:     symbol identifying the current tab — one of
-                :overview, :github_issues, :proposals,
-                :scheduled_tasks
+                :overview, :github_issues, :scheduled_tasks
 
   Optional block: anything yielded renders inside an action slot on
   the right side of the tab row (e.g. the Triage buttons on
@@ -19,7 +18,6 @@
   tabs = [
     [ :overview,        "Overview",       repository_path(repository) ],
     [ :github_issues,   "GitHub Issues",  repository_path(repository, tab: "github_issues") ],
-    [ :proposals,       "Proposals",      repository_proposals_path(repository) ],
     [ :scheduled_tasks, "Scheduled Tasks", repository_scheduled_tasks_path(repository) ]
   ]
   base = "px-4 py-2 text-sm font-medium border-b-2 -mb-px"
@@ -28,7 +26,7 @@
 %>
 <%# Pin the row to a constant height so the tab strip doesn't shift
     when navigating between tabs with an action slot (Scheduled Tasks)
-    and tabs without one (Overview, GitHub Issues, Proposals).
+    and tabs without one (Overview, GitHub Issues).
     items-end keeps the active tab's border-b-2 (with -mb-px) flush
     against the row's border-b regardless of right-slot content. %>
 <div class="flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 min-h-10">

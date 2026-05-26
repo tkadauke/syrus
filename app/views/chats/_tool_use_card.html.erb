@@ -12,9 +12,7 @@
     <span class="font-mono font-medium text-gray-900"><%= tool_name %></span>
     <% if message.proposal %>
       <span class="text-gray-500">→</span>
-      <%= link_to "Proposal ##{message.proposal.id}",
-            repository_proposals_path(repository),
-            class: "text-blue-700 underline hover:no-underline" %>
+      <span class="text-gray-600">Proposal #<%= message.proposal.id %></span>
     <% end %>
   </summary>
   <% if message.proposal&.job&.epic %>

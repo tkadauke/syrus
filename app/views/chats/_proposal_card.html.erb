@@ -137,11 +137,6 @@
               chat_proposal_confirm_path(chat_session, proposal),
               method: :post,
               class: "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700" %>
-        <% if repository %>
-          <%= link_to "Edit",
-                repository_proposals_path(repository, edit_id: proposal.id),
-                class: "rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50" %>
-        <% end %>
         <%= button_to "Reject",
               chat_proposal_reject_path(chat_session, proposal),
               method: :post,

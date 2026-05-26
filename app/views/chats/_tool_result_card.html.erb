@@ -16,9 +16,7 @@
           "pending" — surface the friendlier label here. Other states
           (confirmed / rejected / withdrawn) read fine literally. %>
       <% state_label = message.proposal.state == "proposed" ? "pending" : message.proposal.state %>
-      <%= link_to "Proposal ##{message.proposal.id} created (#{state_label})",
-            repository_proposals_path(repository),
-            class: "text-blue-700 underline hover:no-underline" %>
+      <span class="text-gray-600">Proposal #<%= message.proposal.id %> created (<%= state_label %>)</span>
     <% end %>
   </summary>
   <% if message.proposal&.job&.epic %>
