@@ -61,6 +61,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
     t.boolean "polling_paused", default: false, null: false
     t.boolean "runs_paused", default: false, null: false
     t.boolean "signups_open", default: false, null: false
+    t.text "telegram_bot_token"
+    t.text "telegram_webhook_secret"
     t.datetime "updated_at", null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
   end
@@ -463,15 +465,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
     t.index ["repository_id"], name: "index_repository_notes_on_repository_id"
   end
 
-  create_table "repository_whiteboards", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "repository_id", null: false
-    t.json "scene_json", null: false
-    t.datetime "updated_at", null: false
-    t.integer "version", default: 0, null: false
-    t.index ["repository_id"], name: "index_repository_whiteboards_on_repository_id", unique: true
-  end
-
   create_table "run_diagnostics", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "environment_snapshot"
@@ -707,6 +700,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
     t.string "name"
     t.string "password_digest", null: false
     t.boolean "scheduling_paused", default: false, null: false
+    t.text "telegram_chat_id"
     t.datetime "updated_at", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
@@ -787,7 +781,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "repository_notes", "repositories"
-  add_foreign_key "repository_whiteboards", "repositories"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "runs", "jobs"

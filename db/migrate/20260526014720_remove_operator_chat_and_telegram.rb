@@ -19,9 +19,6 @@ class RemoveOperatorChatAndTelegram < ActiveRecord::Migration[8.1]
 
     remove_column :jobs, :operator_chat_disabled if column_exists?(:jobs, :operator_chat_disabled)
     remove_column :repositories, :allow_operator_chat if column_exists?(:repositories, :allow_operator_chat)
-    remove_column :users, :telegram_chat_id if column_exists?(:users, :telegram_chat_id)
-    remove_column :app_settings, :telegram_bot_token if column_exists?(:app_settings, :telegram_bot_token)
-    remove_column :app_settings, :telegram_webhook_secret if column_exists?(:app_settings, :telegram_webhook_secret)
   end
 
   def down

@@ -197,8 +197,8 @@ class AutoRebase
     @git.run("rebase", "--abort", chdir: clone_path.to_s) rescue nil
   end
 
-  def force_push
-    @git.run("push", force_with_lease_arg, authenticated_url,
+  def force_push(expected_sha: @expected_remote_sha)
+    @git.run("push", force_with_lease_arg(expected_sha), authenticated_url,
              "HEAD:refs/heads/#{@job.branch_name}",
              chdir: clone_path.to_s, env: @env)
   rescue GitRunner::GitError => e
@@ -209,8 +209,8 @@ class AutoRebase
       "The remote branch moved after Syrus fetched it; refusing to overwrite newer remote work."
   end
 
-  def force_with_lease_arg
-    "--force-with-lease=refs/heads/#{@job.branch_name}:#{@expected_remote_sha}"
+  def force_with_lease_arg(expected_sha = @expected_remote_sha)
+    "--force-with-lease=refs/heads/#{@job.branch_name}:#{expected_sha}"
   end
 
   def lease_rejected?(error)

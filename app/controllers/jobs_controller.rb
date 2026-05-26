@@ -251,7 +251,11 @@ class JobsController < ApplicationController
     workflow = Workflows::Resume.instantiate(job: @job, agent_provider: session.provider)
     # The first (and only) step of Resume is `manual` — pass the
     # parent session id so the provider can resume the captured session.
-    StepDispatcher.start_workflow(workflow, parent_session_id: session.session_id)
+    StepDispatcher.start_workflow(
+      workflow,
+      parent_session_id: session.session_id,
+      prompt: Prompts::Resume.new.to_s
+    )
     redirect_to job_path(@job), notice: "Resume workflow enqueued."
   end
 
