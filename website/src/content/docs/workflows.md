@@ -104,11 +104,9 @@ same Job.
 | `manual` | Yes | Run an operator-supplied prompt |
 
 Planned Step kinds include
-[`apply_suggestions`](https://github.com/tkadauke/syrus/issues/191) for
-structured GitHub suggestion application and
 [`triage`](https://github.com/tkadauke/syrus/issues/176) for a short
-readiness check before an expensive implementation run. Those are roadmap
-items, not current template steps.
+readiness check before an expensive implementation run. That is a roadmap
+item, not a current template step.
 
 ## Template Selection
 

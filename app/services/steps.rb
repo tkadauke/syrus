@@ -18,7 +18,6 @@ module Steps
     "grader"          => :Grader,
     "grader_fanout"   => :GraderFanout,
     "grader_collect"  => :GraderCollect,
-    "apply_suggestions" => :ApplySuggestions,
     "auto_merge"      => :AutoMerge,
     "manual"          => :Manual
   }.freeze

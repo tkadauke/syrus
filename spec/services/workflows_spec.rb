@@ -233,9 +233,10 @@ RSpec.describe Workflows do
       expect(wf.artifact("rebase_base_sha")).to eq("base-sha")
     end
 
-    it "instantiates AutoMerge with apply_suggestions → auto_merge" do
+    it "instantiates AutoMerge with a single executable auto_merge step" do
       wf = Workflows::AutoMerge.instantiate(job: job)
-      expect(wf.steps.pluck(:kind)).to eq(%w[ apply_suggestions auto_merge ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ auto_merge ])
+      expect(wf.steps.first.next_step).to be_nil
     end
 
     it "instantiates Manual with a single 'manual' step" do
