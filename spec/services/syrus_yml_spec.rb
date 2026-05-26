@@ -29,8 +29,8 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.max_iterations).to eq(5)
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", required: true, timeout_minutes: 15),
-      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", required: true, timeout_minutes: 5)
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15),
+      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", description: nil, required: true, timeout_minutes: 5)
     ])
   end
 
@@ -45,7 +45,7 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.max_iterations).to eq(7)
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", required: true, timeout_minutes: 15)
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15)
     ])
   end
 
@@ -72,15 +72,31 @@ RSpec.describe SyrusYml do
     expect(described_class.load_repo(@dir).grade.steps.first.run).to eq("bin/rspec")
   end
 
-  it "defaults required to true and allows advisory steps" do
+  it "defaults required to true and coerces advisory steps through Rails boolean semantics" do
     config = parse(<<~YAML)
       grade:
         - name: tests
           run: bin/rspec
           required: false
+        - name: lint
+          run: bin/rubocop
+          required: "false"
     YAML
 
     expect(config.grade.steps.first.required).to be(false)
+    expect(config.grade.steps.second.required).to be(false)
+  end
+
+  it "parses optional grader descriptions" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+          description: |
+            Rejects regressions in the Rails suite.
+    YAML
+
+    expect(config.grade.steps.first.description).to eq("Rejects regressions in the Rails suite.")
   end
 
   it "clamps timeout_minutes above the hard ceiling with a warning" do

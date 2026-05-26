@@ -27,7 +27,18 @@ RSpec.describe RepoGradePlan do
       expect(result.graders.map(&:timeout_minutes)).to eq([ 15, 5 ])
     end
 
-it "captures the optional description field for surfacing in UI + agent prompts" do
+    it "coerces string boolean values the same way SyrusYml does" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: advisory
+            run: bin/rubocop
+            required: "false"
+      YAML
+
+      expect(described_class.for(@dir).graders.first.required).to be(false)
+    end
+
+    it "captures the optional description field for surfacing in UI + agent prompts" do
       write(".syrus.yml", <<~YAML)
         grade:
           - name: tests
@@ -63,7 +74,7 @@ it "captures the optional description field for surfacing in UI + agent prompts"
       expect(grader.timeout_minutes).to eq(30)
     end
 
-    it "ignores entries with unsafe or duplicate names" do
+    it "returns an empty parse-error plan for unsafe or duplicate names" do
       write(".syrus.yml", <<~YAML)
         grade:
           steps:
@@ -75,7 +86,10 @@ it "captures the optional description field for surfacing in UI + agent prompts"
               run: echo duplicate
       YAML
 
-      expect(described_class.for(@dir).graders.map(&:command)).to eq([ "bin/rspec" ])
+      result = described_class.for(@dir)
+
+      expect(result.graders).to be_empty
+      expect(result.note).to match(/must match/)
     end
 
     it "returns an empty plan when grade steps are absent" do
@@ -85,6 +99,36 @@ it "captures the optional description field for surfacing in UI + agent prompts"
 
       expect(result.graders).to be_empty
       expect(result.note).to eq("no graders configured")
+    end
+
+    it "returns an empty plan when .syrus.yml is missing" do
+      result = described_class.for(@dir)
+
+      expect(result.graders).to be_empty
+      expect(result.source).to eq("none")
+      expect(result.note).to eq("no .syrus.yml")
+    end
+
+    it "returns an empty parse-error plan for invalid YAML" do
+      write(".syrus.yml", "grade:\n  - name: tests\n    run: [\n")
+
+      result = described_class.for(@dir)
+
+      expect(result.graders).to be_empty
+      expect(result.source).to eq(".syrus.yml")
+      expect(result.note).to match(/YAML parse error/)
+    end
+
+    it "exposes normalized max_iterations" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          max_iterations: 2
+          steps:
+            - name: tests
+              run: bin/rspec
+      YAML
+
+      expect(described_class.for(@dir).max_iterations).to eq(2)
     end
   end
 

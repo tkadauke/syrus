@@ -19,6 +19,7 @@ module Steps
       workspace.setup
       plan = RepoGradePlan.for(workspace.path)
       record_plan_source!(plan)
+      apply_loop_max_iterations!(plan.max_iterations)
 
       log("[grader_fanout] source: #{plan.source}")
       log("[grader_fanout] note: #{plan.note}") if plan.note
@@ -36,6 +37,20 @@ module Steps
 
     def record_plan_source!(plan)
       workflow.set_artifact!("grade_plan_source", plan.source)
+    end
+
+    def apply_loop_max_iterations!(max_iterations)
+      template = Array(workflow.chain_template).map(&:dup)
+      loop_node = template.find { |node| loop_node_for_current_step?(node) }
+      return unless loop_node
+
+      loop_node["max_iterations"] = max_iterations
+      workflow.update!(chain_template: template)
+    end
+
+    def loop_node_for_current_step?(node)
+      node["type"] == "loop" &&
+        Array(node["steps"]).map(&:to_s).include?(step.kind)
     end
 
     # Insert one Step per grader between this fanout Step and its

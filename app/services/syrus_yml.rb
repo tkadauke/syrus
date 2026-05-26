@@ -13,7 +13,7 @@ class SyrusYml
 
   Config = Data.define(:prepare, :grade)
   GradeConfig = Data.define(:max_iterations, :steps)
-  GradeStep = Data.define(:name, :run, :required, :timeout_minutes)
+  GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes)
 
   def self.load_file(path)
     new(Pathname.new(path).read).parse
@@ -87,6 +87,7 @@ class SyrusYml
     GradeStep.new(
       name: name,
       run: run,
+      description: raw["description"].to_s.strip.presence,
       required: raw.key?("required") ? ActiveModel::Type::Boolean.new.cast(raw["required"]) : true,
       timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name)
     )
