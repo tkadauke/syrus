@@ -32,7 +32,7 @@ states are listed only as `from:` and have no event that enters them.
 | `block_by_epic` | `[triaging, queued, open] → blocked_by_epic` (guard) | guard | Job#block_by_epic! self-call (line 573) |
 | `release_epic_block` | `blocked_by_epic → queued` (guard, after: create_initial_run_if_needed) | guard + after | Epic model |
 | `mark_implemented` | `[queued, open, landing_failed] → implemented` | none | `Steps::PrOpen`, `AutoApprovalRule`, `Job#approve_for_landing!` |
-| `approve` | `[open, implemented, landing_failed] → approved` | before: assign_approval_metadata | JobsController, HomeController bulk, AutoApprovalRule, PollMergeStateJob, PollPullRequestJob webhook |
+| `approve` | `[open, implemented, landing_failed] → approved` | before: assign_approval_metadata | JobsController, HomeController bulk, AutoApprovalRule, PollMergeStateJob, PollPullRequestJob polling |
 | `unapprove` | `approved → implemented` | after: clear_approval_metadata | JobsController |
 | `land` | `approved → landing` | none | **None** (see Finding 4) |
 | `start_landing` | `approved → landing` | none | LandingQueueProcessor#land |

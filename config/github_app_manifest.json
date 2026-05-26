@@ -3,10 +3,6 @@
   "url": "https://example.invalid",
   "description": "Syrus bot identity for issue-to-PR automation.",
   "redirect_url": "https://example.invalid/admin/github_app/callback",
-  "hook_attributes": {
-    "url": "https://example.invalid/github_app/webhook",
-    "active": true
-  },
   "public": false,
   "default_permissions": {
     "issues": "write",

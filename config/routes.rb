@@ -289,7 +289,6 @@ Rails.application.routes.draw do
     get "github_app/confirm",  to: "github_app#confirm",  as: :github_app_confirm
   end
 
-  post "github_app/webhook", to: "github_app_webhooks#create", as: :github_app_webhook
   post "dashboard/jobs/bulk", to: "home#bulk_jobs", as: :bulk_dashboard_jobs
   root "home#index"
 

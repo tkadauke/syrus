@@ -1,10 +1,9 @@
 class GithubAppManifest
   TEMPLATE_PATH = Rails.root.join("config/github_app_manifest.json")
 
-  def initialize(user:, callback_url:, webhook_url:)
+  def initialize(user:, callback_url:)
     @user = user
     @callback_url = callback_url
-    @webhook_url = webhook_url
   end
 
   def to_json(*)
@@ -16,7 +15,6 @@ class GithubAppManifest
       body["name"] = body["name"].sub("{operator-handle}", operator_handle)
       body["url"] = root_url
       body["redirect_url"] = @callback_url
-      body["hook_attributes"]["url"] = @webhook_url
     end
   end
 

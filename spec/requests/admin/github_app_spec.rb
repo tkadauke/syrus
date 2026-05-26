@@ -15,6 +15,8 @@ RSpec.describe "Admin GitHub App registration", type: :request do
     expect(response.body).to include("&quot;issues&quot;:&quot;write&quot;")
     expect(response.body).to include("&quot;pull_requests&quot;:&quot;write&quot;")
     expect(response.body).to include("&quot;metadata&quot;:&quot;read&quot;")
+    expect(response.body).not_to include("hook_attributes")
+    expect(response.body).not_to include("github_app/webhook")
 
     form = Nokogiri::HTML(response.body).at_css("form[action^='https://github.com/settings/apps/new']")
     expect(form["target"]).to eq("_blank")
@@ -32,8 +34,7 @@ RSpec.describe "Admin GitHub App registration", type: :request do
         body: {
           id: 12345,
           slug: "operator-syrus",
-          pem: pem,
-          webhook_secret: "secret-from-github"
+          pem: pem
         }.to_json
       )
 
@@ -45,7 +46,6 @@ RSpec.describe "Admin GitHub App registration", type: :request do
     expect(settings.github_app_id).to eq(12345)
     expect(settings.github_app_slug).to eq("operator-syrus")
     expect(settings.github_app_private_key_pem).to eq(pem)
-    expect(settings.github_app_webhook_secret).to eq("secret-from-github")
     expect(settings.github_app_registered_at).to be_present
     expect(response).to redirect_to(admin_github_app_confirm_path)
   end
@@ -59,70 +59,9 @@ RSpec.describe "Admin GitHub App registration", type: :request do
     expect(response).to redirect_to(admin_github_app_register_path)
   end
 
-  it "returns 200 for the declared webhook stub" do
+  it "does not expose a GitHub App webhook route" do
     post "/github_app/webhook"
-    expect(response).to have_http_status(:ok)
-  end
 
-  it "records approval metadata from pull_request_review webhooks" do
-    repository = Factories.repository(user: admin, owner: "acme", name: "widgets")
-    job = Factories.job(repository: repository, issue_number: 42, pr_number: 7)
-    job.update!(state: "implemented")
-
-    payload = {
-      review: {
-        state: "approved",
-        submitted_at: "2026-05-16T00:15:00Z",
-        html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-99"
-      },
-      repository: {
-        name: "widgets",
-        owner: { login: "acme" }
-      },
-      pull_request: {
-        number: 7
-      }
-    }
-
-    post "/github_app/webhook",
-         params: payload.to_json,
-         headers: { "CONTENT_TYPE" => "application/json", "X-GitHub-Event" => "pull_request_review" }
-
-    expect(response).to have_http_status(:ok)
-    expect(job.reload.state).to eq("approved")
-    expect(job.approved_at).to eq(Time.zone.parse("2026-05-16T00:15:00Z"))
-    expect(job.approved_via).to eq("github_review")
-    expect(job.approval_evidence).to eq("github_review_url" => "https://github.com/acme/widgets/pull/7#pullrequestreview-99")
-  end
-
-  it "warns when an edited issue removes an Epic marker without detaching links" do
-    user = Factories.user
-    Factories.repository(user: user, owner: "acme", name: "widgets")
-    payload = {
-      action: "edited",
-      repository: {
-        full_name: "acme/widgets",
-        name: "widgets",
-        owner: { login: "acme" }
-      },
-      issue: {
-        number: 42,
-        body: "No marker now."
-      },
-      changes: {
-        body: { from: "Epic: Attachments rollout" }
-      }
-    }
-
-    expect(Rails.logger).to receive(:warn).with(/Epic marker removed/)
-
-    post "/github_app/webhook",
-      params: payload.to_json,
-      headers: {
-        "CONTENT_TYPE" => "application/json",
-        "X-GitHub-Event" => "issues"
-      }
-
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:not_found)
   end
 end

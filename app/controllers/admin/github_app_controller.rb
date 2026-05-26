@@ -8,8 +8,7 @@ module Admin
       session[:github_app_manifest_state] = @state
       @manifest = GithubAppManifest.new(
         user: Current.user,
-        callback_url: admin_github_app_callback_url,
-        webhook_url: github_app_webhook_url
+        callback_url: admin_github_app_callback_url
       ).to_json
       @github_manifest_url = "#{GITHUB_MANIFEST_URL}?state=#{CGI.escape(@state)}"
     end
@@ -48,7 +47,6 @@ module Admin
         github_app_id: payload.fetch("id"),
         github_app_slug: payload["slug"],
         github_app_private_key_pem: payload.fetch("pem"),
-        github_app_webhook_secret: payload["webhook_secret"],
         github_app_registered_at: Time.current
       )
     end

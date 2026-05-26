@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_014720) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -56,7 +56,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_014720) do
     t.text "github_app_private_key_pem"
     t.datetime "github_app_registered_at"
     t.string "github_app_slug"
-    t.text "github_app_webhook_secret"
     t.integer "grade_max_iterations", default: 5, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "polling_paused", default: false, null: false
