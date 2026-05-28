@@ -60,6 +60,36 @@ RSpec.describe "Epics", type: :request do
     end
   end
 
+  describe "PATCH /epics/:id/state" do
+    it "advances a backlog Epic to ready through an allowed transition" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repo, state: "backlog")
+
+      patch state_epic_path(epic),
+            params: { target_state: "ready" },
+            headers: { "HTTP_REFERER" => epic_path(epic) }
+
+      expect(response).to redirect_to(epic_path(epic))
+      expect(flash[:notice]).to eq("Epic updated.")
+      expect(epic.reload).to be_ready
+    end
+
+    it "marks an in-progress Epic done when its child Jobs are complete" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      Factories.job_record(user: user, repository: repo, epic: epic, state: "closed", closure_reason: "pr_merged")
+
+      patch state_epic_path(epic),
+            params: { target_state: "done" },
+            headers: { "HTTP_REFERER" => epic_path(epic) }
+
+      expect(response).to redirect_to(epic_path(epic))
+      expect(flash[:notice]).to eq("Epic updated.")
+      expect(epic.reload).to be_done
+      expect(epic.done_at).to be_present
+    end
+  end
+
   describe "GET /?subject=epic&view=list" do
     it "renders a subject-aware chip bar and Epic SmartFolder sidebar" do
       sign_in_as(user)
@@ -296,6 +326,21 @@ RSpec.describe "Epics", type: :request do
       document = Nokogiri::HTML(response.body)
       title_link = document.at_css("a[href='#{job_path(job)}']")
       expect(title_link.text).to eq("Survey forum")
+    end
+
+    it "renders only the currently allowed state transitions" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repo, title: "Restore forum", state: "ready")
+
+      get epic_path(epic)
+
+      document = Nokogiri::HTML(response.body)
+      state_forms = document.css("form[action='#{state_epic_path(epic)}']")
+      target_states = state_forms.css("input[name='target_state']").map { |input| input["value"] }
+      button_labels = state_forms.css("button").map { |button| button.text.squish }
+
+      expect(target_states).to contain_exactly("in_progress", "archived")
+      expect(button_labels).to contain_exactly("Start", "Archive")
     end
 
     it "renders a drawer graph frame for Kanban cards" do

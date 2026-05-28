@@ -26,4 +26,14 @@ module EpicsHelper
   def epic_lane_title(state)
     state.to_s.humanize.titleize
   end
+
+  def epic_state_transition_options(epic)
+    transitions = []
+    transitions << [ "Ready", "ready" ] if epic.backlog? && epic.may_auto_ready?
+    transitions << [ "Start", "in_progress" ] if epic.ready? && epic.may_start?
+    transitions << [ "Move back to ready", "ready" ] if epic.in_progress? && epic.may_unstart?
+    transitions << [ "Mark done", "done" ] if epic.in_progress? && epic.may_auto_complete?
+    transitions << [ "Archive", "archived" ] if epic.may_archive?
+    transitions
+  end
 end

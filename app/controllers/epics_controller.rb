@@ -67,15 +67,24 @@ class EpicsController < ApplicationController
     if ActiveModel::Type::Boolean.new.cast(params[:override])
       @epic.override_state!(target_state)
       respond_to_state_update
+    elsif @epic.backlog? && target_state == "ready" && @epic.may_auto_ready?
+      @epic.auto_ready!
+      respond_to_state_update
     elsif @epic.ready? && target_state == "in_progress"
       @epic.start!
       respond_to_state_update
     elsif @epic.in_progress? && target_state == "ready"
       @epic.unstart!
       respond_to_state_update
+    elsif @epic.in_progress? && target_state == "done" && @epic.may_auto_complete?
+      @epic.auto_complete!
+      respond_to_state_update
+    elsif target_state == "archived" && @epic.may_archive?
+      @epic.archive!
+      respond_to_state_update
     else
       respond_to do |format|
-        format.html { redirect_back fallback_location: dashboard_epics_path, alert: "That Epic transition is not available from the board." }
+        format.html { redirect_back fallback_location: dashboard_epics_path, alert: "That Epic transition is not available." }
         format.json { render json: { error: "transition_not_allowed" }, status: :unprocessable_content }
       end
     end
