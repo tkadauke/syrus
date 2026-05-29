@@ -58,6 +58,12 @@ same Workflow pipeline.
   instead of fast-forward, and skips the PR-opening step. Triggered by
   `PollAllMergeStatesJob` when a PR is `mergeable: false` and we control
   the head branch.
+- `auto_merge` — landing workflow for approved, green PRs; runs a single
+  non-agentic merge step and then lets `LandingQueueProcessor` continue.
+- `resume` — operator-triggered continuation of a captured provider
+  session; single `manual` step.
+- `local_dev` — no-GitHub development path; runs local prepare/implement
+  and emits the captured diff instead of opening a PR.
 
 ### Per-Workflow pipeline (`app/jobs/run_job.rb`, `app/services/workflows/`, `app/services/steps/`)
 
@@ -71,11 +77,15 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → implement → summarize → pr_open
-pr_comment:  prepare → respond → summarize_amend → push
+initial:     prepare → loop(implement, grader_fanout, grader_collect) → summarize → pr_open
+pr_comment:  prepare → loop(respond, grader_fanout, grader_collect) → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
-retry:       prepare → implement → summarize → pr_open
+retry:       prepare → loop(implement, grader_fanout, grader_collect) → summarize → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
+auto_merge:  auto_merge
+manual:      manual
+resume:      manual
+local_dev:   prepare → implement
 ```
 
 Key steps:
@@ -97,6 +107,10 @@ Key steps:
   and still `force_push`. On conflict, `agent_rebase` resolves it, then
   `force_push` updates the PR branch with an explicit `--force-with-lease`
   against the branch SHA Syrus observed.
+- **`grader_fanout`** / **`grader`** / **`grader_collect`** — Grading loop:
+  read repo grader config, insert one `grader` Step per command, run all
+  graders, and either advance or feed the failures into the next agent
+  iteration. Auto-approval fires after `grader_collect`, not per grader.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
   If the implement step already called `submit_summary` (artifacts contain
@@ -243,6 +257,11 @@ preserve scroll position across morphs.
   and drives repository-level bulk retries. Per-Job actions and new direct
   Jobs can explicitly choose a configured provider. Always pass the chosen
   provider through to the new Workflow/Run instead of relying on later inference.
+- **Step / workflow kind metadata** — `Step::Kind` and
+  `Workflow::TriggerKind` are the canonical registries for validation values,
+  handler/template lookup, labels, styles, and agentic-step flags. When adding
+  a kind, update the matching registry entry and its model spec; don't add
+  parallel constants in helpers or service registries.
 - **GitHub credentials** — repositories prefer an active GitHub App
   `Installation`; `GithubClient.for` falls back to the user's PAT if the
   installation is removed or absent. Repository owner changes relink through
