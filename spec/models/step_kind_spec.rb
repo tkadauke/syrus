@@ -17,8 +17,6 @@ RSpec.describe Step::Kind do
   end
 
   it "gives newer non-agentic steps deliberate product copy" do
-    expect(described_class.label_for("apply_suggestions")).to eq("Apply suggestions")
-    expect(described_class.style_for("apply_suggestions")).to eq("bg-lime-100 text-lime-700")
     expect(described_class.label_for("auto_merge")).to eq("Auto-merge")
     expect(described_class.style_for("auto_merge")).to eq("bg-green-100 text-green-700")
   end

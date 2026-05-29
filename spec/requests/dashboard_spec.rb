@@ -793,10 +793,10 @@ RSpec.describe "Dashboard", type: :request do
 
       expect(document.at_css("[data-kanban-lane='blocked']").text).to include("#6", "Wait for the forum")
       expect(document.at_css("[data-kanban-lane='queued']").text).to include("#1", "Await the first trumpet", "No workflow yet")
-      expect(document.at_css("[data-kanban-lane='running']").text).to include("#2", "March immediately", "running", "initial")
+      expect(document.at_css("[data-kanban-lane='running']").text).to include("#2", "March immediately", "running", "Initial implementation")
       expect(document.at_css("[data-kanban-lane='succeeded']").text).to include("#3", "Return triumphant", "awaiting feedback")
       expect(document.at_css("[data-kanban-lane='landing']").text).to include("#5", "Enter the landing queue")
-      expect(document.at_css("[data-kanban-lane='failed']").text).to include("#4", "Drop the standard", "failed", "retry")
+      expect(document.at_css("[data-kanban-lane='failed']").text).to include("#4", "Drop the standard", "failed", "Retry")
 
       card = document.at_css("[data-job-id='#{failed.id}']")
       expect(card.name).to eq("a")
@@ -1485,7 +1485,7 @@ RSpec.describe "Dashboard", type: :request do
         end
 
         expect(state_header["class"]).to include("hidden sm:table-cell")
-        expect(mobile_state_summary.text).to include("initial")
+        expect(mobile_state_summary.text).to include("Initial implementation")
       end
 
       it "scopes to the current user (no leakage)" do

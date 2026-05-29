@@ -22,7 +22,6 @@ class Step
       Entry.new(kind: "grader", handler: "Grader", label: "Grader", style: "bg-violet-100 text-violet-700", agentic: false),
       Entry.new(kind: "grader_fanout", handler: "GraderFanout", label: "Plan graders", style: "bg-violet-100 text-violet-700", agentic: false),
       Entry.new(kind: "grader_collect", handler: "GraderCollect", label: "Aggregate graders", style: "bg-violet-100 text-violet-700", agentic: false),
-      Entry.new(kind: "apply_suggestions", handler: "ApplySuggestions", label: "Apply suggestions", style: "bg-lime-100 text-lime-700", agentic: false),
       Entry.new(kind: "auto_merge", handler: "AutoMerge", label: "Auto-merge", style: "bg-green-100 text-green-700", agentic: false),
       Entry.new(kind: "manual", handler: "Manual", label: "Manual", style: "bg-gray-100 text-gray-700", agentic: true)
     ].freeze
