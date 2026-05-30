@@ -43,6 +43,11 @@ class Epic < ApplicationRecord
   after_create :resolve_pending_epic_dependencies_targeting_self
   after_create_commit :broadcast_app_epic_created
   after_update_commit :broadcast_app_epic_updated
+  after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
+
+  broadcasts_refreshes_to ->(epic) { [ epic.user, "jobs" ] }
+  broadcasts_refreshes_to ->(epic) { [ epic.repository, "jobs" ] }
+  broadcasts_refreshes
 
   scope :claimed, -> { where("owner_id IS NOT NULL OR owner_user_id IS NOT NULL") }
   scope :unclaimed, -> { where(owner_id: nil, owner_user_id: nil) }
@@ -286,6 +291,12 @@ class Epic < ApplicationRecord
 
   def stamp_done_at
     self.done_at = Time.current
+  end
+
+  def refresh_dependent_epic_auto_states
+    return unless done?
+
+    dependent_epics.find_each(&:refresh_auto_state!)
   end
 
   def assign_owner!(new_owner)

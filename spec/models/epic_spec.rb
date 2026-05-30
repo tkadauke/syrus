@@ -182,6 +182,19 @@ RSpec.describe Epic do
     expect(epic.may_auto_ready?).to be false
   end
 
+  it "auto-promotes backlog dependents when their Epic dependency becomes done" do
+    prerequisite = described_class.create!(user: user, repository: repository, title: "Prerequisite")
+    epic = described_class.create!(user: user, repository: repository, title: "Dependent")
+    EpicDependency.create!(epic: epic, depends_on_epic: prerequisite, derived: false)
+    child_job(epic: epic, number: 10)
+
+    expect(epic.reload).to be_backlog
+
+    expect {
+      prerequisite.override_state!("done")
+    }.to change { epic.reload.state }.from("backlog").to("ready")
+  end
+
   context "with Depends-on refs in description" do
     it "creates an EpicDependency for a same-repository GitHub issue reference" do
       prerequisite = described_class.create!(
