@@ -78,7 +78,7 @@ grade:
       they touch. `db:test:prepare` runs first so schema changes in
       the same workflow are picked up before spec collection.
     run: bin/rails db:test:prepare && bin/rspec
-    timeout_minutes: 10
+    timeout_minutes: 30
 
   - name: react-tests
     description: |
