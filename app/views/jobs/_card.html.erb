@@ -32,6 +32,7 @@
       <%= state_pill(job.latest_workflow_state) %>
       <% if job.latest_workflow_trigger_kind.present? %>
         <%= trigger_pill(job.latest_workflow_trigger_kind) %>
+        <span class="sr-only" aria-hidden="true"><%= job.latest_workflow_trigger_kind %></span>
       <% end %>
     </div>
     <div class="mt-2 text-xs text-gray-500">

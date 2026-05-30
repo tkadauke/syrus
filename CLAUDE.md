@@ -67,6 +67,9 @@ in a Workflow share one `WorkflowWorkspace` (shallow clone at
 `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`). Workspace lifecycle is tied to
 Workflow terminal transitions (not per-Step ensure). `WorkflowWorkspacePruneJob`
 sweeps old terminal workspaces after 7 days.
+Workflow and Step metadata is centralized: `Workflow::TriggerKind` owns
+valid trigger kinds, template lookup, labels, and pill styles; `Step::Kind`
+owns valid step kinds, handler lookup, labels, styles, and `agentic?`.
 
 Current chains:
 
@@ -243,6 +246,10 @@ preserve scroll position across morphs.
   and drives repository-level bulk retries. Per-Job actions and new direct
   Jobs can explicitly choose a configured provider. Always pass the chosen
   provider through to the new Workflow/Run instead of relying on later inference.
+- **Workflow / Step registries** — when adding, removing, or renaming a
+  trigger or step kind, update `Workflow::TriggerKind` / `Step::Kind` and
+  their specs. Do not duplicate labels, styles, handler maps, or agentic
+  classification in helpers or ad hoc constants.
 - **GitHub credentials** — repositories prefer an active GitHub App
   `Installation`; `GithubClient.for` falls back to the user's PAT if the
   installation is removed or absent. Repository owner changes relink through

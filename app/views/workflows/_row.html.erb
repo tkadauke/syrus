@@ -4,6 +4,7 @@
     <%= link_to "##{workflow.id}", job_path(job, anchor: "workflow_#{workflow.id}"), class: "text-blue-600 underline hover:no-underline" %>
     <div class="mt-1 sm:hidden flex flex-wrap items-center gap-1.5 font-sans">
       <%= trigger_pill(workflow.trigger_kind) %>
+      <span class="sr-only" aria-hidden="true"><%= workflow.trigger_kind %></span>
       <%= state_pill(workflow.state) %>
     </div>
   </td>
