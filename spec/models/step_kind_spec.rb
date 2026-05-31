@@ -21,6 +21,8 @@ RSpec.describe Step::Kind do
     expect(described_class.style_for("apply_suggestions")).to eq("bg-lime-100 text-lime-700")
     expect(described_class.label_for("landing_fix")).to eq("Final fix")
     expect(described_class.style_for("landing_fix")).to eq("bg-blue-100 text-blue-700")
+    expect(described_class.label_for("grader_fanout")).to eq("Plan graders")
+    expect(described_class.style_for("grader_fanout")).to eq("bg-violet-100 text-violet-700")
     expect(described_class.label_for("auto_merge")).to eq("Auto-merge")
     expect(described_class.style_for("auto_merge")).to eq("bg-green-100 text-green-700")
   end
