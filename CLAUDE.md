@@ -50,6 +50,8 @@ same Workflow pipeline.
 - `initial` — first attempt on a Job (issue → branch → PR)
 - `pr_comment` — review feedback follow-up; reuses the same branch
 - `ci_failure`, `retry`, `manual` — operator-initiated retries
+- `auto_merge` — landing-queue attempt for an approved Job; runs after
+  approval/check gates pass and owns the final GitHub merge path.
 - `rebase` — maintenance Run that rebases the PR's branch onto base
   when the PR has gone unmergeable. Skips the closed-Job guard (a
   preempted Job's external PR can still need rebases), skips
@@ -76,6 +78,7 @@ pr_comment:  prepare → respond → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
 retry:       prepare → implement → summarize → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
+auto_merge:  auto_merge
 ```
 
 Key steps:
@@ -97,6 +100,9 @@ Key steps:
   and still `force_push`. On conflict, `agent_rebase` resolves it, then
   `force_push` updates the PR branch with an explicit `--force-with-lease`
   against the branch SHA Syrus observed.
+- **`auto_merge`** — Non-agentic landing step. Transient GitHub merge
+  failures defer the Job back to `approved`; a 405 saying the PR can't be
+  rebased is non-retryable and fails landing so an operator can intervene.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
   If the implement step already called `submit_summary` (artifacts contain
@@ -193,6 +199,11 @@ across web/worker processes.
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
   `CLAUDE.md`.
+- **Workflow/Step registries** — `Workflow::TriggerKind` and `Step::Kind`
+  are the single source for trigger/step metadata: valid values, handler or
+  template class, UI label/style, and whether a step is agentic. Add new
+  trigger kinds or step kinds there instead of scattering constants in
+  helpers/services.
 - **Encrypted attributes** — `User#github_token`, `User#claude_oauth_token`
   use Active Record Encryption. Means `RAILS_MASTER_KEY` is required in
   any process that touches them. Smoke tests inside containers without
