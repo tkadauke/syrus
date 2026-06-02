@@ -11,6 +11,18 @@ export type SignupPayload = {
   } | null
 }
 
+export type PublicAuthStatusPayload = {
+  authenticated: boolean
+  first_signup: boolean
+  signups_open: boolean
+  valid_invitation: boolean
+  cta: {
+    kind: "dashboard" | "create_first_account" | "sign_up" | "accept_invitation" | "sign_in"
+    label: string
+    href: string
+  }
+}
+
 export type AuthRedirectPayload = {
   redirect_to: string
   message?: string
@@ -23,6 +35,10 @@ export type PasswordRequestPayload = {
 
 export function fetchSignup(search = "") {
   return getJson<SignupPayload>(`/api/v1/app/auth/signup${search}`)
+}
+
+export function fetchPublicAuthStatus(search = "") {
+  return getJson<PublicAuthStatusPayload>(`/api/v1/app/auth/status${search}`)
 }
 
 export function signIn(values: { email_address: string; password: string }) {

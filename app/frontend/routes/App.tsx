@@ -280,7 +280,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
-  const shouldLoadChromeBootstrap = initialBootstrap != null || normalizedPath === "/"
+  const shouldLoadChromeBootstrap = initialBootstrap != null
   const bootstrap = useQuery({
     queryKey: ["bootstrap"],
     queryFn: fetchBootstrap,

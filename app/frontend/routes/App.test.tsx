@@ -310,6 +310,42 @@ describe("App", () => {
     )
   })
 
+  it("renders the logged-out landing CTA from public auth status", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          authenticated: false,
+          first_signup: false,
+          signups_open: false,
+          valid_invitation: true,
+          cta: {
+            kind: "accept_invitation",
+            label: "Accept invitation",
+            href: "/users/new?token=invite-token"
+          }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/?token=invite-token"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByRole("main", { name: "Syrus landing" })).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "Accept invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
+    expect(screen.getAllByText("Invitation").length).toBeGreaterThan(0)
+    expect(screen.getByText("Valid")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/auth/status?token=invite-token",
+      expect.objectContaining({ credentials: "same-origin" })
+    )
+  })
+
   it("renders the password request route and shows the API response message", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(

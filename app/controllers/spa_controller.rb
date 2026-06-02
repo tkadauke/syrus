@@ -1,5 +1,6 @@
 class SpaController < ApplicationController
   layout "spa"
+  before_action :resume_session_for_public_path, if: :public_spa_path?
   before_action :enforce_signup_gate, if: :signup_spa_path?
   before_action :require_admin, if: :admin_spa_path?
 
@@ -16,11 +17,21 @@ class SpaController < ApplicationController
   end
 
   def public_spa_path?
-    request.path == root_path || normalized_path.in?(%w[
-      /session/new
-      /users/new
-      /passwords/new
-    ]) || normalized_path.match?(%r{\A/passwords/[^/]+/edit\z})
+    canonical_landing_path? ||
+      normalized_path.in?(%w[
+        /session/new
+        /users/new
+        /passwords/new
+      ]) ||
+      normalized_path.match?(%r{\A/passwords/[^/]+/edit\z})
+  end
+
+  def canonical_landing_path?
+    request.path == "/" && normalized_path == "/"
+  end
+
+  def resume_session_for_public_path
+    resume_session
   end
 
   def signup_spa_path?

@@ -40,6 +40,105 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
     )
   end
 
+  it "exposes public auth state for first account setup without private data" do
+    get "/api/v1/app/auth/status"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to eq(
+      "authenticated" => false,
+      "first_signup" => true,
+      "signups_open" => false,
+      "valid_invitation" => false,
+      "cta" => {
+        "kind" => "create_first_account",
+        "label" => "Create first account",
+        "href" => "/users/new"
+      }
+    )
+  end
+
+  it "exposes public auth state for open signups" do
+    Factories.user
+    AppSetting.current.update!(signups_open: true)
+
+    get "/api/v1/app/auth/status"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "authenticated" => false,
+      "first_signup" => false,
+      "signups_open" => true,
+      "valid_invitation" => false,
+      "cta" => {
+        "kind" => "sign_up",
+        "label" => "Create account",
+        "href" => "/users/new"
+      }
+    )
+  end
+
+  it "exposes public auth state for invite-only instances without user data" do
+    user = Factories.user(email_address: "operator@example.com")
+    Invitation.create!(invited_by: user, email_address: "guest@example.com")
+
+    get "/api/v1/app/auth/status"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "authenticated" => false,
+      "first_signup" => false,
+      "signups_open" => false,
+      "valid_invitation" => false,
+      "cta" => {
+        "kind" => "sign_in",
+        "label" => "Sign in",
+        "href" => "/session/new"
+      }
+    )
+    expect(response.body).not_to include("operator@example.com")
+    expect(response.body).not_to include("guest@example.com")
+  end
+
+  it "exposes public auth state for valid invitation links without invitation metadata" do
+    admin = Factories.user(email_address: "operator@example.com")
+    invitation = Invitation.create!(invited_by: admin, email_address: "guest@example.com")
+
+    get "/api/v1/app/auth/status", params: { token: invitation.token }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "authenticated" => false,
+      "first_signup" => false,
+      "signups_open" => false,
+      "valid_invitation" => true,
+      "cta" => {
+        "kind" => "accept_invitation",
+        "label" => "Accept invitation",
+        "href" => "/users/new?token=#{invitation.token}"
+      }
+    )
+    expect(response.body).not_to include("operator@example.com")
+    expect(response.body).not_to include("guest@example.com")
+  end
+
+  it "exposes authenticated public auth state without user metadata" do
+    user = Factories.user(email_address: "operator@example.com")
+    sign_in_as(user)
+
+    get "/api/v1/app/auth/status"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "authenticated" => true,
+      "cta" => {
+        "kind" => "dashboard",
+        "label" => "Open dashboard",
+        "href" => "/dashboard/jobs?view=list"
+      }
+    )
+    expect(response.body).not_to include("operator@example.com")
+  end
+
   it "creates the first user through JSON sign-up" do
     expect {
       post "/api/v1/app/auth/users", params: {

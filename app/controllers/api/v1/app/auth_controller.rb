@@ -4,6 +4,15 @@ module Api
       class AuthController < BaseController
         skip_before_action :require_authentication
 
+        def status
+          resume_session
+
+          render json: AppApi::PublicAuthState.new(
+            user: Current.user,
+            invitation_token: params[:token]
+          ).as_json
+        end
+
         def signup
           invitation = invitation_from_params
           render json: {
