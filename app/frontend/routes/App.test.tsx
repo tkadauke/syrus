@@ -430,6 +430,49 @@ describe("App", () => {
     }
   })
 
+  it("accepts bug reports with the command-enter shortcut", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/bug_reports" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Bug report queued.", job_id: 46 }), { status: 201, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      fireEvent.click(await screen.findByRole("button", { name: "Report a bug" }))
+      await screen.findByRole("dialog", { name: "Report a bug" })
+      fireEvent.change(screen.getByLabelText("Description"), { target: { value: "The toga modal has fallen." } })
+      fireEvent.keyDown(screen.getByLabelText("Description"), { key: "Enter", metaKey: true })
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/bug_reports",
+          expect.objectContaining({ method: "POST", credentials: "same-origin", body: expect.any(FormData) })
+        )
+      })
+      const form = fetchSpy.mock.calls[0]?.[1]?.body as FormData
+      expect(form.get("title")).toBe("Dashboard bug")
+      expect(form.get("description")).toBe("The toga modal has fallen.")
+    } finally {
+      script.remove()
+    }
+  })
+
   it("renders the admin overview route from the app admin API", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(

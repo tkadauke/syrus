@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query"
-import type { FormEvent } from "react"
+import type { FormEvent, KeyboardEvent } from "react"
 import { useEffect, useState } from "react"
 import { ApiError } from "../api/client"
 import { createBugReport } from "../api/bugReports"
@@ -81,6 +81,13 @@ export function BugReportButton({ context }: { context: string }) {
     bugReport.mutate()
   }
 
+  function submitOnShortcut(event: KeyboardEvent<HTMLFormElement>) {
+    if (bugReport.isPending || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+
+    event.preventDefault()
+    event.currentTarget.requestSubmit()
+  }
+
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -97,7 +104,7 @@ export function BugReportButton({ context }: { context: string }) {
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <section aria-labelledby="bug-report-title" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-xl" role="dialog">
-            <form className="space-y-5 p-5 sm:p-6" onSubmit={submit}>
+            <form className="space-y-5 p-5 sm:p-6" onKeyDown={submitOnShortcut} onSubmit={submit}>
               <div className="flex items-start justify-between gap-4">
                 <h2 className="text-lg font-semibold text-gray-900" id="bug-report-title">Report a bug</h2>
                 <button
