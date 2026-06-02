@@ -62,6 +62,7 @@ RSpec.describe "App API job detail", type: :request do
     body = parse_body
     expect(body.dig("job", "id")).to eq(job.id)
     expect(body.dig("job", "issue_title")).to eq("Repair aqueduct")
+    expect(body.dig("job", "total_cost_usd")).to be_nil
     expect(body.dig("job", "pr_url")).to eq("https://github.com/acme/widgets/pull/7")
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
     expect(body["pinned"]).to eq(false)
@@ -104,6 +105,15 @@ RSpec.describe "App API job detail", type: :request do
     expect(first_run["health_snapshots"]).to contain_exactly(include("health_status" => "healthy", "run_state" => "running"))
     expect(first_run["run_diagnostic"]).to include("present" => true)
     expect(first_run["run_diagnostic"]).not_to have_key("error_message")
+  end
+
+  it "returns job detail cost after a run records cost metadata" do
+    job.initial_run.update!(cost_usd: 0.34)
+
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("job", "total_cost_usd")).to eq(0.34)
   end
 
   it "paginates workflows on the job detail payload" do

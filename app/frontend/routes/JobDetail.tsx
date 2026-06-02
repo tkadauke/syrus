@@ -119,7 +119,8 @@ function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { 
               {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
             </div>
             <p className="mt-1 text-sm text-gray-500">
-              Job #{payload.job.id} · {payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")} · {formatCurrency(payload.job.total_cost_usd)}
+              Job #{payload.job.id} · {payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")}
+              {payload.job.total_cost_usd == null ? null : <> · {formatCurrency(payload.job.total_cost_usd)}</>}
               {payload.job.prepare_skipped ? <span className="font-medium text-amber-700"> · prepare skipped</span> : null}
             </p>
           </div>
@@ -356,7 +357,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
         <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name || "-"}</code></KeyValue>
         <KeyValue label="Stack base"><StackBaseForm command={command} payload={payload} /></KeyValue>
         <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue>
-        <KeyValue label="Cost">{formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400">({payload.job.billed_runs_count} billed)</span></KeyValue>
+        <KeyValue label="Cost">{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400">({payload.job.billed_runs_count} billed)</span></KeyValue>
         <KeyValue label="Started">{formatDate(payload.job.started_at)}</KeyValue>
         <KeyValue label="Closed">{payload.job.finished_at ? `${formatDate(payload.job.finished_at)} (${payload.job.closure_reason || "unspecified"})` : "still open"}</KeyValue>
       </section>

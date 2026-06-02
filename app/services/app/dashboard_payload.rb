@@ -414,7 +414,7 @@ module App
         summary_state: summary_state(job),
         validity: job.validity,
         priority: job.priority,
-        total_cost_usd: job.total_cost_usd.to_f,
+        total_cost_usd: job.display_total_cost_usd&.to_f,
         issue_number: job.issue_number,
         issue_url: App::Presentation.job_issue_url(job),
         branch_name: job.branch_name,

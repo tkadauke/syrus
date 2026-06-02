@@ -453,6 +453,12 @@ class Job < ApplicationRecord
     end
   end
 
+  def display_total_cost_usd
+    return nil if billed_runs_count.zero?
+
+    total_cost_usd
+  end
+
   def billed_runs_count
     if runs.loaded?
       runs.count { |run| run.cost_usd.present? }

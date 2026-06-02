@@ -1005,6 +1005,38 @@ describe("App", () => {
     }
   })
 
+  it("omits mobile Job dashboard cost before any billed run", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            items: [dashboardJobItem({ total_cost_usd: null })]
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const row = await screen.findByRole("article", { name: "Repair aqueduct" })
+      expect(within(row).getByText("acme/widgets")).toBeInTheDocument()
+      expect(within(row).queryByText("$0.00")).not.toBeInTheDocument()
+    } finally {
+      restoreMedia()
+    }
+  })
+
   it("renders mobile Epic dashboard rows as consolidated cards", async () => {
     const restoreMedia = mockMediaQuery(false)
     vi.spyOn(window, "fetch").mockResolvedValue(

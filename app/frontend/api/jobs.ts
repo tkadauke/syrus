@@ -33,7 +33,7 @@ export type JobRecord = {
   landing_failure_reason: string | null
   approved_at: string | null
   approved_via: string | null
-  total_cost_usd: number
+  total_cost_usd: number | null
   billed_runs_count: number
   workflows_count: number
   runs_count: number

@@ -50,7 +50,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         "state" => "queued",
         "latest_workflow_trigger_kind" => nil,
         "latest_workflow_state" => "queued",
-        "total_cost_usd" => 0.0,
+        "total_cost_usd" => nil,
         "workflows_count" => 0,
         "approved_at" => nil,
         "dependencies_overridden_at" => nil,
@@ -277,6 +277,18 @@ RSpec.describe "App API dashboard commands", type: :request do
       body = parse_body
       expect(body.dig("preferences", "sort")).to include("column" => "started_at", "direction" => "desc")
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ newer_workflow.id, older_workflow.id ])
+    end
+
+    it "returns a nullable cost until a job has a billed run" do
+      unbilled = Factories.job(repository: repo, issue_number: 1, issue_title: "Wait in queue")
+      billed = Factories.job(repository: repo, issue_number: 2, issue_title: "Spend carefully")
+      billed.initial_run.update!(cost_usd: 0.12)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
+
+      body = parse_body
+      expect(body["items"].find { |item| item.fetch("id") == unbilled.id }.fetch("total_cost_usd")).to be_nil
+      expect(body["items"].find { |item| item.fetch("id") == billed.id }.fetch("total_cost_usd")).to eq(0.12)
     end
   end
 

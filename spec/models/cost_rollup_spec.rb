@@ -31,4 +31,13 @@ RSpec.describe "cost rollups" do
 
     expect(job.total_cost_usd).to eq(BigDecimal("0.66"))
   end
+
+  it "hides display cost until at least one Run has cost metadata" do
+    expect(job.total_cost_usd).to eq(0)
+    expect(job.display_total_cost_usd).to be_nil
+
+    job.initial_run.update!(cost_usd: 0)
+
+    expect(job.display_total_cost_usd).to eq(0)
+  end
 end

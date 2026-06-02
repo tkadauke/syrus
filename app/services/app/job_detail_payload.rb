@@ -85,7 +85,7 @@ module App
         invalidation_evidence: @job.invalidation_evidence,
         scheduled_task_id: @job.scheduled_task_id,
         epic_id: @job.epic_id,
-        total_cost_usd: @job.total_cost_usd.to_f,
+        total_cost_usd: @job.display_total_cost_usd&.to_f,
         billed_runs_count: @job.billed_runs_count,
         workflows_count: @job.workflows.size,
         runs_count: @job.runs.size,

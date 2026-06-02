@@ -810,7 +810,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
       <div className="min-w-0 text-gray-700">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <StatusPill state={job.summary_state} />
-          <span className="text-xs font-medium text-gray-500">{formatCurrency(job.total_cost_usd, 2)}</span>
+          {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500">{formatCurrency(job.total_cost_usd, 2)}</span>}
           <span className="font-mono text-xs text-gray-500">{job.repository.slug}</span>
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
