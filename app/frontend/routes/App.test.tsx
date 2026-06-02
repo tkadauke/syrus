@@ -3850,9 +3850,9 @@ describe("App", () => {
           agent_diff_bytes: 44,
           logs_count: artifactFetchCount > 1 ? 3 : 2,
           logs: [
-            { id: 1, sequence: 0, kind: "stdout", chunk: "digging trench", created_at: "2026-05-30T10:02:00Z" },
-            { id: 2, sequence: 1, kind: "stderr", chunk: "found marble", created_at: "2026-05-30T10:03:00Z" },
-            ...(artifactFetchCount > 1 ? [{ id: 3, sequence: 2, kind: "stdout", chunk: "new marble", created_at: "2026-05-30T10:04:00Z" }] : [])
+            { id: 1, sequence: 0, kind: "assistant_text", chunk: "digging trench", created_at: "2026-05-30T10:02:00Z" },
+            { id: 2, sequence: 1, kind: "tool_call", chunk: "found marble", created_at: "2026-05-30T10:03:00Z" },
+            ...(artifactFetchCount > 1 ? [{ id: 3, sequence: 2, kind: "system", chunk: "new marble", created_at: "2026-05-30T10:04:00Z" }] : [])
           ]
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -3901,6 +3901,10 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("digging trench")).toBeInTheDocument()
+    expect(screen.getByText("Agent")).toBeInTheDocument()
+    expect(screen.getByText("Tool")).toBeInTheDocument()
+    expect(screen.queryByText("assistant_text")).not.toBeInTheDocument()
+    expect(screen.queryByText("tool_call")).not.toBeInTheDocument()
 
     const subscriptionCalls = actionCable.createSubscription.mock.calls as unknown[][]
     const appEventSubscription = subscriptionCalls.at(-1)?.[1] as { received?: (event: unknown) => void } | undefined
@@ -3917,6 +3921,8 @@ describe("App", () => {
       expect(fetchSpy.mock.calls.filter(([path]) => String(path) === "/api/v1/app/jobs/42/runs/9/artifacts")).toHaveLength(2)
     })
     expect(await screen.findByText("new marble")).toBeInTheDocument()
+    expect(screen.getByText("System")).toBeInTheDocument()
+    expect(screen.queryByText("system")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Diff" }))
     expect(await screen.findByText(/diff --git a\/app.rb b\/app.rb/)).toBeInTheDocument()

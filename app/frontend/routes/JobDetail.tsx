@@ -768,7 +768,7 @@ function RunArtifactsPanel({ payload, view }: { payload: Awaited<ReturnType<type
         <ol className="max-h-[32rem] overflow-auto divide-y divide-gray-200">
           {payload.logs.map((log) => (
             <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)]" key={log.id}>
-              <span className="text-gray-400">{log.kind || `#${log.sequence}`}</span>
+              <span className="text-gray-400">{transcriptLogKindLabel(log.kind) || `#${log.sequence}`}</span>
               <pre className="whitespace-pre-wrap break-words">{log.chunk}</pre>
             </li>
           ))}
@@ -776,6 +776,13 @@ function RunArtifactsPanel({ payload, view }: { payload: Awaited<ReturnType<type
       ) : <p className="p-3 text-sm text-gray-400">No transcript rows captured for this run.</p>}
     </section>
   )
+}
+
+function transcriptLogKindLabel(kind: string | null | undefined) {
+  if (kind === "assistant_text") return "Agent"
+  if (kind === "tool_call") return "Tool"
+  if (kind === "system") return "System"
+  return kind
 }
 
 function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; onNotice: (message: string | null) => void }) {
