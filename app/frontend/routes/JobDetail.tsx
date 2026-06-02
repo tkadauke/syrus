@@ -719,9 +719,23 @@ function SourceTab({ jobId }: { jobId: string }) {
 
 function SourceBrowser({ payload, onSelectPath, onSelectRef }: { payload: JobSourcePayload; onSelectPath: (path: string) => void; onSelectRef: (ref: string) => void }) {
   const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
+  const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const refOptions = refOptionsFor(payload)
 
   if (payload.source_error) return <PanelMessage tone="error">{payload.source_error}</PanelMessage>
+
+  function toggleDirectory(path: string) {
+    setExpandedPaths((current) => {
+      const next = new Set(current)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }
 
   return (
     <section className="space-y-3">
@@ -736,16 +750,15 @@ function SourceBrowser({ payload, onSelectPath, onSelectRef }: { payload: JobSou
       </div>
       <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)]">
         <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r">
-          {visibleItems.length > 0 ? visibleItems.map((item) => (
-            <button
-              className={`block w-full truncate px-3 py-1.5 text-left font-mono text-xs hover:bg-blue-50 ${payload.selected_path === item.path ? "bg-blue-100 text-blue-700" : "text-gray-700"}`}
-              key={item.path}
-              onClick={() => onSelectPath(item.path)}
-              title={`${item.path} (${formatBytes(item.size)})`}
-              type="button"
-            >
-              {item.path}
-            </button>
+          {tree.length > 0 ? tree.map((node) => (
+            <SourceTreeRow
+              expandedPaths={expandedPaths}
+              key={node.path}
+              node={node}
+              onSelectPath={onSelectPath}
+              onToggleDirectory={toggleDirectory}
+              selectedPath={payload.selected_path}
+            />
           )) : <p className="p-4 text-sm text-gray-400">No files found.</p>}
           {payload.tree_items.length > visibleItems.length ? <p className="p-3 text-xs text-amber-700">Showing first {visibleItems.length.toLocaleString()} files.</p> : null}
         </div>
@@ -764,6 +777,104 @@ function SourceBrowser({ payload, onSelectPath, onSelectRef }: { payload: JobSou
         </div>
       </div>
     </section>
+  )
+}
+
+type SourceTreeFile = JobSourcePayload["tree_items"][number]
+type SourceTreeNode = {
+  path: string
+  name: string
+  children: SourceTreeNode[]
+  file: SourceTreeFile | null
+}
+
+function buildSourceTree(items: SourceTreeFile[]) {
+  const root: SourceTreeNode = { path: "", name: "", children: [], file: null }
+  const directories = new Map<string, SourceTreeNode>([["", root]])
+
+  for (const item of items) {
+    const parts = item.path.split("/").filter(Boolean)
+    let parent = root
+    let currentPath = ""
+
+    parts.forEach((part, index) => {
+      currentPath = currentPath ? `${currentPath}/${part}` : part
+      let node = directories.get(currentPath)
+
+      if (!node) {
+        node = { path: currentPath, name: part, children: [], file: null }
+        directories.set(currentPath, node)
+        parent.children.push(node)
+      }
+
+      if (index === parts.length - 1) node.file = item
+      parent = node
+    })
+  }
+
+  sortSourceTree(root)
+  return root.children
+}
+
+function sortSourceTree(node: SourceTreeNode) {
+  node.children.sort((a, b) => {
+    if (!!a.file !== !!b.file) return a.file ? 1 : -1
+    return a.name.localeCompare(b.name)
+  })
+  node.children.forEach(sortSourceTree)
+}
+
+function SourceTreeRow({
+  expandedPaths,
+  node,
+  onSelectPath,
+  onToggleDirectory,
+  selectedPath
+}: {
+  expandedPaths: Set<string>
+  node: SourceTreeNode
+  onSelectPath: (path: string) => void
+  onToggleDirectory: (path: string) => void
+  selectedPath: string | null
+}) {
+  return (
+    <>
+      {node.file ? (
+        <button
+          className={`block w-full truncate py-1.5 pr-3 text-left font-mono text-xs hover:bg-blue-50 ${selectedPath === node.path ? "bg-blue-100 text-blue-700" : "text-gray-700"}`}
+          key={node.path}
+          onClick={() => onSelectPath(node.path)}
+          style={{ paddingLeft: `${0.75 + node.path.split("/").length * 0.75}rem` }}
+          title={`${node.path} (${formatBytes(node.file.size)})`}
+          type="button"
+        >
+          {node.name}
+        </button>
+      ) : (
+        <button
+          aria-expanded={expandedPaths.has(node.path)}
+          aria-label={node.name}
+          className="block w-full truncate py-1.5 pr-3 text-left font-mono text-xs font-semibold text-gray-700 hover:bg-blue-50"
+          onClick={() => onToggleDirectory(node.path)}
+          style={{ paddingLeft: `${0.75 + Math.max(node.path.split("/").length - 1, 0) * 0.75}rem` }}
+          title={node.path}
+          type="button"
+        >
+          <span className="mr-1 inline-block w-3 text-gray-400">{expandedPaths.has(node.path) ? "-" : "+"}</span>
+          {node.name}
+        </button>
+      )}
+      {!node.file && expandedPaths.has(node.path) ? node.children.map((child) => (
+        <SourceTreeRow
+          expandedPaths={expandedPaths}
+          key={child.path}
+          node={child}
+          onSelectPath={onSelectPath}
+          onToggleDirectory={onToggleDirectory}
+          selectedPath={selectedPath}
+        />
+      )) : null}
+    </>
   )
 }
 

@@ -4036,7 +4036,13 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("app/models/user.rb")).toBeInTheDocument()
+    const appDirectory = await screen.findByRole("button", { name: "app" })
+    expect(appDirectory).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("user.rb")).not.toBeInTheDocument()
+
+    fireEvent.click(appDirectory)
+    expect(appDirectory).toHaveAttribute("aria-expanded", "true")
+    fireEvent.click(screen.getByRole("button", { name: "models" }))
     fireEvent.click(screen.getByTitle("app/models/user.rb (512 B)"))
 
     await waitFor(() => {
