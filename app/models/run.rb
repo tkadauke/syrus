@@ -1,6 +1,7 @@
 class Run < ApplicationRecord
   include AASM
   include RecordsStateTransitions
+  include BroadcastsJobProgress
 
   TRIGGER_KINDS = Workflow::TriggerKind.values
 
@@ -157,6 +158,10 @@ class Run < ApplicationRecord
   end
 
   private
+
+  def job_for_progress_broadcast
+    job
+  end
 
   def clear_transcript_on_success!
     claude_session&.update_column(:transcript_jsonl, nil)

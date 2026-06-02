@@ -1,6 +1,7 @@
 class Workflow < ApplicationRecord
   include AASM
   include RecordsStateTransitions
+  include BroadcastsJobProgress
 
   TRIGGER_KINDS = Workflow::TriggerKind.values
 
@@ -317,6 +318,10 @@ class Workflow < ApplicationRecord
   end
 
   private
+
+  def job_for_progress_broadcast
+    job
+  end
 
   # Look up the workflow-template class by trigger_kind and invoke
   # its lifecycle hook (after_success / after_fail / after_cancel).

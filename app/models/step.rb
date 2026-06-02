@@ -1,6 +1,7 @@
 class Step < ApplicationRecord
   include AASM
   include RecordsStateTransitions
+  include BroadcastsJobProgress
 
   KINDS = Step::Kind.values
   AGENTIC_KINDS = Step::Kind.agentic_values
@@ -202,6 +203,10 @@ class Step < ApplicationRecord
   end
 
   private
+
+  def job_for_progress_broadcast
+    workflow&.job
+  end
 
   def default_details
     self.details ||= {}

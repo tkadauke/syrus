@@ -12,6 +12,13 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("admin_overview", null))).toEqual([["admin", "overview"], ["admin", "stuck"]])
     expect(queryKeysFor(event("unknown", 1))).toEqual([])
   })
+
+  it("maps nested workflow progress job events to the Job detail query prefix", () => {
+    expect(queryKeysFor({
+      ...event("job", 42),
+      changed: ["run.updated", "state"]
+    })).toContainEqual(["jobs", "42"])
+  })
 })
 
 describe("applyAppEvent", () => {

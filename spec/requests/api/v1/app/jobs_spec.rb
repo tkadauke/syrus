@@ -116,7 +116,7 @@ RSpec.describe "App API job detail", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["workflows"].size).to eq(2)
-    expect(body["workflows"].map { |workflow| workflow["id"] }).to eq(job.workflows.order(:created_at).offset(10).pluck(:id))
+    expect(body["workflows"].map { |workflow| workflow["id"] }).to eq(job.workflows.reorder(created_at: :desc, id: :desc).offset(10).pluck(:id))
     expect(body["workflows_pagination"]).to include(
       "page" => 2,
       "per_page" => 10,
