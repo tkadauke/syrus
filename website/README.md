@@ -10,15 +10,15 @@ follow-up website jobs.
 
 ## Status
 
-**Content skeleton plus IA contract.** This directory contains markdown
-files laying out the intended sitemap; Starlight (the Astro-based docs
-framework) isn't configured yet. The plan doc lists the implementation
-issues that fill in:
+The website is content-complete enough to be the canonical public
+explanation of Syrus, but it is still framework-light. Pages are markdown
+under `website/src/`; Starlight/Astro configuration, custom components,
+screenshots, metadata generation, and hosting are intentionally separate
+follow-up work.
 
-- Starlight + Astro setup (`astro.config.mjs`, `package.json`,
-  Actions deploy workflow)
-- Home page (`src/pages/index.astro`) with the hero visual
-- Page-by-page docs content
+Use this directory as the source of truth for public-facing product docs.
+When product behavior changes, update the matching page here in the same
+PR as the code change.
 
 The local evaluation path is canonical at
 `/docs/deployment/try-it-locally`; do not recreate a separate
@@ -31,9 +31,10 @@ website/
 ├── src/
 │   ├── content/
 │   │   └── docs/                 # Starlight content (auto-routes to /docs/*)
+│   │       ├── index.md
+│   │       ├── getting-started.md
 │   │       ├── what-is-syrus.md
 │   │       ├── why-use-syrus.md
-│   │       ├── getting-started.md
 │   │       ├── concepts.md
 │   │       ├── features.md
 │   │       ├── deployment/       # the 3 paths (+ Ruby-dev footnote)
@@ -69,35 +70,39 @@ Reference pages stay in the docs sidebar after the main learning path:
 `/docs/configuration`, `/docs/workflows`, `/docs/architecture`,
 `/docs/api`, `/docs/faq`, and `/docs/deployment/*`.
 
-## Content Inventory
+## Information Architecture
 
-| Existing content | Decision | Target / notes |
-| --- | --- | --- |
-| `src/pages/index.md` | Rewrite later | Keep as Home. Replace markdown stub with custom Astro hero, proof visual, moat sections, screenshots, and deployment CTAs. |
-| `src/pages/about.md` | Preserve | Keep for naming story, history, maintainer, and footer link. Do not mix product docs into this page. |
-| `src/pages/evaluate.md` | Deleted / merged | Duplicate of local evaluation docs. Canonical content now lives at `/docs/deployment/try-it-locally`. |
-| `src/content/docs/what-is-syrus.md` | New target | Product overview and 30-second flow. |
-| `src/content/docs/why-use-syrus.md` | New target | Positioning and product reasons. |
-| `src/content/docs/getting-started.md` | Preserve / refine | First practical path chooser. Link to local evaluation and deployment docs. |
-| `src/content/docs/concepts.md` | Preserve | Terminology and state-machine model. Avoid duplicating this in Architecture. |
-| `src/content/docs/features.md` | New target | Feature map and canonical destination list. Update when major feature docs are added. |
-| `src/content/docs/configuration.md` | Preserve | Canonical page for `.syrus.yml`, user settings, repo settings, env vars, credentials. |
-| `src/content/docs/workflows.md` | Preserve | Canonical page for templates, trigger kinds, step chains, and DAG roadmap. |
-| `src/content/docs/architecture.md` | Preserve / keep concise | Maintainer-level system map. Link to repo `ARCHITECTURE.md` for the deep dive. |
-| `src/content/docs/api.md` | Preserve stub | Keep as API placeholder until the public REST API ships. |
-| `src/content/docs/recipes.md` | Retitle / preserve | Canonical task page for how-tos and recipes. |
-| `src/content/docs/troubleshooting.md` | Preserve | Canonical failure-mode page. Move debugging snippets here instead of scattering them. |
-| `src/content/docs/faq.md` | Preserve | Short competitive/security/cost answers. Move long explanations into feature docs when they grow. |
-| `src/content/docs/deployment/index.md` | Preserve | Three-path deployment chooser. |
-| `src/content/docs/deployment/try-it-locally.md` | Preserve / canonicalize | Sole local-evaluation page. |
-| `src/content/docs/deployment/docker-compose.md` | Preserve | Recommended full-product setup path. |
-| `src/content/docs/deployment/kubernetes.md` | Preserve | Cluster operations path; keep hard-mode framing. |
+Public visitors should be able to answer four questions without reading
+source:
+
+| Question | Canonical pages |
+| --- | --- |
+| What is Syrus? | `src/pages/index.md`, `src/content/docs/what-is-syrus.md`, `src/content/docs/concepts.md` |
+| Why would I use it? | `src/content/docs/why-use-syrus.md`, `src/content/docs/faq.md` |
+| How do I try it? | `src/content/docs/getting-started.md`, `src/content/docs/deployment/try-it-locally.md` |
+| What does operating it involve? | `src/content/docs/deployment/`, `src/content/docs/configuration.md`, `src/content/docs/recipes.md`, `src/content/docs/troubleshooting.md` |
+
+Recommended sidebar order once Starlight lands:
+
+1. Docs index
+2. Getting Started
+3. What is Syrus?
+4. Why use Syrus?
+5. Concepts
+6. Features
+7. Workflows
+8. Configuration
+9. Deployment
+10. Recipes
+11. Troubleshooting
+12. Architecture
+13. API
+14. FAQ
 
 ## Contributing
 
-Pick an issue with the `syrus` label that references a `website/`
-path; fill in the content matching the stub's brief. Cross-reference
-the plan doc and IA inventory when in doubt about scope.
+Update website docs in the same PR as product changes. A feature is not done if the user-facing page that explains it is stale.
 
-Don't add new top-level sections without updating the plan doc
-first — the sidebar is part of the navigation contract.
+Keep existing pages current before adding new pages. Add a top-level docs
+page only when the subject does not fit the navigation above, and update
+this README when the navigation contract changes.

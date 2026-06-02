@@ -175,6 +175,15 @@ across web/worker processes.
 
 ## Conventions
 
+- **Public website/docs stay current.** Product-facing behavior changes
+  must update `website/` in the same PR. If a change affects what Syrus
+  is, why someone would use it, how to get started, a workflow, a feature,
+  configuration, credentials, operations, schedules, chats/direct Jobs,
+  troubleshooting, or an API surface, update the matching page under
+  `website/src/pages/` or `website/src/content/docs/`. Prefer updating an
+  existing page over adding a parallel one; if the navigation contract
+  changes, update `website/README.md` too. PRs that add product behavior
+  while leaving the public docs stale are incomplete.
 - **Prompts** all live under `app/services/prompts/` as PORO classes
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`,

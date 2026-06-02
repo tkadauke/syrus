@@ -1,62 +1,95 @@
 ---
 title: What is Syrus?
-description: The short product explanation: what Syrus does, what it owns, and where it fits.
+description: The product model behind Syrus and the issue-to-PR loop it automates.
 ---
 
 # What is Syrus?
 
-Syrus is a self-hosted automation harness for coding agents. It turns
-GitHub issues, PR feedback, scheduled tasks, retries, rebases, and
-operator prompts into agent runs, then captures the resulting commits and
-opens or updates pull requests.
+Syrus is a self-hosted, multi-user harness for coding agents. It turns
+structured software intent into pull requests while keeping the
+deterministic plumbing outside the model.
 
-The agent writes code. Syrus owns the deterministic product work around
-that agent run:
-
-- polling GitHub for issues, PR comments, CI failures, and merge state
-- creating Jobs, Workflows, Steps, and Runs with auditable state
-- preparing repositories before the agent starts
-- managing clones, workspaces, branches, commits, pushes, and PRs
-- recording transcripts, diffs, summaries, costs, and operator-visible logs
-- retrying, rebasing, and responding to follow-up feedback on the same PR
-
-## The 30-second flow
+The normal loop is:
 
 ```text
-GitHub issue, PR feedback, CI failure, schedule, or direct prompt
-  -> Syrus Job
+GitHub issue
+  -> Syrus poller
+  -> Job
   -> Workflow
-  -> prepare Step
-  -> agent Step
-  -> summary / push / PR Step
-  -> GitHub pull request or no-changes result
+  -> agent Run
+  -> commit
+  -> pull request
 ```
 
-A Job is the thread. A Workflow is one attempt. A Step is one stage. A Run
-is one execution attempt for a Step. Those words appear throughout the UI,
-API, logs, and docs.
+Syrus does not try to be the coding model. It runs providers such as
+Claude Code or Codex, gives them the right repository workspace and
+prompt, records what happened, and handles the surrounding lifecycle:
+clones, branches, setup commands, transcripts, diffs, retries, PR
+creation, follow-up feedback, and cleanup.
 
-## Where it fits
+## The 30-Second Version
 
-Syrus is not a hosted coding-agent service. It is an operator-run Rails
-application that coordinates existing agent providers, currently Claude
-and Codex, against repositories you register.
+You register a GitHub repository in Syrus and choose a trigger label,
+usually `syrus`. When an issue gets that label, Syrus creates a Job,
+checks out the repo in a worker-managed workspace, runs preparation
+commands, invokes the configured agent, captures the resulting diff, asks
+for PR copy, pushes a branch, and opens a pull request.
 
-It is also not a replacement for CI, GitHub, or code review. Syrus creates
-and updates PRs; your normal branch protection, review process, test suite,
-and merge policy still decide what lands.
+After the PR exists, Syrus keeps watching it. New review feedback creates
+a follow-up Workflow on the same branch. Failing checks can create a CI
+repair Workflow. If the branch becomes unmergeable, Syrus can run its
+rebase workflow. Operators can also retry, cancel, run direct Jobs, or
+schedule recurring prompts.
 
-## What it is good for
+## What Syrus Owns
 
-Syrus is useful when you want a durable issue-to-PR loop instead of a
-one-off chat session:
+Syrus owns the parts that should be predictable:
 
-- small code changes from labeled issues
-- follow-up commits from PR review feedback
-- automated attempts to fix failing checks on Syrus-created PRs
-- scheduled maintenance prompts
-- recurring repository hygiene tasks
-- controlled retries and rebases on long-running agent work
+- Polling GitHub for issues, PR feedback, checks, mergeability, and
+  scheduled work.
+- Creating Jobs, Workflows, Steps, and Runs with auditable state.
+- Preparing the repository with `.syrus.yml` or lockfile detection.
+- Running the selected agent provider with the right prompt and context.
+- Capturing transcript, diff, cost metadata, branch SHA, and PR copy.
+- Pushing branches, opening PRs, updating existing PRs, and cleaning up
+  workspaces.
 
-Next: [Why use Syrus?](/docs/why-use-syrus) explains the product tradeoffs,
-or [Concepts](/docs/concepts) explains the model in more detail.
+The agent owns the part that benefits from reasoning: reading the code,
+making the change, running tests when possible, and explaining what it did.
+
+## Product Shape
+
+Syrus is built for teams that want agentic code work without handing
+their repositories, credentials, and audit trail to a hosted service.
+
+It is:
+
+- **Self-hosted**: run the web app, worker, database, and workspace volume
+  on infrastructure you control.
+- **Bring-your-own-key**: each user supplies their GitHub and agent
+  credentials; credentials are encrypted in the Syrus database.
+- **Multi-user**: one deployment coordinates work across users and
+  repositories while preserving per-user credentials and defaults.
+- **GitHub-native**: issues, labels, comments, checks, branches, and pull
+  requests remain the system of record for code review.
+
+It is not:
+
+- A hosted SaaS.
+- A replacement for code review.
+- A hardened sandbox for arbitrary untrusted repositories.
+- A custom model or a new agent loop competing with every provider.
+
+## The Core Terms
+
+Syrus uses four terms everywhere:
+
+| Term | Meaning |
+| --- | --- |
+| Job | The long-lived thread for one issue, scheduled task, or direct prompt. |
+| Workflow | One attempt to move that Job forward. |
+| Step | A stage inside a Workflow, such as `prepare`, `implement`, or `pr_open`. |
+| Run | One execution of a Step, with prompt, transcript, metadata, and diff. |
+
+Read [Concepts](/docs/concepts) for the state machines and
+[Workflows](/docs/workflows) for the built-in pipelines.
