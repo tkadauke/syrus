@@ -74,7 +74,7 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
     <div className="space-y-3">
       <div aria-label="Dashboard controls" className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
-          <SubjectTabs className="flex w-max flex-nowrap gap-2" payload={payload} prefix={prefix} />
+          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm" payload={payload} prefix={prefix} />
         </div>
         <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={false} />
       </div>
@@ -137,7 +137,7 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   )
 }
 
-function SubjectTabs({ payload, prefix, className = "flex flex-wrap gap-2" }: { payload: DashboardPayload; prefix: string; className?: string }) {
+function SubjectTabs({ payload, prefix, className = "inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm" }: { payload: DashboardPayload; prefix: string; className?: string }) {
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
     { key: "epic", label: "Epics", path: "/dashboard/epics" },
     { key: "job", label: "Jobs", path: "/dashboard/jobs" },
@@ -148,7 +148,7 @@ function SubjectTabs({ payload, prefix, className = "flex flex-wrap gap-2" }: { 
     <nav aria-label="Dashboard subjects" className={className}>
       {subjects.map((subject) => (
         <Link
-          className={`rounded border px-3 py-1.5 text-sm font-medium ${payload.subject === subject.key ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+          className={`px-3 py-1.5 font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600" : "text-gray-700 hover:bg-gray-50"}`}
           key={subject.key}
           to={dashboardLink(`${prefix}${subject.path}`, { view: payload.view })}
         >
