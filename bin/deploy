@@ -12,6 +12,7 @@
 #   bin/deploy                      # both clusters (default)
 #   bin/deploy --staging             # staging only
 #   bin/deploy --production          # production only
+#   bin/deploy --build-only          # build + push images, skip rollout
 #   bin/deploy --skip-build           # assume both :<sha> already pushed
 #                                       (just rollout restart)
 set -euo pipefail
@@ -42,10 +43,12 @@ DEPLOYMENTS=(deployment/syrus-web deployment/syrus-worker-home daemonset/syrus-w
 DEPLOY_STAGING=true
 DEPLOY_PRODUCTION=true
 SKIP_BUILD=false
+BUILD_ONLY=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --staging)        DEPLOY_PRODUCTION=false ;;
     --production)     DEPLOY_STAGING=false ;;
+    --build-only)     BUILD_ONLY=true ;;
     --skip-build)     SKIP_BUILD=true ;;
     -h|--help)
       sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
@@ -134,6 +137,11 @@ else
   echo "→ skipping build/push (--skip-build); verifying existing tags in registry"
   verify_pushed "${REGISTRY}"            "${SHA}"
   verify_pushed "${WORKER_DEV_REGISTRY}" "${SHA}"
+fi
+
+if [ "$BUILD_ONLY" = true ]; then
+  echo "✓ images built and pushed for ${SHA}; skipping rollout (--build-only)"
+  exit 0
 fi
 
 # --- rollout helpers -------------------------------------------------
