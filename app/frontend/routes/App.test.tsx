@@ -303,6 +303,8 @@ describe("App", () => {
       const quoteLink = within(footer).getByRole("link", { name: "A rolling stone gathers no moss." })
       expect(footer).toHaveClass("hidden", "lg:block")
       expect(quoteLink).toHaveAttribute("href", "https://en.wikipedia.org/wiki/Publilius_Syrus")
+      expect(quoteLink).toHaveAttribute("target", "_blank")
+      expect(quoteLink).toHaveAttribute("rel", "noopener")
       expect(fetchSpy).not.toHaveBeenCalled()
     } finally {
       randomSpy.mockRestore()

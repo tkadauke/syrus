@@ -197,7 +197,7 @@ function RevisionLink({ app }: { app: BootstrapPayload["app"] }) {
 function PubliliusSyrusFooter({ quote }: { quote: string }) {
   return (
     <footer className="mx-auto hidden max-w-[96rem] px-6 py-8 text-center text-xs text-gray-500 lg:block">
-      <a className="hover:text-blue-600 hover:underline" href={PUBLILIUS_SYRUS_WIKIPEDIA_URL}>
+      <a className="hover:text-blue-600 hover:underline" href={PUBLILIUS_SYRUS_WIKIPEDIA_URL} rel="noopener" target="_blank">
         {quote}
       </a>
     </footer>
