@@ -1214,7 +1214,10 @@ function loopDisplayName(item: LoopStepItem) {
 }
 
 function loopDisplayStatus(item: LoopStepItem) {
-  const statuses = item.iterations.flatMap((iteration) => iteration.steps.map((step) => effectiveStepStatus(step))).filter((status): status is string => Boolean(status))
+  const latestIteration = item.iterations[item.iterations.length - 1]
+  if (!latestIteration) return null
+
+  const statuses = latestIteration.steps.map((step) => effectiveLoopStepStatus(step))
   if (statuses.includes("running")) return "running"
   if (statuses.includes("queued")) return "queued"
   if (statuses.includes("failed")) return "failed"
@@ -1226,6 +1229,10 @@ function loopDisplayStatus(item: LoopStepItem) {
 function effectiveStepStatus(step: JobStep) {
   const activeRun = sortedRunsNewestFirst(step.runs).find((run) => isActiveState(run.state))
   return activeRun?.state ?? step.display_status
+}
+
+function effectiveLoopStepStatus(step: JobStep) {
+  return effectiveStepStatus(step) ?? step.state
 }
 
 function sortedRunsNewestFirst(runs: JobRun[]) {
