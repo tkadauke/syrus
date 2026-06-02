@@ -674,6 +674,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
       <Link className="text-sm font-medium text-blue-600 hover:underline" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
         <NeutralStatePill state={item.state} />
+        <span className="rounded bg-gray-100 px-1.5 py-0.5">{dashboardOwnerLabel(item)}</span>
         <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.repository.slug}</span>
       </div>
     </article>
@@ -1077,7 +1078,10 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
           <Link aria-label={`${epic.display_number} ${epic.title}`} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
         </div>
         {compactText(epic.description) ? <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500">{compactText(epic.description)}</p> : null}
-        <div className="mt-1 font-mono text-xs text-gray-500">{epic.repository.slug}</div>
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
+          <span className="font-mono">{epic.repository.slug}</span>
+          <span>{dashboardOwnerLabel(epic)}</span>
+        </div>
       </div>
     </article>
   )
@@ -1096,6 +1100,7 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
     )
   }
   if (column === "state") return <td className="px-4 py-3"><NeutralStatePill state={epic.state} /></td>
+  if (column === "owner") return <td className="px-4 py-3 text-xs text-gray-600">{dashboardOwnerLabel(epic)}</td>
   if (column === "repository") return <td className="px-4 py-3 font-mono text-xs text-gray-600">{epic.repository.slug}</td>
   if (column === "updated") return <td className="px-4 py-3 text-gray-500">{formatDate(epic.updated_at)}</td>
 
@@ -1383,6 +1388,7 @@ function dashboardColumnLabel(subject: DashboardSubject, column: string) {
       checkbox: "Checkbox",
       epic: "Epic",
       state: "State",
+      owner: "Owner",
       repository: "Repository",
       updated: "Updated",
       created_at: "Created at",
@@ -1475,6 +1481,13 @@ function epicDateValue(epic: DashboardEpicItem, column: string) {
   }
 
   return values[column] || null
+}
+
+function dashboardOwnerLabel(epic: DashboardEpicItem) {
+  if (!epic.owner) return "Unclaimed"
+  if (epic.owned_by_current_user) return "Mine"
+
+  return epic.owner.email_address
 }
 
 function workflowDateValue(workflow: DashboardWorkflowItem, column: string) {

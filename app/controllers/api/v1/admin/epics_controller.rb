@@ -16,7 +16,7 @@ module Api
         #                                    completing?"
         # No filters → most-recently updated 50.
         def index
-          scope = Epic.includes(:repository).order(updated_at: :desc)
+          scope = Epic.includes(:owner, :repository).order(updated_at: :desc)
           scope = scope.where(state: params[:state]) if params[:state].present?
           if params[:repo].present?
             owner, name = params[:repo].split("/", 2)
@@ -67,6 +67,8 @@ module Api
             display_number:     epic.display_number,
             state:              epic.state,
             title:              epic.title,
+            owner_email:        epic.owner&.email_address,
+            claimed_at:         epic.claimed_at,
             auto_approve_mode:  epic.auto_approve_mode,
             repository:         epic.repository.slug,
             github_issue_url:   epic.github_issue_url,
@@ -84,6 +86,8 @@ module Api
             state:              epic.state,
             title:              epic.title,
             description:        epic.description,
+            owner:              serialize_owner(epic.owner),
+            claimed_at:         epic.claimed_at,
             auto_approve_mode:  epic.auto_approve_mode,
             github_issue_url:   epic.github_issue_url,
             done_at:            epic.done_at,
@@ -104,6 +108,15 @@ module Api
           }
         rescue => e
           { error_serializing: "#{e.class}: #{e.message}" }
+        end
+
+        def serialize_owner(owner)
+          return nil unless owner
+
+          {
+            id: owner.id,
+            email_address: owner.email_address
+          }
         end
 
         def serialize_child_job(job)

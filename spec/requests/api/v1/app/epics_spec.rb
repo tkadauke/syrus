@@ -80,6 +80,9 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     body = parse_body
     expect(body.dig("epic", "display_number")).to eq(epic.display_number)
     expect(body.dig("epic", "description")).to eq("Build **columns**.")
+    expect(body.dig("epic", "owner")).to be_nil
+    expect(body.dig("epic", "owned_by_current_user")).to eq(false)
+    expect(body.dig("epic", "claimable")).to eq(true)
     expect(body.dig("epic", "repository")).to include("slug" => "acme/widgets", "repository_path" => repository_path(repository))
     expect(body["summary"]).to include(
       "done_jobs_count" => 1,
@@ -112,8 +115,47 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "dashboard_epics_path" => dashboard_epics_path,
       "edit_epic_path" => edit_epic_path(epic),
       "app_state_path" => "/api/v1/app/epics/#{epic.id}/state",
-      "app_archive_path" => "/api/v1/app/epics/#{epic.id}/archive"
+      "app_archive_path" => "/api/v1/app/epics/#{epic.id}/archive",
+      "app_claim_path" => "/api/v1/app/epics/#{epic.id}/claim",
+      "app_unclaim_path" => "/api/v1/app/epics/#{epic.id}/unclaim",
+      "app_reassign_path" => "/api/v1/app/epics/#{epic.id}/reassign"
     )
+  end
+
+  it "claims and unclaims ready Epics through the app API" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, state: "ready")
+
+    patch "/api/v1/app/epics/#{epic.id}/claim"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Epic claimed.")
+    expect(parse_body.dig("epic", "owner")).to include("id" => user.id, "email_address" => user.email_address)
+    expect(epic.reload.owner).to eq(user)
+    expect(epic.claimed_at).to be_present
+
+    patch "/api/v1/app/epics/#{epic.id}/unclaim"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Epic unclaimed.")
+    expect(parse_body.dig("epic", "owner")).to be_nil
+    expect(epic.reload.owner).to be_nil
+    expect(epic.claimed_at).to be_nil
+  end
+
+  it "reassigns ready Epics through an explicit app API action" do
+    sign_in_as(user)
+    first_owner = Factories.user(email_address: "first@example.com")
+    next_owner = Factories.user(email_address: "next@example.com")
+    epic = Factories.epic(user: user, repository: repository, state: "ready", owner: first_owner, claimed_at: 1.hour.ago)
+
+    patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_id: next_owner.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Epic reassigned.")
+    expect(parse_body.dig("epic", "owner")).to include("id" => next_owner.id, "email_address" => next_owner.email_address)
+    expect(epic.reload.owner).to eq(next_owner)
+    expect(epic.claimed_at).to be_present
   end
 
   it "advances Epic state through the app API and returns a refreshed detail payload" do
@@ -128,8 +170,24 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("message" => "Epic updated.")
     expect(parse_body.dig("epic", "state")).to eq("in_progress")
+    expect(parse_body.dig("epic", "owner")).to include("id" => user.id)
     expect(epic.reload).to be_in_progress
+    expect(epic.owner).to eq(user)
     expect(job.reload).to be_queued
+  end
+
+  it "does not take over an already-owned Epic when moving to in-progress" do
+    sign_in_as(user)
+    owner = Factories.user(email_address: "owner@example.com")
+    epic = Factories.epic(user: user, repository: repository, state: "ready", owner: owner, claimed_at: 1.hour.ago)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
+
+    patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "in_progress" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("transition_not_allowed")
+    expect(epic.reload.owner).to eq(owner)
+    expect(epic).to be_ready
   end
 
   it "moves ready Epics back to backlog through the app API" do

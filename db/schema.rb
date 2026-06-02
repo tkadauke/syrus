@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_02_225041) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -255,18 +255,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_225041) do
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
+    t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.text "description"
     t.datetime "done_at"
     t.string "github_issue_url"
     t.integer "number", null: false
+    t.integer "owner_id"
     t.json "pending_epic_dependency_refs", null: false
     t.integer "repository_id", null: false
     t.string "state", default: "backlog", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.index ["claimed_at"], name: "index_epics_on_claimed_at"
     t.index ["number"], name: "index_epics_on_number", unique: true
+    t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["repository_id"], name: "index_epics_on_repository_id"
     t.index ["user_id", "state"], name: "index_epics_on_user_id_and_state"
     t.index ["user_id"], name: "index_epics_on_user_id"
@@ -767,6 +771,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_225041) do
   add_foreign_key "epic_dependencies", "epics", column: "depends_on_epic_id"
   add_foreign_key "epics", "repositories"
   add_foreign_key "epics", "users"
+  add_foreign_key "epics", "users", column: "owner_id"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
   add_foreign_key "job_dependencies", "jobs"

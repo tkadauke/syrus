@@ -6,7 +6,9 @@ import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import {
   archiveEpic,
+  claimEpic,
   fetchEpicDetail,
+  unclaimEpic,
   updateEpicState,
   type EpicDetailJob,
   type EpicDetailPayload,
@@ -21,6 +23,8 @@ let mermaidRenderSequence = 0
 type EpicCommand =
   | { kind: "state"; transition: EpicStateTransition }
   | { kind: "archive" }
+  | { kind: "claim" }
+  | { kind: "unclaim" }
 
 export function EpicDetailRoute() {
   const params = useParams()
@@ -49,6 +53,8 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
   const command = useMutation({
     mutationFn: (action: EpicCommand) => {
       if (action.kind === "archive") return archiveEpic(payload.paths.app_archive_path)
+      if (action.kind === "claim") return claimEpic(payload.paths.app_claim_path)
+      if (action.kind === "unclaim") return unclaimEpic(payload.paths.app_unclaim_path)
       return updateEpicState(payload.paths.app_state_path, action.transition.target_state)
     },
     onSuccess: (updated) => {
@@ -76,11 +82,32 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
         <p className="text-sm text-gray-500">
           <Link className="font-mono hover:underline" to={withRoutePrefix(payload.epic.repository.repository_path, prefix)}>{payload.epic.repository.slug}</Link>
           <span> · {payload.epic.jobs_count} {payload.epic.jobs_count === 1 ? "Job" : "Jobs"}</span>
+          <span> · {ownerLabel(payload.epic.owner)}</span>
           <span> · updated {formatRelative(payload.epic.updated_at)}</span>
         </p>
 
-        {payload.state_transitions.length > 0 ? (
+        {payload.state_transitions.length > 0 || payload.epic.claimable ? (
           <div className="flex flex-wrap items-center gap-2">
+            {payload.epic.claimable && !payload.epic.owner ? (
+              <button
+                className={secondaryButton()}
+                disabled={command.isPending}
+                onClick={() => command.mutate({ kind: "claim" })}
+                type="button"
+              >
+                Claim
+              </button>
+            ) : null}
+            {payload.epic.claimable && payload.epic.owned_by_current_user ? (
+              <button
+                className={secondaryButton()}
+                disabled={command.isPending}
+                onClick={() => command.mutate({ kind: "unclaim" })}
+                type="button"
+              >
+                Unclaim
+              </button>
+            ) : null}
             {payload.state_transitions.map((transition) => (
               <Fragment key={transition.target_state}>
                 {transition.target_state === "archived" && !payload.epic.archived ? (
@@ -271,6 +298,10 @@ function secondaryButton() {
 
 function humanize(value: string) {
   return value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
+}
+
+function ownerLabel(owner: EpicDetailPayload["epic"]["owner"]) {
+  return owner ? `Owner ${owner.email_address}` : "Unclaimed"
 }
 
 function formatRelative(value: string) {

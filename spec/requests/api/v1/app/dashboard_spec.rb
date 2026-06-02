@@ -198,10 +198,15 @@ RSpec.describe "App API dashboard commands", type: :request do
         "display_number" => ready.display_number,
         "title" => "Ready aqueduct",
         "description" => "Build a calmer aqueduct.",
+        "owner" => nil,
+        "owned_by_current_user" => false,
+        "claimable" => true,
         "jobs_count" => 0,
         "paths" => include(
           "epic_path" => epic_path(ready),
-          "app_state_path" => "/api/v1/app/epics/#{ready.id}/state"
+          "app_state_path" => "/api/v1/app/epics/#{ready.id}/state",
+          "app_claim_path" => "/api/v1/app/epics/#{ready.id}/claim",
+          "app_unclaim_path" => "/api/v1/app/epics/#{ready.id}/unclaim"
         )
       )
       expect(body.dig("controls", "columns", "required")).to eq([{ "key" => "epic", "title" => "Epic" }])

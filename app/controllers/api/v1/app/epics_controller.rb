@@ -57,6 +57,34 @@ module Api
           render_error("transition_not_allowed", "That Epic transition is not available.", status: :unprocessable_content)
         end
 
+        def claim
+          epic = find_epic
+          epic.claim!(Current.user)
+
+          render json: detail_payload(epic.reload, message: "Epic claimed.")
+        rescue ArgumentError => e
+          render_error("claim_not_allowed", e.message, status: :unprocessable_content)
+        end
+
+        def unclaim
+          epic = find_epic
+          epic.unclaim!(claimant: Current.user)
+
+          render json: detail_payload(epic.reload, message: "Epic unclaimed.")
+        rescue ArgumentError => e
+          render_error("unclaim_not_allowed", e.message, status: :unprocessable_content)
+        end
+
+        def reassign
+          epic = find_epic
+          owner = User.find(Integer(params.require(:owner_id)))
+          epic.reassign!(owner, actor: Current.user)
+
+          render json: detail_payload(epic.reload, message: "Epic reassigned.")
+        rescue ActionController::ParameterMissing, ArgumentError, ActiveRecord::RecordNotFound => e
+          render_error("reassign_not_allowed", e.message, status: :unprocessable_content)
+        end
+
         private
 
         class UnavailableTransition < StandardError; end
@@ -95,7 +123,10 @@ module Api
               dashboard_epics_path: dashboard_epics_path,
               edit_epic_path: edit_epic_path(epic),
               app_state_path: "/api/v1/app/epics/#{epic.id}/state",
-              app_archive_path: "/api/v1/app/epics/#{epic.id}/archive"
+              app_archive_path: "/api/v1/app/epics/#{epic.id}/archive",
+              app_claim_path: "/api/v1/app/epics/#{epic.id}/claim",
+              app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim",
+              app_reassign_path: "/api/v1/app/epics/#{epic.id}/reassign"
             }
           }
         end
@@ -127,12 +158,25 @@ module Api
             title: epic.title.to_s,
             description: epic.description.to_s,
             state: epic.state,
+            owner: owner_json(epic.owner),
+            owned_by_current_user: epic.claimed_by?(Current.user),
+            claimable: epic.claimable?,
+            claimed_at: epic.claimed_at&.iso8601,
             github_issue_url: epic.github_issue_url.to_s,
             updated_at: epic.updated_at&.iso8601,
             archived: epic.archived?,
             jobs_count: jobs.size,
             epic_path: epic_path(epic),
             repository: repository_json(epic.repository).merge(repository_path: repository_path(epic.repository))
+          }
+        end
+
+        def owner_json(owner)
+          return nil unless owner
+
+          {
+            id: owner.id,
+            email_address: owner.email_address
           }
         end
 
@@ -185,6 +229,9 @@ module Api
           elsif epic.ready? && target_state == "backlog" && epic.may_move_to_backlog?
             epic.move_to_backlog!
           elsif epic.ready? && target_state == "in_progress"
+            raise UnavailableTransition if epic.claimed? && !epic.claimed_by?(Current.user)
+
+            epic.claim!(Current.user) unless epic.claimed?
             epic.start!
           elsif epic.in_progress? && target_state == "ready"
             epic.unstart!

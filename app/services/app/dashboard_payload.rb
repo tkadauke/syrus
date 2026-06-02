@@ -22,6 +22,7 @@ module App
       "epics" => {
         "epic" => "Epic",
         "state" => "State",
+        "owner" => "Owner",
         "repository" => "Repository",
         "updated" => "Updated",
         "created_at" => "Created at",
@@ -166,7 +167,7 @@ module App
     end
 
     def epics_result
-      scope = filtered_epics_scope.includes(:repository, :jobs)
+      scope = filtered_epics_scope.includes(:owner, :repository, :jobs)
       total = scope.count
       items = paginate(apply_sort(scope, :epic)).map { |epic| epic_json(epic) }
 
@@ -308,7 +309,7 @@ module App
     def epic_lanes_json
       lanes = user.dashboard_visible_kanban_lanes(:epics)
       records = filtered_epics_scope
-                .includes(:repository, :jobs)
+                .includes(:owner, :repository, :jobs)
                 .where(state: lanes)
                 .order(updated_at: :desc, id: :desc)
                 .limit(kanban_limit)
@@ -451,6 +452,10 @@ module App
         title: epic.title,
         description: epic.description.to_s,
         state: epic.state,
+        owner: owner_json(epic.owner),
+        owned_by_current_user: epic.claimed_by?(user),
+        claimable: epic.claimable?,
+        claimed_at: epic.claimed_at&.iso8601,
         auto_approve_mode: epic.auto_approve_mode,
         jobs_count: epic.jobs.size,
         created_at: epic.created_at&.iso8601,
@@ -461,8 +466,19 @@ module App
         paths: {
           epic_path: epic_path(epic),
           edit_epic_path: edit_epic_path(epic),
-          app_state_path: "/api/v1/app/epics/#{epic.id}/state"
+          app_state_path: "/api/v1/app/epics/#{epic.id}/state",
+          app_claim_path: "/api/v1/app/epics/#{epic.id}/claim",
+          app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim"
         }
+      }
+    end
+
+    def owner_json(owner)
+      return nil unless owner
+
+      {
+        id: owner.id,
+        email_address: owner.email_address
       }
     end
 

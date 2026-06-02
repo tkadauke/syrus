@@ -9,6 +9,11 @@ export type DashboardRepository = {
   slug: string
 }
 
+export type DashboardOwner = {
+  id: number
+  email_address: string
+}
+
 export type DashboardTag = {
   id: number
   name: string
@@ -58,6 +63,10 @@ export type DashboardEpicItem = {
   title: string
   description: string
   state: string
+  owner: DashboardOwner | null
+  owned_by_current_user: boolean
+  claimable: boolean
+  claimed_at: string | null
   auto_approve_mode: string
   jobs_count: number
   created_at: string | null
@@ -69,6 +78,8 @@ export type DashboardEpicItem = {
     epic_path: string
     edit_epic_path: string
     app_state_path: string
+    app_claim_path: string
+    app_unclaim_path: string
   }
 }
 

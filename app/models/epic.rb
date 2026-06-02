@@ -10,6 +10,7 @@ class Epic < ApplicationRecord
   attr_readonly :number
 
   belongs_to :user
+  belongs_to :owner, class_name: "User", optional: true, inverse_of: :owned_epics
   belongs_to :repository
   has_many :jobs, dependent: :nullify
   has_many :dependencies,
@@ -37,6 +38,10 @@ class Epic < ApplicationRecord
   after_create_commit :broadcast_app_epic_created
   after_update_commit :broadcast_app_epic_updated
 
+  scope :claimed, -> { where.not(owner_id: nil) }
+  scope :unclaimed, -> { where(owner_id: nil) }
+  scope :owned_by, ->(user) { where(owner_id: user&.id) }
+
   aasm column: :state, whiny_transitions: false do
     state :backlog, initial: true
     state :ready, :in_progress, :done, :archived
@@ -52,6 +57,7 @@ class Epic < ApplicationRecord
     event :start do
       transitions from: :ready, to: :in_progress, after: -> {
         self.state = "in_progress"
+        claim!(user, force: true) unless claimed?
         unblock_child_jobs!
       }
     end
@@ -78,6 +84,42 @@ class Epic < ApplicationRecord
 
   def display_number
     "EPIC-#{number}"
+  end
+
+  def claimed?
+    owner_id.present?
+  end
+
+  def claimable?
+    backlog? || ready?
+  end
+
+  def claimed_by?(claimant)
+    owner_id.present? && owner_id == claimant&.id
+  end
+
+  def claim!(claimant, force: false)
+    raise ArgumentError, "claimant is required" unless claimant
+    raise ArgumentError, "Epic cannot be claimed from #{state}" unless claimable? || force
+    raise ArgumentError, "Epic is already claimed" if claimed? && !claimed_by?(claimant) && !force
+
+    assign_owner!(claimant)
+  end
+
+  def unclaim!(claimant: nil, force: false)
+    raise ArgumentError, "Epic cannot be unclaimed from #{state}" unless claimable? || force
+    raise ArgumentError, "Epic is claimed by another user" if claimant && !claimed_by?(claimant) && !force
+
+    transaction do
+      update!(owner: nil, claimed_at: nil)
+    end
+  end
+
+  def reassign!(new_owner, actor: nil)
+    raise ArgumentError, "owner is required" unless new_owner
+    raise ArgumentError, "Epic cannot be reassigned from #{state}" unless claimable? || in_progress?
+
+    assign_owner!(new_owner)
   end
 
   def releases_jobs_for_execution?
@@ -121,6 +163,7 @@ class Epic < ApplicationRecord
         archived_at: target_state == "archived" ? Time.current : nil
       )
       if target_state == "in_progress"
+        claim!(user, force: true) unless claimed?
         unblock_child_jobs!
       elsif (was_in_progress && %w[backlog ready].include?(target_state)) || target_state == "archived"
         restore_child_epic_blocks!
@@ -150,6 +193,17 @@ class Epic < ApplicationRecord
       end
     ensure
       @releasing_jobs_for_execution = false
+    end
+  end
+
+  def claim_child_jobs_to_owner!
+    return unless owner_id
+
+    jobs.includes(:repository).find_each do |job|
+      next unless job.repository.user_id == owner_id
+      next if job.user_id == owner_id
+
+      job.update!(user: owner)
     end
   end
 
@@ -209,6 +263,13 @@ class Epic < ApplicationRecord
 
   def stamp_done_at
     self.done_at = Time.current
+  end
+
+  def assign_owner!(new_owner)
+    transaction do
+      update!(owner: new_owner, claimed_at: Time.current)
+      claim_child_jobs_to_owner!
+    end
   end
 
   def resolve_pending_child_jobs

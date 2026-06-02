@@ -39,6 +39,11 @@ export type EpicDetailRepository = {
   repository_path: string
 }
 
+export type EpicOwner = {
+  id: number
+  email_address: string
+}
+
 export type EpicDetailRecord = {
   id: number
   number: number
@@ -46,6 +51,10 @@ export type EpicDetailRecord = {
   title: string
   description: string
   state: string
+  owner: EpicOwner | null
+  owned_by_current_user: boolean
+  claimable: boolean
+  claimed_at: string | null
   github_issue_url: string
   updated_at: string
   archived: boolean
@@ -97,6 +106,9 @@ export type EpicDetailPayload = {
     edit_epic_path: string
     app_state_path: string
     app_archive_path: string
+    app_claim_path: string
+    app_unclaim_path: string
+    app_reassign_path: string
   }
 }
 
@@ -125,5 +137,13 @@ export function updateEpicState(path: string, targetState: string) {
 }
 
 export function archiveEpic(path: string) {
+  return patchJson<EpicDetailPayload>(path)
+}
+
+export function claimEpic(path: string) {
+  return patchJson<EpicDetailPayload>(path)
+}
+
+export function unclaimEpic(path: string) {
   return patchJson<EpicDetailPayload>(path)
 }

@@ -51,6 +51,46 @@ RSpec.describe Epic do
     expect(epic.errors[:auto_approve_mode]).to be_present
   end
 
+  it "tracks claimed and unclaimed ownership state" do
+    owner = Factories.user(email_address: "owner@example.com")
+    unclaimed = Factories.epic(user: user, repository: repository, state: "ready")
+    claimed = Factories.epic(user: user, repository: repository, state: "ready", owner: owner, claimed_at: 1.hour.ago)
+
+    expect(described_class.unclaimed).to include(unclaimed)
+    expect(described_class.claimed).to include(claimed)
+    expect(described_class.owned_by(owner)).to include(claimed)
+  end
+
+  it "claims, unclaims, and prevents accidental takeover" do
+    owner = Factories.user(email_address: "owner@example.com")
+    other = Factories.user(email_address: "other@example.com")
+    epic = Factories.epic(user: user, repository: repository, state: "ready")
+
+    expect {
+      epic.claim!(owner)
+    }.to change { epic.reload.owner }.from(nil).to(owner)
+      .and change { epic.claimed_at }.from(nil)
+
+    expect {
+      epic.claim!(other)
+    }.to raise_error(ArgumentError, "Epic is already claimed")
+
+    expect {
+      epic.unclaim!(claimant: owner)
+    }.to change { epic.reload.owner }.from(owner).to(nil)
+      .and change { epic.claimed_at }.to(nil)
+  end
+
+  it "does not claim child Jobs to an owner who cannot execute the Epic repository" do
+    owner = Factories.user(email_address: "owner@example.com")
+    epic = Factories.epic(user: user, repository: repository, state: "ready")
+    child = Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
+
+    epic.claim!(owner)
+
+    expect(child.reload.user).to eq(user)
+  end
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
