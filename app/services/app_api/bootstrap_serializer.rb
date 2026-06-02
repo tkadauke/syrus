@@ -13,6 +13,7 @@ module AppApi
         team_user_count: user ? User.count : 0,
         app: app_payload,
         setup_status: setup_status_payload,
+        public: public_payload,
         navigation: navigation_payload,
         setup: setup_payload,
         flash: flash_payload,
@@ -54,6 +55,17 @@ module AppApi
       return nil unless user
 
       AppApi::SetupStatus.new(user).as_json
+    end
+
+    def public_payload
+      {
+        first_signup: User.count.zero?,
+        signups_open: AppSetting.signups_open?,
+        signup_path: "/users/new",
+        sign_in_path: "/session/new",
+        docs_url: ENV.fetch("SYRUS_DOCS_URL", "https://syrus.dev/docs/getting-started"),
+        evaluation_url: ENV.fetch("SYRUS_EVALUATION_URL", "https://syrus.dev/evaluate")
+      }
     end
 
     def navigation_payload

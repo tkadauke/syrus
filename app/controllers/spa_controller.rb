@@ -4,6 +4,7 @@ class SpaController < ApplicationController
   before_action :require_admin, if: :admin_spa_path?
 
   def show
+    authenticated?
   end
 
   private
@@ -15,7 +16,7 @@ class SpaController < ApplicationController
   end
 
   def public_spa_path?
-    normalized_path.in?(%w[
+    request.path == root_path || normalized_path.in?(%w[
       /session/new
       /users/new
       /passwords/new

@@ -9,6 +9,26 @@ RSpec.describe "SPA shell", type: :request do
     expect(response).to redirect_to(new_session_path)
   end
 
+  it "serves the public root through the SPA shell when signed out" do
+    Factories.user
+
+    get root_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+    expect(response.body).to include('"current_user":null')
+  end
+
+  it "embeds the signed-in user on the public root when a session exists" do
+    user = Factories.user
+    sign_in_as(user)
+
+    get root_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include(user.email_address)
+  end
+
   it "serves public auth routes through the SPA shell" do
     Factories.user
 

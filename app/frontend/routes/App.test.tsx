@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { App } from "./App"
+import type { BootstrapPayload } from "../api/bootstrap"
 import type { JobStep } from "../api/jobs"
 
 const actionCable = vi.hoisted(() => ({
@@ -151,6 +152,96 @@ describe("App", () => {
     )
   })
 
+  it("renders first-run landing CTA for a new instance", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(publicBootstrapPayload({ first_signup: true })), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Syrus turns GitHub issues into reviewed pull requests." })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Set up this Syrus instance" })).toHaveAttribute("href", "/users/new")
+    expect(screen.getByText("No users exist yet. The first account becomes the administrator for this instance.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/bootstrap",
+      expect.objectContaining({ credentials: "same-origin" })
+    )
+  })
+
+  it("renders invitation-only landing CTA for locked instances", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/session/new")
+    expect(screen.getByText("This instance is invitation-only. Ask the operator for an invitation if you need access.")).toBeInTheDocument()
+    expect(screen.getByText("Access to this Syrus instance is controlled by its operator. Use an invitation link, or sign in with an existing account.")).toBeInTheDocument()
+  })
+
+  it("renders account creation CTA when signups are open", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: true })), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "Create account" })[0]).toHaveAttribute("href", "/users/new")
+    expect(screen.getByText("Open sign-ups are enabled for this instance.")).toBeInTheDocument()
+  })
+
+  it("renders account creation CTA when an invitation token is present", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/?token=invite-123"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-123")
+    expect(screen.getByText("Detected")).toBeInTheDocument()
+  })
+
   it("renders the sign-in route and submits credentials through the auth API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
@@ -210,8 +301,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Sign up" })).toBeInTheDocument()
-    expect(await screen.findByText("You're the first user; this account will become the admin.")).toBeInTheDocument()
+    expect(screen.getByRole("main", { name: "Create account" })).toBeInTheDocument()
+    expect(await screen.findByText("No users exist yet. This account will become the administrator.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Already have an account? Sign in" })).toHaveAttribute("href", "/app-shell/session/new")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/auth/signup",
@@ -238,7 +329,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Forgot your password?" })).toBeInTheDocument()
+    expect(screen.getByRole("main", { name: "Reset password" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Back to sign in" })).toHaveAttribute("href", "/app-shell/session/new")
     fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "operator@example.com" } })
     fireEvent.click(screen.getByRole("button", { name: "Email reset instructions" }))
@@ -6440,6 +6531,14 @@ function bootstrapPayload() {
       revision: "dev",
       revision_url: null
     },
+    public: {
+      first_signup: false,
+      signups_open: false,
+      signup_path: "/users/new",
+      sign_in_path: "/session/new",
+      docs_url: "https://syrus.dev/docs/getting-started",
+      evaluation_url: "https://syrus.dev/evaluate"
+    },
     navigation: {
       default_chat_path: "/chats/9"
     },
@@ -6504,6 +6603,25 @@ function setupStatusPayload(overrides: Record<string, unknown> = {}) {
       dashboard_jobs_path: "/dashboard/jobs"
     },
     ...overrides
+  }
+}
+
+function publicBootstrapPayload(overrides: Partial<BootstrapPayload["public"]> = {}) {
+  return {
+    ...bootstrapPayload(),
+    current_user: null,
+    navigation: {
+      default_chat_path: "/session/new"
+    },
+    public: {
+      first_signup: false,
+      signups_open: false,
+      signup_path: "/users/new",
+      sign_in_path: "/session/new",
+      docs_url: "https://syrus.dev/docs/getting-started",
+      evaluation_url: "https://syrus.dev/evaluate",
+      ...overrides
+    }
   }
 }
 

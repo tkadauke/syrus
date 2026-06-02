@@ -118,12 +118,155 @@ export function App() {
   return (
     <AppChrome initialBootstrap={initialBootstrap}>
       <Routes>
-        <Route path="/" element={<DashboardRoute />} />
+        <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
         {renderAppRoutes()}
         <Route path="*" element={<BootstrapShell initialBootstrap={initialBootstrap} />} />
       </Routes>
     </AppChrome>
   )
+}
+
+function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {
+  const bootstrap = useQuery({
+    queryKey: ["bootstrap"],
+    queryFn: fetchBootstrap,
+    initialData: initialBootstrap ?? undefined,
+    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
+  })
+
+  if (bootstrap.isPending) {
+    return <main aria-label="Syrus" className="p-6 text-sm text-gray-600">Loading...</main>
+  }
+
+  if (bootstrap.isError) {
+    return (
+      <main aria-label="Syrus" className="p-6">
+        <p className="text-sm text-red-700">Unable to load this Syrus instance.</p>
+      </main>
+    )
+  }
+
+  if (bootstrap.data.current_user) return <DashboardRoute />
+
+  return <PublicLanding payload={bootstrap.data} />
+}
+
+function PublicLanding({ payload }: { payload: BootstrapPayload }) {
+  const location = useLocation()
+  const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
+  const invitationToken = new URLSearchParams(location.search).get("token")?.trim()
+  const cta = publicCta(payload.public, prefix, invitationToken)
+  const signInPath = withRoutePrefix(payload.public.sign_in_path, prefix)
+  const signupPath = invitationToken
+    ? `${withRoutePrefix(payload.public.signup_path, prefix)}?token=${encodeURIComponent(invitationToken)}`
+    : withRoutePrefix(payload.public.signup_path, prefix)
+
+  return (
+    <main aria-label="Syrus public landing" className="mx-auto max-w-[96rem] px-6 py-8 sm:py-12">
+      <section className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-start">
+        <div className="max-w-3xl">
+          <p className="text-sm font-medium uppercase text-blue-700">Self-hosted agent workflow control</p>
+          <h1 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight text-gray-950 sm:text-5xl">
+            Syrus turns GitHub issues into reviewed pull requests.
+          </h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-700">
+            This instance coordinates repositories, credentials, queues, and agent runs so operators can delegate software work without losing the audit trail.
+          </p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link className={landingPrimaryButtonClass()} to={cta.href}>{cta.label}</Link>
+            {cta.kind === "locked" ? null : <Link className={landingSecondaryButtonClass()} to={signInPath}>Sign in</Link>}
+          </div>
+          <p className="mt-3 max-w-xl text-sm text-gray-600">{cta.description}</p>
+        </div>
+
+        <aside aria-label="Instance access" className="rounded border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-gray-900">Access</h2>
+          <dl className="mt-4 space-y-3 text-sm">
+            <div className="flex items-start justify-between gap-4">
+              <dt className="text-gray-600">First admin</dt>
+              <dd className="font-medium text-gray-900">{payload.public.first_signup ? "Ready to create" : "Already configured"}</dd>
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <dt className="text-gray-600">Sign-ups</dt>
+              <dd className="font-medium text-gray-900">{payload.public.signups_open ? "Open" : "Invitation-only"}</dd>
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <dt className="text-gray-600">Invitation link</dt>
+              <dd className="font-medium text-gray-900">{invitationToken ? "Detected" : "Not present"}</dd>
+            </div>
+          </dl>
+          {!payload.public.first_signup && !payload.public.signups_open && !invitationToken ? (
+            <p className="mt-4 border-t border-gray-100 pt-4 text-sm leading-6 text-gray-600">
+              Access to this Syrus instance is controlled by its operator. Use an invitation link, or sign in with an existing account.
+            </p>
+          ) : null}
+        </aside>
+      </section>
+
+      <section className="mt-12 grid gap-4 md:grid-cols-4" aria-label="Workflow">
+        {[
+          ["Label a GitHub issue", "Pollers find delegated work in connected repositories."],
+          ["Syrus creates a Job", "The run gets a workspace, prompt, state, logs, and queue priority."],
+          ["An agent writes code", "Claude or Codex works inside the cloned repository with tracked output."],
+          ["Syrus opens a PR", "The instance captures the diff, summary, branch, and follow-up feedback."]
+        ].map(([title, body], index) => (
+          <article className="rounded border border-gray-200 bg-white p-4" key={title}>
+            <div className="flex h-8 w-8 items-center justify-center rounded bg-gray-900 text-sm font-semibold text-white">{index + 1}</div>
+            <h2 className="mt-4 text-base font-semibold text-gray-900">{title}</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="mt-10 flex flex-col gap-3 border-t border-gray-200 pt-6 text-sm text-gray-700 sm:flex-row sm:items-center">
+        <a className="font-medium text-blue-700 underline hover:no-underline" href={payload.public.docs_url}>Read the setup docs</a>
+        <span className="hidden text-gray-300 sm:inline">/</span>
+        <a className="font-medium text-blue-700 underline hover:no-underline" href={payload.public.evaluation_url}>Evaluate Syrus for a repository</a>
+        {payload.public.signups_open || invitationToken ? (
+          <>
+            <span className="hidden text-gray-300 sm:inline">/</span>
+            <Link className="font-medium text-blue-700 underline hover:no-underline" to={signupPath}>Create account</Link>
+          </>
+        ) : null}
+      </section>
+    </main>
+  )
+}
+
+function publicCta(publicState: BootstrapPayload["public"], prefix: string, invitationToken?: string) {
+  if (publicState.first_signup) {
+    return {
+      kind: "first" as const,
+      href: withRoutePrefix(publicState.signup_path, prefix),
+      label: "Set up this Syrus instance",
+      description: "No users exist yet. The first account becomes the administrator for this instance."
+    }
+  }
+
+  if (invitationToken) {
+    return {
+      kind: "invite" as const,
+      href: `${withRoutePrefix(publicState.signup_path, prefix)}?token=${encodeURIComponent(invitationToken)}`,
+      label: "Create account from invitation",
+      description: "An invitation token is present in this link. Create your account to join this instance."
+    }
+  }
+
+  if (publicState.signups_open) {
+    return {
+      kind: "open" as const,
+      href: withRoutePrefix(publicState.signup_path, prefix),
+      label: "Create account",
+      description: "Open sign-ups are enabled for this instance."
+    }
+  }
+
+  return {
+    kind: "locked" as const,
+    href: withRoutePrefix(publicState.sign_in_path, prefix),
+    label: "Sign in",
+    description: "This instance is invitation-only. Ask the operator for an invitation if you need access."
+  }
 }
 
 function renderAppRoutes() {
@@ -438,6 +581,14 @@ function navLinkClass(active: boolean) {
 
 function accountLinkClass() {
   return "rounded bg-blue-100 px-2.5 py-1 font-medium text-blue-700 hover:bg-blue-200"
+}
+
+function landingPrimaryButtonClass() {
+  return "inline-flex items-center justify-center rounded bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-600"
+}
+
+function landingSecondaryButtonClass() {
+  return "inline-flex items-center justify-center rounded border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
 }
 
 function adminNavLinkClass(active: boolean) {

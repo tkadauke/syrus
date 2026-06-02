@@ -36,6 +36,14 @@ export type BootstrapPayload = {
       successful_jobs: number
     }
   } | null
+  public: {
+    first_signup: boolean
+    signups_open: boolean
+    signup_path: string
+    sign_in_path: string
+    docs_url: string
+    evaluation_url: string
+  }
   navigation?: {
     default_chat_path: string
   }

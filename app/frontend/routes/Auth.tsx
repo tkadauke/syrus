@@ -29,7 +29,10 @@ export function SignInRoute() {
   }
 
   return (
-    <AuthShell title="Sign in">
+    <AuthShell
+      title="Sign in"
+      subtitle="Use an existing Syrus account for this instance."
+    >
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, "Unable to sign in.")}</PanelMessage> : null}
         <Field label="Email address">
@@ -74,7 +77,10 @@ export function SignUpRoute() {
   })
 
   return (
-    <AuthShell title="Sign up">
+    <AuthShell
+      title="Create account"
+      subtitle="Join this Syrus instance with open sign-ups or an invitation link."
+    >
       {signup.isPending ? <PanelMessage>Loading sign-up...</PanelMessage> : null}
       {signup.isError ? <PanelMessage tone="error">{errorMessage(signup.error, "Unable to load sign-up.")}</PanelMessage> : null}
       {signup.isSuccess ? <SignUpForm payload={signup.data} prefix={prefix} /> : null}
@@ -108,7 +114,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
   if (!payload.allowed) {
     return (
       <PanelMessage tone="error">
-        Sign-up is invitation-only. <Link className="underline hover:no-underline" to={`${prefix}/session/new`}>Sign in</Link>
+        Sign-up is invitation-only. Use an invitation link or <Link className="underline hover:no-underline" to={`${prefix}/session/new`}>sign in</Link>.
       </PanelMessage>
     )
   }
@@ -116,7 +122,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
   return (
     <form className="space-y-5" onSubmit={onSubmit}>
       {payload.invitation ? <PanelMessage>Accepting an invitation from {payload.invitation.invited_by_email}.</PanelMessage> : null}
-      {payload.first_signup ? <PanelMessage>You're the first user; this account will become the admin.</PanelMessage> : null}
+      {payload.first_signup ? <PanelMessage>No users exist yet. This account will become the administrator.</PanelMessage> : null}
       {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, "Unable to create account.")}</PanelMessage> : null}
       <Field label="Email address">
         <input
@@ -178,7 +184,10 @@ export function PasswordRequestRoute() {
   }
 
   return (
-    <AuthShell title="Forgot your password?">
+    <AuthShell
+      title="Reset password"
+      subtitle="Enter the email address for your Syrus account."
+    >
       <form className="space-y-5" onSubmit={onSubmit}>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, "Unable to request password reset.")}</PanelMessage> : null}
@@ -220,7 +229,10 @@ export function PasswordResetRoute() {
   }
 
   return (
-    <AuthShell title="Update your password">
+    <AuthShell
+      title="Update password"
+      subtitle="Choose a new password for your Syrus account."
+    >
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, "Unable to update password.")}</PanelMessage> : null}
         <Field label="New password">
@@ -254,11 +266,13 @@ export function PasswordResetRoute() {
   )
 }
 
-function AuthShell({ title, children }: { title: string; children: ReactNode }) {
+function AuthShell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <main aria-label={title} className="mx-auto max-w-xl space-y-6 p-6">
       <header>
+        <Link className="text-sm font-medium text-blue-700 underline hover:no-underline" to="/">Syrus overview</Link>
         <h1 className="text-3xl font-semibold text-gray-900">{title}</h1>
+        {subtitle ? <p className="mt-2 text-sm leading-6 text-gray-600">{subtitle}</p> : null}
       </header>
       <section className="rounded border border-gray-200 bg-white p-5">
         {children}

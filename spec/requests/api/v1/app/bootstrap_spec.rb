@@ -13,17 +13,24 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     old_values.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
   end
 
-  it "returns a JSON 401 instead of redirecting when signed out" do
+  it "returns safe public bootstrap state when signed out" do
+    Factories.user
+    AppSetting.current.update!(signups_open: false)
+
     get api_v1_app_bootstrap_path
 
-    expect(response).to have_http_status(:unauthorized)
+    expect(response).to have_http_status(:ok)
     expect(response.media_type).to eq("application/json")
-    expect(parse_body).to eq(
-      "error" => {
-        "code" => "unauthorized",
-        "message" => "Sign in to use the app API."
-      }
+    expect(parse_body).to include(
+      "current_user" => nil,
+      "public" => include(
+        "first_signup" => false,
+        "signups_open" => false,
+        "signup_path" => "/users/new",
+        "sign_in_path" => "/session/new"
+      )
     )
+    expect(parse_body.dig("navigation", "default_chat_path")).to eq(new_session_path)
   end
 
   it "returns the signed-in user's browser bootstrap payload" do
@@ -67,6 +74,12 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "credentials_configured" => false,
       "repository_configured" => false,
       "first_successful_job_completed" => false
+    )
+    expect(body["public"]).to include(
+      "first_signup" => false,
+      "signups_open" => false,
+      "signup_path" => "/users/new",
+      "sign_in_path" => "/session/new"
     )
     expect(body["navigation"]).to include(
       "default_chat_path" => new_chat_path
