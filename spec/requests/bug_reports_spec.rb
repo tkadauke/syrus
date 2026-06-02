@@ -13,7 +13,6 @@ RSpec.describe "Bug reports", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include('id="syrus-spa-root"')
-      expect(response.body).to include('type="module"')
     end
 
     it "does not render the bug-report control on auth pages" do

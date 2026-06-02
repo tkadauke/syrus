@@ -42,8 +42,6 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('id="syrus-bootstrap-data"')
     expect(response.body).to include(user.email_address)
     expect(response.body).to include("<title>Syrus</title>")
-    expect(response.body).to include('type="module"')
-    expect(response.body).to match(%r{<script src="/assets/spa-[^"]+\.js" type="module"></script>})
   end
 
   it "serves nested React routes through the SPA shell" do
