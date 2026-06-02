@@ -391,13 +391,14 @@ The full suite runs in ~10s. There is no excuse.
 
 ## Testing on the deployed instance
 
-Syrus runs on the homelab K3s cluster and polls **`tkadauke/syrus-test`**
-(private) as its dev sandbox. To exercise a change end-to-end, file
-an issue on that repo with the `syrus` label — the deployed dev
-Syrus picks it up and opens a PR there:
+To exercise a change end-to-end, configure a low-stakes GitHub test
+repository that your deployed Syrus instance polls. Set
+`SYRUS_TEST_REPO` to its `owner/name` slug, then file an issue on that
+repo with the `syrus` label — the deployed Syrus instance picks it up
+and opens a PR there:
 
 ```
-gh issue create -R tkadauke/syrus-test --label syrus \
+gh issue create -R "$SYRUS_TEST_REPO" --label syrus \
   --title "..." --body "..."
 ```
 
@@ -408,7 +409,7 @@ frivolous) improvements — the agent actually implements them.
 
 **Now the important part: be actually funny.** The model defaults
 to a tepid productivity-blog register — bullet points, neutral verbs,
-"considerations." For syrus-test issues, override that hard. The
+"considerations." For test-repo issues, override that hard. The
 target is "fun to read," not "looks like a Linear ticket." Specifically:
 
 - Lean into the namesake's mock-Roman gravitas. Frame trivial UI
@@ -421,29 +422,27 @@ target is "fun to read," not "looks like a Linear ticket." Specifically:
 - Give the agent attitude in the body. It will not file a complaint.
 
 The model is genuinely good at this when you let it. The repo is
-private, the audience is future-you and the agent that picks it up.
+usually private, the audience is future-you and the agent that picks it up.
 Make it a good time. If the issue body reads like something you'd
 actually post in a customer-facing tracker, you've under-reached.
 
-## Debugging staging / production via kubectl
+## Debugging deployed environments via kubectl
 
-Two clusters: **staging** uses the default kubeconfig
-(`~/.kube/config`), **production** lives at
-`~/.kube/config-production`. Pick by passing `--kubeconfig` on every
-call (or `export KUBECONFIG=...`).
+Use the kubeconfig, namespace, and deployment names for your own
+Syrus deployment. Keep them in env vars so examples stay portable:
 
 ```bash
-# Default cluster = staging.
-kubectl -n syrus-staging get pods
-# Production:
-kubectl --kubeconfig ~/.kube/config-production -n syrus-production get pods
+export SYRUS_KUBECONFIG="${SYRUS_KUBECONFIG:-$HOME/.kube/config}"
+export SYRUS_NAMESPACE="${SYRUS_NAMESPACE:-syrus}"
+kubectl --kubeconfig "$SYRUS_KUBECONFIG" -n "$SYRUS_NAMESPACE" get pods
 ```
 
-**Pod label gotcha:** the pods are labelled `name=syrus-worker` /
-`name=syrus-web`, NOT `app=...`. The selector that works:
+**Pod label gotcha:** Syrus manifests commonly label pods
+`name=syrus-worker` / `name=syrus-web`, NOT `app=...`. Adjust the
+selector if your deployment uses different labels:
 
 ```bash
-POD=$(kubectl --kubeconfig ~/.kube/config-production -n syrus-production \
+POD=$(kubectl --kubeconfig "$SYRUS_KUBECONFIG" -n "$SYRUS_NAMESPACE" \
        get pods -l name=syrus-worker -o jsonpath='{.items[0].metadata.name}')
 ```
 
@@ -453,7 +452,7 @@ you don't pass `-c`). Worker logs are noisy with ActiveJob
 serialization; grep for the bits you need:
 
 ```bash
-kubectl --kubeconfig ~/.kube/config-production -n syrus-production \
+kubectl --kubeconfig "$SYRUS_KUBECONFIG" -n "$SYRUS_NAMESPACE" \
   logs deployment/syrus-worker --tail=500 \
   | grep -E "PollAllMergeStates|PollMergeStateJob|PollRebaseJob|preempted|RunJob|FAIL"
 ```
@@ -465,11 +464,11 @@ in dig calls, etc). Write the script to `/tmp/script.rb` locally,
 `kubectl cp` it in, `bin/rails runner /tmp/script.rb`:
 
 ```bash
-POD=$(kubectl --kubeconfig ~/.kube/config-production -n syrus-production \
+POD=$(kubectl --kubeconfig "$SYRUS_KUBECONFIG" -n "$SYRUS_NAMESPACE" \
        get pods -l name=syrus-worker -o jsonpath='{.items[0].metadata.name}')
-kubectl --kubeconfig ~/.kube/config-production -n syrus-production \
+kubectl --kubeconfig "$SYRUS_KUBECONFIG" -n "$SYRUS_NAMESPACE" \
   cp /tmp/diagnose.rb $POD:/tmp/diagnose.rb -c syrus-worker
-kubectl --kubeconfig ~/.kube/config-production -n syrus-production \
+kubectl --kubeconfig "$SYRUS_KUBECONFIG" -n "$SYRUS_NAMESPACE" \
   exec $POD -- bin/rails runner /tmp/diagnose.rb
 ```
 
@@ -535,30 +534,28 @@ The image is single-purpose (worker pod overrides CMD to `["./bin/jobs"]`);
 web pod uses the default `./bin/thrust ./bin/rails server`. See
 "Deploy target" below for the amd64 / Apple Silicon gotcha.
 
-Deploying to staging + production (K3s):
+Deploying to Kubernetes:
 
 ```
-bin/deploy                # both clusters (default)
-bin/deploy --staging      # staging only
-bin/deploy --production   # production only
+bin/deploy                # default deployment target
+bin/deploy --staging      # staging target, if configured
+bin/deploy --production   # production target, if configured
 bin/deploy --skip-build   # assume :<sha> already pushed
 ```
 
 Reads the GHCR PAT from `$GHCR_TOKEN` or
-`~/.config/syrus/ghcr-token` (chmod 600). Builds linux/amd64,
-pushes `ghcr.io/tkadauke/syrus:<sha>` + `:latest`, runs
-`kubectl rollout restart` on `syrus-web` and `syrus-worker` in
-both namespaces, waits for rollout status. Production uses
-`~/.kube/config-production`; staging uses the default kubeconfig.
+`~/.config/syrus/ghcr-token` (chmod 600). Builds the configured image
+platform, pushes the configured image repository tags, runs
+`kubectl rollout restart` on `syrus-web` and `syrus-worker`, and waits
+for rollout status. Configure kubeconfigs, namespaces, registry, and
+image repository for your own environment before relying on this script.
 
 ## Deploy target
 
-K3s on the homelab cluster (Intel NUC 12 → **linux/amd64**). Build
-images with `--platform linux/amd64`. On Apple Silicon, use Colima
-with Rosetta and the `colima` (docker driver) buildx builder — NOT
-the `multi` (docker-container) builder, which falls back to QEMU TCG
-and turns 5-min builds into 15-min builds. The full Colima/Rosetta
-playbook is in `~/code/greenacres/.claude/skills/colima-amd64-build/SKILL.md`.
+Build images for the CPU architecture used by your cluster nodes
+(commonly `linux/amd64` or `linux/arm64`). On Apple Silicon, make sure
+your Docker/buildx setup can build the target platform efficiently; QEMU
+emulation can make cross-architecture builds much slower.
 
 Required runtime env:
 

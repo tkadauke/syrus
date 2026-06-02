@@ -1,6 +1,6 @@
 ---
 name: syrus-debug
-description: Debug Syrus production via the /api/v1/admin REST API. Use when the operator asks about stuck Jobs, failed Runs, queue starvation, MCP / claude-session issues, or any "what's going on with X" question that would otherwise need kubectl exec + Rails runner.
+description: Debug Syrus deployments via the /api/v1/admin REST API. Use when the operator asks about stuck Jobs, failed Runs, queue starvation, MCP / claude-session issues, or any "what's going on with X" question that would otherwise need kubectl exec + Rails runner.
 allowed-tools:
   - Bash(curl:*)
   - Bash(jq:*)
@@ -18,19 +18,20 @@ write-script → copy-in → exec → parse.
 
 ## Setup (operator does this once)
 
-1. The operator generates a per-user API token at
-   `https://syrus.internal.green-acres.estate/credentials`
-   (admin section). Token is shown ONCE; they save it to
-   `~/.config/syrus/api-token` (chmod 600).
-2. Skill assumes:
+1. The operator sets `SYRUS_APP_HOST` to their Syrus app URL, for example
+   `https://syrus.example.com`.
+2. The operator generates a per-user API token at
+   `$SYRUS_APP_HOST/credentials` (admin section). Token is shown ONCE;
+   they save it to `~/.config/syrus/api-token` (chmod 600).
+3. Skill assumes:
    ```bash
-   SYRUS_BASE="https://syrus.internal.green-acres.estate"
+   SYRUS_BASE="${SYRUS_APP_HOST:?set SYRUS_APP_HOST to your Syrus URL}"
    SYRUS_TOKEN="$(cat ~/.config/syrus/api-token)"
    ```
-3. Every call uses `Authorization: Bearer $SYRUS_TOKEN`.
-4. Base URL may differ between staging
-   (`syrus.internal.green-acres.estate`) and production —
-   confirm with the operator before mutations.
+4. Every call uses `Authorization: Bearer $SYRUS_TOKEN`.
+5. Base URL may differ between environments, such as staging and
+   production. Confirm the target `SYRUS_APP_HOST` with the operator
+   before mutations.
 
 ## Investigation decision tree
 
@@ -45,7 +46,7 @@ Look it up:
 
 ```bash
 curl -s -H "Authorization: Bearer $SYRUS_TOKEN" \
-  "$SYRUS_BASE/api/v1/admin/jobs?pr_number=144&repo=tkadauke/syrus" | jq .
+  "$SYRUS_BASE/api/v1/admin/jobs?pr_number=144&repo=owner/name" | jq .
 ```
 
 Filters: `pr_number`, `issue_number`, `repo=owner/name`, `state`.
