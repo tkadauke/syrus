@@ -860,14 +860,14 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
 
 function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
   if (!job.latest_workflow_trigger_kind) {
-    return <td className="px-4 py-3 text-gray-700">{job.latest_workflow_state}</td>
+    return <td className="px-4 py-3"><StatusPill state={job.latest_workflow_state} /></td>
   }
 
   return (
-    <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`} className="px-4 py-3 text-gray-700">
+    <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`} className="px-4 py-3">
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">{job.latest_workflow_trigger_kind}</span>
-        <span>{job.latest_workflow_state}</span>
+        <StatusPill state={job.latest_workflow_state} />
       </div>
     </td>
   )

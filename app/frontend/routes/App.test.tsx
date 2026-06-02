@@ -617,6 +617,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("target", "_blank")
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("target", "_blank")
+    expect(document.querySelectorAll("[data-status-pill='true']")).toHaveLength(2)
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "kanban" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=kanban")
     expect(screen.getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list")
