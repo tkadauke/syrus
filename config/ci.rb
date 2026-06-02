@@ -6,7 +6,8 @@ CI.run do
   step "Style: Ruby", "bin/rubocop"
 
   step "Security: Gem audit", "bin/bundler-audit"
-  # TODO: drop --except once we upgrade Ruby off 3.2.x (EOL 2026-03-31)
+  # Ruby 3.2 is still the configured runtime for this app, so Brakeman's
+  # EOLRuby warning is suppressed until the runtime upgrade happens.
   step "Security: Brakeman code analysis", "bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error --except EOLRuby"
   step "Tests", "bin/test"
   step "Tests: Seeds", "env RAILS_ENV=test bin/rails db:seed:replant"
