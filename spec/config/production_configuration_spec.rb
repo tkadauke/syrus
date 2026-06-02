@@ -4,6 +4,7 @@ RSpec.describe "production configuration" do
   let(:production_config) { Rails.root.join("config/environments/production.rb").read }
   let(:application_mailer) { Rails.root.join("app/mailers/application_mailer.rb").read }
   let(:deploy_config) { Rails.root.join("config/deploy.yml").read }
+  let(:storage_config) { Rails.root.join("config/storage.yml").read }
 
   it "does not leave scaffold production host or mailer values in place" do
     expect(production_config).not_to include("example.com")
@@ -11,10 +12,18 @@ RSpec.describe "production configuration" do
     expect(deploy_config).not_to include("example.com")
   end
 
+  it "does not expose internal infrastructure values in config examples" do
+    config_files = [ production_config, deploy_config, storage_config ]
+
+    expect(config_files).not_to include(a_string_including("syrus.internal.green-acres.estate"))
+    expect(config_files).not_to include(a_string_including("192.168.0.1"))
+    expect(config_files).not_to include(a_string_including("minio.minio.svc.cluster.local"))
+    expect(config_files).not_to include(a_string_including("green_acres"))
+  end
+
   it "documents the environment-owned production host and proxy assumptions in config" do
-    expect(production_config).to include('default_app_host = "syrus.internal.green-acres.estate"')
-    expect(production_config).to include('app_host = ENV.fetch("SYRUS_APP_HOST", default_app_host)')
-    expect(production_config).to include('default_allowed_hosts = [ app_host, default_app_host ].uniq.join(",")')
+    expect(production_config).to include('app_host = ENV.fetch("SYRUS_APP_HOST")')
+    expect(production_config).to include("default_allowed_hosts = app_host")
     expect(production_config).to include('ENV.fetch("SYRUS_ALLOWED_HOSTS", default_allowed_hosts)')
     expect(production_config).to include('env_boolean.call("SYRUS_ASSUME_SSL", "true")')
     expect(production_config).to include('env_boolean.call("SYRUS_FORCE_SSL", "true")')

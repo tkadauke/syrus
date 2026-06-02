@@ -7,10 +7,10 @@ image: syrus
 # Deploy to these servers.
 servers:
   web:
-    - 192.168.0.1
+    - your.server.ip
   # job:
   #   hosts:
-  #     - 192.168.0.1
+  #     - your.server.ip
   #   cmd: bin/jobs
 
 # The MVP deployment is fronted by the K3s ingress, which terminates TLS

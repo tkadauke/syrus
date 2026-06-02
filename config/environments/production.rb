@@ -3,9 +3,8 @@ require "active_support/core_ext/integer/time"
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
   env_boolean = ->(key, default) { ActiveModel::Type::Boolean.new.cast(ENV.fetch(key, default)) }
-  default_app_host = "syrus.internal.green-acres.estate"
-  app_host = ENV.fetch("SYRUS_APP_HOST", default_app_host)
-  default_allowed_hosts = [ app_host, default_app_host ].uniq.join(",")
+  app_host = ENV.fetch("SYRUS_APP_HOST")
+  default_allowed_hosts = app_host
   allowed_hosts = ENV.fetch("SYRUS_ALLOWED_HOSTS", default_allowed_hosts)
     .split(",")
     .map(&:strip)
@@ -26,10 +25,10 @@ Rails.application.configure do
   # Cache assets for far-future expiry since they are all digest stamped.
   config.public_file_server.headers = { "cache-control" => "public, max-age=#{1.year.to_i}" }
 
-  # Store uploaded files in the in-cluster MinIO via S3-compatible API.
+  # Store uploaded files via an S3-compatible API.
   # See config/storage.yml#minio. Env vars (S3_ENDPOINT, S3_BUCKET,
-  # S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY) are injected by the
-  # green_acres pod spec for both web and worker pods.
+  # S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY) must be configured for
+  # both web and worker processes.
   config.active_storage.service = :minio
 
   # Production traffic is terminated by the cluster ingress before reaching Rails.
