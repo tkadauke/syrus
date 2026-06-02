@@ -153,6 +153,20 @@ RSpec.describe "App API job detail", type: :request do
     ])
   end
 
+  it "returns workflows in descending creation order" do
+    initial_workflow = job.latest_workflow
+    initial_workflow.update!(created_at: 2.hours.ago)
+    retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", created_at: 1.hour.ago)
+
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["workflows"].map { |workflow| workflow["id"] }).to eq([
+      retry_workflow.id,
+      initial_workflow.id
+    ])
+  end
+
   it "returns dependency panels and deduplicated dependency target options for React rendering" do
     older_issue_job = Job.create!(
       user: user,

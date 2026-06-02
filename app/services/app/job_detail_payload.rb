@@ -278,7 +278,7 @@ module App
     def workflows_scope
       @job.workflows
           .includes(steps: { runs: [ :claude_session, :run_diagnostic, :run_health_snapshots, :job_logs ] })
-          .order(:created_at)
+          .reorder(created_at: :desc, id: :desc)
     end
 
     def total_workflows
