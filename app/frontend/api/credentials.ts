@@ -4,8 +4,12 @@ export type CredentialsUser = {
   id: number
   email_address: string
   name: string | null
+  first_name: string | null
+  last_name: string | null
   display_name: string
   github_handle: string | null
+  profile_bio: string | null
+  avatar_url: string | null
   admin: boolean
   agent_provider: string
   codex_auth_mode: string
@@ -74,7 +78,11 @@ export type PersonalDocumentsPayload = {
 
 export type CredentialsInput = {
   name: string
+  first_name: string
+  last_name: string
   github_handle: string
+  profile_bio: string
+  avatar_url: string
   agent_provider: string
   claude_oauth_token: string
   codex_auth_mode: string

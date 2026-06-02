@@ -93,8 +93,26 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
           <input className={inputClass()} onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
         </Field>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="First name">
+            <input className={inputClass()} maxLength={80} onChange={(event) => setValues({ ...values, first_name: event.target.value })} type="text" value={values.first_name} />
+          </Field>
+
+          <Field label="Last name">
+            <input className={inputClass()} maxLength={80} onChange={(event) => setValues({ ...values, last_name: event.target.value })} type="text" value={values.last_name} />
+          </Field>
+        </div>
+
         <Field label="GitHub handle">
-          <input className={inputClass()} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
+          <input className={inputClass()} maxLength={100} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
+        </Field>
+
+        <Field label="Avatar URL">
+          <input className={inputClass()} maxLength={500} onChange={(event) => setValues({ ...values, avatar_url: event.target.value })} type="url" value={values.avatar_url} />
+        </Field>
+
+        <Field label="Profile bio">
+          <textarea className={inputClass()} maxLength={1000} onChange={(event) => setValues({ ...values, profile_bio: event.target.value })} rows={4} value={values.profile_bio} />
         </Field>
 
         <Field label="Agent provider">
@@ -381,7 +399,11 @@ function inputClass() {
 function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
   return {
     name: payload.user.name || "",
+    first_name: payload.user.first_name || "",
+    last_name: payload.user.last_name || "",
     github_handle: payload.user.github_handle || "",
+    profile_bio: payload.user.profile_bio || "",
+    avatar_url: payload.user.avatar_url || "",
     agent_provider: payload.user.agent_provider,
     claude_oauth_token: "",
     codex_auth_mode: payload.user.codex_auth_mode,

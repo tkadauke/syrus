@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_02_225041) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -679,6 +679,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
     t.string "agent_provider", default: "claude", null: false
     t.text "api_token"
     t.string "auto_approve_mode", default: "never", null: false
+    t.string "avatar_url"
     t.text "claude_oauth_token"
     t.text "codex_api_key"
     t.text "codex_auth_json"
@@ -687,6 +688,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
     t.json "dashboard_preferences"
     t.string "email_address", null: false
     t.integer "epic_reopen_window", default: 30, null: false
+    t.string "first_name"
     t.datetime "gh_api_blocked_at"
     t.text "gh_api_blocked_reason"
     t.integer "gh_rate_limit_limit"
@@ -697,8 +699,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_032106) do
     t.string "github_handle"
     t.text "github_token"
     t.boolean "landing_paused", default: false, null: false
+    t.string "last_name"
     t.string "name"
     t.string "password_digest", null: false
+    t.text "profile_bio"
     t.boolean "scheduling_paused", default: false, null: false
     t.text "telegram_chat_id"
     t.datetime "updated_at", null: false

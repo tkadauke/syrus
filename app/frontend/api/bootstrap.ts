@@ -12,6 +12,7 @@ export type BootstrapPayload = {
     agent_provider: "claude" | "codex"
     agent_max_turns: number
   } | null
+  team_user_count: number
   app: {
     revision: string
     revision_url: string | null

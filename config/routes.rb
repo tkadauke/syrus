@@ -23,6 +23,7 @@ Rails.application.routes.draw do
         patch "auth/passwords/:token", to: "auth#update_password"
         post "bug_reports", to: "bug_reports#create"
         resources :tags, only: %i[ index create update destroy ]
+        resources :profiles, only: %i[ index show ]
         resources :smart_folders, only: %i[ index create update destroy ]
         resources :cron_templates, only: %i[ index show create update destroy ]
         resource :credentials, only: %i[ show update ] do
@@ -264,6 +265,8 @@ Rails.application.routes.draw do
 
   get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
   get "documents", to: "spa#show", as: :documents
+  get "profiles", to: "spa#show", as: :profiles
+  get "profiles/:id", to: "spa#show", as: :profile, constraints: { id: /\d+/ }
   get "scheduled_tasks/:id", to: "spa#show", as: :scheduled_task, constraints: { id: /\d+/ }
   get "scheduled_tasks/:id/edit", to: "spa#show", as: :edit_scheduled_task, constraints: { id: /\d+/ }
   get "app-shell", to: "spa#show", as: :app_shell

@@ -10,6 +10,7 @@ module AppApi
     def as_json(*)
       {
         current_user: user_payload,
+        team_user_count: user ? User.count : 0,
         app: app_payload,
         navigation: navigation_payload,
         flash: flash_payload,

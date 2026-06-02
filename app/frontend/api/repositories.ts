@@ -172,8 +172,11 @@ export type RepositoryDetailRecord = {
   github_url: string
   created_at: string
   owner_user: {
+    id: number
+    display_name: string
     email_address: string
     admin: boolean
+    profile_path?: string
   }
   github_rate_limit: {
     remaining: number

@@ -54,6 +54,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "agent_provider" => "codex",
       "agent_max_turns" => 123
     )
+    expect(body["team_user_count"]).to eq(1)
     expect(body["app"]).to include(
       "revision" => "dev",
       "revision_url" => nil

@@ -371,8 +371,11 @@ module Api
             github_url: "https://github.com/#{repository.slug}",
             created_at: repository.created_at.iso8601,
             owner_user: {
+              id: repo_user.id,
+              display_name: repo_user.team_display_name,
               email_address: repo_user.email_address,
-              admin: repo_user.admin?
+              admin: repo_user.admin?,
+              profile_path: profile_path(repo_user)
             },
             github_rate_limit: github_rate_limit_json(repo_user)
           }

@@ -91,6 +91,33 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body["message"]).to eq("Credentials updated.")
   end
 
+  it "updates team-visible profile fields" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/credentials", params: {
+      user: {
+        first_name: "Ada",
+        last_name: "Lovelace",
+        github_handle: "@ada",
+        profile_bio: "Keeps the machines honest.",
+        avatar_url: "https://example.com/ada.png"
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    user.reload
+    expect(user.display_name).to eq("Ada Lovelace")
+    expect(user.github_handle).to eq("ada")
+    expect(user.profile_bio).to eq("Keeps the machines honest.")
+    expect(parse_body["user"]).to include(
+      "first_name" => "Ada",
+      "last_name" => "Lovelace",
+      "display_name" => "Ada Lovelace",
+      "github_handle" => "ada",
+      "avatar_url" => "https://example.com/ada.png"
+    )
+  end
+
   it "returns validation errors" do
     sign_in_as(user)
 

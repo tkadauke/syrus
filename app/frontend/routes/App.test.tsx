@@ -101,6 +101,7 @@ describe("App", () => {
             agent_provider: "claude",
             agent_max_turns: 200
           },
+          team_user_count: 1,
           app: {
             revision: "dev",
             revision_url: null
@@ -310,6 +311,43 @@ describe("App", () => {
       randomSpy.mockRestore()
       script.remove()
     }
+  })
+
+  it("renders the team directory route", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          team_user_count: 2,
+          profiles: [
+            {
+              id: 7,
+              display_name: "Ada Lovelace",
+              first_name: "Ada",
+              last_name: "Lovelace",
+              github_handle: "ada",
+              avatar_url: null,
+              bio_excerpt: "Keeps the machines honest.",
+              counts: { repositories: 1, epics: 2, jobs: 3, open_jobs: 1 },
+              profile_path: "/profiles/7"
+            }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/profiles"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Team directory" })).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/7")
+    expect(screen.getByText("@ada")).toBeInTheDocument()
+    expect(screen.getByText("Keeps the machines honest.")).toBeInTheDocument()
   })
 
   it("omits the quote footer on chat routes", async () => {
@@ -5985,6 +6023,7 @@ function bootstrapPayload() {
       agent_provider: "claude",
       agent_max_turns: 200
     },
+    team_user_count: 1,
     app: {
       revision: "dev",
       revision_url: null

@@ -74,8 +74,12 @@ module Api
             id: user.id,
             email_address: user.email_address,
             name: user.name,
+            first_name: user.first_name,
+            last_name: user.last_name,
             display_name: user.display_name,
             github_handle: user.github_handle,
+            profile_bio: user.profile_bio,
+            avatar_url: user.avatar_url,
             admin: user.admin?,
             agent_provider: user.agent_provider,
             codex_auth_mode: user.codex_auth_mode,
@@ -139,7 +143,8 @@ module Api
         end
 
         def credentials_params
-          params.expect(user: [ :name, :github_handle, :agent_provider, :claude_oauth_token, :codex_auth_mode,
+          params.expect(user: [ :name, :first_name, :last_name, :github_handle, :profile_bio, :avatar_url,
+                                :agent_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :github_token,
                                 :agent_max_turns, :scheduling_paused, :auto_approve_mode ])
         end

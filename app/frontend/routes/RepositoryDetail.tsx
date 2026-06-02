@@ -338,7 +338,9 @@ function Tabs({ active, prefix, tabs }: { active: string; prefix: string; tabs: 
 }
 
 function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
+  const location = useLocation()
   const repository = payload.repository
+  const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const nonzeroCounts = [
     { label: "running", value: payload.counts.running, tone: "blue" as const },
     { label: "queued", value: payload.counts.queued, tone: "gray" as const },
@@ -361,7 +363,16 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
         <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
           <div><dt className="text-xs uppercase text-gray-400">Branch</dt><dd className="font-mono text-gray-700">{repository.default_branch}</dd></div>
           <div><dt className="text-xs uppercase text-gray-400">Trigger label</dt><dd><code className="rounded bg-gray-100 px-1">{repository.trigger_label}</code></dd></div>
-          <div><dt className="text-xs uppercase text-gray-400">Owner</dt><dd>{repository.owner_user.email_address}</dd></div>
+          <div>
+            <dt className="text-xs uppercase text-gray-400">Owner</dt>
+            <dd>
+              {repository.owner_user.profile_path ? (
+                <Link className="text-blue-600 hover:underline" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
+              ) : (
+                repository.owner_user.display_name || repository.owner_user.email_address
+              )}
+            </dd>
+          </div>
           <div><dt className="text-xs uppercase text-gray-400">Added</dt><dd>{formatDate(repository.created_at)}</dd></div>
           {repository.github_rate_limit ? (
             <div><dt className="text-xs uppercase text-gray-400">GitHub quota</dt><dd><strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} ({repository.github_rate_limit.resource})</dd></div>

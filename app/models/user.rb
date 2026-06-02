@@ -93,7 +93,10 @@ class User < ApplicationRecord
   encrypts :api_token, deterministic: true
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
+  normalizes :first_name, with: ->(value) { value.to_s.strip.presence }
+  normalizes :last_name, with: ->(value) { value.to_s.strip.presence }
   normalizes :github_handle, with: ->(h) { h.to_s.delete_prefix("@").strip.presence }
+  normalizes :avatar_url, with: ->(value) { value.to_s.strip.presence }
 
   # Per-user ceiling on `claude --max-turns`. The agent is given this
   # many tool-use turns before the run terminates with
@@ -110,6 +113,10 @@ class User < ApplicationRecord
             presence: true,
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
   validates :agent_provider, presence: true, inclusion: { in: AGENT_PROVIDERS }
+  validates :first_name, :last_name, length: { maximum: 80 }
+  validates :github_handle, length: { maximum: 100 }
+  validates :profile_bio, length: { maximum: 1000 }
+  validates :avatar_url, length: { maximum: 500 }
   validates :codex_auth_mode, presence: true, inclusion: { in: CODEX_AUTH_MODES }
   validates :epic_reopen_window,
             presence: true,
@@ -121,7 +128,15 @@ class User < ApplicationRecord
   end
 
   def display_name
-    name.presence || email_address
+    profile_name.presence || name.presence || email_address
+  end
+
+  def profile_name
+    [ first_name, last_name ].compact_blank.join(" ").presence
+  end
+
+  def team_display_name
+    profile_name.presence || name.presence || (github_handle.present? ? "@#{github_handle}" : "User ##{id}")
   end
 
   def dashboard_preferences
