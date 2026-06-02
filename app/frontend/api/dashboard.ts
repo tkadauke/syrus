@@ -14,6 +14,12 @@ export type DashboardOwner = {
   email_address: string
 }
 
+export type DashboardOwnerUser = {
+  id: number
+  name: string
+  email_address: string
+}
+
 export type DashboardTag = {
   id: number
   name: string
@@ -48,6 +54,7 @@ export type DashboardJobItem = {
   pr_mergeable_checked_at: string | null
   workflows_count: number
   repository: DashboardRepository
+  owner_user: DashboardOwnerUser | null
   tags: DashboardTag[]
   paths: {
     job_path: string
@@ -74,6 +81,7 @@ export type DashboardEpicItem = {
   done_at: string | null
   archived_at: string | null
   repository: DashboardRepository
+  owner_user: DashboardOwnerUser | null
   paths: {
     epic_path: string
     edit_epic_path: string
@@ -100,6 +108,7 @@ export type DashboardWorkflowItem = {
     title: string
     state: string
     repository: DashboardRepository
+    owner_user: DashboardOwnerUser | null
     path: string
   }
 }
@@ -161,15 +170,23 @@ export type DashboardPayload = {
     epics: number
     workflows: number
   }
+  ownership_scope: {
+    scope: string
+    owner_user_id: number | null
+    owner_user: DashboardOwnerUser | null
+  }
   preferences: {
     sort: Record<string, string>
     visible_columns: string[]
     kanban_lanes: string[]
+    ownership_scope: string
+    owner_user_id: number | null
     raw: Record<string, unknown>
   }
   filter?: Record<string, unknown> | null
   controls: {
     views: string[]
+    ownership_scopes: string[]
     sort_columns: string[]
     sort_directions: string[]
     columns: {

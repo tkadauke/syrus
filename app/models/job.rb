@@ -25,6 +25,7 @@ class Job < ApplicationRecord
   belongs_to :parent_job, class_name: "Job", optional: true
   belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
   belongs_to :approved_by_user, class_name: "User", optional: true
+  belongs_to :owner_user, class_name: "User", optional: true
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
   # direct has_many :runs is a convenience accessor, NOT a cascade

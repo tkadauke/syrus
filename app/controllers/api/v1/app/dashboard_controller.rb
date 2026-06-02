@@ -4,6 +4,8 @@ module Api
       class DashboardController < BaseController
         def show
           render json: ::App::DashboardPayload.call(user: Current.user, params: params)
+        rescue ::App::DashboardPayload::InvalidScope => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
         def preferences

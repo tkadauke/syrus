@@ -8,6 +8,8 @@ class User < ApplicationRecord
   has_many :epics, dependent: :destroy
   has_many :owned_epics, class_name: "Epic", foreign_key: :owner_id, dependent: :nullify, inverse_of: :owner
   has_many :jobs, dependent: :destroy
+  has_many :dashboard_owned_epics, class_name: "Epic", foreign_key: :owner_user_id, dependent: :nullify, inverse_of: :owner_user
+  has_many :owned_jobs, class_name: "Job", foreign_key: :owner_user_id, dependent: :nullify, inverse_of: :owner_user
   has_many :job_pins, dependent: :destroy
   has_many :pinned_jobs, through: :job_pins, source: :job
   has_many :smart_folders, dependent: :destroy
@@ -30,6 +32,7 @@ class User < ApplicationRecord
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",
     "last_view" => "list",
+    "last_ownership_scope" => "team",
     "epics" => {
       "sort_column" => "updated_at",
       "sort_direction" => "desc",
@@ -151,10 +154,16 @@ class User < ApplicationRecord
     write_attribute(:dashboard_preferences, normalized_dashboard_preferences(value).presence)
   end
 
-  def update_dashboard_preferences!(subject: nil, view: nil)
+  def update_dashboard_preferences!(subject: nil, view: nil, ownership_scope: nil, owner_user_id: nil)
     updated = dashboard_preferences
     updated["last_subject"] = normalize_dashboard_preference_subject(subject) if subject.present?
     updated["last_view"] = view.to_s if view.present?
+    updated["last_ownership_scope"] = ownership_scope.to_s if ownership_scope.present?
+    if owner_user_id.present?
+      updated["last_owner_user_id"] = owner_user_id.to_s
+    elsif ownership_scope.present? && ownership_scope.to_s != "user"
+      updated.delete("last_owner_user_id")
+    end
 
     update!(dashboard_preferences: updated) if updated != dashboard_preferences
   end
@@ -370,7 +379,7 @@ class User < ApplicationRecord
     case key
     when "last_subject"
       normalize_dashboard_preference_subject(preference)
-    when "last_view"
+    when "last_view", "last_ownership_scope", "last_owner_user_id"
       preference.to_s
     when "epics", "jobs", "workflows"
       normalize_dashboard_table_preferences(preference)

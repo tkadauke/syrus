@@ -175,6 +175,89 @@ RSpec.describe "App API dashboard commands", type: :request do
       )
     end
 
+    it "filters dashboard records by ownership scope and persists the preference" do
+      teammate = Factories.user(email_address: "teammate@example.com")
+      mine = Factories.job_record(repository: repo, issue_number: 11, issue_title: "My aqueduct", owner_user: user)
+      teammate_job = Factories.job_record(repository: repo, issue_number: 12, issue_title: "Their forum", owner_user: teammate)
+      claimable = Factories.job_record(repository: repo, issue_number: 13, issue_title: "Loose road", owner_user: nil)
+      owned_epic = Factories.epic(user: user, repository: repo, title: "Owned epic", owner_user: user)
+      unowned_epic = Factories.epic(user: user, repository: repo, title: "Unowned epic", owner_user: nil)
+      mine_workflow = Workflow.create!(job: mine, trigger_kind: "initial", state: "queued")
+      unowned_workflow = Workflow.create!(job: claimable, trigger_kind: "initial", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "mine" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership_scope", "scope")).to eq("mine")
+      expect(body.dig("ownership_scope", "owner_user_id")).to eq(user.id)
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ mine.id ])
+      expect(body.dig("counts", "jobs")).to eq(1)
+      expect(body.dig("preferences", "ownership_scope")).to eq("mine")
+      expect(user.reload.dashboard_preferences).to include("last_ownership_scope" => "mine")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "claimable" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to eq([ claimable.id ])
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "user", owner_user_id: teammate.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership_scope", "owner_user")).to include(
+        "id" => teammate.id,
+        "email_address" => "teammate@example.com"
+      )
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ teammate_job.id ])
+      expect(user.reload.dashboard_preferences).to include(
+        "last_ownership_scope" => "user",
+        "last_owner_user_id" => teammate.id.to_s
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", scope: "mine" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to eq([ owned_epic.id ])
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", scope: "claimable" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to eq([ unowned_epic.id ])
+
+      get "/api/v1/app/dashboard", params: { subject: "workflow", scope: "mine" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to eq([ mine_workflow.id ])
+
+      get "/api/v1/app/dashboard", params: { subject: "workflow", scope: "claimable" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to eq([ unowned_workflow.id ])
+    end
+
+    it "returns validation errors for invalid dashboard ownership params" do
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "somebody_else" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body).to eq(
+        "error" => {
+          "code" => "validation_failed",
+          "message" => "Unknown dashboard scope: somebody_else"
+        }
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "user" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("owner_user_id is required for dashboard scope user")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "user", owner_user_id: 99_999_999 }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("Unknown dashboard owner user: 99999999")
+    end
+
     it "applies smart folder filters and returns active folder metadata" do
       ready = Factories.epic(user: user, repository: repo, title: "Ready aqueduct", description: "Build a calmer aqueduct.", state: "ready")
       Factories.epic(user: user, repository: repo, title: "Backlog forum", state: "backlog")

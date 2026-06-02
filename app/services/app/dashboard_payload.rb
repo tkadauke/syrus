@@ -4,8 +4,10 @@ module App
 
     SUBJECTS = %w[job epic workflow].freeze
     VIEWS = %w[list kanban].freeze
+    OWNERSHIP_SCOPES = %w[team mine claimable user].freeze
     DEFAULT_SUBJECT = "epic"
     DEFAULT_VIEW = "list"
+    DEFAULT_OWNERSHIP_SCOPE = "team"
     PER_PAGE = 25
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
     KANBAN_PER_PAGE = 100
@@ -64,6 +66,8 @@ module App
       }
     }.freeze
 
+    class InvalidScope < StandardError; end
+
     def self.call(user:, params:)
       new(user: user, params: params).call
     end
@@ -85,6 +89,7 @@ module App
         total: current_result.fetch(:total),
         total_pages: total_pages(current_result.fetch(:total)),
         counts: counts,
+        ownership_scope: ownership_scope_json,
         preferences: preferences_json,
         controls: controls_json,
         filter: current_filter.to_h,
@@ -146,6 +151,69 @@ module App
       @active_repo_ids ||= user.repositories.active.pluck(:id)
     end
 
+    def ownership_scope
+      @ownership_scope ||= begin
+        raw_scope = params[:scope].presence || params[:ownership_scope].presence
+        raw_scope ||= "user" if params[:owner_user_id].present?
+        raw_scope ||= user.dashboard_preferences["last_ownership_scope"].to_s.presence
+        raw_scope ||= DEFAULT_OWNERSHIP_SCOPE
+
+        normalized = raw_scope.to_s
+        raise InvalidScope, "Unknown dashboard scope: #{raw_scope}" unless OWNERSHIP_SCOPES.include?(normalized)
+
+        normalized
+      end
+    end
+
+    def selected_owner_user
+      @selected_owner_user ||= begin
+        case ownership_scope
+        when "mine"
+          user
+        when "user"
+          id = Integer((params[:owner_user_id].presence || user.dashboard_preferences["last_owner_user_id"]), exception: false)
+          raise InvalidScope, "owner_user_id is required for dashboard scope user" unless id
+
+          User.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
+        end
+      end
+    end
+
+    def apply_ownership_scope(scope, subject_name)
+      case ownership_scope
+      when "team"
+        scope
+      when "mine", "user"
+        owner_id = selected_owner_user.id
+        if subject_name.to_s == "workflow"
+          scope.where(jobs: { owner_user_id: owner_id })
+        else
+          scope.where(owner_user_id: owner_id)
+        end
+      when "claimable"
+        if subject_name.to_s == "workflow"
+          scope.where(jobs: { owner_user_id: nil })
+        else
+          scope.where(owner_user_id: nil)
+        end
+      end
+    end
+
+    def jobs_base_scope
+      @jobs_base_scope ||= apply_ownership_scope(user.jobs.where(repository_id: active_repo_ids), :job)
+    end
+
+    def epics_base_scope
+      @epics_base_scope ||= apply_ownership_scope(user.epics.where(repository_id: active_repo_ids), :epic)
+    end
+
+    def workflows_base_scope
+      @workflows_base_scope ||= apply_ownership_scope(
+        Workflow.joins(:job).where(jobs: { user_id: user.id, repository_id: active_repo_ids }),
+        :workflow
+      )
+    end
+
     def active_smart_folder
       @active_smart_folder ||= begin
         id = Integer(params[:smart_folder_id], exception: false)
@@ -160,14 +228,14 @@ module App
     def jobs_result
       scope = filtered_jobs_scope
       total = scope.count
-      scope = scope.with_latest_workflow_snapshot.preload(:repository, :tags, :workflows, :runs)
+      scope = scope.with_latest_workflow_snapshot.preload(:repository, :owner_user, :tags, :workflows, :runs)
       items = paginate(apply_sort(scope, :job)).map { |job| job_json(job) }
 
       { total: total, items: items }
     end
 
     def epics_result
-      scope = filtered_epics_scope.includes(:owner, :repository, :jobs)
+      scope = filtered_epics_scope.includes(:owner, :repository, :owner_user, :jobs)
       total = scope.count
       items = paginate(apply_sort(scope, :epic)).map { |epic| epic_json(epic) }
 
@@ -175,7 +243,7 @@ module App
     end
 
     def workflows_result
-      scope = filtered_workflows_scope.includes(:steps, job: :repository)
+      scope = filtered_workflows_scope.includes(:steps, job: [ :repository, :owner_user ])
       total = scope.count
       items = paginate(apply_sort(scope, :workflow)).map { |workflow| workflow_json(workflow) }
 
@@ -187,7 +255,7 @@ module App
     end
 
     def filtered_jobs_scope
-      @filtered_jobs_scope ||= jobs_filter.apply(user.jobs.where(repository_id: active_repo_ids))
+      @filtered_jobs_scope ||= jobs_filter.apply(jobs_base_scope)
     end
 
     def epics_filter
@@ -196,7 +264,7 @@ module App
 
     def filtered_epics_scope
       @filtered_epics_scope ||= begin
-        scope = user.epics.where(repository_id: active_repo_ids)
+        scope = epics_base_scope
         scope = scope.where.not(state: Epic::ARCHIVED_STATE) unless epics_filter.includes_archived_state?
         epics_filter.apply(scope)
       end
@@ -208,16 +276,16 @@ module App
 
     def filtered_workflows_scope
       @filtered_workflows_scope ||= begin
-        scope = Workflow.joins(:job).where(jobs: { user_id: user.id, repository_id: active_repo_ids })
+        scope = workflows_base_scope
         workflows_filter.apply(scope)
       end
     end
 
     def counts
       @counts ||= {
-        jobs: user.jobs.where(repository_id: active_repo_ids).count,
-        epics: user.epics.where(repository_id: active_repo_ids).where.not(state: Epic::ARCHIVED_STATE).count,
-        workflows: Workflow.joins(:job).where(jobs: { user_id: user.id, repository_id: active_repo_ids }).count
+        jobs: jobs_base_scope.count,
+        epics: epics_base_scope.where.not(state: Epic::ARCHIVED_STATE).count,
+        workflows: workflows_base_scope.count
       }
     end
 
@@ -293,7 +361,7 @@ module App
       records = filtered_jobs_scope
                 .where(state: job_kanban_candidate_states(visible_lanes))
                 .with_latest_workflow_snapshot
-                .preload(:repository, :tags, :workflows, dependencies: :depends_on_job)
+                .preload(:repository, :owner_user, :tags, :workflows, dependencies: :depends_on_job)
                 .order(created_at: :desc, id: :desc)
                 .limit(kanban_limit)
                 .to_a
@@ -309,7 +377,7 @@ module App
     def epic_lanes_json
       lanes = user.dashboard_visible_kanban_lanes(:epics)
       records = filtered_epics_scope
-                .includes(:owner, :repository, :jobs)
+                .includes(:owner, :repository, :owner_user, :jobs)
                 .where(state: lanes)
                 .order(updated_at: :desc, id: :desc)
                 .limit(kanban_limit)
@@ -325,7 +393,7 @@ module App
       records_by_lane = lanes.to_h { |lane| [ lane, [] ] }
       records = filtered_workflows_scope
                 .where(state: workflow_kanban_candidate_states(lanes))
-                .includes(:steps, job: :repository)
+                .includes(:steps, job: [ :repository, :owner_user ])
                 .order(created_at: :desc, id: :desc)
                 .limit(kanban_limit)
                 .to_a
@@ -435,6 +503,7 @@ module App
         pr_mergeable_checked_at: job.pr_mergeable_checked_at&.iso8601,
         workflows_count: job.workflows.size,
         repository: repository_json(job.repository),
+        owner_user: owner_user_json(job.owner_user),
         tags: job.tags.map { |tag| tag_json(tag) },
         paths: {
           job_path: job_path(job),
@@ -463,6 +532,7 @@ module App
         done_at: epic.done_at&.iso8601,
         archived_at: epic.archived_at&.iso8601,
         repository: repository_json(epic.repository),
+        owner_user: owner_user_json(epic.owner_user),
         paths: {
           epic_path: epic_path(epic),
           edit_epic_path: edit_epic_path(epic),
@@ -501,6 +571,7 @@ module App
           title: job.issue_title.presence || job.kind.humanize,
           state: job.state,
           repository: repository_json(job.repository),
+          owner_user: owner_user_json(job.owner_user),
           path: job_path(job)
         }
       }
@@ -539,12 +610,12 @@ module App
     def smart_folder_count(folder)
       case subject
       when "job"
-        Jobs::Filter.from_tree(folder.filter, user: user).apply(user.jobs.where(repository_id: active_repo_ids)).count
+        Jobs::Filter.from_tree(folder.filter, user: user).apply(jobs_base_scope).count
       when "workflow"
-        Workflows::Filter.from_tree(folder.filter, user: user).apply(Workflow.joins(:job).where(jobs: { user_id: user.id, repository_id: active_repo_ids })).count
+        Workflows::Filter.from_tree(folder.filter, user: user).apply(workflows_base_scope).count
       else
         filter = Epics::Filter.from_tree(folder.filter, user: user)
-        scope = user.epics.where(repository_id: active_repo_ids)
+        scope = epics_base_scope
         scope = scope.where.not(state: Epic::ARCHIVED_STATE) unless filter.includes_archived_state?
         filter.apply(scope).count
       end
@@ -556,6 +627,8 @@ module App
         sort: user.dashboard_sort(subject),
         visible_columns: user.dashboard_visible_columns(subject),
         kanban_lanes: user.dashboard_visible_kanban_lanes(subject),
+        ownership_scope: ownership_scope,
+        owner_user_id: selected_owner_user&.id,
         raw: user.dashboard_preferences.fetch(table)
       }
     end
@@ -563,11 +636,20 @@ module App
     def controls_json
       {
         views: VIEWS,
+        ownership_scopes: OWNERSHIP_SCOPES,
         sort_columns: User::DASHBOARD_SORT_COLUMNS.fetch(subject),
         sort_directions: User::DASHBOARD_SORT_DIRECTIONS,
         columns: column_options_json,
         kanban_lanes: kanban_lane_options_json,
         filter_schema: Filters::Schema.for(subject: subject.to_sym, user: user)
+      }
+    end
+
+    def ownership_scope_json
+      {
+        scope: ownership_scope,
+        owner_user_id: selected_owner_user&.id,
+        owner_user: owner_user_json(selected_owner_user)
       }
     end
 
@@ -622,6 +704,7 @@ module App
     end
 
     def dashboard_path_for(target_subject, extra = {})
+      extra = ownership_query_params.merge(extra)
       case target_subject.to_s
       when "epic"
         dashboard_epics_path({ view: view }.merge(extra))
@@ -630,6 +713,12 @@ module App
       else
         dashboard_jobs_path({ view: view }.merge(extra))
       end
+    end
+
+    def ownership_query_params
+      query = { scope: ownership_scope }
+      query[:owner_user_id] = selected_owner_user.id if ownership_scope == "user"
+      query
     end
 
     def repository_json(repository)
@@ -647,6 +736,16 @@ module App
       }
     end
 
+    def owner_user_json(owner)
+      return nil unless owner
+
+      {
+        id: owner.id,
+        name: owner.display_name,
+        email_address: owner.email_address
+      }
+    end
+
     def summary_state(job)
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
@@ -655,9 +754,14 @@ module App
     end
 
     def persist_subject_preferences
-      return unless params.key?(:subject) || params.key?(:view)
+      return unless params.key?(:subject) || params.key?(:view) || params.key?(:scope) || params.key?(:ownership_scope) || params.key?(:owner_user_id)
 
-      user.update_dashboard_preferences!(subject: subject, view: view)
+      user.update_dashboard_preferences!(
+        subject: subject,
+        view: view,
+        ownership_scope: ownership_scope,
+        owner_user_id: ownership_scope == "user" ? selected_owner_user.id : nil
+      )
     end
 
     def normalize_subject(value)

@@ -262,6 +262,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
     t.string "github_issue_url"
     t.integer "number", null: false
     t.integer "owner_id"
+    t.integer "owner_user_id"
+    t.integer "owner_id"
     t.json "pending_epic_dependency_refs", null: false
     t.integer "repository_id", null: false
     t.string "state", default: "backlog", null: false
@@ -270,6 +272,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
     t.integer "user_id", null: false
     t.index ["claimed_at"], name: "index_epics_on_claimed_at"
     t.index ["number"], name: "index_epics_on_number", unique: true
+    t.index ["owner_id"], name: "index_epics_on_owner_id"
+    t.index ["owner_user_id"], name: "index_epics_on_owner_user_id"
     t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["repository_id"], name: "index_epics_on_repository_id"
     t.index ["user_id", "state"], name: "index_epics_on_user_id_and_state"
@@ -396,6 +400,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
     t.string "last_ci_handled_sha"
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
+    t.integer "owner_user_id"
     t.integer "parent_job_id"
     t.json "pending_epic_reference", null: false
     t.boolean "pr_mergeable"
@@ -417,6 +422,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
     t.index ["dependencies_overridden_by_user_id"], name: "index_jobs_on_dependencies_overridden_by_user_id"
     t.index ["epic_id"], name: "index_jobs_on_epic_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
+    t.index ["owner_user_id"], name: "index_jobs_on_owner_user_id"
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
@@ -772,6 +778,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
   add_foreign_key "epics", "repositories"
   add_foreign_key "epics", "users"
   add_foreign_key "epics", "users", column: "owner_id"
+  add_foreign_key "epics", "users", column: "owner_user_id"
+  add_foreign_key "epics", "users", column: "owner_id"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
   add_foreign_key "job_dependencies", "jobs"
@@ -787,6 +795,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
   add_foreign_key "jobs", "users"
   add_foreign_key "jobs", "users", column: "approved_by_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
+  add_foreign_key "jobs", "users", column: "owner_user_id"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "repository_notes", "repositories"
