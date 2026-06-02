@@ -92,6 +92,7 @@ function appendSearch(path: string, search: string) {
 function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey }) {
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [whiteboardFullscreen, setWhiteboardFullscreen] = useState(false)
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
   const title = payload.chat.title || payload.chat.repository?.slug || "New chat"
 
@@ -112,13 +113,10 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6">
-      {whiteboardFullscreen ? null : (
+      {whiteboardFullscreen || !isDesktop ? null : (
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="break-words text-3xl font-semibold text-gray-900">{title}</h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200" to={withRoutePrefix(payload.paths.new_chat_path, prefix)}>New chat</Link>
           </div>
         </header>
       )}

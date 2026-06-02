@@ -4460,6 +4460,8 @@ describe("App", () => {
     expect(chatMain).toBeInTheDocument()
     expect(chatMain).toHaveClass("h-[calc(100vh-4rem)]", "overflow-hidden")
     expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Aqueduct planning" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
     expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto")
     expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("min-h-0")
     expect(screen.getByRole("navigation", { name: "Chat workspace tabs" })).toBeInTheDocument()
@@ -4526,6 +4528,8 @@ describe("App", () => {
       )
 
       expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+      expect(screen.queryByRole("heading", { name: "Aqueduct planning" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
       const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
       expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-blue-600")
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
@@ -4545,6 +4549,9 @@ describe("App", () => {
       expect(within(mobileTabs).getByRole("button", { name: "Context" })).toHaveClass("border-blue-600")
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.getByText("Launch notes")).toBeInTheDocument()
+
+      fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chats" }))
+      expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/new")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
       expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
