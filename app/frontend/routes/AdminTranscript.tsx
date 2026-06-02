@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query"
-import type { ReactNode } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type UIEvent, type ReactNode } from "react"
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { fetchAdminTranscript, type TranscriptEvent, type TranscriptPayload } from "../api/adminTranscript"
 
 const DEFAULT_PER_PAGE = 100
+const TRANSCRIPT_BOTTOM_THRESHOLD_PX = 48
+const TRANSCRIPT_REFETCH_INTERVAL_MS = 2000
 
 export function AdminTranscript() {
   const params = useParams()
@@ -17,11 +19,12 @@ export function AdminTranscript() {
   const transcript = useQuery({
     queryKey: ["admin", "transcript", runId, { page, per }],
     queryFn: () => fetchAdminTranscript(runId, page, per),
-    enabled: runId.length > 0
+    enabled: runId.length > 0,
+    refetchInterval: TRANSCRIPT_REFETCH_INTERVAL_MS
   })
 
   return (
-    <main aria-label="Admin transcript" className="mx-auto max-w-6xl space-y-6 p-6">
+    <main aria-label="Admin transcript" className="mx-auto flex h-[calc(100vh-4rem)] max-w-6xl flex-col gap-6 overflow-hidden p-6">
       {transcript.isPending ? <PanelMessage>Loading transcript...</PanelMessage> : null}
       {transcript.isError ? <TranscriptError error={transcript.error} /> : null}
       {transcript.isSuccess ? <TranscriptView payload={transcript.data} prefix={prefix} /> : null}
@@ -32,7 +35,7 @@ export function AdminTranscript() {
 function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefix: string }) {
   return (
     <>
-      <header className="flex flex-col gap-3 border-b border-gray-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+      <header className="shrink-0 flex flex-col gap-3 border-b border-gray-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="text-xs uppercase text-gray-500">
             <Link className="underline hover:no-underline" to={withRoutePrefix(`/jobs/${payload.job_id}`, prefix)}>back to job #{payload.job_id}</Link>
@@ -55,12 +58,75 @@ function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefi
       <SummaryGrid payload={payload} />
       <Pagination payload={payload} />
 
-      <section aria-label="Transcript events" className="space-y-3">
+      <TranscriptEventStream payload={payload} />
+    </>
+  )
+}
+
+function TranscriptEventStream({ payload }: { payload: TranscriptPayload }) {
+  const streamRef = useRef<HTMLDivElement | null>(null)
+  const atBottomRef = useRef(true)
+  const totalEventsRef = useRef(payload.pagination.total_events)
+  const streamPageRef = useRef(transcriptPageKey(payload))
+  const [hasNewMessages, setHasNewMessages] = useState(false)
+  const eventSignature = transcriptEventSignature(payload)
+
+  const scrollToBottom = useCallback(() => {
+    scrollTranscriptStreamToBottom(streamRef.current)
+    atBottomRef.current = true
+    setHasNewMessages(false)
+  }, [])
+
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const atBottom = isTranscriptStreamAtBottom(event.currentTarget)
+    atBottomRef.current = atBottom
+    if (atBottom) setHasNewMessages(false)
+  }, [])
+
+  useEffect(() => {
+    const pageKey = transcriptPageKey(payload)
+    if (streamPageRef.current !== pageKey) {
+      streamPageRef.current = pageKey
+      totalEventsRef.current = payload.pagination.total_events
+      atBottomRef.current = true
+      setHasNewMessages(false)
+      return
+    }
+
+    const previousTotalEvents = totalEventsRef.current
+    if (payload.pagination.total_events > previousTotalEvents && !atBottomRef.current) {
+      setHasNewMessages(true)
+    }
+    totalEventsRef.current = payload.pagination.total_events
+  }, [payload])
+
+  useLayoutEffect(() => {
+    if (atBottomRef.current) scrollTranscriptStreamToBottom(streamRef.current)
+  }, [eventSignature])
+
+  return (
+    <div className="relative min-h-0 flex-1">
+      <section
+        aria-label="Transcript events"
+        className="h-full min-h-0 space-y-3 overflow-y-auto pr-2"
+        data-testid="transcript-event-stream"
+        onScroll={handleScroll}
+        ref={streamRef}
+      >
         {payload.events.map((event, index) => (
           <TranscriptEventCard event={event} key={`${event.kind}-${event.timestamp || index}-${index}`} />
         ))}
       </section>
-    </>
+      {hasNewMessages ? (
+        <button
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-gray-800"
+          onClick={scrollToBottom}
+          type="button"
+        >
+          New Messages
+        </button>
+      ) : null}
+    </div>
   )
 }
 
@@ -230,4 +296,23 @@ function preview(value: unknown) {
 function pretty(value: unknown) {
   if (typeof value === "string") return value
   return JSON.stringify(value ?? {}, null, 2)
+}
+
+function transcriptPageKey(payload: TranscriptPayload) {
+  const { page, per } = payload.pagination
+  return `${payload.run_id}:${page}:${per}`
+}
+
+function transcriptEventSignature(payload: TranscriptPayload) {
+  return `${payload.pagination.total_events}:${payload.events.map((event, index) => `${event.kind}:${event.timestamp || index}`).join("|")}`
+}
+
+function isTranscriptStreamAtBottom(element: HTMLElement) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= TRANSCRIPT_BOTTOM_THRESHOLD_PX
+}
+
+function scrollTranscriptStreamToBottom(element: HTMLElement | null) {
+  if (!element) return
+
+  element.scrollTop = element.scrollHeight
 }

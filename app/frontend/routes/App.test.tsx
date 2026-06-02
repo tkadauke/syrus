@@ -1922,6 +1922,90 @@ describe("App", () => {
     )
   })
 
+  it("keeps the transcript scrolled to the bottom when new events arrive at the bottom", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(transcriptPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/admin/runs/4/transcript"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const stream = await screen.findByTestId("transcript-event-stream")
+    setScrollMetrics(stream, { scrollHeight: 1000, clientHeight: 400, scrollTop: 600 })
+    fireEvent.scroll(stream)
+    setScrollMetrics(stream, { scrollHeight: 1200, clientHeight: 400, scrollTop: 600 })
+
+    act(() => {
+      queryClient.setQueryData(["admin", "transcript", "4", { page: 1, per: 100 }], transcriptPayload({
+        totalEvents: 2,
+        events: [
+          ...transcriptPayload().events,
+          {
+            kind: "assistant_text",
+            timestamp: "2026-05-30T12:01:00Z",
+            data: { text: "Fresh transcript event." }
+          }
+        ]
+      }))
+    })
+
+    expect(await screen.findByText("Fresh transcript event.")).toBeInTheDocument()
+    await waitFor(() => expect(stream.scrollTop).toBe(1200))
+    expect(screen.queryByRole("button", { name: "New Messages" })).not.toBeInTheDocument()
+  })
+
+  it("shows a new messages button when transcript events arrive away from the bottom", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(transcriptPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/admin/runs/4/transcript"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const stream = await screen.findByTestId("transcript-event-stream")
+    setScrollMetrics(stream, { scrollHeight: 1000, clientHeight: 400, scrollTop: 200 })
+    fireEvent.scroll(stream)
+    setScrollMetrics(stream, { scrollHeight: 1300, clientHeight: 400, scrollTop: 200 })
+
+    act(() => {
+      queryClient.setQueryData(["admin", "transcript", "4", { page: 1, per: 100 }], transcriptPayload({
+        totalEvents: 3,
+        events: [
+          ...transcriptPayload().events,
+          {
+            kind: "assistant_text",
+            timestamp: "2026-05-30T12:01:00Z",
+            data: { text: "First fresh transcript event." }
+          },
+          {
+            kind: "assistant_text",
+            timestamp: "2026-05-30T12:02:00Z",
+            data: { text: "Second fresh transcript event." }
+          }
+        ]
+      }))
+    })
+
+    const button = await screen.findByRole("button", { name: "New Messages" })
+    expect(stream.scrollTop).toBe(200)
+
+    fireEvent.click(button)
+    await waitFor(() => expect(stream.scrollTop).toBe(1300))
+    expect(screen.queryByRole("button", { name: "New Messages" })).not.toBeInTheDocument()
+  })
+
   it("renders the admin console route from the app admin console API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
@@ -6784,6 +6868,46 @@ function chatPayload(overrides: {
       app_attachments_path: "/api/v1/app/chats/8/attachments",
       app_whiteboard_path: "/api/v1/app/chats/8/whiteboard"
     }
+  }
+}
+
+function transcriptPayload(overrides: {
+  events?: Array<Record<string, unknown>>
+  totalEvents?: number
+} = {}) {
+  const events = overrides.events || [
+    {
+      kind: "tool_use",
+      timestamp: "2026-05-30T12:00:00Z",
+      data: { name: "Bash", input: { command: "ls" }, id: "u1" }
+    }
+  ]
+
+  return {
+    run_id: 4,
+    job_id: 1,
+    step_kind: "implement",
+    workflow_trigger_kind: "initial",
+    session_id: "abc-123",
+    summary: {
+      session_id: "abc-123",
+      model: "claude-sonnet-4-6",
+      cwd: "/workspace",
+      total_turns: 1,
+      total_tool_calls: 1,
+      total_cost_usd: 0.01,
+      exit_reason: "success",
+      tool_call_counts: { Bash: 1 },
+      mcp_tool_called: false,
+      available_tools_at_init: ["Bash"]
+    },
+    pagination: {
+      page: 1,
+      per: 100,
+      total_events: overrides.totalEvents ?? events.length,
+      total_pages: 1
+    },
+    events
   }
 }
 
