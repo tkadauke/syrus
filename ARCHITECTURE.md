@@ -633,7 +633,7 @@ between web and worker.
   and `syrus-worker` (`bin/jobs`). The worker process supervises separate
   Solid Queue pools for `runs`, `chat`, and `default` jobs. MySQL runs in
   its own pod.
-- Traefik ingress at `syrus.internal.green-acres.estate`.
+- Ingress routes the configured app host, for example `syrus.example.com`.
 - Persistent volume mounted at `$SYRUS_DATA_ROOT` (default
   `/home/rails/.syrus`) on worker pods, holding active per-Run clones
   at `runs/<run_id>/` and AutoRebase clones at `auto-rebase/<job_id>/`.
