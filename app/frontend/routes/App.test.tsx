@@ -349,6 +349,46 @@ describe("App", () => {
     )
   })
 
+  it("routes signed-in root to the dashboard instead of the public landing page", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            items: [dashboardJobItem()]
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("link", { name: "Repair aqueduct" })).toHaveAttribute("href", "/jobs/42")
+      expect(screen.getByRole("main", { name: "Dashboard" })).toBeInTheDocument()
+      expect(screen.queryByRole("main", { name: "Syrus landing" })).not.toBeInTheDocument()
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/dashboard?view=list&subject=job",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
+    } finally {
+      script.remove()
+    }
+  })
+
   it("renders the password request route and shows the API response message", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(

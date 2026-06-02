@@ -19,14 +19,16 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('"current_user":null')
   end
 
-  it "embeds the signed-in user on the public root when a session exists" do
-    user = Factories.user
+  it "serves the authenticated app shell at root when signed in" do
+    user = Factories.user(email_address: "root-operator@example.com")
     sign_in_as(user)
 
     get root_path
 
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include(user.email_address)
+    expect(response.body).to include('id="syrus-spa-root"')
+    expect(response.body).to include("root-operator@example.com")
+    expect(response.body).not_to include('"current_user":null')
   end
 
   it "serves public auth routes through the SPA shell" do
