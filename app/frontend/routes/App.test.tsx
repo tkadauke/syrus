@@ -5416,6 +5416,51 @@ describe("App", () => {
     })
   })
 
+  it("links confirmed Epic proposals to the Epic detail route", async () => {
+    const proposalMessage = {
+      type: "message",
+      id: 10,
+      role: "assistant",
+      text: "Epic proposal confirmed.",
+      bookmarkable: true,
+      proposal: {
+        id: 5,
+        kind: "epic",
+        kind_label: "Epic",
+        state: "confirmed",
+        state_label: "Confirmed",
+        title: "Raise the forum",
+        slug: "raise-the-forum",
+        body: "Let the forum stand.",
+        proposed: false,
+        resolved: true,
+        epic_bundle: true,
+        scoped_repository_slug: "acme/widgets",
+        dependencies: [],
+        target_epic_label: null,
+        app_confirm_path: "/api/v1/app/chats/8/proposals/5/confirm",
+        app_reject_path: "/api/v1/app/chats/8/proposals/5/reject",
+        materialized_label: "EPIC-11",
+        materialized_path: "/epics/11",
+        active_children_count: 0,
+        children: []
+      }
+    }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "EPIC-11" })).toHaveAttribute("href", "/app-shell/epics/11")
+  })
+
   it("loads older chat messages when scrolling near the top", async () => {
     const restoreSize = stubChatStreamSize({ scrollHeight: 1200, clientHeight: 600 })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {

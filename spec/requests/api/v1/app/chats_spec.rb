@@ -349,6 +349,29 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(system_message).not_to have_key("system")
   end
 
+  it "returns the Epic detail path for confirmed Epic proposals" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+    proposal = ChatProposal.create!(
+      chat_session: chat,
+      repository: repository,
+      epic: epic,
+      kind: "epic",
+      state: "confirmed",
+      slug: "raise-the-forum",
+      title: "Raise the forum",
+      body: "Let the forum stand."
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Epic proposal confirmed." })
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    proposal_payload = parse_body["messages"].first.fetch("proposal")
+    expect(proposal_payload["materialized_label"]).to eq(epic.display_number)
+    expect(proposal_payload["materialized_path"]).to eq("/epics/#{epic.id}")
+  end
+
   it "creates a manual bookmark through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

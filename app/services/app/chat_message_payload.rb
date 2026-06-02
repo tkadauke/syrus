@@ -90,7 +90,7 @@ module App
     def materialized_path(record)
       case record
       when Job then job_path(record)
-      when Epic then dashboard_epics_path
+      when Epic then epic_path(record)
       end
     end
   end
