@@ -32,6 +32,11 @@ export type DashboardTag = {
   color: string
 }
 
+export type DashboardOwnerUser = {
+  id: number
+  email_address: string
+}
+
 export type DashboardJobItem = {
   type: "job"
   id: number
