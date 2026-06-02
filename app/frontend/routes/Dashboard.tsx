@@ -8,6 +8,8 @@ import { FilterBar, filterTreeFromPayload, smartFolderFiltersFromTree, topFilter
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { bulkDashboardJobs, createDashboardSmartFolder, fetchDashboard, toggleDashboardLandingPause, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
 
+const KANBAN_CARDS_PER_PAGE = 20
+
 export function DashboardRoute() {
   const location = useLocation()
   const search = dashboardApiSearch(location.pathname, location.search)
@@ -548,6 +550,15 @@ function KanbanLane({
   prefix: string
   subject: DashboardSubject
 }) {
+  const itemSignature = lane.items.map((item) => `${item.type}-${item.id}`).join(",")
+  const [visibleCount, setVisibleCount] = useState(KANBAN_CARDS_PER_PAGE)
+  const visibleItems = lane.items.slice(0, visibleCount)
+  const hiddenCount = lane.items.length - visibleItems.length
+
+  useEffect(() => {
+    setVisibleCount(KANBAN_CARDS_PER_PAGE)
+  }, [lane.key, itemSignature])
+
   return (
     <section
       aria-label={`${lane.title} lane`}
@@ -561,7 +572,7 @@ function KanbanLane({
       </header>
       <div className="space-y-2 p-2">
         {lane.items.length === 0 ? <p className="px-1 py-2 text-sm text-gray-400">No {subjectLabel(subject, 2)}</p> : null}
-        {lane.items.map((item) => (
+        {visibleItems.map((item) => (
           <KanbanCard
             item={item}
             key={`${item.type}-${item.id}`}
@@ -570,6 +581,16 @@ function KanbanLane({
             prefix={prefix}
           />
         ))}
+        {hiddenCount > 0 ? (
+          <button
+            aria-label={`Load more ${lane.title}`}
+            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            onClick={() => setVisibleCount((count) => count + KANBAN_CARDS_PER_PAGE)}
+            type="button"
+          >
+            Load more
+          </button>
+        ) : null}
       </div>
     </section>
   )

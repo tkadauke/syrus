@@ -1260,6 +1260,50 @@ describe("App", () => {
     })
   })
 
+  it("limits Kanban lanes to 20 cards and loads more on demand", async () => {
+    const runningJobs = Array.from({ length: 25 }, (_, index) => dashboardJobItem({
+      id: index + 1,
+      title: `Repair aqueduct ${index + 1}`,
+      paths: { job_path: `/jobs/${index + 1}`, source_path: `/jobs/${index + 1}/source` }
+    }))
+
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "kanban",
+            total: 25,
+            lanes: [
+              { key: "queued", title: "Queued", count: 0, items: [] },
+              { key: "running", title: "Running", count: 25, items: runningJobs },
+              { key: "succeeded", title: "Succeeded", count: 0, items: [] }
+            ],
+            kanban_limit: 100
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "Repair aqueduct 20" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Repair aqueduct 21" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more Running" }))
+
+    expect(screen.getByRole("link", { name: "Repair aqueduct 21" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repair aqueduct 25" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Load more Running" })).not.toBeInTheDocument()
+  })
+
   it("moves Epic kanban cards with drag and drop", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
