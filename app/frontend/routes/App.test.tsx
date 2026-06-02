@@ -256,9 +256,16 @@ describe("App", () => {
 
   it("renders shared app chrome from embedded bootstrap data", async () => {
     const script = document.createElement("script")
+    const payload = {
+      ...bootstrapPayload(),
+      app: {
+        revision: "9c0f8d15",
+        revision_url: "https://github.com/tkadauke/syrus/commit/9c0f8d15"
+      }
+    }
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
-    script.textContent = JSON.stringify(bootstrapPayload())
+    script.textContent = JSON.stringify(payload)
     document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockRejectedValue(new Error("unexpected fetch"))
     const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0)
@@ -291,7 +298,7 @@ describe("App", () => {
       expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/settings")
       expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(accountNav).getByRole("button", { name: "Sign out" })).toBeInTheDocument()
-      expect(screen.getAllByText("dev").length).toBeGreaterThan(0)
+      expect(screen.getByRole("link", { name: "9c0f8d15" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/commit/9c0f8d15")
       const footer = screen.getByRole("contentinfo")
       const quoteLink = within(footer).getByRole("link", { name: "A rolling stone gathers no moss." })
       expect(footer).toHaveClass("hidden", "lg:block")

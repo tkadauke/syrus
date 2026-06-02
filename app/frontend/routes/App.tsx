@@ -167,7 +167,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
             {user ? (
               <>
                 <AccountNavigation csrfToken={data?.csrf_token} prefix={prefix} user={user} />
-                {app ? <span className="hidden font-mono sm:inline">{app.revision}</span> : null}
+                {app ? <RevisionLink app={app} /> : null}
               </>
             ) : null}
           </div>
@@ -180,6 +180,17 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
       {showsPubliliusSyrusFooter(normalizedPath) ? <PubliliusSyrusFooter quote={quote} /> : null}
       {user ? <BugReportButton context={bugReportContext(location.pathname)} /> : null}
     </div>
+  )
+}
+
+function RevisionLink({ app }: { app: BootstrapPayload["app"] }) {
+  const className = "hidden font-mono hover:text-blue-600 hover:underline sm:inline"
+  if (!app.revision_url) return <span className="hidden font-mono sm:inline">{app.revision}</span>
+
+  return (
+    <a className={className} href={app.revision_url}>
+      {app.revision}
+    </a>
   )
 }
 
