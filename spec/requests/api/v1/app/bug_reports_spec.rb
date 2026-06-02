@@ -3,6 +3,14 @@ require "rails_helper"
 RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
   let(:user) { Factories.user }
 
+  around do |example|
+    old_owner = ENV["SYRUS_BUG_REPORT_OWNER"]
+    ENV["SYRUS_BUG_REPORT_OWNER"] = "operator"
+    example.run
+  ensure
+    old_owner.nil? ? ENV.delete("SYRUS_BUG_REPORT_OWNER") : ENV["SYRUS_BUG_REPORT_OWNER"] = old_owner
+  end
+
   def parse_body
     JSON.parse(response.body)
   end
@@ -23,7 +31,7 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
   end
 
   it "creates a direct Job for the configured Syrus bug-report repository" do
-    repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+    repository = Factories.repository(user: user, owner: "operator", name: "syrus")
     sign_in_as(user)
 
     expect {
@@ -61,6 +69,6 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    expect(parse_body.dig("error", "message")).to eq("Bug report repository tkadauke/syrus is not configured.")
+    expect(parse_body.dig("error", "message")).to eq("Bug report repository operator/syrus is not configured.")
   end
 end

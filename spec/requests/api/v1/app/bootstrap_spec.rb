@@ -5,6 +5,14 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     JSON.parse(response.body)
   end
 
+  def with_env(vars)
+    old_values = vars.keys.to_h { |key| [ key, ENV[key] ] }
+    vars.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+    yield
+  ensure
+    old_values.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+  end
+
   it "returns a JSON 401 instead of redirecting when signed out" do
     get api_v1_app_bootstrap_path
 
@@ -55,6 +63,18 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     )
     expect(body["csrf_token"]).to be_present
     expect(body["feature_flags"]).to eq("migrated_routes" => [])
+  end
+
+  it "uses the configured GitHub repository for non-dev revision links" do
+    user = Factories.user
+    sign_in_as(user)
+
+    with_env("GIT_SHA" => "9c0f8d15", "SYRUS_GITHUB_REPO" => "operator/syrus") do
+      get api_v1_app_bootstrap_path
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("app", "revision_url")).to eq("https://github.com/operator/syrus/commit/9c0f8d15")
   end
 
   it "points the default chat navigation at the user's latest chat" do

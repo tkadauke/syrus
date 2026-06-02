@@ -1,7 +1,5 @@
 module AppApi
   class BootstrapSerializer
-    GITHUB_REPO = "tkadauke/syrus".freeze
-
     def initialize(user:, csrf_token:, default_chat_path:, flash: {})
       @user = user
       @csrf_token = csrf_token
@@ -69,7 +67,11 @@ module AppApi
     def app_revision_url
       return nil if app_revision == "dev"
 
-      "https://github.com/#{GITHUB_REPO}/commit/#{app_revision}"
+      "https://github.com/#{github_repo}/commit/#{app_revision}"
+    end
+
+    def github_repo
+      ENV.fetch("SYRUS_GITHUB_REPO")
     end
   end
 end

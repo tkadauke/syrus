@@ -77,6 +77,8 @@ environment override values that vary by cluster or mail provider:
 - `SYRUS_APP_HOST` — optional public app host. Defaults to `syrus.internal.green-acres.estate`; used for URL generation and mailer links.
 - `SYRUS_ALLOWED_HOSTS` — optional comma-separated host allowlist. Defaults to `SYRUS_APP_HOST` plus the internal K3s ingress hostname.
 - `SYRUS_ASSUME_SSL` / `SYRUS_FORCE_SSL` — optional booleans, both default `true` for TLS-terminating ingress/proxy deployments. `/up` is excluded from SSL redirects and host authorization for health checks.
+- `SYRUS_GITHUB_REPO` — required GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links.
+- `SYRUS_BUG_REPORT_OWNER` — required GitHub owner or organization for in-app bug reports. Syrus looks for an active `SYRUS_BUG_REPORT_OWNER/syrus` repository configured for the reporting user.
 - `SYRUS_MAILER_FROM` — optional sender address for application mail. Defaults to `Syrus <noreply@SYRUS_APP_HOST>`.
 - `SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_AUTHENTICATION`, `SMTP_ENABLE_STARTTLS_AUTO` — optional SMTP settings. When `SMTP_ADDRESS` is absent, Rails keeps its default mail delivery configuration and delivery errors are not raised unless `SYRUS_MAILER_RAISE_DELIVERY_ERRORS=true`.
 

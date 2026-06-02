@@ -2,7 +2,6 @@ require "stringio"
 
 module BugReports
   class Creator
-    TARGET_OWNER = "tkadauke".freeze
     TARGET_NAME = "syrus".freeze
 
     Result = Struct.new(:job, :error, keyword_init: true) do
@@ -16,8 +15,8 @@ module BugReports
     end
 
     def call(title:, description:, screenshot:)
-      repository = user.repositories.active.find_by(owner: TARGET_OWNER, name: TARGET_NAME)
-      return failure("Bug report repository #{TARGET_OWNER}/#{TARGET_NAME} is not configured.") unless repository
+      repository = user.repositories.active.find_by(owner: target_owner, name: TARGET_NAME)
+      return failure("Bug report repository #{target_owner}/#{TARGET_NAME} is not configured.") unless repository
 
       title = title.to_s.strip.presence || "In-app bug report"
       description = description.to_s.strip
@@ -53,6 +52,10 @@ module BugReports
     private
 
     attr_reader :user
+
+    def target_owner
+      ENV.fetch("SYRUS_BUG_REPORT_OWNER")
+    end
 
     def failure(error)
       Result.new(error: error)
