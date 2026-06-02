@@ -165,7 +165,7 @@ RSpec.describe User do
       user = User.create!(attrs)
 
       expect(user.dashboard_sort(:jobs)).to eq(column: "created_at", direction: "desc")
-      expect(user.dashboard_sort(:workflows)).to eq("column" => "title", "direction" => "desc")
+      expect(user.dashboard_sort(:workflows)).to eq("column" => "started_at", "direction" => "desc")
     end
 
     it "always includes required visible columns when stored preferences omit them" do

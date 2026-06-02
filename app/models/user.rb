@@ -42,7 +42,7 @@ class User < ApplicationRecord
       "kanban_lanes" => %w[queued running landing]
     },
     "workflows" => {
-      "sort_column" => "title",
+      "sort_column" => "started_at",
       "sort_direction" => "desc",
       "visible_columns" => %w[workflow job trigger state started finished agent],
       "kanban_lanes" => %w[queued running done]
@@ -79,7 +79,7 @@ class User < ApplicationRecord
   DASHBOARD_SORT_DEFAULTS = {
     "epic" => { "column" => "updated_at", "direction" => "desc" },
     "job" => { "column" => "created_at", "direction" => "desc" },
-    "workflow" => { "column" => "title", "direction" => "desc" }
+    "workflow" => { "column" => "started_at", "direction" => "desc" }
   }.freeze
   DASHBOARD_SORT_DIRECTIONS = %w[asc desc].freeze
 

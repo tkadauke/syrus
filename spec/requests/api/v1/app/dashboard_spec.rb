@@ -240,18 +240,18 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "returns workflow dashboard items newest-first by default" do
-      older_job = Factories.job_record(repository: repo, issue_number: 11, issue_title: "Older aqueduct")
       newer_job = Factories.job_record(repository: repo, issue_number: 12, issue_title: "Newer aqueduct")
-      older_workflow = Workflow.create!(
-        job: older_job,
+      older_job = Factories.job_record(repository: repo, issue_number: 11, issue_title: "Older aqueduct")
+      newer_workflow = Workflow.create!(
+        job: newer_job,
         trigger_kind: "initial",
         agent_provider: "claude",
         state: "succeeded",
-        started_at: 1.hour.ago,
-        finished_at: 50.minutes.ago
+        started_at: 10.minutes.ago,
+        finished_at: 5.minutes.ago
       )
-      newer_workflow = Workflow.create!(
-        job: newer_job,
+      older_workflow = Workflow.create!(
+        job: older_job,
         trigger_kind: "initial",
         agent_provider: "claude",
         state: "succeeded",
@@ -263,7 +263,7 @@ RSpec.describe "App API dashboard commands", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body.dig("preferences", "sort")).to include("column" => "title", "direction" => "desc")
+      expect(body.dig("preferences", "sort")).to include("column" => "started_at", "direction" => "desc")
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ newer_workflow.id, older_workflow.id ])
     end
   end
