@@ -168,7 +168,7 @@ function SmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload
   const moreFolders = builtinFolders.filter((folder) => folder.visibility === "on_demand")
   const savedFolders = payload.smart_folders.filter((folder) => folder.kind === "user_defined")
   const appliedTree = filterTreeFromPayload(payload.filter)
-  const canSaveFilter = topFilterChildren(appliedTree).length > 0
+  const canSaveFilter = topFilterChildren(appliedTree).length > 0 && payload.active_smart_folder_id == null
   const landingPause = useMutation({
     mutationFn: () => toggleDashboardLandingPause(payload.landing_queue.toggle_path),
     onSuccess: () => {

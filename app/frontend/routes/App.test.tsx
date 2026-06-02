@@ -1178,6 +1178,8 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Saved review 2" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=4")
     expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/app-shell/smart_folders?subject_type=job")
+    expect(screen.queryByLabelText("Folder name")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
   })
 
   it("renders app-shell dashboard kanban lanes from the app dashboard API", async () => {
