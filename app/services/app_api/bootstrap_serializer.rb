@@ -12,6 +12,7 @@ module AppApi
         current_user: user_payload,
         app: app_payload,
         navigation: navigation_payload,
+        setup: setup_payload,
         flash: flash_payload,
         csrf_token: @csrf_token,
         feature_flags: {
@@ -51,6 +52,12 @@ module AppApi
       {
         default_chat_path: @default_chat_path
       }
+    end
+
+    def setup_payload
+      return nil unless user
+
+      ::App::SetupStatus.call(user: user)
     end
 
     def flash_payload

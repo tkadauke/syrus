@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Link, Route, Routes, useLocation } from "react-router-dom"
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { BugReportButton } from "../components/BugReportButton"
 import { NoticeToast } from "../components/NoticeToast"
@@ -34,6 +34,7 @@ import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
 import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
+import { SetupRoute } from "./Setup"
 import { SmartFolders } from "./SmartFolders"
 import { Tags } from "./Tags"
 
@@ -62,6 +63,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/epics", element: <DashboardRoute /> },
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
+  { path: "/setup", element: <SetupRoute /> },
   { path: "/admin", element: <AdminOverview /> },
   { path: "/admin/queue", element: <AdminQueueRoute /> },
   { path: "/admin/queue/:tab", element: <AdminQueueRoute /> },
@@ -146,6 +148,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
   const defaultChatPath = withRoutePrefix(data?.navigation?.default_chat_path || "/chats/new", prefix)
   const quote = useMemo(randomPubliliusSyrusQuote, [])
   const navItems: Array<{ label: string; to: string; active: boolean; desktopOnly?: boolean }> = user ? [
+    ...(data?.setup && !data.setup.complete ? [{ label: "Setup", to: `${prefix}/setup`, active: normalizedPath === "/setup" }] : []),
     { label: "Dashboard", to: `${prefix}/dashboard/jobs?view=list`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard") },
     { label: "Repos", to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories") },
     { label: "Schedules", to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), desktopOnly: true }
@@ -176,7 +179,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
       {showsAdminNavigation(normalizedPath) ? <AdminNavigation normalizedPath={normalizedPath} prefix={prefix} /> : null}
       {showsSettingsNavigation(normalizedPath) ? <SettingsNavigation normalizedPath={normalizedPath} prefix={prefix} /> : null}
       <FlashBanner flash={data?.flash} />
-      {children}
+      {redirectsToSetup(data, normalizedPath) ? <Navigate replace to={`${prefix}/setup`} /> : children}
       {showsPubliliusSyrusFooter(normalizedPath) ? <PubliliusSyrusFooter quote={quote} /> : null}
       {user ? <BugReportButton context={bugReportContext(location.pathname)} /> : null}
     </div>
@@ -337,6 +340,11 @@ function showsSettingsNavigation(pathname: string) {
     pathname === "/documents" ||
     pathname === "/tags" ||
     pathname.startsWith("/cron_templates")
+}
+
+function redirectsToSetup(data: BootstrapPayload | null | undefined, normalizedPath: string) {
+  if (!data?.setup || data.setup.complete) return false
+  return normalizedPath === "/" || normalizedPath.startsWith("/dashboard")
 }
 
 function showsPubliliusSyrusFooter(pathname: string) {

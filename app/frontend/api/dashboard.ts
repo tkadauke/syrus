@@ -1,5 +1,7 @@
 import { getJson, patchJson, postJson } from "./client"
 
+import type { SetupStatusPayload } from "./setup"
+
 export type DashboardSubject = "job" | "epic" | "workflow"
 
 export type DashboardRepository = {
@@ -176,6 +178,7 @@ export type DashboardPayload = {
   items: DashboardItem[]
   lanes: DashboardLane[]
   kanban_limit: number | null
+  setup?: SetupStatusPayload
   paths: {
     dashboard_path: string
     dashboard_jobs_path: string

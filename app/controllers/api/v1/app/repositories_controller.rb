@@ -306,6 +306,7 @@ module Api
             active_repositories: repos.active.map { |repository| repository_json(repository) },
             archived_repositories: repos.archived.map { |repository| repository_json(repository) },
             new_repository_path: new_repository_path,
+            setup: ::App::SetupStatus.call(user: Current.user),
             message: message
           }
         end

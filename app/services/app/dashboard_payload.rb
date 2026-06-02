@@ -93,6 +93,7 @@ module App
         items: current_result.fetch(:items),
         lanes: lanes_json,
         kanban_limit: view == "kanban" ? kanban_limit : nil,
+        setup: ::App::SetupStatus.call(user: user),
         paths: paths_json
       }
     end

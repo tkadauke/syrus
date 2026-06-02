@@ -34,7 +34,7 @@ module Api
           if user.save
             invitation&.accept!
             start_new_session_for(user)
-            render json: { redirect_to: root_path, message: signup_notice(user) }, status: :created
+            render json: { redirect_to: setup_path, message: signup_notice(user) }, status: :created
           else
             render_error("validation_failed", user.errors.full_messages.to_sentence, status: :unprocessable_content)
           end

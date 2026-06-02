@@ -61,6 +61,8 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["navigation"]).to include(
       "default_chat_path" => new_chat_path
     )
+    expect(body.dig("setup", "next_step")).to eq("credentials")
+    expect(body.dig("setup", "paths", "setup_path")).to eq(setup_path)
     expect(body["csrf_token"]).to be_present
     expect(body["feature_flags"]).to eq("migrated_routes" => [])
   end

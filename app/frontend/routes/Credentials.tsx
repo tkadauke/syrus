@@ -157,6 +157,9 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
           set={payload.credential_status.github_token}
           value={values.github_token}
         />
+        <p className="-mt-3 text-xs text-gray-500">
+          Syrus uses a GitHub App installation when one is active for a repository owner. Repositories without an active installation use this PAT as the fallback credential.
+        </p>
 
         <GithubRateLimit payload={payload} />
 

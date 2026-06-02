@@ -43,15 +43,35 @@ cluster on day one.
 Once the Docker Compose path is available in your environment, the
 first useful loop is:
 
-1. Start the stack from the [Docker Compose guide](/docs/deployment/docker-compose).
-2. Sign up in the web UI. The first user becomes the admin.
-3. Add your GitHub token and agent credentials.
-4. Register a repository and confirm its trigger label. The default
-   label is `syrus`.
-5. Create or pick a small GitHub issue in that repository.
-6. Add the trigger label.
-7. Watch the Job page as Syrus creates a Workflow, runs its Steps,
-   captures the transcript, and opens a PR.
+```bash
+# 1. Start Syrus, then open the app.
+open http://localhost:3000/users/new
+
+# 2. Sign up. The first user becomes the admin.
+# 3. Follow the in-app checklist.
+open http://localhost:3000/setup
+
+# 4. Add credentials:
+#    - a GitHub PAT for polling, issue actions, and PAT fallback pushes
+#    - Claude or Codex credentials for the selected agent provider
+open http://localhost:3000/credentials/edit
+
+# 5. Add a repository. The default trigger label is "syrus".
+open http://localhost:3000/repositories/new
+
+# 6. Start the first run with either a direct Job or a GitHub issue.
+open http://localhost:3000/jobs/new
+
+# Or delegate an existing GitHub issue from the CLI:
+gh issue create -R OWNER/REPO --label syrus \
+  --title "First Syrus smoke test" \
+  --body "Make one tiny, reversible change so we can watch Syrus open a PR."
+```
+
+The setup checklist stays active until the first successful Job or PR
+exists. Repositories use a GitHub App installation when one is active
+for that owner; repositories without an active installation use the
+user's GitHub PAT as the fallback credential.
 
 Keep the first issue boring: a typo fix, a small docs change, or a
 single failing test. You are proving the plumbing before you ask the

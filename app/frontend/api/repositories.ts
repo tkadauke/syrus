@@ -1,4 +1,5 @@
 import { deleteJson, getJson, patchJson, postJson } from "./client"
+import type { SetupStatusPayload } from "./setup"
 
 export type RepositoryRow = {
   id: number
@@ -23,6 +24,7 @@ export type RepositoriesPayload = {
   active_repositories: RepositoryRow[]
   archived_repositories: RepositoryRow[]
   new_repository_path: string
+  setup?: SetupStatusPayload
   message?: string | null
 }
 

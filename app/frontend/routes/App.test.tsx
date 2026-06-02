@@ -254,6 +254,64 @@ describe("App", () => {
     expect(await screen.findByText("Password reset instructions sent (if user with that email address exists).")).toBeInTheDocument()
   })
 
+  it("renders the first-run setup checklist and links to the next action", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(setupStatusPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/setup"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByRole("main", { name: "First-run setup" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Get to the first successful Job" })).toBeInTheDocument()
+    expect(screen.getByText("0 of 4 complete")).toBeInTheDocument()
+    expect(screen.getByText("GitHub PAT missing; Claude credentials missing.")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "Open credentials" })[0]).toHaveAttribute("href", "/app-shell/credentials/edit")
+    expect(screen.getByText(/falls back to your GitHub PAT/)).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/setup",
+      expect.objectContaining({
+        credentials: "same-origin",
+        headers: { Accept: "application/json" }
+      })
+    )
+  })
+
+  it("redirects incomplete root visits to setup when bootstrap has setup state", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify({ ...bootstrapPayload(), setup: setupStatusPayload() })
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(setupStatusPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("main", { name: "First-run setup" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Setup" })).toHaveAttribute("href", "/app-shell/setup")
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/setup",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
+    } finally {
+      script.remove()
+    }
+  })
+
   it("renders shared app chrome from embedded bootstrap data", async () => {
     const script = document.createElement("script")
     const payload = {
@@ -1183,6 +1241,35 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Landing paused.")).toBeInTheDocument()
+  })
+
+  it("points an empty first-run dashboard at setup actions", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            total: 0,
+            counts: { jobs: 0, epics: 0, workflows: 0 },
+            items: [],
+            setup: setupStatusPayload()
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("No Jobs yet. Finish credentials first so Syrus can talk to GitHub and the selected agent.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open setup" })).toHaveAttribute("href", "/app-shell/setup")
   })
 
   it("renders dashboard smart folder visibility groups and badges", async () => {
@@ -3318,6 +3405,32 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Polling acme/widgets now.")).toBeInTheDocument()
+  })
+
+  it("points an empty repository list at credentials when setup is incomplete", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          repositoriesPayload({
+            active_repositories: [],
+            archived_repositories: [],
+            setup: setupStatusPayload()
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Credentials are the next setup step. Add a GitHub PAT and credentials for Claude before adding a repository.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
   })
 
   it("renders the repository form with GitHub selectors and submits it to the app API", async () => {
@@ -5999,6 +6112,63 @@ function bootstrapPayload() {
   }
 }
 
+function setupStatusPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    complete: false,
+    next_step: "credentials",
+    progress: {
+      completed: 0,
+      total: 4,
+      steps: [
+        { key: "credentials", label: "Add credentials", complete: false },
+        { key: "repository", label: "Add a repository", complete: false },
+        { key: "first_job", label: "Start the first Job", complete: false },
+        { key: "watch_job", label: "Watch the first successful Job or PR", complete: false }
+      ]
+    },
+    credentials: {
+      github_token: false,
+      selected_agent_provider: "claude",
+      selected_agent_provider_configured: false,
+      configured_agent_providers: [],
+      ready: false
+    },
+    system: {
+      data_root: "~/.syrus",
+      revision: "dev",
+      polling_paused: false,
+      runs_paused: false,
+      ready: true
+    },
+    github_app: {
+      registered: false,
+      explanation: "Repositories use a GitHub App installation when one is active for that owner. Syrus falls back to your GitHub PAT for repositories without an active installation.",
+      register_path: "/admin/github_app/register",
+      installations_path: "/admin/installations"
+    },
+    repositories: {
+      active_count: 0,
+      any_app_credential_active: false,
+      any_pat_fallback: false,
+      first: null
+    },
+    first_job: {
+      any: false,
+      successful: false,
+      job: null
+    },
+    paths: {
+      setup_path: "/setup",
+      credentials_path: "/credentials/edit",
+      new_repository_path: "/repositories/new",
+      repositories_path: "/repositories",
+      new_job_path: "/jobs/new",
+      dashboard_jobs_path: "/dashboard/jobs"
+    },
+    ...overrides
+  }
+}
+
 function scheduledTaskOptions() {
   return {
     kinds: ["cron", "one_shot"],
@@ -6183,9 +6353,14 @@ function directJobFormPayload() {
   }
 }
 
-function repositoriesPayload(overrides: { message?: string } = {}) {
+function repositoriesPayload(overrides: {
+  active_repositories?: Array<Record<string, unknown>>
+  archived_repositories?: Array<Record<string, unknown>>
+  message?: string
+  setup?: Record<string, unknown>
+} = {}) {
   return {
-    active_repositories: [
+    active_repositories: overrides.active_repositories ?? [
       {
         id: 3,
         slug: "acme/widgets",
@@ -6205,7 +6380,7 @@ function repositoriesPayload(overrides: { message?: string } = {}) {
         edit_repository_path: "/repositories/3/edit"
       }
     ],
-    archived_repositories: [
+    archived_repositories: overrides.archived_repositories ?? [
       {
         id: 4,
         slug: "old/repo",
@@ -6226,6 +6401,40 @@ function repositoriesPayload(overrides: { message?: string } = {}) {
       }
     ],
     new_repository_path: "/repositories/new",
+    setup: overrides.setup ?? setupStatusPayload({
+      complete: true,
+      next_step: "complete",
+      progress: {
+        completed: 4,
+        total: 4,
+        steps: [
+          { key: "credentials", label: "Add credentials", complete: true },
+          { key: "repository", label: "Add a repository", complete: true },
+          { key: "first_job", label: "Start the first Job", complete: true },
+          { key: "watch_job", label: "Watch the first successful Job or PR", complete: true }
+        ]
+      },
+      credentials: {
+        github_token: true,
+        selected_agent_provider: "codex",
+        selected_agent_provider_configured: true,
+        configured_agent_providers: ["codex"],
+        ready: true
+      },
+      repositories: {
+        active_count: 1,
+        any_app_credential_active: false,
+        any_pat_fallback: true,
+        first: {
+          id: 3,
+          slug: "acme/widgets",
+          trigger_label: "syrus",
+          credential_mode: "pat",
+          repository_path: "/repositories/3",
+          issues_path: "/repositories/3?tab=github_issues"
+        }
+      }
+    }),
     message: overrides.message
   }
 }
@@ -6548,6 +6757,20 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
     items: [],
     lanes: [],
     kanban_limit: null,
+    setup: setupStatusPayload({
+      complete: true,
+      next_step: "complete",
+      progress: {
+        completed: 4,
+        total: 4,
+        steps: [
+          { key: "credentials", label: "Add credentials", complete: true },
+          { key: "repository", label: "Add a repository", complete: true },
+          { key: "first_job", label: "Start the first Job", complete: true },
+          { key: "watch_job", label: "Watch the first successful Job or PR", complete: true }
+        ]
+      }
+    }),
     paths: {
       dashboard_path: "/dashboard",
       dashboard_jobs_path: "/dashboard/jobs",

@@ -1,4 +1,5 @@
 import { getJson } from "./client"
+import type { SetupStatusPayload } from "./setup"
 
 export type BootstrapPayload = {
   current_user: {
@@ -19,6 +20,7 @@ export type BootstrapPayload = {
   navigation?: {
     default_chat_path: string
   }
+  setup?: SetupStatusPayload | null
   flash?: {
     alert?: string | null
     notice?: string | null

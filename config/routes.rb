@@ -9,6 +9,7 @@ Rails.application.routes.draw do
   resources :users, only: %i[ create ]
 
   get "credentials/edit", to: "spa#show", as: :edit_credentials
+  get "setup", to: "spa#show", as: :setup
 
   # Admin REST API. Token-based auth (per-user), JSON only.
   # See docs/plans/complete/admin-diagnostics.md for the endpoint plan.
@@ -16,6 +17,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       namespace :app do
         get "bootstrap", to: "bootstrap#show"
+        get "setup", to: "setup#show"
         get "auth/signup", to: "auth#signup"
         post "auth/session", to: "auth#create_session"
         post "auth/users", to: "auth#create_user"

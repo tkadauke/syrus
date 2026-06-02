@@ -445,7 +445,7 @@ function DashboardTable({ payload, prefix }: { payload: DashboardPayload; prefix
   if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} />
 
   if (payload.items.length === 0) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500">No {subjectLabel(payload.subject, 2)} match this view.</div>
+    return <DashboardEmptyState payload={payload} prefix={prefix} />
   }
 
   const columns = dashboardVisibleColumns(payload)
@@ -453,6 +453,35 @@ function DashboardTable({ payload, prefix }: { payload: DashboardPayload; prefix
   if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={payload.items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
 
   return <EpicsTable columns={columns} items={payload.items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
+}
+
+function DashboardEmptyState({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
+  const setup = payload.setup
+  if (setup && !setup.complete && payload.subject === "job") {
+    const action = setupDashboardAction(setup)
+    return (
+      <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
+        <p>{action.message}</p>
+        <Link className="mt-3 inline-flex font-medium text-blue-700 hover:text-blue-900" to={withRoutePrefix(action.path, prefix)}>{action.label}</Link>
+      </div>
+    )
+  }
+
+  return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500">No {subjectLabel(payload.subject, 2)} match this view.</div>
+}
+
+function setupDashboardAction(setup: NonNullable<DashboardPayload["setup"]>) {
+  if (!setup.credentials.ready) {
+    return { label: "Open setup", path: setup.paths.setup_path, message: "No Jobs yet. Finish credentials first so Syrus can talk to GitHub and the selected agent." }
+  }
+  if (setup.repositories.active_count === 0) {
+    return { label: "Add repository", path: setup.paths.new_repository_path, message: "No Jobs yet. Add a repository, then create a direct Job or delegate a GitHub issue." }
+  }
+  if (!setup.first_job.any) {
+    return { label: "Create direct Job", path: setup.paths.new_job_path, message: "No Jobs yet. Create a direct Job, or label a GitHub issue from the repository page." }
+  }
+
+  return { label: "Open setup", path: setup.paths.setup_path, message: "Watch the first Job until it succeeds, opens a PR, or shows a failure to diagnose." }
 }
 
 function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {

@@ -52,6 +52,7 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
     }.to change(User, :count).by(1)
 
     expect(response).to have_http_status(:created)
+    expect(parse_body["redirect_to"]).to eq(setup_path)
     expect(User.last).to be_admin
     expect(User.last.sessions.count).to eq(1)
   end
@@ -72,6 +73,7 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
     }.to change(User, :count).by(1)
 
     expect(response).to have_http_status(:created)
+    expect(parse_body["redirect_to"]).to eq(setup_path)
     expect(invitation.reload).to be_accepted
   end
 
