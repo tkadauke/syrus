@@ -263,7 +263,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
     t.integer "number", null: false
     t.integer "owner_id"
     t.integer "owner_user_id"
-    t.integer "owner_id"
     t.json "pending_epic_dependency_refs", null: false
     t.integer "repository_id", null: false
     t.string "state", default: "backlog", null: false
@@ -274,7 +273,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
     t.index ["number"], name: "index_epics_on_number", unique: true
     t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["owner_user_id"], name: "index_epics_on_owner_user_id"
-    t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["repository_id"], name: "index_epics_on_repository_id"
     t.index ["user_id", "state"], name: "index_epics_on_user_id_and_state"
     t.index ["user_id"], name: "index_epics_on_user_id"
@@ -779,7 +777,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_02_234619) do
   add_foreign_key "epics", "users"
   add_foreign_key "epics", "users", column: "owner_id"
   add_foreign_key "epics", "users", column: "owner_user_id"
-  add_foreign_key "epics", "users", column: "owner_id"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
   add_foreign_key "job_dependencies", "jobs"

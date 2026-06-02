@@ -45,7 +45,7 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       body = parse_body
       expect(body["count"]).to eq(3)
       epic_payload = body["epics"].find { |e| e["title"] == "Launch" }
-      expect(epic_payload).to include("id", "number", "state", "repository", "auto_approve_mode")
+      expect(epic_payload).to include("id", "number", "state", "repository", "auto_approve_mode", "owner_user_id", "owner_status", "owner_user")
       expect(epic_payload["repository"]).to eq("acme/widgets")
     end
 
@@ -70,6 +70,34 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       expect(titles).to include("Launch")
       expect(titles).not_to include("Done epic")
     end
+
+    it "filters by owner claim state relative to the API user" do
+      other_owner = Factories.user
+      mine = Factories.epic(user: admin, repository: repo, title: "Mine", owner_user: admin)
+      other = Factories.epic(user: other_owner, repository: Factories.repository(user: other_owner), title: "Other-owned", owner_user: other_owner)
+      unclaimed = Factories.epic(user: admin, repository: repo, title: "Unclaimed", owner_user: nil)
+
+      get "/api/v1/admin/epics", params: { owner: "mine" }, headers: auth(admin_token)
+      expect(parse_body["epics"].map { |e| e["id"] }).to include(mine.id)
+      expect(parse_body["epics"].map { |e| e["id"] }).not_to include(other.id, unclaimed.id)
+      expect(parse_body["epics"].find { |e| e["id"] == mine.id }).to include(
+        "owner_status" => "mine",
+        "owner_user" => include("id" => admin.id, "email_address" => admin.email_address)
+      )
+
+      get "/api/v1/admin/epics", params: { owner: "other_owned" }, headers: auth(admin_token)
+      expect(parse_body["epics"].map { |e| e["id"] }).to include(other.id)
+      expect(parse_body["epics"].map { |e| e["id"] }).not_to include(mine.id, unclaimed.id)
+      expect(parse_body["epics"].find { |e| e["id"] == other.id }).to include("owner_status" => "other_owned")
+
+      get "/api/v1/admin/epics", params: { owner: "unclaimed" }, headers: auth(admin_token)
+      expect(parse_body["epics"].map { |e| e["id"] }).to include(unclaimed.id)
+      expect(parse_body["epics"].map { |e| e["id"] }).not_to include(mine.id, other.id)
+      expect(parse_body["epics"].find { |e| e["id"] == unclaimed.id }).to include(
+        "owner_status" => "unclaimed",
+        "owner_user" => nil
+      )
+    end
   end
 
   describe "GET /epics/:id (show)" do
@@ -91,6 +119,8 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
         "id" => epic.id,
         "state" => "ready",
         "title" => "Launch",
+        "owner_status" => "unclaimed",
+        "owner_user" => nil,
         "complete" => false,
         "ready_to_start" => false  # depends on prereq Epic that isn't done
       )

@@ -26,6 +26,11 @@ export type DashboardTag = {
   color: string
 }
 
+export type DashboardOwnerUser = {
+  id: number
+  email_address: string
+}
+
 export type DashboardJobItem = {
   type: "job"
   id: number
@@ -75,6 +80,9 @@ export type DashboardEpicItem = {
   claimable: boolean
   claimed_at: string | null
   auto_approve_mode: string
+  owner_user_id: number | null
+  owner_status: "mine" | "other_owned" | "unclaimed"
+  owner_user: DashboardOwnerUser | null
   jobs_count: number
   created_at: string | null
   updated_at: string | null

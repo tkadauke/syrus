@@ -91,6 +91,25 @@ RSpec.describe Epic do
     expect(child.reload.user).to eq(user)
   end
 
+  it "scopes epics by nullable owner claims" do
+    mine = Factories.user
+    other = Factories.user
+    mine_repo = Factories.repository(user: mine)
+    other_repo = Factories.repository(user: other)
+
+    claimed_by_mine = Factories.epic(user: mine, repository: mine_repo, owner_user: mine)
+    claimed_by_other = Factories.epic(user: other, repository: other_repo, owner_user: other)
+    unclaimed = Factories.epic(user: mine, repository: mine_repo, owner_user: nil)
+
+    expect(described_class.claimed).to include(claimed_by_mine, claimed_by_other)
+    expect(described_class.claimed).not_to include(unclaimed)
+    expect(described_class.unclaimed).to include(unclaimed)
+    expect(described_class.unclaimed).not_to include(claimed_by_mine)
+    expect(described_class.owned_by(mine)).to contain_exactly(claimed_by_mine)
+    expect(described_class.other_owned_by(mine)).to include(claimed_by_other)
+    expect(described_class.other_owned_by(mine)).not_to include(claimed_by_mine, unclaimed)
+  end
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 

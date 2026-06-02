@@ -60,7 +60,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       repository: repository,
       title: "Raise the forum",
       description: "Build **columns**.",
-      state: "ready"
+      state: "ready",
+      owner_user: user
     )
     blocker = Factories.epic(user: user, repository: repository, title: "Deliver marble", state: "done")
     EpicDependency.create!(epic: epic, depends_on_epic: blocker, derived: false)
@@ -83,6 +84,11 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(body.dig("epic", "owner")).to be_nil
     expect(body.dig("epic", "owned_by_current_user")).to eq(false)
     expect(body.dig("epic", "claimable")).to eq(true)
+    expect(body["epic"]).to include(
+      "owner_user_id" => user.id,
+      "owner_status" => "mine",
+      "owner_user" => include("id" => user.id, "email_address" => user.email_address)
+    )
     expect(body.dig("epic", "repository")).to include("slug" => "acme/widgets", "repository_path" => repository_path(repository))
     expect(body["summary"]).to include(
       "done_jobs_count" => 1,
@@ -156,6 +162,20 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(parse_body.dig("epic", "owner")).to include("id" => next_owner.id, "email_address" => next_owner.email_address)
     expect(epic.reload.owner).to eq(next_owner)
     expect(epic.claimed_at).to be_present
+  end
+
+  it "marks unclaimed Epics in app payloads" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, owner_user: nil)
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["epic"]).to include(
+      "owner_user_id" => nil,
+      "owner_status" => "unclaimed",
+      "owner_user" => nil
+    )
   end
 
   it "advances Epic state through the app API and returns a refreshed detail payload" do

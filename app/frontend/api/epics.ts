@@ -9,9 +9,17 @@ export type EpicFormRecord = {
   id: number | null
   title: string
   description: string
+  owner_user_id: number | null
+  owner_status: "mine" | "other_owned" | "unclaimed"
+  owner_user: EpicOwnerUser | null
   repository_id: number | null
   github_issue_url: string
   epic_path: string | null
+}
+
+export type EpicOwnerUser = {
+  id: number
+  email_address: string
 }
 
 export type EpicFormPayload = {
@@ -60,6 +68,9 @@ export type EpicDetailRecord = {
   archived: boolean
   jobs_count: number
   epic_path: string
+  owner_user_id: number | null
+  owner_status: "mine" | "other_owned" | "unclaimed"
+  owner_user: EpicOwnerUser | null
   repository: EpicDetailRepository
 }
 

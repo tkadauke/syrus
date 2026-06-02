@@ -9,6 +9,7 @@ module Api
         #   ?state=backlog|ready|in_progress|done|archived
         #   ?repo=owner/name
         #   ?user=substring                — match User#email_address
+        #   ?owner=mine|other_owned|unclaimed
         #   ?has_unfinished_children=true  — Epics with at least one
         #                                    child Job that hasn't closed
         #                                    successfully. "What's still
@@ -16,7 +17,7 @@ module Api
         #                                    completing?"
         # No filters → most-recently updated 50.
         def index
-          scope = Epic.includes(:owner, :repository).order(updated_at: :desc)
+          scope = Epic.includes(:owner, :repository, :owner_user).order(updated_at: :desc)
           scope = scope.where(state: params[:state]) if params[:state].present?
           if params[:repo].present?
             owner, name = params[:repo].split("/", 2)
@@ -25,6 +26,7 @@ module Api
           if params[:user].present?
             scope = scope.joins(:user).where("users.email_address LIKE ?", "%#{params[:user]}%")
           end
+          scope = apply_owner_filter(scope)
           if truthy?(params[:has_unfinished_children])
             scope = scope.where(id: unfinished_child_epic_ids)
           end
@@ -36,7 +38,7 @@ module Api
         end
 
         def show
-          epic = Epic.includes(:repository, :user, dependencies: :depends_on_epic,
+          epic = Epic.includes(:repository, :user, :owner_user, dependencies: :depends_on_epic,
                                                     dependent_links: :epic,
                                                     jobs: :repository)
                      .find(params[:id])
@@ -47,6 +49,19 @@ module Api
 
         def truthy?(value)
           %w[ true 1 yes ].include?(value.to_s.downcase)
+        end
+
+        def apply_owner_filter(scope)
+          case params[:owner].to_s
+          when "mine"
+            scope.owned_by(current_api_user)
+          when "other_owned"
+            scope.other_owned_by(current_api_user)
+          when "unclaimed"
+            scope.unclaimed
+          else
+            scope
+          end
         end
 
         # Epic IDs that have at least one child Job not closed with a
@@ -70,6 +85,9 @@ module Api
             owner_email:        epic.owner&.email_address,
             claimed_at:         epic.claimed_at,
             auto_approve_mode:  epic.auto_approve_mode,
+            owner_user_id:      epic.owner_user_id,
+            owner_status:       owner_status(epic),
+            owner_user:         owner_user_json(epic.owner_user),
             repository:         epic.repository.slug,
             github_issue_url:   epic.github_issue_url,
             done_at:            epic.done_at,
@@ -89,6 +107,9 @@ module Api
             owner:              serialize_owner(epic.owner),
             claimed_at:         epic.claimed_at,
             auto_approve_mode:  epic.auto_approve_mode,
+            owner_user_id:      epic.owner_user_id,
+            owner_status:       owner_status(epic),
+            owner_user:         owner_user_json(epic.owner_user),
             github_issue_url:   epic.github_issue_url,
             done_at:            epic.done_at,
             created_at:         epic.created_at,
@@ -133,6 +154,22 @@ module Api
           }
         rescue => e
           { id: job.id, error_serializing: "#{e.class}: #{e.message}" }
+        end
+
+        def owner_status(epic)
+          return "unclaimed" if epic.owner_user_id.blank?
+          return "mine" if epic.owner_user_id == current_api_user.id
+
+          "other_owned"
+        end
+
+        def owner_user_json(owner_user)
+          return nil unless owner_user
+
+          {
+            id: owner_user.id,
+            email_address: owner_user.email_address
+          }
         end
       end
     end

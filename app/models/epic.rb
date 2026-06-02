@@ -39,9 +39,12 @@ class Epic < ApplicationRecord
   after_create_commit :broadcast_app_epic_created
   after_update_commit :broadcast_app_epic_updated
 
-  scope :claimed, -> { where.not(owner_id: nil) }
-  scope :unclaimed, -> { where(owner_id: nil) }
-  scope :owned_by, ->(user) { where(owner_id: user&.id) }
+  scope :claimed, -> { where("owner_id IS NOT NULL OR owner_user_id IS NOT NULL") }
+  scope :unclaimed, -> { where(owner_id: nil, owner_user_id: nil) }
+  scope :owned_by, ->(user) { where("owner_id = :user_id OR owner_user_id = :user_id", user_id: user&.id) }
+  scope :other_owned_by, ->(user) {
+    where("(owner_id IS NOT NULL AND owner_id != :user_id) OR (owner_user_id IS NOT NULL AND owner_user_id != :user_id)", user_id: user&.id)
+  }
 
   aasm column: :state, whiny_transitions: false do
     state :backlog, initial: true

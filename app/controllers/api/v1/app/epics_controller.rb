@@ -144,6 +144,9 @@ module Api
             id: epic.id,
             title: epic.title.to_s,
             description: epic.description.to_s,
+            owner_user_id: epic.owner_user_id,
+            owner_status: owner_status(epic),
+            owner_user: owner_user_json(epic.owner_user),
             repository_id: epic.repository_id,
             github_issue_url: epic.github_issue_url.to_s,
             epic_path: epic.persisted? ? epic_path(epic) : nil
@@ -167,6 +170,9 @@ module Api
             archived: epic.archived?,
             jobs_count: jobs.size,
             epic_path: epic_path(epic),
+            owner_user_id: epic.owner_user_id,
+            owner_status: owner_status(epic),
+            owner_user: owner_user_json(epic.owner_user),
             repository: repository_json(epic.repository).merge(repository_path: repository_path(epic.repository))
           }
         end
@@ -217,8 +223,24 @@ module Api
           }
         end
 
+        def owner_status(epic)
+          return "unclaimed" if epic.owner_user_id.blank?
+          return "mine" if epic.owner_user_id == Current.user.id
+
+          "other_owned"
+        end
+
+        def owner_user_json(owner_user)
+          return nil unless owner_user
+
+          {
+            id: owner_user.id,
+            email_address: owner_user.email_address
+          }
+        end
+
         def find_epic
-          Current.user.epics.find(params[:id])
+          Current.user.epics.includes(:owner_user).find(params[:id])
         end
 
         def transition_epic_state!(epic, target_state, override:)

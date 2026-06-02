@@ -526,13 +526,15 @@ module App
         claimable: epic.claimable?,
         claimed_at: epic.claimed_at&.iso8601,
         auto_approve_mode: epic.auto_approve_mode,
+        owner_user_id: epic.owner_user_id,
+        owner_status: epic_owner_status(epic),
+        owner_user: owner_user_json(epic.owner_user),
         jobs_count: epic.jobs.size,
         created_at: epic.created_at&.iso8601,
         updated_at: epic.updated_at&.iso8601,
         done_at: epic.done_at&.iso8601,
         archived_at: epic.archived_at&.iso8601,
         repository: repository_json(epic.repository),
-        owner_user: owner_user_json(epic.owner_user),
         paths: {
           epic_path: epic_path(epic),
           edit_epic_path: edit_epic_path(epic),
@@ -574,6 +576,22 @@ module App
           owner_user: owner_user_json(job.owner_user),
           path: job_path(job)
         }
+      }
+    end
+
+    def epic_owner_status(epic)
+      return "unclaimed" if epic.owner_user_id.blank?
+      return "mine" if epic.owner_user_id == user.id
+
+      "other_owned"
+    end
+
+    def owner_user_json(owner_user)
+      return nil unless owner_user
+
+      {
+        id: owner_user.id,
+        email_address: owner_user.email_address
       }
     end
 
