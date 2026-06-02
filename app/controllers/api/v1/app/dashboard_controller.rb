@@ -78,6 +78,23 @@ module Api
           end
         end
 
+        def bulk_epics
+          epic_ids = Array(params[:epic_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
+          if epic_ids.empty?
+            render_error("validation_failed", "Select at least one Epic.", status: :unprocessable_content)
+            return
+          end
+
+          epics = bulk_epic_scope(epic_ids)
+
+          case params[:bulk_action].to_s
+          when "start"
+            bulk_start_epics(epics)
+          else
+            render_error("validation_failed", "Choose a bulk action.", status: :unprocessable_content)
+          end
+        end
+
         def epic_auto_approval
           epic = Current.user.epics.find(params[:id])
           epic.update!(params.expect(epic: [ :auto_approve_mode ]))
@@ -100,6 +117,13 @@ module Api
                       .where(repositories: { archived_at: nil })
                       .where(id: job_ids)
                       .includes(:repository, :runs, :workflows)
+        end
+
+        def bulk_epic_scope(epic_ids)
+          Current.user.epics.joins(:repository)
+                      .where(repositories: { archived_at: nil })
+                      .where(id: epic_ids)
+                      .includes(:repository)
         end
 
         def bulk_retry_jobs(jobs, agent_provider: nil)
@@ -273,6 +297,31 @@ module Api
           Current.user.tags.find_or_create_by!(name: name) { |tag| tag.color = "gray" }
         end
 
+        def bulk_start_epics(epics)
+          started_ids = []
+          skipped_ids = []
+
+          epics.find_each do |epic|
+            if epic.ready? && epic.may_start?
+              epic.start!
+              started_ids << epic.id
+            else
+              skipped_ids << epic.id
+            end
+          end
+
+          if started_ids.empty?
+            render_error("validation_failed", "No selected Epics were ready to start.", status: :unprocessable_content)
+          else
+            render_epic_bulk_success(
+              "#{helpers.pluralize(started_ids.size, 'Epic')} moved to In Progress.",
+              affected_epic_ids: started_ids,
+              skipped_epic_ids: skipped_ids,
+              action: "start"
+            )
+          end
+        end
+
         def bulk_auto_merge_disabled_message(skipped)
           repos = skipped.map { |job| job.repository.slug }.uniq.sort
           "Skipped #{helpers.pluralize(skipped.size, 'job')} whose repository has auto-merge disabled (#{repos.join(', ')}). Enable auto-merge in repository settings to approve."
@@ -303,6 +352,24 @@ module Api
             action: action,
             affected_job_ids: affected_job_ids,
             skipped_job_ids: skipped_job_ids
+          }.merge(extra)
+        end
+
+        def render_epic_bulk_success(message, affected_epic_ids:, action:, skipped_epic_ids: [], extra: {})
+          AppEvents.broadcast(
+            user: Current.user,
+            type: "updated",
+            resource: "epic",
+            id: nil,
+            changed: [ "bulk" ],
+            payload: { "action" => action, "affected_epic_ids" => affected_epic_ids }
+          )
+
+          render json: {
+            message: message,
+            action: action,
+            affected_epic_ids: affected_epic_ids,
+            skipped_epic_ids: skipped_epic_ids
           }.merge(extra)
         end
 

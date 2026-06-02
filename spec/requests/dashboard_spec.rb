@@ -28,6 +28,7 @@ RSpec.describe "Dashboard routes", type: :request do
         "/dashboard/epics/1/auto_approval"
       ],
       post: [
+        "/dashboard/epics/bulk",
         "/dashboard/jobs/bulk",
         "/dashboard/landing_pause"
       ]

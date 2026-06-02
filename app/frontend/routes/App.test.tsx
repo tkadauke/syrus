@@ -1043,9 +1043,10 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      const row = await screen.findByRole("link", { name: "EPIC-7 Raise the forum" })
-      expect(row).toHaveAttribute("href", "/app-shell/epics/7")
-      expect(row).toHaveClass("grid-cols-[7.25rem_minmax(0,1fr)]")
+      const row = await screen.findByRole("article", { name: "EPIC-7 Raise the forum" })
+      expect(row).toHaveClass("grid-cols-[auto_minmax(0,1fr)]")
+      expect(within(row).getByRole("checkbox", { name: "Select Raise the forum" })).toBeInTheDocument()
+      expect(within(row).getByRole("link", { name: "EPIC-7 Raise the forum" })).toHaveAttribute("href", "/app-shell/epics/7")
       expect(within(row).getByText("ready")).toBeInTheDocument()
       expect(within(row).getByText("EPIC-7")).toBeInTheDocument()
       expect(within(row).getByText("Raise the forum")).toBeInTheDocument()

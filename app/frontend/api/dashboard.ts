@@ -201,6 +201,7 @@ export type DashboardPreferencesPayload = {
 }
 
 export type DashboardBulkJobAction = "retry" | "close" | "approve"
+export type DashboardBulkEpicAction = "start"
 
 export type DashboardBulkJobsInput = {
   job_ids: number[]
@@ -214,6 +215,18 @@ export type DashboardBulkJobsPayload = {
   action: string
   affected_job_ids: number[]
   skipped_job_ids: number[]
+}
+
+export type DashboardBulkEpicsInput = {
+  epic_ids: number[]
+  bulk_action: DashboardBulkEpicAction | string
+}
+
+export type DashboardBulkEpicsPayload = {
+  message: string
+  action: string
+  affected_epic_ids: number[]
+  skipped_epic_ids: number[]
 }
 
 export type DashboardLandingPausePayload = {
@@ -252,6 +265,10 @@ export function updateDashboardPreferences(input: DashboardPreferencesInput) {
 
 export function bulkDashboardJobs(input: DashboardBulkJobsInput) {
   return postJson<DashboardBulkJobsPayload>("/api/v1/app/dashboard/jobs/bulk", input)
+}
+
+export function bulkDashboardEpics(input: DashboardBulkEpicsInput) {
+  return postJson<DashboardBulkEpicsPayload>("/api/v1/app/dashboard/epics/bulk", input)
 }
 
 export function updateDashboardEpicState(path: string, targetState: string) {

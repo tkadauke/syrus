@@ -7,7 +7,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill } from "../components/StatusPill"
 import { FilterBar, filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren } from "../components/FilterBar"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { bulkDashboardJobs, createDashboardSmartFolder, fetchDashboard, toggleDashboardLandingPause, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
+import { bulkDashboardEpics, bulkDashboardJobs, createDashboardSmartFolder, fetchDashboard, toggleDashboardLandingPause, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkEpicAction, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
 
 const KANBAN_CARDS_PER_PAGE = 20
 
@@ -888,59 +888,136 @@ function ExternalMetadataLink({ children, className = "text-gray-500 hover:text-
 }
 
 function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpicItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const visibleIds = useMemo(() => items.map((item) => item.id), [items])
+  const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
-  if (!isDesktop) return <MobileEpicsList items={items} prefix={prefix} />
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const visible = new Set(visibleIds)
+      const next = new Set(Array.from(current).filter((id) => visible.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [visibleIds])
+
+  function toggleAll() {
+    setSelectedIds((current) => {
+      if (allSelected) return new Set()
+      return new Set([ ...Array.from(current), ...visibleIds ])
+    })
+  }
+
+  function toggleOne(id: number) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
-          <tr>
-            {columns.map((column) => <th aria-sort={columnAriaSort("epic", column, sortState)} className="px-4 py-2" key={column}><SortableColumnHeader column={column} sortState={sortState} subject="epic" /></th>)}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {items.map((epic) => (
-            <tr key={epic.id}>
-              {columns.map((column) => <EpicCell column={column} epic={epic} key={column} prefix={prefix} />)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-3">
+      <BulkEpicActions selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
+      {isDesktop ? (
+        <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+              <tr>
+                {columns.map((column) => (
+                  <th aria-sort={columnAriaSort("epic", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column}>
+                    {column === "checkbox" ? <input aria-label="Select all Epics" checked={allSelected} onChange={toggleAll} type="checkbox" /> : <SortableColumnHeader column={column} sortState={sortState} subject="epic" />}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {items.map((epic) => (
+                <tr key={epic.id}>
+                  {columns.map((column) => <EpicCell column={column} epic={epic} key={column} onToggleOne={toggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <MobileEpicsList items={items} onToggleOne={toggleOne} prefix={prefix} selectedIds={selectedIds} />
+      )}
     </div>
   )
 }
 
-function MobileEpicsList({ items, prefix }: { items: DashboardEpicItem[]; prefix: string }) {
+function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
+  const queryClient = useQueryClient()
+  const [notice, setNotice] = useState<string | null>(null)
+  const action = useMutation({
+    mutationFn: (bulkAction: DashboardBulkEpicAction) => bulkDashboardEpics({ epic_ids: selectedIds, bulk_action: bulkAction }),
+    onSuccess: (payload) => {
+      setNotice(payload.message)
+      onClear()
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+    }
+  })
+  const disabled = selectedIds.length === 0 || action.isPending
+
+  function run(bulkAction: DashboardBulkEpicAction) {
+    setNotice(null)
+    action.mutate(bulkAction)
+  }
+
+  if (selectedIds.length === 0) {
+    return <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+      <div>
+        <span className="font-medium text-gray-900">{selectedIds.length} selected</span>
+        <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+        {action.isError ? <span className="ml-3 text-red-700" role="alert">{errorMessage(action.error, "Bulk action failed.")}</span> : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("start")} type="button">Move to In Progress</button>
+      </div>
+    </div>
+  )
+}
+
+function MobileEpicsList({ items, selectedIds, onToggleOne, prefix }: { items: DashboardEpicItem[]; selectedIds: Set<number>; onToggleOne: (id: number) => void; prefix: string }) {
   return (
     <div className="rounded border border-gray-200 bg-white">
       <div className="divide-y divide-gray-100">
-        {items.map((epic) => <MobileEpicRow epic={epic} key={epic.id} prefix={prefix} />)}
+        {items.map((epic) => <MobileEpicRow epic={epic} key={epic.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />)}
       </div>
     </div>
   )
 }
 
-function MobileEpicRow({ epic, prefix }: { epic: DashboardEpicItem; prefix: string }) {
+function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
   return (
-    <Link aria-label={`${epic.display_number} ${epic.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(epic.paths.epic_path, prefix)}>
-      <div className="pt-1">
-        <NeutralStatePill state={epic.state} />
-      </div>
+    <article aria-label={`${epic.display_number} ${epic.title}`} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700">
+      <input aria-label={`Select ${epic.title}`} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} type="checkbox" />
       <div className="min-w-0">
+        <div className="mb-1">
+          <NeutralStatePill state={epic.state} />
+        </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500">{epic.display_number}</span>
-          <h2 className="text-sm font-semibold leading-snug text-gray-900">{epic.title}</h2>
+          <Link aria-label={`${epic.display_number} ${epic.title}`} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
         </div>
         {compactText(epic.description) ? <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500">{compactText(epic.description)}</p> : null}
         <div className="mt-1 font-mono text-xs text-gray-500">{epic.repository.slug}</div>
       </div>
-    </Link>
+    </article>
   )
 }
 
-function EpicCell({ epic, column, prefix }: { epic: DashboardEpicItem; column: string; prefix: string }) {
+function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
+  if (column === "checkbox") {
+    return <td className="px-4 py-3 align-top"><input aria-label={`Select ${epic.title}`} checked={selected} onChange={() => onToggleOne(epic.id)} type="checkbox" /></td>
+  }
   if (column === "epic") {
     return (
       <td className="max-w-md px-4 py-3">
@@ -1230,6 +1307,7 @@ function columnAriaSort(subject: DashboardSubject, column: string, sortState: Da
 function dashboardColumnLabel(subject: DashboardSubject, column: string) {
   const labels: Record<DashboardSubject, Record<string, string>> = {
     epic: {
+      checkbox: "Checkbox",
       epic: "Epic",
       state: "State",
       repository: "Repository",

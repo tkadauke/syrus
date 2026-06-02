@@ -159,6 +159,10 @@ RSpec.describe "App API dashboard commands", type: :request do
           "app_state_path" => "/api/v1/app/epics/#{ready.id}/state"
         )
       )
+      expect(body.dig("controls", "columns", "required")).to eq([
+        { "key" => "checkbox", "title" => "Checkbox" },
+        { "key" => "epic", "title" => "Epic" }
+      ])
       expect(body["active_smart_folder_id"]).to eq(folder.id)
       expect(body["filter"]).to eq(
         "and" => [
@@ -471,6 +475,60 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(second.reload.tags).to contain_exactly(tag)
       expect(parse_body["message"]).to eq("Applied epic:tags to 2 jobs.")
       expect(parse_body.dig("tag", "name")).to eq("epic:tags")
+    end
+  end
+
+  describe "POST /api/v1/app/dashboard/epics/bulk" do
+    it "requires selected Epics" do
+      post "/api/v1/app/dashboard/epics/bulk", params: { bulk_action: "start" }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("Select at least one Epic.")
+    end
+
+    it "moves selected ready Epics to In Progress and reports skipped Epics" do
+      ready = Factories.epic(user: user, repository: repo, title: "Ready aqueduct", state: "ready")
+      done = Factories.epic(user: user, repository: repo, title: "Done forum", state: "done")
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
+      theirs = Factories.epic(user: other_user, repository: other_repo, title: "Private road", state: "ready")
+
+      allow(AppEvents).to receive(:broadcast)
+      expect(AppEvents).to receive(:broadcast).with(
+        user: user,
+        type: "updated",
+        resource: "epic",
+        id: nil,
+        changed: [ "bulk" ],
+        payload: { "action" => "start", "affected_epic_ids" => [ ready.id ] }
+      )
+
+      post "/api/v1/app/dashboard/epics/bulk",
+           params: { epic_ids: [ ready.id, done.id, theirs.id ], bulk_action: "start" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(ready.reload).to be_in_progress
+      expect(done.reload).to be_done
+      expect(theirs.reload).to be_ready
+      expect(parse_body).to include(
+        "message" => "1 Epic moved to In Progress.",
+        "action" => "start",
+        "affected_epic_ids" => [ ready.id ],
+        "skipped_epic_ids" => [ done.id ]
+      )
+    end
+
+    it "rejects selections with no ready Epics" do
+      done = Factories.epic(user: user, repository: repo, title: "Done forum", state: "done")
+
+      post "/api/v1/app/dashboard/epics/bulk",
+           params: { epic_ids: [ done.id ], bulk_action: "start" },
+           as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(done.reload).to be_done
+      expect(parse_body.dig("error", "message")).to eq("No selected Epics were ready to start.")
     end
   end
 
