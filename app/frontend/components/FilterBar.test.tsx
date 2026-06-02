@@ -254,6 +254,43 @@ describe("FilterBar", () => {
     })
   })
 
+  it("hydrates FK filter chip labels from saved filter ids", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://example.test")
+      if (url.pathname !== "/api/v1/app/filters/fk_options") {
+        return Promise.reject(new Error(`Unexpected fetch: ${url.pathname}`))
+      }
+
+      const ids = url.searchParams.getAll("ids[]")
+      if (url.searchParams.get("field") === "repository_id" && ids.includes("2")) {
+        return Promise.resolve(jsonResponse({ options: [{ value: 2, label: "tkadauke/syrus" }] }))
+      }
+
+      return Promise.resolve(jsonResponse({ options: [] }))
+    })
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs?smart_folder_id=7"]}>
+        <FilterBar
+          filter={{ and: [{ field: "repository_id", op: "is", value: 2 }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search="?smart_folder_id=7"
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("button", { name: "Repository is 2" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Repository is tkadauke/syrus" })).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/filters/fk_options?field=repository_id&ids%5B%5D=2",
+      expect.objectContaining({
+        credentials: "same-origin",
+        headers: { Accept: "application/json" }
+      })
+    )
+  })
+
   it("opens the filter menu before adding OR alternatives", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>

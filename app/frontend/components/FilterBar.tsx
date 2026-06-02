@@ -343,12 +343,13 @@ function FilterNodeChip({
 
 function FilterChipButton({ chip, controls, negated = false, onClick }: { chip: FilterChip; controls: FilterSchemaField[]; negated?: boolean; onClick: () => void }) {
   const meta = filterMetaFor(controls, chip.field)
-  const label = `${negated ? "NOT " : ""}${meta?.label || chip.field} ${humanizeOp(chip.op)}${isPredicateOp(chip.op) ? "" : ` ${formatFilterValue(chip, meta)}`}`
+  const formattedValue = useFormattedFilterValue(chip, meta)
+  const label = `${negated ? "NOT " : ""}${meta?.label || chip.field} ${humanizeOp(chip.op)}${isPredicateOp(chip.op) ? "" : ` ${formattedValue}`}`
   return (
     <button aria-label={label} className="inline-flex items-baseline gap-1 text-left" onClick={onClick} type="button">
       <span className="font-medium text-gray-700">{meta?.label || chip.field}</span>
       <span className="text-xs text-gray-500">{humanizeOp(chip.op)}</span>
-      {isPredicateOp(chip.op) ? null : <span className="font-mono text-gray-900">{formatFilterValue(chip, meta)}</span>}
+      {isPredicateOp(chip.op) ? null : <span className="font-mono text-gray-900">{formattedValue}</span>}
     </button>
   )
 }
@@ -799,6 +800,49 @@ function formatFilterValue(chip: FilterChip, meta: FilterSchemaField | null) {
     return JSON.stringify(chip.value)
   }
   return labelForOption(chip.value, meta)
+}
+
+function useFormattedFilterValue(chip: FilterChip, meta: FilterSchemaField | null) {
+  const fallback = formatFilterValue(chip, meta)
+  const values = useMemo(() => filterValueList(chip.value), [chip.value])
+  const [loadedOptions, setLoadedOptions] = useState<FilterOption[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+
+    setLoadedOptions([])
+    if (!meta || !isFkFilterMeta(meta) || values.length === 0) return
+
+    void loadFkOptions(meta.field, { ids: values }).then((options) => {
+      if (!cancelled) setLoadedOptions(options)
+    }).catch(() => {
+      if (!cancelled) setLoadedOptions([])
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [meta?.field, values.join("\0")])
+
+  if (!meta || !isFkFilterMeta(meta) || values.length === 0 || loadedOptions.length === 0) return fallback
+
+  const loadedByValue = new Map(loadedOptions.map((option) => [String(option.value), option.label]))
+  if (Array.isArray(chip.value)) {
+    return chip.value.length > 0 ? chip.value.map((value) => loadedByValue.get(String(value)) || labelForOption(value, meta)).join(", ") : "(unset)"
+  }
+
+  return loadedByValue.get(String(chip.value)) || fallback
+}
+
+function filterValueList(value: unknown) {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean)
+  if (value === null || value === undefined || value === "") return []
+  if (typeof value === "object") return []
+  return [String(value)]
+}
+
+function isFkFilterMeta(meta: FilterSchemaField) {
+  return meta.bucket === "fk" || meta.typeahead === true
 }
 
 function labelForOption(value: unknown, meta: FilterSchemaField | null) {
