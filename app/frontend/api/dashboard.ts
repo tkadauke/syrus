@@ -26,6 +26,7 @@ export type DashboardJobItem = {
   issue_number: number | null
   branch_name: string | null
   pr_number: number | null
+  latest_workflow_trigger_kind: string | null
   latest_workflow_state: string
   created_at: string | null
   updated_at: string | null

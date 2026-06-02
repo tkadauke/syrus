@@ -418,6 +418,7 @@ module App
         issue_number: job.issue_number,
         branch_name: job.branch_name,
         pr_number: job.pr_number || job.external_pr_number,
+        latest_workflow_trigger_kind: job.latest_workflow_trigger_kind,
         latest_workflow_state: job.latest_workflow_state,
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601,

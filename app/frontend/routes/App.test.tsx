@@ -626,6 +626,7 @@ describe("App", () => {
     expect(screen.queryByText("0 selected")).not.toBeInTheDocument()
     expect(screen.queryByText(/Sorted by/)).not.toBeInTheDocument()
     expect(within(screen.getByRole("button", { name: "Sort by Issue ascending" })).getByText("↓")).toBeInTheDocument()
+    expect(screen.getByRole("cell", { name: "Latest workflow: rebase running" })).toBeInTheDocument()
     expect(screen.getByText("Showing 11-20 of 25")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&page=1")
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&page=3")
@@ -5926,6 +5927,7 @@ function dashboardJobItem(overrides: Record<string, unknown> = {}) {
     issue_number: 12,
     branch_name: "syrus/issue-12",
     pr_number: 34,
+    latest_workflow_trigger_kind: "rebase",
     latest_workflow_state: "running",
     created_at: "2026-05-30T10:00:00Z",
     updated_at: "2026-05-30T12:00:00Z",

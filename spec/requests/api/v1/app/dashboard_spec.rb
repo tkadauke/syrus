@@ -24,6 +24,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       tag = Factories.tag(user: user, name: "aqueduct", color: "blue")
       first = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Build aqueduct", state: "queued")
       second = Factories.job_record(repository: repo, issue_number: 2, issue_title: "Chart forum", state: "running")
+      Workflow.create!(job: second, trigger_kind: "rebase", state: "running")
       first.tags << tag
       archived_repo = Factories.repository(user: user, owner: "acme", name: "archived", archived_at: Time.current)
       archived_job = Factories.job_record(repository: archived_repo, issue_number: 3, issue_title: "Hide archive", state: "queued")
@@ -47,6 +48,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         "type" => "job",
         "title" => "Build aqueduct",
         "state" => "queued",
+        "latest_workflow_trigger_kind" => nil,
         "latest_workflow_state" => "queued",
         "total_cost_usd" => 0.0,
         "workflows_count" => 0,
@@ -55,6 +57,10 @@ RSpec.describe "App API dashboard commands", type: :request do
         "repository" => include("slug" => "acme/widgets"),
         "tags" => [ include("name" => "aqueduct", "color" => "blue") ],
         "paths" => include("job_path" => job_path(first), "source_path" => source_job_path(first))
+      )
+      expect(body["items"].find { |item| item.fetch("id") == second.id }).to include(
+        "latest_workflow_trigger_kind" => "rebase",
+        "latest_workflow_state" => "running"
       )
       expect(body["items"].map { |item| item.fetch("id") }).not_to include(archived_job.id, other_job.id)
       expect(body.dig("preferences", "sort")).to include("column" => "title", "direction" => "asc")

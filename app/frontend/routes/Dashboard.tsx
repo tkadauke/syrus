@@ -830,10 +830,25 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   }
   if (column === "state") return <td className="px-4 py-3"><StatePill state={job.summary_state} /></td>
   if (column === "repository") return <td className="px-4 py-3 font-mono text-xs text-gray-600">{job.repository.slug}</td>
-  if (column === "latest") return <td className="px-4 py-3 text-gray-700">{job.latest_workflow_state}</td>
+  if (column === "latest") return <LatestWorkflowCell job={job} />
   if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700">{job.workflows_count}</td>
 
   return <td className="px-4 py-3 text-gray-500">{formatDate(jobDateValue(job, column))}</td>
+}
+
+function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
+  if (!job.latest_workflow_trigger_kind) {
+    return <td className="px-4 py-3 text-gray-700">{job.latest_workflow_state}</td>
+  }
+
+  return (
+    <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`} className="px-4 py-3 text-gray-700">
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-gray-500">{job.latest_workflow_trigger_kind}</span>
+        <span>{job.latest_workflow_state}</span>
+      </div>
+    </td>
+  )
 }
 
 function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpicItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
