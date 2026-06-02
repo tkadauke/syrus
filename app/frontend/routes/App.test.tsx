@@ -5663,7 +5663,7 @@ describe("App", () => {
 
     const chatMain = await screen.findByRole("main", { name: "Chat" })
     expect(chatMain).toBeInTheDocument()
-    expect(chatMain).toHaveClass("h-[calc(100vh-4rem)]", "overflow-hidden")
+    expect(chatMain).toHaveClass("h-[calc(var(--chat-visual-viewport-height,100dvh)-4rem)]", "overflow-hidden")
     expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Aqueduct planning" })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
@@ -5745,7 +5745,7 @@ describe("App", () => {
       expect(within(mobileTabs).getByRole("button", { name: "Chats" })).toBeInTheDocument()
       expect(screen.queryByRole("navigation", { name: "Chat workspace tabs" })).not.toBeInTheDocument()
       expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "p-3")
-      expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+      expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("text-base", "sm:text-sm")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-blue-600")
@@ -5766,6 +5766,35 @@ describe("App", () => {
       expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
     } finally {
       restoreMedia()
+    }
+  })
+
+  it("resizes the chat shell from the visual viewport when the mobile keyboard opens", async () => {
+    const viewport = stubVisualViewport(720)
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const chatMain = await screen.findByRole("main", { name: "Chat" })
+      expect(chatMain).toHaveStyle({ "--chat-visual-viewport-height": "720px" })
+
+      viewport.setHeight(420)
+      viewport.dispatch("resize")
+
+      await waitFor(() => {
+        expect(chatMain).toHaveStyle({ "--chat-visual-viewport-height": "420px" })
+      })
+    } finally {
+      viewport.restore()
     }
   })
 
@@ -8137,6 +8166,52 @@ function setViewportWidth(width: number) {
   return () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: originalWidth })
     window.dispatchEvent(new Event("resize"))
+  }
+}
+
+function stubVisualViewport(initialHeight: number) {
+  const original = Object.getOwnPropertyDescriptor(window, "visualViewport")
+  const listeners = new Map<string, Set<EventListenerOrEventListenerObject>>()
+  let height = initialHeight
+  const viewport = {
+    get height() {
+      return height
+    },
+    addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+      const typeListeners = listeners.get(type) || new Set<EventListenerOrEventListenerObject>()
+      typeListeners.add(listener)
+      listeners.set(type, typeListeners)
+    }),
+    removeEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+      listeners.get(type)?.delete(listener)
+    })
+  }
+
+  Object.defineProperty(window, "visualViewport", {
+    configurable: true,
+    value: viewport
+  })
+
+  return {
+    setHeight(nextHeight: number) {
+      height = nextHeight
+    },
+    dispatch(type: string) {
+      listeners.get(type)?.forEach((listener) => {
+        if (typeof listener === "function") {
+          listener(new Event(type))
+        } else {
+          listener.handleEvent(new Event(type))
+        }
+      })
+    },
+    restore() {
+      if (original) {
+        Object.defineProperty(window, "visualViewport", original)
+      } else {
+        Reflect.deleteProperty(window, "visualViewport")
+      }
+    }
   }
 }
 

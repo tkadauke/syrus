@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
-import type { ErrorInfo, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, UIEvent } from "react"
+import type { CSSProperties, ErrorInfo, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, UIEvent } from "react"
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
@@ -60,6 +60,7 @@ export function ChatRoute() {
   const id = params.id || ""
   const queryKey = chatQueryKey(id, location.search)
   const prefix = routePrefix(location.pathname)
+  const viewportStyle = useChatVisualViewportStyle()
   const chat = useQuery({
     queryKey,
     queryFn: () => fetchChat(id, location.search),
@@ -67,12 +68,44 @@ export function ChatRoute() {
   })
 
   return (
-    <main aria-label="Chat" className="mx-auto flex h-[calc(100vh-4rem)] max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
+    <main
+      aria-label="Chat"
+      className="mx-auto flex h-[calc(var(--chat-visual-viewport-height,100dvh)-4rem)] max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6"
+      style={viewportStyle}
+    >
       {chat.isPending ? <PanelMessage>Loading chat...</PanelMessage> : null}
       {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, "Unable to load chat.")}</PanelMessage> : null}
       {chat.isSuccess ? <ChatView payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
     </main>
   )
+}
+
+function useChatVisualViewportStyle() {
+  const [height, setHeight] = useState(visualViewportHeight)
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return
+
+    const viewport = window.visualViewport
+    const updateHeight = () => setHeight(visualViewportHeight())
+    updateHeight()
+    viewport.addEventListener("resize", updateHeight)
+    viewport.addEventListener("scroll", updateHeight)
+    return () => {
+      viewport.removeEventListener("resize", updateHeight)
+      viewport.removeEventListener("scroll", updateHeight)
+    }
+  }, [])
+
+  if (height == null) return undefined
+
+  return { "--chat-visual-viewport-height": `${height}px` } as CSSProperties
+}
+
+function visualViewportHeight() {
+  if (typeof window === "undefined" || !window.visualViewport) return null
+
+  return Math.round(window.visualViewport.height)
 }
 
 type ChatQueryKey = readonly ["chats", string, string]
@@ -724,7 +757,7 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
       {send.isError ? <div className="mb-2 text-sm text-red-700">{errorMessage(send.error, "Message failed.")}</div> : null}
       <div className="flex items-end gap-3">
         <textarea
-          className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-sm leading-5 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50"
+          className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5"
           disabled={agentActive || send.isPending}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
