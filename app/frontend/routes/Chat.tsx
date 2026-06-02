@@ -329,7 +329,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
 
   return (
     <div className="relative h-full min-h-0">
-      <div className="h-full min-h-0 space-y-4 overflow-y-auto p-4" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
+      <div className="h-full min-h-0 space-y-4 overflow-y-auto p-4 pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400">Loading older messages...</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700">{errorMessage(loadOlder.error, "Unable to load older messages.")}</div> : null}
         {hiddenSystemMessageCount > 0 ? (

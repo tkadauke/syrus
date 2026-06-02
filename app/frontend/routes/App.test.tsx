@@ -5404,6 +5404,7 @@ describe("App", () => {
     expect(screen.getByText(/1\.2s/)).toBeInTheDocument()
     expect(screen.getByText(/MCP issue: syrus-chat-sidecar failed/)).toBeInTheDocument()
     expect(screen.getByText("command timed out")).toBeInTheDocument()
+    expect(screen.getByTestId("chat-message-stream")).toHaveClass("pt-12")
     fireEvent.click(screen.getByRole("button", { name: "Show 3 hidden system messages" }))
     expect(screen.getByText(/Agent run succeeded/)).toBeInTheDocument()
     expect(screen.getByText(/4 turns/)).toBeInTheDocument()
