@@ -11,6 +11,7 @@ module AppApi
       {
         current_user: user_payload,
         app: app_payload,
+        setup_status: setup_status_payload,
         navigation: navigation_payload,
         flash: flash_payload,
         csrf_token: @csrf_token,
@@ -45,6 +46,12 @@ module AppApi
         revision: app_revision,
         revision_url: app_revision_url
       }
+    end
+
+    def setup_status_payload
+      return nil unless user
+
+      AppApi::SetupStatus.new(user).as_json
     end
 
     def navigation_payload

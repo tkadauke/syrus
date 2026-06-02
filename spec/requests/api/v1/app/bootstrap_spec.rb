@@ -58,11 +58,96 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "revision" => "dev",
       "revision_url" => nil
     )
+    expect(body["setup_status"]).to include(
+      "state" => "first_admin",
+      "next_step" => "configure_credentials",
+      "next_step_path" => "/credentials/edit",
+      "first_admin" => true,
+      "credentials_configured" => false,
+      "repository_configured" => false,
+      "first_successful_job_completed" => false
+    )
     expect(body["navigation"]).to include(
       "default_chat_path" => new_chat_path
     )
     expect(body["csrf_token"]).to be_present
     expect(body["feature_flags"]).to eq("migrated_routes" => [])
+  end
+
+  it "reports credentials-only setup status without exposing write-only credential values" do
+    user = Factories.user(
+      github_token: "ghp_secret_pat",
+      claude_oauth_token: "claude_secret_token"
+    )
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    setup = parse_body.fetch("setup_status")
+    expect(setup).to include(
+      "state" => "credentials_only",
+      "next_step" => "add_repository",
+      "next_step_path" => "/repositories/new",
+      "credentials_configured" => true,
+      "repository_configured" => false,
+      "first_successful_job_completed" => false
+    )
+    expect(setup.fetch("credential_status")).to eq(
+      "github" => true,
+      "agent" => true,
+      "active_agent_provider" => "claude"
+    )
+    expect(setup.fetch("counts")).to include("repositories" => 0, "successful_jobs" => 0)
+    expect(response.body).not_to include("ghp_secret_pat", "claude_secret_token")
+    expect(setup.to_json).not_to include("github_token", "claude_oauth_token", "codex_api_key", "codex_auth_json")
+  end
+
+  it "reports repository-only setup status" do
+    user = Factories.user
+    Factories.repository(user: user)
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    setup = parse_body.fetch("setup_status")
+    expect(setup).to include(
+      "state" => "repository_only",
+      "next_step" => "configure_credentials",
+      "next_step_path" => "/credentials/edit",
+      "credentials_configured" => false,
+      "repository_configured" => true,
+      "first_successful_job_completed" => false
+    )
+    expect(setup.fetch("counts")).to include("repositories" => 1, "successful_jobs" => 0)
+  end
+
+  it "reports first-successful-job setup status" do
+    user = Factories.user(
+      github_token: "ghp_secret_pat",
+      claude_oauth_token: "claude_secret_token"
+    )
+    repository = Factories.repository(user: user)
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "closed",
+      closure_reason: "pr_merged",
+      finished_at: Time.current
+    )
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    setup = parse_body.fetch("setup_status")
+    expect(setup).to include(
+      "state" => "first_successful_job",
+      "next_step" => nil,
+      "next_step_path" => nil,
+      "credentials_configured" => true,
+      "repository_configured" => true,
+      "first_successful_job_completed" => true
+    )
+    expect(setup.fetch("counts")).to include("repositories" => 1, "successful_jobs" => 1)
   end
 
   it "uses the configured GitHub repository for non-dev revision links" do
