@@ -459,14 +459,22 @@ function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefi
   const queryClient = useQueryClient()
   const [draggedEpic, setDraggedEpic] = useState<DashboardEpicItem | null>(null)
   const [dragOverLane, setDragOverLane] = useState<string | null>(null)
+  const [optimisticLanes, setOptimisticLanes] = useState(payload.lanes)
   const [notice, setNotice] = useState<string | null>(null)
   const moveEpic = useMutation({
-    mutationFn: ({ epic, targetState }: { epic: DashboardEpicItem; targetState: string }) => updateDashboardEpicState(epic.paths.app_state_path, targetState),
+    mutationFn: ({ epic, targetState }: { epic: DashboardEpicItem; sourceState: string; targetState: string }) => updateDashboardEpicState(epic.paths.app_state_path, targetState),
     onSuccess: (updated) => {
       setNotice(updated.message || "Epic updated.")
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+    },
+    onError: (_error, { epic, sourceState }) => {
+      setOptimisticLanes((lanes) => moveEpicBetweenLanes(lanes, epic, sourceState))
     }
   })
+
+  useEffect(() => {
+    setOptimisticLanes(payload.lanes)
+  }, [payload.lanes])
 
   if (payload.lanes.length === 0) {
     return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500">No kanban lanes are configured.</div>
@@ -485,7 +493,7 @@ function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefi
   }
 
   function dragOverLaneFor(lane: DashboardLane, event: DragEvent<HTMLElement>) {
-    if (!draggedEpic || moveEpic.isPending) return
+    if (!draggedEpic) return
     if (!canMoveEpicToLane(draggedEpic, lane.key)) {
       setDragOverLane(null)
       return
@@ -497,13 +505,15 @@ function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefi
   }
 
   function dropOnLane(lane: DashboardLane, event: DragEvent<HTMLElement>) {
-    if (!draggedEpic || !canMoveEpicToLane(draggedEpic, lane.key) || moveEpic.isPending) {
+    if (!draggedEpic || !canMoveEpicToLane(draggedEpic, lane.key)) {
       clearDrag()
       return
     }
 
     event.preventDefault()
-    moveEpic.mutate({ epic: draggedEpic, targetState: lane.key })
+    const sourceState = draggedEpic.state
+    setOptimisticLanes((lanes) => moveEpicBetweenLanes(lanes, draggedEpic, lane.key))
+    moveEpic.mutate({ epic: draggedEpic, sourceState, targetState: lane.key })
     clearDrag()
   }
 
@@ -513,7 +523,7 @@ function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefi
       {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{errorMessage(moveEpic.error, "Unable to move Epic.")}</div> : null}
       <div className="overflow-x-auto pb-2">
         <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${payload.lanes.length}, minmax(14rem, 1fr))` }}>
-          {payload.lanes.map((lane) => (
+          {optimisticLanes.map((lane) => (
             <KanbanLane
               draggingOver={dragOverLane === lane.key}
               key={lane.key}
@@ -648,6 +658,36 @@ function canMoveEpicToLane(epic: DashboardEpicItem, targetState: string) {
   if (epic.state === "in_progress" && targetState === "ready") return true
   if (epic.state === "backlog" && targetState === "ready") return epic.jobs_count > 0
   return false
+}
+
+function moveEpicBetweenLanes(lanes: DashboardLane[], epic: DashboardEpicItem, targetState: string) {
+  let movedEpic: DashboardEpicItem | null = null
+  let removedFromLaneKey: string | null = null
+  const withoutEpic = lanes.map((lane) => {
+    const items = lane.items.filter((item) => {
+      const isDraggedEpic = item.type === "epic" && item.id === epic.id
+      if (isDraggedEpic) {
+        movedEpic = { ...item, state: targetState }
+        removedFromLaneKey = lane.key
+      }
+      return !isDraggedEpic
+    })
+    const count = lane.key === removedFromLaneKey ? Math.max(0, lane.count - 1) : lane.count
+
+    return { ...lane, count, items }
+  })
+
+  const optimisticEpic = movedEpic || { ...epic, state: targetState }
+
+  return withoutEpic.map((lane) => {
+    if (lane.key !== targetState) return lane
+
+    return {
+      ...lane,
+      count: lane.count + 1,
+      items: [optimisticEpic, ...lane.items]
+    }
+  })
 }
 
 type DashboardSortState = {

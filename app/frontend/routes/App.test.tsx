@@ -1485,6 +1485,197 @@ describe("App", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Epic updated.")
   })
 
+  it("optimistically moves Epic kanban cards and keeps drag enabled while updates are pending", async () => {
+    let resolvePatch: (response: Response) => void = () => {}
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/epics/7/state" && init?.method === "PATCH") {
+        return new Promise((resolve) => {
+          resolvePatch = resolve
+        })
+      }
+
+      if (path === "/api/v1/app/epics/8/state" && init?.method === "PATCH") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ message: "Epic updated." }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
+        )
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            dashboardPayload({
+              subject: "epic",
+              view: "kanban",
+              total: 2,
+              preferences: {
+                sort: { column: "updated_at", direction: "desc" },
+                visible_columns: ["epic", "state", "repository", "updated"],
+                kanban_lanes: ["ready", "in_progress"],
+                raw: {}
+              },
+              controls: {
+                ...dashboardPayload().controls,
+                sort_columns: ["title", "state", "repository", "updated_at"],
+                kanban_lanes: [
+                  { key: "ready", title: "Ready" },
+                  { key: "in_progress", title: "In progress" }
+                ]
+              },
+              lanes: [
+                {
+                  key: "ready",
+                  title: "Ready",
+                  count: 2,
+                  items: [
+                    dashboardEpicItem(),
+                    dashboardEpicItem({
+                      id: 8,
+                      number: 8,
+                      display_number: "EPIC-8",
+                      title: "Raise the basilica",
+                      paths: {
+                        epic_path: "/epics/8",
+                        edit_epic_path: "/epics/8/edit",
+                        app_state_path: "/api/v1/app/epics/8/state"
+                      }
+                    })
+                  ]
+                },
+                { key: "in_progress", title: "In progress", count: 0, items: [] }
+              ],
+              kanban_limit: 100
+            })
+          ),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const firstCard = await screen.findByLabelText("EPIC-7 Raise the forum")
+    const targetLane = screen.getByLabelText("In progress lane")
+    const dataTransfer = {
+      dropEffect: "",
+      effectAllowed: "",
+      setData: vi.fn()
+    }
+
+    fireEvent.dragStart(firstCard, { dataTransfer })
+    fireEvent.dragOver(targetLane, { dataTransfer })
+    fireEvent.drop(targetLane, { dataTransfer })
+
+    expect(within(targetLane).getByRole("link", { name: "Raise the forum" })).toBeInTheDocument()
+
+    const secondCard = screen.getByLabelText("EPIC-8 Raise the basilica")
+    fireEvent.dragStart(secondCard, { dataTransfer })
+    fireEvent.dragOver(targetLane, { dataTransfer })
+    fireEvent.drop(targetLane, { dataTransfer })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/epics/8/state",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ target_state: "in_progress" })
+        })
+      )
+    })
+    expect(within(targetLane).getByRole("link", { name: "Raise the basilica" })).toBeInTheDocument()
+
+    resolvePatch(
+      new Response(JSON.stringify({ message: "Epic updated." }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+  })
+
+  it("rolls optimistic Epic kanban moves back when the update fails", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/epics/7/state" && init?.method === "PATCH") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: { message: "The senate objected." } }), {
+            status: 422,
+            headers: { "Content-Type": "application/json" }
+          })
+        )
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            dashboardPayload({
+              subject: "epic",
+              view: "kanban",
+              total: 1,
+              preferences: {
+                sort: { column: "updated_at", direction: "desc" },
+                visible_columns: ["epic", "state", "repository", "updated"],
+                kanban_lanes: ["ready", "in_progress"],
+                raw: {}
+              },
+              controls: {
+                ...dashboardPayload().controls,
+                sort_columns: ["title", "state", "repository", "updated_at"],
+                kanban_lanes: [
+                  { key: "ready", title: "Ready" },
+                  { key: "in_progress", title: "In progress" }
+                ]
+              },
+              lanes: [
+                { key: "ready", title: "Ready", count: 1, items: [dashboardEpicItem()] },
+                { key: "in_progress", title: "In progress", count: 0, items: [] }
+              ],
+              kanban_limit: 100
+            })
+          ),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const card = await screen.findByLabelText("EPIC-7 Raise the forum")
+    const readyLane = screen.getByLabelText("Ready lane")
+    const targetLane = screen.getByLabelText("In progress lane")
+    const dataTransfer = {
+      dropEffect: "",
+      effectAllowed: "",
+      setData: vi.fn()
+    }
+
+    fireEvent.dragStart(card, { dataTransfer })
+    fireEvent.dragOver(targetLane, { dataTransfer })
+    fireEvent.drop(targetLane, { dataTransfer })
+
+    expect(within(targetLane).getByRole("link", { name: "Raise the forum" })).toBeInTheDocument()
+    expect(await screen.findByRole("alert")).toHaveTextContent("The senate objected.")
+
+    await waitFor(() => {
+      expect(within(readyLane).getByRole("link", { name: "Raise the forum" })).toBeInTheDocument()
+    })
+    expect(within(targetLane).queryByRole("link", { name: "Raise the forum" })).not.toBeInTheDocument()
+  })
+
   it("renders the admin queue route from the app admin queue API", async () => {
     const restoreMedia = mockMediaQuery(false)
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
