@@ -3860,7 +3860,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Job" })).toBeInTheDocument()
-    expect(await screen.findByText("Repair aqueduct")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { level: 1, name: "Repair aqueduct" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByRole("link", { name: "acme/widgets #11" })).toHaveAttribute("href", "/app-shell/jobs/41")
     expect(screen.getByText("Water should climb the hill.")).toBeInTheDocument()
@@ -3903,6 +3903,34 @@ describe("App", () => {
     })
     expect(await screen.findByText("tests grade log")).toBeInTheDocument()
     expect(screen.getByText("rspec output")).toBeInTheDocument()
+  })
+
+  it("uses the job name as the Job detail title and moves source metadata below it", async () => {
+    const payload = jobDetailPayload({
+      job: {
+        kind: "direct",
+        issue_number: null,
+        issue_title: "Investigate viewport report"
+      }
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Investigate viewport report" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
+    expect(screen.getByText("Direct Job")).toBeInTheDocument()
+    expect(screen.getByText("implemented")).toBeInTheDocument()
+    expect(screen.getByText("codex")).toBeInTheDocument()
+    expect(screen.getByText("pat")).toBeInTheDocument()
   })
 
   it("keeps the admin-only Job timeline collapsed until opened", async () => {

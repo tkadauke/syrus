@@ -87,6 +87,7 @@ function tabFromLocation(pathname: string, search: string): JobTab {
 function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const command = useJobCommand(payload.job.id, queryKey, setNotice)
+  const title = payload.job.issue_title || jobSourceLabel(payload)
 
   useEffect(() => {
     setNotice(payload.message || null)
@@ -97,17 +98,17 @@ function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { 
       <header className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
+            <h1 className="break-words text-3xl font-semibold text-gray-900">{title}</h1>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="break-words text-3xl font-semibold text-gray-900">
+              <p className="mt-1 break-words text-sm text-gray-600">
                 <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
                 <span className="px-2 text-gray-300">/</span>
                 <span>{jobSourceLabel(payload)}</span>
-              </h1>
+              </p>
               <StatusPill state={payload.job.summary_state} />
               {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
               {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
             </div>
-            {payload.job.issue_title ? <p className="mt-1 break-words text-sm text-gray-600">{payload.job.issue_title}</p> : null}
             <p className="mt-1 text-sm text-gray-500">
               Job #{payload.job.id} · {payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")} · {formatCurrency(payload.job.total_cost_usd)}
               {payload.job.prepare_skipped ? <span className="font-medium text-amber-700"> · prepare skipped</span> : null}
