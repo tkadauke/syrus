@@ -448,6 +448,7 @@ module App
         can_reopen: @job.closed?,
         can_mark_valid: @job.validity_duplicate? || @job.validity_already_implemented?,
         can_override_dependencies: @user.admin?,
+        can_view_timeline: @user.admin?,
         feedback_agent_options: @job.alternate_configured_agent_providers,
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers

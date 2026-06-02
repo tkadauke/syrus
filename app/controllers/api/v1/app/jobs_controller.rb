@@ -11,6 +11,11 @@ module Api
         end
 
         def timeline
+          unless Current.user&.admin?
+            render_error("forbidden", "Admin access required.", status: :forbidden)
+            return
+          end
+
           render json: ::App::JobDetailPayload.timeline(job: find_job)
         end
 

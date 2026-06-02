@@ -3857,7 +3857,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "acme/widgets #11" })).toHaveAttribute("href", "/app-shell/jobs/41")
     expect(screen.getByText("Water should climb the hill.")).toBeInTheDocument()
     expect(screen.getByText("Moved the uphill water simulation.")).toBeInTheDocument()
-    expect(await screen.findByText("Workflow created")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Show timeline" })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText("Add tag")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Check feedback" }))
@@ -3895,6 +3895,42 @@ describe("App", () => {
     })
     expect(await screen.findByText("tests grade log")).toBeInTheDocument()
     expect(screen.getByText("rspec output")).toBeInTheDocument()
+  })
+
+  it("keeps the admin-only Job timeline collapsed until opened", async () => {
+    const payload = jobDetailPayload({ actions: { can_view_timeline: true } })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/timeline") {
+        return Promise.resolve(new Response(JSON.stringify(jobTimelinePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Show timeline" })).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Workflow created")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      "/api/v1/app/jobs/42/timeline",
+      expect.objectContaining({ credentials: "same-origin" })
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Show timeline" }))
+
+    expect(await screen.findByText("Workflow created")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Hide timeline" })).toHaveAttribute("aria-expanded", "true")
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/jobs/42/timeline",
+      expect.objectContaining({ credentials: "same-origin" })
+    )
   })
 
   it("renders workflow pagination on the Job detail workflows tab", async () => {
@@ -6362,6 +6398,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       can_reopen: false,
       can_mark_valid: false,
       can_override_dependencies: false,
+      can_view_timeline: false,
       feedback_agent_options: [],
       rebase_agent_options: [],
       retry_agent_options: []

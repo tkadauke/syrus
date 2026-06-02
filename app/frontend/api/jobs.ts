@@ -208,6 +208,7 @@ export type JobActions = {
   can_reopen: boolean
   can_mark_valid: boolean
   can_override_dependencies: boolean
+  can_view_timeline: boolean
   feedback_agent_options: string[]
   rebase_agent_options: string[]
   retry_agent_options: string[]

@@ -21,7 +21,6 @@ import {
   type JobRun,
   type JobSourcePayload,
   type JobStep,
-  type JobTimelinePayload,
   type JobWorkflow
 } from "../api/jobs"
 
@@ -248,11 +247,6 @@ function TabNav({ active, workflowsCount, attachmentsCount, onSelect }: { active
 }
 
 function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
-  const timeline = useQuery({
-    queryKey: ["jobs", String(payload.job.id), "timeline"],
-    queryFn: () => fetchJobTimeline(String(payload.job.id))
-  })
-
   return (
     <div className="space-y-4">
       {payload.landing_queue_entry ? (
@@ -290,7 +284,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
         </section>
       </div>
 
-      <TimelinePanel timeline={timeline.data} error={timeline.error} isError={timeline.isError} isPending={timeline.isPending} />
+      <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} />
       <AttachmentPreview attachments={payload.attachments} />
     </div>
   )
@@ -395,15 +389,34 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
   )
 }
 
-function TimelinePanel({ timeline, isPending, isError, error }: { timeline?: JobTimelinePayload; isPending: boolean; isError: boolean; error: Error | null }) {
+function TimelinePanel({ canView, jobId }: { canView: boolean; jobId: number }) {
+  const [expanded, setExpanded] = useState(false)
+  const timeline = useQuery({
+    queryKey: ["jobs", String(jobId), "timeline"],
+    queryFn: () => fetchJobTimeline(String(jobId)),
+    enabled: canView && expanded
+  })
+
+  if (!canView) return null
+
   return (
     <section className="rounded border border-gray-200 bg-white p-4">
-      <h2 className="text-sm font-semibold text-gray-900">Timeline</h2>
-      {isPending ? <p className="mt-2 text-sm text-gray-400">Loading timeline...</p> : null}
-      {isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(error || new Error("Timeline failed."), "Unable to load timeline.")}</p> : null}
-      {timeline && timeline.events.length > 0 ? (
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-gray-900">Timeline</h2>
+        <button
+          aria-expanded={expanded}
+          className="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          onClick={() => setExpanded((value) => !value)}
+          type="button"
+        >
+          {expanded ? "Hide timeline" : "Show timeline"}
+        </button>
+      </div>
+      {expanded && timeline.isPending ? <p className="mt-2 text-sm text-gray-400">Loading timeline...</p> : null}
+      {expanded && timeline.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), "Unable to load timeline.")}</p> : null}
+      {expanded && timeline.data && timeline.data.events.length > 0 ? (
         <ol className="mt-3 space-y-3">
-          {timeline.events.map((event, index) => (
+          {timeline.data.events.map((event, index) => (
             <li className="border-l border-gray-200 pl-3 text-sm" key={`${event.at}-${event.title}-${index}`}>
               <div className="font-medium text-gray-900">{event.title}</div>
               <div className="text-xs text-gray-500">{formatDate(event.at)} · {event.source}{event.ref ? ` · ${event.ref}` : ""}</div>

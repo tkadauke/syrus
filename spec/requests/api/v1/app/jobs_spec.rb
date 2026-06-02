@@ -79,6 +79,7 @@ RSpec.describe "App API job detail", type: :request do
     ))
     expect(body.dig("actions", "can_poll_feedback")).to eq(true)
     expect(body.dig("actions", "can_check_mergeability")).to eq(true)
+    expect(body.dig("actions", "can_view_timeline")).to eq(false)
     expect(body.dig("paths", "app_poll_feedback_path")).to eq("/api/v1/app/jobs/#{job.id}/poll_feedback")
     expect(body.dig("paths", "app_source_path")).to eq("/api/v1/app/jobs/#{job.id}/source")
     expect(body.dig("paths", "app_timeline_path")).to eq("/api/v1/app/jobs/#{job.id}/timeline")
@@ -116,7 +117,7 @@ RSpec.describe "App API job detail", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["workflows"].size).to eq(2)
-    expect(body["workflows"].map { |workflow| workflow["id"] }).to eq(job.workflows.order(:created_at).offset(10).pluck(:id))
+    expect(body["workflows"].map { |workflow| workflow["id"] }).to eq(job.workflows.reorder(created_at: :desc, id: :desc).offset(10).pluck(:id))
     expect(body["workflows_pagination"]).to include(
       "page" => 2,
       "per_page" => 10,
@@ -239,6 +240,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "returns a timeline payload separately from the detail payload" do
+    user.update!(admin: true)
     run = job.initial_run
     run.start!
     run.fail!
@@ -254,6 +256,15 @@ RSpec.describe "App API job detail", type: :request do
       include("source" => "run", "title" => "Run ##{run.id} failed")
     )
     expect(body["events"].first).to include("at", "kind", "source", "title", "ref")
+  end
+
+  it "blocks timeline payloads for non-admin users" do
+    user.update!(admin: false)
+
+    get "/api/v1/app/jobs/#{job.id}/timeline"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to eq("Admin access required.")
   end
 
   it "returns grade logs as JSON for React rendering" do
