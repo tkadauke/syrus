@@ -570,7 +570,7 @@ function WorkflowCard({ workflow, payload, command }: { workflow: JobWorkflow; p
           <p className="text-xs text-gray-500">{workflow.trigger_kind} · {workflow.agent_provider || "default agent"} · created {formatDate(workflow.created_at)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <StatusPill state={workflow.state} />
+          {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
           {workflow.retry_available ? <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">Retry failed step</CommandButton> : null}
           {workflow.state === "failed" && !workflow.cleaned_up_at ? <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">Push commits</CommandButton> : null}
         </div>

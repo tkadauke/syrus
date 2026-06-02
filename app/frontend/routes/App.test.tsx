@@ -4038,7 +4038,7 @@ describe("App", () => {
     )
   })
 
-  it("renders running Job, Workflow, Step, and Run pills with progress spinners", async () => {
+  it("renders running Job, Step, and Run pills with progress spinners", async () => {
     const payload = jobDetailPayload({ job: { summary_state: "running" } })
     payload.workflows[0].state = "running"
     payload.workflows[0].steps[0].state = "running"
@@ -4061,11 +4061,11 @@ describe("App", () => {
     )
 
     expect(await screen.findByText("Workflow #5")).toBeInTheDocument()
-    expect(screen.getAllByText("running")).toHaveLength(3)
+    expect(screen.getAllByText("running")).toHaveLength(2)
     fireEvent.click(screen.getByRole("button", { name: /Implement/i }))
     const runningLabels = screen.getAllByText("running")
 
-    expect(runningLabels).toHaveLength(4)
+    expect(runningLabels).toHaveLength(3)
     for (const label of runningLabels) expectRunningPill(label)
   })
 
