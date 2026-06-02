@@ -91,7 +91,7 @@ RSpec.describe SmartFolder do
     expect(by_name["Pinned"]).to eq(:when_present)
     expect(by_name["Invalid"]).to eq(:when_present)
     expect(by_name["Awaiting Epic"]).to eq(:when_present)
-    expect(by_name["Stale"]).to eq(:when_present)
+    expect(by_name["Stale"]).to eq(:on_demand)
     expect(by_name["Merged this week"]).to eq(:on_demand)
     expect(by_name).not_to have_key("In review")
     expect(by_name).not_to have_key("Needs review")

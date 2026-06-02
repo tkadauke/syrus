@@ -199,6 +199,10 @@ RSpec.describe "App API dashboard commands", type: :request do
         "visibility" => "on_demand",
         "count" => 0
       )
+      expect(folders_by_name.fetch("Stale")).to include(
+        "visibility" => "on_demand",
+        "count" => 0
+      )
       expect(folders_by_name.fetch("Running jobs")).to include(
         "kind" => "user_defined",
         "visibility" => "user_defined",

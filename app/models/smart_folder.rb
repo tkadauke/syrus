@@ -42,9 +42,9 @@ class SmartFolder < ApplicationRecord
     { key: "landing_queue",    name: "Landing queue",          visibility: :when_present, filter: attention_preset_filter("landing_queue") },
     { key: "just_failed",      name: "Just failed",            visibility: :when_present, filter: attention_preset_filter("just_failed") },
     { key: "blocked",          name: "Blocked",                visibility: :when_present, filter: attention_preset_filter("blocked") },
-    { key: "stale",            name: "Stale",                  visibility: :when_present, filter: attention_preset_filter("stale") },
 
     # Tier 3: historical lookups, tucked into "More" disclosure.
+    { key: "stale",            name: "Stale",                  visibility: :on_demand,    filter: attention_preset_filter("stale") },
     { key: "merged_this_week", name: "Merged this week",       visibility: :on_demand,    filter: attention_preset_filter("merged_this_week") }
   ].freeze
   BUILTIN_DEFINITIONS = JOB_BUILTINS

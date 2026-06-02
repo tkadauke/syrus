@@ -1122,7 +1122,7 @@ describe("App", () => {
                     name: "Stale",
                     kind: "builtin",
                     subject_type: "job",
-                    visibility: "when_present",
+                    visibility: "on_demand",
                     count: 1,
                     active: false,
                     path: "/dashboard/jobs?view=list&smart_folder_id=2"
@@ -1169,9 +1169,10 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("link", { name: "Inbox 3" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=1")
-    expect(screen.getByRole("link", { name: "Stale 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=2")
-    expect(screen.getByText("More")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Merged this week 0" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=3")
+    const moreGroup = screen.getByText("More").closest("details")
+    expect(moreGroup).not.toBeNull()
+    expect(within(moreGroup!).getByRole("link", { name: "Stale 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=2")
+    expect(within(moreGroup!).getByRole("link", { name: "Merged this week 0" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=3")
     expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Saved review 2" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=4")
     expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/app-shell/smart_folders?subject_type=job")
