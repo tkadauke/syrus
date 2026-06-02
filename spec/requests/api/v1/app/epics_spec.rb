@@ -178,6 +178,20 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     )
   end
 
+  it "marks unclaimed Epics in app payloads" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, owner_user: nil)
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["epic"]).to include(
+      "owner_user_id" => nil,
+      "owner_status" => "unclaimed",
+      "owner_user" => nil
+    )
+  end
+
   it "advances Epic state through the app API and returns a refreshed detail payload" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, state: "ready")
