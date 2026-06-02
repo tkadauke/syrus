@@ -1001,6 +1001,7 @@ describe("App", () => {
       expect(row).toHaveAttribute("href", "/app-shell/jobs/42")
       expect(row).toHaveClass("grid-cols-[7.25rem_minmax(0,1fr)]")
       expect(within(row).getByText("running")).toBeInTheDocument()
+      expectRunningPill(within(row).getByText("running"))
       expect(within(row).getByText("Workflow #9")).toBeInTheDocument()
       expect(within(row).getByText("Repair aqueduct")).toBeInTheDocument()
       expect(within(row).getByText("acme/widgets")).toBeInTheDocument()
@@ -1215,6 +1216,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "Running" })).toBeInTheDocument()
     expect(screen.getByText("Repair aqueduct")).toBeInTheDocument()
+    expectRunningPill(screen.getByText("running"))
     expect(screen.getByRole("link", { name: "Repair aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/42")
     expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -3893,6 +3895,35 @@ describe("App", () => {
     )
   })
 
+  it("renders running Job, Workflow, Step, and Run pills with progress spinners", async () => {
+    const payload = jobDetailPayload({ job: { summary_state: "running" } })
+    payload.workflows[0].state = "running"
+    payload.workflows[0].steps[0].state = "running"
+    payload.workflows[0].steps[0].runs[0].state = "running"
+
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/jobs/42/timeline") {
+        return Promise.resolve(new Response(JSON.stringify(jobTimelinePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=workflows"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Workflow #5")).toBeInTheDocument()
+    const runningLabels = screen.getAllByText("running")
+
+    expect(runningLabels).toHaveLength(4)
+    for (const label of runningLabels) expectRunningPill(label)
+  })
+
   it("renders the Job source browser from the app source API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
@@ -6273,6 +6304,13 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
 
 function objectOverrides(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function expectRunningPill(label: HTMLElement) {
+  const pill = label.closest("[data-status-pill='true']")
+
+  expect(pill).toHaveClass("bg-blue-50", "text-blue-700")
+  expect(pill?.querySelector("[data-running-spinner='true']")).toHaveClass("animate-spin")
 }
 
 function jobTimelinePayload() {

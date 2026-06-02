@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { StatusPill } from "../components/StatusPill"
 import { FilterBar, filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren } from "../components/FilterBar"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { bulkDashboardJobs, createDashboardSmartFolder, fetchDashboard, toggleDashboardLandingPause, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
@@ -581,7 +582,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
       <article className="rounded border border-gray-200 bg-white p-3 shadow-sm">
         <Link className="text-sm font-medium text-blue-600 hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}>{item.title}</Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
-          <StatePill state={item.summary_state} />
+          <StatusPill state={item.summary_state} />
           <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.repository.slug}</span>
           {item.pr_number ? <span className="rounded bg-gray-100 px-1.5 py-0.5">PR #{item.pr_number}</span> : null}
         </div>
@@ -595,7 +596,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
         <div className="text-sm font-medium text-gray-900">Workflow #{item.id}</div>
         <Link className="mt-1 block text-sm text-blue-600 hover:underline" to={withRoutePrefix(item.job.path, prefix)}>{item.job.title}</Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
-          <StatePill state={item.state} />
+          <StatusPill state={item.state} />
           <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.trigger_kind}</span>
         </div>
       </article>
@@ -612,7 +613,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
     >
       <Link className="text-sm font-medium text-blue-600 hover:underline" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
-        <StatePill state={item.state} />
+        <NeutralStatePill state={item.state} />
         <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.repository.slug}</span>
       </div>
     </article>
@@ -787,7 +788,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
       <input aria-label={`Select ${job.title}`} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} type="checkbox" />
       <Link aria-label={job.title} className="min-w-0 rounded-sm text-gray-700 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(job.paths.job_path, prefix)}>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <StatePill state={job.summary_state} />
+          <StatusPill state={job.summary_state} />
           <span className="text-xs font-medium text-gray-500">{formatCurrency(job.total_cost_usd, 2)}</span>
           <span className="font-mono text-xs text-gray-500">{job.repository.slug}</span>
         </div>
@@ -828,7 +829,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
       </td>
     )
   }
-  if (column === "state") return <td className="px-4 py-3"><StatePill state={job.summary_state} /></td>
+  if (column === "state") return <td className="px-4 py-3"><StatusPill state={job.summary_state} /></td>
   if (column === "repository") return <td className="px-4 py-3 font-mono text-xs text-gray-600">{job.repository.slug}</td>
   if (column === "latest") return <td className="px-4 py-3 text-gray-700">{job.latest_workflow_state}</td>
   if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700">{job.workflows_count}</td>
@@ -875,7 +876,7 @@ function MobileEpicRow({ epic, prefix }: { epic: DashboardEpicItem; prefix: stri
   return (
     <Link aria-label={`${epic.display_number} ${epic.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(epic.paths.epic_path, prefix)}>
       <div className="pt-1">
-        <StatePill state={epic.state} />
+        <NeutralStatePill state={epic.state} />
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -898,7 +899,7 @@ function EpicCell({ epic, column, prefix }: { epic: DashboardEpicItem; column: s
       </td>
     )
   }
-  if (column === "state") return <td className="px-4 py-3"><StatePill state={epic.state} /></td>
+  if (column === "state") return <td className="px-4 py-3"><NeutralStatePill state={epic.state} /></td>
   if (column === "repository") return <td className="px-4 py-3 font-mono text-xs text-gray-600">{epic.repository.slug}</td>
   if (column === "updated") return <td className="px-4 py-3 text-gray-500">{formatDate(epic.updated_at)}</td>
 
@@ -947,7 +948,7 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
   return (
     <Link aria-label={`Workflow #${workflow.id} ${workflow.job.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(workflow.job.path, prefix)}>
       <div className="pt-1">
-        <StatePill state={workflow.state} />
+        <StatusPill state={workflow.state} />
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -990,7 +991,7 @@ function SortableColumnHeader({ subject, column, sortState }: { subject: Dashboa
 
 function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflowItem; column: string; prefix: string }) {
   if (column === "workflow" || column === "title") return <td className="px-4 py-3 font-medium text-gray-900">Workflow #{workflow.id}</td>
-  if (column === "state") return <td className="px-4 py-3"><StatePill state={workflow.state} /></td>
+  if (column === "state") return <td className="px-4 py-3"><StatusPill state={workflow.state} /></td>
   if (column === "job") {
     return (
       <td className="max-w-md px-4 py-3">
@@ -1032,7 +1033,7 @@ function Pagination({ payload, pathname, search }: { payload: DashboardPayload; 
   )
 }
 
-function StatePill({ state }: { state: string }) {
+function NeutralStatePill({ state }: { state: string }) {
   return <span className="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 ring-1 ring-gray-200">{state.replace(/_/g, " ")}</span>
 }
 

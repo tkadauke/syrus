@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   archiveRepositoryFromPath,
@@ -571,8 +572,8 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
   return (
     <tr>
       <td className="px-4 py-3 align-top">
-        <StatusPill tone={stateTone(job.state)}>{job.state}</StatusPill>
-        {job.priority !== "medium" ? <span className="ml-1"><StatusPill tone="gray">{job.priority}</StatusPill></span> : null}
+        <StateStatusPill state={job.state} />
+        {job.priority !== "medium" ? <span className="ml-1"><TonePill tone="gray">{job.priority}</TonePill></span> : null}
       </td>
       <td className="px-4 py-3">
         <SourceLink job={job} prefix={prefix} />
@@ -626,14 +627,7 @@ function Pagination({ payload, prefix }: { payload: RepositoryDetailPayload; pre
 }
 
 function StatusPill({ children, tone }: { children: ReactNode; tone: "green" | "gray" | "blue" | "red" | "amber" }) {
-  const colors = {
-    amber: "bg-amber-100 text-amber-700",
-    blue: "bg-blue-100 text-blue-700",
-    gray: "bg-gray-100 text-gray-600",
-    green: "bg-green-100 text-green-700",
-    red: "bg-red-100 text-red-700"
-  }
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${colors[tone]}`}>{children}</span>
+  return <TonePill tone={tone}>{children}</TonePill>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
@@ -652,15 +646,6 @@ function buttonClass(tone: "green" | "blue" | "amber" | "gray", extra = "") {
     green: "bg-emerald-600 text-white hover:bg-emerald-500"
   }
   return `rounded px-3 py-1.5 text-sm font-medium ${colors[tone]} ${extra}`.trim()
-}
-
-function stateTone(state: string) {
-  if (state === "running") return "blue"
-  if (state === "failed" || state === "landing_failed") return "red"
-  if (state === "closed" || state === "preempted") return "gray"
-  if (state === "queued") return "gray"
-  if (state === "approved" || state === "landing" || state === "merged") return "green"
-  return "amber"
 }
 
 function paginationLinkClass() {

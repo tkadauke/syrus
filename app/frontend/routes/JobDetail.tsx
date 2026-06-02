@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { StatusPill } from "../components/StatusPill"
 import {
   createJobAttachments,
   deleteJobCommand,
@@ -772,21 +773,6 @@ function KeyValue({ label, children }: { label: string; children: ReactNode }) {
       <div className="mt-1 text-gray-800">{children}</div>
     </div>
   )
-}
-
-function StatusPill({ state }: { state: string }) {
-  const normalized = state.toLowerCase()
-  const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
-    normalized.includes("success") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
-      normalized.includes("running") || normalized.includes("queued") ? "blue" : "gray"
-  const colors = {
-    red: "bg-red-50 text-red-700 ring-red-200",
-    green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    blue: "bg-blue-50 text-blue-700 ring-blue-200",
-    gray: "bg-gray-100 text-gray-700 ring-gray-200"
-  }
-
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${colors[tone]}`}>{state.replaceAll("_", " ")}</span>
 }
 
 function MergeablePill({ value }: { value: boolean | null }) {
