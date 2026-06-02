@@ -1314,6 +1314,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "Running" })).toBeInTheDocument()
     expect(screen.getByText("Repair aqueduct")).toBeInTheDocument()
+    expect(screen.getByText("Repair aqueduct").closest(".select-none")).toBeInTheDocument()
     expectRunningPill(screen.getByText("running"))
     expect(screen.getByRole("link", { name: "Repair aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/42")
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")

@@ -511,7 +511,7 @@ function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefi
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{errorMessage(moveEpic.error, "Unable to move Epic.")}</div> : null}
-      <div className="overflow-x-auto pb-2">
+      <div className="select-none overflow-x-auto pb-2">
         <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${payload.lanes.length}, minmax(14rem, 1fr))` }}>
           {payload.lanes.map((lane) => (
             <KanbanLane
