@@ -108,7 +108,6 @@ module AppApi
         .where(state: "closed", closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS)
         .count
     end
-
     def job_count
       @job_count ||= user.jobs.count
     end
