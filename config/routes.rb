@@ -78,9 +78,6 @@ Rails.application.routes.draw do
         patch "epics/:id/unclaim", to: "epics#unclaim", constraints: { id: /\d+/ }
         patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /\d+/ }
         patch "epics/:id/state", to: "epics#update_state", constraints: { id: /\d+/ }
-        patch "epics/:id/claim", to: "epics#claim", constraints: { id: /\d+/ }
-        patch "epics/:id/unclaim", to: "epics#unclaim", constraints: { id: /\d+/ }
-        patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"
         get "dashboard", to: "dashboard#show"
         patch "dashboard/preferences", to: "dashboard#preferences"

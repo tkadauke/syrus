@@ -31,6 +31,11 @@ class Epic < ApplicationRecord
   validates :state, presence: true, inclusion: { in: STATES }
   validate :repository_belongs_to_user
 
+  scope :claimed, -> { where.not(owner_user_id: nil) }
+  scope :unclaimed, -> { where(owner_user_id: nil) }
+  scope :owned_by, ->(user) { where(owner_user_id: user&.id) }
+  scope :other_owned_by, ->(user) { claimed.where.not(owner_user_id: user&.id) }
+
   after_initialize :default_pending_epic_dependency_refs
   before_validation :assign_number, on: :create
   after_create :resolve_pending_child_jobs
@@ -91,7 +96,7 @@ class Epic < ApplicationRecord
   end
 
   def claimed?
-    owner_id.present?
+    owner_id.present? || owner_user_id.present?
   end
 
   def claimable?
@@ -99,7 +104,8 @@ class Epic < ApplicationRecord
   end
 
   def claimed_by?(claimant)
-    owner_id.present? && owner_id == claimant&.id
+    claimant_id = claimant&.id
+    owner_id == claimant_id || owner_user_id == claimant_id
   end
 
   def claim!(claimant, force: false)
@@ -115,7 +121,7 @@ class Epic < ApplicationRecord
     raise ArgumentError, "Epic is claimed by another user" if claimant && !claimed_by?(claimant) && !force
 
     transaction do
-      update!(owner: nil, claimed_at: nil)
+      update!(owner: nil, owner_user: nil, claimed_at: nil)
     end
   end
 
@@ -201,13 +207,14 @@ class Epic < ApplicationRecord
   end
 
   def claim_child_jobs_to_owner!
-    return unless owner_id
+    effective_owner_id = owner_id || owner_user_id
+    return unless effective_owner_id
 
     jobs.includes(:repository).find_each do |job|
-      next unless job.repository.user_id == owner_id
-      next if job.user_id == owner_id
+      next unless job.repository.user_id == effective_owner_id
+      next if job.user_id == effective_owner_id
 
-      job.update!(user: owner)
+      job.update!(user: owner || owner_user)
     end
   end
 
@@ -271,7 +278,7 @@ class Epic < ApplicationRecord
 
   def assign_owner!(new_owner)
     transaction do
-      update!(owner: new_owner, claimed_at: Time.current)
+      update!(owner: new_owner, owner_user: new_owner, claimed_at: Time.current)
       claim_child_jobs_to_owner!
     end
   end
