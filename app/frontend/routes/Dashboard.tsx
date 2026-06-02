@@ -865,7 +865,7 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
 
   return (
     <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`} className="px-4 py-3">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col items-start gap-1">
         <span className="text-xs text-gray-500">{job.latest_workflow_trigger_kind}</span>
         <StatusPill state={job.latest_workflow_state} />
       </div>
