@@ -14,7 +14,9 @@
     <link rel="apple-touch-icon" href="/icon.png">
 
     <%= stylesheet_link_tag :app %>
-    <% if Rails.env.production? || Rails.application.assets.load_path.find("spa.js") %>
+    <% if Rails.env.test? %>
+      <%= tag.script "", src: "/assets/spa-test.js", type: "module" %>
+    <% elsif Rails.env.production? || Rails.application.assets.load_path.find("spa.js") %>
       <%= javascript_include_tag "spa", type: "module" %>
     <% end %>
   </head>
