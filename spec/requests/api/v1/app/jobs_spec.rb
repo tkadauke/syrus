@@ -100,6 +100,36 @@ RSpec.describe "App API job detail", type: :request do
     expect(first_run["run_diagnostic"]).not_to have_key("error_message")
   end
 
+  it "paginates workflows on the job detail payload" do
+    job.workflows.destroy_all
+    12.times do |index|
+      Workflow.create!(
+        job: job,
+        trigger_kind: index.zero? ? "initial" : "retry",
+        agent_provider: "codex",
+        created_at: Time.current + index.minutes
+      )
+    end
+
+    get "/api/v1/app/jobs/#{job.id}", params: { workflows_page: 2 }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["workflows"].size).to eq(2)
+    expect(body["workflows"].map { |workflow| workflow["id"] }).to eq(job.workflows.order(:created_at).offset(10).pluck(:id))
+    expect(body["workflows_pagination"]).to include(
+      "page" => 2,
+      "per_page" => 10,
+      "total_workflows" => 12,
+      "total_pages" => 2,
+      "first_item" => 11,
+      "last_item" => 12,
+      "previous_path" => "/jobs/#{job.id}?tab=workflows&workflows_page=1",
+      "next_path" => nil
+    )
+    expect(body.dig("job", "workflows_count")).to eq(12)
+  end
+
   it "returns run transcript rows and agent diff as a separate artifact payload" do
     run = job.initial_run
     run.update!(agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'forum'\n")

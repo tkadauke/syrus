@@ -1,18 +1,20 @@
 module App
   class JobDetailPayload
     include Rails.application.routes.url_helpers
+    WORKFLOWS_PER_PAGE = 10
 
-    def self.build(job:, user:)
-      new(job: job, user: user).payload
+    def self.build(job:, user:, params: {})
+      new(job: job, user: user, params: params).payload
     end
 
     def self.timeline(job:)
       new(job: job, user: job.user).timeline_payload
     end
 
-    def initialize(job:, user:)
+    def initialize(job:, user:, params: {})
       @job = job
       @user = user
+      @params = params
     end
 
     def payload
@@ -30,6 +32,7 @@ module App
         summary: summary_json,
         landing_queue_entry: landing_queue_entry_json,
         workflows: workflows_json,
+        workflows_pagination: workflows_pagination_json,
         actions: actions_json,
         paths: paths_json
       }
@@ -228,7 +231,7 @@ module App
     end
 
     def workflows_json
-      @job.workflows.includes(steps: { runs: [ :claude_session, :run_diagnostic, :run_health_snapshots, :job_logs ] }).order(:created_at).map do |workflow|
+      paginated_workflows.map do |workflow|
         {
           id: workflow.id,
           trigger_kind: workflow.trigger_kind,
@@ -247,6 +250,56 @@ module App
           steps: workflow.steps.order(:position).map { |step| step_json(step, workflow: workflow) }
         }
       end
+    end
+
+    def workflows_pagination_json
+      total = total_workflows
+      first_item = total.zero? ? 0 : ((workflows_page - 1) * WORKFLOWS_PER_PAGE) + 1
+      last_item = [ workflows_page * WORKFLOWS_PER_PAGE, total ].min
+
+      {
+        page: workflows_page,
+        per_page: WORKFLOWS_PER_PAGE,
+        total_workflows: total,
+        total_pages: total_workflow_pages,
+        first_item: first_item,
+        last_item: last_item,
+        previous_path: workflows_page > 1 ? workflow_page_path(workflows_page - 1) : nil,
+        next_path: workflows_page < total_workflow_pages ? workflow_page_path(workflows_page + 1) : nil
+      }
+    end
+
+    def paginated_workflows
+      @paginated_workflows ||= workflows_scope
+        .offset((workflows_page - 1) * WORKFLOWS_PER_PAGE)
+        .limit(WORKFLOWS_PER_PAGE)
+    end
+
+    def workflows_scope
+      @job.workflows
+          .includes(steps: { runs: [ :claude_session, :run_diagnostic, :run_health_snapshots, :job_logs ] })
+          .order(:created_at)
+    end
+
+    def total_workflows
+      @total_workflows ||= @job.workflows.count
+    end
+
+    def workflows_page
+      @workflows_page ||= [ requested_workflows_page, total_workflow_pages ].min
+    end
+
+    def requested_workflows_page
+      page = @params[:workflows_page].presence || @params["workflows_page"].presence || 1
+      [ page.to_i, 1 ].max
+    end
+
+    def total_workflow_pages
+      @total_workflow_pages ||= [ (total_workflows / WORKFLOWS_PER_PAGE.to_f).ceil, 1 ].max
+    end
+
+    def workflow_page_path(page)
+      "#{job_path(@job)}?#{ { tab: "workflows", workflows_page: page }.to_query }"
     end
 
     def step_json(step, workflow:)

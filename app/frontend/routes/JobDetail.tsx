@@ -25,7 +25,7 @@ import {
 } from "../api/jobs"
 
 type JobTab = "summary" | "workflows" | "attachments" | "source"
-type JobDetailQueryKey = readonly ["jobs", string, "detail"]
+type JobDetailQueryKey = readonly ["jobs", string, "detail", string]
 type CommandInput =
   | { method: "post"; path: string; body?: unknown; confirm?: string }
   | { method: "patch"; path: string; body?: unknown; confirm?: string }
@@ -38,10 +38,11 @@ export function JobDetailRoute() {
   const id = params.id || ""
   const activeTab = tabFromLocation(location.pathname, location.search)
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
-  const queryKey = jobDetailQueryKey(id)
+  const detailSearch = jobDetailSearch(location.search)
+  const queryKey = jobDetailQueryKey(id, detailSearch)
   const detail = useQuery({
     queryKey,
-    queryFn: () => fetchJobDetail(id),
+    queryFn: () => fetchJobDetail(id, detailSearch),
     enabled: id.length > 0
   })
 
@@ -49,6 +50,7 @@ export function JobDetailRoute() {
     const search = new URLSearchParams(location.search)
     if (tab === "summary") search.delete("tab")
     else search.set("tab", tab)
+    if (tab !== "workflows") search.delete("workflows_page")
     const next = search.toString()
     navigate(`${location.pathname}${next ? `?${next}` : ""}`)
   }
@@ -62,8 +64,17 @@ export function JobDetailRoute() {
   )
 }
 
-function jobDetailQueryKey(id: string | number): JobDetailQueryKey {
-  return ["jobs", String(id), "detail"] as const
+function jobDetailQueryKey(id: string | number, search: string): JobDetailQueryKey {
+  return ["jobs", String(id), "detail", search] as const
+}
+
+function jobDetailSearch(search: string) {
+  const current = new URLSearchParams(search)
+  const next = new URLSearchParams()
+  const workflowsPage = current.get("workflows_page")
+  if (workflowsPage) next.set("workflows_page", workflowsPage)
+  const value = next.toString()
+  return value ? `?${value}` : ""
 }
 
 function tabFromLocation(pathname: string, search: string): JobTab {
@@ -109,10 +120,10 @@ function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Job command failed.")}</PanelMessage> : null}
 
-      <TabNav active={activeTab} attachmentsCount={payload.attachments.length} workflowsCount={payload.workflows.length} onSelect={onSelectTab} />
+      <TabNav active={activeTab} attachmentsCount={payload.attachments.length} workflowsCount={payload.job.workflows_count} onSelect={onSelectTab} />
 
       {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} /> : null}
-      {activeTab === "workflows" ? <WorkflowsTab command={command} payload={payload} /> : null}
+      {activeTab === "workflows" ? <WorkflowsTab command={command} payload={payload} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} /> : null}
     </>
@@ -417,13 +428,30 @@ function AttachmentPreview({ attachments }: { attachments: JobAttachment[] }) {
   )
 }
 
-function WorkflowsTab({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
+function WorkflowsTab({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   if (payload.workflows.length === 0) return <PanelMessage>No workflows yet.</PanelMessage>
 
   return (
     <div className="space-y-4">
+      <WorkflowsPagination payload={payload} prefix={prefix} />
       {payload.workflows.map((workflow) => <WorkflowCard command={command} key={workflow.id} payload={payload} workflow={workflow} />)}
+      <WorkflowsPagination payload={payload} prefix={prefix} />
     </div>
+  )
+}
+
+function WorkflowsPagination({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
+  const pagination = payload.workflows_pagination
+  if (pagination.total_pages <= 1) return null
+
+  return (
+    <nav aria-label="Workflow pagination" className="flex items-center justify-between text-sm text-gray-600">
+      <span>Showing {pagination.first_item}-{pagination.last_item} of {pagination.total_workflows}</span>
+      <div className="flex gap-2">
+        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>Previous</Link> : <span className={disabledPaginationClass()}>Previous</span>}
+        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>Next</Link> : <span className={disabledPaginationClass()}>Next</span>}
+      </div>
+    </nav>
   )
 }
 
@@ -789,6 +817,14 @@ function buttonClass(tone: "primary" | "secondary" | "success" | "danger") {
     danger: "bg-amber-600 text-white hover:bg-amber-500"
   }
   return `${base} ${tones[tone]}`
+}
+
+function paginationLinkClass() {
+  return "rounded border border-gray-300 px-3 py-1 hover:bg-gray-50"
+}
+
+function disabledPaginationClass() {
+  return "rounded border border-gray-200 px-3 py-1 text-gray-300"
 }
 
 function jobSourceLabel(payload: JobDetailPayload) {

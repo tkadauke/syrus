@@ -112,6 +112,17 @@ export type JobLandingQueueEntry = {
   blocked_reason: string | null
 }
 
+export type JobWorkflowsPagination = {
+  page: number
+  per_page: number
+  total_workflows: number
+  total_pages: number
+  first_item: number
+  last_item: number
+  previous_path: string | null
+  next_path: string | null
+}
+
 export type JobWorkflow = {
   id: number
   trigger_kind: string
@@ -243,6 +254,7 @@ export type JobDetailPayload = {
   summary: JobSummary | null
   landing_queue_entry: JobLandingQueueEntry | null
   workflows: JobWorkflow[]
+  workflows_pagination: JobWorkflowsPagination
   actions: JobActions
   paths: JobPaths
 }
@@ -304,8 +316,8 @@ export type JobRunArtifactsPayload = {
   }>
 }
 
-export function fetchJobDetail(id: string) {
-  return getJson<JobDetailPayload>(`/api/v1/app/jobs/${id}`)
+export function fetchJobDetail(id: string, search = "") {
+  return getJson<JobDetailPayload>(`/api/v1/app/jobs/${id}${search}`)
 }
 
 export function fetchJobTimeline(id: string) {

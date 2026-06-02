@@ -3,7 +3,7 @@ module Api
     module App
       class JobsController < BaseController
         def show
-          render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user)
+          render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
         end
 
         def source
@@ -82,7 +82,6 @@ module Api
                         job_attachments: { file_attachment: :blob },
                         dependencies: [ :created_by_user, depends_on_job: :repository ],
                         dependent_links: [ job: :repository ],
-                        workflows: { steps: { runs: [ :claude_session, :run_diagnostic, :run_health_snapshots, :job_logs ] } },
                         runs: [ :job_logs, :run_health_snapshots, :claude_session, :run_diagnostic ]
                       )
                       .find(params[key])

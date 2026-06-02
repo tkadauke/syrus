@@ -3851,6 +3851,48 @@ describe("App", () => {
     expect(screen.getByText("rspec output")).toBeInTheDocument()
   })
 
+  it("renders workflow pagination on the Job detail workflows tab", async () => {
+    const payload = jobDetailPayload({
+      job: { workflows_count: 12 },
+      workflows: [
+        { ...jobDetailPayload().workflows[0], id: 15, trigger_kind: "retry", steps: [] },
+        { ...jobDetailPayload().workflows[0], id: 16, trigger_kind: "pr_comment", steps: [] }
+      ],
+      workflows_pagination: {
+        page: 2,
+        per_page: 10,
+        total_workflows: 12,
+        total_pages: 2,
+        first_item: 11,
+        last_item: 12,
+        previous_path: "/jobs/42?tab=workflows&workflows_page=1",
+        next_path: null
+      }
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=workflows&workflows_page=2"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Workflows (12)" })).toBeInTheDocument()
+    expect(screen.getByText("Workflow #15")).toBeInTheDocument()
+    expect(screen.getByText("Workflow #16")).toBeInTheDocument()
+    expect(screen.getAllByText("Showing 11-12 of 12")).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "Previous" })[0]).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows&workflows_page=1")
+    expect(screen.getAllByText("Next")[0]).toHaveClass("text-gray-300")
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/jobs/42?workflows_page=2",
+      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+    )
+  })
+
   it("renders the Job source browser from the app source API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
@@ -6161,6 +6203,16 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
         ]
       }
     ],
+    workflows_pagination: {
+      page: 1,
+      per_page: 10,
+      total_workflows: 1,
+      total_pages: 1,
+      first_item: 1,
+      last_item: 1,
+      previous_path: null,
+      next_path: null
+    },
     actions: {
       can_start: false,
       can_poll_feedback: true,
@@ -6213,6 +6265,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
     repository: { ...payload.repository, ...objectOverrides(overrides.repository) },
     summary: overrides.summary === undefined ? payload.summary : overrides.summary,
     landing_queue_entry: overrides.landing_queue_entry === undefined ? payload.landing_queue_entry : overrides.landing_queue_entry,
+    workflows_pagination: { ...payload.workflows_pagination, ...objectOverrides(overrides.workflows_pagination) },
     actions: { ...payload.actions, ...objectOverrides(overrides.actions) },
     paths: { ...payload.paths, ...objectOverrides(overrides.paths) }
   }
