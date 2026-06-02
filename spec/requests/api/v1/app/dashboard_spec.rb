@@ -22,7 +22,7 @@ RSpec.describe "App API dashboard commands", type: :request do
     it "returns a subject-aware dashboard read payload for the current user" do
       user.update_dashboard_sort!(subject: "job", column: "title", direction: "asc")
       tag = Factories.tag(user: user, name: "aqueduct", color: "blue")
-      first = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Build aqueduct", state: "queued")
+      first = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Build aqueduct", state: "queued", pr_number: 17)
       second = Factories.job_record(repository: repo, issue_number: 2, issue_title: "Chart forum", state: "running")
       Workflow.create!(job: second, trigger_kind: "rebase", state: "running")
       first.tags << tag
@@ -54,6 +54,8 @@ RSpec.describe "App API dashboard commands", type: :request do
         "workflows_count" => 0,
         "approved_at" => nil,
         "dependencies_overridden_at" => nil,
+        "issue_url" => "https://github.com/acme/widgets/issues/1",
+        "pr_url" => "https://github.com/acme/widgets/pull/17",
         "repository" => include("slug" => "acme/widgets"),
         "tags" => [ include("name" => "aqueduct", "color" => "blue") ],
         "paths" => include("job_path" => job_path(first), "source_path" => source_job_path(first))

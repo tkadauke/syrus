@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { DragEvent, FormEvent } from "react"
+import type { DragEvent, FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -605,7 +605,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
           <StatusPill state={item.summary_state} />
           <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.repository.slug}</span>
-          {item.pr_number ? <span className="rounded bg-gray-100 px-1.5 py-0.5">PR #{item.pr_number}</span> : null}
+          {item.pr_number ? <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink> : null}
         </div>
       </article>
     )
@@ -807,19 +807,19 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
   return (
     <article aria-label={job.title} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3">
       <input aria-label={`Select ${job.title}`} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} type="checkbox" />
-      <Link aria-label={job.title} className="min-w-0 rounded-sm text-gray-700 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(job.paths.job_path, prefix)}>
+      <div className="min-w-0 text-gray-700">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <StatusPill state={job.summary_state} />
           <span className="text-xs font-medium text-gray-500">{formatCurrency(job.total_cost_usd, 2)}</span>
           <span className="font-mono text-xs text-gray-500">{job.repository.slug}</span>
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="text-sm font-semibold leading-snug text-blue-600 underline">{job.title}</span>
+          <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
           {job.kind !== "issue" ? <span className="text-xs text-gray-500">{humanizeOption(job.kind)}</span> : null}
         </div>
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
-          <span>#{job.issue_number || job.id}</span>
-          {job.pr_number ? <span>→ PR #{job.pr_number}</span> : null}
+          <IssueMetadata job={job} />
+          {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           <span>{approvalLabel}</span>
           <span>{job.workflows_count} {pluralize(job.workflows_count, "workflow")}</span>
           <span>{formatDate(job.started_at || job.created_at)}</span>
@@ -829,7 +829,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
             {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500" key={tag.id}>{tag.name}</span>)}
           </div>
         ) : null}
-      </Link>
+      </div>
     </article>
   )
 }
@@ -843,8 +843,8 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
       <td className="max-w-md px-4 py-3">
         <Link className="font-medium text-blue-600 hover:underline" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500">
-          <span>#{job.issue_number || job.id}</span>
-          {job.pr_number ? <span>PR #{job.pr_number}</span> : null}
+          <IssueMetadata job={job} />
+          {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5" key={tag.id}>{tag.name}</span>)}
         </div>
       </td>
@@ -871,6 +871,20 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
       </div>
     </td>
   )
+}
+
+function IssueMetadata({ job }: { job: DashboardJobItem }) {
+  const label = `#${job.issue_number || job.id}`
+
+  if (!job.issue_number) return <span>{label}</span>
+
+  return <ExternalMetadataLink href={job.issue_url}>{label}</ExternalMetadataLink>
+}
+
+function ExternalMetadataLink({ children, className = "text-gray-500 hover:text-blue-700 hover:underline", href }: { children: ReactNode; className?: string; href: string | null }) {
+  if (!href) return <span className={className}>{children}</span>
+
+  return <a className={className} href={href} rel="noopener noreferrer" target="_blank">{children}</a>
 }
 
 function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpicItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {

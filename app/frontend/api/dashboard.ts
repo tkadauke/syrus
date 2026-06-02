@@ -24,9 +24,11 @@ export type DashboardJobItem = {
   priority: string
   total_cost_usd: number
   issue_number: number | null
+  issue_url: string | null
   branch_name: string | null
   pr_number: number | null
   latest_workflow_trigger_kind: string | null
+  pr_url: string | null
   latest_workflow_state: string
   created_at: string | null
   updated_at: string | null

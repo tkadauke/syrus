@@ -613,6 +613,10 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Dashboard" }).closest("header")).not.toHaveClass("border-b")
     expect(screen.getByRole("navigation", { name: "Dashboard subjects" }).parentElement).toHaveClass("lg:grid-cols-[16rem_minmax(0,1fr)]")
     expect(screen.getByRole("link", { name: "Repair aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/42")
+    expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
+    expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("target", "_blank")
+    expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")
+    expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("target", "_blank")
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "kanban" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=kanban")
     expect(screen.getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list")
@@ -901,8 +905,8 @@ describe("App", () => {
       expect(within(row).getByText("implemented")).toBeInTheDocument()
       expect(within(row).getByText("$0.12")).toBeInTheDocument()
       expect(within(row).getByText("acme/widgets")).toBeInTheDocument()
-      expect(within(row).getByText("#12")).toBeInTheDocument()
-      expect(within(row).getByText("→ PR #34")).toBeInTheDocument()
+      expect(within(row).getByRole("link", { name: "#12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
+      expect(within(row).getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")
       expect(within(row).getByText("Not approved")).toBeInTheDocument()
       expect(within(row).getByText("1 workflow")).toBeInTheDocument()
       expect(screen.queryByRole("table")).not.toBeInTheDocument()
@@ -1219,6 +1223,7 @@ describe("App", () => {
     expect(screen.getByText("Repair aqueduct")).toBeInTheDocument()
     expectRunningPill(screen.getByText("running"))
     expect(screen.getByRole("link", { name: "Repair aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/42")
+    expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")
     expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/dashboard?view=kanban&subject=job",
@@ -6096,9 +6101,11 @@ function dashboardJobItem(overrides: Record<string, unknown> = {}) {
     priority: "high",
     total_cost_usd: 0,
     issue_number: 12,
+    issue_url: "https://github.com/acme/widgets/issues/12",
     branch_name: "syrus/issue-12",
     pr_number: 34,
     latest_workflow_trigger_kind: "rebase",
+    pr_url: "https://github.com/acme/widgets/pull/34",
     latest_workflow_state: "running",
     created_at: "2026-05-30T10:00:00Z",
     updated_at: "2026-05-30T12:00:00Z",
