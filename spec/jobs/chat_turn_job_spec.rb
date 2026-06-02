@@ -29,12 +29,21 @@ RSpec.describe ChatTurnJob do
   end
 
   it "runs a first turn with the chat system prompt, MCP config, no max-turns, and captures output" do
+    host_env = {
+      "SYRUS_APP_HOST" => "syrus.example.test",
+      "SYRUS_ALLOWED_HOSTS" => "syrus.example.test,syrus.internal.test",
+      "SYRUS_ASSUME_SSL" => "true",
+      "SYRUS_FORCE_SSL" => "true"
+    }
+    saved = ENV.to_h.slice(*host_env.keys)
+    host_env.each { |key, value| ENV[key] = value }
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) {
       received.merge!(kwargs)
       config = JSON.parse(File.read(kwargs[:mcp_config]))
       expect(config.dig("mcpServers", "syrus-chat-sidecar", "command")).to eq(Rails.root.join("bin/syrus-chat-sidecar").to_s)
       expect(config.dig("mcpServers", "syrus-chat-sidecar", "env", "SYRUS_CHAT_SESSION_ID")).to eq(chat.id.to_s)
+      expect(config.dig("mcpServers", "syrus-chat-sidecar", "env")).to include(host_env)
       expect(config.dig("mcpServers", "syrus-chat-sidecar", "alwaysLoad")).to eq(true)
 
       kwargs[:log_sink].call("Here is the shape of it.", kind: "assistant_text")
@@ -83,6 +92,9 @@ RSpec.describe ChatTurnJob do
       session_id: "chat-session-1",
       transcript_jsonl: "{\"type\":\"system\"}\n"
     )
+  ensure
+    host_env&.keys&.each { |key| ENV.delete(key) }
+    saved&.each { |key, value| ENV[key] = value }
   end
 
   it "can run a top-level chat before any repository is attached" do

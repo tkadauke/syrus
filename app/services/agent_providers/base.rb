@@ -30,6 +30,10 @@ module AgentProviders
       BUNDLE_DEPLOYMENT
       BUNDLE_WITHOUT
       TZ
+      SYRUS_APP_HOST
+      SYRUS_ALLOWED_HOSTS
+      SYRUS_ASSUME_SSL
+      SYRUS_FORCE_SSL
       S3_BUCKET
       S3_ENDPOINT
       S3_REGION

@@ -32,6 +32,10 @@ RSpec.describe AgentProviders::Claude do
         "BUNDLE_DEPLOYMENT" => "1",
         "BUNDLE_WITHOUT" => "development:test",
         "TZ" => "America/New_York",
+        "SYRUS_APP_HOST" => "syrus.example.test",
+        "SYRUS_ALLOWED_HOSTS" => "syrus.example.test,syrus.internal.test",
+        "SYRUS_ASSUME_SSL" => "true",
+        "SYRUS_FORCE_SSL" => "true",
         "S3_BUCKET" => "syrus-attachments",
         "S3_ENDPOINT" => "http://minio.minio.svc.cluster.local:9000",
         "S3_REGION" => "us-east-1",
@@ -75,6 +79,14 @@ RSpec.describe AgentProviders::Claude do
         "RAILS_ENV" => "production",
         "RAILS_MASTER_KEY" => "deadbeef",
         "BUNDLE_WITHOUT" => "development:test",
+        # Sidecar boots Rails production config; SYRUS_APP_HOST is
+        # required at boot now that production has no baked-in host
+        # default. Related host/SSL knobs should also cross the same
+        # subprocess boundary so sidecar behavior matches the worker.
+        "SYRUS_APP_HOST" => "syrus.example.test",
+        "SYRUS_ALLOWED_HOSTS" => "syrus.example.test,syrus.internal.test",
+        "SYRUS_ASSUME_SSL" => "true",
+        "SYRUS_FORCE_SSL" => "true",
         # Sidecar boots Rails in production where eager_load triggers
         # Active Storage's S3Service.new at boot; the S3_* vars must
         # reach the subprocess or `Aws::S3::Resource#bucket(nil)`
