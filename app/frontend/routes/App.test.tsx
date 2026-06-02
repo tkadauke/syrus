@@ -3943,7 +3943,7 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Epic" })).toBeInTheDocument()
     expect(await screen.findByText("EPIC-7")).toBeInTheDocument()
     expect(screen.getByText("Raise the forum")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Back to Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics")
+    expect(screen.queryByRole("link", { name: "Back to Epics" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/epics/7/edit")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByRole("link", { name: "Survey forum" })).toHaveAttribute("href", "/app-shell/jobs/42")
@@ -3969,6 +3969,12 @@ describe("App", () => {
     })
     expect(await screen.findByText("Epic updated.")).toBeInTheDocument()
     expect(screen.getByText("In Progress")).toBeInTheDocument()
+    const archiveButton = screen.getByRole("button", { name: "Archive" })
+    expect([...archiveButton.parentElement!.querySelectorAll("a,button")].map((element) => element.textContent)).toEqual([
+      "Move back to ready",
+      "Edit",
+      "Archive"
+    ])
   })
 
   it("renders a Job detail page and runs commands through the app API", async () => {

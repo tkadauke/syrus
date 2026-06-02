@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { ReactNode } from "react"
+import { Fragment, type ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -64,11 +64,6 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
 
   return (
     <>
-      <nav className="flex flex-wrap items-center gap-3 text-sm">
-        <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(payload.paths.dashboard_epics_path, prefix)}>Back to Epics</Link>
-        {!payload.epic.archived ? <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>Edit</Link> : null}
-      </nav>
-
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="break-words text-2xl font-bold text-gray-900">
@@ -87,15 +82,19 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
         {payload.state_transitions.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             {payload.state_transitions.map((transition) => (
-              <button
-                className={secondaryButton()}
-                disabled={command.isPending}
-                key={transition.target_state}
-                onClick={() => runTransition(transition)}
-                type="button"
-              >
-                {transition.label}
-              </button>
+              <Fragment key={transition.target_state}>
+                {transition.target_state === "archived" && !payload.epic.archived ? (
+                  <Link className={secondaryButton()} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>Edit</Link>
+                ) : null}
+                <button
+                  className={secondaryButton()}
+                  disabled={command.isPending}
+                  onClick={() => runTransition(transition)}
+                  type="button"
+                >
+                  {transition.label}
+                </button>
+              </Fragment>
             ))}
           </div>
         ) : null}
