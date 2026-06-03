@@ -157,7 +157,10 @@ module App
     end
 
     def active_repositories_scope
-      Repository.active
+      return Repository.active if subject == "epic"
+      return Repository.active if mine_scope? || team_scope? || user_scope? || claimable_scope?
+
+      Repository.active.where(user_id: user.id)
     end
 
     def ownership_scope

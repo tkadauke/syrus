@@ -57,9 +57,11 @@ module Factories
 
   def job(**attrs)
     repo = attrs[:repository] || repository
-    owner_attrs = attrs.key?(:owner_user) || attrs.key?(:owner_user_id) ? {} : { owner_user: attrs[:user] || repo.user }
+    owner = attrs.key?(:user) ? attrs[:user] : repo.user
+    owner_attrs = attrs.key?(:owner_user) || attrs.key?(:owner_user_id) ? {} : { owner_user: owner }
     job = Job.create!({
-      user: repo.user,
+      user: owner,
+      owner_user: attrs.key?(:owner_user) ? attrs[:owner_user] : owner,
       repository: repo,
       issue_number: 42
     }.merge(owner_attrs).merge(attrs))
@@ -75,10 +77,12 @@ module Factories
   def job_record(**attrs)
     repo = attrs[:repository] || repository(user: attrs[:user] || user)
     desired_state = attrs.key?(:state) ? attrs[:state] : "queued"
-    owner_attrs = attrs.key?(:owner_user) || attrs.key?(:owner_user_id) ? {} : { owner_user: attrs[:user] || repo.user }
+    owner = attrs.key?(:user) ? attrs[:user] : repo.user
+    owner_attrs = attrs.key?(:owner_user) || attrs.key?(:owner_user_id) ? {} : { owner_user: owner }
 
     create_attrs = {
-      user: attrs[:user] || repo.user,
+      user: owner,
+      owner_user: attrs.key?(:owner_user) ? attrs[:owner_user] : owner,
       repository: repo,
       issue_number: 42
     }.merge(owner_attrs).merge(attrs).merge(state: "closed")

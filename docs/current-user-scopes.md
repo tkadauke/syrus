@@ -79,7 +79,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/application_controller.rb` | per-user/private and admin gate | System alerts and default chat navigation are computed for the signed-in user. `require_admin` is the shared admin guard. |
 | `app/controllers/spa_controller.rb` | per-user/private and admin gate | Serves the SPA shell only after checking ownership for private chat routes; admin shell routes use the shared admin guard. |
 | `app/views/spa/show.html.erb` | per-user/private | Renders the SPA bootstrap payload for the current browser session. |
-| `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Reports the current browser session, redirects already signed-in users, signs out the current user, resumes the session for public auth status, and serializes the current user, when present, into the public auth state. |
+| `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Reports the current browser session, redirects already signed-in users, signs out the current user, resumes the session for public auth status, and serializes public auth state, including invitation-aware account creation affordances. |
 | `app/controllers/api/v1/app/bootstrap_controller.rb` | per-user/private | Serializes the signed-in user, app settings visible to that user, CSRF token, and default chat path. |
 | `app/controllers/api/v1/app/bug_reports_controller.rb` | per-user/private | Files bug reports with the current user as reporter/context. |
 | `app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Locates whiteboards through `Current.user.chat_sessions`. |
@@ -97,6 +97,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/job_metadata_controller.rb` | per-user/private and admin gate | Tags and dependency targets are user-scoped. Dependency override is separately admin-only. |
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_run_commands_controller.rb` | per-user/private | Run commands target jobs found through `Current.user.jobs` and validate agent providers against the current user. |
+| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads expose public profile/work summaries through the current user's app session. |
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source use `Current.user.jobs`; timeline is separately admin-only because it exposes run history. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile visibility compares the requested profile to `Current.user` before exposing current-user-specific details. |
 | `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions use `Current.user.repositories` and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |

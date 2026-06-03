@@ -1853,7 +1853,7 @@ describe("App", () => {
     expect(await screen.findByText("Landing paused.")).toBeInTheDocument()
   })
 
-  it("points an empty first-run dashboard at setup actions", async () => {
+  it("points an empty first-run dashboard at the direct job action", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"

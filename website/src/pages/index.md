@@ -32,6 +32,10 @@ branch. When a scheduled task fires, it uses the same pipeline without a
 GitHub issue. When a PR needs a retry or rebase, Syrus treats that as
 another controlled Workflow instead of a one-off shell adventure.
 
+The standard starting point is a GitHub issue with label-based delegation:
+file the issue, add the configured trigger label, and let Syrus carry the
+work through to a pull request.
+
 The core loop is deliberately boring:
 
 ```text
@@ -101,7 +105,9 @@ can carry real review feedback and repeat attempts.
 The shortest proof is a GitHub issue with a trigger label: file the
 issue, add the label, and let Syrus carry it through to a pull request.
 
-## Start Small
+Choose a deployment path based on how much of the loop you want to run.
+
+## Deployment Paths
 
 Start small, then deploy the full loop when the product proves useful.
 
@@ -113,7 +119,7 @@ Choose the path that matches how much of the system you want to exercise.
 | Docker Compose | Running the web app, worker, database, GitHub polling, and PR flow for a small team | [Docker Compose guide](/docs/deployment/docker-compose) |
 | Kubernetes | Operating Syrus on shared infrastructure with persistent clone storage and separate web/worker pods | [Kubernetes guide](/docs/deployment/kubernetes) |
 
-If you are still choosing a path, read [Getting Started](/docs/getting-started)
+If you are still choosing a path, start with [Getting Started](/docs/getting-started)
 or the [deployment overview](/docs/deployment).
 
 ## Get Started
