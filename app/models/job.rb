@@ -297,6 +297,7 @@ class Job < ApplicationRecord
   after_commit :suggest_stale_closed_epic_assignment, if: :stale_closed_epic_assignment?
 
   after_update_commit :rebase_stack_children_after_merge, if: :saved_change_to_pr_merged_terminal?
+  after_update_commit :start_dependent_jobs_after_implementation, if: :saved_change_to_implemented?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
   after_update_commit :broadcast_app_job_updated
 
@@ -504,7 +505,7 @@ class Job < ApplicationRecord
   end
 
   def effective_base_branch
-    return repository.default_branch if stack_base_main?
+    return repository.default_branch if stack_base_forces_main?
 
     parent = dependencies.includes(:depends_on_job).map(&:depends_on_job).compact.find do |dependency_job|
       dependency_job.open? &&
@@ -524,6 +525,10 @@ class Job < ApplicationRecord
 
   def resolve_stack_parent!
     JobStackResolver.new(self).resolve!
+  end
+
+  def stack_base_forces_main?
+    stack_base_main? && !epic_internal_dependency?
   end
 
   def force_run_dependencies!(user:)
@@ -658,6 +663,26 @@ class Job < ApplicationRecord
   end
 
   private
+
+  def saved_change_to_implemented?
+    saved_change_to_state? && implemented?
+  end
+
+  def start_dependent_jobs_after_implementation
+    return if branch_name.blank? || pr_number.blank?
+
+    dependents.open_threads.find_each do |dependent|
+      dependent.start_pending_workflows_if_dependencies_satisfied!
+    end
+  end
+
+  def epic_internal_dependency?
+    return false if epic_id.blank?
+
+    dependencies.includes(:depends_on_job).any? do |dependency|
+      dependency.depends_on_job&.epic_id == epic_id
+    end
+  end
 
   def broadcast_app_job_created
     broadcast_app_job_event("created")

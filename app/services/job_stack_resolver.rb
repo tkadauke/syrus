@@ -8,7 +8,7 @@ class JobStackResolver
   end
 
   def resolve!
-    return force_main! if @job.stack_base_main?
+    return force_main! if @job.stack_base_forces_main?
 
     dependencies = @job.dependencies.includes(:depends_on_job).to_a
     return force_main! if dependencies.empty?

@@ -790,6 +790,25 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.reload.parent_job).to eq(prerequisite)
     end
 
+    it "starts a dependent queued workflow when the parent reaches implemented with an open PR" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
+      job = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #42")
+      job.advance_after_triage!
+      first_step = job.reload.latest_workflow.first_step
+
+      expect(job).to be_queued
+      expect(first_step.runs.count).to eq(0)
+
+      prerequisite.update!(branch_name: "syrus/issue-42-#{prerequisite.id}", pr_number: 7)
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "a" * 40)
+
+      expect {
+        prerequisite.mark_implemented!
+        prerequisite.save!
+      }.to change { first_step.runs.reload.count }.by(1)
+      expect(job.reload.parent_job).to eq(prerequisite)
+    end
+
     it "waits on multiple unmerged dependencies until only one remains as parent" do
       first = Job.create!(user: user, repository: repository, issue_number: 41)
       second = Job.create!(user: user, repository: repository, issue_number: 42)
@@ -828,6 +847,24 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job).to be_stack_ready_for_execution
       expect(job.reload.parent_job).to be_nil
       expect(job).not_to be_dependencies_satisfied
+    end
+
+    it "allows same-epic dependencies to stack even when stack_base is main" do
+      epic = Factories.epic(user: user, repository: repository)
+      prerequisite = Job.create!(user: user, repository: repository, epic: epic, issue_number: 42)
+      prerequisite.update!(branch_name: "syrus/issue-42-#{prerequisite.id}", pr_number: 7)
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "a" * 40)
+      job = Job.create!(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 43,
+        issue_body: "Depends-on: #42",
+        stack_base: "main"
+      )
+
+      expect(job).to be_stack_ready_for_execution
+      expect(job.reload.parent_job).to eq(prerequisite)
     end
   end
 
@@ -878,6 +915,30 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: user)
 
       expect(child.effective_base_branch).to eq("main")
+    end
+
+    it "returns a same-epic dependency branch when stack_base is main" do
+      epic = Factories.epic(user: user, repository: repository)
+      parent = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 41,
+        state: "implemented",
+        branch_name: "syrus/issue-41",
+        pr_number: 41
+      )
+      child = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 42,
+        state: "queued",
+        stack_base: "main"
+      )
+      JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: user)
+
+      expect(child.effective_base_branch).to eq("syrus/issue-41")
     end
   end
 
