@@ -466,7 +466,7 @@ function CredentialNotice({ payload }: { payload: RepositoryDetailPayload }) {
     <section className="rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <span className="font-medium">Connection:</span> PAT fallback.
+          <span className="font-medium">Connection:</span> PAT fallback because this repository has no active App installation.
           <span className="ml-1">{status.github_app_registered ? "Install the GitHub App for this repository owner to use app credentials here." : "Register the GitHub App to prefer app credentials over PAT fallback."}</span>
           {status.previous_installation_removed ? <span className="ml-1">Previous installation was removed.</span> : null}
         </div>

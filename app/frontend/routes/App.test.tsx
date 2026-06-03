@@ -2720,7 +2720,11 @@ describe("App", () => {
 
     expect(screen.getByRole("main", { name: "Admin installations" })).toBeInTheDocument()
     expect(screen.getByText("GitHub App Installations")).toBeInTheDocument()
+    expect(screen.getByText("Syrus uses the GitHub App for repositories with an active installation. Repositories without one use the owner's personal access token fallback.")).toBeInTheDocument()
     expect(await screen.findByText("globex/pat-repo")).toBeInTheDocument()
+    expect(screen.getByText("Used when no active App installation exists")).toBeInTheDocument()
+    expect(screen.getByText("No active installation")).toBeInTheDocument()
+    expect(screen.getByText("Used as fallback")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Install on all PAT-only repos in this account" })).toHaveAttribute(
       "href",
       "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=101&repository_ids[]=201"
@@ -2770,7 +2774,9 @@ describe("App", () => {
 
     const registration = screen.getByRole("main", { name: "GitHub App registration" })
     expect(registration).toBeInTheDocument()
+    expect(within(registration).getByText("Register the singleton Syrus GitHub App. Repositories use App credentials only after the App is installed on their GitHub account or repository.")).toBeInTheDocument()
     expect(await within(registration).findByText("operator-syrus")).toBeInTheDocument()
+    expect(within(registration).getByText("GitHub will create the App from the manifest, then redirect back here with temporary credentials. Registration alone does not grant repository access; install the App after registration.")).toBeInTheDocument()
     const form = within(registration).getByRole("form", { name: "GitHub manifest registration" })
     expect(form).toHaveAttribute("action", "https://github.com/settings/apps/new?state=abc123")
     expect(form).toHaveAttribute("method", "post")
@@ -3457,6 +3463,8 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+    expect(await screen.findByText("A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.")).toBeInTheDocument()
+    expect(screen.getByText("Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.")).toBeInTheDocument()
     expect(screen.queryByText("Personal documents")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Google Doc URL")).not.toBeInTheDocument()
     fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Lovelace" } })
@@ -7095,7 +7103,7 @@ function repositoryDetailPayload() {
     },
     credential_status: {
       mode: "pat",
-      label: "PAT fallback",
+      label: "PAT fallback: no active App installation",
       installation_account: null,
       github_app_registered: true,
       install_url: "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=100&repository_ids[]=200",

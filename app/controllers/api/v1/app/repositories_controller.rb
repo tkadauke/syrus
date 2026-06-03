@@ -437,7 +437,7 @@ module Api
           if repository.app_credential_active?
             return {
               mode: "app",
-              label: "Syrus App installed",
+              label: "GitHub App active",
               installation_account: repository.installation.account_login,
               github_app_registered: AppSetting.github_app_registered?,
               install_url: nil,
@@ -450,7 +450,7 @@ module Api
           install_url = AppSetting.github_app_registered? ? ::App::Presentation.github_app_install_url_for(repository) : nil
           {
             mode: "pat",
-            label: "PAT fallback",
+            label: "PAT fallback: no active App installation",
             installation_account: nil,
             github_app_registered: AppSetting.github_app_registered?,
             install_url: install_url,

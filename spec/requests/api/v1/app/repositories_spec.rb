@@ -170,6 +170,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(body["retry_failed_jobs"]).to include("count" => 1, "agent_provider_label" => "Codex")
     expect(body["credential_status"]).to include(
       "mode" => "pat",
+      "label" => "PAT fallback: no active App installation",
       "github_app_registered" => true,
       "install_url" => "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=100&repository_ids[]=200"
     )

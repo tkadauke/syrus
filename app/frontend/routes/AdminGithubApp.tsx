@@ -18,7 +18,7 @@ export function AdminGithubAppRegister() {
     <main aria-label="GitHub App registration" className="mx-auto max-w-5xl space-y-6 p-6">
       <PageHeader
         title="GitHub App registration"
-        description="Register the singleton Syrus GitHub App. Runtime GitHub calls still use personal access tokens until the next phase."
+        description="Register the singleton Syrus GitHub App. Repositories use App credentials only after the App is installed on their GitHub account or repository."
       />
 
       {registration.isPending ? <PanelMessage>Loading registration form...</PanelMessage> : null}
@@ -46,7 +46,7 @@ export function AdminGithubAppConfirm() {
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
           <li>Install the App on your repositories via GitHub.</li>
           <li>Wait for the installation sync, or let the 5-minute recurring sync pick it up.</li>
-          <li>Continue using personal access token behavior until Phase 2 routes GitHub calls through the App.</li>
+          <li>Keep a personal access token configured for repositories that do not have an active App installation.</li>
         </ol>
       </section>
 
@@ -70,7 +70,7 @@ function RegisterView({ payload }: { payload: AdminGithubAppRegisterPayload }) {
       <section className="rounded border border-gray-200 bg-white p-4">
         <h2 className="font-medium text-gray-900">Register with GitHub</h2>
         <p className="mt-1 max-w-prose text-xs text-gray-600">
-          GitHub will create the App from the manifest, then redirect back here with temporary credentials.
+          GitHub will create the App from the manifest, then redirect back here with temporary credentials. Registration alone does not grant repository access; install the App after registration.
         </p>
         <form
           action={payload.github_manifest_url}

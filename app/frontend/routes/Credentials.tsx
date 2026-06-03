@@ -41,9 +41,24 @@ function CredentialsView({ payload }: { payload: CredentialsPayload }) {
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+      <GithubCredentialGuide />
       <CredentialsForm onNotice={setNotice} payload={payload} />
       {payload.user.admin ? <ApiTokenPanel onNotice={setNotice} payload={payload} /> : null}
     </>
+  )
+}
+
+function GithubCredentialGuide() {
+  return (
+    <section className="rounded border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
+      <h2 className="font-medium">GitHub access</h2>
+      <p className="mt-1">
+        A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.
+      </p>
+      <p className="mt-1 text-xs text-blue-800">
+        Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.
+      </p>
+    </section>
   )
 }
 
@@ -168,7 +183,7 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
 
         <SecretField
           clearPending={clear.isPending}
-          label="GitHub token"
+          label="GitHub personal access token"
           name="github_token"
           onChange={(value) => setValues({ ...values, github_token: value })}
           onClear={() => clear.mutate("github_token")}

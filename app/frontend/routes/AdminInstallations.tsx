@@ -23,6 +23,9 @@ export function AdminInstallations() {
       <header className="border-b border-gray-200 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500">Admin</p>
         <h1 className="mt-1 text-2xl font-semibold text-gray-900">GitHub App Installations</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Syrus uses the GitHub App for repositories with an active installation. Repositories without one use the owner's personal access token fallback.
+        </p>
       </header>
 
       {installations.isPending ? <PanelMessage>Loading installations...</PanelMessage> : null}
@@ -38,7 +41,7 @@ function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPay
       {!payload.github_app_registered ? (
         <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="font-semibold">Syrus App is not registered yet.</div>
-          <p className="mt-1">Register the GitHub App before installing it on repositories.</p>
+          <p className="mt-1">Register the GitHub App before installing it on repositories. Until then, configured repositories run through PAT fallback.</p>
           <Link className="mt-3 inline-block rounded bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500" to={withRoutePrefix("/admin/github_app/register", prefix)}>Run manifest flow</Link>
         </section>
       ) : null}
@@ -83,10 +86,11 @@ function RefreshButton() {
 
 function CredentialModeComparison() {
   const rows = [
-    ["All actions appear as you", "Actions appear as bot"],
+    ["Used when no active App installation exists", "Used when the App is registered and installed on the repo account"],
+    ["All actions appear as you", "Actions appear as the App bot"],
     ["Can't approve your own PRs via normal flow", "Normal GitHub approve works"],
     ["Shares your personal API rate limit", "Independent App rate limit"],
-    ["Lose access if PAT rotated/revoked", "Auto-refresh; no rotation drama"]
+    ["Required as fallback for PAT-only repos", "Does not replace PAT fallback for repos without an installation"]
   ]
 
   return (
@@ -156,8 +160,8 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
             ) : repositories.map((repository) => (
               <tr key={repository.id}>
                 <td className="px-4 py-3 font-mono">{repository.slug}</td>
-                <td className="px-4 py-3">{repository.app_credential_active ? <span className="font-medium text-emerald-700">Active</span> : <span className="text-gray-400">-</span>}</td>
-                <td className="px-4 py-3">{repository.app_credential_active ? <span className="text-gray-400">-</span> : <span className="font-medium text-amber-800">Fallback</span>}</td>
+                <td className="px-4 py-3">{repository.app_credential_active ? <span className="font-medium text-emerald-700">Active</span> : <span className="text-gray-400">No active installation</span>}</td>
+                <td className="px-4 py-3">{repository.app_credential_active ? <span className="text-gray-400">Not used for this repo</span> : <span className="font-medium text-amber-800">Used as fallback</span>}</td>
                 <td className="px-4 py-3 text-gray-600">
                   {repository.account_login}
                   {repository.installation_removed_at ? <span className="ml-1 text-xs text-amber-700">(removed)</span> : null}
