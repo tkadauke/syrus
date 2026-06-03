@@ -59,9 +59,12 @@ export type JobRecord = {
   retry_state?: JobRetryState
   approved_at: string | null
   approved_via: string | null
-  total_cost_usd: number | null
   owner_user_id: number | null
   owner_user: JobOwnerUser | null
+  claimed_at: string | null
+  claimed_by_user: JobOwner | null
+  claimed_by_current_user: boolean
+  total_cost_usd: number | null
   billed_runs_count: number
   workflows_count: number
   runs_count: number
@@ -77,6 +80,12 @@ export type JobRecord = {
 export type JobOwnerUser = {
   id: number
   email_address: string
+}
+
+export type JobOwner = {
+  id: number
+  display_name: string
+  profile_path: string
 }
 
 export type JobTag = {
@@ -263,6 +272,8 @@ export type JobActions = {
   can_unapprove: boolean
   can_reopen: boolean
   can_mark_valid: boolean
+  can_claim: boolean
+  can_unclaim: boolean
   can_override_dependencies: boolean
   can_view_timeline: boolean
   feedback_agent_options: string[]
@@ -288,6 +299,7 @@ export type JobPaths = {
   app_check_mergeability_path: string
   app_resume_path: string
   app_tags_path: string
+  app_claim_path: string
   app_dependencies_path: string
   app_dependency_override_path: string
   app_stack_base_path: string

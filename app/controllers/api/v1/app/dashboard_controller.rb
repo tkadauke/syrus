@@ -69,6 +69,10 @@ module Api
             bulk_close_jobs(jobs)
           when "approve"
             bulk_approve_jobs(jobs)
+          when "claim"
+            bulk_claim_jobs(jobs)
+          when "release_claim"
+            bulk_release_claims(jobs)
           when "review_approve"
             bulk_review_approval(jobs)
           when "commit_review_approval"
@@ -210,6 +214,42 @@ module Api
               skipped_job_ids: skipped_auto_merge_disabled.map(&:id),
               action: "approve",
               extra: { batch_id: batch_id }
+            )
+          end
+        end
+
+        def bulk_claim_jobs(jobs)
+          claimed_ids = []
+          jobs.find_each do |job|
+            job.update!(claimed_by_user: Current.user, claimed_at: Time.current)
+            claimed_ids << job.id
+          end
+
+          if claimed_ids.empty?
+            render_error("validation_failed", "No selected jobs were available to claim.", status: :unprocessable_content)
+          else
+            render_bulk_success(
+              "Claimed #{helpers.pluralize(claimed_ids.size, 'job')}.",
+              affected_job_ids: claimed_ids,
+              action: "claim"
+            )
+          end
+        end
+
+        def bulk_release_claims(jobs)
+          released_ids = []
+          jobs.where(claimed_by_user: Current.user).find_each do |job|
+            job.update!(claimed_by_user: nil, claimed_at: nil)
+            released_ids << job.id
+          end
+
+          if released_ids.empty?
+            render_error("validation_failed", "No selected jobs are claimed by you.", status: :unprocessable_content)
+          else
+            render_bulk_success(
+              "Released #{helpers.pluralize(released_ids.size, 'claim')}.",
+              affected_job_ids: released_ids,
+              action: "release_claim"
             )
           end
         end

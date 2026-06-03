@@ -86,6 +86,9 @@ module App
         owner_user_id: @job.owner_user_id,
         owner_user: owner_user_json(@job.owner_user),
         approval_evidence: @job.approval_evidence,
+        claimed_at: iso8601(@job.claimed_at),
+        claimed_by_user: owner_json(@job.claimed_by_user),
+        claimed_by_current_user: @job.claimed_by_user_id == @user.id,
         invalidation_reason: @job.invalidation_reason,
         invalidation_evidence: @job.invalidation_evidence,
         scheduled_task_id: @job.scheduled_task_id,
@@ -530,6 +533,8 @@ module App
         can_unapprove: @job.may_unapprove?,
         can_reopen: @job.closed?,
         can_mark_valid: @job.validity_duplicate? || @job.validity_already_implemented?,
+        can_claim: @job.claimed_by_user_id != @user.id,
+        can_unclaim: @job.claimed_by_user_id == @user.id,
         can_override_dependencies: @user.admin?,
         can_view_timeline: @user.admin?,
         feedback_agent_options: @job.alternate_configured_agent_providers,
@@ -557,6 +562,7 @@ module App
         app_check_mergeability_path: "/api/v1/app/jobs/#{@job.id}/check_mergeability",
         app_resume_path: "/api/v1/app/jobs/#{@job.id}/resume",
         app_tags_path: "/api/v1/app/jobs/#{@job.id}/tags",
+        app_claim_path: "/api/v1/app/jobs/#{@job.id}/claim",
         app_dependencies_path: "/api/v1/app/jobs/#{@job.id}/dependencies",
         app_dependency_override_path: "/api/v1/app/jobs/#{@job.id}/dependencies/override",
         app_stack_base_path: "/api/v1/app/jobs/#{@job.id}/stack_base",
@@ -598,6 +604,16 @@ module App
 
       workflow_id = ref[:workflow_id] || ref["workflow_id"]
       workflow_id ? "WF-#{workflow_id}" : nil
+    end
+
+    def owner_json(user)
+      return unless user
+
+      {
+        id: user.id,
+        display_name: user.display_name,
+        profile_path: profile_path(user)
+      }
     end
 
     def summary_state(job)

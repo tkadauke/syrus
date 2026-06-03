@@ -936,6 +936,8 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
       </div>
       <div className="flex flex-wrap gap-2">
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">Retry</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">Claim</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">Release</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">Approve</button>
         <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">Close</button>
       </div>
@@ -1021,6 +1023,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
+          <DashboardOwnerLabel job={job} prefix={prefix} quiet />
           <span>{approvalLabel}</span>
           <OwnerBadge badge={job.owner_badge} />
           <span>{job.workflows_count} {pluralize(job.workflows_count, "workflow")}</span>
@@ -1070,10 +1073,23 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "repository") {
     return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline" prefix={prefix} repository={job.repository} /></td>
   }
+  if (column === "owner") return <td className="px-4 py-3"><DashboardOwnerLabel job={job} prefix={prefix} /></td>
   if (column === "latest") return <LatestWorkflowCell job={job} />
   if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700">{job.workflows_count}</td>
 
   return <td className="px-4 py-3 text-gray-500">{formatDate(jobDateValue(job, column))}</td>
+}
+
+function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJobItem; prefix: string; quiet?: boolean }) {
+  const owner = job.claimed_by_user
+  if (!owner) return quiet ? null : <span className="text-xs text-gray-400">Unclaimed</span>
+  if (job.claimed_by_current_user) return quiet ? null : <span className="sr-only">Claimed by you</span>
+
+  return (
+    <Link className="text-xs font-medium text-gray-600 hover:text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+      {owner.display_name}
+    </Link>
+  )
 }
 
 function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
@@ -1636,6 +1652,7 @@ function dashboardColumnLabel(subject: DashboardSubject, column: string) {
       state: "State",
       landing_queue_position: "Queue",
       repository: "Repository",
+      owner: "Owner",
       latest: "Latest",
       workflows_count: "Workflows count",
       started: "Started",

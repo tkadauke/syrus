@@ -41,6 +41,12 @@ export type DashboardJobEpic = {
   path: string
 }
 
+export type DashboardClaimOwner = {
+  id: number
+  display_name: string
+  profile_path: string
+}
+
 export type DashboardJobItem = {
   type: "job"
   id: number
@@ -67,6 +73,10 @@ export type DashboardJobItem = {
   finished_at: string | null
   approved_at: string | null
   owner_user_id: number | null
+  owner_user: DashboardOwnerUser | null
+  claimed_at: string | null
+  claimed_by_user: DashboardClaimOwner | null
+  claimed_by_current_user: boolean
   dependencies_overridden_at: string | null
   last_feedback_addressed_at: string | null
   last_seen_comment_at: string | null
@@ -74,7 +84,6 @@ export type DashboardJobItem = {
   workflows_count: number
   repository: DashboardRepository
   epic: DashboardJobEpic | null
-  owner_user: DashboardOwnerUser | null
   owner_badge: DashboardOwnerBadge | null
   tags: DashboardTag[]
   paths: {
@@ -267,7 +276,7 @@ export type DashboardPreferencesPayload = {
   dashboard_preferences: Record<string, unknown>
 }
 
-export type DashboardBulkJobAction = "retry" | "close" | "approve"
+export type DashboardBulkJobAction = "retry" | "close" | "approve" | "claim" | "release_claim"
 export type DashboardBulkEpicAction = "start"
 
 export type DashboardBulkJobsInput = {

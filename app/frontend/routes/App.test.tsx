@@ -1034,7 +1034,7 @@ describe("App", () => {
                 total_pages: 3,
                 preferences: {
                   sort: { column: sortColumn, direction: sortDirection },
-                  visible_columns: ["checkbox", "issue", "state", "repository", "latest", "workflows_count", "started"],
+                  visible_columns: ["checkbox", "issue", "state", "repository", "owner", "latest", "workflows_count", "started"],
                   kanban_lanes: ["queued", "running", "succeeded"],
                   raw: {}
                 },
@@ -1092,6 +1092,7 @@ describe("App", () => {
     }
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).some((link) => link.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
+    expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
     expect(screen.getByRole("link", { name: "kanban" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=kanban")
     expect(screen.getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list")
     expect(screen.getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
@@ -1118,6 +1119,19 @@ describe("App", () => {
         headers: { Accept: "application/json" }
       })
     )
+
+    fireEvent.click(screen.getByLabelText("Select Repair aqueduct"))
+    fireEvent.click(screen.getByRole("button", { name: "Claim" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/dashboard/jobs/bulk",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({ job_ids: [42], bulk_action: "claim" })
+        })
+      )
+    })
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     expect(screen.getByPlaceholderText("Search filters...")).toBeInTheDocument()
@@ -1274,7 +1288,7 @@ describe("App", () => {
           }),
           body: JSON.stringify({
             subject: "job",
-            visible_columns: ["state", "repository", "latest", "started"]
+            visible_columns: ["state", "repository", "owner", "latest", "started"]
           })
         })
       )
@@ -5105,6 +5119,15 @@ describe("App", () => {
     let artifactFetchCount = 0
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/jobs/42/claim" && init?.method === "POST") {
+        Object.assign(payload.job as Record<string, unknown>, {
+          claimed_by_user: { id: 2, display_name: "Ada Lovelace", profile_path: "/profiles/2" },
+          claimed_at: "2026-06-03T05:50:00Z",
+          claimed_by_current_user: true
+        })
+        Object.assign(payload.actions as Record<string, unknown>, { can_claim: false, can_unclaim: true })
+        return Promise.resolve(new Response(JSON.stringify({ message: "Job claimed.", job: payload.job }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/jobs/42/poll_feedback" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({ message: "Checking PR feedback now..." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -5158,6 +5181,17 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "acme/widgets #84 (closed)" })).toHaveAttribute("href", "/app-shell/jobs/44")
     expect(screen.queryByRole("button", { name: "Show timeline" })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText("Add tag")).toBeInTheDocument()
+    expect(screen.getByText("Unclaimed")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "More" }))
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Claim" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/claim",
+        expect.objectContaining({ method: "POST", credentials: "same-origin" })
+      )
+    })
+    expect(await screen.findByText("Job claimed.")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "More" }))
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Check feedback" }))
@@ -8206,6 +8240,7 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
         optional: [
           { key: "state", title: "State" },
           { key: "repository", title: "Repository" },
+          { key: "owner", title: "Owner" },
           { key: "latest", title: "Latest" },
           { key: "workflows_count", title: "Workflows count" },
           { key: "started", title: "Started" },
@@ -8388,6 +8423,9 @@ function dashboardJobItem(overrides: Record<string, unknown> = {}) {
     started_at: "2026-05-30T10:01:00Z",
     finished_at: null,
     approved_at: null,
+    claimed_at: null,
+    claimed_by_user: { id: 2, display_name: "Ada Lovelace", profile_path: "/profiles/2" },
+    claimed_by_current_user: false,
     dependencies_overridden_at: null,
     last_feedback_addressed_at: null,
     last_seen_comment_at: null,
@@ -8556,6 +8594,9 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       landing_failure_reason: null,
       approved_at: null,
       approved_via: null,
+      claimed_at: null,
+      claimed_by_user: null,
+      claimed_by_current_user: false,
       total_cost_usd: 0.1234,
       billed_runs_count: 1,
       workflows_count: 1,
@@ -8705,6 +8746,8 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       can_unapprove: false,
       can_reopen: false,
       can_mark_valid: false,
+      can_claim: true,
+      can_unclaim: false,
       can_override_dependencies: false,
       can_view_timeline: false,
       feedback_agent_options: [],
@@ -8729,6 +8772,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       app_check_mergeability_path: "/api/v1/app/jobs/42/check_mergeability",
       app_resume_path: "/api/v1/app/jobs/42/resume",
       app_tags_path: "/api/v1/app/jobs/42/tags",
+      app_claim_path: "/api/v1/app/jobs/42/claim",
       app_dependencies_path: "/api/v1/app/jobs/42/dependencies",
       app_dependency_override_path: "/api/v1/app/jobs/42/dependencies/override",
       app_stack_base_path: "/api/v1/app/jobs/42/stack_base",

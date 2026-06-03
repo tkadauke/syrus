@@ -218,6 +218,8 @@ function headerActions(payload: JobDetailPayload): HeaderAction[] {
   if (actions.can_restart) available.push({ key: "restart", label: "Start over", input: { method: "post", path: paths.app_restart_path, confirm: "Start over with a new Job and abandon this branch?" }, tone: "secondary" })
   if (actions.can_approve) available.push({ key: "approve", label: payload.job.landing_failure_reason ? "Reapprove" : "Approve", input: { method: "post", path: paths.app_approve_path }, tone: "success" })
   if (actions.can_unapprove) available.push({ key: "unapprove", label: "Unapprove", input: { method: "post", path: paths.app_unapprove_path, confirm: "Move this Job back to implemented?" }, tone: "secondary" })
+  if (actions.can_claim) available.push({ key: "claim", label: "Claim", input: { method: "post", path: paths.app_claim_path }, tone: "secondary" })
+  if (actions.can_unclaim) available.push({ key: "unclaim", label: "Release claim", input: { method: "delete", path: paths.app_claim_path }, tone: "secondary" })
   if (actions.can_cancel) available.push({ key: "cancel", label: "Cancel", input: { method: "post", path: paths.app_cancel_path, confirm: "Cancel any running work and close this Job?" }, tone: "danger" })
   if (actions.can_reopen) available.push({ key: "reopen", label: "Reopen", input: { method: "post", path: paths.app_reopen_path }, tone: "success" })
   if (actions.can_mark_valid) available.push({ key: "mark_valid", label: "Mark valid", input: { method: "post", path: paths.app_mark_valid_path }, tone: "secondary" })
@@ -249,7 +251,14 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("retry")
   } else {
     add("start")
+    add("claim")
+    add("unclaim")
     add("mark_valid")
+  }
+
+  if (keys.length < 2) {
+    add("claim")
+    add("unclaim")
   }
 
   return keys
@@ -498,6 +507,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
       {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} prefix={prefix} /> : null}
 
       <section className="grid gap-4 rounded border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <KeyValue label="Owner"><JobOwnerLabel payload={payload} prefix={prefix} /></KeyValue>
         <KeyValue label="Priority"><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
         <KeyValue label="Validity"><span className="capitalize">{payload.job.validity}</span></KeyValue>
         {payload.epic ? <KeyValue label="Epic"><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
@@ -557,6 +567,20 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
         {retry.retry_delay_reason ? <span>{retry.retry_delay_reason}</span> : null}
       </div>
     </section>
+  )
+}
+
+function JobOwnerLabel({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
+  const owner = payload.job.claimed_by_user
+  if (!owner) return <span className="text-gray-400">Unclaimed</span>
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <Link className="font-medium text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+        {payload.job.claimed_by_current_user ? "You" : owner.display_name}
+      </Link>
+      {payload.job.claimed_at ? <span className="text-xs text-gray-400">{formatDate(payload.job.claimed_at)}</span> : null}
+    </span>
   )
 }
 

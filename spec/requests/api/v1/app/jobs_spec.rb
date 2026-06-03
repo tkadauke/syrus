@@ -113,8 +113,11 @@ RSpec.describe "App API job detail", type: :request do
     ))
     expect(body.dig("actions", "can_poll_feedback")).to eq(true)
     expect(body.dig("actions", "can_check_mergeability")).to eq(true)
+    expect(body.dig("actions", "can_claim")).to eq(true)
+    expect(body.dig("actions", "can_unclaim")).to eq(false)
     expect(body.dig("actions", "can_view_timeline")).to eq(false)
     expect(body.dig("paths", "app_poll_feedback_path")).to eq("/api/v1/app/jobs/#{job.id}/poll_feedback")
+    expect(body.dig("paths", "app_claim_path")).to eq("/api/v1/app/jobs/#{job.id}/claim")
     expect(body.dig("paths", "app_source_path")).to eq("/api/v1/app/jobs/#{job.id}/source")
     expect(body.dig("paths", "app_timeline_path")).to eq("/api/v1/app/jobs/#{job.id}/timeline")
 
@@ -189,6 +192,58 @@ RSpec.describe "App API job detail", type: :request do
       "retry_delay_reason" => "Claude queue is saturated",
       "state_label" => "Provider circuit open"
     )
+  end
+
+  it "returns claim ownership in the job detail payload" do
+    job.update!(claimed_by_user: user, claimed_at: Time.zone.parse("2026-06-03 05:40:00 UTC"))
+
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["job"]).to include(
+      "claimed_at" => "2026-06-03T05:40:00Z",
+      "claimed_by_current_user" => true,
+      "claimed_by_user" => include(
+        "id" => user.id,
+        "display_name" => user.display_name,
+        "profile_path" => "/profiles/#{user.id}"
+      )
+    )
+    expect(parse_body["actions"]).to include(
+      "can_claim" => false,
+      "can_unclaim" => true
+    )
+  end
+
+  it "claims and releases a job for the current user" do
+    post "/api/v1/app/jobs/#{job.id}/claim"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Job claimed.")
+    expect(parse_body.dig("job", "claimed_by_user")).to include("id" => user.id, "profile_path" => "/profiles/#{user.id}")
+    expect(parse_body.dig("job", "claimed_by_current_user")).to eq(true)
+    expect(job.reload.claimed_by_user).to eq(user)
+    expect(job.claimed_at).to be_present
+
+    delete "/api/v1/app/jobs/#{job.id}/claim"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Job released.")
+    expect(parse_body.dig("job", "claimed_by_user")).to be_nil
+    expect(parse_body.dig("job", "claimed_by_current_user")).to eq(false)
+    expect(job.reload.claimed_by_user).to be_nil
+    expect(job.claimed_at).to be_nil
+  end
+
+  it "does not release another user's claim" do
+    teammate = Factories.user(email_address: "teammate@example.com")
+    job.update!(claimed_by_user: teammate, claimed_at: Time.current)
+
+    delete "/api/v1/app/jobs/#{job.id}/claim"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to eq("Only the current owner can release this claim.")
+    expect(job.reload.claimed_by_user).to eq(teammate)
   end
 
   it "paginates workflows on the job detail payload" do

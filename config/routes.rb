@@ -48,6 +48,8 @@ Rails.application.routes.draw do
         delete "jobs/:job_id/attachments/:id", to: "job_attachments#destroy", constraints: { job_id: /\d+/, id: /\d+/ }
         post "jobs/:job_id/tags", to: "job_metadata#add_tag", constraints: { job_id: /\d+/ }
         delete "jobs/:job_id/tags/:tag_id", to: "job_metadata#remove_tag", constraints: { job_id: /\d+/, tag_id: /\d+/ }
+        post "jobs/:job_id/claim", to: "job_claims#create", constraints: { job_id: /\d+/ }
+        delete "jobs/:job_id/claim", to: "job_claims#destroy", constraints: { job_id: /\d+/ }
         post "jobs/:job_id/dependencies", to: "job_metadata#add_dependency", constraints: { job_id: /\d+/ }
         delete "jobs/:job_id/dependencies/:dependency_id", to: "job_metadata#remove_dependency", constraints: { job_id: /\d+/, dependency_id: /\d+/ }
         post "jobs/:job_id/dependencies/override", to: "job_metadata#override_dependencies", constraints: { job_id: /\d+/ }

@@ -40,6 +40,7 @@ module App
         "state" => "State",
         "landing_queue_position" => "Queue",
         "repository" => "Repository",
+        "owner" => "Owner",
         "latest" => "Latest",
         "workflows_count" => "Workflows count",
         "started" => "Started",
@@ -320,7 +321,7 @@ module App
     def jobs_result
       scope = filtered_jobs_scope
       total = scope.count
-      scope = scope.with_latest_workflow_snapshot.preload(:repository, :owner_user, :epic, :tags, :workflows, :runs)
+      scope = scope.with_latest_workflow_snapshot.preload(:repository, :owner_user, :claimed_by_user, :epic, :tags, :workflows, :runs)
       items = paginate(apply_sort(scope, :job)).map { |job| job_json(job) }
 
       { total: total, items: items }
@@ -453,7 +454,7 @@ module App
       records = filtered_jobs_scope
                 .where(state: job_kanban_candidate_states(visible_lanes))
                 .with_latest_workflow_snapshot
-                .preload(:repository, :owner_user, :tags, :workflows, dependencies: :depends_on_job)
+                .preload(:repository, :owner_user, :claimed_by_user, :tags, :workflows, dependencies: :depends_on_job)
                 .order(created_at: :desc, id: :desc)
                 .limit(kanban_limit)
                 .to_a
@@ -593,6 +594,10 @@ module App
         finished_at: job.finished_at&.iso8601,
         approved_at: job.approved_at&.iso8601,
         owner_user_id: job.owner_user_id,
+        owner_user: owner_user_json(job.owner_user),
+        claimed_at: job.claimed_at&.iso8601,
+        claimed_by_user: owner_json(job.claimed_by_user),
+        claimed_by_current_user: job.claimed_by_user_id == user.id,
         dependencies_overridden_at: job.dependencies_overridden_at&.iso8601,
         last_feedback_addressed_at: job.last_feedback_addressed_at&.iso8601,
         last_seen_comment_at: job.last_seen_comment_at&.iso8601,
@@ -600,7 +605,6 @@ module App
         workflows_count: job.workflows.size,
         repository: repository_json(job.repository),
         epic: job_epic_json(job.epic),
-        owner_user: owner_user_json(job.owner_user),
         owner_badge: owner_badge_for(job.owner_user),
         tags: job.tags.map { |tag| tag_json(tag) },
         paths: {
@@ -618,6 +622,16 @@ module App
         number: epic.number,
         display_number: epic.display_number,
         path: epic_path(epic)
+      }
+    end
+
+    def owner_json(owner)
+      return unless owner
+
+      {
+        id: owner.id,
+        display_name: owner.display_name,
+        profile_path: profile_path(owner)
       }
     end
 

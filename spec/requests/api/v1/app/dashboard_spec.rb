@@ -30,6 +30,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       first = Factories.job_record(repository: repo, epic: epic, issue_number: 1, issue_title: "Build aqueduct", state: "queued", pr_number: 17, owner_user: user)
       second = Factories.job_record(repository: repo, issue_number: 2, issue_title: "Chart forum", state: "running", owner_user: user)
       Workflow.create!(job: second, trigger_kind: "rebase", state: "running")
+      first.update!(claimed_by_user: user, claimed_at: Time.zone.parse("2026-06-03 05:45:00 UTC"))
       first.tags << tag
       archived_repo = Factories.repository(user: user, owner: "acme", name: "archived", archived_at: Time.current)
       archived_job = Factories.job_record(repository: archived_repo, issue_number: 3, issue_title: "Hide archive", state: "queued")
@@ -58,6 +59,9 @@ RSpec.describe "App API dashboard commands", type: :request do
         "total_cost_usd" => nil,
         "workflows_count" => 0,
         "approved_at" => nil,
+        "claimed_at" => "2026-06-03T05:45:00Z",
+        "claimed_by_current_user" => true,
+        "claimed_by_user" => include("id" => user.id, "profile_path" => "/profiles/#{user.id}"),
         "dependencies_overridden_at" => nil,
         "issue_url" => "https://github.com/acme/widgets/issues/1",
         "pr_url" => "https://github.com/acme/widgets/pull/17",
@@ -95,6 +99,7 @@ RSpec.describe "App API dashboard commands", type: :request do
           "optional" => include(
             { "key" => "state", "title" => "State" },
             { "key" => "repository", "title" => "Repository" },
+            { "key" => "owner", "title" => "Owner" },
             { "key" => "workflows_count", "title" => "Workflows count" }
           )
         },
@@ -871,6 +876,40 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(second.reload.tags).to contain_exactly(tag)
       expect(parse_body["message"]).to eq("Applied epic:tags to 2 jobs.")
       expect(parse_body.dig("tag", "name")).to eq("epic:tags")
+    end
+
+    it "claims selected jobs for the current user" do
+      first = Factories.job(repository: repo, issue_number: 1)
+      second = Factories.job(repository: repo, issue_number: 2)
+      allow(AppEvents).to receive(:broadcast)
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ first.id, second.id ], bulk_action: "claim" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(first.reload.claimed_by_user).to eq(user)
+      expect(second.reload.claimed_by_user).to eq(user)
+      expect(first.claimed_at).to be_present
+      expect(parse_body["message"]).to eq("Claimed 2 jobs.")
+      expect(parse_body["affected_job_ids"]).to contain_exactly(first.id, second.id)
+    end
+
+    it "releases only the current user's selected claims" do
+      teammate = Factories.user(email_address: "teammate@example.com")
+      mine = Factories.job(repository: repo, issue_number: 1, claimed_by_user: user, claimed_at: Time.current)
+      theirs = Factories.job(repository: repo, issue_number: 2, claimed_by_user: teammate, claimed_at: Time.current)
+      allow(AppEvents).to receive(:broadcast)
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ mine.id, theirs.id ], bulk_action: "release_claim" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(mine.reload.claimed_by_user).to be_nil
+      expect(theirs.reload.claimed_by_user).to eq(teammate)
+      expect(parse_body["message"]).to eq("Released 1 claim.")
+      expect(parse_body["affected_job_ids"]).to eq([ mine.id ])
     end
   end
 
