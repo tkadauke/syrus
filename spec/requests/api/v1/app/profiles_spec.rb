@@ -53,6 +53,36 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(response.body).not_to include("private@example.com")
   end
 
+  it "reports a single-user instance while keeping the directory payload public" do
+    viewer = Factories.user(
+      email_address: "solo@example.com",
+      name: "",
+      github_handle: "solo",
+      profile_bio: "Local operator.",
+      github_token: "ghp_solo_secret",
+      claude_oauth_token: "sk-solo-secret"
+    )
+    sign_in_as(viewer)
+
+    get "/api/v1/app/profiles"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["team_user_count"]).to eq(1)
+    expect(body["profiles"]).to contain_exactly(
+      include(
+        "id" => viewer.id,
+        "display_name" => "@solo",
+        "github_handle" => "solo",
+        "bio_excerpt" => "Local operator.",
+        "profile_path" => "/profiles/#{viewer.id}"
+      )
+    )
+    expect(response.body).not_to include("solo@example.com")
+    expect(response.body).not_to include("ghp_solo_secret")
+    expect(response.body).not_to include("sk-solo-secret")
+  end
+
   it "shows a teammate profile with safe owned work summaries" do
     viewer = Factories.user
     teammate = Factories.user(
