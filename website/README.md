@@ -103,6 +103,10 @@ Recommended sidebar order once Starlight lands:
 
 Update website docs in the same PR as product changes. A feature is not done if the user-facing page that explains it is stale.
 
+Pick an issue with the `syrus` label that references a `website/`
+path; fill in the content matching the stub's brief. Cross-reference
+the plan doc and IA inventory when in doubt about scope.
+
 Keep existing pages current before adding new pages. Add a top-level docs
 page only when the subject does not fit the navigation above, and update
 this README when the navigation contract changes.
