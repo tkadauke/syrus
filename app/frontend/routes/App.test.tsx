@@ -275,6 +275,7 @@ describe("App", () => {
     )
 
     expect(screen.getByRole("main", { name: "Sign in" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Back to Syrus overview" })).toHaveAttribute("href", "/app-shell/")
     expect(screen.queryByRole("navigation", { name: "Account" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument()
@@ -317,8 +318,9 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Create account" })).toBeInTheDocument()
-    expect(await screen.findByText("No users exist yet. This account will become the administrator.")).toBeInTheDocument()
+    expect(screen.getByRole("main", { name: "Create your Syrus account" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Back to Syrus overview" })).toHaveAttribute("href", "/app-shell/")
+    expect(await screen.findByText("Set up this Syrus instance by creating the first administrator account.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Already have an account? Sign in" })).toHaveAttribute("href", "/app-shell/session/new")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/auth/signup",
@@ -369,6 +371,33 @@ describe("App", () => {
       "/api/v1/app/bootstrap",
       expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
     )
+  })
+
+  it("renders invitation-only copy on the sign-up route when signup is locked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          allowed: false,
+          first_signup: false,
+          signups_open: false,
+          invitation: null
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/users/new"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByRole("main", { name: "Create your Syrus account" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Back to Syrus overview" })).toHaveAttribute("href", "/")
+    expect(await screen.findByText(/This Syrus instance is invitation-only/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "sign in" })).toHaveAttribute("href", "/session/new")
   })
 
   it("routes signed-in root to the dashboard instead of the public landing page", async () => {

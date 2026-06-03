@@ -31,7 +31,7 @@ export function SignInRoute() {
   return (
     <AuthShell
       title="Sign in"
-      subtitle="Use an existing Syrus account for this instance."
+      subtitle="Use an existing account to enter this Syrus instance."
     >
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, "Unable to sign in.")}</PanelMessage> : null}
@@ -78,8 +78,8 @@ export function SignUpRoute() {
 
   return (
     <AuthShell
-      title="Create account"
-      subtitle="Join this Syrus instance with open sign-ups or an invitation link."
+      title="Create your Syrus account"
+      subtitle="Set up the first administrator, use an invitation link, or join while open sign-ups are enabled."
     >
       {signup.isPending ? <PanelMessage>Loading sign-up...</PanelMessage> : null}
       {signup.isError ? <PanelMessage tone="error">{errorMessage(signup.error, "Unable to load sign-up.")}</PanelMessage> : null}
@@ -114,15 +114,15 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
   if (!payload.allowed) {
     return (
       <PanelMessage tone="error">
-        Sign-up is invitation-only. Use an invitation link or <Link className="underline hover:no-underline" to={`${prefix}/session/new`}>sign in</Link>.
+        This Syrus instance is invitation-only. Ask the operator for an invitation link, or <Link className="underline hover:no-underline" to={`${prefix}/session/new`}>sign in</Link> with an existing account.
       </PanelMessage>
     )
   }
 
   return (
     <form className="space-y-5" onSubmit={onSubmit}>
-      {payload.invitation ? <PanelMessage>Accepting an invitation from {payload.invitation.invited_by_email}.</PanelMessage> : null}
-      {payload.first_signup ? <PanelMessage>No users exist yet. This account will become the administrator.</PanelMessage> : null}
+      {payload.invitation ? <PanelMessage>Invitation accepted from {payload.invitation.invited_by_email}. Create your account to join this instance.</PanelMessage> : null}
+      {payload.first_signup ? <PanelMessage>Set up this Syrus instance by creating the first administrator account.</PanelMessage> : null}
       {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, "Unable to create account.")}</PanelMessage> : null}
       <Field label="Email address">
         <input
@@ -267,10 +267,13 @@ export function PasswordResetRoute() {
 }
 
 function AuthShell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
+
   return (
     <main aria-label={title} className="mx-auto max-w-xl space-y-6 p-6">
       <header>
-        <Link className="text-sm font-medium text-blue-700 underline hover:no-underline" to="/">Syrus overview</Link>
+        <Link className="text-sm font-medium text-blue-700 underline hover:no-underline" to={`${prefix}/`}>Back to Syrus overview</Link>
         <h1 className="text-3xl font-semibold text-gray-900">{title}</h1>
         {subtitle ? <p className="mt-2 text-sm leading-6 text-gray-600">{subtitle}</p> : null}
       </header>
