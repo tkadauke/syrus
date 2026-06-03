@@ -324,7 +324,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/bootstrap") {
-        return Promise.resolve(new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify(publicBootstrapPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(

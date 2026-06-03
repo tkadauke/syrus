@@ -20,10 +20,10 @@ RSpec.describe "bin/healthcheck" do
   let(:script) { Rails.root.join("bin/healthcheck").to_s }
 
   # Bundler.with_unbundled_env approximates "process started by K8s with
-  # no Bundler env vars set" — the conditions under which the K3s pod
+  # no active Bundler runtime" — the conditions under which the K3s pod
   # was crashing with LoadError: cannot load such file -- mysql2.
   def spawn_clean(env_overrides = {})
-    bundle_env = ENV.to_h.slice("BUNDLE_APP_CONFIG", "BUNDLE_PATH", "BUNDLE_USER_CACHE", "BUNDLE_USER_HOME")
+    bundle_env = ENV.to_h.slice("BUNDLE_APP_CONFIG", "BUNDLE_PATH", "BUNDLE_USER_CACHE", "BUNDLE_USER_HOME", "BUNDLE_WITHOUT")
 
     Bundler.with_unbundled_env do
       env = ENV.to_h.merge(bundle_env).merge(env_overrides)
