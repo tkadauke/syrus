@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent, ReactNode } from "react"
-import { useEffect, useMemo, useState } from "react"
+import type { FormEvent, ReactNode, UIEvent } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { CloseIcon } from "../components/CloseIcon"
@@ -39,6 +39,8 @@ type HeaderAction = {
   input: CommandInput
   tone: ButtonTone
 }
+
+const RUN_TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24
 
 export function JobDetailRoute() {
   const params = useParams()
@@ -847,18 +849,43 @@ function RunArtifactsPanel({ payload, view }: { payload: Awaited<ReturnType<type
   return (
     <section className="mt-3 rounded border border-gray-200 bg-gray-50">
       <h4 className="border-b border-gray-200 px-3 py-2 text-xs font-semibold uppercase text-gray-500">Transcript</h4>
-      {payload.logs.length > 0 ? (
-        <ol className="max-h-[32rem] overflow-auto divide-y divide-gray-200">
-          {payload.logs.map((log) => (
-            <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)]" key={log.id}>
-              <span className="text-gray-400">{transcriptLogKindLabel(log.kind) || `#${log.sequence}`}</span>
-              <pre className="whitespace-pre-wrap break-words">{log.chunk}</pre>
-            </li>
-          ))}
-        </ol>
-      ) : <p className="p-3 text-sm text-gray-400">No transcript rows captured for this run.</p>}
+      {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400">No transcript rows captured for this run.</p>}
     </section>
   )
+}
+
+function RunTranscriptLogs({ logs }: { logs: Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"] }) {
+  const listRef = useRef<HTMLOListElement | null>(null)
+  const atBottomRef = useRef(true)
+  const logSignature = logs.map((log) => `${log.id}:${log.sequence}:${log.kind || ""}:${log.chunk.length}`).join("|")
+
+  function handleScroll(event: UIEvent<HTMLOListElement>) {
+    atBottomRef.current = isRunTranscriptAtBottom(event.currentTarget)
+  }
+
+  useLayoutEffect(() => {
+    if (atBottomRef.current) scrollRunTranscriptToBottom(listRef.current)
+  }, [logSignature])
+
+  return (
+    <ol className="max-h-[32rem] overflow-auto divide-y divide-gray-200" data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
+      {logs.map((log) => (
+        <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)]" key={log.id}>
+          <span className="text-gray-400">{transcriptLogKindLabel(log.kind) || `#${log.sequence}`}</span>
+          <pre className="whitespace-pre-wrap break-words">{log.chunk}</pre>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function isRunTranscriptAtBottom(element: HTMLElement) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= RUN_TRANSCRIPT_BOTTOM_THRESHOLD_PX
+}
+
+function scrollRunTranscriptToBottom(element: HTMLElement | null) {
+  if (!element) return
+  element.scrollTop = element.scrollHeight
 }
 
 function transcriptLogKindLabel(kind: string | null | undefined) {

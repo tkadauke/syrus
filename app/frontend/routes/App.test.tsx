@@ -5001,6 +5001,10 @@ describe("App", () => {
     expect(screen.getByText("Tool")).toBeInTheDocument()
     expect(screen.queryByText("assistant_text")).not.toBeInTheDocument()
     expect(screen.queryByText("tool_call")).not.toBeInTheDocument()
+    const transcriptStream = screen.getByTestId("run-transcript-log-stream")
+    setScrollMetrics(transcriptStream, { scrollHeight: 1000, clientHeight: 400, scrollTop: 600 })
+    fireEvent.scroll(transcriptStream)
+    setScrollMetrics(transcriptStream, { scrollHeight: 1200, clientHeight: 400, scrollTop: 600 })
 
     const subscriptionCalls = actionCable.createSubscription.mock.calls as unknown[][]
     const appEventSubscription = subscriptionCalls.at(-1)?.[1] as { received?: (event: unknown) => void } | undefined
@@ -5019,6 +5023,7 @@ describe("App", () => {
     expect(await screen.findByText("new marble")).toBeInTheDocument()
     expect(screen.getByText("System")).toBeInTheDocument()
     expect(screen.queryByText("system")).not.toBeInTheDocument()
+    await waitFor(() => expect(transcriptStream.scrollTop).toBe(1200))
 
     fireEvent.click(screen.getByRole("button", { name: "Diff" }))
     expect(await screen.findByText(/diff --git a\/app.rb b\/app.rb/)).toBeInTheDocument()
