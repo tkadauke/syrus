@@ -320,30 +320,13 @@ describe("App", () => {
     )
   })
 
-  it("renders the logged-out landing CTA from public auth status", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
-      const path = String(input)
-      if (path === "/api/v1/app/bootstrap") {
-        return Promise.resolve(new Response(JSON.stringify(publicBootstrapPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            authenticated: false,
-            first_signup: false,
-            signups_open: false,
-            valid_invitation: true,
-            cta: {
-              kind: "accept_invitation",
-              label: "Accept invitation",
-              href: "/users/new?token=invite-token"
-            }
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
+  it("renders the logged-out landing CTA from public bootstrap state", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })),
+        { status: 200, headers: { "Content-Type": "application/json" } }
       )
-    })
+    )
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -7443,7 +7426,7 @@ describe("App", () => {
 })
 
 function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: ReturnType<typeof bootstrapSetupStatusPayload> | null } = {}) {
-  const { setupStatus, ...payloadOverrides } = overrides
+  const { setupStatus: setupStatusOverride, ...payloadOverrides } = overrides
 
   return {
     current_user: {
@@ -7476,7 +7459,7 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
       default_chat_path: "/chats/9"
     },
     csrf_token: "csrf-token",
-    setup_status: setupStatus ?? (payloadOverrides.setup_status as ReturnType<typeof bootstrapSetupStatusPayload> | undefined) ?? defaultSetupStatus(),
+    setup_status: setupStatusOverride ?? (payloadOverrides.setup_status as ReturnType<typeof bootstrapSetupStatusPayload> | undefined) ?? setupStatus(),
     feature_flags: {
       migrated_routes: []
     },
