@@ -199,7 +199,7 @@ module App
             user.dashboard_preferences["last_owner_user_id"],
             exception: false
           )
-          raise InvalidScope, "owner_id is required for dashboard scope user" unless id
+          raise InvalidScope, "owner_user_id is required for dashboard scope user" unless id
 
           User.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
         end
@@ -242,12 +242,21 @@ module App
         return apply_default_epic_work_scope(scope) if default_epic_work_scope?(subject_name)
 
         owner_id = selected_owner_user.id
-        if subject_name.to_s == "workflow"
-          scope.where(jobs: { owner_user_id: owner_id })
-        elsif subject_name.to_s == "epic"
+        case subject_name.to_s
+        when "workflow"
+          if job_user_fallback_scope?
+            scope.where("jobs.owner_user_id = :owner_id OR jobs.user_id = :owner_id", owner_id: owner_id)
+          else
+            scope.where(jobs: { owner_user_id: owner_id })
+          end
+        when "job"
+          if job_user_fallback_scope?
+            scope.where("jobs.owner_user_id = :owner_id OR jobs.user_id = :owner_id", owner_id: owner_id)
+          else
+            scope.where(owner_user_id: owner_id)
+          end
+        when "epic"
           epic_owned_by_scope(scope, owner_id)
-        else
-          scope.where(owner_user_id: owner_id)
         end
       when "claimable"
         if subject_name.to_s == "epic"
@@ -292,6 +301,26 @@ module App
       scope.where(owner_user_id: nil, owner_id: nil)
     end
 
+    def job_user_fallback_scope?
+      return true if user_scope?
+      return false unless mine_scope?
+      return false if ownership_param_present?
+      return false if selected_owner_has_owner_user_records?
+
+      true
+    end
+
+    def selected_owner_has_owner_user_records?
+      case subject
+      when "workflow"
+        Workflow.joins(:job).where(jobs: { repository_id: active_repo_ids, owner_user_id: selected_owner_id }).exists?
+      when "job"
+        Job.where(repository_id: active_repo_ids, owner_user_id: selected_owner_id).exists?
+      else
+        false
+      end
+    end
+
     def jobs_base_scope
       @jobs_base_scope ||= apply_ownership_scope(Job.where(repository_id: active_repo_ids), :job)
     end
@@ -321,7 +350,7 @@ module App
     def jobs_result
       scope = filtered_jobs_scope
       total = scope.count
-      scope = scope.with_latest_workflow_snapshot.preload(:repository, :owner_user, :claimed_by_user, :epic, :tags, :workflows, :runs)
+      scope = scope.with_latest_workflow_snapshot.preload(:repository, :user, :owner_user, :claimed_by_user, :epic, :tags, :workflows, :runs)
       items = paginate(apply_sort(scope, :job)).map { |job| job_json(job) }
 
       { total: total, items: items }
@@ -336,7 +365,7 @@ module App
     end
 
     def workflows_result
-      scope = filtered_workflows_scope.includes(:steps, job: [ :repository, :owner_user ])
+      scope = filtered_workflows_scope.includes(:steps, job: [ :repository, :user, :owner_user ])
       total = scope.count
       items = paginate(apply_sort(scope, :workflow)).map { |workflow| workflow_json(workflow) }
 
@@ -454,7 +483,7 @@ module App
       records = filtered_jobs_scope
                 .where(state: job_kanban_candidate_states(visible_lanes))
                 .with_latest_workflow_snapshot
-                .preload(:repository, :owner_user, :claimed_by_user, :tags, :workflows, dependencies: :depends_on_job)
+                .preload(:repository, :user, :owner_user, :claimed_by_user, :tags, :workflows, dependencies: :depends_on_job)
                 .order(created_at: :desc, id: :desc)
                 .limit(kanban_limit)
                 .to_a
@@ -486,7 +515,7 @@ module App
       records_by_lane = lanes.to_h { |lane| [ lane, [] ] }
       records = filtered_workflows_scope
                 .where(state: workflow_kanban_candidate_states(lanes))
-                .includes(:steps, job: [ :repository, :owner_user ])
+                .includes(:steps, job: [ :repository, :user, :owner_user ])
                 .order(created_at: :desc, id: :desc)
                 .limit(kanban_limit)
                 .to_a
@@ -568,6 +597,8 @@ module App
     end
 
     def job_json(job)
+      owner_user = job_owner_user(job)
+
       {
         type: "job",
         id: job.id,
@@ -605,7 +636,8 @@ module App
         workflows_count: job.workflows.size,
         repository: repository_json(job.repository),
         epic: job_epic_json(job.epic),
-        owner_badge: owner_badge_for(job.owner_user),
+        owner_user: owner_user_json(owner_user),
+        owner_badge: owner_badge_for(owner_user),
         tags: job.tags.map { |tag| tag_json(tag) },
         paths: {
           job_path: job_path(job),
@@ -636,6 +668,8 @@ module App
     end
 
     def epic_json(epic)
+      owner_user = epic_owner_user(epic)
+
       {
         type: "epic",
         id: epic.id,
@@ -647,12 +681,12 @@ module App
         owner: owner_json(epic.owner),
         owned_by_current_user: epic.owner_user_id == user.id || epic.claimed_by?(user),
         claimable: epic.claimable?,
-        owner_badge: owner_badge_for(epic_owner_for_display(epic), claimable: epic.claimable?),
+        owner_badge: owner_badge_for(owner_user, claimable: epic.claimable?),
         claimed_at: epic.claimed_at&.iso8601,
         auto_approve_mode: epic.auto_approve_mode,
-        owner_user_id: epic.owner_user_id,
+        owner_user_id: owner_user&.id,
         owner_status: epic_owner_status(epic),
-        owner_user: owner_user_json(epic_owner_for_display(epic)),
+        owner_user: owner_user_json(owner_user),
         jobs_count: epic.jobs.size,
         landed_jobs_count: epic_landed_jobs_count(epic),
         created_at: epic.created_at&.iso8601,
@@ -686,6 +720,8 @@ module App
 
     def workflow_json(workflow)
       job = workflow.job
+      owner_user = job_owner_user(job)
+
       {
         type: "workflow",
         id: workflow.id,
@@ -705,22 +741,26 @@ module App
           title: job.issue_title.presence || job.kind.humanize,
           state: job.state,
           repository: repository_json(job.repository),
-          owner_user: owner_user_json(job.owner_user),
-          owner_badge: owner_badge_for(job.owner_user),
+          owner_user: owner_user_json(owner_user),
+          owner_badge: owner_badge_for(owner_user),
           path: job_path(job)
         }
       }
     end
 
     def epic_owner_status(epic)
-      owner_id = epic.owner_user_id || epic.owner_id
-      return "unclaimed" if owner_id.blank?
-      return "mine" if owner_id == user.id
+      owner_user = epic_owner_user(epic)
+      return "unclaimed" if owner_user.nil?
+      return "mine" if owner_user.id == user.id
 
       "other_owned"
     end
 
-    def epic_owner_for_display(epic)
+    def job_owner_user(job)
+      job.owner_user || job.user
+    end
+
+    def epic_owner_user(epic)
       epic.owner_user || epic.owner
     end
 
