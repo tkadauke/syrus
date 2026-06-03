@@ -13,7 +13,7 @@ prepare:
   # `vendor/bundle/` via a workspace-local `.bundle/config` so
   # `bin/rspec`, `bundle exec rails test`, etc. all resolve gems
   # the agent just installed.
-  - bundle config set --local path vendor/bundle
+  - env BUNDLE_APP_CONFIG=.bundle bundle config set --local path vendor/bundle
   - bundle install --jobs 4
   - npm ci
 

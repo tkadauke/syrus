@@ -14,7 +14,9 @@
 /public/assets
 /public/packs
 /coverage/
-.bundle/
+.bundle/*
+!.bundle/
+!.bundle/config
 vendor/bundle/
 node_modules/
 .byebug_history
