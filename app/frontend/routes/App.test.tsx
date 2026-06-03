@@ -4367,6 +4367,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "More" }))
     expect(screen.getByRole("menu")).toBeInTheDocument()
+    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with feedback" })).toBeInTheDocument()
     fireEvent.keyDown(window, { key: "Escape" })
     await waitFor(() => {
       expect(screen.queryByRole("menu")).not.toBeInTheDocument()
@@ -4392,6 +4393,57 @@ describe("App", () => {
         expect(fetchSpy).toHaveBeenCalledWith(path, expect.objectContaining({ method }))
       })
     }
+  })
+
+  it("sends retry feedback from the Job header More menu", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/run_again" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Retry workflow enqueued." }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(jobDetailPayload({
+        actions: {
+          can_retry: true,
+          can_approve: false,
+          can_poll_feedback: false,
+          can_rebase: false,
+          can_check_mergeability: false,
+          can_restart: false,
+          can_cancel: false
+        }
+      })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "More" }))
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with feedback" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Retry with feedback" })
+    fireEvent.change(within(dialog).getByLabelText("Feedback"), { target: { value: "Please use the marble route this time." } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/run_again",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ retry_context: "Please use the marble route this time." })
+        })
+      )
+    })
+    expect(await screen.findByText("Retry workflow enqueued.")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Retry with feedback" })).not.toBeInTheDocument()
+    })
   })
 
   it("dispatches Job metadata controls through the app API", async () => {

@@ -161,18 +161,28 @@ function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, onNotice: (me
 }
 
 function HeaderActions({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
+  const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
   const actions = headerActions(payload)
   const visibleKeys = primaryHeaderActionKeys(payload, actions)
   const visibleActions = visibleKeys.map((key) => actions.find((action) => action.key === key)).filter((action): action is HeaderAction => Boolean(action))
   const overflowActions = actions.filter((action) => !visibleKeys.includes(action.key))
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      {visibleActions.map((action) => (
-        <CommandButton command={command} input={action.input} key={action.key} tone={action.tone}>{action.label}</CommandButton>
-      ))}
-      {overflowActions.length > 0 ? <HeaderActionsMenu actions={overflowActions} command={command} /> : null}
-    </div>
+    <>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {visibleActions.map((action) => (
+          <CommandButton command={command} input={action.input} key={action.key} tone={action.tone}>{action.label}</CommandButton>
+        ))}
+        {overflowActions.length > 0 ? <HeaderActionsMenu actions={overflowActions} command={command} onRetryFeedback={() => setRetryFeedbackOpen(true)} /> : null}
+      </div>
+      {retryFeedbackOpen ? (
+        <RetryFeedbackDialog
+          command={command}
+          onClose={() => setRetryFeedbackOpen(false)}
+          path={payload.paths.app_run_again_path}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -186,6 +196,7 @@ function headerActions(payload: JobDetailPayload): HeaderAction[] {
   if (actions.can_rebase) available.push({ key: "rebase", label: "Rebase now", input: { method: "post", path: paths.app_rebase_path }, tone: "secondary" })
   if (actions.can_check_mergeability) available.push({ key: "check_mergeability", label: "Check mergeability", input: { method: "post", path: paths.app_check_mergeability_path }, tone: "secondary" })
   if (actions.can_retry) available.push({ key: "retry", label: "Retry", input: { method: "post", path: paths.app_run_again_path }, tone: "primary" })
+  if (actions.can_retry) available.push({ key: "retry_feedback", label: "Retry with feedback", input: { method: "post", path: paths.app_run_again_path }, tone: "secondary" })
   if (actions.can_restart) available.push({ key: "restart", label: "Start over", input: { method: "post", path: paths.app_restart_path, confirm: "Start over with a new Job and abandon this branch?" }, tone: "secondary" })
   if (actions.can_approve) available.push({ key: "approve", label: "Approve", input: { method: "post", path: paths.app_approve_path }, tone: "success" })
   if (actions.can_unapprove) available.push({ key: "unapprove", label: "Unapprove", input: { method: "post", path: paths.app_unapprove_path, confirm: "Move this Job back to implemented?" }, tone: "secondary" })
@@ -226,7 +237,7 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
   return keys
 }
 
-function HeaderActionsMenu({ actions, command }: { actions: HeaderAction[]; command: ReturnType<typeof useJobCommand> }) {
+function HeaderActionsMenu({ actions, command, onRetryFeedback }: { actions: HeaderAction[]; command: ReturnType<typeof useJobCommand>; onRetryFeedback: () => void }) {
   const [open, setOpen] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
 
@@ -251,6 +262,10 @@ function HeaderActionsMenu({ actions, command }: { actions: HeaderAction[]; comm
               key={action.key}
               onClick={() => {
                 setOpen(false)
+                if (action.key === "retry_feedback") {
+                  onRetryFeedback()
+                  return
+                }
                 command.mutate(action.input)
               }}
               role="menuitem"
@@ -261,6 +276,62 @@ function HeaderActionsMenu({ actions, command }: { actions: HeaderAction[]; comm
           ))}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function RetryFeedbackDialog({ command, path, onClose }: { command: ReturnType<typeof useJobCommand>; path: string; onClose: () => void }) {
+  const [feedback, setFeedback] = useState("")
+  const trimmedFeedback = feedback.trim()
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!trimmedFeedback) return
+
+    command.mutate(
+      { method: "post", path, body: { retry_context: trimmedFeedback } },
+      { onSuccess: onClose }
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-gray-900/40 p-4" role="presentation">
+      <section aria-labelledby="retry-feedback-title" className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl" role="dialog" aria-modal="true">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900" id="retry-feedback-title">Retry with feedback</h2>
+            <p className="mt-1 text-sm text-gray-500">This feedback will be added to the retry prompt.</p>
+          </div>
+          <button
+            aria-label="Close retry with feedback"
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            disabled={command.isPending}
+            onClick={onClose}
+            type="button"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+        <form className="mt-4 space-y-3" onSubmit={submit}>
+          <label className="block text-sm font-medium text-gray-700" htmlFor="retry-feedback-text">
+            Feedback
+          </label>
+          <textarea
+            autoFocus
+            className="min-h-36 w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            id="retry-feedback-text"
+            onChange={(event) => setFeedback(event.target.value)}
+            required
+            value={feedback}
+          />
+          <div className="flex flex-wrap justify-end gap-2">
+            <button className={buttonClass("secondary")} disabled={command.isPending} onClick={onClose} type="button">Cancel</button>
+            <button className={buttonClass("primary")} disabled={command.isPending || !trimmedFeedback} type="submit">
+              {command.isPending ? "Retrying..." : "Retry"}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   )
 }
