@@ -3,7 +3,10 @@
 Source for the public Syrus website at `syrusai.dev` (domain TBD).
 
 See [`docs/plans/website.md`](../docs/plans/website.md) for the
-full plan: tech stack, hosting, content strategy, launch gating.
+full plan: tech stack, hosting, content strategy, launch gating. See
+[`docs/plans/website-information-architecture.md`](../docs/plans/website-information-architecture.md)
+for the route-by-route IA, content inventory, and target pages for
+follow-up website jobs.
 
 ## Status
 
@@ -49,7 +52,7 @@ website/
 
 Pick an issue with the `syrus` label that references a `website/`
 path; fill in the content matching the stub's brief. Cross-reference
-the plan doc when in doubt about scope.
+the plan doc and IA inventory when in doubt about scope.
 
 Don't add new top-level sections without updating the plan doc
 first — the sidebar is part of the navigation contract.

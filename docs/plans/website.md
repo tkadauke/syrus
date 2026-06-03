@@ -9,6 +9,10 @@ skeleton exists, but the Astro/Starlight build configuration, package
 scripts, preview workflow, and GitHub Pages deployment plumbing are not
 present._
 
+_IA update 2026-06-02: route-by-route information architecture, content
+inventory, and target pages for follow-up jobs now live in
+`docs/plans/website-information-architecture.md`._
+
 ## Why this exists
 
 When Syrus goes public, it needs a web presence: a home page that
@@ -200,7 +204,9 @@ Syrus to your cluster →"* linking to the Docker Compose path.
 
 Standard OSS-docs outline. Most sections reuse content from
 existing in-repo docs (`ARCHITECTURE.md`, `ROADMAP.md`,
-`CLAUDE.md`) rather than duplicating.
+`CLAUDE.md`) rather than duplicating. The concrete route order, page
+contracts, and source-content disposition are now tracked in
+`docs/plans/website-information-architecture.md`.
 
 - **Getting started**: installation, first run, basic concepts.
 - **Concepts**: Job / Workflow / Step / Run terminology, AASM
