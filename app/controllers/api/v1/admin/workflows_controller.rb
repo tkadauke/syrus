@@ -51,22 +51,17 @@ module Api
             return
           end
 
-          workflow.reopen!
-          workflow.save!
-          failed_step.reopen!
-          failed_step.save!
-
-          new_run = failed_step.runs.create!(
-            job: workflow.job,
-            trigger_kind: workflow.trigger_kind,
-            agent_provider: workflow.agent_provider
-          )
+          result = RetryFailedStepEnqueuer.call(workflow: workflow)
+          unless result.success?
+            render_error("retry_failed_step_unavailable", result.error, status: :unprocessable_content)
+            return
+          end
 
           render json: {
             ok: true,
-            workflow_id: workflow.id,
-            step_id: failed_step.id,
-            new_run_id: new_run.id
+            workflow_id: result.workflow.id,
+            step_id: result.step.id,
+            new_run_id: result.run.id
           }
         end
 

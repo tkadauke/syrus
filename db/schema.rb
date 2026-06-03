@@ -67,6 +67,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_04_001607) do
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
   end
 
+  create_table "auto_retry_attempts", force: :cascade do |t|
+    t.string "agent_provider", null: false
+    t.integer "attempt_number", null: false
+    t.datetime "created_at", null: false
+    t.string "failure_classification", null: false
+    t.integer "job_id", null: false
+    t.datetime "performed_at"
+    t.string "retry_kind", null: false
+    t.integer "run_id"
+    t.datetime "scheduled_at", null: false
+    t.string "skipped_reason"
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id", null: false
+    t.index ["job_id", "agent_provider", "failure_classification"], name: "index_auto_retry_attempts_on_budget"
+    t.index ["job_id"], name: "index_auto_retry_attempts_on_job_id"
+    t.index ["run_id"], name: "index_auto_retry_attempts_on_run_id"
+    t.index ["workflow_id", "retry_kind"], name: "index_auto_retry_attempts_on_workflow_retry_kind"
+    t.index ["workflow_id"], name: "index_auto_retry_attempts_on_workflow_id"
+  end
+
   create_table "chat_attachments", force: :cascade do |t|
     t.integer "attachable_id", null: false
     t.string "attachable_type", null: false
@@ -757,6 +777,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_04_001607) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "admin_actions", "users"
+  add_foreign_key "auto_retry_attempts", "jobs"
+  add_foreign_key "auto_retry_attempts", "runs"
+  add_foreign_key "auto_retry_attempts", "workflows"
   add_foreign_key "chat_attachments", "chat_sessions"
   add_foreign_key "chat_bookmarks", "chat_messages"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"

@@ -34,6 +34,7 @@ class Job < ApplicationRecord
   # for the existing Run.belongs_to :job association used widely
   # in views and queries.
   has_many :runs, -> { order(:created_at) }
+  has_many :auto_retry_attempts, dependent: :destroy
   has_many :job_logs, through: :runs
   has_many :job_pins, dependent: :destroy
   has_many :pinning_users, through: :job_pins, source: :user

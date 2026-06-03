@@ -127,23 +127,18 @@ module Api
             return
           end
 
-          workflow.reopen!
-          workflow.save!
-          failed_step.reopen!
-          failed_step.save!
-
-          run = failed_step.runs.create!(
-            job: job,
-            trigger_kind: workflow.trigger_kind,
-            agent_provider: workflow.agent_provider
-          )
+          result = RetryFailedStepEnqueuer.call(workflow: workflow)
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
 
           render_job(
             job.reload,
-            message: "Retrying #{failed_step.kind} for workflow ##{workflow.id}...",
+            message: "Retrying #{result.step.kind} for workflow ##{workflow.id}...",
             changed: [ "workflows", "runs" ],
-            run: run.reload,
-            workflow: workflow.reload,
+            run: result.run.reload,
+            workflow: result.workflow.reload,
             tab: "workflows"
           )
         end

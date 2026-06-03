@@ -7,6 +7,7 @@ class Workflow < ApplicationRecord
 
   belongs_to :job
   has_many :steps, -> { order(:position) }, dependent: :destroy
+  has_many :auto_retry_attempts, dependent: :destroy
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
@@ -71,6 +72,7 @@ class Workflow < ApplicationRecord
         cancel_orphan_active_runs!
         propagate_fail_to_job!
         dispatch_hook(:after_fail)
+        AutoRetryScheduler.schedule_for_workflow(workflow: self)
       }
     end
 
