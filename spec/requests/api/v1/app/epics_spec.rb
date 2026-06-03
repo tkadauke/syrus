@@ -352,6 +352,39 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(epic).to be_ready
   end
 
+  it "claims an unclaimed Epic for the current user when moving it to in-progress" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, state: "ready", owner_user: nil)
+
+    patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "in_progress" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "state")).to eq("in_progress")
+    expect(parse_body["epic"]).to include(
+      "owner_user_id" => user.id,
+      "owner_status" => "mine",
+      "owner_user" => include("id" => user.id, "email_address" => user.email_address)
+    )
+    expect(epic.reload.owner_user).to eq(user)
+  end
+
+  it "does not take over an already-owned Epic when moving it to in-progress" do
+    sign_in_as(user)
+    owner = Factories.user(email_address: "owner@example.com")
+    epic = Factories.epic(user: user, repository: repository, state: "ready", owner_user: owner)
+
+    patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "in_progress" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "state")).to eq("in_progress")
+    expect(parse_body["epic"]).to include(
+      "owner_user_id" => owner.id,
+      "owner_status" => "other_owned",
+      "owner_user" => include("id" => owner.id, "email_address" => "owner@example.com")
+    )
+    expect(epic.reload.owner_user).to eq(owner)
+  end
+
   it "moves ready Epics back to backlog through the app API" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, state: "ready")

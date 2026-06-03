@@ -107,7 +107,11 @@ module Api
 
         def update_state
           epic = find_epic
-          transition_epic_state!(epic, params[:target_state].to_s, override: ActiveModel::Type::Boolean.new.cast(params[:override]))
+          transition_epic_state!(
+            epic,
+            params[:target_state].to_s,
+            override: ActiveModel::Type::Boolean.new.cast(params[:override])
+          )
 
           render json: detail_payload(epic.reload, message: "Epic updated.")
         rescue ArgumentError
@@ -296,28 +300,43 @@ module Api
         end
 
         def transition_epic_state!(epic, target_state, override:)
-          if override
-            epic.override_state!(target_state)
-          elsif epic.backlog? && target_state == "ready" && epic.may_auto_ready?
-            epic.auto_ready!
-          elsif epic.ready? && target_state == "backlog" && epic.may_move_to_backlog?
-            epic.move_to_backlog!
-          elsif epic.ready? && target_state == "in_progress"
-            raise UnavailableTransition if epic.claimed? && !epic.claimed_by?(Current.user)
+          Epic.transaction do
+            if override
+              epic.override_state!(target_state)
+            elsif epic.backlog? && target_state == "ready" && epic.may_auto_ready?
+              epic.auto_ready!
+            elsif epic.ready? && target_state == "backlog" && epic.may_move_to_backlog?
+              epic.move_to_backlog!
+            elsif epic.ready? && target_state == "in_progress"
+              raise UnavailableTransition if epic.owner_id.present? && !epic.claimed_by?(Current.user)
 
-            epic.claim!(Current.user) unless epic.claimed?
-            epic.start!
-          elsif epic.in_progress? && target_state == "ready"
-            epic.unstart!
-          elsif epic.in_progress? && target_state == "done" && epic.may_auto_complete?
-            epic.auto_complete!
-          elsif target_state == "archived" && epic.may_archive?
-            epic.archive!
-          elsif Epic::STATES.exclude?(target_state)
-            raise ArgumentError, "unknown Epic state: #{target_state}"
-          else
-            raise UnavailableTransition
+              epic.claim!(Current.user) unless epic.claimed?
+              epic.start!
+            elsif epic.in_progress? && target_state == "ready"
+              epic.unstart!
+            elsif epic.in_progress? && target_state == "done" && epic.may_auto_complete?
+              epic.auto_complete!
+            elsif target_state == "archived" && epic.may_archive?
+              epic.archive!
+            elsif Epic::STATES.exclude?(target_state)
+              raise ArgumentError, "unknown Epic state: #{target_state}"
+            else
+              raise UnavailableTransition
+            end
+
+            auto_claim_started_epic!(epic, target_state)
           end
+        end
+
+        def auto_claim_started_epic!(epic, target_state)
+          return unless target_state == "in_progress"
+          return unless epic.in_progress?
+          return if epic.owner_user_id.present?
+
+          updated = Current.user.epics
+                                .where(id: epic.id, owner_user_id: nil)
+                                .update_all(owner_user_id: Current.user.id, updated_at: Time.current)
+          epic.owner_user_id = Current.user.id if updated == 1
         end
 
         def done_jobs_count(jobs)
