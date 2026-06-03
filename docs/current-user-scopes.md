@@ -76,7 +76,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/application_controller.rb` | per-user/private and admin gate | System alerts and default chat navigation are computed for the signed-in user. `require_admin` is the shared admin guard. |
 | `app/controllers/spa_controller.rb` | per-user/private and admin gate | Serves the SPA shell only after checking ownership for private chat routes; admin shell routes use the shared admin guard. |
 | `app/views/spa/show.html.erb` | per-user/private | Renders the SPA bootstrap payload for the current browser session. |
-| `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Reports the current browser session, redirects already signed-in users, signs out the current user, and serializes the public auth state for that user. |
+| `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Reports the current browser session, redirects already signed-in users, signs out the current user, resumes the session for public auth status, and serializes the current user, when present, into the public auth state. |
 | `app/controllers/api/v1/app/bootstrap_controller.rb` | per-user/private | Serializes the signed-in user, app settings visible to that user, CSRF token, and default chat path. |
 | `app/controllers/api/v1/app/bug_reports_controller.rb` | per-user/private | Files bug reports with the current user as reporter/context. |
 | `app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Locates whiteboards through `Current.user.chat_sessions`. |
@@ -98,7 +98,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions use `Current.user.repositories` and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
-| `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the signed-in user's credentials, repositories, and first-run progress. |
+| `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the signed-in user so onboarding reflects that user's credentials, repositories, and first job. |
 | `app/controllers/api/v1/app/smart_folders_controller.rb` | per-user/private | User-defined smart folders are owned by `Current.user`; built-ins are returned through `SmartFolder.for_user`. |
 | `app/controllers/api/v1/app/tags_controller.rb` | per-user/private | Tags are created, updated, deleted, and listed through `Current.user.tags`. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |

@@ -1733,9 +1733,9 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("No jobs yet")).toBeInTheDocument()
-    expect(screen.getByText("No jobs exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Create direct job" })).toHaveAttribute("href", "/app-shell/jobs/new")
+    expect(await screen.findByRole("heading", { name: "No Jobs yet" })).toBeInTheDocument()
+    expect(screen.getByText("Finish credentials first so Syrus can talk to GitHub and the selected agent.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open setup" })).toHaveAttribute("href", "/app-shell/setup")
   })
 
   it("does not mention finishing setup on a completed empty dashboard", async () => {
@@ -7218,6 +7218,7 @@ function bootstrapSetupStatusPayload(overrides: { nextStep?: "configure_credenti
     },
     counts: {
       repositories: nextStep === "add_repository" || nextStep === "configure_credentials" ? 0 : 1,
+      jobs: nextStep === "watch_first_job" || nextStep === null ? 1 : 0,
       successful_jobs: nextStep === null ? 1 : 0
     }
   }

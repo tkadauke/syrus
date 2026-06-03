@@ -539,12 +539,13 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
 
   if (payload.items.length === 0) {
     if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
+      const emptyState = dashboardEmptyState(payload)
       return (
         <OnboardingEmptyState
-          fallbackActionPath={dashboardEmptyFallbackPath(payload)}
-          fallbackActionText={payload.subject === "epic" ? "Create Epic" : "Create direct job"}
-          fallbackDescription={dashboardEmptyFallbackDescription(payload)}
-          fallbackTitle={`No ${subjectLabel(payload.subject, 2)} yet`}
+          fallbackActionPath={emptyState.actionPath}
+          fallbackActionText={emptyState.actionText}
+          fallbackDescription={emptyState.description}
+          fallbackTitle={emptyState.title}
           prefix={prefix}
           setupStatus={setupStatus}
         />
@@ -587,12 +588,13 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   }
 
   if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
+    const emptyState = dashboardEmptyState(payload)
     return (
       <OnboardingEmptyState
-        fallbackActionPath={dashboardEmptyFallbackPath(payload)}
-        fallbackActionText={payload.subject === "epic" ? "Create Epic" : "Create direct job"}
-        fallbackDescription={dashboardEmptyFallbackDescription(payload)}
-        fallbackTitle={`No ${subjectLabel(payload.subject, 2)} yet`}
+        fallbackActionPath={emptyState.actionPath}
+        fallbackActionText={emptyState.actionText}
+        fallbackDescription={emptyState.description}
+        fallbackTitle={emptyState.title}
         prefix={prefix}
         setupStatus={setupStatus}
       />
@@ -665,13 +667,31 @@ function dashboardEmptyFallbackPath(payload: DashboardPayload) {
   return payload.subject === "epic" ? payload.paths.new_epic_path : payload.paths.new_job_path
 }
 
-function dashboardEmptyFallbackDescription(payload: DashboardPayload) {
-  const subject = subjectLabel(payload.subject, 2)
+function dashboardEmptyState(payload: DashboardPayload) {
+  const subject = capitalizeLabel(subjectLabel(payload.subject, 2))
   if (payload.setup && !payload.setup.complete) {
-    return `No ${subject} exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.`
+    const setupDescription = payload.setup.next_step === "credentials"
+      ? "Finish credentials first so Syrus can talk to GitHub and the selected agent."
+      : "Finish setup first so Syrus can run work against a repository."
+
+    return {
+      title: `No ${subject} yet`,
+      description: setupDescription,
+      actionPath: payload.setup.paths.setup_path,
+      actionText: "Open setup"
+    }
   }
 
-  return `No ${subject} exist yet. Create work from a direct prompt or a labelled GitHub issue.`
+  return {
+    title: `No ${subject} yet`,
+    description: `No ${subjectLabel(payload.subject, 2)} exist yet. Create work from a direct prompt or a labelled GitHub issue.`,
+    actionPath: dashboardEmptyFallbackPath(payload),
+    actionText: payload.subject === "epic" ? "Create Epic" : "Create direct job"
+  }
+}
+
+function capitalizeLabel(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 function KanbanLane({
