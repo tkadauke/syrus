@@ -1304,6 +1304,61 @@ describe("App", () => {
     )
   })
 
+  it("renders dashboard ownership scope controls and useful owner badges", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard?view=list&ownership_scope=team&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                ownership: { scope: "team", owner_id: 1, team_user_count: 2, badges_visible: true },
+                preferences: {
+                  sort: { column: "created_at", direction: "desc" },
+                  visible_columns: ["checkbox", "issue", "state", "repository", "latest", "workflows_count", "started"],
+                  kanban_lanes: ["queued", "running", "succeeded"],
+                  ownership_scope: "team",
+                  owner_user_id: 1,
+                  owner_id: 1,
+                  raw: {}
+                },
+                items: [
+                  dashboardJobItem({ title: "Mine", owner_badge: null }),
+                  dashboardJobItem({
+                    id: 43,
+                    title: "Theirs",
+                    owner_user: { id: 2, name: "Teammate", email_address: "teammate@example.com" },
+                    owner_badge: { label: "Teammate", kind: "other_user" }
+                  })
+                ]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&ownership_scope=team"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const scopeNav = await screen.findByRole("navigation", { name: "Dashboard ownership scope" })
+    expect(within(scopeNav).getByRole("link", { name: "Mine" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+    expect(within(scopeNav).getByRole("link", { name: "Team" })).toHaveClass("bg-gray-900", "text-white")
+    expect(within(scopeNav).getByRole("link", { name: "User" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=user&owner_id=1")
+    expect(screen.getByText("Teammate")).toBeInTheDocument()
+    expect(screen.queryByText("Operator")).not.toBeInTheDocument()
+  })
+
   it("keeps dashboard folders and filters collapsed on mobile", async () => {
     const restoreMedia = mockMediaQuery(false)
     vi.spyOn(window, "fetch").mockResolvedValue(
@@ -7474,10 +7529,23 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
       sort: { column: "created_at", direction: "desc" },
       visible_columns: ["checkbox", "issue", "state", "repository", "latest", "workflows_count", "started"],
       kanban_lanes: ["queued", "running", "succeeded"],
+      ownership_scope: "mine",
+      owner_user_id: 1,
+      owner_id: 1,
       raw: {}
     },
     controls: {
       views: ["list", "kanban"],
+      ownership_scopes: [
+        { value: "mine", label: "Mine" },
+        { value: "team", label: "Team" },
+        { value: "claimable", label: "Claimable" },
+        { value: "user", label: "User" }
+      ],
+      owners: [
+        { id: 1, label: "Operator", current: true },
+        { id: 2, label: "Teammate", current: false }
+      ],
       sort_columns: ["title", "state", "repository", "created_at", "started_at"],
       sort_directions: ["asc", "desc"],
       columns: {
@@ -7554,6 +7622,17 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
       visible: false,
       paused: false,
       toggle_path: "/api/v1/app/dashboard/landing_pause"
+    },
+    ownership_scope: {
+      scope: "mine",
+      owner_user_id: 1,
+      owner_user: { id: 1, name: "Operator", email_address: "operator@example.com" }
+    },
+    ownership: {
+      scope: "mine",
+      owner_id: 1,
+      team_user_count: 1,
+      badges_visible: false
     },
     smart_folders: [
       {
@@ -7663,6 +7742,8 @@ function dashboardJobItem(overrides: Record<string, unknown> = {}) {
     pr_mergeable_checked_at: null,
     workflows_count: 1,
     repository: { id: 3, slug: "acme/widgets" },
+    owner_user: { id: 1, name: "Operator", email_address: "operator@example.com" },
+    owner_badge: null,
     tags: [{ id: 5, name: "urgent", color: "red" }],
     paths: { job_path: "/jobs/42", source_path: "/jobs/42/source" },
     ...overrides
@@ -7678,6 +7759,10 @@ function dashboardEpicItem(overrides: Record<string, unknown> = {}) {
     title: "Raise the forum",
     description: "Build columns.",
     state: "ready",
+    owner: null,
+    owned_by_current_user: false,
+    claimable: true,
+    owner_badge: null,
     auto_approve_mode: "never",
     owner_user_id: null,
     owner_status: "unclaimed",
@@ -7715,6 +7800,8 @@ function dashboardWorkflowItem(overrides: Record<string, unknown> = {}) {
       title: "Repair aqueduct",
       state: "open",
       repository: { id: 3, slug: "acme/widgets" },
+      owner_user: { id: 1, name: "Operator", email_address: "operator@example.com" },
+      owner_badge: null,
       path: "/jobs/42"
     },
     ...overrides

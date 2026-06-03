@@ -36,18 +36,21 @@ class User < ApplicationRecord
     "epics" => {
       "sort_column" => "updated_at",
       "sort_direction" => "desc",
+      "ownership_scope" => "mine",
       "visible_columns" => %w[epic state repository updated],
       "kanban_lanes" => %w[backlog ready in_progress done]
     },
     "jobs" => {
       "sort_column" => "created_at",
       "sort_direction" => "desc",
+      "ownership_scope" => "mine",
       "visible_columns" => %w[checkbox issue state repository latest workflows_count started],
       "kanban_lanes" => %w[queued running landing]
     },
     "workflows" => {
       "sort_column" => "started_at",
       "sort_direction" => "desc",
+      "ownership_scope" => "mine",
       "visible_columns" => %w[workflow job trigger state started finished agent],
       "kanban_lanes" => %w[queued running done]
     }
@@ -265,6 +268,23 @@ class User < ApplicationRecord
     updated[subject_key] = updated.fetch(subject_key).merge(
       "kanban_lanes" => lanes.presence || dashboard_default_kanban_lanes_for(subject_key)
     )
+
+    update!(dashboard_preferences: updated) if updated != dashboard_preferences
+  end
+
+  def update_dashboard_ownership!(subject:, scope:, owner_id: nil)
+    subject_key = normalize_dashboard_preference_table(subject)
+    scope = scope.to_s.presence_in(%w[mine team user]) || "mine"
+    owner_id = Integer(owner_id, exception: false)
+
+    updated = dashboard_preferences
+    next_preferences = updated.fetch(subject_key).merge("ownership_scope" => scope)
+    if scope == "user"
+      next_preferences["owner_id"] = owner_id.to_s if owner_id
+    else
+      next_preferences.delete("owner_id")
+    end
+    updated[subject_key] = next_preferences
 
     update!(dashboard_preferences: updated) if updated != dashboard_preferences
   end

@@ -4,10 +4,10 @@ module App
 
     SUBJECTS = %w[job epic workflow].freeze
     VIEWS = %w[list kanban].freeze
-    OWNERSHIP_SCOPES = %w[team mine claimable user].freeze
+    OWNERSHIP_SCOPES = %w[mine team claimable user].freeze
     DEFAULT_SUBJECT = "epic"
     DEFAULT_VIEW = "list"
-    DEFAULT_OWNERSHIP_SCOPE = "team"
+    DEFAULT_OWNERSHIP_SCOPE = "mine"
     PER_PAGE = 25
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
     KANBAN_PER_PAGE = 100
@@ -92,6 +92,7 @@ module App
         ownership_scope: ownership_scope_json,
         preferences: preferences_json,
         controls: controls_json,
+        ownership: ownership_json,
         filter: current_filter.to_h,
         landing_queue: landing_queue_json,
         smart_folders: smart_folders_json,
@@ -148,13 +149,20 @@ module App
     end
 
     def active_repo_ids
-      @active_repo_ids ||= user.repositories.active.pluck(:id)
+      @active_repo_ids ||= active_repositories_scope.pluck(:id)
+    end
+
+    def active_repositories_scope
+      return Repository.active if team_scope? || user_scope? || claimable_scope?
+
+      Repository.active.where(user_id: user.id)
     end
 
     def ownership_scope
       @ownership_scope ||= begin
         raw_scope = params[:scope].presence || params[:ownership_scope].presence
-        raw_scope ||= "user" if params[:owner_user_id].present?
+        raw_scope ||= "user" if params[:owner_id].present? || params[:owner_user_id].present?
+        raw_scope ||= user.dashboard_preferences.dig(subject.pluralize, "ownership_scope").to_s.presence
         raw_scope ||= user.dashboard_preferences["last_ownership_scope"].to_s.presence
         raw_scope ||= DEFAULT_OWNERSHIP_SCOPE
 
@@ -171,12 +179,46 @@ module App
         when "mine"
           user
         when "user"
-          id = Integer((params[:owner_user_id].presence || user.dashboard_preferences["last_owner_user_id"]), exception: false)
-          raise InvalidScope, "owner_user_id is required for dashboard scope user" unless id
+          id = Integer(
+            params[:owner_id].presence ||
+            params[:owner_user_id].presence ||
+            user.dashboard_preferences.dig(subject.pluralize, "owner_id") ||
+            user.dashboard_preferences["last_owner_user_id"],
+            exception: false
+          )
+          raise InvalidScope, "owner_id is required for dashboard scope user" unless id
 
           User.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
         end
       end
+    end
+
+    def selected_owner_id
+      selected_owner_user&.id || user.id
+    end
+
+    def mine_scope?
+      ownership_scope == "mine"
+    end
+
+    def team_scope?
+      ownership_scope == "team"
+    end
+
+    def claimable_scope?
+      ownership_scope == "claimable"
+    end
+
+    def user_scope?
+      ownership_scope == "user"
+    end
+
+    def team_user_count
+      @team_user_count ||= User.count
+    end
+
+    def owner_options
+      @owner_options ||= User.order(Arel.sql("LOWER(email_address) ASC"), :id).to_a
     end
 
     def apply_ownership_scope(scope, subject_name)
@@ -200,16 +242,16 @@ module App
     end
 
     def jobs_base_scope
-      @jobs_base_scope ||= apply_ownership_scope(user.jobs.where(repository_id: active_repo_ids), :job)
+      @jobs_base_scope ||= apply_ownership_scope(Job.where(repository_id: active_repo_ids), :job)
     end
 
     def epics_base_scope
-      @epics_base_scope ||= apply_ownership_scope(user.epics.where(repository_id: active_repo_ids), :epic)
+      @epics_base_scope ||= apply_ownership_scope(Epic.where(repository_id: active_repo_ids), :epic)
     end
 
     def workflows_base_scope
       @workflows_base_scope ||= apply_ownership_scope(
-        Workflow.joins(:job).where(jobs: { user_id: user.id, repository_id: active_repo_ids }),
+        Workflow.joins(:job).where(jobs: { repository_id: active_repo_ids }),
         :workflow
       )
     end
@@ -504,6 +546,7 @@ module App
         workflows_count: job.workflows.size,
         repository: repository_json(job.repository),
         owner_user: owner_user_json(job.owner_user),
+        owner_badge: owner_badge_for(job.owner_user),
         tags: job.tags.map { |tag| tag_json(tag) },
         paths: {
           job_path: job_path(job),
@@ -524,6 +567,7 @@ module App
         owner: owner_json(epic.owner),
         owned_by_current_user: epic.claimed_by?(user),
         claimable: epic.claimable?,
+        owner_badge: owner_badge_for(epic.owner_user, claimable: epic.claimable?),
         claimed_at: epic.claimed_at&.iso8601,
         auto_approve_mode: epic.auto_approve_mode,
         owner_user_id: epic.owner_user_id,
@@ -550,7 +594,8 @@ module App
 
       {
         id: owner.id,
-        email_address: owner.email_address
+        email_address: owner.email_address,
+        display_name: owner.team_display_name
       }
     end
 
@@ -574,6 +619,7 @@ module App
           state: job.state,
           repository: repository_json(job.repository),
           owner_user: owner_user_json(job.owner_user),
+          owner_badge: owner_badge_for(job.owner_user),
           path: job_path(job)
         }
       }
@@ -586,12 +632,14 @@ module App
       "other_owned"
     end
 
-    def owner_user_json(owner_user)
-      return nil unless owner_user
+    def owner_badge_for(owner_user, claimable: false)
+      return nil if team_user_count <= 1
+      return { label: "Claimable", kind: "claimable" } if claimable && owner_user.nil?
+      return nil if owner_user.nil? || owner_user.id == user.id
 
       {
-        id: owner_user.id,
-        email_address: owner_user.email_address
+        label: owner_user.team_display_name,
+        kind: "other_user"
       }
     end
 
@@ -647,6 +695,7 @@ module App
         kanban_lanes: user.dashboard_visible_kanban_lanes(subject),
         ownership_scope: ownership_scope,
         owner_user_id: selected_owner_user&.id,
+        owner_id: selected_owner_user&.id,
         raw: user.dashboard_preferences.fetch(table)
       }
     end
@@ -654,7 +703,8 @@ module App
     def controls_json
       {
         views: VIEWS,
-        ownership_scopes: OWNERSHIP_SCOPES,
+        ownership_scopes: ownership_scope_options_json,
+        owners: owner_options.map { |owner| owner_option_json(owner) },
         sort_columns: User::DASHBOARD_SORT_COLUMNS.fetch(subject),
         sort_directions: User::DASHBOARD_SORT_DIRECTIONS,
         columns: column_options_json,
@@ -668,6 +718,32 @@ module App
         scope: ownership_scope,
         owner_user_id: selected_owner_user&.id,
         owner_user: owner_user_json(selected_owner_user)
+      }
+    end
+
+    def ownership_json
+      {
+        scope: ownership_scope,
+        owner_id: selected_owner_user&.id,
+        team_user_count: team_user_count,
+        badges_visible: team_user_count > 1
+      }
+    end
+
+    def ownership_scope_options_json
+      OWNERSHIP_SCOPES.map do |scope|
+        {
+          value: scope,
+          label: scope.humanize
+        }
+      end
+    end
+
+    def owner_option_json(owner)
+      {
+        id: owner.id,
+        label: owner.team_display_name,
+        current: owner.id == selected_owner_user&.id
       }
     end
 
@@ -734,8 +810,8 @@ module App
     end
 
     def ownership_query_params
-      query = { scope: ownership_scope }
-      query[:owner_user_id] = selected_owner_user.id if ownership_scope == "user"
+      query = { ownership_scope: ownership_scope }
+      query[:owner_id] = selected_owner_user.id if ownership_scope == "user"
       query
     end
 
@@ -772,13 +848,18 @@ module App
     end
 
     def persist_subject_preferences
-      return unless params.key?(:subject) || params.key?(:view) || params.key?(:scope) || params.key?(:ownership_scope) || params.key?(:owner_user_id)
+      return unless params.key?(:subject) || params.key?(:view) || params.key?(:scope) || params.key?(:ownership_scope) || params.key?(:owner_id) || params.key?(:owner_user_id)
 
       user.update_dashboard_preferences!(
         subject: subject,
         view: view,
         ownership_scope: ownership_scope,
         owner_user_id: ownership_scope == "user" ? selected_owner_user.id : nil
+      )
+      user.update_dashboard_ownership!(
+        subject: subject,
+        scope: ownership_scope,
+        owner_id: ownership_scope == "user" ? selected_owner_user.id : nil
       )
     end
 

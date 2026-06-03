@@ -109,6 +109,7 @@ function DesktopDashboardControls({ payload, pathname, prefix, search }: { paylo
         <div className="min-w-0 flex-1">
           <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
         </div>
+        <OwnershipControls pathname={pathname} search={search} payload={payload} />
         <DashboardToolbar pathname={pathname} search={search} payload={payload} />
       </div>
     </div>
@@ -131,10 +132,53 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
           <span className="hidden text-gray-400 group-open:inline">Hide</span>
         </summary>
         <div className="space-y-4 border-t border-gray-200 p-4">
+          <OwnershipControls pathname={pathname} search={search} payload={payload} />
           <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
           <SmartFolderNav payload={payload} prefix={prefix} search={search} />
         </div>
       </details>
+    </div>
+  )
+}
+
+function OwnershipControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
+  const navigate = useNavigate()
+  if (payload.ownership.team_user_count <= 1) return null
+
+  function scopeLink(scope: string) {
+    return dashboardLinkFromSearch(pathname, search, {
+      ownership_scope: scope === "mine" ? null : scope,
+      owner_id: scope === "user" ? payload.ownership.owner_id : null,
+      page: null
+    })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <nav aria-label="Dashboard ownership scope" className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm">
+        {payload.controls.ownership_scopes.map((scope) => (
+          <Link
+            className={`px-3 py-1.5 font-medium ${payload.ownership.scope === scope.value ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+            key={scope.value}
+            to={scopeLink(scope.value)}
+          >
+            {scope.label}
+          </Link>
+        ))}
+      </nav>
+      {payload.ownership.scope === "user" ? (
+        <label className="sr-only" htmlFor="dashboard-owner-filter">Dashboard owner</label>
+      ) : null}
+      {payload.ownership.scope === "user" ? (
+        <select
+          className="h-9 rounded border border-gray-300 bg-white px-2 text-sm text-gray-700"
+          id="dashboard-owner-filter"
+          onChange={(event) => navigate(dashboardLinkFromSearch(pathname, search, { ownership_scope: "user", owner_id: event.target.value, page: null }))}
+          value={payload.ownership.owner_id}
+        >
+          {payload.controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
+        </select>
+      ) : null}
     </div>
   )
 }
@@ -693,6 +737,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
           <StatusPill state={item.summary_state} />
           <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.repository.slug}</span>
+          <OwnerBadge badge={item.owner_badge} />
           {item.pr_number ? <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink> : null}
         </div>
       </article>
@@ -707,6 +752,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
           <StatusPill state={item.state} />
           <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.trigger_kind}</span>
+          <OwnerBadge badge={item.job.owner_badge} />
         </div>
       </article>
     )
@@ -723,7 +769,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
       <Link className="text-sm font-medium text-blue-600 hover:underline" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
         <NeutralStatePill state={item.state} />
-        <span className="rounded bg-gray-100 px-1.5 py-0.5">{dashboardOwnerLabel(item)}</span>
+        <OwnerBadge badge={item.owner_badge} />
         <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.repository.slug}</span>
       </div>
     </article>
@@ -931,6 +977,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
           <StatusPill state={job.summary_state} />
           {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500">{formatCurrency(job.total_cost_usd, 2)}</span>}
           <span className="font-mono text-xs text-gray-500">{job.repository.slug}</span>
+          <OwnerBadge badge={job.owner_badge} />
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
@@ -940,6 +987,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
           <IssueMetadata job={job} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           <span>{approvalLabel}</span>
+          <OwnerBadge badge={job.owner_badge} />
           <span>{job.workflows_count} {pluralize(job.workflows_count, "workflow")}</span>
           <span>{formatDate(job.started_at || job.created_at)}</span>
         </div>
@@ -964,6 +1012,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
         <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500">
           <IssueMetadata job={job} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
+          <OwnerBadge badge={job.owner_badge} />
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5" key={tag.id}>{tag.name}</span>)}
         </div>
       </td>
@@ -1129,7 +1178,7 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
         {compactText(epic.description) ? <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500">{compactText(epic.description)}</p> : null}
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
           <span className="font-mono">{epic.repository.slug}</span>
-          <span>{dashboardOwnerLabel(epic)}</span>
+          <OwnerBadge badge={epic.owner_badge} />
         </div>
       </div>
     </article>
@@ -1149,7 +1198,7 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
     )
   }
   if (column === "state") return <td className="px-4 py-3"><NeutralStatePill state={epic.state} /></td>
-  if (column === "owner") return <td className="px-4 py-3 text-xs text-gray-600">{dashboardOwnerLabel(epic)}</td>
+  if (column === "owner") return <td className="px-4 py-3 text-xs text-gray-600"><OwnerBadge badge={epic.owner_badge} /></td>
   if (column === "repository") return <td className="px-4 py-3 font-mono text-xs text-gray-600">{epic.repository.slug}</td>
   if (column === "updated") return <td className="px-4 py-3 text-gray-500">{formatDate(epic.updated_at)}</td>
 
@@ -1209,6 +1258,7 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
           <span>{workflow.trigger_kind}</span>
           <span>{workflow.agent_provider}</span>
+          <OwnerBadge badge={workflow.job.owner_badge} />
           {startedAt ? <span>Started {formatDate(startedAt)}</span> : null}
           {finishedAt ? <span>Finished {formatDate(finishedAt)}</span> : null}
         </div>
@@ -1246,7 +1296,10 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
     return (
       <td className="max-w-md px-4 py-3">
         <Link className="font-medium text-blue-600 hover:underline" to={withRoutePrefix(workflow.job.path, prefix)}>{workflow.job.title}</Link>
-        <div className="mt-1 font-mono text-xs text-gray-500">{workflow.job.repository.slug}</div>
+        <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500">
+          <span className="font-mono">{workflow.job.repository.slug}</span>
+          <OwnerBadge badge={workflow.job.owner_badge} />
+        </div>
       </td>
     )
   }
@@ -1285,6 +1338,17 @@ function Pagination({ payload, pathname, search }: { payload: DashboardPayload; 
 
 function NeutralStatePill({ state }: { state: string }) {
   return <span className="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 ring-1 ring-gray-200">{state.replace(/_/g, " ")}</span>
+}
+
+function OwnerBadge({ badge, fallback = null }: { badge: { label: string; kind: string } | null; fallback?: string | null }) {
+  if (!badge && !fallback) return null
+
+  const label = badge?.label || fallback
+  const className = badge?.kind === "claimable"
+    ? "rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700 ring-1 ring-amber-200"
+    : "rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 ring-1 ring-gray-200"
+
+  return <span className={className}>{label}</span>
 }
 
 function compactText(value: string) {
@@ -1530,13 +1594,6 @@ function epicDateValue(epic: DashboardEpicItem, column: string) {
   }
 
   return values[column] || null
-}
-
-function dashboardOwnerLabel(epic: DashboardEpicItem) {
-  if (!epic.owner) return "Unclaimed"
-  if (epic.owned_by_current_user) return "Mine"
-
-  return epic.owner.email_address
 }
 
 function workflowDateValue(workflow: DashboardWorkflowItem, column: string) {

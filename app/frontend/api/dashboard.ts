@@ -12,23 +12,24 @@ export type DashboardRepository = {
 export type DashboardOwner = {
   id: number
   email_address: string
+  display_name: string
 }
 
 export type DashboardOwnerUser = {
   id: number
   name: string
   email_address: string
+}
+
+export type DashboardOwnerBadge = {
+  label: string
+  kind: "claimable" | "other_user"
 }
 
 export type DashboardTag = {
   id: number
   name: string
   color: string
-}
-
-export type DashboardOwnerUser = {
-  id: number
-  email_address: string
 }
 
 export type DashboardJobItem = {
@@ -60,6 +61,7 @@ export type DashboardJobItem = {
   workflows_count: number
   repository: DashboardRepository
   owner_user: DashboardOwnerUser | null
+  owner_badge: DashboardOwnerBadge | null
   tags: DashboardTag[]
   paths: {
     job_path: string
@@ -78,6 +80,7 @@ export type DashboardEpicItem = {
   owner: DashboardOwner | null
   owned_by_current_user: boolean
   claimable: boolean
+  owner_badge: DashboardOwnerBadge | null
   claimed_at: string | null
   auto_approve_mode: string
   owner_user_id: number | null
@@ -117,6 +120,7 @@ export type DashboardWorkflowItem = {
     state: string
     repository: DashboardRepository
     owner_user: DashboardOwnerUser | null
+    owner_badge: DashboardOwnerBadge | null
     path: string
   }
 }
@@ -189,12 +193,14 @@ export type DashboardPayload = {
     kanban_lanes: string[]
     ownership_scope: string
     owner_user_id: number | null
+    owner_id: number | null
     raw: Record<string, unknown>
   }
   filter?: Record<string, unknown> | null
   controls: {
     views: string[]
-    ownership_scopes: string[]
+    ownership_scopes: Array<{ value: string; label: string }>
+    owners: Array<{ id: number; label: string; current: boolean }>
     sort_columns: string[]
     sort_directions: string[]
     columns: {
@@ -208,6 +214,12 @@ export type DashboardPayload = {
     visible: boolean
     paused: boolean
     toggle_path: string
+  }
+  ownership: {
+    scope: string
+    owner_id: number | null
+    team_user_count: number
+    badges_visible: boolean
   }
   smart_folders: DashboardSmartFolder[]
   active_smart_folder_id: number | null

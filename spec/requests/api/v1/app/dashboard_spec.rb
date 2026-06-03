@@ -427,6 +427,95 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["items"].find { |item| item.fetch("id") == unbilled.id }.fetch("total_cost_usd")).to be_nil
       expect(body["items"].find { |item| item.fetch("id") == billed.id }.fetch("total_cost_usd")).to eq(0.12)
     end
+
+    it "defaults jobs and workflows to the current executor" do
+      mine = Factories.job_record(user: user, repository: repo, issue_number: 20, issue_title: "My aqueduct")
+      my_workflow = Workflow.create!(job: mine, trigger_kind: "initial", state: "queued")
+      teammate = Factories.user(email_address: "teammate@example.com")
+      teammate_repo = Factories.repository(user: teammate, owner: "acme", name: "api")
+      theirs = Factories.job_record(user: teammate, repository: teammate_repo, issue_number: 21, issue_title: "Their forum")
+      Workflow.create!(job: theirs, trigger_kind: "initial", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership", "scope")).to eq("mine")
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ mine.id ])
+      expect(body.dig("items", 0, "owner_badge")).to be_nil
+      expect(body.dig("controls", "ownership_scopes")).to include(
+        { "value" => "mine", "label" => "Mine" },
+        { "value" => "team", "label" => "Team" },
+        { "value" => "user", "label" => "User" }
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "workflow" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to eq([ my_workflow.id ])
+    end
+
+    it "defaults epics to mine plus claimable backlog and ready epics" do
+      teammate = Factories.user(email_address: "teammate@example.com")
+      teammate_repo = Factories.repository(user: teammate, owner: "globex", name: "api")
+      mine = Factories.epic(user: teammate, repository: teammate_repo, owner: user, state: "in_progress", title: "My claimed epic")
+      claimable = Factories.epic(user: teammate, repository: teammate_repo, state: "ready", title: "Claimable epic")
+      hidden_claimed = Factories.epic(user: teammate, repository: teammate_repo, owner: teammate, state: "ready", title: "Teammate epic")
+      hidden_done = Factories.epic(user: teammate, repository: teammate_repo, state: "done", title: "Unclaimed done")
+
+      get "/api/v1/app/dashboard", params: { subject: "epic" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(mine.id, claimable.id)
+      expect(body["items"].map { |item| item.fetch("id") }).not_to include(hidden_claimed.id, hidden_done.id)
+      expect(body["items"].find { |item| item.fetch("id") == mine.id }.fetch("owner_badge")).to be_nil
+      expect(body["items"].find { |item| item.fetch("id") == claimable.id }.fetch("owner_badge")).to eq(
+        "label" => "Claimable",
+        "kind" => "claimable"
+      )
+    end
+
+    it "supports team and per-user ownership scopes with useful badges" do
+      teammate = Factories.user(email_address: "teammate@example.com", first_name: "Team", last_name: "Mate")
+      teammate_repo = Factories.repository(user: teammate, owner: "globex", name: "api")
+      mine = Factories.job_record(user: user, repository: repo, issue_number: 30, issue_title: "Mine")
+      theirs = Factories.job_record(user: teammate, repository: teammate_repo, issue_number: 31, issue_title: "Theirs")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", ownership_scope: "team" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership", "scope")).to eq("team")
+      expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(mine.id, theirs.id)
+      expect(body["items"].find { |item| item.fetch("id") == mine.id }.fetch("owner_badge")).to be_nil
+      expect(body["items"].find { |item| item.fetch("id") == theirs.id }.fetch("owner_badge")).to eq(
+        "label" => "Team Mate",
+        "kind" => "other_user"
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "job", ownership_scope: "user", owner_id: teammate.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership", "scope")).to eq("user")
+      expect(body.dig("ownership", "owner_id")).to eq(teammate.id)
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ theirs.id ])
+      expect(user.reload.dashboard_preferences.dig("jobs", "ownership_scope")).to eq("user")
+      expect(user.dashboard_preferences.dig("jobs", "owner_id")).to eq(teammate.id.to_s)
+    end
+
+    it "suppresses ownership badges for single-user dashboards" do
+      Factories.epic(user: user, repository: repo, state: "ready", title: "Solo claimable")
+
+      get "/api/v1/app/dashboard", params: { subject: "epic" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership", "team_user_count")).to eq(1)
+      expect(body.dig("ownership", "badges_visible")).to eq(false)
+      expect(body.dig("items", 0, "owner_badge")).to be_nil
+    end
   end
 
   describe "PATCH /api/v1/app/dashboard/preferences" do
