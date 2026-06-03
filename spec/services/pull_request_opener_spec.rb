@@ -17,13 +17,13 @@ RSpec.describe PullRequestOpener do
     expect(fake_client).to have_received(:create_pull_request).with(
       "acme/widgets",
       base: "main",
-      head: "syrus/issue-1-1",
+      head: "acme:syrus/issue-1-1",
       title: "T",
       body: "B"
     )
   end
 
-  it "uses the Job's effective base branch when one is provided" do
+  it "uses the Job's effective base branch while keeping the PR in the configured repository" do
     parent = Factories.job_record(
       user: user,
       repository: repository,
@@ -44,7 +44,25 @@ RSpec.describe PullRequestOpener do
     expect(fake_client).to have_received(:create_pull_request).with(
       "acme/widgets",
       base: "syrus/issue-1",
-      head: "syrus/issue-2-2",
+      head: "acme:syrus/issue-2-2",
+      title: "T",
+      body: "B"
+    )
+  end
+
+  it "qualifies the head branch with the configured repository owner" do
+    fork = Factories.repository(user: user, owner: "octavia", name: "widgets", default_branch: "main")
+    fake_pr = double(number: 101)
+    fake_client = instance_double(GithubClient, create_pull_request: fake_pr)
+
+    opener = described_class.new(fork, client: fake_client)
+    pr_number = opener.open(branch: "syrus/issue-3-3", title: "T", body: "B")
+
+    expect(pr_number).to eq(101)
+    expect(fake_client).to have_received(:create_pull_request).with(
+      "octavia/widgets",
+      base: "main",
+      head: "octavia:syrus/issue-3-3",
       title: "T",
       body: "B"
     )

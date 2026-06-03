@@ -9,10 +9,16 @@ class PullRequestOpener
     pr = @client.create_pull_request(
       @repository.slug,
       base: job&.effective_base_branch || @repository.default_branch,
-      head: branch,
+      head: head_ref(branch),
       title: title,
       body: body
     )
     pr.number
+  end
+
+  private
+
+  def head_ref(branch)
+    "#{@repository.owner}:#{branch}"
   end
 end
