@@ -9,7 +9,7 @@ Syrus is a self-hosted, multi-user harness for coding agents. It turns
 structured software intent into pull requests while keeping the
 deterministic plumbing outside the model.
 
-The normal loop is:
+The common GitHub issue loop is:
 
 ```text
 GitHub issue
@@ -22,10 +22,10 @@ GitHub issue
 ```
 
 Syrus does not try to be the coding model. It runs providers such as
-Claude Code or Codex, gives them the right repository workspace and
+Claude Code or Codex, gives them a repository workspace and a bounded
 prompt, records what happened, and handles the surrounding lifecycle:
-clones, branches, setup commands, transcripts, diffs, retries, PR
-creation, follow-up feedback, and cleanup.
+clones, branches, setup commands, transcripts, diffs, retries, rebases,
+PR creation, follow-up feedback, and cleanup.
 
 ## The 30-Second Version
 
@@ -41,6 +41,23 @@ repair Workflow. If the branch becomes unmergeable, Syrus can run its
 rebase workflow. Operators can also retry, cancel, run direct Jobs, or
 schedule recurring prompts.
 
+## Ways Work Starts
+
+Syrus has one execution model with several entry points:
+
+| Entry point | What creates the Job | Typical use |
+| --- | --- | --- |
+| GitHub issue | A repository issue with the trigger label, or an issue delegated from Syrus. | Normal issue-to-PR work that should stay visible in GitHub planning. |
+| PR feedback | A comment or review on a Syrus-owned PR. | Follow-up commits on the same branch after review. |
+| CI failure | A failing check on a Syrus-owned PR. | Bounded repair attempts without asking a human to re-prompt the agent. |
+| Direct Job | An operator prompt in Syrus, not backed by a GitHub issue. | Private context, internal chores, experiments, or urgent work where a GitHub issue would be ceremony. |
+| Scheduled task | A recurring cron task or one-shot fire time. | Repeated repository hygiene, dependency chores, docs sweeps, or other periodic maintenance. |
+| Rebase | Merge-state polling sees a controlled PR branch become unmergeable. | Keep an open PR current with the base branch. |
+
+Direct Jobs and scheduled Jobs still use the same Job, Workflow, Step,
+and Run records as issue-driven work. The source is different; the
+operational contract is the same.
+
 ## What Syrus Owns
 
 Syrus owns the parts that should be predictable:
@@ -55,7 +72,15 @@ Syrus owns the parts that should be predictable:
   workspaces.
 
 The agent owns the part that benefits from reasoning: reading the code,
-making the change, running tests when possible, and explaining what it did.
+making the change, resolving conflicts when deterministic Git cannot,
+running tests when possible, and explaining what it did.
+
+That split is the product thesis. Clone management, branch naming,
+environment setup, workflow state, transcript capture, PR opening, and
+force-with-lease rebases are ordinary software automation problems. Syrus
+keeps those deterministic. Code interpretation and change design are the
+agentic parts, so Syrus gives the model enough context to work without
+making it remember how the harness should operate.
 
 ## Product Shape
 
@@ -82,15 +107,21 @@ It is not:
 
 ## The Core Terms
 
-Syrus uses five terms everywhere:
+Syrus uses these terms everywhere:
 
 | Term | Meaning |
 | --- | --- |
 | Epic | A repository-local group of related Jobs for larger goals that need sequencing. |
-| Job | The long-lived thread for one issue, scheduled task, or direct prompt. |
-| Workflow | One attempt to move that Job forward. |
-| Step | A stage inside a Workflow, such as `prepare`, `implement`, or `pr_open`. |
-| Run | One execution of a Step, with prompt, transcript, metadata, and diff. |
+| Job | The long-lived thread for one issue, scheduled task fire, or direct prompt. It owns the repository, source prompt, branch, PR number, priority, provider, dependencies, and final closure reason. |
+| Workflow | One attempt to move a Job forward. Trigger kinds include `initial`, `pr_comment`, `ci_failure`, `retry`, `manual`, and `rebase`. |
+| Step | A stage inside a Workflow, such as `prepare`, `implement`, `summarize`, `pr_open`, `respond`, `auto_rebase`, or `force_push`. |
+| Run | One execution of a Step, with prompt, transcript, provider metadata, captured diff, head SHA, PR copy, and outcome. |
+
+The distinction matters operationally. A Job survives across review
+comments, retries, CI fixes, and rebases. Each new attempt is a Workflow.
+Each Workflow is broken into Steps so deterministic service work and
+agentic work are visible. Each Step execution gets a Run so transcripts
+and diffs are not overwritten when Syrus retries or follows up.
 
 Read [Concepts](/docs/concepts) for the state machines and
 [Workflows](/docs/workflows) for the built-in pipelines.
