@@ -82,6 +82,7 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
       "id" => teammate.id,
       "display_name" => "Grace Hopper",
       "github_handle" => "grace",
+      "role_label" => "Operator",
       "profile_bio" => "Compiler operator.",
       "profile_location" => "Arlington",
       "profile_company" => "Navy",
@@ -107,5 +108,58 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(response.body).not_to include("codex-profile-access")
     expect(response.body).not_to include("ghp_profile_secret")
     expect(response.body).not_to include("syrus_profile_secret")
+  end
+
+  it "summarizes owned work without exposing private settings" do
+    viewer = Factories.user
+    teammate = Factories.user(name: "Grace Hopper", github_handle: "grace")
+    repository = Factories.repository(user: teammate, owner: "navy", name: "compiler")
+    Factories.epic(user: teammate, repository: repository, title: "Profiles")
+    closed_job = Factories.job_record(
+      user: teammate,
+      repository: repository,
+      issue_number: 1,
+      issue_title: "Retire old forms",
+      state: "closed",
+      closure_reason: "pr_merged"
+    )
+    open_job = Factories.job_record(
+      user: teammate,
+      repository: repository,
+      issue_number: 2,
+      issue_title: "Add profile page",
+      state: "running"
+    )
+    Factories.job_record(user: viewer, issue_number: 3, issue_title: "Other user's work", state: "queued")
+    sign_in_as(viewer)
+
+    get "/api/v1/app/profiles/#{teammate.id}"
+
+    expect(response).to have_http_status(:ok)
+    profile = parse_body.fetch("profile")
+    expect(profile.fetch("counts")).to include(
+      "repositories" => 1,
+      "epics" => 1,
+      "jobs" => 2,
+      "open_jobs" => 1
+    )
+    expect(profile.fetch("jobs")).to contain_exactly(
+      hash_including(
+        "id" => open_job.id,
+        "title" => "Add profile page",
+        "state" => "running",
+        "repository" => hash_including("slug" => "navy/compiler"),
+        "path" => "/jobs/#{open_job.id}"
+      ),
+      hash_including(
+        "id" => closed_job.id,
+        "title" => "Retire old forms",
+        "state" => "closed",
+        "repository" => hash_including("slug" => "navy/compiler"),
+        "path" => "/jobs/#{closed_job.id}"
+      )
+    )
+    expect(profile.fetch("recent_activity").map { |activity| activity["title"] }).to include("Add profile page", "Retire old forms")
+    expect(response.body).not_to include("Other user's work")
   end
 end

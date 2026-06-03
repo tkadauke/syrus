@@ -46,6 +46,7 @@ module Api
             first_name: user.first_name,
             last_name: user.last_name,
             github_handle: user.github_handle,
+            role_label: user.admin? ? "Admin" : "Operator",
             profile_bio: user.profile_bio,
             profile_location: user.profile_location,
             profile_company: user.profile_company,

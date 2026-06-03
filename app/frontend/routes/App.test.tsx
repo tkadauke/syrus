@@ -3745,6 +3745,65 @@ describe("App", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials", expect.objectContaining({ credentials: "same-origin" }))
   })
 
+  it("renders a teammate profile from the profile API without credential details", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(profilePayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/profiles/2"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument()
+    expect(screen.getByRole("main", { name: "Team profile" })).toBeInTheDocument()
+    expect(screen.getByText("@ada-lovelace")).toBeInTheDocument()
+    expect(screen.getByText("Mathematician and operator.")).toBeInTheDocument()
+    expect(screen.getByText("Add profile page")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Add profile page" })).toHaveAttribute("href", "/app-shell/jobs/55")
+    expect(screen.getByText("acme/widgets")).toBeInTheDocument()
+    expect(screen.queryByText("GitHub token")).not.toBeInTheDocument()
+    expect(screen.queryByText("ada@example.com")).not.toBeInTheDocument()
+    expect(screen.queryByText("sk-profile-secret")).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/profiles/2", expect.objectContaining({ credentials: "same-origin" }))
+  })
+
+  it("renders useful empty states for profiles with no public details or work", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(profilePayload({
+        github_handle: null,
+        profile_bio: null,
+        profile_company: null,
+        profile_location: null,
+        profile_website: null,
+        counts: { repositories: 0, epics: 0, jobs: 0, open_jobs: 0 },
+        repositories: [],
+        epics: [],
+        jobs: [],
+        recent_activity: []
+      })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/profiles/3"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument()
+    expect(screen.queryByText("@ada-lovelace")).not.toBeInTheDocument()
+    expect(screen.queryByText("Mathematician and operator.")).not.toBeInTheDocument()
+    expect(screen.getByText("No active epics.")).toBeInTheDocument()
+    expect(screen.getByText("No jobs.")).toBeInTheDocument()
+    expect(screen.getByText("No active repositories.")).toBeInTheDocument()
+    expect(screen.getByText("No activity yet.")).toBeInTheDocument()
+  })
+
   it("rotates an admin API token from the credentials route", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -7135,6 +7194,43 @@ function repositoryScheduledTasksPayload(overrides: { state?: string; active?: b
     new_scheduled_task_path: "/repositories/3/scheduled_tasks/new",
     options: scheduledTaskOptions(),
     message: overrides.message
+  }
+}
+
+function profilePayload(overrides: Record<string, unknown> = {}) {
+  return {
+    team_user_count: 2,
+    profile: {
+      id: 2,
+      first_name: "Ada",
+      last_name: "Lovelace",
+      display_name: "Ada Lovelace",
+      github_handle: "ada-lovelace",
+      role_label: "Operator",
+      profile_bio: "Mathematician and operator.",
+      profile_location: "London",
+      profile_company: "Analytical Engines Ltd",
+      profile_website: "https://example.com/ada",
+      avatar_url: null,
+      counts: { repositories: 1, epics: 2, jobs: 3, open_jobs: 1 },
+      repositories: [
+        { id: 3, slug: "acme/widgets", path: "/repositories/3" }
+      ],
+      epics: [],
+      jobs: [
+        {
+          id: 55,
+          title: "Add profile page",
+          state: "running",
+          kind: "issue",
+          repository: { id: 3, slug: "acme/widgets", path: "/repositories/3" },
+          updated_at: "2026-05-30T12:00:00Z",
+          path: "/jobs/55"
+        }
+      ],
+      recent_activity: [],
+      ...overrides
+    }
   }
 }
 

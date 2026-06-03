@@ -55,7 +55,11 @@ export type TeamProfileActivity = {
 }
 
 export type TeamProfileDetail = Omit<TeamProfileSummary, "bio_excerpt" | "profile_path"> & {
+  role_label: string
   profile_bio: string | null
+  profile_location: string | null
+  profile_company: string | null
+  profile_website: string | null
   repositories: TeamProfileRepository[]
   epics: TeamProfileEpic[]
   jobs: TeamProfileJob[]

@@ -398,6 +398,7 @@ function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfT
         </button>
         {open ? (
           <div className="absolute right-0 z-30 mt-2 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg">
+            <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50" to={`${prefix}/profiles/${user.id}`}>Profile</Link>
             <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50" to={`${prefix}/settings`}>Settings</Link>
             {showTeamProfile ? <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50" to={`${prefix}/profiles/${user.id}`}>My profile</Link> : null}
             {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50" to={`${prefix}/admin`}>Admin</Link> : null}
