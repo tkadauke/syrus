@@ -10,10 +10,11 @@ prepare:
   # The agent's env strips BUNDLE_PATH (per Steps::Prepare's
   # PREP_ENV_FORWARD allowlist), but bundler defaults to a global
   # location otherwise. Pin install location to the workspace's
-  # `vendor/bundle/` via a workspace-local `.bundle/config` so
-  # `bin/rspec`, `bundle exec rails test`, etc. all resolve gems
-  # the agent just installed.
+  # `vendor/bundle/` in both the Syrus-local Bundler app config
+  # and the standard `.bundle/config` so bare grader commands like
+  # `bin/rails` and `bin/rspec` resolve gems the agent just installed.
   - env -u BUNDLE_PATH BUNDLE_APP_CONFIG=.bundle bundle config set --local path vendor/bundle
+  - env -u BUNDLE_PATH -u BUNDLE_APP_CONFIG bundle config set --local path vendor/bundle
   - env -u BUNDLE_PATH BUNDLE_APP_CONFIG=.bundle bundle install --jobs 4
   - npm ci
 
