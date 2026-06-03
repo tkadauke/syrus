@@ -734,7 +734,7 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
           rows={1}
           value={text}
         />
-        <button className={primaryButton()} disabled={agentActive || send.isPending} type="submit">Send</button>
+        {agentActive ? null : <button className={primaryButton()} disabled={send.isPending} type="submit">Send</button>}
         {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
       </div>
     </form>
@@ -812,7 +812,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button className="rounded border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+    <button className="rounded border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
       {payload.chat.stop_requested_at || stop.isPending ? "Stopping..." : "Stop"}
     </button>
   )

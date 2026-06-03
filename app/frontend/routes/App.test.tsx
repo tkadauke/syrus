@@ -5217,6 +5217,25 @@ describe("App", () => {
     expect(await screen.findByRole("status", { name: "Agent is working" })).toHaveTextContent("Agent working")
   })
 
+  it("hides chat Send and keeps Stop compact while the agent is busy", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload({ agentBusy: true, turnInFlight: false })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const stop = await screen.findByRole("button", { name: "Stop" })
+    expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument()
+    expect(stop).toHaveClass("px-3", "py-1.5")
+    expect(stop).not.toHaveClass("px-4", "py-2")
+  })
+
   it("shows a starting state before the chat agent process is running", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify(chatPayload({ agentBusy: false, turnInFlight: true })), { status: 200, headers: { "Content-Type": "application/json" } })
