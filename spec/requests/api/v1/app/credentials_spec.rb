@@ -124,6 +124,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       "profile_location" => "London",
       "profile_company" => "Analytical Engines Ltd",
       "profile_website" => "https://example.com/ada",
+      "profile_bio" => "Keeps the machines honest.",
       "avatar_url" => "https://example.com/ada.png"
     )
   end

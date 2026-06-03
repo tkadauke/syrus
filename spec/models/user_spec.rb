@@ -59,9 +59,12 @@ RSpec.describe User do
 
     it "caps profile fields at modest lengths" do
       user = User.new(attrs.merge(profile_company: "x" * 101))
+      bio_user = User.new(attrs.merge(profile_bio: "x" * 1001))
 
       expect(user).not_to be_valid
       expect(user.errors[:profile_company]).to be_present
+      expect(bio_user).not_to be_valid
+      expect(bio_user.errors[:profile_bio]).to be_present
     end
   end
 
