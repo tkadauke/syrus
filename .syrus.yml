@@ -67,7 +67,7 @@ grade:
       detonate live pods. If this fails, two files probably define
       the same constant with different superclasses — check umbrella
       files vs per-class siblings.
-    run: bin/check-eager-load
+    run: bundle config set --local path vendor/bundle && (bundle check || bundle install --jobs 4) && bin/check-eager-load
     timeout_minutes: 1
 
   - name: rspec
@@ -78,7 +78,7 @@ grade:
       the suite green and add coverage to any under-tested area
       they touch. `db:test:prepare` runs first so schema changes in
       the same workflow are picked up before spec collection.
-    run: bin/rails db:test:prepare && bin/rspec
+    run: bundle config set --local path vendor/bundle && (bundle check || bundle install --jobs 4) && bin/rails db:test:prepare && bin/rspec
     timeout_minutes: 30
 
   - name: react-tests
