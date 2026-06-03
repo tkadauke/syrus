@@ -186,6 +186,8 @@ describe("App", () => {
     expect(screen.getByRole("region", { name: "Why self-host Syrus" })).toBeInTheDocument()
     expect(screen.getByText("The agent writes code; Syrus owns the run.")).toBeInTheDocument()
     expect(screen.getByText("Keep automation close to the repositories it changes.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Read the setup docs" })).toHaveAttribute("href", "https://syrusai.dev/docs/getting-started")
+    expect(screen.getByRole("link", { name: "Evaluate Syrus for a repository" })).toHaveAttribute("href", "https://syrusai.dev/docs/deployment/try-it-locally")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
       expect.objectContaining({ credentials: "same-origin" })
@@ -7471,8 +7473,8 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
       signups_open: false,
       signup_path: "/users/new",
       sign_in_path: "/session/new",
-      docs_url: "https://syrus.dev/docs/getting-started",
-      evaluation_url: "https://syrus.dev/evaluate"
+      docs_url: "https://syrusai.dev/docs/getting-started",
+      evaluation_url: "https://syrusai.dev/docs/deployment/try-it-locally"
     },
     navigation: {
       default_chat_path: "/chats/9"
@@ -7587,8 +7589,8 @@ function publicBootstrapPayload(overrides: Partial<BootstrapPayload["public"]> =
       signups_open: false,
       signup_path: "/users/new",
       sign_in_path: "/session/new",
-      docs_url: "https://syrus.dev/docs/getting-started",
-      evaluation_url: "https://syrus.dev/evaluate",
+      docs_url: "https://syrusai.dev/docs/getting-started",
+      evaluation_url: "https://syrusai.dev/docs/deployment/try-it-locally",
       ...overrides
     }
   }

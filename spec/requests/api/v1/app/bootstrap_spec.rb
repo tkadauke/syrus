@@ -38,6 +38,42 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(parse_body.dig("navigation", "default_chat_path")).to eq(new_session_path)
   end
 
+  it "returns canonical public CTA URLs by default" do
+    with_env("SYRUS_DOCS_URL" => nil, "SYRUS_EVALUATION_URL" => nil) do
+      get api_v1_app_bootstrap_path
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("public", "docs_url")).to eq("https://syrusai.dev/docs/getting-started")
+    expect(parse_body.dig("public", "evaluation_url")).to eq("https://syrusai.dev/docs/deployment/try-it-locally")
+  end
+
+  it "accepts absolute and root-relative public CTA URL overrides" do
+    with_env(
+      "SYRUS_DOCS_URL" => "/docs/getting-started",
+      "SYRUS_EVALUATION_URL" => "https://docs.example.test/docs/deployment/try-it-locally"
+    ) do
+      get api_v1_app_bootstrap_path
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("public", "docs_url")).to eq("/docs/getting-started")
+    expect(parse_body.dig("public", "evaluation_url")).to eq("https://docs.example.test/docs/deployment/try-it-locally")
+  end
+
+  it "falls back when public CTA URL overrides are blank or malformed" do
+    with_env(
+      "SYRUS_DOCS_URL" => "   ",
+      "SYRUS_EVALUATION_URL" => "nota url"
+    ) do
+      get api_v1_app_bootstrap_path
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("public", "docs_url")).to eq("https://syrusai.dev/docs/getting-started")
+    expect(parse_body.dig("public", "evaluation_url")).to eq("https://syrusai.dev/docs/deployment/try-it-locally")
+  end
+
   it "returns the signed-in user's browser bootstrap payload" do
     user = Factories.user(
       email_address: "operator@example.com",
