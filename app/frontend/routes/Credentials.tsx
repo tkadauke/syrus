@@ -130,7 +130,6 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
             <input className={inputClass()} maxLength={80} onChange={(event) => setValues({ ...values, last_name: event.target.value })} type="text" value={values.last_name} />
           </Field>
         </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Company">
             <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_company: event.target.value })} type="text" value={values.profile_company} />
