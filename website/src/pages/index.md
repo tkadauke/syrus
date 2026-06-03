@@ -19,7 +19,7 @@ creating branches, preparing workspaces, running the agent, recording
 transcripts and diffs, pushing commits, and keeping the PR current. The
 agent writes code; Syrus handles the job control around it.
 
-[Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs/getting-started) · [Star on GitHub](https://github.com/tkadauke/syrus)
+[What is Syrus?](/what-is-syrus) · [Why use Syrus?](/why-use-syrus) · [Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs/getting-started) · [Star on GitHub](https://github.com/tkadauke/syrus)
 
 ## The Loop
 
@@ -59,6 +59,8 @@ and pull request.
 Get Started with the local guide when you want the smallest proof before
 connecting a team repository.
 
+Need the longer version? Read [What is Syrus?](/what-is-syrus).
+
 ## Why Teams Run It
 
 **You own the keys.** Syrus is BYOK: run it with your own agent provider
@@ -75,6 +77,9 @@ debug what happened after the PR exists.
 **It handles more than first drafts.** Initial issue work, PR comments,
 CI-failure retries, scheduled maintenance, manual retries, and rebases
 all share the same harness instead of becoming separate scripts.
+
+For the adoption argument and fit checks, read
+[Why use Syrus?](/why-use-syrus).
 
 ## A Concrete Example
 
