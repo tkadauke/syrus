@@ -163,7 +163,10 @@ needs durable workspace storage because it manages clones and worktrees.
 | `GIT_SHA` | No | Displayed build revision |
 
 `SYRUS_DATA_ROOT` should point at a persistent volume for worker pods.
-Web pods do not need clone storage.
+Web pods do not need clone storage. The mounted directory must be writable
+by the container's `rails` user (`1000:1000`); the published Docker images
+create `/home/rails/.syrus` with that ownership so a fresh named volume can
+inherit it on first mount.
 
 ## Secret Management
 

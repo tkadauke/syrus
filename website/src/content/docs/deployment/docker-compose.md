@@ -96,7 +96,11 @@ Keep both MySQL and `$SYRUS_DATA_ROOT` on named volumes or host-mounted
 directories. MySQL holds users, encrypted credentials, repositories,
 Jobs, Workflows, Runs, logs, artifacts, and the Solid Queue / Solid Cable
 state used by the app. `$SYRUS_DATA_ROOT` holds clone caches and workflow
-workspaces used by running and recently finished Workflows.
+workspaces used by running and recently finished Workflows. The data-root
+mount must be writable by the container's `rails` user (`1000:1000`). The
+published image creates `/home/rails/.syrus` with that ownership so fresh
+Docker named volumes inherit the correct permissions on first mount; host
+directories should be created or chowned the same way.
 
 Back up MySQL with `mysqldump`:
 

@@ -114,6 +114,12 @@ managed snapshots, operator backups, or scheduled `mysqldump`. For the
 PVC, use your cluster storage snapshot mechanism or a volume backup tool
 such as Velero with CSI snapshots.
 
+The data-root PVC mount must be writable by the container's `rails` user
+(`1000:1000`). The published images create `/home/rails/.syrus` with that
+ownership for first-mount volume initialization; custom mount paths or
+pre-provisioned volumes should set matching ownership before worker pods
+start.
+
 The database matters most for long-term recovery. The data-root PVC
 matters most for active runs and operational smoothness. Restoring the
 database without the PVC should still leave historical Jobs visible, but

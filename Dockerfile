@@ -49,7 +49,9 @@ ENV RAILS_ENV="production" \
 # switch to it without re-running useradd. The build stage stays
 # root for gem install.
 RUN groupadd --system --gid 1000 rails && \
-    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash
+    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash && \
+    mkdir -p /home/rails/.syrus && \
+    chown 1000:1000 /home/rails/.syrus
 
 # Throw-away build stage to reduce size of final image
 FROM base AS build

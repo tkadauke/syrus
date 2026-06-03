@@ -9,6 +9,17 @@ RSpec.describe "Dockerfile" do
     dockerfile.match(/FROM base AS worker-deps(?<stage>.*?)FROM worker-deps AS worker-dev/m)[:stage]
   end
 
+  it "creates the data root with rails ownership before runtime stages drop privileges" do
+    user_setup = dockerfile.match(/RUN groupadd --system --gid 1000 rails(?<setup>.*?)FROM base AS build/m)[:setup]
+    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-cache/m)[:stage]
+    worker_stage = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+
+    expect(user_setup).to include("mkdir -p /home/rails/.syrus")
+    expect(user_setup).to include("chown 1000:1000 /home/rails/.syrus")
+    expect(app_stage.index("USER 1000:1000")).to be < app_stage.index("ENTRYPOINT")
+    expect(worker_stage.index("USER 1000:1000")).to be < worker_stage.index("ENTRYPOINT")
+  end
+
   it "installs Poetry as an executable worker tool" do
     stage = worker_deps_stage
 
