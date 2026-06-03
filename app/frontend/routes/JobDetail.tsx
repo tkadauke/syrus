@@ -420,6 +420,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
         </PanelMessage>
       ) : null}
       {payload.job.landing_failure_reason ? <PanelMessage tone="error">Landing failed: {payload.job.landing_failure_reason}</PanelMessage> : null}
+      <RetryStatePanel payload={payload} />
       {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
 
       <section className="grid gap-4 rounded border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -460,6 +461,28 @@ function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailPayload[
     <Link className="text-blue-600 hover:underline" to={withRoutePrefix(epic.epic_path, prefix)}>
       {epic.display_number} {epic.title}
     </Link>
+  )
+}
+
+function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
+  const retry = payload.job.retry_state
+  if (!retry || (retry.state_label === "No failure" && !retry.classification)) return null
+
+  return (
+    <section className={`rounded border px-4 py-3 text-sm ${retry.auto_retry_exhausted ? "border-red-200 bg-red-50 text-red-800" : retry.provider_circuit_open ? "border-amber-200 bg-amber-50 text-amber-900" : "border-gray-200 bg-white text-gray-700"}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold">{retry.state_label}</span>
+        <SmallPill>{retry.classification_label}</SmallPill>
+        <SmallPill>{retry.retryable ? "retryable" : "not retryable"}</SmallPill>
+        <SmallPill>{retry.retry_attempt_count}/{retry.retry_budget} attempts</SmallPill>
+        <SmallPill>{retry.retry_budget_remaining} remaining</SmallPill>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {retry.next_auto_retry_at ? <span>Next retry {formatDate(retry.next_auto_retry_at)}</span> : null}
+        {retry.retry_delayed_until ? <span>Delayed until {formatDate(retry.retry_delayed_until)}</span> : null}
+        {retry.retry_delay_reason ? <span>{retry.retry_delay_reason}</span> : null}
+      </div>
+    </section>
   )
 }
 

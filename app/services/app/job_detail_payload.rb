@@ -78,6 +78,7 @@ module App
         closure_reason: @job.closure_reason,
         failure_count: @job.failure_count,
         landing_failure_reason: @job.landing_failure_reason,
+        retry_state: ::App::RetryState.for(@job),
         approved_at: iso8601(@job.approved_at),
         approved_via: @job.approved_via,
         approved_by_user_id: @job.approved_by_user_id,

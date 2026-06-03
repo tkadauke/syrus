@@ -1,5 +1,6 @@
 import { deleteJson, getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
+import type { JobRetryState } from "./jobs"
 
 export type RepositoryRow = {
   id: number
@@ -236,6 +237,7 @@ export type RepositoryDetailJob = {
   external_pr_number: number | null
   external_pr_url: string | null
   current_step_caption: string | null
+  retry_state?: JobRetryState
   runs_count: number
   updated_at: string
 }

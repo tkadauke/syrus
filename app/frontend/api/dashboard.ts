@@ -1,4 +1,5 @@
 import { getJson, patchJson, postJson } from "./client"
+import type { JobRetryState } from "./jobs"
 
 import type { SetupStatusPayload } from "./setup"
 
@@ -56,6 +57,7 @@ export type DashboardJobItem = {
   latest_workflow_trigger_kind: string | null
   pr_url: string | null
   latest_workflow_state: string
+  retry_state?: JobRetryState
   created_at: string | null
   updated_at: string | null
   started_at: string | null

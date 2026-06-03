@@ -614,6 +614,7 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
         {job.pr_number && job.pr_url ? <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">PR #{job.pr_number}</a> : null}
         {job.external_pr_number && job.external_pr_url ? <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">PR #{job.external_pr_number}</a> : null}
         {job.current_step_caption ? <div className="mt-0.5 text-xs italic text-gray-500">{job.current_step_caption}</div> : null}
+        <RepositoryRetryState job={job} />
         <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400 sm:hidden">
           <span>{job.runs_count} {job.runs_count === 1 ? "run" : "runs"}</span>
           <span>·</span>
@@ -624,6 +625,21 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
       <td className="hidden px-4 py-3 text-gray-500 sm:table-cell">{formatRelative(job.updated_at)}</td>
       <td className="hidden px-4 py-3 text-right sm:table-cell"><Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(job.job_path, prefix)}>View</Link></td>
     </tr>
+  )
+}
+
+function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
+  const retry = job.retry_state
+  if (!retry || retry.state_label === "No failure") return null
+
+  const tone = retry.auto_retry_exhausted ? "text-red-700 bg-red-50 border-red-200" : retry.provider_circuit_open ? "text-amber-800 bg-amber-50 border-amber-200" : "text-gray-700 bg-gray-50 border-gray-200"
+  return (
+    <div className={`mt-1 inline-flex flex-wrap items-center gap-1.5 rounded border px-2 py-1 text-xs ${tone}`}>
+      <span className="font-medium">{retry.state_label}</span>
+      <span>{retry.classification_label}</span>
+      <span>{retry.retry_budget_remaining} retries left</span>
+      {retry.next_auto_retry_at ? <span>next {formatRelative(retry.next_auto_retry_at)}</span> : null}
+    </div>
   )
 }
 

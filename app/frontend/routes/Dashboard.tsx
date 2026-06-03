@@ -1024,6 +1024,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           <OwnerBadge badge={job.owner_badge} />
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5" key={tag.id}>{tag.name}</span>)}
+          <RetryStateInline job={job} />
         </div>
       </td>
     )
@@ -1046,6 +1047,7 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
       <div className="flex flex-col items-start gap-1">
         <span className="text-xs text-gray-500">{job.latest_workflow_trigger_kind}</span>
         <StatusPill state={job.latest_workflow_state} />
+        <RetryStateInline job={job} />
       </div>
     </td>
   )
@@ -1066,6 +1068,21 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
   const label = `#${job.issue_number}`
 
   return <ExternalMetadataLink href={job.issue_url}>{label}</ExternalMetadataLink>
+}
+
+function RetryStateInline({ job }: { job: DashboardJobItem }) {
+  const retry = job.retry_state
+  if (!retry || retry.state_label === "No failure") return null
+
+  const details = [
+    retry.classification_label,
+    retry.retryable ? "retryable" : "not retryable",
+    `${retry.retry_budget_remaining} left`,
+    retry.next_auto_retry_at ? `next ${formatDate(retry.next_auto_retry_at)}` : null,
+    retry.provider_circuit_open ? "provider circuit open" : null
+  ].filter(Boolean).join(" · ")
+
+  return <span className={`rounded px-1.5 py-0.5 ${retry.auto_retry_exhausted ? "bg-red-50 text-red-700" : retry.provider_circuit_open ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-600"}`} title={details}>{retry.state_label}</span>
 }
 
 function ExternalMetadataLink({ children, className = "text-gray-500 hover:text-blue-700 hover:underline", href }: { children: ReactNode; className?: string; href: string | null }) {

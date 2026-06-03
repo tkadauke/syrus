@@ -35,6 +35,7 @@ module Jobs
       out = []
       out.concat(creation_events)
       out.concat(transition_events)
+      out.concat(retry_decision_events)
       out.compact.sort_by { |e| [ e.at || Time.zone.at(0), source_order(e.source) ] }
     end
 
@@ -43,7 +44,7 @@ module Jobs
     def source_order(source)
       # Stable tie-break when multiple events share a timestamp.
       # Created-at sorts before AASM start for the same record.
-      %w[ job workflow step run ].index(source) || 99
+      %w[ job workflow step run retry ].index(source) || 99
     end
 
     def creation_events
@@ -75,6 +76,97 @@ module Jobs
     def transition_events
       transitions = fetch_transitions
       transitions.map { |t| event_for_transition(t) }
+    end
+
+    def retry_decision_events
+      events = []
+      events.concat(retry_artifact_events)
+      events.concat(retry_log_events)
+      events
+    end
+
+    def retry_artifact_events
+      workflow = @job.workflows.where(state: "failed").order(created_at: :desc, id: :desc).first
+      return [] unless workflow
+
+      state = App::RetryState.for(@job)
+      return [] if state[:classification].blank? && state[:next_auto_retry_at].blank? && !state[:auto_retry_exhausted] && !state[:provider_circuit_open]
+
+      at = workflow.finished_at || workflow.updated_at || workflow.created_at
+      detail = [
+        "classification=#{state[:classification_label]}",
+        ("retryable=#{state[:retryable]}" unless state[:retryable].nil?),
+        "attempts=#{state[:retry_attempt_count]}/#{state[:retry_budget]}",
+        ("remaining=#{state[:retry_budget_remaining]}" if state[:retry_budget_remaining]),
+        ("next=#{state[:next_auto_retry_at]}" if state[:next_auto_retry_at]),
+        ("delayed_until=#{state[:retry_delayed_until]}" if state[:retry_delayed_until]),
+        state[:retry_delay_reason]
+      ].compact.join(" · ")
+
+      [
+        Event.new(
+          at: at,
+          kind: retry_event_kind(state),
+          source: "retry",
+          transition_source: "system",
+          title: "Failure classified: #{state[:classification_label]}",
+          detail: detail.presence,
+          ref: { workflow_id: workflow.id }
+        ),
+        retry_schedule_event(state, workflow, at)
+      ].compact
+    end
+
+    def retry_schedule_event(state, workflow, at)
+      title =
+        if state[:auto_retry_exhausted]
+          "Auto-retry exhausted"
+        elsif state[:provider_circuit_open]
+          "Auto-retry delayed by provider circuit"
+        elsif state[:next_auto_retry_at].present?
+          "Auto-retry scheduled"
+        end
+      return unless title
+
+      Event.new(
+        at: at,
+        kind: retry_event_kind(state),
+        source: "retry",
+        transition_source: "system",
+        title: title,
+        detail: state[:state_label],
+        ref: { workflow_id: workflow.id }
+      )
+    end
+
+    def retry_log_events
+      run_ids = Run.where(job_id: @job.id).pluck(:id)
+      return [] if run_ids.empty?
+
+      JobLog.where(run_id: run_ids, kind: "system")
+            .where("chunk LIKE ? OR chunk LIKE ? OR chunk LIKE ? OR chunk LIKE ?",
+                   "%classification%", "%auto-retry%", "%retry scheduled%", "%circuit%")
+            .order(:created_at, :sequence)
+            .map do |log|
+        run = log.run
+        Event.new(
+          at: log.created_at,
+          kind: :info,
+          source: "retry",
+          transition_source: "system",
+          title: "Retry decision recorded",
+          detail: log.chunk.to_s.truncate(240),
+          ref: { workflow_id: run.step&.workflow_id, step_id: run.step_id, run_id: run.id }
+        )
+      end
+    end
+
+    def retry_event_kind(state)
+      return :failure if state[:auto_retry_exhausted]
+      return :cancel if state[:provider_circuit_open]
+      return :start if state[:next_auto_retry_at].present?
+
+      :info
     end
 
     def fetch_transitions

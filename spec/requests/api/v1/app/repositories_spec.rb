@@ -202,6 +202,11 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     repository.repository_notes.create!(body: "Removed context.", author: "agent", removed_at: Time.current)
     failed = Factories.job(repository: repository, issue_number: 1, issue_title: "Fix forum")
     failed.current_run.update!(state: "failed", finished_at: Time.current)
+    failed.latest_workflow.update!(
+      state: "failed",
+      failure_count: 3,
+      artifacts: { "failure_classification" => "agent_timeout", "auto_retry_exhausted" => true }
+    )
     running = Factories.job(repository: repository, issue_number: 2, issue_title: "Survey aqueduct")
     running.current_run.update!(state: "running", started_at: Time.current)
     queued = Factories.job(repository: repository, issue_number: 3, issue_title: "Polish marble")
@@ -241,7 +246,16 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "app_delete_path" => "/api/v1/app/repositories/#{repository.id}/notes/#{active_note.id}"
     ))
     expect(body["jobs"]).to include(
-      include("id" => failed.id, "issue_title" => "Fix forum", "source" => include("label" => "#1")),
+      include(
+        "id" => failed.id,
+        "issue_title" => "Fix forum",
+        "source" => include("label" => "#1"),
+        "retry_state" => include(
+          "classification" => "agent_timeout",
+          "auto_retry_exhausted" => true,
+          "state_label" => "Auto-retry exhausted"
+        )
+      ),
       include("id" => running.id, "issue_title" => "Survey aqueduct"),
       include("id" => queued.id, "issue_title" => "Polish marble")
     )

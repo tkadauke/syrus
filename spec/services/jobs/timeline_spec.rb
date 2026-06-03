@@ -90,6 +90,31 @@ RSpec.describe Jobs::Timeline do
       expect(run_event.ref[:step_id]).to be_present
     end
 
+    it "includes failure classification and auto-retry scheduling decisions" do
+      workflow = job.latest_workflow
+      run = job.initial_run
+      workflow.update!(
+        state: "failed",
+        failure_count: 1,
+        finished_at: Time.zone.parse("2026-06-02 12:00:00"),
+        artifacts: {
+          "failure_classification" => "transient_provider_error",
+          "failure_retryable" => true,
+          "next_auto_retry_at" => "2026-06-02T12:30:00Z"
+        }
+      )
+      JobLog.append!(run: run, chunk: "auto-retry scheduled after classification", kind: "system")
+
+      events = described_class.for(job)
+
+      expect(titles_of(events)).to include(
+        "Failure classified: Transient provider error",
+        "Auto-retry scheduled",
+        "Retry decision recorded"
+      )
+      expect(events.find { |event| event.title == "Failure classified: Transient provider error" }.detail).to include("attempts=1/#{AppSetting.max_job_failures}")
+    end
+
     it "surfaces Job state transitions (which the timestamp-derived view couldn't show)" do
       wf = job.workflows.last
       wf.start!; wf.save!

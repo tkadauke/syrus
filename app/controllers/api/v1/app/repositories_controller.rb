@@ -510,6 +510,7 @@ module Api
             external_pr_number: job.external_pr_number,
             external_pr_url: ::App::Presentation.external_pr_url(job),
             current_step_caption: ::App::Presentation.current_step_caption(job),
+            retry_state: ::App::RetryState.for(job),
             runs_count: job.runs.size,
             updated_at: job.updated_at.iso8601
           }

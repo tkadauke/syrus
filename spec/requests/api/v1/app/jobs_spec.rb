@@ -72,6 +72,12 @@ RSpec.describe "App API job detail", type: :request do
       "owner_user" => include("id" => owner.id, "email_address" => "owner@example.com")
     )
     expect(body.dig("job", "pr_url")).to eq("https://github.com/acme/widgets/pull/7")
+    expect(body.dig("job", "retry_state")).to include(
+      "classification" => nil,
+      "classification_label" => "Unclassified",
+      "state_label" => "No failure",
+      "auto_retry_exhausted" => false
+    )
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
     expect(body["epic"]).to include(
       "id" => epic.id,
@@ -130,6 +136,41 @@ RSpec.describe "App API job detail", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("job", "total_cost_usd")).to eq(0.34)
+  end
+
+  it "exposes classified auto-retry state for failed jobs" do
+    workflow = job.latest_workflow
+    workflow.update!(
+      state: "failed",
+      failure_count: 2,
+      artifacts: {
+        "failure_classification" => "transient_provider_error",
+        "failure_retryable" => true,
+        "next_auto_retry_at" => "2026-06-02T12:30:00Z",
+        "provider_circuit_open" => true,
+        "retry_delayed_until" => "2026-06-02T12:45:00Z",
+        "retry_delay_reason" => "Claude queue is saturated"
+      }
+    )
+    job.current_run.update!(state: "failed", finished_at: Time.current)
+
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("job", "retry_state")).to include(
+      "classification" => "transient_provider_error",
+      "classification_label" => "Transient provider error",
+      "retryable" => true,
+      "next_auto_retry_at" => "2026-06-02T12:30:00Z",
+      "retry_attempt_count" => 2,
+      "retry_budget_remaining" => AppSetting.max_job_failures - 2,
+      "retry_budget" => AppSetting.max_job_failures,
+      "auto_retry_exhausted" => false,
+      "provider_circuit_open" => true,
+      "retry_delayed_until" => "2026-06-02T12:45:00Z",
+      "retry_delay_reason" => "Claude queue is saturated",
+      "state_label" => "Provider circuit open"
+    )
   end
 
   it "paginates workflows on the job detail payload" do

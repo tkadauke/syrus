@@ -18,6 +18,21 @@ export type JobEpic = {
   epic_path: string
 }
 
+export type JobRetryState = {
+  classification: string | null
+  classification_label: string
+  retryable: boolean
+  next_auto_retry_at: string | null
+  retry_attempt_count: number
+  retry_budget_remaining: number
+  retry_budget: number
+  auto_retry_exhausted: boolean
+  provider_circuit_open: boolean
+  retry_delayed_until: string | null
+  retry_delay_reason: string | null
+  state_label: string
+}
+
 export type JobRecord = {
   id: number
   kind: string
@@ -40,6 +55,7 @@ export type JobRecord = {
   pr_mergeable_checked_at: string | null
   closure_reason: string | null
   landing_failure_reason: string | null
+  retry_state?: JobRetryState
   approved_at: string | null
   approved_via: string | null
   total_cost_usd: number | null

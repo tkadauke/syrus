@@ -599,6 +599,7 @@ module App
         latest_workflow_trigger_kind: job.latest_workflow_trigger_kind,
         pr_url: job.pr_number.present? ? App::Presentation.job_pr_url(job) : App::Presentation.external_pr_url(job),
         latest_workflow_state: job.latest_workflow_state,
+        retry_state: ::App::RetryState.for(job),
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601,
         started_at: job.started_at&.iso8601,
