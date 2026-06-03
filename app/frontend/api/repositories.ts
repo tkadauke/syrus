@@ -6,6 +6,7 @@ export type RepositoryRow = {
   slug: string
   owner: string
   name: string
+  owner_user: RepositoryOwnerUser
   default_branch: string
   trigger_label: string
   polling_enabled: boolean
@@ -173,19 +174,21 @@ export type RepositoryDetailRecord = {
   effective_agent_provider_label: string
   github_url: string
   created_at: string
-  owner_user: {
-    id: number
-    display_name: string
-    email_address: string
-    admin: boolean
-    profile_path?: string
-  }
+  owner_user: RepositoryOwnerUser
   github_rate_limit: {
     remaining: number
     limit: number
     resource: string
     observed_at: string
   } | null
+}
+
+export type RepositoryOwnerUser = {
+  id: number
+  display_name: string
+  email_address: string
+  admin: boolean
+  profile_path?: string
 }
 
 export type RepositoryTab = {

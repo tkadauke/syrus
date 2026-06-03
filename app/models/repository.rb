@@ -25,7 +25,11 @@ class Repository < ApplicationRecord
   validates :default_branch, presence: true
   validates :trigger_label, presence: true
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
-  validates :owner, uniqueness: { scope: [ :user_id, :name ], case_sensitive: false }
+  validates :name, uniqueness: {
+    scope: [ :user_id, :owner ],
+    case_sensitive: false,
+    message: "has already been configured for this Syrus user and GitHub owner"
+  }
 
   before_validation :normalize_agent_provider
   before_save :link_installation_from_owner

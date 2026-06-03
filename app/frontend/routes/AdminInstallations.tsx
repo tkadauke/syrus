@@ -149,6 +149,7 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
           <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
             <tr>
               <th className="px-4 py-2">Repository</th>
+              <th className="px-4 py-2">Syrus owner</th>
               <th className="px-4 py-2">App</th>
               <th className="px-4 py-2">PAT</th>
               <th className="px-4 py-2">Account</th>
@@ -156,10 +157,11 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
           </thead>
           <tbody className="divide-y divide-gray-100">
             {repositories.length === 0 ? (
-              <tr><td className="px-4 py-6 text-center text-gray-500" colSpan={4}>No repositories configured.</td></tr>
+              <tr><td className="px-4 py-6 text-center text-gray-500" colSpan={5}>No repositories configured.</td></tr>
             ) : repositories.map((repository) => (
               <tr key={repository.id}>
                 <td className="px-4 py-3 font-mono">{repository.slug}</td>
+                <td className="px-4 py-3 text-gray-600">{repository.owner_user.email_address}</td>
                 <td className="px-4 py-3">{repository.app_credential_active ? <span className="font-medium text-emerald-700">Active</span> : <span className="text-gray-400">No active installation</span>}</td>
                 <td className="px-4 py-3">{repository.app_credential_active ? <span className="text-gray-400">Not used for this repo</span> : <span className="font-medium text-amber-800">Used as fallback</span>}</td>
                 <td className="px-4 py-3 text-gray-600">

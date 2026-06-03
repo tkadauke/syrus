@@ -54,7 +54,7 @@ RSpec.describe Repository do
     Repository.create!(user: owner, owner: "acme", name: "widgets")
     dup = Repository.new(user: owner, owner: "acme", name: "widgets")
     expect(dup).not_to be_valid
-    expect(dup.errors[:owner]).to be_present
+    expect(dup.errors[:name]).to include("has already been configured for this Syrus user and GitHub owner")
   end
 
   it "allows the same repo under a different user" do

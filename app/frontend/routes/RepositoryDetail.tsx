@@ -364,7 +364,7 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
           <div><dt className="text-xs uppercase text-gray-400">Branch</dt><dd className="font-mono text-gray-700">{repository.default_branch}</dd></div>
           <div><dt className="text-xs uppercase text-gray-400">Trigger label</dt><dd><code className="rounded bg-gray-100 px-1">{repository.trigger_label}</code></dd></div>
           <div>
-            <dt className="text-xs uppercase text-gray-400">Owner</dt>
+            <dt className="text-xs uppercase text-gray-400">Syrus owner</dt>
             <dd>
               {repository.owner_user.profile_path ? (
                 <Link className="text-blue-600 hover:underline" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>

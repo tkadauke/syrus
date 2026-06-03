@@ -317,6 +317,7 @@ module Api
             slug: repository.slug,
             owner: repository.owner,
             name: repository.name,
+            owner_user: owner_user_json(repository.user),
             default_branch: repository.default_branch,
             trigger_label: repository.trigger_label,
             polling_enabled: repository.polling_enabled?,
@@ -355,7 +356,6 @@ module Api
         end
 
         def repository_detail_json(repository)
-          repo_user = repository.user
           {
             id: repository.id,
             slug: repository.slug,
@@ -371,14 +371,18 @@ module Api
             effective_agent_provider_label: agent_provider_label(repository.effective_agent_provider),
             github_url: "https://github.com/#{repository.slug}",
             created_at: repository.created_at.iso8601,
-            owner_user: {
-              id: repo_user.id,
-              display_name: repo_user.team_display_name,
-              email_address: repo_user.email_address,
-              admin: repo_user.admin?,
-              profile_path: profile_path(repo_user)
-            },
-            github_rate_limit: github_rate_limit_json(repo_user)
+            owner_user: owner_user_json(repository.user),
+            github_rate_limit: github_rate_limit_json(repository.user)
+          }
+        end
+
+        def owner_user_json(user)
+          {
+            id: user.id,
+            display_name: user.team_display_name,
+            email_address: user.email_address,
+            admin: user.admin?,
+            profile_path: profile_path(user)
           }
         end
 

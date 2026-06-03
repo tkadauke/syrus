@@ -5,6 +5,11 @@ export type InstallationRepository = {
   slug: string
   owner: string
   name: string
+  owner_user: {
+    id: number
+    email_address: string
+    admin: boolean
+  }
   app_credential_active: boolean
   credential_mode: "app" | "pat" | string
   account_login: string

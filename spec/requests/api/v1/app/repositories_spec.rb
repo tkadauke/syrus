@@ -53,6 +53,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       include(
         "id" => active.id,
         "slug" => "acme/widgets",
+        "owner_user" => include("id" => user.id, "email_address" => user.email_address),
         "default_branch" => "main",
         "trigger_label" => "syrus",
         "polling_enabled" => true,
@@ -67,6 +68,53 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
     expect(body.to_s).not_to include("other/private")
     expect(body["new_repository_path"]).to eq(new_repository_path)
+  end
+
+  it "allows two users to configure the same GitHub slug independently" do
+    Factories.repository(user: Factories.user, owner: "acme", name: "widgets")
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/repositories", params: {
+        repository: {
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          trigger_label: "syrus",
+          polling_enabled: true,
+          prepare_enabled: true
+        }
+      }
+    }.to change { user.repositories.where(owner: "acme", name: "widgets").count }.from(0).to(1)
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body.dig("repository", "owner_user")).to include(
+      "id" => user.id,
+      "email_address" => user.email_address
+    )
+  end
+
+  it "rejects duplicate GitHub slugs for the same user with a clear owner-scoped message" do
+    sign_in_as(user)
+    Factories.repository(user: user, owner: "acme", name: "widgets")
+
+    expect {
+      post "/api/v1/app/repositories", params: {
+        repository: {
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          trigger_label: "syrus",
+          polling_enabled: true,
+          prepare_enabled: true
+        }
+      }
+    }.not_to change(Repository, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include(
+      "Name has already been configured for this Syrus user and GitHub owner"
+    )
   end
 
   it "returns the new repository form payload" do
@@ -157,6 +205,10 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
+    expect(body.dig("repository", "owner_user")).to include(
+      "id" => user.id,
+      "email_address" => user.email_address
+    )
     expect(body.dig("repository", "agent_provider_label")).to eq("Codex")
     expect(body.dig("repository", "github_url")).to eq("https://github.com/acme/widgets")
     expect(body["tabs"]).to include(

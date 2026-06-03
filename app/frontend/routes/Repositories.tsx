@@ -145,6 +145,9 @@ function RepositoryTable({
                 <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
               </div>
               <div className="mt-0.5 text-xs text-gray-500">
+                Syrus owner {repository.owner_user.email_address}
+              </div>
+              <div className="mt-0.5 text-xs text-gray-500">
                 <span className="font-mono">{repository.default_branch}</span>
                 <span className="mx-1 text-gray-300">·</span>
                 label <code className="rounded bg-gray-100 px-1">{repository.trigger_label}</code>

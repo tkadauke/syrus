@@ -43,6 +43,14 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
       github_owner_id: 101,
       github_repository_id: 201
     )
+    other_user = Factories.user(email_address: "teammate@example.com")
+    duplicate_slug = Factories.repository(
+      user: other_user,
+      owner: "globex",
+      name: "pat-repo",
+      github_owner_id: 101,
+      github_repository_id: 201
+    )
 
     get "/api/v1/app/admin/installations"
 
@@ -54,11 +62,26 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
     )
     app_row = body["repositories"].find { |repository| repository["id"] == app_repo.id }
     pat_row = body["repositories"].find { |repository| repository["id"] == pat_repo.id }
-    expect(app_row).to include("slug" => app_repo.slug, "app_credential_active" => true, "credential_mode" => "app")
-    expect(pat_row).to include("slug" => pat_repo.slug, "app_credential_active" => false, "credential_mode" => "pat")
+    duplicate_row = body["repositories"].find { |repository| repository["id"] == duplicate_slug.id }
+    expect(app_row).to include(
+      "slug" => app_repo.slug,
+      "owner_user" => include("id" => admin.id, "email_address" => admin.email_address),
+      "app_credential_active" => true,
+      "credential_mode" => "app"
+    )
+    expect(pat_row).to include(
+      "slug" => pat_repo.slug,
+      "owner_user" => include("id" => admin.id, "email_address" => admin.email_address),
+      "app_credential_active" => false,
+      "credential_mode" => "pat"
+    )
+    expect(duplicate_row).to include(
+      "slug" => "globex/pat-repo",
+      "owner_user" => include("id" => other_user.id, "email_address" => "teammate@example.com")
+    )
     expect(body["pat_owner_groups"].first).to include(
       "owner" => "globex",
-      "repository_count" => 1,
+      "repository_count" => 2,
       "install_url" => "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=101&repository_ids[]=201"
     )
   end

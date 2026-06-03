@@ -2805,6 +2805,11 @@ describe("App", () => {
               slug: "globex/pat-repo",
               owner: "globex",
               name: "pat-repo",
+              owner_user: {
+                id: 9,
+                email_address: "operator@example.com",
+                admin: true
+              },
               app_credential_active: false,
               credential_mode: "pat",
               account_login: "globex",
@@ -2830,6 +2835,7 @@ describe("App", () => {
     expect(screen.getByText("GitHub App Installations")).toBeInTheDocument()
     expect(screen.getByText("Syrus uses the GitHub App for repositories with an active installation. Repositories without one use the owner's personal access token fallback.")).toBeInTheDocument()
     expect(await screen.findByText("globex/pat-repo")).toBeInTheDocument()
+    expect(screen.getByText("operator@example.com")).toBeInTheDocument()
     expect(screen.getByText("Used when no active App installation exists")).toBeInTheDocument()
     expect(screen.getByText("No active installation")).toBeInTheDocument()
     expect(screen.getByText("Used as fallback")).toBeInTheDocument()
@@ -7058,6 +7064,13 @@ function repositoriesPayload(overrides: {
         slug: "acme/widgets",
         owner: "acme",
         name: "widgets",
+        owner_user: {
+          id: 9,
+          display_name: "Operator",
+          email_address: "operator@example.com",
+          admin: true,
+          profile_path: "/profiles/9"
+        },
         default_branch: "main",
         trigger_label: "syrus",
         polling_enabled: true,
@@ -7078,6 +7091,13 @@ function repositoriesPayload(overrides: {
         slug: "old/repo",
         owner: "old",
         name: "repo",
+        owner_user: {
+          id: 9,
+          display_name: "Operator",
+          email_address: "operator@example.com",
+          admin: true,
+          profile_path: "/profiles/9"
+        },
         default_branch: "main",
         trigger_label: "syrus",
         polling_enabled: false,
@@ -7185,8 +7205,11 @@ function repositoryDetailPayload() {
       github_url: "https://github.com/acme/widgets",
       created_at: "2026-05-30T12:00:00Z",
       owner_user: {
+        id: 9,
+        display_name: "Operator",
         email_address: "operator@example.com",
-        admin: true
+        admin: true,
+        profile_path: "/profiles/9"
       },
       github_rate_limit: {
         remaining: 4990,
