@@ -20,7 +20,7 @@ RSpec.describe "website content coverage" do
 
   it "has product pages for the basic visitor questions" do
     pages = {
-      "src/pages/index.md" => ["The Loop", "Start Small", "Label GitHub issues"],
+      "src/pages/index.md" => ["The Loop", "Start Small", "Label GitHub issues", "What Syrus Does", "Read the docs", "GitHub issue or task"],
       "src/content/docs/index.md" => ["Start Here", "Product Manual", "Operating Syrus"],
       "src/content/docs/what-is-syrus.md" => ["The 30-Second Version", "What Syrus Owns", "The Core Terms"],
       "src/content/docs/why-use-syrus.md" => ["Own The Keys", "Keep GitHub As The Workflow", "Good Fits"],
@@ -54,6 +54,17 @@ RSpec.describe "website content coverage" do
     expect(getting_started).to include("opens PRs\n   inside B's fork")
     expect(getting_started).to include("manually opens the upstream pull request")
     expect(getting_started).to include("does not automatically open upstream pull requests")
+  end
+
+  it "documents upstream PRs as a future explicit action" do
+    workflows = read_website("src/content/docs/workflows.md")
+    normalized_workflows = workflows.gsub(/\s+/, " ")
+
+    expect(workflows).to include("Future Upstream PR Action")
+    expect(normalized_workflows).to include("upstream repository metadata for fork context")
+    expect(workflows).to include("reference-only")
+    expect(workflows).to include("explicit operator action")
+    expect(normalized_workflows).to include("opening an upstream PR remains manual outside Syrus")
   end
 
   it "keeps markdown pages free of unfinished stub comments" do

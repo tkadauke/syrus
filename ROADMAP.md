@@ -96,6 +96,40 @@ Asana, Linear, plain Markdown TODO files, etc. Each source becomes another
 poller feeding the same `Job` pipeline; the harness shouldn't care where the
 prompt came from.
 
+### Explicit upstream PR action
+
+Repositories can already record optional upstream metadata
+(`upstream_owner`, `upstream_name`, `upstream_default_branch`) so a forked
+working repository can carry enough context to know where the canonical
+project lives. That metadata is reference-only in the MVP: Initial, Retry,
+PR-feedback, CI-failure, and rebase workflows continue to open or update PRs
+in the configured working repository. Syrus must not infer "also open a PR
+upstream" from the presence of upstream metadata.
+
+The future shape should be an explicit operator action, not an automatic
+extension of `pr_open`. A completed Job with a working-repository PR could
+offer "Open upstream PR" only when:
+
+- the repository has a complete upstream target;
+- the Job has a pushed branch and a local PR/diff worth forwarding;
+- the operator can see the upstream owner/name/default branch before
+  confirming;
+- the GitHub credential mode can create a branch or PR against the upstream
+  target, or the UI explains why it cannot.
+
+The likely workflow shape is a new trigger kind such as
+`upstream_pr`, with non-agentic steps that push the selected Syrus branch or
+an explicitly named forwarding branch to the upstream remote, then open the
+upstream pull request with PR copy derived from the existing Job artifacts.
+If an agentic step is needed later, it should be limited to adapting the PR
+body for the upstream audience, not changing the working tree. The action
+should persist the upstream PR number separately from `Job#pr_number` so the
+local MVP lifecycle remains unchanged.
+
+Out of scope for the MVP: automatic upstream PR creation, polling arbitrary
+fork PRs as inbound work, changing `pr_open` to target upstream repositories,
+and treating upstream metadata as a deployment or merge destination.
+
 ### Quality graders before PR submission
 
 A `Job` only opens its PR once a configurable set of *graders* all pass.

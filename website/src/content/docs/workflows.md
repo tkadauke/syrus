@@ -91,6 +91,24 @@ prompt is passed directly to the configured agent provider. Manual
 workflows capture transcript and diff information, but they do not push or
 open a PR by themselves.
 
+### Future Upstream PR Action
+
+Repositories may store optional upstream repository metadata for fork
+context, but the current MVP treats that metadata as reference-only. The
+standard `pr_open` and `push` steps still target the configured working
+repository.
+
+A future upstream PR path should be an explicit operator action, not a side
+effect of configuring upstream metadata. The expected shape is a separate
+trigger kind such as `upstream_pr`: Syrus would confirm the upstream
+owner/name/default branch, push a selected existing Syrus branch or a named
+forwarding branch to that target, and open an upstream pull request using
+copy derived from the existing Job artifacts. That upstream PR number should
+be stored separately from the working-repository PR number.
+
+Until that action is deliberately implemented, opening an upstream PR remains
+manual outside Syrus.
+
 ### LocalDev
 
 Trigger: `bin/syrus dev` against a local checkout. Steps:
