@@ -156,7 +156,7 @@ module App
 
     def active_repositories_scope
       return Repository.active if subject == "epic"
-      return Repository.active if team_scope? || user_scope? || claimable_scope?
+      return Repository.active if mine_scope? || team_scope? || user_scope? || claimable_scope?
 
       Repository.active.where(user_id: user.id)
     end
@@ -256,6 +256,8 @@ module App
           end
         elsif subject_name.to_s == "workflow"
           scope.where(jobs: { owner_user_id: owner_id })
+        elsif subject_name.to_s == "epic" && mine_scope?
+          scope.where(owner_user_id: owner_id).or(scope.where(owner_user_id: nil, state: %w[ backlog ready ]))
         else
           scope.where(owner_user_id: owner_id)
         end

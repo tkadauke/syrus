@@ -555,6 +555,6 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(response).to have_http_status(:not_found)
 
     patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: user.id }
-    expect(response).to have_http_status(:not_found)
+    expect(response).to have_http_status(:unprocessable_content)
   end
 end

@@ -21,6 +21,12 @@ agent writes code; Syrus handles the job control around it.
 
 [Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs/getting-started) · [Star on GitHub](https://github.com/tkadauke/syrus)
 
+## Get Started
+
+The shortest proof is a GitHub issue with label-based delegation:
+connect a repository, choose the trigger label, and let Syrus turn that
+issue into a branch, run, and pull request.
+
 ## What Syrus Does
 
 Give Syrus a connected GitHub repository and a trigger label. A typical
