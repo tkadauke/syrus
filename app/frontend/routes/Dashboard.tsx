@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent, FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
+import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
-import { StatusPill } from "../components/StatusPill"
+import { StatusPill, TonePill } from "../components/StatusPill"
 import { FilterBar, filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren } from "../components/FilterBar"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { bulkDashboardEpics, bulkDashboardJobs, createDashboardSmartFolder, fetchDashboard, toggleDashboardLandingPause, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkEpicAction, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
@@ -29,6 +30,15 @@ export function DashboardRoute() {
 function DashboardView({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const initialBootstrap = readInitialBootstrap()
+  const bootstrap = useQuery({
+    queryKey: ["bootstrap"],
+    queryFn: fetchBootstrap,
+    enabled: initialBootstrap != null,
+    initialData: initialBootstrap ?? undefined,
+    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
+  })
+  const readiness = bootstrap.data?.setup_status?.readiness
 
   return (
     <main aria-label="Dashboard" className="mx-auto max-w-[96rem] space-y-5 p-6">
@@ -36,6 +46,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
         <h1 className="text-3xl font-semibold text-gray-900">Dashboard</h1>
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
+      <ReadinessPanel prefix={prefix} readiness={readiness} />
 
       {isDesktop ? (
         <>
@@ -52,6 +63,40 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
         </>
       )}
     </main>
+  )
+}
+
+function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
+  if (!readiness || readiness.status === "ok") return null
+
+  const failingChecks = readiness.checks.filter((check) => check.status !== "ok")
+  if (failingChecks.length === 0) return null
+
+  return (
+    <section aria-label="System readiness" className="rounded border border-amber-200 bg-amber-50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-amber-950">System readiness needs attention</h2>
+          <p className="mt-1 text-sm text-amber-900">Syrus may not be able to pick up or run work until these checks pass.</p>
+        </div>
+        <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100" to={`${prefix}/settings`}>
+          Open settings
+        </Link>
+      </div>
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        {failingChecks.map((check) => (
+          <div className="rounded border border-amber-200 bg-white p-3" key={check.key}>
+            <div className="flex items-center gap-2">
+              <TonePill tone={check.status === "error" ? "red" : "amber"}>{check.status}</TonePill>
+              <h3 className="text-sm font-semibold text-gray-900">{check.label}</h3>
+              {check.optional ? <span className="text-xs text-gray-500">optional</span> : null}
+            </div>
+            <p className="mt-2 text-sm text-gray-700">{check.message}</p>
+            {check.remediation ? <p className="mt-1 text-sm text-gray-600">{check.remediation}</p> : null}
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 

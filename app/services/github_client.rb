@@ -147,6 +147,11 @@ class GithubClient
     raise
   end
 
+  def readiness_check!
+    track_rate_limits { @client.rate_limit }
+    true
+  end
+
   # Closes a PR without merging. Used by the scheduled-task
   # pr_pileup_policy=replace path to retire the previous tick's PR
   # before opening this tick's. Octokit's update_pull_request takes

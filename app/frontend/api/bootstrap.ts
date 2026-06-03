@@ -31,6 +31,17 @@ export type BootstrapPayload = {
       agent: boolean
       active_agent_provider: "claude" | "codex"
     }
+    readiness: {
+      status: "ok" | "warning" | "error"
+      checks: Array<{
+        key: string
+        label: string
+        status: "ok" | "warning" | "error"
+        message: string
+        remediation: string | null
+        optional: boolean
+      }>
+    }
     counts: {
       repositories: number
       successful_jobs: number

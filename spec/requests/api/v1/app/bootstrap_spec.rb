@@ -1,6 +1,11 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
+  before do
+    AppSetting.current.update!(polling_paused: false, runs_paused: false)
+    allow(GithubClient).to receive(:for_user).and_return(instance_double(GithubClient, readiness_check!: true))
+  end
+
   def parse_body
     JSON.parse(response.body)
   end
@@ -113,9 +118,59 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "agent" => true,
       "active_agent_provider" => "claude"
     )
+    expect(setup.fetch("readiness")).to include("status")
+    expect(setup.dig("readiness", "checks").map { |check| check["key"] }).to include("github", "agent_provider", "storage")
     expect(setup.fetch("counts")).to include("repositories" => 0, "successful_jobs" => 0)
     expect(response.body).not_to include("ghp_secret_pat", "claude_secret_token")
     expect(setup.to_json).not_to include("github_token", "claude_oauth_token", "codex_api_key", "codex_auth_json")
+  end
+
+  it "reports readiness failures with remediation" do
+    user = Factories.user
+    AppSetting.current.update!(runs_paused: true)
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    readiness = parse_body.dig("setup_status", "readiness")
+    expect(readiness["status"]).to eq("error")
+    checks = readiness.fetch("checks")
+    expect(checks).to include(
+      include(
+        "key" => "polling_runs",
+        "status" => "error",
+        "message" => "Agent runs are paused.",
+        "remediation" => "Resume runs from the admin console before expecting Syrus to start work."
+      ),
+      include(
+        "key" => "github",
+        "status" => "error",
+        "remediation" => "Add a GitHub token in credentials or register a GitHub App from the admin GitHub App page."
+      ),
+      include(
+        "key" => "agent_provider",
+        "status" => "error",
+        "remediation" => "Add Claude Code credentials or choose another configured provider."
+      )
+    )
+  end
+
+  it "redacts secret-shaped values from readiness failures" do
+    secret = "ghp_#{'a' * 32}"
+    user = Factories.user(github_token: secret, claude_oauth_token: "claude_#{'b' * 32}")
+    allow(GithubClient).to receive(:for_user)
+      .and_return(instance_double(GithubClient, readiness_check!: nil))
+    allow(GithubClient).to receive(:for_user)
+      .with(user)
+      .and_raise(StandardError, "failed https://x-access-token:#{secret}@github.com/acme/widgets.git")
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    body = response.body
+    expect(body).to include("[REDACTED]")
+    expect(body).not_to include(secret)
+    expect(body).not_to include("claude_#{'b' * 32}")
   end
 
   it "reports repository-only setup status" do

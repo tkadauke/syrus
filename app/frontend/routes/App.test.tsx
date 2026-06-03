@@ -80,6 +80,7 @@ vi.mock("mermaid", () => ({
 
 describe("App", () => {
   beforeEach(() => {
+    document.getElementById("syrus-bootstrap-data")?.remove()
     window.localStorage.clear()
     excalidrawMock.throwOnRender = false
     excalidrawMock.addFiles.mockClear()
@@ -1102,6 +1103,59 @@ describe("App", () => {
     expect(screen.getByText("JOB-594")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "#123" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/123")
     expect(screen.queryByText("#594")).not.toBeInTheDocument()
+  })
+
+  it("surfaces readiness failures on the dashboard", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      setup_status: {
+        ...defaultSetupStatus(),
+        readiness: {
+          status: "error",
+          checks: [
+            {
+              key: "worker_queue",
+              label: "Worker/queue",
+              status: "error",
+              message: "No Solid Queue worker processes are registered.",
+              remediation: "Start the worker process with bin/jobs and confirm it can connect to the queue database.",
+              optional: false
+            },
+            {
+              key: "github",
+              label: "GitHub",
+              status: "ok",
+              message: "GitHub accepted the configured personal access token.",
+              remediation: null,
+              optional: false
+            }
+          ]
+        }
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(dashboardPayload({ subject: "job", view: "list", items: [dashboardJobItem()] })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("region", { name: "System readiness" })).toBeInTheDocument()
+    expect(screen.getByText("No Solid Queue worker processes are registered.")).toBeInTheDocument()
+    expect(screen.getByText("Start the worker process with bin/jobs and confirm it can connect to the queue database.")).toBeInTheDocument()
+    expect(screen.queryByText("GitHub accepted the configured personal access token.")).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/dashboard?view=list&subject=job",
+      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+    )
   })
 
   it("keeps dashboard folders and filters collapsed on mobile", async () => {
@@ -6513,7 +6567,7 @@ describe("App", () => {
   })
 })
 
-function bootstrapPayload() {
+function bootstrapPayload(overrides: Record<string, unknown> = {}) {
   return {
     current_user: {
       id: 1,
@@ -6542,9 +6596,36 @@ function bootstrapPayload() {
     navigation: {
       default_chat_path: "/chats/9"
     },
+    setup_status: defaultSetupStatus(),
     csrf_token: "csrf-token",
     feature_flags: {
       migrated_routes: []
+    },
+    ...overrides
+  }
+}
+
+function defaultSetupStatus() {
+  return {
+    state: "ready_for_first_job",
+    next_step: "start_first_job",
+    next_step_path: "/jobs/new",
+    first_admin: true,
+    credentials_configured: true,
+    repository_configured: true,
+    first_successful_job_completed: false,
+    credential_status: {
+      github: true,
+      agent: true,
+      active_agent_provider: "claude"
+    },
+    readiness: {
+      status: "ok",
+      checks: []
+    },
+    counts: {
+      repositories: 1,
+      successful_jobs: 0
     }
   }
 }

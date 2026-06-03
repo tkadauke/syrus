@@ -20,6 +20,7 @@ module AppApi
         repository_configured: repository_configured?,
         first_successful_job_completed: first_successful_job_completed?,
         credential_status: credential_status,
+        readiness: readiness,
         counts: counts
       }
     end
@@ -76,6 +77,10 @@ module AppApi
         agent: agent_credential_configured?,
         active_agent_provider: user.agent_provider
       }
+    end
+
+    def readiness
+      AppApi::ReadinessChecks.new(user).as_json
     end
 
     def counts
