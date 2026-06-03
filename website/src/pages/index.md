@@ -8,54 +8,63 @@ description: Self-hosted, multi-user, BYOK automation for the GitHub issue-to-PR
 > *Bis dat qui cito dat.*
 > He gives twice who gives quickly. — Publilius Syrus
 
+Syrus is a self-hosted automation harness that turns GitHub issues,
+operator prompts, schedules, and PR feedback into coding-agent runs that
+open or update pull requests.
+
 Syrus is a self-hosted, multi-user, bring-your-own-key harness for the
 GitHub issue-to-PR loop. It turns issues, review feedback, scheduled
 tasks, retries, and rebases into agent runs, then captures the commits and
 opens or updates the pull request.
 
+[Try it locally](/docs/deployment/try-it-locally) &nbsp;&nbsp;
+[Get started](/docs/getting-started) &nbsp;&nbsp;
+[Read the docs](/docs/what-is-syrus) &nbsp;&nbsp;
+[View source](https://github.com/tkadauke/syrus)
+
+## The Loop
+
+Syrus is built around a practical code-review loop:
+
+```text
+GitHub issue
+  -> Syrus Job
+  -> agent writes code in a cloned workspace
+  -> Syrus commits the result
+  -> pull request
+```
+
+The agent handles the part that benefits from language and judgment.
+Syrus handles the repeatable mechanics around it: polling GitHub,
+creating workspaces, running repository setup, tracking state, capturing
+transcripts and diffs, pushing branches, opening PRs, retrying failures,
+and keeping the work attached to the original request.
+
 It owns the deterministic plumbing: polling, clones, branches, setup
 commands, transcripts, diffs, PR copy, pushes, retries, and cleanup. The
 agent gets to focus on the code.
 
-[Try it locally](/docs/deployment/try-it-locally) | [Read the docs](/docs) | [Star on GitHub](https://github.com/tkadauke/syrus)
+You do not need to understand the internal Job and Workflow model to use
+it. Label an issue, start a direct job, schedule maintenance, or respond
+to PR feedback; Syrus turns that request into a traceable agent run and
+a normal pull request your existing review process can accept or reject.
 
-## What Syrus Does
+## Why Self-Hosted Matters
 
-```text
-GitHub issue with label
-  -> Syrus poller
-  -> Job
-  -> prepare
-  -> agent implements
-  -> summarize
-  -> pull request
-```
+Syrus is meant for teams and operators who want coding-agent automation
+without moving the center of control outside their own environment.
 
-After the PR exists, Syrus keeps the thread alive. It can respond to PR
-feedback, attempt CI-failure repairs, retry failed runs, rebase branches
-it controls, and run scheduled repository chores.
+Your repositories stay registered in your Syrus instance. Your GitHub
+credentials and agent-provider keys are stored and encrypted there. Your
+transcripts, diffs, logs, costs, retries, and operational history remain
+in infrastructure you control. If your team already has rules for network
+access, audit trails, branch protection, Kubernetes, backups, or secret
+handling, Syrus fits into that operating model instead of replacing it
+with a black box.
 
-The source of truth stays where teams already work: GitHub issues,
-branches, checks, comments, and pull requests.
-
-## Why It Exists
-
-Hosted coding agents are convenient, but they ask hard questions: where do
-the credentials live, who can read the transcript, how does the branch get
-pushed, what happens when CI fails, and how do several users share the same
-automation without sharing one secret?
-
-Syrus answers by keeping the harness in your deployment:
-
-- **You own the keys.** Users bring their own GitHub and agent
-  credentials. Syrus stores them encrypted in your database.
-- **You keep the audit trail.** Jobs, Workflows, Runs, transcripts, diffs,
-  PR copy, costs, and logs stay in your instance.
-- **You stay in GitHub.** Issues become PRs. Review comments become
-  follow-up commits. Checks and branch protection still matter.
-- **Your team can share it.** One Syrus install can serve multiple users
-  and repositories with per-user credentials and repository-level provider
-  overrides.
+That also makes it easier to be honest about responsibility. Syrus opens
+pull requests; it does not merge code behind your back. Your CI, review
+policy, and release process still decide what lands.
 
 ## The Product Shape
 
@@ -69,18 +78,34 @@ The MVP trust boundary is practical rather than magical. Register
 repositories whose setup commands you are willing to execute, scope tokens
 narrowly, and review the generated PR before merging.
 
-## Get Started
+## What You Can Use It For
 
-| Path | Use it when | Start here |
-| --- | --- | --- |
-| Local evaluation | You want a one-off diff against a local checkout | [Try it locally](/docs/deployment/try-it-locally) |
-| Self-hosted app | You want the real issue-to-PR loop for yourself or a small team | [Getting Started](/docs/getting-started) |
-| Operations | You are planning backups, workers, credentials, and failure handling | [Deployment](/docs/deployment) |
+**Issue ingestion.** Label GitHub issues and let Syrus create the branch,
+run the agent, capture the diff, and open the PR.
 
-Syrus has been working on itself since its first week. The public docs are
-written from that operating model: explain the product honestly, show the
-workflow, and keep the recovery paths concrete.
+**Direct jobs and chats.** Start ad-hoc work from the UI when the request
+does not belong in GitHub yet, or use chat to shape a proposal before it
+becomes a job.
 
----
+**Scheduled maintenance.** Run recurring prompts for dependency hygiene,
+documentation upkeep, repository audits, and other low-drama maintenance
+work.
 
-[What is Syrus?](/docs/what-is-syrus) | [Why use Syrus?](/docs/why-use-syrus) | [About the name](/about)
+**PR feedback and retries.** Send review comments, failed checks, retry
+requests, and rebase work back through the same controlled pipeline so
+follow-up commits stay attached to the PR.
+
+## Start Small
+
+The fastest evaluation path runs Syrus once against a local checkout and
+prints a diff. It does not require a GitHub App, database, or persistent
+service.
+
+For the full product, start with the getting-started guide. It walks
+through choosing a deployment path, registering a repository, labeling a
+small issue, and watching Syrus open the first PR.
+
+[Try it locally](/docs/deployment/try-it-locally) &nbsp;&nbsp;
+[Get started](/docs/getting-started) &nbsp;&nbsp;
+[Read the docs](/docs/what-is-syrus) &nbsp;&nbsp;
+[View source](https://github.com/tkadauke/syrus)
