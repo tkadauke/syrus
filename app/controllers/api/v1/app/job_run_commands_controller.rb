@@ -68,7 +68,7 @@ module Api
             render_error("validation_failed", "No PR on this Job to rebase.", status: :unprocessable_content)
             return
           end
-          if job.workflows.active.where(trigger_kind: "rebase").exists?
+          if RebaseWorkflowSelector.active_for_stack?(job)
             render_error("validation_failed", "A rebase is already in progress - wait for it to finish.", status: :unprocessable_content)
             return
           end
@@ -77,7 +77,7 @@ module Api
           return unless valid_configured_agent_provider?(agent_provider)
 
           job.switch_agent_provider!(agent_provider) if agent_provider.present?
-          workflow = Workflows::Rebase.instantiate(
+          workflow = RebaseWorkflowSelector.instantiate(
             job: job,
             agent_provider: agent_provider,
             pr: rebase_pull_request_snapshot(job)

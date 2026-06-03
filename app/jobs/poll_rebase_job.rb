@@ -63,13 +63,8 @@ class PollRebaseJob < ApplicationJob
     return if attempt_cap_reached?
     return if repo_rebase_concurrency_reached?
 
-    # Instantiate a Rebase workflow. Its first step is
-    # Steps::AutoRebase, which runs the deterministic AutoRebase
-    # service; if that's clean, it skips agent_rebase and advances
-    # to force_push. If conflicts remain, the chain advances to the
-    # agentic step, then force_push.
-    Rails.logger.info("[PollRebaseJob] job #{@job.id} PR ##{pr_number} unmergeable; instantiating Rebase workflow")
-    workflow = Workflows::Rebase.instantiate(job: @job, pr: pr)
+    Rails.logger.info("[PollRebaseJob] job #{@job.id} PR ##{pr_number} unmergeable; instantiating rebase workflow")
+    workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: pr)
     StepDispatcher.start_workflow(workflow)
   end
 
@@ -92,7 +87,7 @@ class PollRebaseJob < ApplicationJob
   end
 
   def pending_rebase?
-    @job.workflows.active.where(trigger_kind: "rebase").exists?
+    RebaseWorkflowSelector.active_for_stack?(@job)
   end
 
   def noop_rebase_already_covers?(pr)
@@ -104,7 +99,7 @@ class PollRebaseJob < ApplicationJob
 
   def attempt_cap_reached?
     consecutive = 0
-    @job.workflows.where(trigger_kind: "rebase").reorder(id: :desc).each do |w|
+    @job.workflows.where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS).reorder(id: :desc).each do |w|
       break if w.succeeded?
       consecutive += 1 if w.failed?
       # queued/running/cancelled don't count toward or reset the streak
@@ -119,11 +114,7 @@ class PollRebaseJob < ApplicationJob
   # described in the constant — autonomous polling doesn't open the
   # floodgates when many PRs become unmergeable at once.
   def repo_rebase_concurrency_reached?
-    active = Workflow.active
-                     .where(trigger_kind: "rebase")
-                     .joins(:job)
-                     .where(jobs: { repository_id: @job.repository_id })
-                     .count
+    active = RebaseWorkflowSelector.active_in_repository(@job.repository).count
     return false if active < CONCURRENT_REBASES_PER_REPO
     Rails.logger.info("[PollRebaseJob] job #{@job.id} repo #{@job.repository.slug} at concurrent-rebase cap (#{active}/#{CONCURRENT_REBASES_PER_REPO}); deferring")
     true

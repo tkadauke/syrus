@@ -51,7 +51,7 @@ class StackRebaseCoordinator
     return if child.branch_name.blank? || child.pr_number.blank?
     return if child.workflows.active.exists?
 
-    workflow = Workflows::Rebase.instantiate(job: child, base_branch: child.effective_base_branch)
+    workflow = RebaseWorkflowSelector.instantiate(job: child, base_branch: child.effective_base_branch)
     StepDispatcher.start_workflow(workflow)
   end
 

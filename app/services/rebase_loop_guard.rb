@@ -2,10 +2,10 @@ class RebaseLoopGuard
   BLOCK_REASON = "waiting for GitHub mergeability after no-op rebase".freeze
 
   def self.latest_noop_rebase(job)
-    job.workflows
-       .where(trigger_kind: "rebase", state: "succeeded")
+    Workflow.where(job_id: StackRebasePlan.related_job_ids_for(job))
+       .where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS, state: "succeeded")
        .reorder(id: :desc)
-       .detect { |workflow| noop_result?(workflow.artifact("auto_rebase_result")) }
+       .detect { |workflow| noop_result?(result_for(workflow, job)) }
   end
 
   def self.waiting_after_noop?(job)
@@ -16,7 +16,7 @@ class RebaseLoopGuard
     workflow = latest_noop_rebase(job)
     return false unless workflow
 
-    result = workflow.artifact("auto_rebase_result")
+    result = result_for(workflow, job)
     post_sha = result["post_sha"].presence
     return false if post_sha.blank?
     return false unless post_sha == pr_head_sha(pr)
@@ -32,6 +32,14 @@ class RebaseLoopGuard
     result.is_a?(Hash) && result["changed"] == false && result["reason"] == "rebased"
   end
   private_class_method :noop_result?
+
+  def self.result_for(workflow, job)
+    stack_entry = Array(workflow.artifact(StackRebasePlan::RESULTS_ARTIFACT)).find do |entry|
+      entry["job_id"].to_i == job.id
+    end
+    stack_entry&.fetch("result", nil) || workflow.artifact("auto_rebase_result")
+  end
+  private_class_method :result_for
 
   def self.pr_head_sha(pr)
     pr.head&.sha.to_s.presence

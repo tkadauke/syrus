@@ -38,6 +38,27 @@ RSpec.describe PollRebaseJob do
       expect(workflow.artifact("rebase_base_branch")).to eq("syrus/parent")
       expect(workflow.artifact("rebase_base_sha")).to eq("parent-sha")
     end
+
+    it "creates one stack_rebase workflow when the unmergeable job has stack children" do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        pr_number: 8,
+        branch_name: "syrus/issue-43-2",
+        parent_job: job
+      )
+      stub_pr(pr_resource(mergeable: false))
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+
+      expect(job.workflows.where(trigger_kind: "rebase")).to be_empty
+      expect(job.workflows.where(trigger_kind: "stack_rebase").last.steps.pluck(:kind)).to eq(
+        %w[ stack_auto_rebase stack_agent_rebase stack_force_push ]
+      )
+    end
   end
 
   describe "persisting last-known mergeability for the show page" do

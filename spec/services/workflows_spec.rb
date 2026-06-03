@@ -10,6 +10,7 @@ RSpec.describe Workflows do
       expect(described_class.for(trigger_kind: "pr_comment")).to eq(Workflows::PrFeedback)
       expect(described_class.for(trigger_kind: "ci_failure")).to eq(Workflows::CiFailure)
       expect(described_class.for(trigger_kind: "rebase")).to     eq(Workflows::Rebase)
+      expect(described_class.for(trigger_kind: "stack_rebase")).to eq(Workflows::StackRebase)
       expect(described_class.for(trigger_kind: "auto_merge")).to eq(Workflows::AutoMerge)
       expect(described_class.for(trigger_kind: "retry")).to      eq(Workflows::Retry)
       expect(described_class.for(trigger_kind: "manual")).to     eq(Workflows::Manual)
@@ -312,6 +313,40 @@ RSpec.describe Workflows do
 
       expect(wf.artifact("rebase_base_branch")).to eq("syrus/issue-1-2")
       expect(wf.artifact("rebase_base_sha")).to eq("base-sha")
+    end
+
+    it "instantiates StackRebase with the full ordered stack" do
+      child = Factories.job_record(
+        user: job.user,
+        repository: job.repository,
+        issue_number: 43,
+        pr_number: 8,
+        branch_name: "syrus/issue-43-2",
+        parent_job: job
+      )
+      grandchild = Factories.job_record(
+        user: job.user,
+        repository: job.repository,
+        issue_number: 44,
+        pr_number: 9,
+        branch_name: "syrus/issue-44-3",
+        parent_job: child
+      )
+      job.update!(pr_number: 7, branch_name: "syrus/issue-42-1")
+      pr = OpenStruct.new(base: OpenStruct.new(ref: "main", sha: "main-sha"))
+
+      wf = Workflows::StackRebase.instantiate(job: job, pr: pr)
+
+      expect(wf.trigger_kind).to eq("stack_rebase")
+      expect(wf.steps.pluck(:kind)).to eq(%w[ stack_auto_rebase stack_agent_rebase stack_force_push ])
+      expect(wf.artifact("stack_rebase_jobs").map { |entry| entry["job_id"] }).to eq([ job.id, child.id, grandchild.id ])
+      expect(wf.artifact("stack_rebase_jobs").map { |entry| entry["branch_name"] }).to eq([
+        "syrus/issue-42-1",
+        "syrus/issue-43-2",
+        "syrus/issue-44-3"
+      ])
+      expect(wf.artifact("rebase_base_branch")).to eq("main")
+      expect(wf.artifact("rebase_base_sha")).to eq("main-sha")
     end
 
     it "instantiates AutoMerge with prepare and a final grade gate before push and merge" do

@@ -281,7 +281,7 @@ class StepDispatcher
     return unless @workflow.may_succeed?
     @workflow.succeed!
     @workflow.save!
-    StackRebaseCoordinator.parent_amended(@workflow.job) if pushed_workflow?
+    StackRebaseCoordinator.parent_amended(@workflow.job) if pushed_workflow? && @workflow.trigger_kind != "stack_rebase"
     schedule_mergeability_recheck
     schedule_auto_merge_recheck
   end
@@ -290,7 +290,7 @@ class StepDispatcher
     job = @workflow.job
     return false unless job.open? && job.pr_number.present?
 
-    @workflow.steps.where(kind: %w[ pr_open push force_push ]).where(state: "succeeded").exists?
+    @workflow.steps.where(kind: %w[ pr_open push force_push stack_force_push ]).where(state: "succeeded").exists?
   end
 
   def schedule_mergeability_recheck

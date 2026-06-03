@@ -56,6 +56,14 @@ does not open or rewrite PR copy. The push uses an explicit
 `git push --force-with-lease=<branch>:<observed_sha>` lease so Syrus does
 not overwrite an unexpected remote update.
 
+When the unmergeable PR has stack children, Syrus uses `StackRebase` instead
+of opening one rebase workflow per Job. Steps:
+`stack_auto_rebase -> stack_agent_rebase -> stack_force_push`. The workflow
+walks the stack root-first, tries deterministic rebases for each branch, and
+falls back to one agent run for the first conflicted branch and everything
+below it. After pushing, Syrus refreshes PR bases and re-checks approved Jobs
+for landing.
+
 ### Retry
 
 Trigger: an operator retries a failed or completed Job. Steps:
@@ -134,6 +142,7 @@ Syrus chooses the template from the trigger kind:
 | `pr_comment` | `Workflows::PrFeedback` |
 | `ci_failure` | `Workflows::CiFailure` |
 | `rebase` | `Workflows::Rebase` |
+| `stack_rebase` | `Workflows::StackRebase` |
 | `auto_merge` | `Workflows::AutoMerge` |
 | `retry` | `Workflows::Retry` |
 | `manual` | `Workflows::Manual` |

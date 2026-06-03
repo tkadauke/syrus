@@ -114,11 +114,11 @@ class ChatPendingAction < ApplicationRecord
       unless job.pr_number.present? || job.external_pr_number.present?
         raise ArgumentError, "No PR on this Job to rebase."
       end
-      if job.workflows.active.where(trigger_kind: "rebase").exists?
+      if RebaseWorkflowSelector.active_for_stack?(job)
         raise ArgumentError, "A rebase is already in progress — wait for it to finish."
       end
 
-      workflow = Workflows::Rebase.instantiate(job: job)
+      workflow = RebaseWorkflowSelector.instantiate(job: job)
       StepDispatcher.start_workflow(workflow)
       nil
     when "reopen_epic_and_attach_job"

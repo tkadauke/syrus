@@ -164,7 +164,7 @@ module Steps
       defer_landing_if_possible!
 
       unless rebase_workflow_active?
-        rebase_workflow = Workflows::Rebase.instantiate(job: job, pr: gate.pr)
+        rebase_workflow = RebaseWorkflowSelector.instantiate(job: job, pr: gate.pr)
         log("auto_merge: dispatched rebase workflow ##{rebase_workflow.id}", kind: "system")
         StepDispatcher.start_workflow(rebase_workflow)
       end
@@ -173,12 +173,12 @@ module Steps
     end
 
     def rebase_workflow_active?
-      job.workflows.active.where(trigger_kind: "rebase").exists?
+      RebaseWorkflowSelector.active_for_stack?(job)
     end
 
     def rebase_attempt_cap_reached?
       consecutive = 0
-      job.workflows.where(trigger_kind: "rebase").reorder(id: :desc).each do |workflow|
+      job.workflows.where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS).reorder(id: :desc).each do |workflow|
         break if workflow.succeeded?
         consecutive += 1 if workflow.failed?
       end

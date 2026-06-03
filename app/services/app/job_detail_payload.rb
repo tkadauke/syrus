@@ -478,7 +478,7 @@ module App
       {
         can_start: @job.direct? && @job.open? && @job.runs.empty?,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
-        can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) && !@job.workflows.active.where(trigger_kind: "rebase").exists?,
+        can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) && !RebaseWorkflowSelector.active_for_stack?(@job),
         can_check_mergeability: @job.pr_number.present? || @job.external_pr_number.present?,
         can_retry: @job.open? && !@job.any_active_run?,
         can_retry_from_failed_step: latest_workflow&.retry_available? || false,

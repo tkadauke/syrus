@@ -17,6 +17,7 @@ class PollMergeStateJob < ApplicationJob
     return unless pr_number
     return if @job.repository.archived?
     return if @job.workflows.active.exists?
+    return if RebaseWorkflowSelector.active_for_stack?(@job)
 
     @client = GithubClient.for(repository: @job.repository, user: @job.user)
     @pr = @client.pull_request(@job.repository.slug, pr_number, bypass_cache: false)
@@ -71,7 +72,7 @@ class PollMergeStateJob < ApplicationJob
     return if attempt_cap_reached?
     return if repo_rebase_concurrency_reached?
 
-    workflow = Workflows::Rebase.instantiate(job: @job, pr: @pr)
+    workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: @pr)
     audit("auto_merge: dispatching rebase workflow ##{workflow.id} before merge")
     Rails.logger.info("[PollMergeStateJob] job #{@job.id} PR ##{@job.pr_number} needs rebase before merge-state evaluation")
     StepDispatcher.start_workflow(workflow)
@@ -90,7 +91,7 @@ class PollMergeStateJob < ApplicationJob
 
   def attempt_cap_reached?
     consecutive = 0
-    @job.workflows.where(trigger_kind: "rebase").reorder(id: :desc).each do |workflow|
+    @job.workflows.where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS).reorder(id: :desc).each do |workflow|
       break if workflow.succeeded?
       consecutive += 1 if workflow.failed?
     end
@@ -98,11 +99,7 @@ class PollMergeStateJob < ApplicationJob
   end
 
   def repo_rebase_concurrency_reached?
-    active = Workflow.active
-                     .where(trigger_kind: "rebase")
-                     .joins(:job)
-                     .where(jobs: { repository_id: @job.repository_id })
-                     .count
+    active = RebaseWorkflowSelector.active_in_repository(@job.repository).count
     active >= PollRebaseJob::CONCURRENT_REBASES_PER_REPO
   end
 end
