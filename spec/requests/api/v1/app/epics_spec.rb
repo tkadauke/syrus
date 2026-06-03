@@ -178,18 +178,146 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     )
   end
 
-  it "marks unclaimed Epics in app payloads" do
+  it "claims an unclaimed Epic atomically through the app API" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, owner_user: nil)
 
-    get "/api/v1/app/epics/#{epic.id}"
+    patch "/api/v1/app/epics/#{epic.id}/claim"
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Epic claimed.")
+    expect(parse_body["epic"]).to include(
+      "owner_user_id" => user.id,
+      "owner_status" => "mine",
+      "owner_user" => include("id" => user.id, "email_address" => user.email_address)
+    )
+    expect(epic.reload.owner_user).to eq(user)
+  end
+
+  it "rejects claim races instead of overwriting the current owner" do
+    sign_in_as(user)
+    current_owner = Factories.user(email_address: "owner@example.com")
+    epic = Factories.epic(user: user, repository: repository, owner_user: current_owner)
+
+    patch "/api/v1/app/epics/#{epic.id}/claim"
+
+    expect(response).to have_http_status(:conflict)
+    expect(parse_body.dig("error", "code")).to eq("epic_already_owned")
+    expect(parse_body.dig("error", "message")).to include("owner@example.com")
+    expect(epic.reload.owner_user).to eq(current_owner)
+  end
+
+  it "returns a clear error when claiming an Epic already claimed by the current user" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, owner_user: user)
+
+    patch "/api/v1/app/epics/#{epic.id}/claim"
+
+    expect(response).to have_http_status(:conflict)
+    expect(parse_body.dig("error", "code")).to eq("epic_already_owned")
+    expect(parse_body.dig("error", "message")).to eq("Epic is already claimed by you.")
+    expect(epic.reload.owner_user).to eq(user)
+  end
+
+  it "unclaims an Epic owned by the current user" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, owner_user: user)
+
+    patch "/api/v1/app/epics/#{epic.id}/unclaim"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Epic unclaimed.")
     expect(parse_body["epic"]).to include(
       "owner_user_id" => nil,
       "owner_status" => "unclaimed",
       "owner_user" => nil
     )
+    expect(epic.reload.owner_user).to be_nil
+  end
+
+  it "does not let a non-owner unclaim someone else's Epic" do
+    admin = Factories.user(admin: true)
+    regular = Factories.user(admin: false)
+    regular_repo = Factories.repository(user: regular, owner: "acme", name: "tiles")
+    owner = Factories.user(email_address: "owner@example.com")
+    epic = Factories.epic(user: regular, repository: regular_repo, owner_user: owner)
+    sign_in_as(regular)
+
+    patch "/api/v1/app/epics/#{epic.id}/unclaim"
+
+    expect(admin).to be_admin
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(epic.reload.owner_user).to eq(owner)
+  end
+
+  it "lets an admin unclaim an Epic owned by another user" do
+    admin = Factories.user(admin: true)
+    admin_repo = Factories.repository(user: admin, owner: "acme", name: "roads")
+    owner = Factories.user(email_address: "owner@example.com")
+    epic = Factories.epic(user: admin, repository: admin_repo, owner_user: owner)
+    sign_in_as(admin)
+
+    patch "/api/v1/app/epics/#{epic.id}/unclaim"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Epic unclaimed.")
+    expect(epic.reload.owner_user).to be_nil
+  end
+
+  it "reassigns Epic ownership for admins" do
+    admin = Factories.user(admin: true)
+    admin_repo = Factories.repository(user: admin, owner: "acme", name: "forums")
+    new_owner = Factories.user(email_address: "assignee@example.com")
+    epic = Factories.epic(user: admin, repository: admin_repo, owner_user: nil)
+    sign_in_as(admin)
+
+    patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: new_owner.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Epic reassigned.")
+    expect(parse_body["epic"]).to include(
+      "owner_user_id" => new_owner.id,
+      "owner_status" => "other_owned",
+      "owner_user" => include("id" => new_owner.id, "email_address" => "assignee@example.com")
+    )
+    expect(epic.reload.owner_user).to eq(new_owner)
+  end
+
+  it "requires admin access to reassign Epic ownership" do
+    Factories.user(admin: true)
+    regular = Factories.user(admin: false)
+    regular_repo = Factories.repository(user: regular, owner: "acme", name: "baths")
+    new_owner = Factories.user(email_address: "assignee@example.com")
+    epic = Factories.epic(user: regular, repository: regular_repo, owner_user: regular)
+    sign_in_as(regular)
+
+    patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: new_owner.id }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(epic.reload.owner_user).to eq(regular)
+  end
+
+  it "rejects reassigning to an unknown or current owner" do
+    admin = Factories.user(admin: true)
+    admin_repo = Factories.repository(user: admin, owner: "acme", name: "arches")
+    owner = Factories.user(email_address: "owner@example.com")
+    epic = Factories.epic(user: admin, repository: admin_repo, owner_user: owner)
+    sign_in_as(admin)
+
+    patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: 999_999 }
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("owner_not_found")
+    expect(epic.reload.owner_user).to eq(owner)
+
+    patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: owner.id }
+
+    expect(response).to have_http_status(:conflict)
+    expect(parse_body.dig("error", "code")).to eq("epic_already_owned")
+    expect(parse_body.dig("error", "message")).to include("owner@example.com")
+    expect(epic.reload.owner_user).to eq(owner)
   end
 
   it "advances Epic state through the app API and returns a refreshed detail payload" do
@@ -369,6 +497,15 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(epic.reload.title).to eq("Private aqueduct")
 
     patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "ready" }
+    expect(response).to have_http_status(:not_found)
+
+    patch "/api/v1/app/epics/#{epic.id}/claim"
+    expect(response).to have_http_status(:not_found)
+
+    patch "/api/v1/app/epics/#{epic.id}/unclaim"
+    expect(response).to have_http_status(:not_found)
+
+    patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: user.id }
     expect(response).to have_http_status(:not_found)
   end
 end

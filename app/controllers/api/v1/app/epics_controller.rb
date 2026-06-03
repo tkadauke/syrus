@@ -46,6 +46,69 @@ module Api
           render json: detail_payload(epic.reload, message: message)
         end
 
+        def claim
+          epic = find_epic
+          updated = Current.user.epics
+                                .where(id: epic.id, owner_user_id: nil)
+                                .update_all(owner_user_id: Current.user.id, updated_at: Time.current)
+
+          if updated == 1
+            render json: detail_payload(epic.reload, message: "Epic claimed.")
+          else
+            render_epic_already_owned(epic.reload)
+          end
+        end
+
+        def unclaim
+          epic = find_epic
+          return render_error("epic_not_owned", "Epic is not claimed.", status: :unprocessable_content) if epic.owner_user_id.blank?
+
+          unless epic.owner_user_id == Current.user.id || Current.user.admin?
+            return render_error("forbidden", "Only the owner or an admin can unclaim this Epic.", status: :forbidden)
+          end
+
+          updated = Current.user.epics
+                                .where(id: epic.id, owner_user_id: epic.owner_user_id)
+                                .update_all(owner_user_id: nil, updated_at: Time.current)
+
+          if updated == 1
+            render json: detail_payload(epic.reload, message: "Epic unclaimed.")
+          else
+            render_epic_ownership_changed(epic.reload)
+          end
+        end
+
+        def reassign
+          epic = find_epic
+          return render_error("forbidden", "Admin access required.", status: :forbidden) unless Current.user.admin?
+
+          owner_user = User.find_by(id: params[:owner_user_id])
+          return render_error("owner_not_found", "Owner user not found.", status: :not_found) unless owner_user
+
+          if epic.owner_user_id == owner_user.id
+            return render_error(
+              "epic_already_owned",
+              "Epic is already assigned to #{owner_user.email_address}.",
+              status: :conflict
+            )
+          end
+
+          expected_owner_user_id = epic.owner_user_id
+          relation = Current.user.epics.where(id: epic.id)
+          relation = if expected_owner_user_id.present?
+            relation.where(owner_user_id: expected_owner_user_id)
+          else
+            relation.where(owner_user_id: nil)
+          end
+          updated = relation.update_all(owner_user_id: owner_user.id, updated_at: Time.current)
+
+          if updated == 1
+            render json: detail_payload(epic.reload, message: "Epic reassigned.")
+          else
+            render_epic_ownership_changed(epic.reload)
+          end
+        end
+
         def update_state
           epic = find_epic
           transition_epic_state!(epic, params[:target_state].to_s, override: ActiveModel::Type::Boolean.new.cast(params[:override]))
@@ -237,6 +300,27 @@ module Api
             id: owner_user.id,
             email_address: owner_user.email_address
           }
+        end
+
+        def render_epic_already_owned(epic)
+          message = if epic.owner_user_id == Current.user.id
+            "Epic is already claimed by you."
+          else
+            "Epic is already claimed by #{epic.owner_user&.email_address || "another user"}."
+          end
+
+          render_error("epic_already_owned", message, status: :conflict)
+        end
+
+        def render_epic_ownership_changed(epic)
+          message = if epic.owner_user_id.blank?
+            "Epic ownership changed before the request completed; it is now unclaimed."
+          else
+            "Epic ownership changed before the request completed; " \
+              "it is now assigned to #{epic.owner_user&.email_address || "another user"}."
+          end
+
+          render_error("epic_ownership_changed", message, status: :conflict)
         end
 
         def find_epic

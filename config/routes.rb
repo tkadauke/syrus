@@ -74,6 +74,9 @@ Rails.application.routes.draw do
         post "epics", to: "epics#create"
         patch "epics/:id", to: "epics#update", constraints: { id: /\d+/ }
         patch "epics/:id/archive", to: "epics#archive", constraints: { id: /\d+/ }
+        patch "epics/:id/claim", to: "epics#claim", constraints: { id: /\d+/ }
+        patch "epics/:id/unclaim", to: "epics#unclaim", constraints: { id: /\d+/ }
+        patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /\d+/ }
         patch "epics/:id/state", to: "epics#update_state", constraints: { id: /\d+/ }
         patch "epics/:id/claim", to: "epics#claim", constraints: { id: /\d+/ }
         patch "epics/:id/unclaim", to: "epics#unclaim", constraints: { id: /\d+/ }
