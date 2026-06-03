@@ -94,7 +94,7 @@ all share the same harness instead of becoming separate scripts.
 For the adoption argument and fit checks, read
 [Why use Syrus?](/why-use-syrus).
 
-## A Concrete Example
+## A Concrete Example: GitHub issue with label
 
 Start with a GitHub issue with label `syrus`, then let the harness carry
 that issue through the workflow.

@@ -186,6 +186,7 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
         {claudeSelected ? (
           <SecretField
             clearPending={clear.isPending}
+            description={<ClaudeTokenHelp />}
             label="Claude OAuth token"
             name="claude_oauth_token"
             onChange={(value) => setValues({ ...values, claude_oauth_token: value })}
@@ -298,11 +299,24 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
   )
 }
 
+function ClaudeTokenHelp() {
+  return (
+    <p className="mt-2 text-xs leading-5 text-gray-500">
+      Run <code className="font-mono text-gray-700">claude setup-token</code> on a machine with a browser, then paste the long-lived token it prints. Syrus stores this value and passes it as <code className="font-mono text-gray-700">CLAUDE_CODE_OAUTH_TOKEN</code> for Claude runs. Do not paste the short-lived token from Claude Code's local credential store. See the{" "}
+      <a className="font-medium text-blue-700 underline hover:text-blue-600" href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token" rel="noreferrer" target="_blank">
+        Anthropic authentication docs
+      </a>
+      .
+    </p>
+  )
+}
+
 function SecretField({
   label,
   name,
   value,
   set,
+  description,
   clearPending,
   testPending,
   testResult,
@@ -315,6 +329,7 @@ function SecretField({
   name: string
   value: string
   set: boolean
+  description?: ReactNode
   clearPending: boolean
   testPending: boolean
   testResult?: CredentialTestResult
@@ -337,6 +352,7 @@ function SecretField({
           </button>
         ) : null}
       </div>
+      {description}
       <CredentialTestLine result={testResult} unsaved={unsaved} />
     </Field>
   )

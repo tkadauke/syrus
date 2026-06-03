@@ -61,7 +61,6 @@ module Factories
     owner_attrs = attrs.key?(:owner_user) || attrs.key?(:owner_user_id) ? {} : { owner_user: owner }
     job = Job.create!({
       user: owner,
-      owner_user: attrs.key?(:owner_user) ? attrs[:owner_user] : owner,
       repository: repo,
       issue_number: 42
     }.merge(owner_attrs).merge(attrs))
@@ -82,7 +81,6 @@ module Factories
 
     create_attrs = {
       user: owner,
-      owner_user: attrs.key?(:owner_user) ? attrs[:owner_user] : owner,
       repository: repo,
       issue_number: 42
     }.merge(owner_attrs).merge(attrs).merge(state: "closed")
