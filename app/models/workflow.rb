@@ -6,11 +6,14 @@ class Workflow < ApplicationRecord
   TRIGGER_KINDS = Workflow::TriggerKind.values
 
   belongs_to :job
+  belongs_to :user
   has_many :steps, -> { order(:position) }, dependent: :destroy
   has_many :auto_retry_attempts, dependent: :destroy
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
+  validate :user_matches_job
+  before_validation :default_user_from_job, on: :create
 
   # Free-form bag of artifacts produced during this workflow. The
   # MCP sidecar's `submit_summary` writes pr_title/pr_body/summary
@@ -337,6 +340,16 @@ class Workflow < ApplicationRecord
   end
 
   private
+
+  def default_user_from_job
+    self.user ||= job&.user
+  end
+
+  def user_matches_job
+    return if user_id.blank? || job.blank?
+
+    errors.add(:user, "must match the Job owner") if user_id != job.user_id
+  end
 
   def job_for_progress_broadcast
     job

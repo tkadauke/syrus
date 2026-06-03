@@ -604,11 +604,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_06_235251) do
     t.integer "step_id"
     t.string "trigger_kind", null: false
     t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
     t.index ["job_id", "state"], name: "index_runs_on_job_id_and_state"
     t.index ["job_id"], name: "index_runs_on_job_id"
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
     t.index ["step_id"], name: "index_runs_on_step_id"
+    t.index ["user_id"], name: "index_runs_on_user_id"
   end
 
   create_table "scheduled_tasks", force: :cascade do |t|
@@ -806,9 +808,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_06_235251) do
     t.string "state", default: "queued", null: false
     t.string "trigger_kind", null: false
     t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
     t.index ["cleaned_up_at"], name: "index_workflows_on_cleaned_up_at"
     t.index ["job_id", "created_at"], name: "index_workflows_on_job_id_and_created_at"
     t.index ["job_id"], name: "index_workflows_on_job_id"
+    t.index ["user_id"], name: "index_workflows_on_user_id"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -869,6 +873,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_06_235251) do
   add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "runs", "jobs"
   add_foreign_key "runs", "steps"
+  add_foreign_key "runs", "users"
   add_foreign_key "scheduled_tasks", "cron_templates"
   add_foreign_key "scheduled_tasks", "repositories"
   add_foreign_key "scheduled_tasks", "users"
@@ -881,4 +886,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_06_235251) do
   add_foreign_key "steps", "workflows"
   add_foreign_key "whiteboards", "chat_sessions"
   add_foreign_key "workflows", "jobs"
+  add_foreign_key "workflows", "users"
 end

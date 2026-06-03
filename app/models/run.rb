@@ -6,6 +6,7 @@ class Run < ApplicationRecord
   TRIGGER_KINDS = Workflow::TriggerKind.values
 
   belongs_to :job
+  belongs_to :user
   # Step is optional during the migration window: existing Runs
   # (and the existing direct-create paths in Job#after_create_commit
   # and the polling jobs) still link to Job. Once those code paths
@@ -32,6 +33,8 @@ class Run < ApplicationRecord
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
+  validate :user_matches_execution_graph
+  before_validation :default_user_from_job, on: :create
 
   # Backstop for genuine agent hangs (claude alive but making no
   # progress). Rare in practice — claude almost always streams a chunk
@@ -163,6 +166,25 @@ class Run < ApplicationRecord
   end
 
   private
+
+  def default_user_from_job
+    self.user ||= job&.user
+  end
+
+  def user_matches_execution_graph
+    errors.add(:user, "must match the Job owner") if user_id.present? && job.present? && user_id != job.user_id
+
+    return if step.blank?
+
+    workflow = step.workflow
+    if job_id.present? && workflow&.job_id.present? && job_id != workflow.job_id
+      errors.add(:step, "must belong to the same Job as the Run")
+    end
+
+    if user_id.present? && workflow&.user_id.present? && user_id != workflow.user_id
+      errors.add(:user, "must match the Workflow owner")
+    end
+  end
 
   def job_for_progress_broadcast
     job

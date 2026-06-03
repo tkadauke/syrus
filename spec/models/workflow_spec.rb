@@ -23,6 +23,20 @@ RSpec.describe Workflow do
     it "requires a job" do
       expect(build_wf(job: nil)).not_to be_valid
     end
+
+    it "defaults the execution owner from the job" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial")
+
+      expect(workflow.user).to eq(job.user)
+    end
+
+    it "rejects an execution owner from another user's job" do
+      other_user = Factories.user
+      workflow = build_wf(user: other_user)
+
+      expect(workflow).not_to be_valid
+      expect(workflow.errors[:user]).to include("must match the Job owner")
+    end
   end
 
   describe "AASM state machine" do

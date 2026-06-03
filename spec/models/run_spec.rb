@@ -125,6 +125,34 @@ RSpec.describe Run do
     end
   end
 
+  describe "execution ownership" do
+    it "defaults the execution owner from the job" do
+      run = Run.create!(job: job, trigger_kind: "pr_comment")
+
+      expect(run.user).to eq(job.user)
+    end
+
+    it "rejects an execution owner from another user's job" do
+      other_user = Factories.user
+      run = Run.new(job: job, trigger_kind: "pr_comment", user: other_user)
+
+      expect(run).not_to be_valid
+      expect(run.errors[:user]).to include("must match the Job owner")
+    end
+
+    it "rejects a step from another user's workflow" do
+      other_job = Factories.job
+      other_workflow = Workflow.create!(job: other_job, trigger_kind: "initial")
+      other_step = Step.create!(workflow: other_workflow, kind: "implement", position: 0)
+
+      run = Run.new(job: job, step: other_step, trigger_kind: "initial")
+
+      expect(run).not_to be_valid
+      expect(run.errors[:step]).to include("must belong to the same Job as the Run")
+      expect(run.errors[:user]).to include("must match the Workflow owner")
+    end
+  end
+
   describe "scopes" do
     it "active = queued + running" do
       a = job.initial_run

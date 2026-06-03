@@ -230,5 +230,17 @@ RSpec.describe RunJob, "step-dispatch path" do
       expect(run.agent_outcome).to eq("worker_died")
     end
 
+    it "refuses to execute a Run whose explicit owner does not match the Job owner" do
+      other_user = Factories.user
+      run = StepDispatcher.start_workflow(workflow)
+      run.update_columns(user_id: other_user.id)
+
+      described_class.perform_now(run.id)
+
+      expect(run.reload.state).to eq("failed")
+      expect(run.agent_outcome).to eq("execution_owner_mismatch")
+      expect(Steps).not_to have_received(:handler_for)
+    end
+
   end
 end

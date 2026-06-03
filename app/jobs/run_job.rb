@@ -104,6 +104,16 @@ class RunJob < ApplicationJob
       raise "Run ##{@run.id} has no Step / Workflow — backfill must run before legacy Runs can execute"
     end
 
+    unless execution_owner_consistent?
+      log("execution owner mismatch; refusing to run")
+      fail_run_without_validation!("execution_owner_mismatch")
+      if @step.may_fail?
+        @step.fail!
+        @step.save!
+      end
+      return
+    end
+
     if @workflow.terminal?
       log("#{@workflow.slug} already terminal (#{@workflow.state}); abandoning run")
       @run.cancel! if @run.may_cancel?
@@ -212,6 +222,19 @@ class RunJob < ApplicationJob
     return if loop_controlled_grade_failure?
 
     LandingFailureHandler.call(job: @job, reason: "#{exception.class}: #{exception.message}", run: @run)
+  end
+
+  def execution_owner_consistent?
+    @run.user_id == @job.user_id && @workflow.user_id == @job.user_id
+  end
+
+  def fail_run_without_validation!(outcome)
+    @run.update_columns(
+      agent_outcome: outcome,
+      state: "failed",
+      finished_at: Time.current,
+      updated_at: Time.current
+    )
   end
 
   # A failure is "loop-controlled" when the dispatcher's per-kind
