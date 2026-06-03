@@ -150,6 +150,25 @@ from lockfiles such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
 `package-lock.json`, or `package.json`. Use `prepare: []` or
 `prepare: false` only when no setup should run.
 
+### Fork/upstream collaboration
+
+For early fork-based collaboration, register the fork as the repository
+Syrus manages and record the upstream repository metadata for operator
+context. The current flow is:
+
+1. Owner A owns the upstream repository.
+2. Owner B owns a fork of that repository and registers the fork in Syrus.
+3. Owner B claims the Epic or Jobs they are going to drive.
+4. Syrus runs against B's fork, pushes branches to B's fork, and opens PRs
+   inside B's fork.
+5. Owner B manually opens the upstream pull request from the fork branch
+   into A's upstream repository.
+
+Syrus does not automatically open upstream pull requests in this initial
+model. The upstream metadata helps operators see the relationship, but the
+automated PR target remains the registered repository until upstream PR
+automation is added.
+
 ### 4. Start the first Job
 
 For the full GitHub loop, create or edit a GitHub issue in the registered
