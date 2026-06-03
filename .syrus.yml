@@ -13,6 +13,9 @@ prepare:
   # `vendor/bundle/` in both the Syrus-local Bundler app config
   # and the standard `.bundle/config` so bare grader commands like
   # `bin/rails` and `bin/rspec` resolve gems the agent just installed.
+  # Syrus points BUNDLE_APP_CONFIG at its private dependency cache
+  # during prepare, so force Bundler's app config back to `.bundle`
+  # for the repo-local setting.
   - env -u BUNDLE_PATH BUNDLE_APP_CONFIG=.bundle bundle config set --local path vendor/bundle
   - env -u BUNDLE_PATH -u BUNDLE_APP_CONFIG bundle config set --local path vendor/bundle
   - env -u BUNDLE_PATH BUNDLE_APP_CONFIG=.bundle bundle install --jobs 4
