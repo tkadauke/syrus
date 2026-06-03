@@ -32,7 +32,7 @@ class User < ApplicationRecord
     "epics" => {
       "sort_column" => "updated_at",
       "sort_direction" => "desc",
-      "visible_columns" => %w[checkbox epic state repository updated],
+      "visible_columns" => %w[epic state repository updated],
       "kanban_lanes" => %w[backlog ready in_progress done]
     },
     "jobs" => {
@@ -54,7 +54,7 @@ class User < ApplicationRecord
     "workflows" => %w[queued running done succeeded failed]
   }.freeze
   DASHBOARD_REQUIRED_COLUMNS = {
-    "epics" => %w[checkbox epic],
+    "epics" => %w[epic],
     "jobs" => %w[checkbox issue],
     "workflows" => %w[workflow job]
   }.freeze

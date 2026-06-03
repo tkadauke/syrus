@@ -452,7 +452,7 @@ function DashboardTable({ payload, prefix }: { payload: DashboardPayload; prefix
   if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={payload.items.filter((item): item is DashboardJobItem => item.type === "job")} prefix={prefix} sortState={sortState} />
   if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={payload.items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
 
-  return <EpicsTable columns={columns} items={payload.items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
+  return <EpicsTable columns={epicTableColumns(columns)} items={payload.items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
 }
 
 function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
@@ -1255,6 +1255,10 @@ function bulkButtonClass(disabled: boolean, tone: "default" | "danger" = "defaul
   if (tone === "danger") return "rounded border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50"
 
   return "rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-white"
+}
+
+function epicTableColumns(columns: string[]) {
+  return [ "checkbox", ...columns.filter((column) => column !== "checkbox") ]
 }
 
 function uniqueValue(value: string, index: number, values: string[]) {

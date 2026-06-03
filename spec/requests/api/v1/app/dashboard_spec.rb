@@ -159,10 +159,7 @@ RSpec.describe "App API dashboard commands", type: :request do
           "app_state_path" => "/api/v1/app/epics/#{ready.id}/state"
         )
       )
-      expect(body.dig("controls", "columns", "required")).to eq([
-        { "key" => "checkbox", "title" => "Checkbox" },
-        { "key" => "epic", "title" => "Epic" }
-      ])
+      expect(body.dig("controls", "columns", "required")).to eq([{ "key" => "epic", "title" => "Epic" }])
       expect(body["active_smart_folder_id"]).to eq(folder.id)
       expect(body["filter"]).to eq(
         "and" => [

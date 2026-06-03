@@ -20,7 +20,6 @@ module App
     WORKFLOW_DONE_STATES = %w[succeeded failed cancelled].freeze
     COLUMN_LABELS = {
       "epics" => {
-        "checkbox" => "Checkbox",
         "epic" => "Epic",
         "state" => "State",
         "repository" => "Repository",
