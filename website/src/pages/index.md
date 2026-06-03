@@ -98,7 +98,10 @@ and delegate one small GitHub issue with label-based triggering. From
 there, move to Docker Compose or Kubernetes when the workflow proves it
 can carry real review feedback and repeat attempts.
 
-## Start Small
+The shortest proof is a GitHub issue with a trigger label: file the
+issue, add the label, and let Syrus carry it through to a pull request.
+
+## Deployment Paths
 
 Start small, then deploy the full loop when the product proves useful.
 

@@ -26,6 +26,7 @@ per-user/private:
   - app/controllers/api/v1/app/filters_controller.rb
   - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/job_attachments_controller.rb
+  - app/controllers/api/v1/app/job_claims_controller.rb
   - app/controllers/api/v1/app/job_lifecycle_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/job_pins_controller.rb
@@ -41,6 +42,8 @@ per-user/private:
   - app/controllers/spa_controller.rb
   - app/views/spa/show.html.erb
 team-visible: []
+public/session:
+  - app/controllers/api/v1/app/auth_controller.rb
 admin-only:
   - app/controllers/admin/base_controller.rb
   - app/controllers/admin/github_app_controller.rb
@@ -89,6 +92,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/filters_controller.rb` | per-user/private | Foreign-key filter options resolve against user-owned repositories, epics, jobs, and tags. Hostnames are a cross-system option but only labels, not user data. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile reads and writes serialize or mutate the signed-in user's profile details. Team profile payloads omit credentials while using the current user for access context, profile-directory visibility, and owner-label visibility for another operator's recent jobs. |
 | `app/controllers/api/v1/app/job_attachments_controller.rb` | per-user/private | Job attachment changes first find the job via `Current.user.jobs` and broadcast back to that user. |
+| `app/controllers/api/v1/app/job_claims_controller.rb` | per-user/private | Job claim and release actions find jobs through `Current.user.jobs` and broadcast ownership updates back to that user. |
 | `app/controllers/api/v1/app/job_lifecycle_controller.rb` | per-user/private | Retry, approval, cancellation, close, and broadcasts operate on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_metadata_controller.rb` | per-user/private and admin gate | Tags and dependency targets are user-scoped. Dependency override is separately admin-only. |
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
@@ -112,6 +116,15 @@ repository relation in the current data model. GitHub repositories may be
 organization repositories, but Syrus access here is still mediated through the
 signed-in user's repository rows and GitHub credential, so these paths remain
 classified as per-user/private.
+
+## Public/session
+
+These scopes may be reachable before authentication and only use `Current.user`
+as optional session context.
+
+| File | Classification | Reason |
+| --- | --- | --- |
+| `app/controllers/api/v1/app/auth_controller.rb` | public/current session | Status returns the current session user when one exists; auth creation paths are otherwise public and session-scoped. |
 
 ## Admin-only
 

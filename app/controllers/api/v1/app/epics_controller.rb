@@ -269,6 +269,16 @@ module Api
           "other_owned"
         end
 
+        def reassign_legacy_owner(epic)
+          owner_user = User.find_by(id: params[:owner_id])
+          return render_error("owner_not_found", "Owner user not found.", status: :not_found) unless owner_user
+
+          epic.reassign!(owner_user, actor: Current.user)
+          epic.update!(owner_user: owner_user) unless epic.owner_user_id == owner_user.id
+
+          render json: detail_payload(epic.reload, message: "Epic reassigned.")
+        end
+
         def owner_user_json(owner_user)
           return nil unless owner_user
 
