@@ -263,8 +263,8 @@ module Api
         end
 
         def owner_status(epic)
-          return "unclaimed" if epic.owner_user_id.blank?
-          return "mine" if epic.owner_user_id == Current.user.id
+          return "unclaimed" unless epic.claimed?
+          return "mine" if epic.claimed_by?(Current.user)
 
           "other_owned"
         end

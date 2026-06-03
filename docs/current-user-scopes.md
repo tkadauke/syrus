@@ -1,9 +1,9 @@
 # Current.user Scope Audit
 
-Audited for epic #780. The app has no team membership model today, so
+Audited for epic #780. The app has no team membership model today, so most
 `Current.user` scoping is either per-user/private or admin-only. Team-visible
-is intentionally empty until there is a first-class team scope to replace the
-current per-user associations.
+scope is limited to cross-user profile metadata until there is a first-class
+team scope to replace the current per-user associations.
 
 No broad scope removal was made as part of this audit. Existing `Current.user`
 relations remain in place because they are the replacement semantics that keep
@@ -40,7 +40,8 @@ per-user/private:
   - app/controllers/application_controller.rb
   - app/controllers/spa_controller.rb
   - app/views/spa/show.html.erb
-team-visible: []
+team-visible:
+  - app/controllers/api/v1/app/profiles_controller.rb
 public/session:
   - app/controllers/api/v1/app/auth_controller.rb
 admin-only:
@@ -98,7 +99,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/job_run_commands_controller.rb` | per-user/private | Run commands target jobs found through `Current.user.jobs` and validate agent providers against the current user. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads expose public profile/work summaries through the current user's app session. |
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source use `Current.user.jobs`; timeline is separately admin-only because it exposes run history. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile visibility compares the requested profile to `Current.user` before exposing current-user-specific details. |
+| `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with current-user context | Team profiles are visible to signed-in users; `Current.user` decides whether owner labels and current-user-specific details should be shown. |
 | `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions use `Current.user.repositories` and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
@@ -111,11 +112,12 @@ They intentionally use associations such as `Current.user.jobs`,
 
 ## Team-visible
 
-None. There is no team ownership table, membership table, or team-scoped
+Team profiles are visible to signed-in users so operators can see who owns
+work. There is still no team ownership table, membership table, or team-scoped
 repository relation in the current data model. GitHub repositories may be
-organization repositories, but Syrus access here is still mediated through the
-signed-in user's repository rows and GitHub credential, so these paths remain
-classified as per-user/private.
+organization repositories, but most Syrus access here is still mediated through
+the signed-in user's repository rows and GitHub credential, so those paths
+remain classified as per-user/private.
 
 ## Public/session
 
