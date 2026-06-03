@@ -98,6 +98,26 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     )
   end
 
+  it "does not expose private chat or whiteboard records on user detail" do
+    sign_in_as(admin)
+    target = Factories.user(email_address: "target@example.com")
+    chat = ChatSession.create!(user: target, title: "Private planning chat")
+    chat.messages.create!(role: "user", content: { "text" => "Private transcript text" })
+    chat.create_whiteboard!(
+      scene_json: { "elements" => [ { "id" => "private-whiteboard-box" } ], "appState" => {}, "files" => {} },
+      version: 2
+    )
+
+    get "/api/v1/app/admin/users/#{target.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.keys).not_to include("chat_sessions", "chats", "whiteboards")
+    expect(response.body).not_to include("Private planning chat")
+    expect(response.body).not_to include("Private transcript text")
+    expect(response.body).not_to include("private-whiteboard-box")
+  end
+
   it "pauses and resumes scheduling for a user" do
     sign_in_as(admin)
     target = Factories.user(email_address: "target@example.com")

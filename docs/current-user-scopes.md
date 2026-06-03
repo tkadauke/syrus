@@ -34,6 +34,7 @@ per-user/private:
   - app/controllers/api/v1/app/smart_folders_controller.rb
   - app/controllers/api/v1/app/tags_controller.rb
   - app/controllers/application_controller.rb
+  - app/controllers/spa_controller.rb
   - app/views/spa/show.html.erb
 team-visible: []
 admin-only:
@@ -65,6 +66,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | File | Classification | Reason |
 | --- | --- | --- |
 | `app/controllers/application_controller.rb` | per-user/private and admin gate | System alerts and default chat navigation are computed for the signed-in user. `require_admin` is the shared admin guard. |
+| `app/controllers/spa_controller.rb` | per-user/private and admin gate | Serves the SPA shell only after checking ownership for private chat routes; admin shell routes use the shared admin guard. |
 | `app/views/spa/show.html.erb` | per-user/private | Renders the SPA bootstrap payload for the current browser session. |
 | `app/controllers/api/v1/app/bootstrap_controller.rb` | per-user/private | Serializes the signed-in user, app settings visible to that user, CSRF token, and default chat path. |
 | `app/controllers/api/v1/app/bug_reports_controller.rb` | per-user/private | Files bug reports with the current user as reporter/context. |

@@ -100,6 +100,25 @@ RSpec.describe "API: /api/v1/admin/users", type: :request do
       expect(body["recent_runs"]).to eq([])
     end
 
+    it "does not expose private chat or whiteboard records in the external user detail API" do
+      target = Factories.user(email_address: "target@example.com")
+      chat = ChatSession.create!(user: target, title: "Private planning chat")
+      chat.messages.create!(role: "user", content: { "text" => "Private transcript text" })
+      chat.create_whiteboard!(
+        scene_json: { "elements" => [ { "id" => "private-whiteboard-box" } ], "appState" => {}, "files" => {} },
+        version: 2
+      )
+
+      get "/api/v1/admin/users/#{target.id}", headers: auth
+
+      expect(response).to be_successful
+      body = parse_body
+      expect(body.keys).not_to include("chat_sessions", "chats", "whiteboards")
+      expect(response.body).not_to include("Private planning chat")
+      expect(response.body).not_to include("Private transcript text")
+      expect(response.body).not_to include("private-whiteboard-box")
+    end
+
     it "404s with a JSON error on unknown id" do
       get "/api/v1/admin/users/999999", headers: auth
       expect(response).to have_http_status(:not_found)

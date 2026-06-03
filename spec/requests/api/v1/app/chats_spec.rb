@@ -179,6 +179,30 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["paths"].keys).not_to include("chat_messages_path", "chat_attachments_path", "chat_whiteboard_path")
   end
 
+  it "does not return another user's private chat payload or messages" do
+    sign_in_as(user)
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
+    other_chat = ChatSession.create!(user: other_user, repository: other_repo, title: "Private chat")
+    other_chat.messages.create!(role: "user", content: { "text" => "Private message" })
+    other_chat.create_whiteboard!(
+      scene_json: { "elements" => [ { "id" => "private-box" } ], "appState" => {}, "files" => {} },
+      version: 1
+    )
+
+    get "/api/v1/app/chats/#{other_chat.id}"
+
+    expect(response).to have_http_status(:not_found)
+    expect(response.body).not_to include("Private chat")
+    expect(response.body).not_to include("Private message")
+    expect(response.body).not_to include("private-box")
+
+    get "/api/v1/app/chats/#{other_chat.id}/messages"
+
+    expect(response).to have_http_status(:not_found)
+    expect(response.body).not_to include("Private message")
+  end
+
   it "resolves bookmark anchors to rendered chat messages" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

@@ -43,6 +43,21 @@ RSpec.describe "App API chat whiteboards", type: :request do
         "version" => 7
       )
     end
+
+    it "blocks reads for chats owned by another user" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
+      other_chat = ChatSession.create!(repository: other_repo, user: other_user)
+      other_chat.create_whiteboard!(
+        scene_json: { "elements" => [ { "id" => "private-box" } ], "appState" => {}, "files" => {} },
+        version: 4
+      )
+
+      get whiteboard_path(other_chat), as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.body).not_to include("private-box")
+    end
   end
 
   describe "PATCH /api/v1/app/chats/:id/whiteboard" do

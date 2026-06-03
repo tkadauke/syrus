@@ -28,6 +28,17 @@ RSpec.describe "Chats", type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to include('id="syrus-spa-root"')
     end
+
+    it "does not serve the React app shell for another user's chat" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
+      other_chat = ChatSession.create!(user: other_user, repository: other_repo, title: "Private chat")
+
+      get chat_path(other_chat)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.body).not_to include('id="syrus-spa-root"')
+    end
   end
 
   it "does not route the retired legacy HTML chat endpoints" do

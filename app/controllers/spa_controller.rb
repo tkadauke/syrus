@@ -3,6 +3,7 @@ class SpaController < ApplicationController
   before_action :resume_session_for_public_path, if: :public_spa_path?
   before_action :enforce_signup_gate, if: :signup_spa_path?
   before_action :require_admin, if: :admin_spa_path?
+  before_action :require_chat_owner, if: :chat_spa_path?
 
   def show
     authenticated?
@@ -58,6 +59,20 @@ class SpaController < ApplicationController
       normalized_path.start_with?("/admin/") ||
       normalized_path == "/invitations" ||
       normalized_path == "/settings/edit"
+  end
+
+  def chat_spa_path?
+    normalized_path.match?(%r{\A/chats/\d+\z})
+  end
+
+  def require_chat_owner
+    return if Current.user.chat_sessions.exists?(id: chat_spa_id)
+
+    head :not_found
+  end
+
+  def chat_spa_id
+    normalized_path[%r{\A/chats/(\d+)\z}, 1]
   end
 
   def normalized_path
