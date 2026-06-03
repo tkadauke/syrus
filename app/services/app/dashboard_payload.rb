@@ -167,6 +167,7 @@ module App
       @ownership_scope ||= begin
         raw_scope = params[:scope].presence || params[:ownership_scope].presence
         raw_scope ||= "user" if params[:owner_id].present? || params[:owner_user_id].present?
+        raw_scope ||= "mine" if default_user_focused_subject? && !ownership_param_present?
         raw_scope ||= user.dashboard_preferences.dig(subject.pluralize, "ownership_scope").to_s.presence
         raw_scope = "team" if default_team_focused_subject? && raw_scope == "mine" && !ownership_param_present?
         raw_scope ||= user.dashboard_preferences["last_ownership_scope"].to_s.presence unless default_user_focused_subject? || default_team_focused_subject?
@@ -259,13 +260,14 @@ module App
             scope.where(owner_user_id: owner_id)
           end
         when "epic"
-          epic_owned_by_scope(scope, owner_id)
+          scope.where(epic_owner_condition(owner_id))
         end
       when "claimable"
-        if subject_name.to_s == "epic"
-          scope.where(owner_user_id: nil, owner_id: nil)
-        elsif subject_name.to_s == "workflow"
+        case subject_name.to_s
+        when "workflow"
           scope.where(jobs: { owner_user_id: nil })
+        when "epic"
+          scope.where(owner_id: nil, owner_user_id: nil)
         else
           scope.where(owner_user_id: nil)
         end
@@ -322,6 +324,18 @@ module App
       else
         false
       end
+    end
+
+    def epic_owner_condition(owner_id)
+      table = Epic.arel_table
+      table[:owner_user_id].eq(owner_id).or(table[:owner_id].eq(owner_id))
+    end
+
+    def epic_default_claimable_condition
+      table = Epic.arel_table
+      table[:owner_user_id].eq(nil)
+        .and(table[:owner_id].eq(nil))
+        .and(table[:state].in(%w[backlog ready]))
     end
 
     def jobs_base_scope
@@ -628,7 +642,7 @@ module App
         finished_at: job.finished_at&.iso8601,
         approved_at: job.approved_at&.iso8601,
         owner_user_id: job.owner_user_id,
-        owner_user: owner_user_json(job.owner_user),
+        owner_user: owner_user_json(owner_user),
         claimed_at: job.claimed_at&.iso8601,
         claimed_by_user: claim_owner_json(job.claimed_by_user),
         claimed_by_current_user: job.claimed_by_user_id == user.id,
@@ -639,7 +653,6 @@ module App
         workflows_count: job.workflows.size,
         repository: repository_json(job.repository),
         epic: job_epic_json(job.epic),
-        owner_user: owner_user_json(owner_user),
         owner_badge: owner_badge_for(owner_user),
         tags: job.tags.map { |tag| tag_json(tag) },
         paths: {

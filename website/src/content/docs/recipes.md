@@ -221,8 +221,9 @@ starts the normal initial Workflow, and opens a PR if the agent produces
 a diff.
 
 Troubleshooting: if the runner cannot decrypt credentials, the process is
-missing `RAILS_MASTER_KEY`. If the Job is created but never runs, check
-that a worker is running the `runs` queue.
+missing the `ACTIVE_RECORD_ENCRYPTION_*` keys, or `RAILS_MASTER_KEY` for
+a deploy that keeps encryption keys in Rails credentials. If the Job is
+created but never runs, check that a worker is running the `runs` queue.
 
 ## How do I budget-cap a repo?
 

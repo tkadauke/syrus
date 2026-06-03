@@ -150,10 +150,21 @@ function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <Link className="font-medium text-blue-600 hover:underline" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
-        <div className="mt-1 font-mono text-xs text-gray-500">{job.repository.slug}</div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+          {job.owner ? <OwnerProfileLink owner={job.owner} prefix={prefix} /> : null}
+          <span>{job.repository.slug} · updated {formatDate(job.updated_at)}</span>
+        </div>
       </div>
       <StatusPill state={job.state} />
     </div>
+  )
+}
+
+function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob["owner"]>; prefix: string }) {
+  return (
+    <Link className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 hover:text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+      {owner.display_name}
+    </Link>
   )
 }
 

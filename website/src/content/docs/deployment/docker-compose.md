@@ -44,13 +44,25 @@ template is authoritative; these are the important categories:
 ```dotenv
 RAILS_MASTER_KEY=...
 SECRET_KEY_BASE=...
+ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=...
+ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=...
+ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=...
 SYRUS_DATABASE_PASSWORD=...
 SYRUS_DATA_ROOT=/home/rails/.syrus
 ```
 
-Syrus stores user credentials with Active Record Encryption, so
-`RAILS_MASTER_KEY` must be stable across restarts. If it changes, stored
-GitHub and agent credentials cannot be decrypted.
+Syrus stores user credentials with Active Record Encryption. For
+12-factor/Docker deploys, provide the three
+`ACTIVE_RECORD_ENCRYPTION_*` values directly as environment variables and
+keep them stable across restarts. Generate each one with:
+
+```bash
+openssl rand -hex 32
+```
+
+If those environment variables are absent, Rails falls back to
+`RAILS_MASTER_KEY` plus encrypted Rails credentials. If the encryption
+keys change, stored GitHub and agent credentials cannot be decrypted.
 
 After the containers boot, open the web UI and create the first user.
 The first signup becomes an admin. In **Credentials**, add:

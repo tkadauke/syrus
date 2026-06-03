@@ -94,7 +94,8 @@ Each user owns their own credentials and defaults:
 
 Credentials are stored with Active Record Encryption in the Syrus database,
 so every web, worker, console, and migration context that reads users needs
-`RAILS_MASTER_KEY`.
+the same stable `ACTIVE_RECORD_ENCRYPTION_*` keys, or `RAILS_MASTER_KEY`
+when those keys live in Rails credentials.
 
 ## GitHub App And PAT Behavior
 

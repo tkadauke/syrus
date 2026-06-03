@@ -140,8 +140,11 @@ needs durable workspace storage because it manages clones and worktrees.
 
 | Variable | Required | Used by |
 | --- | --- | --- |
-| `RAILS_MASTER_KEY` | Production yes | Decrypts Rails credentials and Active Record encrypted attributes |
+| `RAILS_MASTER_KEY` | Production yes unless encryption keys are supplied directly | Decrypts Rails credentials |
 | `SECRET_KEY_BASE` | Production yes | Rails sessions, signed cookies, message verification |
+| `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY` | Production yes unless stored in Rails credentials | Active Record encrypted credential columns |
+| `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | Production yes unless stored in Rails credentials | Deterministic Active Record encrypted columns, including admin API tokens |
+| `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | Production yes unless stored in Rails credentials | Active Record Encryption key derivation salt |
 | `DB_HOST` | Production yes | MySQL host; defaults to `127.0.0.1` |
 | `SYRUS_DATABASE_PASSWORD` | Production yes | MySQL password |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
@@ -166,10 +169,12 @@ Per-user credentials use Active Record Encryption:
 - `codex_auth_json`
 - `api_token`
 
-The encrypted values live in the primary database. The encryption keys
-live in Rails credentials, so any process that reads or writes users needs
-`RAILS_MASTER_KEY`. This is why smoke tests or console sessions that
-create users fail loudly when the key is missing.
+The encrypted values live in the primary database. In production, provide
+the three `ACTIVE_RECORD_ENCRYPTION_*` values directly through the
+environment, or store them in Rails credentials and provide
+`RAILS_MASTER_KEY`. Any process that reads or writes users needs the same
+stable encryption-key source. This is why smoke tests or console sessions
+that create users fail loudly when the keys are missing.
 
 GitHub push tokens are not written into clone remotes. Syrus keeps clone
 remotes anonymous and constructs a token-bearing push URL only for the

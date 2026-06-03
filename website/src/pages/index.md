@@ -23,6 +23,15 @@ agent writes code; Syrus handles the job control around it.
 
 ## The Loop
 
+The shortest proof is a GitHub issue with label-based delegation:
+connect a repository, choose the trigger label, and let Syrus turn that
+issue into a branch, run, and pull request.
+
+Get Started with the local evaluation path if you want the shortest route
+from a GitHub issue with label `syrus` to a reviewed pull request.
+
+## What Syrus Does
+
 Give Syrus a connected GitHub repository and a trigger label. A typical
 first run starts with a GitHub issue with label `syrus`. When an
 issue is labeled, Syrus creates a Job, runs a Workflow, lets the agent
@@ -82,7 +91,10 @@ all share the same harness instead of becoming separate scripts.
 
 ## A Concrete Example
 
-1. File a GitHub issue with label-based delegation: "Add pagination to the admin jobs list."
+Start with a GitHub issue with label `syrus`, then let the harness carry
+that issue through the workflow.
+
+1. File a GitHub issue: "Add pagination to the admin jobs list."
 2. Add the repository's Syrus trigger label.
 3. Syrus notices the issue, clones the repo, runs setup, and starts the
    configured agent.

@@ -108,7 +108,6 @@ export type DashboardEpicItem = {
   auto_approve_mode: string
   owner_user_id: number | null
   owner_status: "mine" | "other_owned" | "unclaimed"
-  owner_user: DashboardOwnerUser | null
   jobs_count: number
   landed_jobs_count: number
   created_at: string | null

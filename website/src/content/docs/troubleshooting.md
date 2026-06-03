@@ -167,8 +167,10 @@ Check:
 
 - `DB_HOST` resolves from inside the container or pod.
 - `SYRUS_DATABASE_PASSWORD` is present.
-- `RAILS_MASTER_KEY` is present. Processes that touch encrypted
-  credentials need it.
+- The three `ACTIVE_RECORD_ENCRYPTION_*` keys are present, or
+  `RAILS_MASTER_KEY` is present for a deploy that keeps those keys in
+  Rails credentials. Processes that touch encrypted credentials need one
+  stable source of encryption keys.
 - MySQL is accepting connections from the web and worker network.
 - Migrations have run for primary, cache, queue, and cable databases.
 

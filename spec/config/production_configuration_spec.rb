@@ -31,6 +31,7 @@ RSpec.describe "production configuration" do
     expect(production_config).to include('sidecar_process = ENV["SYRUS_MCP_SIDECAR"].present? || ENV["SYRUS_CHAT_MCP_SIDECAR"].present?')
     expect(production_config).to include('log_device = sidecar_process ? STDERR : STDOUT')
     expect(production_config).to include('config.action_mailer.default_url_options = { host: app_host, protocol: "https" }')
+    expect(production_config).to include("ActiveRecordEncryptionConfig.apply_env_overrides!(config)")
   end
 
   it "sets build-only runtime placeholders while precompiling assets" do

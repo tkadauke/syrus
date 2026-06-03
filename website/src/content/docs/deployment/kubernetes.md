@@ -56,7 +56,8 @@ The chart should expose, at minimum, values for:
 - Web image, worker image, tag, pull policy, and image pull secrets.
 - Web replicas and worker replicas.
 - MySQL host, database, username, and password secret references.
-- `RAILS_MASTER_KEY` and `SECRET_KEY_BASE` secret references.
+- `RAILS_MASTER_KEY`, `SECRET_KEY_BASE`, and Active Record Encryption
+  secret references.
 - `$SYRUS_DATA_ROOT` PVC size, storage class, and retention policy.
 - Hostname, ingress class, TLS secret, and cert-manager issuer.
 - Worker resource requests and limits. Agent runs can be memory- and
@@ -65,15 +66,25 @@ The chart should expose, at minimum, values for:
 ## Encrypted credentials
 
 Syrus stores each user's GitHub token and agent credentials with Active
-Record Encryption. In Kubernetes that means the `RAILS_MASTER_KEY` secret
-is not disposable infrastructure. Create it once, back it up with your
-cluster secrets, and reuse it for every web and worker pod in the
-installation.
+Record Encryption. In Kubernetes, set these secrets on every web and
+worker pod:
 
-If you rotate `RAILS_MASTER_KEY` without an application-level migration
-plan, existing encrypted credentials become unreadable. The symptom will
-look like users whose GitHub or agent credentials suddenly disappeared or
-cannot be decrypted.
+```dotenv
+ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=...
+ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=...
+ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=...
+```
+
+Generate each value once with `openssl rand -hex 32`, back them up with
+your cluster secrets, and reuse them for every pod in the installation.
+If these variables are absent, Rails falls back to `RAILS_MASTER_KEY` and
+encrypted Rails credentials.
+
+If you rotate the Active Record Encryption keys, or rotate
+`RAILS_MASTER_KEY` for an installation that relies on Rails credentials
+for those keys, existing encrypted credentials become unreadable. The
+symptom will look like users whose GitHub or agent credentials suddenly
+disappeared or cannot be decrypted.
 
 ## Ingress and TLS
 

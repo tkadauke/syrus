@@ -1,4 +1,5 @@
 require "active_support/core_ext/integer/time"
+require_relative "../active_record_encryption"
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -97,6 +98,10 @@ Rails.application.configure do
   # SQLite dev/test adapter, so fresh MySQL installs must migrate from zero
   # instead of loading that adapter-specific Ruby dump.
   config.active_record.schema_format = :sql
+
+  # Allow 12-factor/Docker deploys to provide Active Record Encryption keys
+  # through environment variables. If absent, Rails falls back to credentials.
+  ActiveRecordEncryptionConfig.apply_env_overrides!(config)
 
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
