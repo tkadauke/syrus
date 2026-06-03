@@ -20,13 +20,26 @@ RSpec.describe "bin/healthcheck" do
   let(:script) { Rails.root.join("bin/healthcheck").to_s }
 
   # Bundler.with_unbundled_env approximates "process started by K8s with
-  # no active Bundler runtime" — the conditions under which the K3s pod
-  # was crashing with LoadError: cannot load such file -- mysql2.
+  # no already-activated bundle" — the condition under which the K3s pod
+  # was crashing with LoadError: cannot load such file -- mysql2. The
+  # process still needs the image/workspace's Bundler install-location
+  # config, such as BUNDLE_PATH from the Dockerfile or BUNDLE_APP_CONFIG
+  # from Syrus's prepared dependency directory, so it can find the gems
+  # that were installed before the healthcheck process starts.
   def spawn_clean(env_overrides = {})
-    bundle_env = ENV.to_h.slice("BUNDLE_APP_CONFIG", "BUNDLE_PATH", "BUNDLE_USER_CACHE", "BUNDLE_USER_HOME", "BUNDLE_WITHOUT")
+    bundler_install_env = ENV.to_h.select do |key, _|
+      %w[
+        BUNDLE_APP_CONFIG
+        BUNDLE_DEPLOYMENT
+        BUNDLE_PATH
+        BUNDLE_USER_CACHE
+        BUNDLE_USER_HOME
+        BUNDLE_WITHOUT
+      ].include?(key)
+    end
 
     Bundler.with_unbundled_env do
-      env = ENV.to_h.merge(bundle_env).merge(env_overrides)
+      env = ENV.to_h.merge(bundler_install_env).merge(env_overrides)
       Open3.capture3(env, "ruby", script, unsetenv_others: true)
     end
   end
