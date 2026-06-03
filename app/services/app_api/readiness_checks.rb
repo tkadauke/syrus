@@ -36,13 +36,13 @@ module AppApi
 
     def web_config_check
       ActiveRecord::Base.connection.active?
-      if Rails.env.production? && ENV["RAILS_MASTER_KEY"].blank?
+      if Rails.env.production? && !active_record_encryption_ready?
         return check(
           "web_config",
           "Web/config",
           "error",
-          "Rails is running, but RAILS_MASTER_KEY is not present in the web environment.",
-          "Set RAILS_MASTER_KEY on every web and worker process so encrypted credentials can be decrypted."
+          "Rails is running, but Active Record encryption is not configured in the web environment.",
+          "Set RAILS_MASTER_KEY or provide ACTIVE_RECORD_ENCRYPTION_* environment variables on every web and worker process."
         )
       end
 
@@ -55,6 +55,14 @@ module AppApi
         "The web process cannot reach the primary database: #{safe_error(e)}.",
         "Verify DB_HOST, SYRUS_DATABASE_PASSWORD, database migrations, and network access from the web pod."
       )
+    end
+
+    def active_record_encryption_ready?
+      plaintext = "syrus-readiness-probe"
+      ciphertext = ActiveRecord::Encryption.encryptor.encrypt(plaintext)
+      ActiveRecord::Encryption.encryptor.decrypt(ciphertext) == plaintext
+    rescue StandardError
+      false
     end
 
     def worker_queue_check

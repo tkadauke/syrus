@@ -54,12 +54,11 @@ the provider can invoke the registered MCP tool.
 ## Credential Encryption
 
 Each user's GitHub and agent credentials are stored as Active Record
-encrypted attributes. The database holds ciphertext; production deploys
-should provide stable `ACTIVE_RECORD_ENCRYPTION_*` environment variables
-for any web, worker, or console process that touches users. If those
-variables are absent, Rails falls back to credentials, so
-`RAILS_MASTER_KEY` must be stable instead. Push credentials are also kept
-off disk: clone remotes use anonymous GitHub URLs, and Syrus constructs a
+encrypted attributes. The database holds ciphertext; Rails credentials or
+direct `ACTIVE_RECORD_ENCRYPTION_*` environment variables hold the
+encryption keys, so any web, worker, console, or test process that touches
+users needs one complete key source. Push credentials are also kept off
+disk: clone remotes use anonymous GitHub URLs, and Syrus constructs a
 token-bearing URL only for the individual push command.
 
 ## MVP Trust Boundary
