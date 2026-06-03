@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
+import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill, TonePill } from "../components/StatusPill"
 import { FilterBar, filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren } from "../components/FilterBar"
@@ -139,9 +140,11 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
 }
 
 function DashboardContent({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
+  const setupStatus = useSetupStatus()
+
   return (
     <section className="min-w-0 space-y-4">
-      <DashboardTable payload={payload} prefix={prefix} />
+      <DashboardTable payload={payload} prefix={prefix} setupStatus={setupStatus} />
       {payload.view === "list" ? <Pagination pathname={pathname} search={search} payload={payload} /> : null}
     </section>
   )
@@ -459,7 +462,7 @@ function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardP
 
 const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
 
-function DashboardTable({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
+function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const queryClient = useQueryClient()
   const updateSort = useMutation({
     mutationFn: updateDashboardPreferences,
@@ -487,10 +490,23 @@ function DashboardTable({ payload, prefix }: { payload: DashboardPayload; prefix
     }
   }
 
-  if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} />
+  if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} setupStatus={setupStatus} />
 
   if (payload.items.length === 0) {
-    return <DashboardEmptyState payload={payload} prefix={prefix} />
+    if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
+      return (
+        <OnboardingEmptyState
+          fallbackActionPath={dashboardEmptyFallbackPath(payload)}
+          fallbackActionText={payload.subject === "epic" ? "Create Epic" : "Create direct job"}
+          fallbackDescription={`No ${subjectLabel(payload.subject, 2)} exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.`}
+          fallbackTitle={`No ${subjectLabel(payload.subject, 2)} yet`}
+          prefix={prefix}
+          setupStatus={setupStatus}
+        />
+      )
+    }
+
+    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500">No {subjectLabel(payload.subject, 2)} match this view.</div>
   }
 
   const columns = dashboardVisibleColumns(payload)
@@ -500,36 +516,7 @@ function DashboardTable({ payload, prefix }: { payload: DashboardPayload; prefix
   return <EpicsTable columns={epicTableColumns(columns)} items={payload.items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
 }
 
-function DashboardEmptyState({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
-  const setup = payload.setup
-  if (setup && !setup.complete && payload.subject === "job") {
-    const action = setupDashboardAction(setup)
-    return (
-      <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
-        <p>{action.message}</p>
-        <Link className="mt-3 inline-flex font-medium text-blue-700 hover:text-blue-900" to={withRoutePrefix(action.path, prefix)}>{action.label}</Link>
-      </div>
-    )
-  }
-
-  return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500">No {subjectLabel(payload.subject, 2)} match this view.</div>
-}
-
-function setupDashboardAction(setup: NonNullable<DashboardPayload["setup"]>) {
-  if (!setup.credentials.ready) {
-    return { label: "Open setup", path: setup.paths.setup_path, message: "No Jobs yet. Finish credentials first so Syrus can talk to GitHub and the selected agent." }
-  }
-  if (setup.repositories.active_count === 0) {
-    return { label: "Add repository", path: setup.paths.new_repository_path, message: "No Jobs yet. Add a repository, then create a direct Job or delegate a GitHub issue." }
-  }
-  if (!setup.first_job.any) {
-    return { label: "Create direct Job", path: setup.paths.new_job_path, message: "No Jobs yet. Create a direct Job, or label a GitHub issue from the repository page." }
-  }
-
-  return { label: "Open setup", path: setup.paths.setup_path, message: "Watch the first Job until it succeeds, opens a PR, or shows a failure to diagnose." }
-}
-
-function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
+function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const queryClient = useQueryClient()
   const [draggedEpic, setDraggedEpic] = useState<DashboardEpicItem | null>(null)
   const [dragOverLane, setDragOverLane] = useState<string | null>(null)
@@ -552,6 +539,19 @@ function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefi
 
   if (payload.lanes.length === 0) {
     return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500">No kanban lanes are configured.</div>
+  }
+
+  if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
+    return (
+      <OnboardingEmptyState
+        fallbackActionPath={dashboardEmptyFallbackPath(payload)}
+        fallbackActionText={payload.subject === "epic" ? "Create Epic" : "Create direct job"}
+        fallbackDescription={`No ${subjectLabel(payload.subject, 2)} exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.`}
+        fallbackTitle={`No ${subjectLabel(payload.subject, 2)} yet`}
+        prefix={prefix}
+        setupStatus={setupStatus}
+      />
+    )
   }
 
   function startDrag(epic: DashboardEpicItem, event: DragEvent<HTMLElement>) {
@@ -614,6 +614,10 @@ function DashboardKanban({ payload, prefix }: { payload: DashboardPayload; prefi
       </div>
     </>
   )
+}
+
+function dashboardEmptyFallbackPath(payload: DashboardPayload) {
+  return payload.subject === "epic" ? payload.paths.new_epic_path : payload.paths.new_job_path
 }
 
 function KanbanLane({

@@ -3872,7 +3872,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("link", { name: "Add one first" })).toHaveAttribute("href", "/app-shell/repositories/new")
+    expect(await screen.findByRole("heading", { name: "No active repositories" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Add repository" })).toHaveAttribute("href", "/app-shell/repositories/new")
   })
 
   it("creates a direct job and navigates within the React shell", async () => {
@@ -3993,30 +3994,34 @@ describe("App", () => {
     expect(await screen.findByText("Polling acme/widgets now.")).toBeInTheDocument()
   })
 
-  it("points an empty repository list at credentials when setup is incomplete", async () => {
+  it("points an empty repositories index to the setup next action", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({ setupStatus: bootstrapSetupStatusPayload({ nextStep: "configure_credentials" }) }))
+    document.body.appendChild(script)
     vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify(
-          repositoriesPayload({
-            active_repositories: [],
-            archived_repositories: [],
-            setup: setupStatusPayload()
-          })
-        ),
-        { status: 200, headers: { "Content-Type": "application/json" } }
+      new Response(JSON.stringify({
+        ...repositoriesPayload(),
+        active_repositories: [],
+        archived_repositories: []
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
       )
-    )
 
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByText("Credentials are the next setup step. Add a GitHub PAT and credentials for Claude before adding a repository.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Open credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+      expect(await screen.findByRole("heading", { name: "Connect credentials first" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Open credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+    } finally {
+      script.remove()
+    }
   })
 
   it("renders the repository form with GitHub selectors and submits it to the app API", async () => {
@@ -6774,7 +6779,9 @@ describe("App", () => {
   })
 })
 
-function bootstrapPayload(overrides: Record<string, unknown> = {}) {
+function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: ReturnType<typeof bootstrapSetupStatusPayload> | null } = {}) {
+  const { setupStatus, ...payloadOverrides } = overrides
+
   return {
     current_user: {
       id: 1,
@@ -6805,12 +6812,12 @@ function bootstrapPayload(overrides: Record<string, unknown> = {}) {
     navigation: {
       default_chat_path: "/chats/9"
     },
-    setup_status: setupStatus(),
     csrf_token: "csrf-token",
+    setup_status: setupStatus ?? (payloadOverrides.setup_status as ReturnType<typeof bootstrapSetupStatusPayload> | undefined) ?? defaultSetupStatus(),
     feature_flags: {
       migrated_routes: []
     },
-    ...overrides
+    ...payloadOverrides
   }
 }
 
@@ -6914,6 +6921,38 @@ function publicBootstrapPayload(overrides: Partial<BootstrapPayload["public"]> =
       docs_url: "https://syrus.dev/docs/getting-started",
       evaluation_url: "https://syrus.dev/evaluate",
       ...overrides
+    }
+  }
+}
+
+function bootstrapSetupStatusPayload(overrides: { nextStep?: "configure_credentials" | "add_repository" | "start_first_job" | null } = {}) {
+  const nextStep = overrides.nextStep ?? "start_first_job"
+  const nextStepPath = {
+    configure_credentials: "/credentials/edit",
+    add_repository: "/repositories/new",
+    start_first_job: "/jobs/new"
+  }[nextStep || "start_first_job"] || null
+
+  return {
+    state: nextStep === "configure_credentials" ? "not_started" : nextStep === "add_repository" ? "credentials_only" : nextStep === "start_first_job" ? "ready_for_first_job" : "first_successful_job",
+    next_step: nextStep,
+    next_step_path: nextStep ? nextStepPath : null,
+    first_admin: false,
+    credentials_configured: nextStep !== "configure_credentials",
+    repository_configured: nextStep === "start_first_job" || nextStep === null,
+    first_successful_job_completed: nextStep === null,
+    credential_status: {
+      github: nextStep !== "configure_credentials",
+      agent: nextStep !== "configure_credentials",
+      active_agent_provider: "claude"
+    },
+    readiness: {
+      status: "ok",
+      checks: []
+    },
+    counts: {
+      repositories: nextStep === "add_repository" || nextStep === "configure_credentials" ? 0 : 1,
+      successful_jobs: nextStep === null ? 1 : 0
     }
   }
 }

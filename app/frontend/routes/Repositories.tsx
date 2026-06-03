@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
   archiveRepository,
   fetchRepositories,
@@ -37,6 +38,7 @@ export function RepositoriesIndex() {
 
 function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; prefix: string }) {
   const queryClient = useQueryClient()
+  const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const command = useMutation({
     mutationFn: (action: RepositoryAction) => {
@@ -78,7 +80,14 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
           />
         </section>
       ) : (
-        <RepositoriesEmptyState payload={payload} prefix={prefix} />
+        <OnboardingEmptyState
+          fallbackActionPath={payload.new_repository_path}
+          fallbackActionText="Add repository"
+          fallbackDescription="Add a repository to start polling for labelled GitHub issues and to unlock direct jobs."
+          fallbackTitle="No active repositories"
+          prefix={prefix}
+          setupStatus={setupStatus}
+        />
       )}
 
       {payload.archived_repositories.length > 0 ? (
@@ -94,25 +103,6 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
         </section>
       ) : null}
     </>
-  )
-}
-
-function RepositoriesEmptyState({ payload, prefix }: { payload: RepositoriesPayload; prefix: string }) {
-  const setup = payload.setup
-  if (setup && !setup.credentials.ready) {
-    return (
-      <section className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
-        <p>Credentials are the next setup step. Add a GitHub PAT and credentials for {titleize(setup.credentials.selected_agent_provider)} before adding a repository.</p>
-        <Link className="mt-3 inline-flex font-medium text-blue-700 hover:text-blue-900" to={withRoutePrefix(setup.paths.credentials_path, prefix)}>Open credentials</Link>
-      </section>
-    )
-  }
-
-  return (
-    <section className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
-      <p>No active repositories. Add one to start polling for issues labelled <code className="rounded bg-gray-100 px-1">syrus</code>, then create a direct Job or delegate a GitHub issue.</p>
-      <Link className="mt-3 inline-flex font-medium text-blue-700 hover:text-blue-900" to={withRoutePrefix(payload.new_repository_path, prefix)}>Add repository</Link>
-    </section>
   )
 }
 
@@ -266,10 +256,6 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
 function formatDate(value: string | null) {
   if (!value) return "-"
   return new Date(value).toLocaleString()
-}
-
-function titleize(value: string) {
-  return value.replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
 function routePrefix(pathname: string) {

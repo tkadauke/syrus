@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
   createDirectJob,
   fetchDirectJobForm,
@@ -45,6 +46,7 @@ export function DirectJobNewRoute() {
 
 function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; prefix: string }) {
   const navigate = useNavigate()
+  const setupStatus = useSetupStatus()
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -107,10 +109,14 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
 
   if (payload.repositories.length === 0) {
     return (
-      <section className="rounded border border-dashed border-gray-300 bg-white p-8 text-center">
-        <p className="text-sm text-gray-600">No active repositories.</p>
-        <Link className="mt-3 inline-block rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.new_repository_path, prefix)}>Add one first</Link>
-      </section>
+      <OnboardingEmptyState
+        fallbackActionPath={payload.new_repository_path}
+        fallbackActionText="Add repository"
+        fallbackDescription="Direct jobs run inside an active repository. Add one first, then return here with the repository preselected."
+        fallbackTitle="No active repositories"
+        prefix={prefix}
+        setupStatus={setupStatus}
+      />
     )
   }
 

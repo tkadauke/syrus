@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
@@ -82,6 +83,7 @@ function appendSearch(path: string, search: string) {
 }
 
 function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview" | "context"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
+  const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
 
   return (
@@ -101,7 +103,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
           <RepositorySummary payload={payload} />
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <CredentialNotice payload={payload} />
-          <RecentJobs payload={payload} prefix={prefix} />
+          <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
         </>
       )}
     </>
@@ -110,6 +112,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
 
 function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayload; prefix: string }) {
   const queryClient = useQueryClient()
+  const setupStatus = useSetupStatus()
   const queryKey = ["repositories", String(payload.repository.id), "issues", payload.state] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [selected, setSelected] = useState<number[]>([])
@@ -233,7 +236,14 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
           </table>
         </div>
       ) : (
-        <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">No {payload.state} issues found.</div>
+        <OnboardingEmptyState
+          fallbackActionPath={payload.state === "open" ? payload.paths.github_issues_path : payload.state_paths.open}
+          fallbackActionText={payload.state === "open" ? "View GitHub issues" : "Show open issues"}
+          fallbackDescription={payload.state === "open" ? `No open issues are available to delegate. Create or label an issue with ${payload.repository.trigger_label}, or use a direct job for first-run work.` : "No closed issues are available in this repository view."}
+          fallbackTitle={`No ${payload.state} issues found`}
+          prefix={prefix}
+          setupStatus={setupStatus}
+        />
       )}
 
       {commentingOn ? (
@@ -543,14 +553,19 @@ function PinnedContext({ payload, queryKey, onNotice }: { payload: RepositoryDet
   )
 }
 
-function RecentJobs({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
+function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetailPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   if (payload.jobs.length === 0) {
     return (
       <section>
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Recent jobs</h2>
-        <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
-          No jobs yet. Enable polling or label an issue <code className="rounded bg-gray-100 px-1">{payload.repository.trigger_label}</code> in this repo.
-        </div>
+        <OnboardingEmptyState
+          fallbackActionPath={payload.paths.new_job_path}
+          fallbackActionText="Create direct job"
+          fallbackDescription={`No jobs have run for this repository. Create a direct job now, or label a GitHub issue with ${payload.repository.trigger_label} for polling.`}
+          fallbackTitle="No jobs yet"
+          prefix={prefix}
+          setupStatus={setupStatus}
+        />
       </section>
     )
   }

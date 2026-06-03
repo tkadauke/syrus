@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
+import { useLocation } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
   clearCredential,
   fetchCredentials,
@@ -36,12 +38,23 @@ export function CredentialsRoute() {
 }
 
 function CredentialsView({ payload }: { payload: CredentialsPayload }) {
+  const location = useLocation()
+  const setupStatus = useSetupStatus()
+  const prefix = routePrefix(location.pathname)
   const [notice, setNotice] = useState<string | null>(payload.message || null)
 
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <GithubCredentialGuide />
+      {setupStatus && !setupStatus.first_successful_job_completed ? (
+        <OnboardingEmptyState
+          fallbackDescription="Save the GitHub and agent credentials Syrus should use, then continue to repository setup."
+          fallbackTitle="Finish setup"
+          prefix={prefix}
+          setupStatus={setupStatus}
+        />
+      ) : null}
       <CredentialsForm onNotice={setNotice} payload={payload} />
       {payload.user.admin ? <ApiTokenPanel onNotice={setNotice} payload={payload} /> : null}
     </>
@@ -457,4 +470,8 @@ function titleize(value: string) {
 
 function errorMessage(error: Error, fallback: string) {
   return error instanceof ApiError ? error.message : fallback
+}
+
+function routePrefix(pathname: string) {
+  return pathname.startsWith("/app-shell") ? "/app-shell" : ""
 }
