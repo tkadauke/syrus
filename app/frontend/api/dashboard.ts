@@ -59,6 +59,8 @@ export type DashboardJobItem = {
   started_at: string | null
   finished_at: string | null
   approved_at: string | null
+  owner_user_id: number | null
+  owner_user: DashboardOwnerUser | null
   dependencies_overridden_at: string | null
   last_feedback_addressed_at: string | null
   last_seen_comment_at: string | null

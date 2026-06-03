@@ -39,6 +39,8 @@ RSpec.describe "App API job detail", type: :request do
 
   it "returns a structured job detail payload for React rendering" do
     user.update!(admin: false)
+    owner = Factories.user(email_address: "owner@example.com")
+    job.update!(owner_user: owner)
     tag = Factories.tag(user: user, name: "priority:forum")
     job.job_tags.create!(tag: tag)
     target = Factories.job(repository: repo, issue_number: 41, issue_title: "Build hill")
@@ -63,6 +65,10 @@ RSpec.describe "App API job detail", type: :request do
     expect(body.dig("job", "id")).to eq(job.id)
     expect(body.dig("job", "issue_title")).to eq("Repair aqueduct")
     expect(body.dig("job", "total_cost_usd")).to be_nil
+    expect(body["job"]).to include(
+      "owner_user_id" => owner.id,
+      "owner_user" => include("id" => owner.id, "email_address" => "owner@example.com")
+    )
     expect(body.dig("job", "pr_url")).to eq("https://github.com/acme/widgets/pull/7")
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
     expect(body["pinned"]).to eq(false)

@@ -181,6 +181,9 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
   it "claims an unclaimed Epic atomically through the app API" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, owner_user: nil)
+    unowned_child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: nil)
+    existing_owner = Factories.user(email_address: "already-owned@example.com")
+    owned_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, owner_user: existing_owner)
 
     patch "/api/v1/app/epics/#{epic.id}/claim"
 
@@ -192,12 +195,19 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "owner_user" => include("id" => user.id, "email_address" => user.email_address)
     )
     expect(epic.reload.owner_user).to eq(user)
+    expect(unowned_child.reload.owner_user).to eq(user)
+    expect(owned_child.reload.owner_user).to eq(existing_owner)
+    expect(parse_body["jobs"]).to include(
+      include("id" => unowned_child.id, "owner_user_id" => user.id, "owner_user" => include("email_address" => user.email_address)),
+      include("id" => owned_child.id, "owner_user_id" => existing_owner.id, "owner_user" => include("email_address" => "already-owned@example.com"))
+    )
   end
 
   it "rejects claim races instead of overwriting the current owner" do
     sign_in_as(user)
     current_owner = Factories.user(email_address: "owner@example.com")
     epic = Factories.epic(user: user, repository: repository, owner_user: current_owner)
+    unowned_child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: nil)
 
     patch "/api/v1/app/epics/#{epic.id}/claim"
 
@@ -205,6 +215,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(parse_body.dig("error", "code")).to eq("epic_already_owned")
     expect(parse_body.dig("error", "message")).to include("owner@example.com")
     expect(epic.reload.owner_user).to eq(current_owner)
+    expect(unowned_child.reload.owner_user).to be_nil
   end
 
   it "returns a clear error when claiming an Epic already claimed by the current user" do
@@ -270,6 +281,9 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     admin_repo = Factories.repository(user: admin, owner: "acme", name: "forums")
     new_owner = Factories.user(email_address: "assignee@example.com")
     epic = Factories.epic(user: admin, repository: admin_repo, owner_user: nil)
+    unowned_child = Factories.job_record(user: admin, repository: admin_repo, epic: epic, owner_user: nil)
+    previous_child_owner = Factories.user(email_address: "previous-child@example.com")
+    owned_child = Factories.job_record(user: admin, repository: admin_repo, epic: epic, issue_number: 43, owner_user: previous_child_owner)
     sign_in_as(admin)
 
     patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: new_owner.id }
@@ -282,6 +296,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "owner_user" => include("id" => new_owner.id, "email_address" => "assignee@example.com")
     )
     expect(epic.reload.owner_user).to eq(new_owner)
+    expect(unowned_child.reload.owner_user).to eq(new_owner)
+    expect(owned_child.reload.owner_user).to eq(new_owner)
   end
 
   it "requires admin access to reassign Epic ownership" do

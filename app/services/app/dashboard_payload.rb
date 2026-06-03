@@ -545,6 +545,8 @@ module App
         started_at: job.started_at&.iso8601,
         finished_at: job.finished_at&.iso8601,
         approved_at: job.approved_at&.iso8601,
+        owner_user_id: job.owner_user_id,
+        owner_user: owner_user_json(job.owner_user),
         dependencies_overridden_at: job.dependencies_overridden_at&.iso8601,
         last_feedback_addressed_at: job.last_feedback_addressed_at&.iso8601,
         last_seen_comment_at: job.last_seen_comment_at&.iso8601,

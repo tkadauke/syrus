@@ -185,6 +185,14 @@ class Epic < ApplicationRecord
     override_state!("in_progress")
   end
 
+  def claim_unowned_child_jobs!(owner)
+    jobs.where(owner_user_id: nil).update_all(owner_user_id: owner.id, updated_at: Time.current)
+  end
+
+  def reassign_child_jobs_to_owner!(owner)
+    jobs.update_all(owner_user_id: owner.id, updated_at: Time.current)
+  end
+
   def unblock_child_jobs!
     @releasing_jobs_for_execution = true
     begin

@@ -54,6 +54,7 @@ module Api
 
             epic.owner_user = Current.user
             epic.claim!(Current.user)
+            epic.claim_unowned_child_jobs!(Current.user)
           end
 
           render json: detail_payload(epic.reload, message: "Epic claimed.")
@@ -98,6 +99,7 @@ module Api
 
           epic.with_lock do
             epic.reassign!(owner, actor: Current.user)
+            epic.reassign_child_jobs_to_owner!(owner)
           end
 
           render json: detail_payload(epic.reload, message: "Epic reassigned.")
@@ -247,6 +249,8 @@ module Api
             title: job.issue_title.to_s,
             path: job_path(job),
             state: job_summary_state(job),
+            owner_user_id: job.owner_user_id,
+            owner_user: owner_user_json(job.owner_user),
             repository_slug: job.repository.slug
           }
         end

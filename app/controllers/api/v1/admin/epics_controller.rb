@@ -40,7 +40,7 @@ module Api
         def show
           epic = Epic.includes(:repository, :user, :owner_user, dependencies: :depends_on_epic,
                                                     dependent_links: :epic,
-                                                    jobs: :repository)
+                                                    jobs: [ :repository, :owner_user ])
                      .find(params[:id])
           render json: serialize(epic)
         end
@@ -147,6 +147,8 @@ module Api
             kind:           job.kind,
             validity:       job.validity,
             closure_reason: job.closure_reason,
+            owner_user_id:  job.owner_user_id,
+            owner_user:     owner_user_json(job.owner_user),
             issue_number:   job.issue_number,
             pr_number:      job.pr_number,
             repository:     job.repository.slug,

@@ -19,6 +19,7 @@ class Job < ApplicationRecord
   attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings
 
   belongs_to :user
+  belongs_to :owner_user, class_name: "User", optional: true
   belongs_to :repository
   belongs_to :scheduled_task, optional: true
   belongs_to :epic, optional: true

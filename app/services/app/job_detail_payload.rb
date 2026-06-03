@@ -80,6 +80,8 @@ module App
         approved_at: iso8601(@job.approved_at),
         approved_via: @job.approved_via,
         approved_by_user_id: @job.approved_by_user_id,
+        owner_user_id: @job.owner_user_id,
+        owner_user: owner_user_json(@job.owner_user),
         approval_evidence: @job.approval_evidence,
         invalidation_reason: @job.invalidation_reason,
         invalidation_evidence: @job.invalidation_evidence,
@@ -118,6 +120,15 @@ module App
         id: tag.id,
         name: tag.name,
         color: tag.color
+      }
+    end
+
+    def owner_user_json(owner_user)
+      return nil unless owner_user
+
+      {
+        id: owner_user.id,
+        email_address: owner_user.email_address
       }
     end
 

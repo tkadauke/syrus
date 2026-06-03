@@ -83,6 +83,7 @@ module Api
           Current.user.jobs
                       .includes(
                         :repository,
+                        :owner_user,
                         :tags,
                         job_attachments: { file_attachment: :blob },
                         dependencies: [ :created_by_user, depends_on_job: :repository ],

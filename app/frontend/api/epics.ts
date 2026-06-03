@@ -102,6 +102,8 @@ export type EpicDetailJob = {
   title: string
   path: string
   state: string
+  owner_user_id: number | null
+  owner_user: EpicOwnerUser | null
   repository_slug: string
 }
 

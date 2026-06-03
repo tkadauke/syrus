@@ -22,7 +22,7 @@ module Api
         # Job ID so callers can drill into `/api/v1/admin/jobs/:id`
         # for the full nested state.
         def index
-          scope = Job.includes(:repository).order(updated_at: :desc)
+          scope = Job.includes(:repository, :owner_user).order(updated_at: :desc)
           scope = scope.where(pr_number: params[:pr_number])       if params[:pr_number].present?
           scope = scope.where(issue_number: params[:issue_number]) if params[:issue_number].present?
           if params[:state].present?
@@ -92,6 +92,8 @@ module Api
             credential_mode: job.credential_mode,
             triaging_reason: job.triaging_reason,
             epic_id:        job.epic_id,
+            owner_user_id:  job.owner_user_id,
+            owner_user:     owner_user_json(job.owner_user),
             agent_provider: job.agent_provider,
             repository:     job.repository.slug,
             issue_number:   job.issue_number,
@@ -122,6 +124,8 @@ module Api
             invalidation_evidence: job.invalidation_evidence,
             triaging_reason: job.triaging_reason,
             epic_id: job.epic_id,
+            owner_user_id: job.owner_user_id,
+            owner_user: owner_user_json(job.owner_user),
             agent_provider: job.agent_provider,
             stack_base: job.stack_base,
             parent_job_id: job.parent_job_id,
@@ -201,6 +205,15 @@ module Api
             github_api_blocked_at: user.gh_api_blocked_at,
             github_api_blocked_reason: user.gh_api_blocked_reason,
             github_rate_limit: github_rate_limit_payload(user)
+          }
+        end
+
+        def owner_user_json(owner_user)
+          return nil unless owner_user
+
+          {
+            id: owner_user.id,
+            email_address: owner_user.email_address
           }
         end
 

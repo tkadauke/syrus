@@ -34,6 +34,8 @@ export type JobRecord = {
   approved_at: string | null
   approved_via: string | null
   total_cost_usd: number | null
+  owner_user_id: number | null
+  owner_user: JobOwnerUser | null
   billed_runs_count: number
   workflows_count: number
   runs_count: number
@@ -44,6 +46,11 @@ export type JobRecord = {
   updated_at: string | null
   started_at: string | null
   finished_at: string | null
+}
+
+export type JobOwnerUser = {
+  id: number
+  email_address: string
 }
 
 export type JobTag = {
