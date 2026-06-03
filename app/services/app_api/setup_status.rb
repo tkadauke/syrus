@@ -3,7 +3,8 @@ module AppApi
     NEXT_STEP_PATHS = {
       "configure_credentials" => "/credentials/edit",
       "add_repository" => "/repositories/new",
-      "start_first_job" => "/jobs/new"
+      "start_first_job" => "/jobs/new",
+      "watch_first_job" => "/dashboard/jobs?view=list"
     }.freeze
 
     def initialize(user)
@@ -18,6 +19,7 @@ module AppApi
         first_admin: first_admin?,
         credentials_configured: credentials_configured?,
         repository_configured: repository_configured?,
+        first_job_started: first_job_started?,
         first_successful_job_completed: first_successful_job_completed?,
         credential_status: credential_status,
         readiness: readiness,
@@ -33,6 +35,7 @@ module AppApi
       return "first_successful_job" if first_successful_job_completed?
       return "credentials_only" if credentials_configured? && !repository_configured?
       return "repository_only" if repository_configured? && !credentials_configured?
+      return "first_job_started" if first_job_started?
       return "ready_for_first_job" if credentials_configured? && repository_configured?
       return "first_admin" if first_admin?
 
@@ -43,6 +46,7 @@ module AppApi
       return nil if first_successful_job_completed?
       return "configure_credentials" unless credentials_configured?
       return "add_repository" unless repository_configured?
+      return "watch_first_job" if first_job_started?
 
       "start_first_job"
     end
@@ -71,6 +75,10 @@ module AppApi
       successful_job_count.positive?
     end
 
+    def first_job_started?
+      job_count.positive?
+    end
+
     def credential_status
       {
         github: github_credential_configured?,
@@ -86,6 +94,7 @@ module AppApi
     def counts
       {
         repositories: active_repository_count,
+        jobs: job_count,
         successful_jobs: successful_job_count
       }
     end
@@ -98,6 +107,10 @@ module AppApi
       @successful_job_count ||= user.jobs
         .where(state: "closed", closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS)
         .count
+    end
+
+    def job_count
+      @job_count ||= user.jobs.count
     end
   end
 end

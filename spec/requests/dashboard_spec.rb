@@ -6,7 +6,7 @@ RSpec.describe "Dashboard routes", type: :request do
   it "serves canonical dashboard pages through the React shell" do
     sign_in_as(user)
 
-    [ dashboard_path, dashboard_epics_path, dashboard_jobs_path, dashboard_workflows_path ].each do |path|
+    [ onboarding_path, dashboard_path, dashboard_epics_path, dashboard_jobs_path, dashboard_workflows_path ].each do |path|
       get path
 
       expect(response).to have_http_status(:ok)

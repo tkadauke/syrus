@@ -27,6 +27,7 @@ import { DirectJobNewRoute } from "./DirectJobNew"
 import { EpicDetailRoute } from "./EpicDetail"
 import { EpicFormRoute } from "./EpicForm"
 import { JobDetailRoute } from "./JobDetail"
+import { OnboardingRoute } from "./Onboarding"
 import { PersonalDocumentsRoute } from "./PersonalDocuments"
 import { RepositoriesIndex } from "./Repositories"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
@@ -119,7 +120,7 @@ export function App() {
     <AppChrome initialBootstrap={initialBootstrap}>
       <Routes>
         <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
-        {renderAppRoutes()}
+        {renderAppRoutes(initialBootstrap)}
         <Route path="*" element={<BootstrapShell initialBootstrap={initialBootstrap} />} />
       </Routes>
     </AppChrome>
@@ -146,7 +147,13 @@ function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | 
     )
   }
 
-  if (bootstrap.data.current_user) return <DashboardRoute />
+  if (bootstrap.data.current_user) {
+    if (bootstrap.data.setup_status && !bootstrap.data.setup_status.first_successful_job_completed) {
+      return <Navigate replace to="/onboarding" />
+    }
+
+    return <DashboardRoute />
+  }
 
   return <PublicLanding payload={bootstrap.data} />
 }
@@ -269,11 +276,25 @@ function publicCta(publicState: BootstrapPayload["public"], prefix: string, invi
   }
 }
 
-function renderAppRoutes() {
+function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
   return appRouteDefinitions.flatMap(({ path, element }) => [
     <Route element={element} key={path} path={path} />,
     <Route element={element} key={`/app-shell${path}`} path={`/app-shell${path}`} />
+  ]).concat([
+    <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
+    <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
   ])
+}
+
+function OnboardingShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {
+  const bootstrap = useQuery({
+    queryKey: ["bootstrap"],
+    queryFn: fetchBootstrap,
+    initialData: initialBootstrap ?? undefined,
+    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
+  })
+
+  return <OnboardingRoute bootstrap={bootstrap.data ?? initialBootstrap} />
 }
 
 function AppChrome({ children, initialBootstrap }: { children: ReactNode; initialBootstrap: BootstrapPayload | null }) {

@@ -19,12 +19,13 @@ export type BootstrapPayload = {
     revision_url: string | null
   }
   setup_status: {
-    state: "not_started" | "first_admin" | "credentials_only" | "repository_only" | "ready_for_first_job" | "first_successful_job"
-    next_step: "configure_credentials" | "add_repository" | "start_first_job" | null
+    state: "not_started" | "first_admin" | "credentials_only" | "repository_only" | "ready_for_first_job" | "first_job_started" | "first_successful_job"
+    next_step: "configure_credentials" | "add_repository" | "start_first_job" | "watch_first_job" | null
     next_step_path: string | null
     first_admin: boolean
     credentials_configured: boolean
     repository_configured: boolean
+    first_job_started: boolean
     first_successful_job_completed: boolean
     credential_status: {
       github: boolean
@@ -44,6 +45,7 @@ export type BootstrapPayload = {
     }
     counts: {
       repositories: number
+      jobs: number
       successful_jobs: number
     }
   } | null

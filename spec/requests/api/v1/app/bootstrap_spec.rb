@@ -78,6 +78,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "first_admin" => true,
       "credentials_configured" => false,
       "repository_configured" => false,
+      "first_job_started" => false,
       "first_successful_job_completed" => false
     )
     expect(body["public"]).to include(
@@ -111,6 +112,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "next_step_path" => "/repositories/new",
       "credentials_configured" => true,
       "repository_configured" => false,
+      "first_job_started" => false,
       "first_successful_job_completed" => false
     )
     expect(setup.fetch("credential_status")).to eq(
@@ -120,7 +122,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     )
     expect(setup.fetch("readiness")).to include("status")
     expect(setup.dig("readiness", "checks").map { |check| check["key"] }).to include("github", "agent_provider", "storage")
-    expect(setup.fetch("counts")).to include("repositories" => 0, "successful_jobs" => 0)
+    expect(setup.fetch("counts")).to include("repositories" => 0, "jobs" => 0, "successful_jobs" => 0)
     expect(response.body).not_to include("ghp_secret_pat", "claude_secret_token")
     expect(setup.to_json).not_to include("github_token", "claude_oauth_token", "codex_api_key", "codex_auth_json")
   end
@@ -187,9 +189,34 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "next_step_path" => "/credentials/edit",
       "credentials_configured" => false,
       "repository_configured" => true,
+      "first_job_started" => false,
       "first_successful_job_completed" => false
     )
-    expect(setup.fetch("counts")).to include("repositories" => 1, "successful_jobs" => 0)
+    expect(setup.fetch("counts")).to include("repositories" => 1, "jobs" => 0, "successful_jobs" => 0)
+  end
+
+  it "reports first-job-started setup status before a successful close" do
+    user = Factories.user(
+      github_token: "ghp_secret_pat",
+      claude_oauth_token: "claude_secret_token"
+    )
+    repository = Factories.repository(user: user)
+    Factories.job_record(user: user, repository: repository, state: "running")
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    setup = parse_body.fetch("setup_status")
+    expect(setup).to include(
+      "state" => "first_job_started",
+      "next_step" => "watch_first_job",
+      "next_step_path" => "/dashboard/jobs?view=list",
+      "credentials_configured" => true,
+      "repository_configured" => true,
+      "first_job_started" => true,
+      "first_successful_job_completed" => false
+    )
+    expect(setup.fetch("counts")).to include("repositories" => 1, "jobs" => 1, "successful_jobs" => 0)
   end
 
   it "reports first-successful-job setup status" do
@@ -216,9 +243,10 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "next_step_path" => nil,
       "credentials_configured" => true,
       "repository_configured" => true,
+      "first_job_started" => true,
       "first_successful_job_completed" => true
     )
-    expect(setup.fetch("counts")).to include("repositories" => 1, "successful_jobs" => 1)
+    expect(setup.fetch("counts")).to include("repositories" => 1, "jobs" => 1, "successful_jobs" => 1)
   end
 
   it "uses the configured GitHub repository for non-dev revision links" do

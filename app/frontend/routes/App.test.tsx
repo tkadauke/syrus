@@ -536,6 +536,114 @@ describe("App", () => {
     expect(screen.getByText("Keeps the machines honest.")).toBeInTheDocument()
   })
 
+  it("sends first-run users from the app root to onboarding", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      setup_status: setupStatus({
+        state: "first_admin",
+        next_step: "configure_credentials",
+        next_step_path: "/credentials/edit",
+        credentials_configured: false,
+        repository_configured: false,
+        first_job_started: false,
+        first_successful_job_completed: false,
+        credential_status: {
+          github: false,
+          agent: false,
+          active_agent_provider: "claude"
+        },
+        counts: {
+          repositories: 0,
+          jobs: 0,
+          successful_jobs: 0
+        }
+      })
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockRejectedValue(new Error("unexpected fetch"))
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("main", { name: "Onboarding" })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: "Set up Syrus" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Configure GitHub" })).toHaveAttribute("href", "/credentials/edit")
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      script.remove()
+    }
+  })
+
+  it("renders the next useful onboarding step for a job already in flight", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      setup_status: setupStatus({
+        state: "first_job_started",
+        next_step: "watch_first_job",
+        next_step_path: "/dashboard/jobs?view=list",
+        first_job_started: true,
+        first_successful_job_completed: false,
+        counts: {
+          repositories: 1,
+          jobs: 1,
+          successful_jobs: 0
+        }
+      })
+    }))
+    document.body.appendChild(script)
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/onboarding"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("main", { name: "Onboarding" })).toBeInTheDocument()
+      expect(screen.getByText("5")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Watch jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(screen.queryByRole("link", { name: "Start direct job" })).not.toBeInTheDocument()
+    } finally {
+      script.remove()
+    }
+  })
+
+  it("shows completion on onboarding once the first successful job exists", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/onboarding"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("main", { name: "Onboarding" })).toBeInTheDocument()
+      expect(screen.getByText("Ready for normal operations")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Open dashboard" })).toHaveAttribute("href", "/dashboard/jobs?view=list")
+    } finally {
+      script.remove()
+    }
+  })
+
   it("omits the quote footer on chat routes", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
@@ -6632,7 +6740,7 @@ function bootstrapPayload(overrides: Record<string, unknown> = {}) {
     navigation: {
       default_chat_path: "/chats/9"
     },
-    setup_status: defaultSetupStatus(),
+    setup_status: setupStatus(),
     csrf_token: "csrf-token",
     feature_flags: {
       migrated_routes: []
@@ -6641,15 +6749,16 @@ function bootstrapPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function defaultSetupStatus() {
+function setupStatus(overrides: Record<string, unknown> = {}) {
   return {
-    state: "ready_for_first_job",
-    next_step: "start_first_job",
-    next_step_path: "/jobs/new",
+    state: "first_successful_job",
+    next_step: null,
+    next_step_path: null,
     first_admin: true,
     credentials_configured: true,
     repository_configured: true,
-    first_successful_job_completed: false,
+    first_job_started: true,
+    first_successful_job_completed: true,
     credential_status: {
       github: true,
       agent: true,
@@ -6661,8 +6770,10 @@ function defaultSetupStatus() {
     },
     counts: {
       repositories: 1,
-      successful_jobs: 0
-    }
+      jobs: 1,
+      successful_jobs: 1
+    },
+    ...overrides
   }
 }
 

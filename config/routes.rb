@@ -276,6 +276,7 @@ Rails.application.routes.draw do
   get "profiles/:id", to: "spa#show", as: :profile, constraints: { id: /\d+/ }
   get "scheduled_tasks/:id", to: "spa#show", as: :scheduled_task, constraints: { id: /\d+/ }
   get "scheduled_tasks/:id/edit", to: "spa#show", as: :edit_scheduled_task, constraints: { id: /\d+/ }
+  get "onboarding", to: "spa#show", as: :onboarding
   get "app-shell", to: "spa#show", as: :app_shell
   get "app-shell/*path", to: "spa#show", as: :app_shell_route
   get "dashboard", to: "spa#show", as: :dashboard
