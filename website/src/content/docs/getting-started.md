@@ -1,91 +1,142 @@
 ---
 title: Getting Started
-description: Understand what Syrus is, decide which deployment path fits, and get to a working setup.
+description: Get from a fresh Syrus install to the first successful Job and pull request.
 ---
 
 # Getting Started
 
-Syrus is a multi-user harness that turns GitHub issues into pull
-requests, with the deterministic plumbing — clones, branches, PR
-creation, cleanup — owned by the harness so an LLM only has to
-write code.
+Syrus turns GitHub issues, direct prompts, PR feedback, retries, and
+rebases into agent runs. It owns the deterministic plumbing: clone the
+repository, prepare the workspace, invoke the agent, capture the diff,
+push a branch, and open or update the pull request.
 
-The short version: you register a repository, label an issue, and
-Syrus opens the pull request. Pollers notice the outside world,
-workers run the agent, and the web UI shows the Job, transcript,
-diff, and PR link as the work moves through the pipeline.
+This guide gets you from a fresh Syrus instance to one successful Job.
+That first success is deliberately small: prove credentials, repository
+access, polling, workspace setup, agent invocation, push, and PR creation
+before asking Syrus to do bigger work.
 
-:::tip
-If you only want to see what the agent does to your own code, start
-with the [60-second local evaluation](/docs/deployment/try-it-locally).
-It does not require a GitHub app, database, or long-running Syrus install.
-:::
+## Choose The First Path
 
-## Which Path Is Right For You?
+Use the path that answers the question you have right now.
 
-Start with the path that matches what you are trying to learn.
-
-| If you want to... | Use this path | Why |
+| If you want to... | Start here | What you will see |
 | --- | --- | --- |
-| See Syrus produce a diff against a local checkout | [Try it locally](/docs/deployment/try-it-locally) | Fastest evaluation path; no persistent service. |
-| Run Syrus for yourself or a small team | [Docker Compose](/docs/deployment/docker-compose) | Recommended default; runs the web app, worker, and database together. |
-| Operate Syrus on real shared infrastructure | [Kubernetes](/docs/deployment/kubernetes) | Production path for teams already comfortable with k3s or Kubernetes. |
+| Evaluate agent behavior against code on your machine | [Try it locally](/docs/deployment/try-it-locally) | One container runs once, prints a local diff, and exits. No GitHub access, database, users, or PR. |
+| Try the full product loop for yourself or a small team | [Docker Compose](/docs/deployment/docker-compose) or your operator-provided setup | Web UI, worker, database, repository polling, Job history, and a real GitHub PR. |
+| Self-host on shared infrastructure | [Deployment](/docs/deployment) and [Kubernetes](/docs/deployment/kubernetes) | The same app on your own infrastructure, once you have chosen ingress, storage, secrets, backups, and operations. |
 
 :::note
-The full deployment overview lives at [Deployment](/docs/deployment).
-Docker Compose is the recommended first real setup because it exercises
-the actual GitHub polling and PR flow without asking you to design a
-cluster on day one.
+The local evaluation path is useful, but it is not the full product
+sequence. It does not create users, poll GitHub, add repositories, or open
+pull requests.
 :::
+
+:::caution
+Some packaging pieces are still landing. The Docker Compose and
+Kubernetes pages describe the target operating shape and the honest status
+of the published artifacts. If your checkout does not include the Compose
+file or cluster packaging yet, use the deployment path your operator
+provides rather than filling in missing production decisions from this
+guide.
+:::
+
+## Local Evaluation
+
+The shortest evaluation is:
+
+1. Open a Git checkout on your machine.
+2. Export an agent credential for the local runner.
+3. Run the single-container command from
+   [Try it locally](/docs/deployment/try-it-locally).
+4. Inspect the printed diff or write it to `syrus.diff`.
+
+That path runs a temporary local-dev Job through the standard
+`prepare -> implement` work, then stops. Use it to answer "can Syrus make
+a plausible change in this codebase?" Continue with the hosted setup when
+you want the real `issue -> Job -> Workflow -> PR` loop.
+
+## Hosted Setup
+
+A real Syrus instance needs:
+
+- A web process for signup, credentials, repository settings, dashboards,
+  transcripts, and PR links.
+- A worker process for pollers, preparation commands, agent runs, pushes,
+  PR creation, reapers, and workspace cleanup.
+- MySQL for users, encrypted credentials, repositories, Jobs, Workflows,
+  Runs, logs, artifacts, and queue state.
+- A durable `$SYRUS_DATA_ROOT` volume on workers for clone caches and
+  workflow workspaces.
+- Stable Rails secrets, especially `RAILS_MASTER_KEY`, so encrypted user
+  credentials stay decryptable across restarts.
+
+The first-run checklist in the authenticated UI follows this sequence:
+account and admin access, GitHub credentials, agent credentials and
+provider, repository, first issue or direct Job, then watching the first
+Job until one closes successfully.
 
 ## First Successful Run
 
-The first useful full-product loop is one boring issue that produces one
-pull request. Keep it small: a typo fix, a short docs update, or one
-obvious failing test. You are proving credentials, polling, workspace
-setup, agent invocation, push, and PR creation before asking for broader
-work.
+Keep the first request boring. A typo fix, one tiny docs update, or one
+obvious failing test is better than a broad refactor. The goal is to
+verify the product sequence.
 
-### 1. Start Syrus
+### 1. Create the first admin
 
-Use the [Docker Compose guide](/docs/deployment/docker-compose) once the
-published Compose packaging is available, or the deployment path your
-operator has provided. You need:
+Open the web UI and sign up. The first user becomes an admin and can
+complete instance-level setup such as GitHub App registration.
 
-- The web process, so you can configure users, repositories, and Jobs.
-- The worker process, so pollers and Runs actually execute.
-- MySQL, so Jobs, credentials, logs, and queue state persist.
-- `$SYRUS_DATA_ROOT`, so the worker has durable clone and workspace
-  storage.
+After signup, open **First-run setup** or **My credentials**. The setup
+screen should point you at the next missing step until at least one Job
+has closed successfully.
 
-### 2. Create the first admin
+### 2. Add credentials and choose a provider
 
-Open the web UI and sign up. The first user becomes an admin.
+In **My credentials**, choose your default agent provider and add the
+matching credential:
 
-After that, go to **Credentials** and add:
+- **Claude** uses a Claude OAuth token.
+- **Codex** uses either a Codex API key or ChatGPT `auth.json`,
+  depending on the selected Codex authentication mode.
 
-- GitHub credentials that can read issues and PRs, push branches, open PRs,
-  and read checks for the repositories Syrus will manage.
-- Agent credentials for your chosen provider.
-- Your default provider and max-turn setting.
+Set **Max turns** to the cap you want for agent runs. The default is meant
+to prevent runaway loops while still allowing normal implementation work.
 
-If your deployment supports GitHub App installations, prefer the app for
-repository access and keep the PAT fallback narrow. Syrus records the
-credential mode on Jobs for operator visibility.
+Then configure GitHub access. Syrus considers GitHub authentication ready
+when either a user PAT exists or a GitHub App is registered for the
+instance.
 
-### 3. Register a repository
+- A **GitHub personal access token** is the fallback credential. It must
+  be able to list issues, read PRs and checks, push branches, open pull
+  requests, and post updates for the repositories Syrus will manage.
+- A **GitHub App installation** is preferred when available. Admins
+  register the singleton Syrus GitHub App, then install it on the relevant
+  owner or repository. Repositories with an active installation use App
+  credentials; repositories without one use the user's PAT fallback.
 
-Add the GitHub repository by owner/name and default branch. Confirm:
+Syrus records the credential mode on repositories and Jobs so operators
+can tell whether a run used App credentials or PAT fallback.
 
-- Polling is enabled.
-- The trigger label is present or can be created in GitHub. The default
-  label is `syrus`.
-- The repository provider override is blank unless this repo should use a
-  different provider than your user default.
-- Preparation is enabled unless you know the repo needs no setup.
+### 3. Add a repository
 
-For repositories with non-trivial setup, add `.syrus.yml` to the target
-repo:
+Open **Repositories** and add the first repository Syrus should manage.
+You can pick from GitHub when credentials can list accessible
+repositories, or enter the owner and repository name manually.
+
+Confirm these settings:
+
+- **Default branch** is the branch Syrus should clone, diff against, and
+  target for PRs.
+- **Trigger label** is the issue label that creates Jobs. The default is
+  `syrus`.
+- **Polling enabled** is on for issue ingestion.
+- **Default agent** is blank unless this repository should override your
+  user default provider.
+- **Run prepare step** is on unless this repository intentionally needs no
+  setup.
+
+If the repository needs more than one setup command, add `.syrus.yml` to
+the target repository:
 
 ```yaml
 prepare:
@@ -94,13 +145,15 @@ prepare:
   - npm ci
 ```
 
-Use only the commands the agent needs before it starts. Long, flaky setup
-turns a simple first run into an operations problem.
+If `.syrus.yml` is missing, Syrus auto-detects one common setup command
+from lockfiles such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
+`package-lock.json`, or `package.json`. Use `prepare: []` or
+`prepare: false` only when no setup should run.
 
-### 4. File the first issue
+### 4. Start the first Job
 
-Create a small GitHub issue in the registered repo and add the trigger
-label.
+For the full GitHub loop, create or edit a GitHub issue in the registered
+repository and add the trigger label.
 
 Good first issue:
 
@@ -111,39 +164,59 @@ The README says "instal" in the setup section. Please correct it and run
 the smallest relevant check.
 ```
 
-Avoid "refactor the app", "improve performance", and other broad prompts
-until the basic loop works.
+Syrus polls GitHub instead of receiving inbound webhooks, so the Job may
+not appear immediately.
 
-### 5. Watch the Job
+You can also create a **direct Job** from the web UI after a repository
+exists. Direct Jobs are useful for operator-supplied prompts, but a
+labelled GitHub issue is the clearest first proof that polling and issue
+delegation work.
 
-The Job page should show:
+### 5. Watch the Job, Workflow, and Run
+
+Open the Job from the dashboard or setup screen. The first labelled issue
+normally creates an `initial` Workflow with these Steps:
 
 ```text
-initial Workflow
-  prepare
-  implement
-  summarize
-  pr_open
+prepare
+implement
+summarize
+pr_open
 ```
 
-The useful checkpoints are:
+Watch these checkpoints:
 
-- `prepare` succeeds or records a clear skip.
-- `implement` starts an agent Run and captures transcript output.
-- The diff appears on the Run or Workflow after the agent commits.
-- `summarize` records PR copy.
-- `pr_open` pushes a branch and attaches the GitHub PR number.
+- The Job leaves the queue and shows the selected agent provider.
+- `prepare` succeeds, skips by configuration, or records a clear setup
+  failure.
+- `implement` starts a Run, streams transcript output, and captures the
+  agent's commits.
+- The Run or Workflow shows the captured diff.
+- `summarize` records PR title and body.
+- `pr_open` pushes the Syrus branch and attaches the GitHub PR number.
 
-### 6. Review the PR
+If the Job fails, keep the Job page as the starting point. It contains
+the Workflow, Step, Run, logs, transcript, diff, and retry actions needed
+for diagnosis.
+
+### 6. Review the PR result
 
 Open the PR from the Job page. Review it like any other pull request:
-read the diff, check CI, ask for changes, or merge it. If you comment on
-the PR, Syrus can pick up the feedback on the next PR poll and create a
-follow-up Workflow on the same Job.
+read the diff, check CI, comment, request changes, approve, or merge.
 
-If no PR appears, start with
-[Troubleshooting](/docs/troubleshooting#the-poller-never-picks-up-my-issue)
-or [PR creation failed](/docs/troubleshooting#pr-creation-failed).
+If you comment on the PR, Syrus can pick up feedback on a later PR poll
+and create a follow-up Workflow on the same Job. If CI failures are
+enabled for your installation, failing checks can also create repair
+Workflows on Syrus-owned PRs.
+
+The first-run guide is complete when at least one Job closes successfully.
+After that, the dashboard becomes the normal working surface for Jobs,
+PRs, retries, schedules, direct Jobs, and operational follow-up.
+
+If no Job appears, start with
+[the poller troubleshooting checklist](/docs/troubleshooting#the-poller-never-picks-up-my-issue).
+If a Job appears but no PR is created, start with
+[PR creation failed](/docs/troubleshooting#pr-creation-failed).
 
 ## Tiny Glossary
 
