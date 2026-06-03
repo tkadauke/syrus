@@ -82,10 +82,11 @@ It is not:
 
 ## The Core Terms
 
-Syrus uses four terms everywhere:
+Syrus uses five terms everywhere:
 
 | Term | Meaning |
 | --- | --- |
+| Epic | A repository-local group of related Jobs for larger goals that need sequencing. |
 | Job | The long-lived thread for one issue, scheduled task, or direct prompt. |
 | Workflow | One attempt to move that Job forward. |
 | Step | A stage inside a Workflow, such as `prepare`, `implement`, or `pr_open`. |

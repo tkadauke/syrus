@@ -27,8 +27,8 @@ recipes needed to run Syrus without reading the Rails source.
 
 ## Product Manual
 
-- [Concepts](/docs/concepts): Jobs, Workflows, Steps, Runs, trigger
-  kinds, and state machines.
+- [Concepts](/docs/concepts): Epics, Jobs, Workflows, Steps, Runs,
+  trigger kinds, and state machines.
 - [Features](/docs/features): Jobs, Epics, schedules, chats, direct Jobs,
   credentials, GitHub App/PAT behavior, and multi-user operation.
 - [Workflows](/docs/workflows): the built-in pipelines for issues, PR

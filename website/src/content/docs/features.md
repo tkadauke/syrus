@@ -110,13 +110,15 @@ constructed for the individual push command and are not written into
 
 ## Multi-User Model
 
-Syrus is designed for one deployment serving multiple users. Users have
-their own repositories, credentials, provider defaults, schedules, chats,
-Epics, Jobs, and admin/API permissions. Repository settings can override
-the user's provider default when a codebase needs a specific agent.
+Syrus works well as a single-user deployment for one operator's own
+repositories, and it can grow into one deployment serving multiple users.
+Users have their own repositories, credentials, provider defaults,
+schedules, chats, Epics, Jobs, and admin/API permissions. Repository
+settings can override the user's provider default when a codebase needs a
+specific agent.
 
-That model keeps team operation centralized without turning every run into
-a shared global credential.
+That model keeps solo operation simple and team operation centralized
+without turning every run into a shared global credential.
 
 ## Repository Automation
 

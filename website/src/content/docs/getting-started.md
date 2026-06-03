@@ -147,10 +147,11 @@ or [PR creation failed](/docs/troubleshooting#pr-creation-failed).
 
 ## Tiny Glossary
 
-Syrus uses four core words throughout the UI and API:
+Syrus uses five core words throughout the UI and API:
 
 | Term | Short version |
 | --- | --- |
+| **Epic** | A group of related Jobs in one repository, useful when a goal needs several sequenced PRs. |
 | **Job** | The thread of work for one source of truth: a GitHub issue, scheduled task, or ad-hoc prompt. |
 | **Workflow** | One attempt to handle that Job. |
 | **Step** | One stage inside a Workflow, such as prepare, implement, summarize, or push. |
@@ -167,5 +168,5 @@ read [Concepts](/docs/concepts).
 - [Why use Syrus?](/docs/why-use-syrus) for fit and trade-offs.
 - [Deployment](/docs/deployment) if you are choosing between local,
   Compose, and Kubernetes.
-- [Concepts](/docs/concepts) if you want the mental model behind the
-  Job → Workflow → Step → Run vocabulary.
+- [Concepts](/docs/concepts) if you want the mental model behind Epics
+  and the Job → Workflow → Step → Run vocabulary.
