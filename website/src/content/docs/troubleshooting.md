@@ -190,6 +190,10 @@ If `db:prepare` reports errors for cache, queue, or cable while the
 primary database migrated, fix the missing database role instead of
 assuming the app is fully prepared.
 
+Fresh production installs use MySQL migrations from zero. The
+development/test `db/schema.rb` is a SQLite dump and is not the source
+of truth for production database initialization.
+
 ## Scheduled tasks are not firing
 
 Check:

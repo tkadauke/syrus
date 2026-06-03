@@ -1,10 +1,9 @@
 class AddLandingQueueFields < ActiveRecord::Migration[8.1]
-  # `approved_at` is already added by AddApprovalStateToJobs
-  # (20260516002034), so it's intentionally omitted here. Remaining
-  # adds + indexes are guarded with existence checks per CLAUDE.md
-  # so partial state from a crashed earlier deploy attempt doesn't
-  # crash the retry with `Duplicate column name`.
+  # AddApprovalStateToJobs also owns `approved_at`, but that migration sorts
+  # later. Keep this migration self-sufficient so a fresh database can create
+  # the landing queue index during a from-zero migrate.
   def up
+    add_column :jobs, :approved_at, :datetime unless column_exists?(:jobs, :approved_at)
     add_column :jobs, :landing_failure_reason, :text unless column_exists?(:jobs, :landing_failure_reason)
     add_column :users, :landing_paused, :boolean, default: false, null: false unless column_exists?(:users, :landing_paused)
 

@@ -93,6 +93,11 @@ Rails.application.configure do
   # Do not dump schema after migrations.
   config.active_record.dump_schema_after_migration = false
 
+  # Production uses MySQL. The checked-in db/schema.rb is produced by the
+  # SQLite dev/test adapter, so fresh MySQL installs must migrate from zero
+  # instead of loading that adapter-specific Ruby dump.
+  config.active_record.schema_format = :sql
+
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 end

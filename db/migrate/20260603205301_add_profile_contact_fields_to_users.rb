@@ -1,4 +1,4 @@
-class AddProfileContactFieldsToUsers < ActiveRecord::Migration[8.1]
+class AddAdditionalProfileFieldsToUsers < ActiveRecord::Migration[8.1]
   def up
     add_column :users, :profile_location, :string unless column_exists?(:users, :profile_location)
     add_column :users, :profile_company, :string unless column_exists?(:users, :profile_company)

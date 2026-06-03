@@ -1,6 +1,6 @@
 class AddOwnerUserToJobs < ActiveRecord::Migration[8.1]
   def up
-    add_column :jobs, :owner_user_id, :integer unless column_exists?(:jobs, :owner_user_id)
+    add_column :jobs, :owner_user_id, :bigint unless column_exists?(:jobs, :owner_user_id)
     add_index :jobs, :owner_user_id unless index_exists?(:jobs, :owner_user_id)
     add_foreign_key :jobs, :users, column: :owner_user_id unless foreign_key_exists?(:jobs, :users, column: :owner_user_id)
   end
