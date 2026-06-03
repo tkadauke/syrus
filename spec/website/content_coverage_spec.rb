@@ -20,7 +20,7 @@ RSpec.describe "website content coverage" do
 
   it "has product pages for the basic visitor questions" do
     pages = {
-      "src/pages/index.md" => ["What Syrus Does", "Get Started", "GitHub issue with label"],
+      "src/pages/index.md" => ["The Loop", "Start Small", "Label GitHub issues"],
       "src/content/docs/index.md" => ["Start Here", "Product Manual", "Operating Syrus"],
       "src/content/docs/what-is-syrus.md" => ["The 30-Second Version", "What Syrus Owns", "The Core Terms"],
       "src/content/docs/why-use-syrus.md" => ["Own The Keys", "Keep GitHub As The Workflow", "Good Fits"],

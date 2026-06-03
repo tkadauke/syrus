@@ -332,11 +332,12 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
     expect(screen.getAllByText("Invitation-only").length).toBeGreaterThan(0)
+    expect(screen.getByText("Invitation link")).toBeInTheDocument()
     expect(screen.getByText("Detected")).toBeInTheDocument()
     expect(screen.getByText("An invitation token is present in this link. Create your account to join this instance.")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
-      expect.objectContaining({ credentials: "same-origin" })
+      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
     )
   })
 
@@ -3723,7 +3724,7 @@ describe("App", () => {
     fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Lovelace" } })
     fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } })
     fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Lovelace" } })
-    fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "Mathematician and operator." } })
+    fireEvent.change(screen.getByLabelText("Profile bio"), { target: { value: "Mathematician and operator." } })
     fireEvent.change(screen.getByLabelText("Company"), { target: { value: "Analytical Engines Ltd" } })
     fireEvent.change(screen.getByLabelText("Location"), { target: { value: "London" } })
     fireEvent.change(screen.getByLabelText("Website"), { target: { value: "https://example.com/ada" } })
