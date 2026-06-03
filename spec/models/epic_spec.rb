@@ -148,6 +148,31 @@ RSpec.describe Epic do
     expect(epic.may_auto_ready?).to be false
   end
 
+  describe "#all_jobs_approved?" do
+    it "is true when every non-closed child Job is approved" do
+      epic = described_class.create!(user: user, repository: repository, title: "Landing train")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1, state: "approved")
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 2,
+        state: "closed",
+        closure_reason: "pr_merged"
+      )
+
+      expect(epic.all_jobs_approved?).to be true
+    end
+
+    it "is false while any non-closed child Job is not approved" do
+      epic = described_class.create!(user: user, repository: repository, title: "Landing train")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1, state: "approved")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 2, state: "implemented")
+
+      expect(epic.all_jobs_approved?).to be false
+    end
+  end
+
   it "does not auto-promote to ready while an Epic dependency is unfinished" do
     prerequisite = described_class.create!(user: user, repository: repository, title: "Prerequisite")
     epic = described_class.create!(user: user, repository: repository, title: "Dependent")

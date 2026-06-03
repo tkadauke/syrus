@@ -106,6 +106,7 @@ class LandingQueueProcessor
     return blocked("active workflow") if job.workflows.active.exists?
     return blocked(RebaseLoopGuard::BLOCK_REASON) if RebaseLoopGuard.waiting_after_noop?(job)
     return blocked("waiting for Epic to release") if job.blocked_by_epic_before_execution?
+    return blocked("waiting for epic siblings to be approved") if job.epic && !job.epic.all_jobs_approved?
 
     parent = job.parent_job
     if parent && !merged?(parent)

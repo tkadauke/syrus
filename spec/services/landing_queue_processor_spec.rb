@@ -6,7 +6,7 @@ RSpec.describe LandingQueueProcessor do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
-  def queue_job(issue_number:, approved_at:, parent_job: nil, pr_number: issue_number, repository: self.repository)
+  def queue_job(issue_number:, approved_at:, parent_job: nil, pr_number: issue_number, repository: self.repository, epic: nil)
     # Start in :implemented so approve! works directly; mirrors the
     # production flow where mark_implemented! happens before approval
     # (post audit, :open → :implemented → :approved is the only
@@ -17,6 +17,7 @@ RSpec.describe LandingQueueProcessor do
       issue_number: issue_number,
       pr_number: pr_number,
       parent_job: parent_job,
+      epic: epic,
       state: "implemented"
     ).tap do |job|
       job.approve!(via: "github_review")
@@ -80,6 +81,43 @@ RSpec.describe LandingQueueProcessor do
     expect(job.reload).to be_approved
     entry = described_class.entries(Job.where(id: job.id)).first
     expect(entry.blocked_reason).to eq(RebaseLoopGuard::BLOCK_REASON)
+  end
+
+  it "holds approved epic jobs until every open sibling is approved" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    approved = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 2,
+      pr_number: 2,
+      state: "implemented"
+    )
+
+    expect(described_class.call).to be_nil
+    expect(approved.reload).to be_approved
+    entry = described_class.entries(Job.where(id: approved.id)).first
+    expect(entry.blocked_reason).to eq("waiting for epic siblings to be approved")
+  end
+
+  it "ignores closed epic siblings when checking whether every open sibling is approved" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    approved = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 2,
+      pr_number: 2,
+      state: "closed",
+      closure_reason: "pr_merged"
+    )
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(approved)
+    expect(approved.reload).to be_landing
   end
 
   it "lands approved Jobs in different repositories in the same tick" do

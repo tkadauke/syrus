@@ -149,6 +149,10 @@ class Epic < ApplicationRecord
     child_jobs.any? && child_jobs.all? { |job| job.closed? && MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
   end
 
+  def all_jobs_approved?
+    jobs.where.not(state: "closed").where.not(state: "approved").none?
+  end
+
   def refresh_auto_state!
     if backlog? && may_auto_ready?
       auto_ready!
