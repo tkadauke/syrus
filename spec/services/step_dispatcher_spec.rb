@@ -127,6 +127,34 @@ RSpec.describe StepDispatcher do
       expect(enqueued_jobs.any? { |entry| entry[:job] == PollMergeStateJob }).to be(true)
     end
 
+    it "cascades stack child rebases after a force-push workflow succeeds" do
+      clear_enqueued_jobs
+      job.update!(state: "implemented", pr_number: 42, branch_name: "syrus/issue-42-#{job.id}")
+      child = Factories.job(repository: job.repository, issue_number: 43).tap do |child_job|
+        JobDependency.create!(job: child_job, depends_on_job: job, source: "manual")
+        child_job.update!(
+          state: "implemented",
+          parent_job: job,
+          branch_name: "syrus/issue-43-#{child_job.id}",
+          pr_number: 43
+        )
+        child_job.workflows.update_all(state: "succeeded")
+      end
+      rebase = Workflow.create!(job: job, trigger_kind: "rebase")
+      force_push = Step.create!(workflow: rebase, kind: "force_push", position: 0)
+      rebase.start!
+      rebase.save!
+      force_push.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        described_class.advance_from(force_push)
+      }.to change { child.reload.workflows.where(trigger_kind: "rebase").count }.by(1)
+
+      child_rebase = child.workflows.where(trigger_kind: "rebase").last
+      expect(child_rebase.artifact("rebase_base_branch")).to eq(job.branch_name)
+      expect(enqueued_jobs.any? { |entry| entry[:job] == RunJob }).to be(true)
+    end
+
     it "advances a succeeded grade step to the post-loop step" do
       loop_wf = workflow_with_loop(max_iterations: 3)
       grade = loop_wf.steps.find_by!(kind: "grade", iteration: 1)

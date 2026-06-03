@@ -16,8 +16,9 @@ class StackRebaseCoordinator
   end
 
   def parent_amended
-    refresh_stack_footers(@parent, *@parent.stack_children)
-    @parent.stack_children.find_each do |child|
+    children = stack_children_for_rebase
+    refresh_stack_footers(@parent, *children)
+    children.each do |child|
       enqueue_rebase(child)
     end
   end
@@ -40,6 +41,10 @@ class StackRebaseCoordinator
   end
 
   private
+
+  def stack_children_for_rebase
+    @parent.stack_children.order(id: :desc).to_a
+  end
 
   def enqueue_rebase(child)
     return if child.closed?
