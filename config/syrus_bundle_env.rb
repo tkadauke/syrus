@@ -12,6 +12,8 @@ syrus_bundle = File.join(deps, "bundle")
 vendor_bundle = File.join(repo_root, "vendor", "bundle")
 bundle_path_empty = ENV["BUNDLE_PATH"].to_s.empty?
 
+ENV["BUNDLE_GEMFILE"] ||= File.join(repo_root, "Gemfile")
+
 if ENV["BUNDLE_APP_CONFIG"].to_s.empty? && File.file?(File.join(syrus_bundle_config, "config"))
   ENV["BUNDLE_APP_CONFIG"] = syrus_bundle_config
 end
