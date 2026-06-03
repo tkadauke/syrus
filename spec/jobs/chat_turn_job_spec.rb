@@ -97,6 +97,37 @@ RSpec.describe ChatTurnJob do
     saved&.each { |key, value| ENV[key] = value }
   end
 
+  it "includes attached Epic context in the first-turn prompt" do
+    epic = Factories.epic(
+      user: user,
+      repository: repository,
+      title: "Stabilize the aqueduct",
+      description: "Make the water arrive where the Romans insisted it should."
+    )
+    child = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_title: "Seal the northern arch",
+      state: "queued"
+    )
+    chat.chat_attachments.create!(attachable: epic)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:prompt]).to include("Attached context:")
+    expect(received[:prompt]).to include("#{epic.display_number}: Stabilize the aqueduct")
+    expect(received[:prompt]).to include("Make the water arrive")
+    expect(received[:prompt]).to include("Job ##{child.id}: Seal the northern arch")
+    expect(received[:prompt]).to include("Use `read_epic` with id #{epic.id}")
+  end
+
   it "can run a top-level chat before any repository is attached" do
     chat = ChatSession.create!(user: user)
     message = chat.messages.create!(role: "user", content: { text: "Inspect tkadauke/syrus" })

@@ -10,6 +10,9 @@ class ChatSession < ApplicationRecord
   has_many :job_attachments,
            -> { where(attachable_type: "Job").order(:attached_at, :id) },
            class_name: "ChatAttachment"
+  has_many :epic_attachments,
+           -> { where(attachable_type: "Epic").order(:attached_at, :id) },
+           class_name: "ChatAttachment"
   has_many :repository_document_attachments,
            -> { where(attachable_type: "Document").order(:attached_at, :id) },
            class_name: "ChatAttachment"
@@ -21,6 +24,10 @@ class ChatSession < ApplicationRecord
            through: :job_attachments,
            source: :attachable,
            source_type: "Job"
+  has_many :attached_epics,
+           through: :epic_attachments,
+           source: :attachable,
+           source_type: "Epic"
   has_many :attached_repository_documents,
            through: :repository_document_attachments,
            source: :attachable,
@@ -65,10 +72,6 @@ class ChatSession < ApplicationRecord
 
   def workspace_root
     ChatWorkspace.path_for(self)
-  end
-
-  def attached_epics
-    attached_records_for("Epic")
   end
 
   def attached_documents

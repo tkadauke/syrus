@@ -37,6 +37,7 @@ module SyrusChatMcp
           ProposeEpicWithJobsTool,
           ListProposalsTool,
           DeleteProposalTool,
+          ReadEpicTool,
           ReadJobTool,
           ListJobsTool,
           CancelJobTool,

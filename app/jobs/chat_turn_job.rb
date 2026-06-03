@@ -17,7 +17,13 @@ class ChatTurnJob < ApplicationJob
   SIDECAR_ENV_FORWARD = AgentProviders::Base::SIDECAR_ENV_FORWARD
 
   def perform(chat_session_id, user_message_id)
-    @chat = ChatSession.includes(:user, :attached_repositories).find(chat_session_id)
+    @chat = ChatSession.includes(
+      :user,
+      :attached_repositories,
+      :attached_jobs,
+      :attached_repository_documents,
+      attached_epics: [ :repository, { jobs: :repository } ]
+    ).find(chat_session_id)
     @user_message = @chat.messages.find(user_message_id)
     @turn_started_at = Time.current
     @cancelled = false
@@ -64,7 +70,7 @@ class ChatTurnJob < ApplicationJob
     user_text = @user_message.content["text"].to_s
     return user_text if parent_session_id.present?
 
-    [ Prompts::ChatSystem.new(repository: @chat.repository).to_s, user_text ].join("\n\n")
+    [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, user_text ].join("\n\n")
   end
 
   def with_chat_mcp_config

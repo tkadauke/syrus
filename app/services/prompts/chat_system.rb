@@ -1,7 +1,11 @@
 module Prompts
   class ChatSystem
-    def initialize(repository:)
+    ATTACHED_CONTEXT_BYTES = 8.kilobytes
+    ATTACHED_BODY_BYTES = 700
+
+    def initialize(repository:, chat_session: nil)
       @repository = repository
+      @chat_session = chat_session
     end
 
     def to_s
@@ -13,6 +17,8 @@ module Prompts
 
         Pinned context:
         #{pinned_context}
+
+        #{attached_context}
 
         #{documents_hint}
 
@@ -206,6 +212,9 @@ module Prompts
           - Inspect prior Jobs (`list_jobs`, `read_job`) when the
             operator references past work or when you suspect a
             proposal duplicates something already in flight.
+          - When attached context is relevant, use the attachment details
+            above directly. Use `read_epic`, `read_job`, or
+            `read_repo_document` when you need full detail.
       PROMPT
     end
 
@@ -233,6 +242,67 @@ module Prompts
         suffix = clipped.length < body.length ? "..." : ""
         "  - #{clipped}#{suffix}"
       end.compact.join("\n")
+    end
+
+    def attached_context
+      return "Attached context:\n  - (none)" unless @chat_session
+
+      lines = []
+      lines.concat(attached_epic_lines)
+      lines.concat(attached_job_lines)
+      lines.concat(attached_document_lines)
+
+      body = lines.presence&.join("\n") || "  - (none)"
+      "Attached context:\n#{clip(body, ATTACHED_CONTEXT_BYTES)}"
+    end
+
+    def attached_epic_lines
+      epics = @chat_session.attached_epics.includes(:repository, jobs: :repository).order(:number, :id)
+      return [] if epics.empty?
+
+      lines = [ "  Epics:" ]
+      epics.each do |epic|
+        lines << "  - [#{epic.id}] #{epic.display_number}: #{epic.title} (#{epic.state}, #{epic.repository.slug})"
+        description = clipped_inline(epic.description)
+        lines << "    Description: #{description}" if description.present?
+        lines.concat(attached_epic_child_job_lines(epic))
+        lines << "    Use `read_epic` with id #{epic.id} for full Epic details."
+      end
+      lines
+    end
+
+    def attached_epic_child_job_lines(epic)
+      jobs = epic.jobs.includes(:repository).order(:created_at, :id).limit(8)
+      return [ "    Child Jobs: (none)" ] if jobs.empty?
+
+      lines = [ "    Child Jobs:" ]
+      jobs.each { |job| lines << "      - #{job_label(job)}" }
+      remaining = epic.jobs.count - jobs.length
+      lines << "      - ... #{remaining} more" if remaining.positive?
+      lines
+    end
+
+    def attached_job_lines
+      jobs = @chat_session.attached_jobs.includes(:repository).order(:created_at, :id)
+      return [] if jobs.empty?
+
+      [ "  Jobs:" ] + jobs.map { |job| "  - #{job_label(job)}" }
+    end
+
+    def attached_document_lines
+      documents = @chat_session.attached_repository_documents.with_attached_file.order(:created_at, :id)
+      return [] if documents.empty?
+
+      [ "  Documents:" ] + documents.map do |document|
+        "  - [#{document.id}] #{document.title} (#{document_label(document)}; use `read_repo_document`)"
+      end
+    end
+
+    def job_label(job)
+      pr = job.pr_number || job.external_pr_number
+      pr_label = pr ? ", PR ##{pr}" : ""
+      title = job.issue_title.presence || "Untitled Job"
+      "Job ##{job.id}: #{title} (#{job.state}, #{job.repository.slug}#{pr_label})"
     end
 
     def documents_hint
@@ -275,6 +345,17 @@ module Prompts
       return "#{(bytes / 1.kilobyte.to_f).round} KB" if bytes < 1.megabyte
 
       "#{(bytes / 1.megabyte.to_f).round(1)} MB"
+    end
+
+    def clipped_inline(text)
+      clip(text.to_s.squish, ATTACHED_BODY_BYTES)
+    end
+
+    def clip(text, max_bytes)
+      text = text.to_s
+      return text if text.bytesize <= max_bytes
+
+      "#{text.byteslice(0, max_bytes).to_s.encode("UTF-8", invalid: :replace, undef: :replace)}..."
     end
   end
 end

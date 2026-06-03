@@ -59,6 +59,52 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Supporting documents available")).to be < out.index("Your environment:")
   end
 
+  it "renders attached Epics, Jobs, and documents as first-turn context" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    epic = Factories.epic(
+      user: repo.user,
+      repository: repo,
+      title: "Drain the forum",
+      description: "Move the puddle before the senators call it tradition."
+    )
+    child = Factories.job_record(
+      user: repo.user,
+      repository: repo,
+      epic: epic,
+      issue_title: "Install the humble channel",
+      state: "queued"
+    )
+    attached_job = Factories.job_record(
+      user: repo.user,
+      repository: repo,
+      issue_title: "Inventory existing drains",
+      state: "implemented"
+    )
+    document = repo.repository_documents.create!(
+      user: repo.user,
+      kind: "google_doc",
+      title: "Drainage notes",
+      google_docs_url: "https://docs.google.com/document/d/drains/edit"
+    )
+    chat.chat_attachments.create!(attachable: epic)
+    chat.chat_attachments.create!(attachable: attached_job)
+    chat.chat_attachments.create!(attachable: document)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("Attached context:")
+    expect(out).to include("Epics:")
+    expect(out).to include("#{epic.display_number}: Drain the forum")
+    expect(out).to include("Move the puddle")
+    expect(out).to include("Job ##{child.id}: Install the humble channel")
+    expect(out).to include("Use `read_epic` with id #{epic.id}")
+    expect(out).to include("Jobs:")
+    expect(out).to include("Job ##{attached_job.id}: Inventory existing drains")
+    expect(out).to include("Documents:")
+    expect(out).to include("[#{document.id}] Drainage notes (Google Doc; use `read_repo_document`)")
+    expect(out.index("Attached context:")).to be < out.index("What Syrus is")
+  end
+
   it "caps rendered repository note body text" do
     repo.repository_notes.create!(body: "x" * 2_100, author: "operator")
 

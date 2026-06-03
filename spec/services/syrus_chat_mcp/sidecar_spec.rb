@@ -17,6 +17,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::ProposeEpicWithJobsTool,
         SyrusChatMcp::ListProposalsTool,
         SyrusChatMcp::DeleteProposalTool,
+        SyrusChatMcp::ReadEpicTool,
         SyrusChatMcp::ReadJobTool,
         SyrusChatMcp::ListJobsTool,
         SyrusChatMcp::CancelJobTool,
@@ -82,6 +83,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         propose_epic_with_jobs
         list_proposals
         delete_proposal
+        read_epic
         read_job
         list_jobs
         cancel_job
