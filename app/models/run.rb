@@ -17,6 +17,7 @@ class Run < ApplicationRecord
   has_many :run_health_snapshots, -> { order(:created_at) }, dependent: :destroy
   has_one :claude_session, as: :resumable, dependent: :destroy
   has_one :run_diagnostic, dependent: :destroy
+  has_one :run_failure_classification, dependent: :destroy
 
   # Convenience walk up to Workflow when step is set.
   def workflow
@@ -86,6 +87,8 @@ class Run < ApplicationRecord
   after_update_commit :cascade_cancel_to_workflow!,
                        if: :saved_change_to_state_to_cancelled?
   after_update_commit :cascade_failure_to_step!,
+                       if: :saved_change_to_state_to_failed?
+  after_update_commit :classify_failure!,
                        if: :saved_change_to_state_to_failed?
   after_update_commit :clear_transcript_on_success!,
                        if: :saved_change_to_state_to_succeeded?
@@ -165,6 +168,13 @@ class Run < ApplicationRecord
 
   def clear_transcript_on_success!
     claude_session&.update_column(:transcript_jsonl, nil)
+  end
+
+  def classify_failure!
+    RunFailureClassifier.persist!(self)
+  rescue StandardError => e
+    Rails.logger.warn("[RunFailureClassifier] failed for Run ##{id}: #{e.class}: #{e.message}")
+    nil
   end
 
   def enqueue_run_job

@@ -59,6 +59,15 @@ RSpec.describe "App API job detail", type: :request do
     run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "digging trench")
     run.run_health_snapshots.create!(run_state: "running", health_status: "healthy", log_count: 1)
     run.create_run_diagnostic!(error_class: "Timeout::Error", error_message: "too much marble")
+    run.create_run_failure_classification!(
+      classification: "timeout",
+      confidence: 0.8,
+      retryable: true,
+      reason: "The run failed because an operation timed out.",
+      diagnostic_summary: "Timeout::Error: too much marble",
+      classifier_inputs: { "error_class" => "Timeout::Error" },
+      classified_at: Time.current
+    )
 
     get "/api/v1/app/jobs/#{job.id}"
 
@@ -119,6 +128,12 @@ RSpec.describe "App API job detail", type: :request do
       "app_stop_path" => "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/stop"
     )
     expect(first_run["health_snapshots"]).to contain_exactly(include("health_status" => "healthy", "run_state" => "running"))
+    expect(first_run["failure_classification"]).to include(
+      "classification" => "timeout",
+      "retryable" => true,
+      "reason" => "The run failed because an operation timed out."
+    )
+    expect(first_run["failure_classification"]).not_to have_key("classifier_inputs")
     expect(first_run["run_diagnostic"]).to include("present" => true)
     expect(first_run["run_diagnostic"]).not_to have_key("error_message")
   end
@@ -257,6 +272,14 @@ RSpec.describe "App API job detail", type: :request do
       error_backtrace: "app/work.rb:1",
       repo_snapshot: { "slug" => repo.slug }
     )
+    run.create_run_failure_classification!(
+      classification: "application_error",
+      confidence: 0.4,
+      retryable: false,
+      reason: "The run failed with an unclassified application error.",
+      classifier_inputs: { "error_class" => "RuntimeError" },
+      classified_at: Time.current
+    )
 
     get "/api/v1/app/jobs/#{job.id}"
 
@@ -267,6 +290,11 @@ RSpec.describe "App API job detail", type: :request do
       "error_message" => "broken chisel",
       "error_backtrace" => "app/work.rb:1",
       "repo_snapshot" => { "slug" => "acme/widgets" }
+    )
+    expect(first_run["failure_classification"]).to include(
+      "classification" => "application_error",
+      "retryable" => false,
+      "classifier_inputs" => { "error_class" => "RuntimeError" }
     )
   end
 

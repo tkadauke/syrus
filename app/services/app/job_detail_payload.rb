@@ -272,6 +272,7 @@ module App
           updated_at: iso8601(workflow.updated_at),
           app_retry_step_path: "/api/v1/app/jobs/#{@job.id}/workflows/#{workflow.id}/retry_step",
           app_push_commits_path: "/api/v1/app/jobs/#{@job.id}/workflows/#{workflow.id}/push_commits",
+          failure_classification: workflow_failure_classification_json(workflow),
           steps: workflow.steps.order(:position).map { |step| step_json(step, workflow: workflow) }
         }
       end
@@ -302,7 +303,7 @@ module App
 
     def workflows_scope
       @job.workflows
-          .includes(steps: { runs: [ :claude_session, :run_diagnostic, :run_health_snapshots, :job_logs ] })
+          .includes(steps: { runs: [ :claude_session, :run_diagnostic, :run_failure_classification, :run_health_snapshots, :job_logs ] })
           .reorder(created_at: :desc, id: :desc)
     end
 
@@ -389,6 +390,7 @@ module App
         agent_diff_bytes: run.agent_diff&.bytesize || 0,
         job_log_count: run.job_logs.size,
         rate_limited: run.job_logs.any? { |log| log.kind == "rate_limited" },
+        failure_classification: failure_classification_json(run.run_failure_classification),
         run_diagnostic: run_diagnostic_json(run.run_diagnostic),
         health_snapshots: run.run_health_snapshots.ordered.map { |snapshot| health_snapshot_json(snapshot) },
         agent_session: agent_session_json(session),
@@ -401,6 +403,30 @@ module App
         app_resume_path: "/api/v1/app/jobs/#{@job.id}/resume",
         app_grade_log_path: app_grade_log_path(run, workflow: workflow)
       }
+    end
+
+    def workflow_failure_classification_json(workflow)
+      run = workflow.steps
+                    .flat_map { |step| step.runs.select(&:failed?) }
+                    .sort_by { |candidate| candidate.finished_at || candidate.updated_at || candidate.created_at }
+                    .last
+      failure_classification_json(run&.run_failure_classification)
+    end
+
+    def failure_classification_json(classification)
+      return unless classification
+
+      payload = {
+        id: classification.id,
+        classification: classification.classification,
+        confidence: classification.confidence&.to_f,
+        retryable: classification.retryable,
+        reason: classification.reason,
+        diagnostic_summary: classification.diagnostic_summary,
+        classified_at: iso8601(classification.classified_at)
+      }
+      payload[:classifier_inputs] = classification.classifier_inputs if @user.admin?
+      payload
     end
 
     def run_diagnostic_json(diagnostic)

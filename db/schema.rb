@@ -490,6 +490,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_04_001607) do
     t.index ["run_id"], name: "index_run_diagnostics_on_run_id", unique: true
   end
 
+  create_table "run_failure_classifications", force: :cascade do |t|
+    t.string "classification", null: false
+    t.datetime "classified_at"
+    t.text "classifier_inputs"
+    t.decimal "confidence", precision: 5, scale: 4
+    t.datetime "created_at", null: false
+    t.text "diagnostic_summary"
+    t.text "reason"
+    t.boolean "retryable", null: false
+    t.integer "run_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["classification"], name: "index_run_failure_classifications_on_classification"
+    t.index ["classified_at"], name: "index_run_failure_classifications_on_classified_at"
+    t.index ["retryable"], name: "index_run_failure_classifications_on_retryable"
+    t.index ["run_id"], name: "index_run_failure_classifications_on_run_id", unique: true
+  end
+
   create_table "run_health_snapshots", force: :cascade do |t|
     t.integer "agent_diff_bytes"
     t.string "agent_outcome"
@@ -803,6 +820,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_04_001607) do
   add_foreign_key "repositories", "users"
   add_foreign_key "repository_notes", "repositories"
   add_foreign_key "run_diagnostics", "runs"
+  add_foreign_key "run_failure_classifications", "runs"
   add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "runs", "jobs"
   add_foreign_key "runs", "steps"

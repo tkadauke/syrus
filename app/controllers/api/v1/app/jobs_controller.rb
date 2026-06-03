@@ -89,7 +89,7 @@ module Api
                         job_attachments: { file_attachment: :blob },
                         dependencies: [ :created_by_user, depends_on_job: :repository ],
                         dependent_links: [ job: :repository ],
-                        runs: [ :job_logs, :run_health_snapshots, :claude_session, :run_diagnostic ]
+                        runs: [ :job_logs, :run_health_snapshots, :claude_session, :run_diagnostic, :run_failure_classification ]
                       )
                       .find(params[key])
         end

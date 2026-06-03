@@ -26,6 +26,7 @@ module Admin
         finished_at: wf.finished_at,
         created_at: wf.created_at,
         updated_at: wf.updated_at,
+        failure_classification: workflow_failure_classification(wf),
         steps: wf.steps.order(:position).map { |s| step(s) }
       }
     rescue => e
@@ -73,6 +74,7 @@ module Admin
         agent_diff_bytes: run.agent_diff&.bytesize || 0,
         job_log_count: run.job_logs.size,
         agent_session: session_payload,
+        failure_classification: failure_classification(run.run_failure_classification),
         run_diagnostic: run.run_diagnostic && {
           error_class: run.run_diagnostic.error_class,
           error_message: run.run_diagnostic.error_message,
@@ -95,6 +97,29 @@ module Admin
         transcript_pruned: session.transcript_jsonl.nil?,
         transcript_bytes:  session.transcript_jsonl&.bytesize,
         transcript_lines:  session.transcript_jsonl&.count("\n")
+      }
+    end
+
+    def workflow_failure_classification(wf)
+      run = wf.steps
+              .flat_map { |step| step.runs.select(&:failed?) }
+              .sort_by { |candidate| candidate.finished_at || candidate.updated_at || candidate.created_at }
+              .last
+      failure_classification(run&.run_failure_classification)
+    end
+
+    def failure_classification(classification)
+      return unless classification
+
+      {
+        id: classification.id,
+        classification: classification.classification,
+        confidence: classification.confidence&.to_f,
+        retryable: classification.retryable,
+        reason: classification.reason,
+        diagnostic_summary: classification.diagnostic_summary,
+        classifier_inputs: classification.classifier_inputs,
+        classified_at: classification.classified_at
       }
     end
 

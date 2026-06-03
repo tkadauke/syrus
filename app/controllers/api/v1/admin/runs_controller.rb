@@ -24,7 +24,7 @@ module Api
         # Pagination:
         #   ?page (1-indexed), ?per (default 50, max 100)
         def index
-          scope = Run.includes(:run_diagnostic, step: :workflow)
+          scope = Run.includes(:run_diagnostic, :run_failure_classification, step: :workflow)
                      .order(Arel.sql("COALESCE(finished_at, started_at, created_at) DESC"))
           scope = scope.where(state: params[:state])               if params[:state].present?
           scope = scope.where(trigger_kind: params[:trigger_kind]) if params[:trigger_kind].present?
@@ -101,10 +101,26 @@ module Api
             step_id:           run.step_id,
             step_kind:         run.step&.kind,
             agent_outcome:     run.agent_outcome,
+            failure_classification: serialize_failure_classification(run.run_failure_classification),
             started_at:        run.started_at,
             finished_at:       run.finished_at,
             error_class:       run.run_diagnostic&.error_class,
             error_message:     run.run_diagnostic&.error_message&.[](0, 200)
+          }
+        end
+
+        def serialize_failure_classification(classification)
+          return unless classification
+
+          {
+            id: classification.id,
+            classification: classification.classification,
+            confidence: classification.confidence&.to_f,
+            retryable: classification.retryable,
+            reason: classification.reason,
+            diagnostic_summary: classification.diagnostic_summary,
+            classifier_inputs: classification.classifier_inputs,
+            classified_at: classification.classified_at
           }
         end
       end

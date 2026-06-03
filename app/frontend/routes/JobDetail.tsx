@@ -793,6 +793,7 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
           </p>
           {run.agent_summary ? <p className="mt-2 whitespace-pre-wrap text-gray-700">{run.agent_summary}</p> : null}
           {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500">Health: {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
+          {run.failure_classification ? <p className="mt-1 text-xs text-gray-600">Failure: {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? "retryable" : "manual review"}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
           {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-amber-700">Diagnostic captured {formatDate(run.run_diagnostic.created_at)}{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -1337,6 +1338,10 @@ function isActiveState(state: string) {
 
 function stringify(value: unknown) {
   return typeof value === "string" ? value : JSON.stringify(value, null, 2)
+}
+
+function humanize(value: string) {
+  return value.replaceAll("_", " ")
 }
 
 function errorMessage(error: Error, fallback: string) {

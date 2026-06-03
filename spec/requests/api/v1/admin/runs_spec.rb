@@ -32,7 +32,17 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
     let!(:run_b) do
       step = job.workflows.last.steps.find_by(kind: "implement")
       Run.create!(job: job, step: step, trigger_kind: "ci_failure",
-                  state: "failed", started_at: 1.hour.ago, finished_at: 30.minutes.ago)
+                  state: "failed", started_at: 1.hour.ago, finished_at: 30.minutes.ago).tap do |run|
+        run.create_run_failure_classification!(
+          classification: "worker_died",
+          confidence: 0.95,
+          retryable: true,
+          reason: "The worker process disappeared while the run was active.",
+          diagnostic_summary: "agent_outcome=worker_died",
+          classifier_inputs: { "agent_outcome" => "worker_died" },
+          classified_at: 20.minutes.ago
+        )
+      end
     end
 
     it "returns the compact shape with workflow/step context" do
@@ -46,6 +56,11 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
         "trigger_kind" => "ci_failure",
         "job_id"       => job.id,
         "step_kind"    => "implement"
+      )
+      expect(row["failure_classification"]).to include(
+        "classification" => "worker_died",
+        "retryable" => true,
+        "classifier_inputs" => { "agent_outcome" => "worker_died" }
       )
     end
 

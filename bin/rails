@@ -1,11 +1,17 @@
 #!/usr/bin/env ruby
+app_root = File.expand_path("..", __dir__)
+deps_root = File.join(app_root, ".syrus", "deps")
 prepared_bundle = [
-  File.expand_path("../.syrus/deps/bundle", __dir__),
-  File.expand_path("../vendor/bundle", __dir__)
+  File.join(deps_root, "bundle"),
+  File.join(app_root, "vendor", "bundle")
 ].find { |path| Dir.exist?(path) }
 if ENV["BUNDLE_PATH"].to_s.empty? && prepared_bundle
   ENV["BUNDLE_PATH"] = prepared_bundle
-  ENV["BUNDLE_APP_CONFIG"] ||= File.expand_path("../.syrus/deps/bundle-config", __dir__)
+end
+if Dir.exist?(deps_root)
+  ENV["BUNDLE_APP_CONFIG"] ||= File.join(deps_root, "bundle-config")
+  ENV["BUNDLE_USER_HOME"] ||= File.join(deps_root, "bundle-home")
+  ENV["BUNDLE_USER_CACHE"] ||= File.join(deps_root, "bundle-cache")
 end
 
 APP_PATH = File.expand_path("../config/application", __dir__)

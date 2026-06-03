@@ -154,6 +154,7 @@ export type JobWorkflow = {
   updated_at: string | null
   app_retry_step_path: string
   app_push_commits_path: string
+  failure_classification?: RunFailureClassification | null
   steps: JobStep[]
 }
 
@@ -199,6 +200,7 @@ export type JobRun = {
   agent_diff_bytes: number
   job_log_count: number
   rate_limited: boolean
+  failure_classification?: RunFailureClassification | null
   run_diagnostic: { id: number; present: boolean; created_at: string | null; error_class?: string; error_message?: string } | null
   health_snapshots: Array<{ id: number; health_status: string | null; hint: string | null; run_state: string | null; last_log_preview: string | null; created_at: string | null }>
   agent_session: { session_id: string; provider: string | null; transcript_pruned: boolean; transcript_bytes: number | null; transcript_lines: number | null } | null
@@ -210,6 +212,17 @@ export type JobRun = {
   app_diagnose_path: string
   app_resume_path: string
   app_grade_log_path: string | null
+}
+
+export type RunFailureClassification = {
+  id: number
+  classification: string
+  confidence: number | null
+  retryable: boolean
+  reason: string | null
+  diagnostic_summary: string | null
+  classifier_inputs?: Record<string, unknown> | null
+  classified_at: string | null
 }
 
 export type JobActions = {
