@@ -14,6 +14,12 @@ export type AdminUserRow = {
   id: number
   email_address: string
   name: string | null
+  first_name: string | null
+  last_name: string | null
+  profile_bio: string | null
+  profile_location: string | null
+  profile_company: string | null
+  profile_website: string | null
   display_name: string
   github_handle: string | null
   admin: boolean

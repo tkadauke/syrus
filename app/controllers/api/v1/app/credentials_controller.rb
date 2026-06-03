@@ -7,7 +7,7 @@ module Api
         end
 
         def update
-          attrs = credentials_params.to_h.reject { |_, value| blank_write_only_value?(value) }
+          attrs = credentials_params.to_h.reject { |key, value| blank_write_only_value?(key, value) }
 
           if Current.user.update(attrs)
             render json: credentials_payload(Current.user.reload).merge(message: "Credentials updated.")
@@ -76,6 +76,9 @@ module Api
             name: user.name,
             first_name: user.first_name,
             last_name: user.last_name,
+            profile_location: user.profile_location,
+            profile_company: user.profile_company,
+            profile_website: user.profile_website,
             display_name: user.display_name,
             github_handle: user.github_handle,
             profile_bio: user.profile_bio,
@@ -144,13 +147,14 @@ module Api
 
         def credentials_params
           params.expect(user: [ :name, :first_name, :last_name, :github_handle, :profile_bio, :avatar_url,
-                                :agent_provider, :claude_oauth_token, :codex_auth_mode,
+                                :profile_company, :profile_website,
+                                :profile_location, :agent_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :github_token,
                                 :agent_max_turns, :scheduling_paused, :auto_approve_mode ])
         end
 
-        def blank_write_only_value?(value)
-          value.nil? || (value.is_a?(String) && value.blank?)
+        def blank_write_only_value?(key, value)
+          User::CLEARABLE_CREDENTIALS.key?(key.to_s) && (value.nil? || (value.is_a?(String) && value.blank?))
         end
       end
     end

@@ -96,6 +96,8 @@ describe("App", () => {
             id: 1,
             email_address: "operator@example.com",
             name: "Operator",
+            first_name: null,
+            last_name: null,
             display_name: "Operator",
             admin: true,
             scheduling_paused: false,
@@ -2517,6 +2519,12 @@ describe("App", () => {
               id: 5,
               email_address: "operator@example.com",
               name: "Operator",
+              first_name: null,
+              last_name: null,
+              profile_bio: null,
+              profile_location: null,
+              profile_company: null,
+              profile_website: null,
               display_name: "Operator",
               github_handle: "octo",
               admin: true,
@@ -3582,6 +3590,12 @@ describe("App", () => {
     expect(screen.queryByText("Personal documents")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Google Doc URL")).not.toBeInTheDocument()
     fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Lovelace" } })
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } })
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Lovelace" } })
+    fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "Mathematician and operator." } })
+    fireEvent.change(screen.getByLabelText("Company"), { target: { value: "Analytical Engines Ltd" } })
+    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "London" } })
+    fireEvent.change(screen.getByLabelText("Website"), { target: { value: "https://example.com/ada" } })
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
@@ -3597,6 +3611,12 @@ describe("App", () => {
     const patchBody = JSON.parse(String(patchCall?.[1]?.body))
     expect(patchBody.user).toEqual(expect.objectContaining({
       name: "Ada Lovelace",
+      first_name: "Ada",
+      last_name: "Lovelace",
+      profile_bio: "Mathematician and operator.",
+      profile_company: "Analytical Engines Ltd",
+      profile_location: "London",
+      profile_website: "https://example.com/ada",
       claude_oauth_token: "",
       codex_api_key: "",
       codex_auth_json: "",
@@ -6731,6 +6751,8 @@ function bootstrapPayload(overrides: Record<string, unknown> = {}) {
       id: 1,
       email_address: "operator@example.com",
       name: "Operator",
+      first_name: null,
+      last_name: null,
       display_name: "Operator",
       admin: true,
       scheduling_paused: false,
@@ -6951,6 +6973,12 @@ function credentialsPayload(overrides: {
       id: 1,
       email_address: "operator@example.com",
       name: overrides.name ?? "Operator",
+      first_name: null,
+      last_name: null,
+      profile_bio: null,
+      profile_location: null,
+      profile_company: null,
+      profile_website: null,
       display_name: overrides.name ?? "Operator",
       github_handle: "operator",
       admin: true,

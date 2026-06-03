@@ -96,10 +96,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     patch "/api/v1/app/credentials", params: {
       user: {
+        name: "",
         first_name: "Ada",
         last_name: "Lovelace",
         github_handle: "@ada",
         profile_bio: "Keeps the machines honest.",
+        profile_location: " London ",
+        profile_company: " Analytical Engines Ltd ",
+        profile_website: "https://example.com/ada",
         avatar_url: "https://example.com/ada.png"
       }
     }
@@ -109,13 +113,38 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.display_name).to eq("Ada Lovelace")
     expect(user.github_handle).to eq("ada")
     expect(user.profile_bio).to eq("Keeps the machines honest.")
+    expect(user.profile_location).to eq("London")
+    expect(user.profile_company).to eq("Analytical Engines Ltd")
+    expect(user.profile_website).to eq("https://example.com/ada")
     expect(parse_body["user"]).to include(
       "first_name" => "Ada",
       "last_name" => "Lovelace",
       "display_name" => "Ada Lovelace",
       "github_handle" => "ada",
+      "profile_location" => "London",
+      "profile_company" => "Analytical Engines Ltd",
+      "profile_website" => "https://example.com/ada",
       "avatar_url" => "https://example.com/ada.png"
     )
+  end
+
+  it "clears blank profile fields without clearing blank write-only credentials" do
+    sign_in_as(user)
+    user.update!(profile_company: "Analytical Engines Ltd", profile_bio: "Notes")
+
+    patch "/api/v1/app/credentials", params: {
+      user: {
+        profile_company: "",
+        profile_bio: "",
+        github_token: ""
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    user.reload
+    expect(user.profile_company).to be_nil
+    expect(user.profile_bio).to be_nil
+    expect(user.github_token).to eq("ghp_existing")
   end
 
   it "returns validation errors" do

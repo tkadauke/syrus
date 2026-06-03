@@ -118,6 +118,20 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
           </Field>
         </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Company">
+            <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_company: event.target.value })} type="text" value={values.profile_company} />
+          </Field>
+
+          <Field label="Location">
+            <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_location: event.target.value })} type="text" value={values.profile_location} />
+          </Field>
+        </div>
+
+        <Field label="Website">
+          <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_website: event.target.value })} type="url" value={values.profile_website} />
+        </Field>
+
         <Field label="GitHub handle">
           <input className={inputClass()} maxLength={100} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
         </Field>
@@ -419,6 +433,9 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     name: payload.user.name || "",
     first_name: payload.user.first_name || "",
     last_name: payload.user.last_name || "",
+    profile_location: payload.user.profile_location || "",
+    profile_company: payload.user.profile_company || "",
+    profile_website: payload.user.profile_website || "",
     github_handle: payload.user.github_handle || "",
     profile_bio: payload.user.profile_bio || "",
     avatar_url: payload.user.avatar_url || "",

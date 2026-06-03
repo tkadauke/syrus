@@ -23,6 +23,48 @@ RSpec.describe User do
     end
   end
 
+  describe "profile fields" do
+    it "keeps legacy display names stable when profile fields are blank" do
+      user = User.create!(attrs)
+      named_user = User.create!(attrs.merge(email_address: "named@example.com", name: "Operator"))
+
+      expect(user.display_name).to eq("user@example.com")
+      expect(named_user.display_name).to eq("Operator")
+    end
+
+    it "stores normalized safe profile fields and can use first and last name as a display fallback" do
+      user = User.create!(
+        attrs.merge(
+          name: " ",
+          first_name: " Ada ",
+          last_name: " Lovelace ",
+          profile_bio: "  Mathematician and operator.  ",
+          profile_location: " London ",
+          profile_company: " Analytical Engines Ltd ",
+          profile_website: " https://example.com/ada "
+        )
+      )
+
+      expect(user.reload).to have_attributes(
+        first_name: "Ada",
+        last_name: "Lovelace",
+        profile_bio: "Mathematician and operator.",
+        profile_location: "London",
+        profile_company: "Analytical Engines Ltd",
+        profile_website: "https://example.com/ada"
+      )
+      expect(user.full_name).to eq("Ada Lovelace")
+      expect(user.display_name).to eq("Ada Lovelace")
+    end
+
+    it "caps profile fields at modest lengths" do
+      user = User.new(attrs.merge(profile_company: "x" * 101))
+
+      expect(user).not_to be_valid
+      expect(user.errors[:profile_company]).to be_present
+    end
+  end
+
   describe "encrypted credentials" do
     it "stores variable-length encrypted secret payloads in text columns" do
       column_types = User.columns.index_by(&:name).transform_values(&:type)

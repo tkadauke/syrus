@@ -97,10 +97,11 @@ class User < ApplicationRecord
   encrypts :api_token, deterministic: true
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
-  normalizes :first_name, with: ->(value) { value.to_s.strip.presence }
-  normalizes :last_name, with: ->(value) { value.to_s.strip.presence }
   normalizes :github_handle, with: ->(h) { h.to_s.delete_prefix("@").strip.presence }
   normalizes :avatar_url, with: ->(value) { value.to_s.strip.presence }
+  normalizes :first_name, :last_name, :profile_location, :profile_company, :profile_website,
+             with: ->(value) { value.to_s.strip.presence }
+  normalizes :profile_bio, with: ->(value) { value.to_s.strip.presence }
 
   # Per-user ceiling on `claude --max-turns`. The agent is given this
   # many tool-use turns before the run terminates with
@@ -125,6 +126,8 @@ class User < ApplicationRecord
   validates :epic_reopen_window,
             presence: true,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :profile_location, :profile_company, length: { maximum: 100 }
+  validates :profile_website, length: { maximum: 255 }
   before_create :promote_first_user_to_admin
 
   def admin?
@@ -137,6 +140,10 @@ class User < ApplicationRecord
 
   def profile_name
     [ first_name, last_name ].compact_blank.join(" ").presence
+  end
+
+  def full_name
+    profile_name.to_s
   end
 
   def team_display_name

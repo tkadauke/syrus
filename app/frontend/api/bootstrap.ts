@@ -6,6 +6,8 @@ export type BootstrapPayload = {
     id: number
     email_address: string
     name: string | null
+    first_name: string | null
+    last_name: string | null
     display_name: string
     admin: boolean
     scheduling_paused: boolean

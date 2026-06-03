@@ -6,6 +6,9 @@ export type CredentialsUser = {
   name: string | null
   first_name: string | null
   last_name: string | null
+  profile_location: string | null
+  profile_company: string | null
+  profile_website: string | null
   display_name: string
   github_handle: string | null
   profile_bio: string | null
@@ -80,6 +83,9 @@ export type CredentialsInput = {
   name: string
   first_name: string
   last_name: string
+  profile_location: string
+  profile_company: string
+  profile_website: string
   github_handle: string
   profile_bio: string
   avatar_url: string
