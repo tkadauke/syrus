@@ -323,7 +323,7 @@ describe("App", () => {
   it("renders the logged-out landing CTA from public bootstrap state", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
-        JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })),
+        JSON.stringify(publicBootstrapPayload()),
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
     )
@@ -378,7 +378,7 @@ describe("App", () => {
 
       expect(await screen.findByRole("link", { name: "Repair aqueduct" })).toHaveAttribute("href", "/jobs/42")
       expect(screen.getByRole("main", { name: "Dashboard" })).toBeInTheDocument()
-      expect(screen.queryByRole("main", { name: "Syrus landing" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("main", { name: "Syrus public landing" })).not.toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/dashboard",
         expect.objectContaining({ credentials: "same-origin" })
