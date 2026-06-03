@@ -746,6 +746,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
         <Link className="text-sm font-medium text-blue-600 hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}>{item.title}</Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
           <StatusPill state={item.summary_state} />
+          <ActiveWorkflowTriggerPill job={item} />
           <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.repository.slug}</span>
           <OwnerBadge badge={item.owner_badge} />
           {item.pr_number ? <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink> : null}
@@ -985,6 +986,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
       <div className="min-w-0 text-gray-700">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <StatusPill state={job.summary_state} />
+          <ActiveWorkflowTriggerPill job={job} />
           {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500">{formatCurrency(job.total_cost_usd, 2)}</span>}
           <span className="font-mono text-xs text-gray-500">{job.repository.slug}</span>
           <OwnerBadge badge={job.owner_badge} />
@@ -1028,7 +1030,16 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
       </td>
     )
   }
-  if (column === "state") return <td className="px-4 py-3"><StatusPill state={job.summary_state} /></td>
+  if (column === "state") {
+    return (
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap items-center gap-1">
+          <StatusPill state={job.summary_state} />
+          <ActiveWorkflowTriggerPill job={job} />
+        </div>
+      </td>
+    )
+  }
   if (column === "repository") return <td className="px-4 py-3 font-mono text-xs text-gray-600">{job.repository.slug}</td>
   if (column === "latest") return <LatestWorkflowCell job={job} />
   if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700">{job.workflows_count}</td>
@@ -1061,6 +1072,16 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
     )
   }
 
+  return <IssueMetadata job={job} />
+}
+
+function ActiveWorkflowTriggerPill({ job }: { job: DashboardJobItem }) {
+  if (!job.active_workflow_trigger_kind) return null
+
+  return <span aria-label={`Active workflow trigger: ${job.active_workflow_trigger_kind}`} className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-blue-100">{job.active_workflow_trigger_kind}</span>
+}
+
+function IssueMetadata({ job }: { job: DashboardJobItem }) {
   if (!job.issue_number) return <span>JOB-{job.id}</span>
 
   const label = `#${job.issue_number}`

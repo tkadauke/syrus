@@ -407,6 +407,11 @@ class Job < ApplicationRecord
     latest_workflow&.trigger_kind
   end
 
+  def active_workflow_trigger_kind
+    scope = workflows.loaded? ? workflows.select { |workflow| workflow.state.in?(%w[ queued running ]) } : workflows.active
+    scope.max_by { |workflow| [ workflow.created_at || Time.at(0), workflow.id || 0 ] }&.trigger_kind
+  end
+
   def latest_workflow_created_at
     value = if has_attribute?(:latest_workflow_created_at)
       self[:latest_workflow_created_at]

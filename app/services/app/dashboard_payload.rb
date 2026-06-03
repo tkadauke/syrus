@@ -580,6 +580,7 @@ module App
         issue_url: App::Presentation.job_issue_url(job),
         branch_name: job.branch_name,
         pr_number: job.pr_number || job.external_pr_number,
+        active_workflow_trigger_kind: active_workflow_trigger_kind(job),
         latest_workflow_trigger_kind: job.latest_workflow_trigger_kind,
         pr_url: job.pr_number.present? ? App::Presentation.job_pr_url(job) : App::Presentation.external_pr_url(job),
         latest_workflow_state: job.latest_workflow_state,
@@ -912,6 +913,12 @@ module App
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
 
       job.state
+    end
+
+    def active_workflow_trigger_kind(job)
+      return nil unless summary_state(job) == "running"
+
+      job.active_workflow_trigger_kind
     end
 
     def persist_subject_preferences

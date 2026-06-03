@@ -61,6 +61,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         "dependencies_overridden_at" => nil,
         "issue_url" => "https://github.com/acme/widgets/issues/1",
         "pr_url" => "https://github.com/acme/widgets/pull/17",
+        "active_workflow_trigger_kind" => nil,
         "repository" => include("slug" => "acme/widgets"),
         "epic" => {
           "id" => epic.id,
@@ -72,6 +73,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         "paths" => include("job_path" => job_path(first), "source_path" => source_job_path(first))
       )
       expect(body["items"].find { |item| item.fetch("id") == second.id }).to include(
+        "active_workflow_trigger_kind" => "rebase",
         "latest_workflow_trigger_kind" => "rebase",
         "latest_workflow_state" => "running"
       )

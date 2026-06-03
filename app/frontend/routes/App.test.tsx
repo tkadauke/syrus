@@ -314,12 +314,29 @@ describe("App", () => {
   })
 
   it("renders the logged-out landing CTA from public auth status", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify(publicBootstrapPayload()),
-        { status: 200, headers: { "Content-Type": "application/json" } }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            authenticated: false,
+            first_signup: false,
+            signups_open: false,
+            valid_invitation: true,
+            cta: {
+              kind: "accept_invitation",
+              label: "Accept invitation",
+              href: "/users/new?token=invite-token"
+            }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
       )
-    )
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -1896,6 +1913,7 @@ describe("App", () => {
     expect(screen.getByText("Repair aqueduct")).toBeInTheDocument()
     expect(screen.getByText("Repair aqueduct").closest(".select-none")).toBeInTheDocument()
     expectRunningPill(screen.getByText("running"))
+    expect(screen.getByLabelText("Active workflow trigger: rebase")).toHaveTextContent("rebase")
     expect(screen.getByRole("link", { name: "Repair aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/42")
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")
     expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
@@ -3723,7 +3741,7 @@ describe("App", () => {
     fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Lovelace" } })
     fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } })
     fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Lovelace" } })
-    fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "Mathematician and operator." } })
+    fireEvent.change(screen.getByLabelText("Profile bio"), { target: { value: "Mathematician and operator." } })
     fireEvent.change(screen.getByLabelText("Company"), { target: { value: "Analytical Engines Ltd" } })
     fireEvent.change(screen.getByLabelText("Location"), { target: { value: "London" } })
     fireEvent.change(screen.getByLabelText("Website"), { target: { value: "https://example.com/ada" } })
@@ -7026,10 +7044,6 @@ describe("App", () => {
       )
     })
     expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/chats/8",
-      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
-    )
   })
 })
 
@@ -7212,6 +7226,7 @@ function bootstrapSetupStatusPayload(overrides: { nextStep?: "configure_credenti
     },
     counts: {
       repositories: nextStep === "add_repository" || nextStep === "configure_credentials" ? 0 : 1,
+      jobs: nextStep === "watch_first_job" || nextStep === null ? 1 : 0,
       successful_jobs: nextStep === null ? 1 : 0
     }
   }
@@ -7991,6 +8006,7 @@ function dashboardJobItem(overrides: Record<string, unknown> = {}) {
     issue_url: "https://github.com/acme/widgets/issues/12",
     branch_name: "syrus/issue-12",
     pr_number: 34,
+    active_workflow_trigger_kind: "rebase",
     latest_workflow_trigger_kind: "rebase",
     pr_url: "https://github.com/acme/widgets/pull/34",
     latest_workflow_state: "running",

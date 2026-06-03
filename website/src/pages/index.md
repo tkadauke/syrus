@@ -63,7 +63,10 @@ GitHub issue or task
 
 Operators see the work as Jobs, Workflows, Steps, and Runs. That gives
 each attempt a state, a log, a diff, and a link back to the GitHub PR
-instead of leaving agent work scattered across terminal sessions.
+instead of leaving agent work scattered across terminal sessions. While
+work is executing, Syrus shows the active workflow trigger so operators
+can tell whether the current run is initial issue work, PR feedback, a
+retry, CI follow-up, or a rebase.
 
 The shortest path is a GitHub issue with label routing: connect the
 repository, choose the trigger label, and let Syrus turn the labeled issue
@@ -125,6 +128,12 @@ Choose the path that matches how much of the system you want to exercise.
 
 If you are still choosing a path, read [Getting Started](/docs/getting-started)
 or the [deployment overview](/docs/deployment).
+
+## Get Started
+
+Use [Try it locally](/docs/deployment/try-it-locally) for the shortest
+proof, then move to Docker Compose or Kubernetes when you want the full
+polling, worker, and PR loop.
 
 ## Honest Status
 
