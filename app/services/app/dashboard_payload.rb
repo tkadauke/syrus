@@ -155,10 +155,7 @@ module App
     end
 
     def active_repositories_scope
-      return Repository.active if subject == "epic"
-      return Repository.active if mine_scope? || team_scope? || user_scope? || claimable_scope?
-
-      Repository.active.where(user_id: user.id)
+      Repository.active
     end
 
     def ownership_scope
@@ -256,6 +253,8 @@ module App
           end
         elsif subject_name.to_s == "workflow"
           scope.where(jobs: { owner_user_id: owner_id })
+        elsif subject_name.to_s == "epic" && ownership_scope == "mine" && !ownership_param_present?
+          scope.where(owner_user_id: owner_id).or(scope.where(owner_user_id: nil, state: %w[backlog ready]))
         else
           scope.where(owner_user_id: owner_id)
         end
@@ -643,7 +642,7 @@ module App
         description: epic.description.to_s,
         state: epic.state,
         owner: owner_json(epic.owner),
-        owned_by_current_user: epic.claimed_by?(user),
+        owned_by_current_user: epic.owner_user_id == user.id || epic.claimed_by?(user),
         claimable: epic.claimable?,
         owner_badge: owner_badge_for(epic_owner_for_display(epic), claimable: epic.claimable?),
         claimed_at: epic.claimed_at&.iso8601,

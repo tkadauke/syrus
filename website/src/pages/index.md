@@ -103,6 +103,8 @@ can carry real review feedback and repeat attempts.
 
 Start small, then deploy the full loop when the product proves useful.
 
+Choose the path that matches how much of the system you want to exercise.
+
 | Path | Best for | Start here |
 | --- | --- | --- |
 | Local evaluation | Seeing Syrus produce a diff against your own checkout without GitHub setup | [Try it locally](/docs/deployment/try-it-locally) |
