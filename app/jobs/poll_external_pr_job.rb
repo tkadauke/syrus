@@ -9,7 +9,7 @@ class PollExternalPrJob < ApplicationJob
     return unless @job&.open? && @job.external_pr_number.present? && @job.pr_number.blank?
     return if @job.repository.archived?
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
+    @client = GithubClient.for(repository: @job.repository, user: @job.credential_user)
     @slug = @job.repository.slug
     @pr = @client.pull_request(@slug, @job.external_pr_number)
 

@@ -524,6 +524,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
         {payload.epic ? <KeyValue label="Epic"><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
         <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name || "-"}</code></KeyValue>
         <KeyValue label="Stack base"><StackBaseForm command={command} payload={payload} /></KeyValue>
+        <KeyValue label="GitHub credentials"><CredentialSummary payload={payload} /></KeyValue>
         <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue>
         <KeyValue label="Cost">{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400">({payload.job.billed_runs_count} billed)</span></KeyValue>
         <KeyValue label="Started">{formatDate(payload.job.started_at)}</KeyValue>
@@ -592,6 +593,24 @@ function JobOwnerLabel({ payload, prefix }: { payload: JobDetailPayload; prefix:
       </Link>
       {payload.job.claimed_at ? <span className="text-xs text-gray-400">{formatDate(payload.job.claimed_at)}</span> : null}
     </span>
+  )
+}
+
+function CredentialSummary({ payload }: { payload: JobDetailPayload }) {
+  const summary = payload.job.credential_summary
+  if (!summary) return <span className="text-gray-400">-</span>
+
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <SmallPill>{summary.label}</SmallPill>
+        <span className={summary.status === "missing" || summary.status === "inactive" ? "text-amber-700" : "text-emerald-700"}>{summary.status}</span>
+      </div>
+      <p className="text-xs text-gray-500">{summary.description}</p>
+      {summary.account_login || summary.user_label ? (
+        <p className="break-words text-xs text-gray-400">{summary.account_login || summary.user_label}</p>
+      ) : null}
+    </div>
   )
 }
 

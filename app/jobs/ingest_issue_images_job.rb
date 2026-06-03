@@ -119,7 +119,7 @@ class IngestIssueImagesJob < ApplicationJob
       "User-Agent" => GithubClient::USER_AGENT,
       "Accept" => "image/*,*/*;q=0.8"
     }
-    token = github_asset_url?(url) ? GithubClient.for(repository: job.repository, user: job.user).access_token : nil
+    token = github_asset_url?(url) ? GithubClient.for(repository: job.repository, user: job.credential_user).access_token : nil
     headers["Authorization"] = "Bearer #{token}" if token.present?
     headers
   rescue => e

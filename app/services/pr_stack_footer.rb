@@ -86,6 +86,6 @@ class PrStackFooter
   end
 
   def client
-    @client ||= GithubClient.for(repository: @job.repository, user: @job.user)
+    @client ||= GithubClient.for(repository: @job.repository, user: @job.credential_user)
   end
 end

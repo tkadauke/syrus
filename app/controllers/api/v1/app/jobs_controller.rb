@@ -86,6 +86,7 @@ module Api
                         :epic,
                         :owner_user,
                         :claimed_by_user,
+                        :credential_user,
                         :tags,
                         job_attachments: { file_attachment: :blob },
                         dependencies: [ :created_by_user, depends_on_job: :repository ],

@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe "App API job detail", type: :request do
-  let(:user) { Factories.user }
+  let(:user) { Factories.user(github_token: "ghp_never_render_this") }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
   let(:job) do
     Factories.job(
@@ -77,6 +77,18 @@ RSpec.describe "App API job detail", type: :request do
     expect(body.dig("job", "id")).to eq(job.id)
     expect(body.dig("job", "issue_title")).to eq("Repair aqueduct")
     expect(body.dig("job", "total_cost_usd")).to be_nil
+    expect(body["job"]).to include(
+      "credential_mode" => "pat",
+      "credential_user_id" => user.id,
+      "credential_user" => include("id" => user.id, "email_address" => user.email_address),
+      "credential_summary" => include(
+        "mode" => "pat",
+        "label" => "User PAT",
+        "status" => "configured",
+        "user_label" => user.email_address
+      )
+    )
+    expect(body["job"].to_json).not_to include("ghp_never_render_this", "github_token")
     expect(body["job"]).to include(
       "owner_user_id" => owner.id,
       "owner_user" => include("id" => owner.id, "email_address" => "owner@example.com")
@@ -244,6 +256,28 @@ RSpec.describe "App API job detail", type: :request do
     expect(response).to have_http_status(:forbidden)
     expect(parse_body.dig("error", "message")).to eq("Only the current owner can release this claim.")
     expect(job.reload.claimed_by_user).to eq(teammate)
+  end
+
+  it "explains App credentials on job detail without exposing token state" do
+    AppSetting.current.update!(github_app_id: "123")
+    app_owner = Factories.user(email_address: "app-owner@example.com", github_token: "ghp_fallback_secret")
+    installation = Factories.installation(user: app_owner, account_login: "acme")
+    app_repo = Factories.repository(user: user, owner: "acme", name: "app-widgets", installation: installation)
+    app_job = Factories.job(repository: app_repo, issue_number: 55)
+
+    get "/api/v1/app/jobs/#{app_job.id}"
+
+    expect(response).to have_http_status(:ok)
+    summary = parse_body.dig("job", "credential_summary")
+    expect(summary).to include(
+      "mode" => "app",
+      "label" => "GitHub App",
+      "status" => "active",
+      "account_login" => "acme",
+      "user_label" => "app-owner@example.com"
+    )
+    expect(parse_body.dig("job", "credential_user")).to include("email_address" => "app-owner@example.com")
+    expect(parse_body["job"].to_json).not_to include("ghp_fallback_secret", "github_token")
   end
 
   it "paginates workflows on the job detail payload" do

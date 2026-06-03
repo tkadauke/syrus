@@ -22,7 +22,7 @@ module Api
         # Job ID so callers can drill into `/api/v1/admin/jobs/:id`
         # for the full nested state.
         def index
-          scope = Job.includes(:repository, :owner_user).order(updated_at: :desc)
+          scope = Job.includes(:repository, :owner_user, :credential_user).order(updated_at: :desc)
           scope = scope.where(pr_number: params[:pr_number])       if params[:pr_number].present?
           scope = scope.where(issue_number: params[:issue_number]) if params[:issue_number].present?
           if params[:state].present?
@@ -165,6 +165,8 @@ module Api
             priority:       job.priority,
             validity:       job.validity,
             credential_mode: job.credential_mode,
+            credential_user_id: job.credential_user_id,
+            credential_user: user_identity_payload(job.credential_user),
             triaging_reason: job.triaging_reason,
             epic_id:        job.epic_id,
             owner_user_id:  job.owner_user_id,
@@ -195,6 +197,9 @@ module Api
             priority: job.priority,
             validity: job.validity,
             credential_mode: job.credential_mode,
+            credential_user_id: job.credential_user_id,
+            credential_user: user_identity_payload(job.credential_user),
+            credential_status: credential_status_payload(job),
             invalidation_reason: job.invalidation_reason,
             invalidation_evidence: job.invalidation_evidence,
             triaging_reason: job.triaging_reason,
@@ -249,7 +254,7 @@ module Api
           pr_number = job.pr_number || job.external_pr_number
           return unless pr_number
 
-          pr = GithubClient.for(repository: job.repository, user: job.user)
+          pr = GithubClient.for(repository: job.repository, user: job.credential_user)
                            .pull_request(job.repository.slug, pr_number, bypass_cache: true)
 
           {
@@ -290,6 +295,35 @@ module Api
             id: owner_user.id,
             email_address: owner_user.email_address
           }
+        end
+
+        def user_identity_payload(user)
+          return nil unless user
+
+          {
+            id: user.id,
+            email_address: user.email_address
+          }
+        end
+
+        def credential_status_payload(job)
+          if job.credential_mode == "app"
+            installation = job.repository.installation
+            {
+              mode: "app",
+              label: "GitHub App",
+              status: installation&.active? ? "active" : "inactive",
+              account_login: installation&.account_login,
+              credential_user_id: job.credential_user_id
+            }
+          else
+            {
+              mode: "pat",
+              label: "User PAT",
+              status: job.credential_user&.github_token.present? ? "configured" : "missing",
+              credential_user_id: job.credential_user_id
+            }
+          end
         end
 
         def github_rate_limit_payload(user)

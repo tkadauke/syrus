@@ -19,7 +19,7 @@ class PollMergeStateJob < ApplicationJob
     return if @job.workflows.active.exists?
     return if RebaseWorkflowSelector.active_for_stack?(@job)
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
+    @client = GithubClient.for(repository: @job.repository, user: @job.credential_user)
     @pr = @client.pull_request(@job.repository.slug, pr_number, bypass_cache: false)
     persist_mergeable(@pr.mergeable)
 

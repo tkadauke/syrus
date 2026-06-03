@@ -59,7 +59,7 @@ class StackRebaseCoordinator
     return if child.pr_number.blank?
 
     base = child.effective_base_branch
-    GithubClient.for(repository: child.repository, user: child.user)
+    GithubClient.for(repository: child.repository, user: child.credential_user)
                 .update_pull_request_base(child.repository.slug, child.pr_number, base: base)
   rescue StandardError => e
     Rails.logger.info(

@@ -106,9 +106,11 @@ when those keys live in Rails credentials.
 
 Repositories prefer an active GitHub App installation when one is linked
 for the repository owner. If no active installation is available, Syrus
-falls back to the user's PAT. Jobs persist the selected `credential_mode`
-as `app` or `pat` so operators can tell which credential path was used for
-that run.
+falls back to the repository owner's PAT. Jobs persist both the selected
+`credential_mode` (`app` or `pat`) and the Syrus user whose GitHub
+credentials powered the run. Job detail pages show safe labels such as
+GitHub App active/inactive or PAT configured/missing; token values are not
+rendered.
 
 Clone remotes use anonymous GitHub URLs. Token-bearing push URLs are
 constructed for the individual push command and are not written into

@@ -22,7 +22,7 @@ module Steps
     def compose_prompt
       comments = workflow.artifact("pr_comments") || []
       cutoff = parse_cutoff(workflow.artifact("feedback_cutoff"))
-      issue = job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
+      issue = job.issue? ? GithubClient.for(repository: repository, user: job.credential_user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
 
       prompt = Prompts::PrFeedback.new(
         issue: issue,

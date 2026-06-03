@@ -49,7 +49,7 @@ module Steps
 
     def push_branch
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
+      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.credential_user).access_token)
       git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
               chdir: workspace.path.to_s)
     end
@@ -96,7 +96,7 @@ module Steps
     end
 
     def pr_summarizer_context
-      job.cron? ? job.synthetic_issue : GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number)
+      job.cron? ? job.synthetic_issue : GithubClient.for(repository: repository, user: job.credential_user).fetch_issue(repository.slug, job.issue_number)
     end
 
     def compose_body(body)
@@ -118,7 +118,7 @@ module Steps
     def refresh_stack_footer
       return unless job.parent_job.present? || job.stack_children.exists?
 
-      client = GithubClient.for(repository: repository, user: job.user)
+      client = GithubClient.for(repository: repository, user: job.credential_user)
       [ job.parent_job, job ].compact.uniq.each do |stack_job|
         next if stack_job.pr_number.blank?
 

@@ -56,7 +56,7 @@ module Factories
   end
 
   def job(**attrs)
-    repo = attrs[:repository] || repository
+    repo = attrs[:repository] || repository(user: attrs[:user] || user)
     owner = attrs.key?(:user) ? attrs[:user] : repo.user
     owner_attrs = attrs.key?(:owner_user) || attrs.key?(:owner_user_id) ? {} : { owner_user: owner }
     job = Job.create!({

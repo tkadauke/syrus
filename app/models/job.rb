@@ -19,6 +19,7 @@ class Job < ApplicationRecord
   attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings
 
   belongs_to :user
+  belongs_to :credential_user, class_name: "User"
   belongs_to :owner_user, class_name: "User", optional: true
   belongs_to :repository
   belongs_to :scheduled_task, optional: true
@@ -73,7 +74,7 @@ class Job < ApplicationRecord
   validate  :issue_number_blank_for_direct, if: :direct?
   validate  :epic_belongs_to_same_user_and_repository
   before_validation :default_agent_provider, on: :create
-  before_validation :default_credential_mode, on: :create
+  before_validation :default_credential_snapshot, on: :create
   before_validation :default_lifecycle_metadata, on: :create
   before_validation :defer_stale_closed_epic_assignment
 
@@ -926,8 +927,13 @@ class Job < ApplicationRecord
     self.agent_provider ||= repository&.effective_agent_provider || user&.agent_provider
   end
 
-  def default_credential_mode
+  def default_credential_snapshot
     self.credential_mode = repository&.credential_mode || "pat"
+    self.credential_user ||= if credential_mode == "app"
+      repository&.installation&.user || repository&.user || user
+    else
+      repository&.user || user
+    end
   end
 
   def default_lifecycle_metadata

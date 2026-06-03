@@ -19,7 +19,7 @@ class AutoMergeGate
     def blocked? = outcome == :blocked
   end
 
-  def initialize(job:, client: GithubClient.for(repository: job.repository, user: job.user), bypass_cache: false, pr: nil)
+  def initialize(job:, client: GithubClient.for(repository: job.repository, user: job.credential_user), bypass_cache: false, pr: nil)
     @job = job
     @repository = job.repository
     @client = client

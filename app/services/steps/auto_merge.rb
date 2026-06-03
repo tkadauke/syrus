@@ -8,7 +8,7 @@ module Steps
     REBASE_MERGE_REJECTED_ERROR = /(?:can(?:not|'t)|could not) be rebased/i
 
     def call
-      client = GithubClient.for(repository: repository, user: job.user)
+      client = GithubClient.for(repository: repository, user: job.credential_user)
 
       if waiting_for_parent_merge?
         queue_until_parent_merges!

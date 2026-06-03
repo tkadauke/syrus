@@ -41,6 +41,9 @@ export type JobRecord = {
   priority: string
   validity: string
   credential_mode: string | null
+  credential_user_id: number | null
+  credential_user: JobCredentialUser | null
+  credential_summary: JobCredentialSummary | null
   agent_provider: string | null
   stack_base: string
   issue_number: number | null
@@ -86,6 +89,20 @@ export type JobOwner = {
   id: number
   display_name: string
   profile_path: string
+}
+
+export type JobCredentialUser = {
+  id: number
+  email_address: string
+}
+
+export type JobCredentialSummary = {
+  mode: string
+  label: string
+  description: string
+  status: string
+  account_login: string | null
+  user_label: string | null
 }
 
 export type JobTag = {

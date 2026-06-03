@@ -16,7 +16,7 @@ module Steps
       log("force_push: pushing rebased #{workspace.branch_name} (#{workflow.slug})")
 
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
+      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.credential_user).access_token)
       git.run("push", force_with_lease_arg, push_url,
               "HEAD:refs/heads/#{workspace.branch_name}",
               chdir: workspace.path.to_s)

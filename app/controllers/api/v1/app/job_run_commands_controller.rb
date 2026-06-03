@@ -193,7 +193,7 @@ module Api
           pr_number = job.pr_number || job.external_pr_number
           return if pr_number.blank?
 
-          GithubClient.for(repository: job.repository, user: job.user)
+          GithubClient.for(repository: job.repository, user: job.credential_user)
                       .pull_request(job.repository.slug, pr_number, bypass_cache: true)
         rescue StandardError => e
           Rails.logger.info("[App::JobRunCommandsController] failed to load PR ##{pr_number} for rebase job #{job.id}: #{e.class}: #{e.message}")

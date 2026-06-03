@@ -1,6 +1,31 @@
 require "rails_helper"
 
 RSpec.describe Job do
+  describe "credential snapshot" do
+    it "records the repository owner as the PAT credential user" do
+      credential_owner = Factories.user(github_token: "ghp_owner_secret")
+      execution_owner = Factories.user
+      repo = Factories.repository(user: credential_owner)
+
+      job = Job.create!(user: execution_owner, repository: repo, issue_number: 44)
+
+      expect(job.credential_mode).to eq("pat")
+      expect(job.credential_user).to eq(credential_owner)
+    end
+
+    it "records GitHub App mode and installation owner when an active installation powers the repository" do
+      AppSetting.current.update!(github_app_id: "123")
+      app_owner = Factories.user(github_token: "ghp_pat_fallback")
+      installation = Factories.installation(user: app_owner, account_login: "acme")
+      repo = Factories.repository(user: Factories.user, owner: "acme", installation: installation)
+
+      job = Job.create!(user: Factories.user, repository: repo, issue_number: 45)
+
+      expect(job.credential_mode).to eq("app")
+      expect(job.credential_user).to eq(app_owner)
+    end
+  end
+
   describe "app events" do
     it "broadcasts a compact event when created" do
       repo = Factories.repository

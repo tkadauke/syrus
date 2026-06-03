@@ -169,6 +169,17 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(body["state"]).to eq("queued")
       expect(body["agent_provider"]).to eq(job.agent_provider)
       expect(body["credential_mode"]).to eq(job.credential_mode)
+      expect(body["credential_user"]).to include(
+        "id" => admin.id,
+        "email_address" => admin.email_address
+      )
+      expect(body["credential_status"]).to include(
+        "mode" => "pat",
+        "label" => "User PAT",
+        "status" => "missing",
+        "credential_user_id" => admin.id
+      )
+      expect(body.to_json).not_to include("github_token")
       expect(body["stack_base"]).to eq(job.stack_base)
       expect(body["parent_job_id"]).to eq(job.parent_job_id)
       expect(body["effective_base_branch"]).to eq(job.effective_base_branch)
@@ -262,6 +273,14 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       body = parse_body
 
       expect(body["credential_mode"]).to eq("app")
+      expect(body["credential_user"]).to include("id" => admin.id, "email_address" => admin.email_address)
+      expect(body["credential_status"]).to include(
+        "mode" => "app",
+        "label" => "GitHub App",
+        "status" => "active",
+        "account_login" => "acme",
+        "credential_user_id" => admin.id
+      )
       expect(body["repository"]).to include(
         "credential_mode" => "app",
         "app_credential_active" => true

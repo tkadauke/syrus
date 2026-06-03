@@ -40,7 +40,7 @@ class PollRebaseJob < ApplicationJob
     pr_number = @job.pr_number || @job.external_pr_number
     return unless pr_number
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
+    @client = GithubClient.for(repository: @job.repository, user: @job.credential_user)
     pr = @client.pull_request(@job.repository.slug, pr_number, bypass_cache: bypass_cache)
 
     # Cache what GitHub told us so the show page doesn't have to call

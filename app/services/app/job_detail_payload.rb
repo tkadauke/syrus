@@ -58,6 +58,9 @@ module App
         validity: @job.validity,
         triaging_reason: @job.triaging_reason,
         credential_mode: @job.credential_mode,
+        credential_user_id: @job.credential_user_id,
+        credential_user: credential_user_json(@job.credential_user),
+        credential_summary: credential_summary_json,
         agent_provider: @job.agent_provider,
         stack_base: @job.stack_base,
         parent_job_id: @job.parent_job_id,
@@ -149,6 +152,39 @@ module App
         id: owner_user.id,
         email_address: owner_user.email_address
       }
+    end
+
+    def credential_user_json(credential_user)
+      return nil unless credential_user
+
+      {
+        id: credential_user.id,
+        email_address: credential_user.email_address
+      }
+    end
+
+    def credential_summary_json
+      case @job.credential_mode
+      when "app"
+        installation = @job.repository.installation
+        {
+          mode: "app",
+          label: "GitHub App",
+          description: installation&.active? ? "Using a GitHub App installation for #{@job.repository.owner}." : "Created with GitHub App credentials; the installation is no longer active.",
+          status: installation&.active? ? "active" : "inactive",
+          account_login: installation&.account_login,
+          user_label: @job.credential_user&.email_address
+        }
+      else
+        {
+          mode: "pat",
+          label: "User PAT",
+          description: "Using #{@job.credential_user&.email_address || "a Syrus user"}'s GitHub PAT fallback.",
+          status: @job.credential_user&.github_token.present? ? "configured" : "missing",
+          account_login: nil,
+          user_label: @job.credential_user&.email_address
+        }
+      end
     end
 
     def dependency_json(dependency)

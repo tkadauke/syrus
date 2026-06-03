@@ -29,14 +29,14 @@ class PollPullRequestJob < ApplicationJob
     return unless @job&.open? && @job.pr_number.present?
     return if @job.repository.archived?
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
+    @client = GithubClient.for(repository: @job.repository, user: @job.credential_user)
     @slug = @job.repository.slug
     @pr = @client.pull_request(@slug, @job.pr_number)
 
-    # Reaching this point means the user's GH token is at least
+    # Reaching this point means the selected GitHub credential is at least
     # readable for pull_request — clear any stale "API blocked"
     # banner. Per-branch errors below mark it again if needed.
-    @job.user.clear_gh_api_blocked!
+    @job.credential_user.clear_gh_api_blocked!
 
     return close_with("pr_merged") if @pr.merged
     return close_with("pr_closed") if @pr.state == "closed"
@@ -49,7 +49,7 @@ class PollPullRequestJob < ApplicationJob
     # The pull_request fetch itself failed on permissions — record
     # for the banner, then re-raise so SolidQueue's failed_executions
     # table reflects the actual error class for later diagnostics.
-    @job&.user&.mark_gh_api_blocked!(strip_docs_url(e.message))
+    @job&.credential_user&.mark_gh_api_blocked!(strip_docs_url(e.message))
     raise
   end
 
@@ -206,7 +206,7 @@ class PollPullRequestJob < ApplicationJob
     # Pre-existing pr_comment Runs that already enqueued this poll
     # shouldn't all die because CI scope is missing.
     reason = strip_docs_url(e.message)
-    @job.user.mark_gh_api_blocked!("check-runs: #{reason}")
+    @job.credential_user.mark_gh_api_blocked!("check-runs: #{reason}")
     Rails.logger.warn("[PollPullRequestJob] job #{@job.id}: ci_failure path disabled — #{reason[0, 160]}")
   end
 
