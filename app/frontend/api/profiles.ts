@@ -13,6 +13,7 @@ export type TeamProfileSummary = {
   first_name: string | null
   last_name: string | null
   github_handle: string | null
+  role_label: string
   avatar_url: string | null
   bio_excerpt: string
   counts: TeamProfileCounts

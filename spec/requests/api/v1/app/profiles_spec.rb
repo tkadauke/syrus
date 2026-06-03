@@ -39,6 +39,7 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(row).to include(
       "display_name" => "Ada Lovelace",
       "github_handle" => "ada",
+      "role_label" => "Operator",
       "avatar_url" => "https://example.com/ada.png",
       "profile_path" => "/profiles/#{teammate.id}"
     )

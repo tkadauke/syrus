@@ -117,6 +117,10 @@ schedules, chats, Epics, Jobs, and admin/API permissions. Repository
 settings can override the user's provider default when a codebase needs a
 specific agent.
 
+When more than one user exists, the app shows a team directory with each
+member's role, profile link, and lightweight workload counts. Single-user
+instances keep the primary navigation focused on the solo operator's work.
+
 That model keeps solo operation simple and team operation centralized
 without turning every run into a shared global credential.
 

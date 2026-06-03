@@ -32,6 +32,7 @@ module Api
             first_name: user.first_name,
             last_name: user.last_name,
             github_handle: user.github_handle,
+            role_label: role_label(user),
             avatar_url: user.avatar_url,
             bio_excerpt: user.profile_bio.to_s.truncate(160),
             counts: counts_json(user),
@@ -46,7 +47,7 @@ module Api
             first_name: user.first_name,
             last_name: user.last_name,
             github_handle: user.github_handle,
-            role_label: user.admin? ? "Admin" : "Operator",
+            role_label: role_label(user),
             profile_bio: user.profile_bio,
             profile_location: user.profile_location,
             profile_company: user.profile_company,
@@ -68,6 +69,10 @@ module Api
             jobs: user.jobs.count,
             open_jobs: user.jobs.where.not(state: "closed").count
           }
+        end
+
+        def role_label(user)
+          user.admin? ? "Admin" : "Operator"
         end
 
         def repository_json(repository)

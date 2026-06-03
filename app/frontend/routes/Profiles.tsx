@@ -61,7 +61,10 @@ function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix:
         <Avatar avatarUrl={profile.avatar_url} displayName={profile.display_name} />
         <div className="min-w-0 flex-1">
           <Link className="text-base font-semibold text-blue-600 hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
-          {profile.github_handle ? <div className="text-sm text-gray-500">@{profile.github_handle}</div> : null}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
+            <span>{profile.role_label}</span>
+            {profile.github_handle ? <span>@{profile.github_handle}</span> : null}
+          </div>
           {profile.bio_excerpt ? <p className="mt-2 line-clamp-2 text-sm text-gray-600">{profile.bio_excerpt}</p> : null}
         </div>
       </div>

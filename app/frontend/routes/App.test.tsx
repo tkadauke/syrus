@@ -569,6 +569,7 @@ describe("App", () => {
               first_name: "Ada",
               last_name: "Lovelace",
               github_handle: "ada",
+              role_label: "Operator",
               avatar_url: null,
               bio_excerpt: "Keeps the machines honest.",
               counts: { repositories: 1, epics: 2, jobs: 3, open_jobs: 1 },
@@ -590,6 +591,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Team directory" })).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/7")
+    expect(screen.getByText("Operator")).toBeInTheDocument()
     expect(screen.getByText("@ada")).toBeInTheDocument()
     expect(screen.getByText("Keeps the machines honest.")).toBeInTheDocument()
   })
