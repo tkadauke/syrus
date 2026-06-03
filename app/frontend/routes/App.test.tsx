@@ -331,7 +331,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
-    expect(screen.getByText("Invitation link")).toBeInTheDocument()
+    expect(screen.getAllByText("Invitation-only").length).toBeGreaterThan(0)
     expect(screen.getByText("Detected")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
@@ -7070,6 +7070,10 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
     },
     ...payloadOverrides
   }
+}
+
+function defaultSetupStatus() {
+  return setupStatus()
 }
 
 function setupStatus(overrides: Record<string, unknown> = {}) {
