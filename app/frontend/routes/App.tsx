@@ -29,6 +29,7 @@ import { EpicFormRoute } from "./EpicForm"
 import { JobDetailRoute } from "./JobDetail"
 import { OnboardingRoute } from "./Onboarding"
 import { PersonalDocumentsRoute } from "./PersonalDocuments"
+import { ProfileRoute } from "./Profile"
 import { RepositoriesIndex } from "./Repositories"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
@@ -86,6 +87,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/profiles", element: <TeamDirectoryRoute /> },
   { path: "/profiles/:id", element: <TeamProfileRoute /> },
   { path: "/documents", element: <PersonalDocumentsRoute /> },
+  { path: "/profiles/:id", element: <ProfileRoute /> },
   { path: "/smart_folders", element: <SmartFolders /> },
   { path: "/tags", element: <Tags /> },
   { path: "/cron_templates", element: <CronTemplatesIndex /> },
