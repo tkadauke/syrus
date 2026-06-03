@@ -43,6 +43,7 @@ RSpec.describe "API: /api/v1/admin/workflows/:id/*", type: :request do
       expect(body["new_run_id"]).to be_present
 
       expect(workflow.reload.state).to eq("running")
+      expect(job.reload.state).to eq("queued")
       expect(summarize_step.reload.state).to eq("queued")
     end
 

@@ -6,7 +6,7 @@ class ReconcileJobStatesJob < ApplicationJob
   # net for the Workflow → Job propagation hooks: most of the time
   # propagate_start / propagate_fail / propagate_succeed / propagate_reopen
   # keep the two records in lockstep, but each new propagation gap
-  # (the workflow.reopen one was the latest) leaves Jobs stuck until
+  # (retry-from-failed-step was one such case) leaves Jobs stuck until
   # someone notices and runs a manual lift. The reconciler closes
   # that loop without adding new ad-hoc operator tooling.
   #
@@ -83,10 +83,11 @@ class ReconcileJobStatesJob < ApplicationJob
       when [ "failed", "running" ]
         # Operator reopened the workflow (or a polling-instantiated
         # follow-up workflow started) but propagate_reopen / propagate_start
-        # couldn't lift the Job from :failed.
-        new(job, target_state: "running",
+        # couldn't lift the Job from :failed. Keep it queued to match
+        # retry-from-failed-step's operator-visible state.
+        new(job, target_state: "queued",
                   reason: "latest workflow :running but Job stuck at :failed",
-                  steps: %i[ retry_after_failure! start_running! ])
+                  steps: %i[ retry_after_failure! ])
 
       when [ "failed", "cancelled" ]
         # Latest attempt was cancelled (operator stop, or chain

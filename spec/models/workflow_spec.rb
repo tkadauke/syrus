@@ -218,13 +218,13 @@ describe "Job state propagation (Phase 2)" do
         .to change { job.reload.state }.from("failed").to("implemented")
     end
 
-    it "drives Job :failed → :running on workflow.reopen (Retry-from-failed-step)" do
+    it "drives Job :failed → :queued on workflow.reopen (Retry-from-failed-step)" do
       job.update!(state: "failed")
       wf = described_class.create!(job: job, trigger_kind: "pr_comment", state: "failed",
                                    started_at: 2.minutes.ago, finished_at: 1.minute.ago)
 
       expect { wf.reopen!; wf.save! }
-        .to change { job.reload.state }.from("failed").to("running")
+        .to change { job.reload.state }.from("failed").to("queued")
     end
 
     it "leaves Job state untouched on workflow.reopen when Job is already :running (no stuck propagation gap)" do

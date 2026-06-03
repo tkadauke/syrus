@@ -195,25 +195,20 @@ class Workflow < ApplicationRecord
     end
   end
 
-  # Workflow#reopen drives :failed → :running, but the Job may have
-  # already been driven to :failed by the original workflow.fail's
-  # propagate_fail_to_job. Lift the Job back so subsequent step-
-  # success and workflow-success callbacks see a Job that's still
-  # tracking the (now-running) workflow.
+  # Workflow#reopen drives :failed → :running, but the fresh Run on
+  # the failed Step is still only queued until Solid Queue picks it
+  # up. If the Job was marked :failed by the original workflow.fail's
+  # propagate_fail_to_job, lift it back to :queued so the operator sees
+  # pending retry work instead of an already-running Job.
   def propagate_reopen_to_job!
     return if trigger_kind == "auto_merge"
-    return if job.running?
+    return if job.queued? || job.running?
 
     StateTransition.with_source("propagate") do
       if job.failed? && job.may_retry_after_failure?
         job.retry_after_failure!
         job.save!
       end
-
-      return unless job.may_start_running?
-
-      job.start_running!
-      job.save!
     end
   end
 

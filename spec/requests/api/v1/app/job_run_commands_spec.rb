@@ -174,9 +174,11 @@ RSpec.describe "App API job run commands", type: :request do
     new_run = failed_step.runs.order(:created_at).last
     expect(response).to have_http_status(:ok)
     expect(workflow.reload).to be_running
+    expect(job.reload).to be_queued
     expect(failed_step.reload).to be_queued
     expect(new_run.agent_provider).to eq(workflow.agent_provider)
     expect(parse_body).to include("message" => "Retrying summarize for workflow ##{workflow.id}...")
+    expect(parse_body.dig("job", "state")).to eq("queued")
   end
 
   it "queues a push for a failed workflow with an intact workspace" do
