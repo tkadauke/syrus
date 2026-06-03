@@ -37,6 +37,14 @@ RSpec.describe "website content coverage" do
     end
   end
 
+  it "points landing CTAs at canonical docs paths instead of a stale evaluate route" do
+    landing = read_website("src/pages/index.md")
+
+    expect(landing).to include("[Try it locally](/docs/deployment/try-it-locally)")
+    expect(landing).to include("[Read the docs](/docs)")
+    expect(landing).not_to include("](/evaluate")
+  end
+
   it "requires agent guidance to keep website docs current for product changes" do
     guide = File.read(File.expand_path("../../CLAUDE.md", __dir__))
 
