@@ -250,6 +250,19 @@ class RunJob < ApplicationJob
     )
   end
 
+  def execution_owner_consistent?
+    @run.user_id == @job.user_id && @workflow.user_id == @job.user_id
+  end
+
+  def fail_run_without_validation!(outcome)
+    @run.update_columns(
+      agent_outcome: outcome,
+      state: "failed",
+      finished_at: Time.current,
+      updated_at: Time.current
+    )
+  end
+
   # A failure is "loop-controlled" when the dispatcher's per-kind
   # fail logic takes over (advances to next sibling for graders,
   # iterates for grader_collect / grade) rather than failing the
