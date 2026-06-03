@@ -54,7 +54,21 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
 
   it "shows a teammate profile with safe owned work summaries" do
     viewer = Factories.user
-    teammate = Factories.user(first_name: "Grace", last_name: "Hopper", profile_bio: "Compiler operator.")
+    teammate = Factories.user(
+      email_address: "ada@example.com",
+      first_name: "Grace",
+      last_name: "Hopper",
+      github_handle: "@grace",
+      profile_bio: "Compiler operator.",
+      profile_location: "Arlington",
+      profile_company: "Navy",
+      profile_website: "https://example.com/grace",
+      claude_oauth_token: "sk-profile-secret",
+      codex_api_key: "sk-codex-profile-secret",
+      codex_auth_json: Factories.codex_auth_json(access_token: "codex-profile-access"),
+      github_token: "ghp_profile_secret",
+      api_token: "syrus_profile_secret"
+    )
     repo = Factories.repository(user: teammate, owner: "navy", name: "cobol")
     epic = Factories.epic(user: teammate, repository: repo, title: "Directory")
     job = Factories.job_record(user: teammate, repository: repo, issue_title: "Link owners")
@@ -67,12 +81,31 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(profile).to include(
       "id" => teammate.id,
       "display_name" => "Grace Hopper",
-      "profile_bio" => "Compiler operator."
+      "github_handle" => "grace",
+      "profile_bio" => "Compiler operator.",
+      "profile_location" => "Arlington",
+      "profile_company" => "Navy",
+      "profile_website" => "https://example.com/grace"
     )
     expect(profile["repositories"]).to include(include("slug" => "navy/cobol", "path" => "/repositories/#{repo.id}"))
     expect(profile["epics"]).to include(include("id" => epic.id, "title" => "Directory", "path" => "/epics/#{epic.id}"))
     expect(profile["jobs"]).to include(include("id" => job.id, "title" => "Link owners", "path" => "/jobs/#{job.id}"))
     expect(profile["recent_activity"].map { |activity| activity["title"] }).to include("Directory", "Link owners")
+    expect(profile.keys).not_to include(
+      "admin",
+      "agent_provider",
+      "agent_max_turns",
+      "claude_oauth_token",
+      "codex_api_key",
+      "codex_auth_json",
+      "github_token",
+      "api_token"
+    )
     expect(response.body).not_to include(teammate.email_address)
+    expect(response.body).not_to include("sk-profile-secret")
+    expect(response.body).not_to include("sk-codex-profile-secret")
+    expect(response.body).not_to include("codex-profile-access")
+    expect(response.body).not_to include("ghp_profile_secret")
+    expect(response.body).not_to include("syrus_profile_secret")
   end
 end
