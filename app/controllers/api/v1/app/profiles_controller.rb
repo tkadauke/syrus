@@ -55,7 +55,7 @@ module Api
             counts: counts_json(user),
             repositories: user.repositories.active.order(:owner, :name, :id).limit(RECENT_LIMIT).map { |repository| repository_json(repository) },
             epics: user.epics.includes(:repository).where.not(state: Epic::ARCHIVED_STATE).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |epic| epic_json(epic) },
-            jobs: user.jobs.includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |job| job_json(job) },
+            jobs: user.jobs.includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |job| job_json(job, show_owner: show_owner_labels_for?(user)) },
             recent_activity: recent_activity_json(user)
           }
         end
@@ -89,7 +89,7 @@ module Api
           }
         end
 
-        def job_json(job)
+        def job_json(job, show_owner:)
           {
             id: job.id,
             title: job.issue_title.presence || job.kind.humanize,
@@ -97,8 +97,9 @@ module Api
             kind: job.kind,
             repository: repository_json(job.repository),
             updated_at: job.updated_at&.iso8601,
-            path: job_path(job)
-          }
+            path: job_path(job),
+            owner: show_owner ? owner_json(job.user) : nil
+          }.compact
         end
 
         def recent_activity_json(user)
@@ -125,6 +126,18 @@ module Api
           end
 
           activities.sort_by { |activity| activity.fetch(:occurred_at).to_s }.reverse.first(RECENT_LIMIT)
+        end
+
+        def owner_json(user)
+          {
+            id: user.id,
+            display_name: user.display_name,
+            profile_path: profile_path(user)
+          }
+        end
+
+        def show_owner_labels_for?(profile_user)
+          Current.user.id != profile_user.id && User.where.not(id: Current.user.id).exists?
         end
       end
     end

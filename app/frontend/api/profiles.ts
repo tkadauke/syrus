@@ -25,6 +25,12 @@ export type TeamProfileRepository = {
   path: string
 }
 
+export type TeamProfileOwner = {
+  id: number
+  display_name: string
+  profile_path: string
+}
+
 export type TeamProfileEpic = {
   id: number
   display_number: string
@@ -43,6 +49,7 @@ export type TeamProfileJob = {
   repository: TeamProfileRepository
   updated_at: string | null
   path: string
+  owner?: TeamProfileOwner | null
 }
 
 export type TeamProfileActivity = {

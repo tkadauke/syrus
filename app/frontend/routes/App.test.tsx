@@ -3764,7 +3764,8 @@ describe("App", () => {
     expect(screen.getByText("Mathematician and operator.")).toBeInTheDocument()
     expect(screen.getByText("Add profile page")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Add profile page" })).toHaveAttribute("href", "/app-shell/jobs/55")
-    expect(screen.getByText("acme/widgets")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
+    expect(screen.getByText((content) => content.startsWith("acme/widgets") && content.includes("updated"))).toBeInTheDocument()
     expect(screen.queryByText("GitHub token")).not.toBeInTheDocument()
     expect(screen.queryByText("ada@example.com")).not.toBeInTheDocument()
     expect(screen.queryByText("sk-profile-secret")).not.toBeInTheDocument()
@@ -7234,7 +7235,12 @@ function profilePayload(overrides: Record<string, unknown> = {}) {
           kind: "issue",
           repository: { id: 3, slug: "acme/widgets", path: "/repositories/3" },
           updated_at: "2026-05-30T12:00:00Z",
-          path: "/jobs/55"
+          path: "/jobs/55",
+          owner: {
+            id: 2,
+            display_name: "Ada Lovelace",
+            profile_path: "/profiles/2"
+          }
         }
       ],
       recent_activity: [],

@@ -149,17 +149,44 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
         "title" => "Add profile page",
         "state" => "running",
         "repository" => hash_including("slug" => "navy/compiler"),
-        "path" => "/jobs/#{open_job.id}"
+        "path" => "/jobs/#{open_job.id}",
+        "owner" => {
+          "id" => teammate.id,
+          "display_name" => "Grace Hopper",
+          "profile_path" => "/profiles/#{teammate.id}"
+        }
       ),
       hash_including(
         "id" => closed_job.id,
         "title" => "Retire old forms",
         "state" => "closed",
         "repository" => hash_including("slug" => "navy/compiler"),
-        "path" => "/jobs/#{closed_job.id}"
+        "path" => "/jobs/#{closed_job.id}",
+        "owner" => {
+          "id" => teammate.id,
+          "display_name" => "Grace Hopper",
+          "profile_path" => "/profiles/#{teammate.id}"
+        }
       )
     )
     expect(profile.fetch("recent_activity").map { |activity| activity["title"] }).to include("Add profile page", "Retire old forms")
     expect(response.body).not_to include("Other user's work")
+  end
+
+  it "keeps current-user profile work quiet" do
+    user = Factories.user(name: "Solo Operator")
+    repository = Factories.repository(user: user, owner: "solo", name: "repo")
+    Factories.job_record(user: user, repository: repository, issue_number: 1, issue_title: "Own the work", state: "running")
+    sign_in_as(user)
+
+    get "/api/v1/app/profiles/#{user.id}"
+
+    expect(response).to have_http_status(:ok)
+    recent_job = parse_body.dig("profile", "jobs").sole
+    expect(recent_job).to include(
+      "title" => "Own the work",
+      "repository" => hash_including("slug" => "solo/repo")
+    )
+    expect(recent_job).not_to have_key("owner")
   end
 end
