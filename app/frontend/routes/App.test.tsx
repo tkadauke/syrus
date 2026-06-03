@@ -180,8 +180,12 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Syrus turns GitHub issues into reviewed pull requests." })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Set up this Syrus instance" })).toHaveAttribute("href", "/users/new")
-    expect(screen.getByText("No users exist yet. The first account becomes the administrator for this instance.")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "Set up this Syrus instance" })[0]).toHaveAttribute("href", "/users/new")
+    expect(screen.getAllByText("No users exist yet. The first account becomes the administrator for this instance.").length).toBeGreaterThan(0)
+    expect(screen.getByRole("region", { name: "Workflow" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Why self-host Syrus" })).toBeInTheDocument()
+    expect(screen.getByText("The agent writes code; Syrus owns the run.")).toBeInTheDocument()
+    expect(screen.getByText("Keep automation close to the repositories it changes.")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
       expect.objectContaining({ credentials: "same-origin" })
@@ -205,8 +209,8 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/session/new")
-    expect(screen.getByText("This instance is invitation-only. Ask the operator for an invitation if you need access.")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "Sign in" })[0]).toHaveAttribute("href", "/session/new")
+    expect(screen.getAllByText("This instance is invitation-only. Ask the operator for an invitation if you need access.").length).toBeGreaterThan(0)
     expect(screen.getByText("Access to this Syrus instance is controlled by its operator. Use an invitation link, or sign in with an existing account.")).toBeInTheDocument()
   })
 
@@ -228,7 +232,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "Create account" })[0]).toHaveAttribute("href", "/users/new")
-    expect(screen.getByText("Open sign-ups are enabled for this instance.")).toBeInTheDocument()
+    expect(screen.getAllByText("Open sign-ups are enabled for this instance.").length).toBeGreaterThan(0)
   })
 
   it("renders account creation CTA when an invitation token is present", async () => {
@@ -248,7 +252,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-123")
+    expect(screen.getAllByRole("link", { name: "Create account from invitation" })[0]).toHaveAttribute("href", "/users/new?token=invite-123")
     expect(screen.getByText("Detected")).toBeInTheDocument()
   })
 

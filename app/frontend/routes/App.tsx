@@ -169,17 +169,29 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
   const signupPath = invitationToken
     ? `${withRoutePrefix(payload.public.signup_path, prefix)}?token=${encodeURIComponent(invitationToken)}`
     : withRoutePrefix(payload.public.signup_path, prefix)
+  const workflowSteps = [
+    ["Issue", "A GitHub issue, PR comment, schedule, retry, or rebase enters the queue."],
+    ["Job", "Syrus creates the thread, workspace, branch, prompt, logs, and state machine records."],
+    ["Agent", "Claude or Codex runs in the cloned repository with bounded setup and captured output."],
+    ["PR", "Syrus commits the result, captures the three-dot diff, and opens or updates the pull request."]
+  ]
+  const featureCards = [
+    ["Polling, not webhooks", "Runs from outbound GitHub polling, so private deployments do not need inbound callback plumbing."],
+    ["Operator-grade state", "Jobs, Workflows, Steps, and Runs keep retries, failures, feedback, summaries, and costs auditable."],
+    ["Credentials stay local", "Use a GitHub App or PAT fallback while agent provider configuration remains under your instance control."],
+    ["PR feedback loops", "Review comments, CI failures, retries, and rebases become follow-up attempts on the same Job."]
+  ]
 
   return (
     <main aria-label="Syrus public landing" className="mx-auto max-w-[96rem] px-6 py-8 sm:py-12">
-      <section className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-start">
+      <section className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_32rem] lg:items-center">
         <div className="max-w-3xl">
           <p className="text-sm font-medium uppercase text-blue-700">Self-hosted agent workflow control</p>
           <h1 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight text-gray-950 sm:text-5xl">
             Syrus turns GitHub issues into reviewed pull requests.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-700">
-            This instance coordinates repositories, credentials, queues, and agent runs so operators can delegate software work without losing the audit trail.
+            Delegate work from GitHub and keep the deterministic parts in your hands: repository setup, credentials, queues, retries, rebases, summaries, and the PR that lands back in review.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link className={landingPrimaryButtonClass()} to={cta.href}>{cta.label}</Link>
@@ -188,43 +200,108 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
           <p className="mt-3 max-w-xl text-sm text-gray-600">{cta.description}</p>
         </div>
 
-        <aside aria-label="Instance access" className="rounded border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-900">Access</h2>
-          <dl className="mt-4 space-y-3 text-sm">
-            <div className="flex items-start justify-between gap-4">
-              <dt className="text-gray-600">First admin</dt>
-              <dd className="font-medium text-gray-900">{payload.public.first_signup ? "Ready to create" : "Already configured"}</dd>
+        <aside aria-label="Syrus run flow" className="rounded border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Live work path</h2>
+              <p className="mt-1 text-sm text-gray-600">From external signal to pull request.</p>
             </div>
-            <div className="flex items-start justify-between gap-4">
-              <dt className="text-gray-600">Sign-ups</dt>
-              <dd className="font-medium text-gray-900">{payload.public.signups_open ? "Open" : "Invitation-only"}</dd>
+            <span className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Audited</span>
+          </div>
+          <ol className="mt-5 space-y-3">
+            {workflowSteps.map(([title, body], index) => (
+              <li className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3" key={title}>
+                <div className="flex h-9 w-9 items-center justify-center rounded bg-gray-900 text-sm font-semibold text-white">{index + 1}</div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-gray-600">{body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-gray-100 pt-4 text-center text-xs">
+            <div className="rounded bg-blue-50 p-2">
+              <dt className="text-blue-800">Workspace</dt>
+              <dd className="mt-1 font-semibold text-blue-950">Cloned</dd>
             </div>
-            <div className="flex items-start justify-between gap-4">
-              <dt className="text-gray-600">Invitation link</dt>
-              <dd className="font-medium text-gray-900">{invitationToken ? "Detected" : "Not present"}</dd>
+            <div className="rounded bg-amber-50 p-2">
+              <dt className="text-amber-800">Diff</dt>
+              <dd className="mt-1 font-semibold text-amber-950">Captured</dd>
+            </div>
+            <div className="rounded bg-green-50 p-2">
+              <dt className="text-green-800">PR</dt>
+              <dd className="mt-1 font-semibold text-green-950">Updated</dd>
             </div>
           </dl>
-          {!payload.public.first_signup && !payload.public.signups_open && !invitationToken ? (
-            <p className="mt-4 border-t border-gray-100 pt-4 text-sm leading-6 text-gray-600">
-              Access to this Syrus instance is controlled by its operator. Use an invitation link, or sign in with an existing account.
-            </p>
-          ) : null}
         </aside>
       </section>
 
-      <section className="mt-12 grid gap-4 md:grid-cols-4" aria-label="Workflow">
-        {[
-          ["Label a GitHub issue", "Pollers find delegated work in connected repositories."],
-          ["Syrus creates a Job", "The run gets a workspace, prompt, state, logs, and queue priority."],
-          ["An agent writes code", "Claude or Codex works inside the cloned repository with tracked output."],
-          ["Syrus opens a PR", "The instance captures the diff, summary, branch, and follow-up feedback."]
-        ].map(([title, body], index) => (
+      <section className="mt-12" aria-label="Workflow">
+        <div className="max-w-3xl">
+          <p className="text-sm font-medium text-blue-700">Issue to PR</p>
+          <h2 className="mt-2 text-2xl font-semibold text-gray-950">The agent writes code; Syrus owns the run.</h2>
+          <p className="mt-3 text-sm leading-6 text-gray-600">Every attempt has a visible state, workspace, logs, prompt, provider, captured diff, and PR summary.</p>
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-4">
+          {workflowSteps.map(([title, body], index) => (
           <article className="rounded border border-gray-200 bg-white p-4" key={title}>
             <div className="flex h-8 w-8 items-center justify-center rounded bg-gray-900 text-sm font-semibold text-white">{index + 1}</div>
             <h2 className="mt-4 text-base font-semibold text-gray-900">{title}</h2>
             <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
           </article>
-        ))}
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-12 grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)] lg:items-start" aria-label="Why self-host Syrus">
+        <div>
+          <p className="text-sm font-medium text-blue-700">Why self-host</p>
+          <h2 className="mt-2 text-2xl font-semibold text-gray-950">Keep automation close to the repositories it changes.</h2>
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Syrus is built for operators who want agent work to pass through their own queues, credentials, audit logs, and deployment boundaries before a pull request appears.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {featureCards.map(([title, body]) => (
+            <article className="rounded border border-gray-200 bg-white p-4" key={title}>
+              <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-12 rounded border border-gray-200 bg-white p-5" aria-label="Instance access">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-center">
+          <div>
+            <p className="text-sm font-medium text-blue-700">This instance</p>
+            <h2 className="mt-2 text-2xl font-semibold text-gray-950">{cta.label}</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">{cta.description}</p>
+            {!payload.public.first_signup && !payload.public.signups_open && !invitationToken ? (
+              <p className="mt-2 text-sm leading-6 text-gray-600">
+                Access to this Syrus instance is controlled by its operator. Use an invitation link, or sign in with an existing account.
+              </p>
+            ) : null}
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link className={landingPrimaryButtonClass()} to={cta.href}>{cta.label}</Link>
+              {cta.kind === "locked" ? null : <Link className={landingSecondaryButtonClass()} to={signInPath}>Sign in</Link>}
+            </div>
+          </div>
+          <dl className="grid gap-3 text-sm sm:grid-cols-3 lg:grid-cols-1">
+            <div className="flex items-start justify-between gap-4 rounded bg-gray-50 px-3 py-2">
+              <dt className="text-gray-600">First admin</dt>
+              <dd className="font-medium text-gray-900">{payload.public.first_signup ? "Ready to create" : "Already configured"}</dd>
+            </div>
+            <div className="flex items-start justify-between gap-4 rounded bg-gray-50 px-3 py-2">
+              <dt className="text-gray-600">Sign-ups</dt>
+              <dd className="font-medium text-gray-900">{payload.public.signups_open ? "Open" : "Invitation-only"}</dd>
+            </div>
+            <div className="flex items-start justify-between gap-4 rounded bg-gray-50 px-3 py-2">
+              <dt className="text-gray-600">Invitation link</dt>
+              <dd className="font-medium text-gray-900">{invitationToken ? "Detected" : "Not present"}</dd>
+            </div>
+          </dl>
+        </div>
       </section>
 
       <section className="mt-10 flex flex-col gap-3 border-t border-gray-200 pt-6 text-sm text-gray-700 sm:flex-row sm:items-center">
