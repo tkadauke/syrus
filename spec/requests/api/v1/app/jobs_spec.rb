@@ -57,6 +57,7 @@ RSpec.describe "App API job detail", type: :request do
     run.start!
     run.save!
     run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "digging trench")
+    run.job_logs.create!(sequence: 1, kind: "rate_limited", chunk: "[rate-limited] core quota exhausted")
     run.run_health_snapshots.create!(run_state: "running", health_status: "healthy", log_count: 1)
     run.create_run_diagnostic!(error_class: "Timeout::Error", error_message: "too much marble")
 
@@ -112,7 +113,8 @@ RSpec.describe "App API job detail", type: :request do
     first_run = workflow["steps"].flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
     expect(first_run).to include(
       "state" => "running",
-      "job_log_count" => 1,
+      "job_log_count" => 2,
+      "rate_limited" => true,
       "can_stop" => true,
       "can_diagnose" => true,
       "app_artifacts_path" => "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts",

@@ -52,6 +52,16 @@ RSpec.describe ReapStaleRunsJob do
       expect(run.reload.agent_outcome).to eq("worker_died")
     end
 
+    it "does not enqueue retry workflows while reaping a stale heartbeat" do
+      run = running_run(heartbeat_age: Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes)
+
+      expect {
+        described_class.perform_now
+      }.not_to change { Workflow.where(job: run.job, trigger_kind: "retry").count }
+
+      expect(run.reload.agent_outcome).to eq("worker_died")
+    end
+
     it "sets finished_at" do
       run = running_run(heartbeat_age: Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes)
       freeze_time do
