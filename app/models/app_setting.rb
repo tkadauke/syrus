@@ -49,13 +49,17 @@ class AppSetting < ApplicationRecord
     current.github_app_registered?
   end
 
+  def self.clearable_secrets
+    CLEARABLE_SECRETS.select { |key, _label| column_names.include?(key) }
+  end
+
   def github_app_registered?
     github_app_id.present?
   end
 
   def clear_secret!(secret)
     secret = secret.to_s
-    raise ArgumentError, "Unknown secret: #{secret}" unless CLEARABLE_SECRETS.key?(secret)
+    raise ArgumentError, "Unknown secret: #{secret}" unless self.class.clearable_secrets.key?(secret)
 
     update!(secret => nil)
   end

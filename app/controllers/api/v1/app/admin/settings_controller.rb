@@ -19,7 +19,7 @@ module Api
           end
 
           def clear_secret
-            label = AppSetting::CLEARABLE_SECRETS[params[:secret].to_s]
+            label = AppSetting.clearable_secrets[params[:secret].to_s]
             return render_error("unknown_secret", "Unknown secret.", status: :unprocessable_content) unless label
 
             AppSetting.current.clear_secret!(params[:secret])
@@ -33,7 +33,7 @@ module Api
             {
               settings: {
                 signups_open: setting.signups_open,
-                clearable_secrets: AppSetting::CLEARABLE_SECRETS.map do |key, label|
+                clearable_secrets: AppSetting.clearable_secrets.map do |key, label|
                   {
                     key: key,
                     label: label,
@@ -45,8 +45,10 @@ module Api
           end
 
           def settings_params
+            permitted_settings = [ :signups_open ] + AppSetting.clearable_secrets.keys.map(&:to_sym)
+
             params
-              .expect(app_setting: [ :signups_open, :telegram_bot_token, :telegram_webhook_secret ])
+              .expect(app_setting: permitted_settings)
               .to_h
               .reject { |key, value| key != "signups_open" && value.blank? }
           end
