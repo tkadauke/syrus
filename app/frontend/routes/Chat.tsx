@@ -67,7 +67,7 @@ export function ChatRoute() {
   })
 
   return (
-    <main aria-label="Chat" className="mx-auto flex h-[calc(100vh-4rem)] max-w-[96rem] flex-col gap-6 overflow-hidden p-6">
+    <main aria-label="Chat" className="mx-auto flex h-[calc(100vh-4rem)] max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
       {chat.isPending ? <PanelMessage>Loading chat...</PanelMessage> : null}
       {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, "Unable to load chat.")}</PanelMessage> : null}
       {chat.isSuccess ? <ChatView payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
@@ -329,7 +329,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
 
   return (
     <div className="relative h-full min-h-0">
-      <div className="h-full min-h-0 space-y-4 overflow-y-auto p-4 pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
+      <div className="h-full min-h-0 space-y-4 overflow-y-auto p-3 pt-12 sm:p-4 sm:pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400">Loading older messages...</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700">{errorMessage(loadOlder.error, "Unable to load older messages.")}</div> : null}
         {hiddenSystemMessageCount > 0 ? (
@@ -894,8 +894,8 @@ function ChatWorkspace({
 
   if (!isDesktop && !expanded) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col rounded border border-gray-200 bg-white">
-        <nav aria-label="Chat mobile tabs" className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-3 pt-3 text-sm font-medium">
+      <div className="flex min-h-0 flex-1 flex-col bg-white">
+        <nav aria-label="Chat mobile tabs" className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium">
           {(["chat", "whiteboard", "context", "chats"] as MobileChatTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}
@@ -907,7 +907,7 @@ function ChatWorkspace({
             </button>
           ))}
         </nav>
-        <div className="flex min-h-0 w-full flex-1 p-3">
+        <div className="flex min-h-0 w-full flex-1">
           {activeMobileTab === "chat" ? (
             <ChatColumn bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
           ) : (
