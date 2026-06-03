@@ -121,7 +121,7 @@ function RepositoryTable({
     <table className="min-w-full divide-y divide-gray-200">
       <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
         <tr>
-          <th className="px-4 py-2">Repository</th>
+          <th className="px-4 py-2">Working repository</th>
           <th className="hidden px-4 py-2 sm:table-cell">Polling</th>
           <th className="hidden px-4 py-2 sm:table-cell">Last poll</th>
           <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
@@ -134,6 +134,12 @@ function RepositoryTable({
               <div className="font-mono">
                 <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
               </div>
+              {repository.upstream_slug ? (
+                <div className="mt-0.5 text-xs text-gray-500">
+                  upstream <span className="font-mono">{repository.upstream_slug}</span>
+                  {repository.upstream_default_branch ? <span className="font-mono">:{repository.upstream_default_branch}</span> : null}
+                </div>
+              ) : null}
               <div className="mt-0.5 text-xs text-gray-500">
                 Syrus owner {repository.owner_user.email_address}
               </div>

@@ -371,11 +371,12 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       <details className="text-sm text-gray-600">
         <summary className="cursor-pointer select-none text-gray-500 hover:text-gray-900">Repository details</summary>
         <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-          <div><dt className="text-xs uppercase text-gray-400">Branch</dt><dd className="font-mono text-gray-700">{repository.default_branch}</dd></div>
+          <div><dt className="text-xs uppercase text-gray-400">Working repo</dt><dd className="font-mono text-gray-700">{repository.slug}</dd></div>
+          <div><dt className="text-xs uppercase text-gray-400">Working branch</dt><dd className="font-mono text-gray-700">{repository.default_branch}</dd></div>
           {repository.upstream_slug ? (
             <div>
-              <dt className="text-xs uppercase text-gray-400">Upstream</dt>
-              <dd className="font-mono text-gray-700">{repository.upstream_slug}{repository.upstream_default_branch ? ` (${repository.upstream_default_branch})` : ""}</dd>
+              <dt className="text-xs uppercase text-gray-400">Upstream repo</dt>
+              <dd className="font-mono text-gray-700">{repository.upstream_slug}{repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}</dd>
             </div>
           ) : null}
           <div><dt className="text-xs uppercase text-gray-400">Trigger label</dt><dd><code className="rounded bg-gray-100 px-1">{repository.trigger_label}</code></dd></div>

@@ -4071,6 +4071,8 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Repositories" })).toHaveClass("max-w-[96rem]")
     expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Working repository" })).toBeInTheDocument()
+    expect(screen.getByText("rails/rails")).toBeInTheDocument()
     expect(screen.getByText("old/repo")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Add" })).toHaveAttribute("href", "/app-shell/repositories/new")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
@@ -4154,11 +4156,15 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Add Repository" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Working repository" })).toBeInTheDocument()
+    expect(screen.getByText("Syrus polls issues, creates branches, and opens PRs in this repository.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Upstream repository" })).toBeInTheDocument()
+    expect(screen.getByText("Optional reference repo for fork context. Syrus still opens PRs in the working repository.")).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/app-shell/repositories")
     expect(await screen.findByRole("option", { name: "acme" })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("Owner"), { target: { value: "acme" } })
+    fireEvent.change(screen.getByLabelText("Working owner"), { target: { value: "acme" } })
     expect(await screen.findByRole("option", { name: "widgets" })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "widgets" } })
+    fireEvent.change(screen.getByLabelText("Working name"), { target: { value: "widgets" } })
     expect(await screen.findByRole("option", { name: "trunk" })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Default branch"), { target: { value: "trunk" } })
     fireEvent.change(screen.getByLabelText("Upstream owner"), { target: { value: "rails" } })
@@ -4253,8 +4259,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    fireEvent.change(await screen.findByLabelText("Owner"), { target: { value: "acme" } })
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "widgets" } })
+    fireEvent.change(await screen.findByLabelText("Working owner"), { target: { value: "acme" } })
+    fireEvent.change(screen.getByLabelText("Working name"), { target: { value: "widgets" } })
     fireEvent.click(screen.getByRole("button", { name: "Create Repository" }))
 
     await waitFor(() => {
@@ -4365,6 +4371,9 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Repository" })).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "https://github.com/acme/widgets")
     expect(screen.getByText("polling enabled")).toBeInTheDocument()
+    expect(screen.getByText("Working repo")).toBeInTheDocument()
+    expect(screen.getByText("Upstream repo")).toBeInTheDocument()
+    expect(screen.getByText("rails/rails:main")).toBeInTheDocument()
     expect(screen.queryByText("Repository context pinned.")).not.toBeInTheDocument()
     expect(screen.getByText("Fix forum")).toBeInTheDocument()
     expect(screen.getByText("Retry 1 failed with Codex")).toBeInTheDocument()
@@ -7276,10 +7285,10 @@ function repositoriesPayload(overrides: {
           profile_path: "/profiles/9"
         },
         default_branch: "main",
-        upstream_owner: null,
-        upstream_name: null,
-        upstream_default_branch: null,
-        upstream_slug: null,
+        upstream_owner: "rails",
+        upstream_name: "rails",
+        upstream_default_branch: "main",
+        upstream_slug: "rails/rails",
         trigger_label: "syrus",
         polling_enabled: true,
         archived: false,
@@ -7410,10 +7419,10 @@ function repositoryDetailPayload() {
       owner: "acme",
       name: "widgets",
       default_branch: "main",
-      upstream_owner: null,
-      upstream_name: null,
-      upstream_default_branch: null,
-      upstream_slug: null,
+      upstream_owner: "rails",
+      upstream_name: "rails",
+      upstream_default_branch: "main",
+      upstream_slug: "rails/rails",
       trigger_label: "syrus",
       polling_enabled: true,
       archived: false,

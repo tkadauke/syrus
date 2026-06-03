@@ -211,12 +211,15 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
       <form className="space-y-5" onSubmit={submit}>
         <section className="space-y-4 rounded border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-gray-900">Repository</h2>
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Working repository</h2>
+            <p className="mt-1 text-xs text-gray-500">Syrus polls issues, creates branches, and opens PRs in this repository.</p>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Owner">
+            <Field label="Working owner">
               {ownerMode === "select" && ownerOptions.length > 0 ? (
                 <SelectWithManual
-                  label="Owner"
+                  label="Working owner"
                   onManual={() => setOwnerMode("manual")}
                   onChange={chooseOwner}
                   value={values.owner}
@@ -226,7 +229,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                 </SelectWithManual>
               ) : (
                 <input
-                  aria-label="Owner"
+                  aria-label="Working owner"
                   className={`${inputClass()} font-mono`}
                   onChange={(event) => {
                     setValues({ ...values, owner: event.target.value, github_owner_id: "", github_repository_id: "" })
@@ -239,10 +242,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               )}
             </Field>
 
-            <Field label="Name">
+            <Field label="Working name">
               {repoMode === "select" && repoOptions.length > 0 ? (
                 <SelectWithManual
-                  label="Name"
+                  label="Working name"
                   onManual={() => {
                     setRepoMode("manual")
                     setValues({ ...values, github_owner_id: "", github_repository_id: "" })
@@ -255,7 +258,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                 </SelectWithManual>
               ) : (
                 <input
-                  aria-label="Name"
+                  aria-label="Working name"
                   className={`${inputClass()} font-mono`}
                   onChange={(event) => setValues({ ...values, name: event.target.value, github_owner_id: "", github_repository_id: "" })}
                   required
@@ -303,7 +306,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         </section>
 
         <section className="space-y-4 rounded border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-gray-900">Upstream</h2>
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Upstream repository</h2>
+            <p className="mt-1 text-xs text-gray-500">Optional reference repo for fork context. Syrus still opens PRs in the working repository.</p>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Upstream owner">
               <input
