@@ -5,21 +5,70 @@ description: Run the full Syrus stack (web, worker, MySQL) with one command.
 
 # Docker Compose
 
-Docker Compose is the recommended path for running the real Syrus app
-without committing to a cluster. It gives you the web UI, the background
-worker, persistent MySQL data, and the full GitHub issue-to-PR loop.
+Docker Compose is the recommended self-host path for running the real
+Syrus app without committing to a cluster. It gives you the web UI, the
+background worker, persistent MySQL data, and the full GitHub
+issue-to-PR loop.
 
 > **Status.** The Compose packaging is tracked separately. Until the
-> repository includes the Compose file, treat the command below as the
-> target flow rather than a copy-pasteable command from this checkout.
+> release artifact includes `compose.yml` and `.env.example`, treat the
+> stack commands below as the target flow, not as commands that work from
+> this checkout today. The first self-hosted release is expected to ship
+> those files; this page documents the intended onboarding path so the
+> artifact can be copied directly when it lands.
 
-## Start the stack
+## What You Need
 
-From the directory that contains the published Compose file:
+- Docker with the Compose plugin.
+- A public or private GitHub repository you can safely let Syrus modify.
+- A GitHub token, or a registered Syrus GitHub App installation, with
+  permission to read issues, push branches, and open pull requests.
+- A Claude or Codex credential for the agent provider you want to use.
+- A stable app hostname. For a laptop-only trial, `localhost:3000` is
+  enough. For another user or GitHub App callback flow, put Syrus behind
+  HTTPS.
+
+## Start The Stack
+
+From the directory that contains the published Compose files:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set at least these values:
+
+```dotenv title=".env"
+RAILS_MASTER_KEY=replace-with-the-release-master-key
+SECRET_KEY_BASE=replace-with-a-long-random-string
+SYRUS_DATABASE_PASSWORD=replace-with-a-database-password
+SYRUS_APP_HOST=localhost:3000
+SYRUS_ALLOWED_HOSTS=localhost,127.0.0.1
+SYRUS_ASSUME_SSL=false
+SYRUS_FORCE_SSL=false
+SYRUS_GITHUB_REPO=OWNER/syrus
+SYRUS_BUG_REPORT_OWNER=OWNER
+SYRUS_DATA_ROOT=/home/rails/.syrus
+```
+
+Syrus stores user credentials with Active Record Encryption, so
+`RAILS_MASTER_KEY` must be stable across restarts. If it changes, stored
+GitHub and agent credentials cannot be decrypted.
+
+Generate local secrets with:
+
+```bash
+openssl rand -hex 64
+```
+
+Then start the stack:
 
 ```bash
 docker compose up -d
+docker compose ps
 ```
+
+Open `http://localhost:3000` unless you changed `SYRUS_APP_HOST`.
 
 The stack is expected to run these services:
 
@@ -36,42 +85,62 @@ The stack is expected to run these services:
   workspaces live. Losing this volume does not erase the database, but it
   does erase cached clones and in-progress workspaces.
 
-## First-time setup
+## Set Up Syrus
 
-Create a `.env` file next to the Compose file. The exact published
-template is authoritative; these are the important categories:
+After the containers boot, create the first user in the web UI. The first
+signup becomes an admin.
 
-```dotenv
-RAILS_MASTER_KEY=...
-SECRET_KEY_BASE=...
-SYRUS_DATABASE_PASSWORD=...
-SYRUS_DATA_ROOT=/home/rails/.syrus
+The onboarding page is **Set up Syrus**. Work through it in order:
+
+1. **Account and admin access**: confirm the first user is marked
+   complete.
+2. **GitHub credentials**: open **Configure GitHub** and add a GitHub
+   personal access token, or register and install the Syrus GitHub App.
+3. **Agent credentials and provider**: open **Configure agent**, choose
+   Claude or Codex, and add that provider's credential.
+4. **Repository**: add the first repository Syrus should poll.
+5. **First issue or direct job**: for the first PR path, delegate a
+   GitHub issue with the repository trigger label.
+6. **Watch first job**: track the Job until it closes successfully.
+
+For personal-token setup, the token must be able to:
+
+- Read issues and pull requests on the repositories Syrus will manage.
+- Push branches to those repositories.
+- Open pull requests.
+
+For provider setup, add one of:
+
+- An Anthropic/Claude credential for the Claude provider.
+- A Codex API key or login configuration for the Codex provider.
+
+## First Job And PR
+
+Add a repository in the web UI by owner, name, default branch, and
+trigger label. The default trigger label is usually `syrus`. Make sure
+polling is enabled.
+
+Then create a small issue and add the trigger label. With the GitHub CLI:
+
+```bash
+export SYRUS_TEST_REPO=OWNER/REPO
+
+gh issue create -R "$SYRUS_TEST_REPO" \
+  --title "Fix one tiny documentation typo" \
+  --body "Please fix one obvious typo or wording issue in the docs." \
+  --label syrus
 ```
 
-Syrus stores user credentials with Active Record Encryption, so
-`RAILS_MASTER_KEY` must be stable across restarts. If it changes, stored
-GitHub and agent credentials cannot be decrypted.
+Expected path:
 
-After the containers boot, open the web UI and create the first user.
-The first signup becomes an admin. In **Credentials**, add:
-
-- A GitHub personal access token that can read issues, push branches, and
-  open pull requests on the repositories Syrus will manage.
-- An Anthropic/Claude credential, or a Codex API key / login
-  configuration, depending on the agent provider you want to use.
-- Your preferred default agent provider.
-
-## Add a repository
-
-1. In the web UI, add a repository by owner, name, default branch, and
-   trigger label. The default trigger label is usually `syrus`.
-2. Make sure polling is enabled for that repository.
-3. In GitHub, create or edit an issue and add the trigger label.
-4. Wait for the poller to ingest the issue. A Job should appear in the
-   dashboard.
-5. Open the Job to watch the Workflow move through `prepare`,
-   `implement`, `summarize`, and `pr_open`.
-6. Follow the PR link when the run succeeds.
+1. The poller ingests the labeled issue.
+2. A **Job** appears in Syrus.
+3. The Job creates an initial **Workflow**.
+4. The Workflow runs `prepare`, `implement`, `summarize`, and `pr_open`.
+5. The Job page shows the transcript and captured diff.
+6. When the Workflow succeeds, the Job page shows the GitHub PR link.
+7. The onboarding page reports **Ready for normal operations** after at
+   least one Job completes successfully.
 
 Syrus polls GitHub instead of receiving inbound callbacks, so the Job may not
 appear instantly. If nothing appears after a couple of polling intervals,

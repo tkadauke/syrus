@@ -12,8 +12,8 @@ shared users, durable data, or cluster operations.
 | Path | Audience | Setup time | Use case |
 | --- | --- | --- | --- |
 | **1. Try it locally** | Anyone curious | ~60s | Single Docker container running `bin/syrus dev` against your local repo. Pre-onboarding evaluation. |
-| **2. Run it locally for real** | Developers / small teams | ~5min | Docker Compose with web + worker + MySQL. Full polling + PR flow against real GitHub repos. |
-| **3. Deploy to a cluster** | Teams running real infra | ~30min | Helm chart for k3s/k8s. Production-grade, once the chart lands. |
+| **2. Run it locally for real** | Developers / small teams | Packaging in progress | Docker Compose with web + worker + MySQL. Full polling + PR flow against real GitHub repos once the release artifact includes the Compose file. |
+| **3. Deploy to a cluster** | Teams running real infra | Packaging in progress | Kubernetes manifests/Helm chart. Production-grade, once that packaging lands. |
 
 ## Decision tree
 
@@ -35,6 +35,11 @@ whether Syrus can make a useful change before you give it GitHub access.
 self-host path for developers and small teams. It runs the Rails web app,
 the Solid Queue worker, and MySQL together, then lets you add a GitHub
 repository, label an issue, and watch Syrus open a pull request.
+
+The current docs describe the intended release onboarding flow. The
+copy-pasteable Compose artifact is not in this repository yet, so do not
+expect `docker compose up` from a fresh checkout to work until the
+packaging PR lands.
 
 If you are a Ruby developer with the toolchain already installed, you
 can also run from source with `git clone`, `bundle install`, and

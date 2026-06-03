@@ -15,6 +15,11 @@ That first success is deliberately small: prove credentials, repository
 access, polling, workspace setup, agent invocation, push, and PR creation
 before asking Syrus to do bigger work.
 
+The short version: you configure credentials, add a repository, label
+an issue, and Syrus opens the pull request. Pollers notice the outside
+world, workers run the agent, and the web UI shows the Job, Workflow,
+transcript, diff, and PR link as the work moves through the pipeline.
+
 ## Choose The First Path
 
 Use the path that answers the question you have right now.
@@ -75,7 +80,12 @@ account and admin access, GitHub credentials, agent credentials and
 provider, repository, first issue or direct Job, then watching the first
 Job until one closes successfully.
 
-## First Successful Run
+## First Successful Job
+
+The onboarding screen is called **Set up Syrus**. Its shortest path to
+normal operation is: start the app, create the first admin, configure
+GitHub and agent credentials, add a repository, label one small issue,
+watch the Job, and review the generated PR.
 
 Keep the first request boring. A typo fix, one tiny docs update, or one
 obvious failing test is better than a broad refactor. The goal is to
@@ -217,6 +227,23 @@ If no Job appears, start with
 [the poller troubleshooting checklist](/docs/troubleshooting#the-poller-never-picks-up-my-issue).
 If a Job appears but no PR is created, start with
 [PR creation failed](/docs/troubleshooting#pr-creation-failed).
+
+With the GitHub CLI installed, the issue handoff looks like this:
+
+```bash
+export SYRUS_TEST_REPO=OWNER/REPO
+
+gh issue create -R "$SYRUS_TEST_REPO" \
+  --title "Fix one tiny documentation typo" \
+  --body "Please fix one obvious typo or wording issue in the docs." \
+  --label syrus
+```
+
+Expected result: after the next polling interval, Syrus creates a
+**Job** for that issue. The Job creates an initial **Workflow** with
+`prepare`, `implement`, `summarize`, and `pr_open` Steps. When the
+Workflow succeeds, the Job page shows a PR link and onboarding moves to
+**Ready for normal operations**.
 
 ## Tiny Glossary
 
