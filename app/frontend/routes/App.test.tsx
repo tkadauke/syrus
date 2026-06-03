@@ -359,13 +359,28 @@ describe("App", () => {
     )
   })
 
-  it("renders the logged-out landing CTA from public bootstrap state", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify(publicBootstrapPayload()),
+  it("renders the logged-out landing CTA from public auth status", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(new Response(JSON.stringify(publicBootstrapPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(
+        JSON.stringify({
+          authenticated: false,
+          first_signup: false,
+          signups_open: false,
+          valid_invitation: true,
+          cta: {
+            kind: "accept_invitation",
+            label: "Accept invitation",
+            href: "/users/new?token=invite-token"
+          }
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } }
-      )
-    )
+      ))
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -623,7 +638,7 @@ describe("App", () => {
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
     script.textContent = JSON.stringify(bootstrapPayload({
-      setup_status: setupStatus({
+      setup_status: defaultSetupStatus({
         state: "first_admin",
         next_step: "configure_credentials",
         next_step_path: "/credentials/edit",
@@ -669,7 +684,7 @@ describe("App", () => {
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
     script.textContent = JSON.stringify(bootstrapPayload({
-      setup_status: setupStatus({
+      setup_status: defaultSetupStatus({
         state: "first_job_started",
         next_step: "watch_first_job",
         next_step_path: "/dashboard/jobs?view=list",
