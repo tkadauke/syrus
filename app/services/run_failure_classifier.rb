@@ -1,6 +1,8 @@
 class RunFailureClassifier
   Result = Data.define(:classification, :confidence, :retryable, :reason, :diagnostic_summary, :classifier_inputs)
 
+  RECENT_LOG_LIMIT = 25
+
   def self.classify(run)
     new(run).classify
   end
@@ -23,21 +25,26 @@ class RunFailureClassifier
 
   def initialize(run)
     @run = run
-    @diagnostic = run.run_diagnostic
   end
 
   def classify
     case
-    when worker_died?
-      result("worker_died", 0.95, true, "The worker process disappeared while the run was active.")
     when rate_limited?
       result("rate_limited", 0.90, true, "The run hit an external rate limit.")
-    when max_turns?
-      result("agent_max_turns", 0.90, false, "The agent stopped after reaching the configured turn limit.")
+    when timeout?
+      result("timeout", 0.85, true, "The run failed because an operation timed out.")
+    when process_died?
+      result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
     when git_state_corrupt?
       result("git_state_corrupt", 0.85, false, "The workspace git state was corrupt or unsafe.")
-    when timeout?
-      result("timeout", 0.80, true, "The run failed because an operation timed out.")
+    when max_turns?
+      result("agent_max_turns", 0.90, false, "The agent stopped after reaching the configured turn limit.")
+    when auth_or_config?
+      result("provider_auth_or_config", 0.80, false, "The provider authentication or configuration was invalid.")
+    when validation_or_user_error?
+      result("validation_or_user_error", 0.75, false, "The run failed on validation or user-supplied input.")
+    when provider_transient?
+      result("provider_transient", 0.75, true, "The provider failed transiently.")
     when database_lock?
       result("database_lock", 0.80, true, "The run failed during a transient database lock or timeout.")
     when mcp_sidecar?
@@ -51,7 +58,7 @@ class RunFailureClassifier
 
   private
 
-  attr_reader :run, :diagnostic
+  attr_reader :run
 
   def result(classification, confidence, retryable, reason)
     Result.new(
@@ -64,47 +71,92 @@ class RunFailureClassifier
     )
   end
 
-  def worker_died?
-    run.agent_outcome == "worker_died" || text.match?(/ProcessPrunedError|worker died|process (is )?gone|SIGKILL/i)
-  end
-
   def rate_limited?
-    run.job_logs.any? { |log| log.kind == "rate_limited" } || text.match?(/rate limit|too many requests|429/i)
-  end
-
-  def max_turns?
-    run.agent_outcome == "error_max_turns" || text.match?(/max turns|turn limit/i)
-  end
-
-  def git_state_corrupt?
-    run.agent_outcome == "git_state_corrupt" || text.match?(/git state corrupt|not a git repository|bad revision|unrelated histories/i)
+    recent_logs.any? { |log| log.kind == "rate_limited" } ||
+      text_match?(/rate[ -]?limit|too many requests|quota exceeded|429/i)
   end
 
   def timeout?
-    diagnostic&.error_class.to_s.match?(/Timeout/) || text.match?(/timed out|timeout|execution expired/i)
+    run.agent_outcome.to_s.match?(/timeout|timed_out/) ||
+    diagnostic&.error_class.to_s.match?(/Timeout/) ||
+      text_match?(/timed out|timeout|execution expired/i) ||
+      spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
+  end
+
+  def process_died?
+    run.agent_outcome == "worker_died" ||
+      text_match?(/ProcessPrunedError|worker died|process (is )?gone|process died|sigkill|killed|terminated|exit status/i) ||
+      spawned_processes.any? { |process| %w[aliveness_failed orphaned stopped operator_killed].include?(process.outcome) }
+  end
+
+  def git_state_corrupt?
+    run.agent_outcome == "git_state_corrupt" ||
+    diagnostic&.error_class.to_s.match?(/GitRunner::GitError|AgentBrokeGitState/) ||
+      text_match?(/git state corrupt|merge conflict|conflict markers|orphan|detached head|no common ancestor|not a git repository|unmerged files|refusing to fetch|merge-base|bad revision|unrelated histories/i)
+  end
+
+  def max_turns?
+    run.agent_outcome == "error_max_turns" || text_match?(/max turns|turn limit/i)
+  end
+
+  def auth_or_config?
+    text_match?(/auth|oauth|token|api key|unauthorized|forbidden|permission denied|not configured|missing.+credential|invalid.+credential|mcp.+initialize|connection closed: initialize|config/i)
+  end
+
+  def validation_or_user_error?
+    diagnostic&.error_class.to_s.match?(/ActiveRecord::RecordInvalid|ActiveModel::ValidationError|ArgumentError|URI::InvalidURIError/) ||
+      text_match?(/validation_failed|record invalid|invalid params|invalid input|cannot be blank|must be present|bad request|unprocessable/i)
+  end
+
+  def provider_transient?
+    return false if run.agent_provider.blank?
+
+    text_match?(%r{
+      overloaded|
+      temporar(?:y|ily)|
+      transient|
+      retry\ later|
+      service\ unavailable|
+      bad\ gateway|
+      gateway\ timeout|
+      connection\ reset|
+      connection\ refused|
+      network\ error|
+      (?:status|http|code)\s*[:=]?\s*5\d\d|
+      5xx
+    }ix)
   end
 
   def database_lock?
     diagnostic&.error_class.to_s.match?(/Deadlocked|LockWaitTimeout|StatementTimeout/) ||
-      text.match?(/database is locked|SQLite3::BusyException|Deadlocked|LockWaitTimeout|StatementTimeout/i)
+      text_match?(/database is locked|SQLite3::BusyException|Deadlocked|LockWaitTimeout|StatementTimeout/i)
   end
 
   def mcp_sidecar?
-    text.match?(/mcp|sidecar|initialize response|connection closed/i)
+    text_match?(/mcp|sidecar|initialize response|connection closed/i)
   end
 
   def git_failure?
-    diagnostic&.error_class.to_s.include?("Git") || text.match?(/\bgit\b.*(failed|error|fatal)/i)
+    diagnostic&.error_class.to_s.include?("Git") || text_match?(/\bgit\b.*(failed|error|fatal)/i)
   end
 
-  def text
-    @text ||= [
+  def text_match?(pattern)
+    searchable_text.match?(pattern)
+  end
+
+  def searchable_text
+    @searchable_text ||= [
       run.agent_outcome,
+      run.agent_summary,
+      run.agent_pr_title,
+      run.agent_pr_body,
       diagnostic&.error_class,
       diagnostic&.error_message,
+      diagnostic&.error_backtrace,
       diagnostic&.repo_snapshot&.dig("run_outcome"),
-      diagnostic&.repo_snapshot&.dig("workflow_failure_reason")
-    ].compact.join("\n")
+      diagnostic&.repo_snapshot&.dig("workflow_failure_reason"),
+      recent_logs.map(&:chunk)
+    ].flatten.compact.join("\n")
   end
 
   def diagnostic_summary
@@ -131,7 +183,36 @@ class RunFailureClassifier
       "diagnostic_id" => diagnostic&.id,
       "error_class" => diagnostic&.error_class,
       "error_message" => diagnostic&.error_message&.truncate(500),
-      "job_log_kinds" => run.job_logs.order(created_at: :desc).limit(20).map(&:kind).compact
+      "job_log_kinds" => recent_logs.map(&:kind).compact,
+      "spawned_process_outcomes" => spawned_processes.map(&:outcome).compact.uniq
     }
+  end
+
+  def diagnostic
+    @diagnostic ||= run.run_diagnostic
+  end
+
+  def recent_logs
+    @recent_logs ||= begin
+      logs = if run.association(:job_logs).loaded?
+        run.job_logs
+      else
+        run.job_logs.order(sequence: :desc).limit(RECENT_LOG_LIMIT).to_a.reverse
+      end
+      logs.last(RECENT_LOG_LIMIT)
+    end
+  end
+
+  def spawned_processes
+    @spawned_processes ||= begin
+      return [] unless run.respond_to?(:spawned_processes)
+
+      processes = if run.association(:spawned_processes).loaded?
+        run.spawned_processes
+      else
+        run.spawned_processes.recent_or_active.to_a
+      end
+      processes.sort_by { |process| process.finished_at || process.started_at || Time.at(0) }
+    end
   end
 end

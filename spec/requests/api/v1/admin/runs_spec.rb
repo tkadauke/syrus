@@ -46,6 +46,8 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
     end
 
     it "returns the compact shape with workflow/step context" do
+      run_b.update!(agent_outcome: "worker_died")
+
       get "/api/v1/admin/runs", headers: auth
       expect(response).to be_successful
 
@@ -55,7 +57,8 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
         "state"        => "failed",
         "trigger_kind" => "ci_failure",
         "job_id"       => job.id,
-        "step_kind"    => "implement"
+        "step_kind"    => "implement",
+        "failure_category" => "agent_process_died"
       )
       expect(row["failure_classification"]).to include(
         "classification" => "worker_died",
