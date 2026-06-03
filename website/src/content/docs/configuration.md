@@ -101,6 +101,12 @@ Each user owns their own credentials and agent preferences.
 | Scheduling paused | Skips scheduled task firing for that user |
 | Admin API token | Admin-only bearer token for `/api/v1/admin/*` diagnostics, including Jobs, Runs, queue/processes, and chat transcripts; shown once on rotation |
 
+The credentials page includes a per-credential **Test** action after a
+secret is saved. GitHub PAT tests call GitHub as the user and report the
+authenticated login plus token scopes. Claude and Codex tests run short CLI
+auth probes through the same credential paths used by Jobs, so expired or
+mis-shaped agent credentials surface before a downstream run fails.
+
 Provider selection resolves from most specific to least specific:
 
 ```text

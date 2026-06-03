@@ -74,6 +74,22 @@ export type CredentialsPayload = {
   new_api_token?: string
 }
 
+export type CredentialTestResult = {
+  credential: string
+  ok: boolean
+  message: string
+  details: {
+    login?: string
+    scopes?: string[]
+    accepted_scopes?: string[]
+  }
+}
+
+export type CredentialTestPayload = {
+  credential_test: CredentialTestResult
+  message?: string
+}
+
 export type PersonalDocumentsPayload = {
   documents: PersonalDocument[]
   message?: string
@@ -116,6 +132,12 @@ export function updateCredentials(values: CredentialsInput) {
 
 export function clearCredential(credential: string) {
   return postJson<CredentialsPayload>("/api/v1/app/credentials/clear_credential", {
+    credential
+  })
+}
+
+export function testCredential(credential: string) {
+  return postJson<CredentialTestPayload>("/api/v1/app/credentials/test_credential", {
     credential
   })
 }

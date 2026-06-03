@@ -29,6 +29,20 @@ module Api
           render json: credentials_payload(Current.user.reload).merge(message: "#{label} cleared.")
         end
 
+        def test_credential
+          credential = params[:credential].to_s
+          unless testable_credentials.include?(credential)
+            render_error("unknown_credential", "Unknown credential.", status: :unprocessable_content)
+            return
+          end
+
+          result = CredentialProbe.call(user: Current.user, credential: credential)
+          render json: {
+            credential_test: result.as_json,
+            message: result.message
+          }
+        end
+
         def rotate_api_token
           unless Current.user.admin?
             render_error("forbidden", "API token is admin-only.", status: :forbidden)
@@ -143,6 +157,10 @@ module Api
               { value: "if_graders_pass_and_tagged_safe", label: "If graders pass and tagged safe", preview: "Jobs using this rule also need the safe tag before landing." }
             ]
           }
+        end
+
+        def testable_credentials
+          %w[ github_token claude_oauth_token codex_api_key codex_auth_json ]
         end
 
         def credentials_params

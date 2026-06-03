@@ -31,6 +31,7 @@ Rails.application.routes.draw do
         resources :cron_templates, only: %i[ index show create update destroy ]
         resource :credentials, only: %i[ show update ] do
           post :clear_credential
+          post :test_credential
           post :rotate_api_token
           delete :revoke_api_token
           resources :documents, only: %i[ index create destroy ], controller: "credentials/documents"

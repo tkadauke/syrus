@@ -10,7 +10,9 @@ import {
   fetchCredentials,
   revokeApiToken,
   rotateApiToken,
+  testCredential,
   updateCredentials,
+  type CredentialTestResult,
   type CredentialsInput,
   type CredentialsPayload
 } from "../api/credentials"
@@ -78,20 +80,37 @@ function GithubCredentialGuide() {
 function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
+  const [testResults, setTestResults] = useState<Record<string, CredentialTestResult>>({})
   const save = useMutation({
     mutationFn: () => updateCredentials(values),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setValues(inputFromPayload(updated))
+      setTestResults({})
       onNotice(updated.message || "Credentials updated.")
     }
   })
   const clear = useMutation({
     mutationFn: (credential: string) => clearCredential(credential),
-    onSuccess: (updated) => {
+    onSuccess: (updated, credential) => {
       queryClient.setQueryData(queryKey, updated)
       setValues(inputFromPayload(updated))
+      setTestResults((current) => {
+        const next = { ...current }
+        delete next[credential]
+        return next
+      })
       onNotice(updated.message || "Credential cleared.")
+    }
+  })
+  const test = useMutation({
+    mutationFn: (credential: string) => testCredential(credential),
+    onSuccess: (updated) => {
+      setTestResults((current) => ({
+        ...current,
+        [updated.credential_test.credential]: updated.credential_test
+      }))
+      onNotice(updated.message || "Credential tested.")
     }
   })
 
@@ -110,12 +129,14 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
   const codexApiKeySelected = codexSelected && values.codex_auth_mode === "api_key"
   const codexAuthJsonSelected = codexSelected && values.codex_auth_mode === "chatgpt_login"
   const selectedAutoApprove = payload.options.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)
+  const testingCredential = test.variables
 
   return (
     <section className="rounded border border-gray-200 bg-white p-5">
       <form className="space-y-5" onSubmit={submit}>
         {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
         {clear.isError ? <PanelMessage tone="error">{errorMessage(clear.error, "Unable to clear credential.")}</PanelMessage> : null}
+        {test.isError ? <PanelMessage tone="error">{errorMessage(test.error, "Unable to test credential.")}</PanelMessage> : null}
 
         <Field label="Display name">
           <input className={inputClass()} onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
@@ -170,6 +191,10 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
             onChange={(value) => setValues({ ...values, claude_oauth_token: value })}
             onClear={() => clear.mutate("claude_oauth_token")}
             set={payload.credential_status.claude_oauth_token}
+            testPending={test.isPending && testingCredential === "claude_oauth_token"}
+            testResult={testResults.claude_oauth_token}
+            unsaved={values.claude_oauth_token.trim().length > 0}
+            onTest={() => test.mutate("claude_oauth_token")}
             value={values.claude_oauth_token}
           />
         ) : null}
@@ -191,6 +216,10 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
             onChange={(value) => setValues({ ...values, codex_api_key: value })}
             onClear={() => clear.mutate("codex_api_key")}
             set={payload.credential_status.codex_api_key}
+            testPending={test.isPending && testingCredential === "codex_api_key"}
+            testResult={testResults.codex_api_key}
+            unsaved={values.codex_api_key.trim().length > 0}
+            onTest={() => test.mutate("codex_api_key")}
             value={values.codex_api_key}
           />
         ) : null}
@@ -203,6 +232,10 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
             onChange={(value) => setValues({ ...values, codex_auth_json: value })}
             onClear={() => clear.mutate("codex_auth_json")}
             set={payload.credential_status.codex_auth_json}
+            testPending={test.isPending && testingCredential === "codex_auth_json"}
+            testResult={testResults.codex_auth_json}
+            unsaved={values.codex_auth_json.trim().length > 0}
+            onTest={() => test.mutate("codex_auth_json")}
             value={values.codex_auth_json}
           />
         ) : null}
@@ -214,6 +247,10 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
           onChange={(value) => setValues({ ...values, github_token: value })}
           onClear={() => clear.mutate("github_token")}
           set={payload.credential_status.github_token}
+          testPending={test.isPending && testingCredential === "github_token"}
+          testResult={testResults.github_token}
+          unsaved={values.github_token.trim().length > 0}
+          onTest={() => test.mutate("github_token")}
           value={values.github_token}
         />
         <p className="-mt-3 text-xs text-gray-500">
@@ -267,28 +304,40 @@ function SecretField({
   value,
   set,
   clearPending,
+  testPending,
+  testResult,
+  unsaved,
   onChange,
-  onClear
+  onClear,
+  onTest
 }: {
   label: string
   name: string
   value: string
   set: boolean
   clearPending: boolean
+  testPending: boolean
+  testResult?: CredentialTestResult
+  unsaved: boolean
   onChange: (value: string) => void
   onClear: () => void
+  onTest: () => void
 }) {
   return (
     <Field label={label}>
       <StatusLine set={set} />
       <div className="mt-2 flex gap-2">
         <input aria-label={label} autoComplete="off" className={inputClass()} name={name} onChange={(event) => onChange(event.target.value)} type="password" value={value} />
+        <button className="rounded border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 disabled:text-gray-300" disabled={!set || unsaved || testPending} onClick={onTest} type="button">
+          {testPending ? "Testing..." : "Test"}
+        </button>
         {set ? (
           <button className="rounded border border-gray-300 px-3 text-sm text-red-700 hover:bg-red-50 disabled:text-red-300" disabled={clearPending} onClick={onClear} type="button">
             Clear
           </button>
         ) : null}
       </div>
+      <CredentialTestLine result={testResult} unsaved={unsaved} />
     </Field>
   )
 }
@@ -299,28 +348,42 @@ function SecretTextArea({
   value,
   set,
   clearPending,
+  testPending,
+  testResult,
+  unsaved,
   onChange,
-  onClear
+  onClear,
+  onTest
 }: {
   label: string
   name: string
   value: string
   set: boolean
   clearPending: boolean
+  testPending: boolean
+  testResult?: CredentialTestResult
+  unsaved: boolean
   onChange: (value: string) => void
   onClear: () => void
+  onTest: () => void
 }) {
   return (
     <Field label={label}>
       <StatusLine set={set} />
       <div className="mt-2 space-y-2">
         <textarea aria-label={label} className={`${inputClass()} font-mono text-xs`} name={name} onChange={(event) => onChange(event.target.value)} rows={6} value={value} />
-        {set ? (
-          <button className="rounded border border-gray-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:text-red-300" disabled={clearPending} onClick={onClear} type="button">
-            Clear
+        <div className="flex gap-2">
+          <button className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:text-gray-300" disabled={!set || unsaved || testPending} onClick={onTest} type="button">
+            {testPending ? "Testing..." : "Test"}
           </button>
-        ) : null}
+          {set ? (
+            <button className="rounded border border-gray-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:text-red-300" disabled={clearPending} onClick={onClear} type="button">
+              Clear
+            </button>
+          ) : null}
+        </div>
       </div>
+      <CredentialTestLine result={testResult} unsaved={unsaved} />
     </Field>
   )
 }
@@ -408,6 +471,22 @@ function StatusLine({ set }: { set: boolean }) {
     <p className="mt-1 text-xs text-gray-500">Currently set. Submit a new value to replace.</p>
   ) : (
     <p className="mt-1 text-xs text-amber-600">Not set.</p>
+  )
+}
+
+function CredentialTestLine({ result, unsaved }: { result?: CredentialTestResult; unsaved: boolean }) {
+  if (unsaved) {
+    return <p className="mt-2 text-xs text-amber-600">Save changes before testing this credential.</p>
+  }
+
+  if (!result) return null
+
+  const scopes = result.details.scopes || []
+  const suffix = scopes.length > 0 ? ` Scopes: ${scopes.join(", ")}.` : ""
+  return (
+    <p className={`mt-2 text-xs ${result.ok ? "text-emerald-700" : "text-red-700"}`}>
+      <span aria-hidden="true">{result.ok ? "✅" : "❌"}</span> {result.message}{suffix}
+    </p>
   )
 }
 

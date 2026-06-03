@@ -171,6 +171,43 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("credential_status", "github_token")).to be false
   end
 
+  it "tests a configured credential and returns the provider result" do
+    sign_in_as(user)
+    result = CredentialProbe::Result.new(
+      credential: "github_token",
+      ok: true,
+      message: "GitHub token is valid for ada.",
+      details: { login: "ada", scopes: [ "repo" ] }
+    )
+    expect(CredentialProbe).to receive(:call)
+      .with(user: user, credential: "github_token")
+      .and_return(result)
+
+    post "/api/v1/app/credentials/test_credential", params: { credential: "github_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("GitHub token is valid for ada.")
+    expect(parse_body["credential_test"]).to eq(
+      "credential" => "github_token",
+      "ok" => true,
+      "message" => "GitHub token is valid for ada.",
+      "details" => {
+        "login" => "ada",
+        "scopes" => [ "repo" ]
+      }
+    )
+    expect(response.body).not_to include("ghp_existing")
+  end
+
+  it "rejects unknown credential tests" do
+    sign_in_as(user)
+
+    post "/api/v1/app/credentials/test_credential", params: { credential: "api_token" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("unknown_credential")
+  end
+
   it "uploads and deletes personal documents" do
     sign_in_as(user)
 

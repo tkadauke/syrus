@@ -3901,6 +3901,53 @@ describe("App", () => {
     expect(await screen.findByText("Credentials updated.")).toBeInTheDocument()
   })
 
+  it("tests a credential from the credentials route", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/credentials/test_credential" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          credential_test: {
+            credential: "github_token",
+            ok: true,
+            message: "GitHub token is valid for ada.",
+            details: {
+              login: "ada",
+              scopes: ["repo", "workflow"]
+            }
+          },
+          message: "GitHub token is valid for ada."
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/credentials/edit"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+    const testButtons = await screen.findAllByRole("button", { name: "Test" })
+    fireEvent.click(testButtons[testButtons.length - 1])
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/credentials/test_credential",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({ credential: "github_token" })
+        })
+      )
+    })
+    expect((await screen.findAllByText(/GitHub token is valid for ada/)).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Scopes: repo, workflow/)).toBeInTheDocument()
+  })
+
   it("renders /settings as the credentials route without admin links", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -7655,6 +7702,10 @@ function setupStatusPayload(overrides: Record<string, unknown> = {}) {
     },
     ...overrides
   }
+}
+
+function defaultSetupStatus() {
+  return setupStatus()
 }
 
 function publicBootstrapPayload(overrides: Partial<BootstrapPayload["public"]> = {}) {
