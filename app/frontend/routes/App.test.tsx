@@ -333,6 +333,7 @@ describe("App", () => {
     expect(await screen.findByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
     expect(screen.getByText("Invitation link")).toBeInTheDocument()
     expect(screen.getByText("Detected")).toBeInTheDocument()
+    expect(screen.getByText("An invitation token is present in this link. Create your account to join this instance.")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
       expect.objectContaining({ credentials: "same-origin" })
@@ -1731,7 +1732,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("No jobs exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.")).toBeInTheDocument()
+    expect(await screen.findByText("No jobs yet")).toBeInTheDocument()
+    expect(screen.getByText("No jobs exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Create direct job" })).toHaveAttribute("href", "/app-shell/jobs/new")
   })
 
@@ -3802,6 +3804,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "@ada-lovelace" })).toHaveAttribute("href", "https://github.com/ada-lovelace")
     expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
+    expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
     expect(screen.queryByText("GitHub token")).not.toBeInTheDocument()
     expect(screen.queryByText("ada@example.com")).not.toBeInTheDocument()
     expect(screen.queryByText("sk-profile-secret")).not.toBeInTheDocument()
