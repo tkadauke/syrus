@@ -9,17 +9,9 @@
 #
 
 ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __dir__)
-prepared_bundle = [
-  File.expand_path("../.syrus/deps/bundle", __dir__),
-  File.expand_path("../vendor/bundle", __dir__)
-].find { |path| Dir.exist?(path) }
-if ENV["BUNDLE_PATH"].to_s.empty? && prepared_bundle
-  ENV["BUNDLE_PATH"] = prepared_bundle
-  ENV["BUNDLE_APP_CONFIG"] ||= File.expand_path("../.syrus/deps/bundle-config", __dir__)
-end
+require_relative "../config/syrus_bundle_env"
 
 require "rubygems"
-require_relative "../config/syrus_bundle_env"
 require "bundler/setup"
 
 load Gem.bin_path("rspec-core", "rspec")
