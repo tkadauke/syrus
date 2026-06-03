@@ -91,8 +91,11 @@ syrus/
 │   ├── src/
 │   │   ├── content/
 │   │   │   └── docs/              # Starlight content (auto-routes to /docs/*)
+│   │   │       ├── what-is-syrus.md
+│   │   │       ├── why-use-syrus.md
 │   │   │       ├── getting-started.md
 │   │   │       ├── concepts.md
+│   │   │       ├── features.md
 │   │   │       ├── deployment/
 │   │   │       │   ├── index.md
 │   │   │       │   ├── try-it-locally.md
@@ -102,12 +105,11 @@ syrus/
 │   │   │       ├── workflows.md
 │   │   │       ├── architecture.md
 │   │   │       ├── api.md
-│   │   │       ├── recipes.md
+│   │   │       ├── recipes.md        # "How-tos and recipes"
 │   │   │       ├── troubleshooting.md
 │   │   │       └── faq.md
 │   │   └── pages/                 # custom routes
 │   │       ├── index.md           # home (becomes .astro once Starlight lands)
-│   │       ├── evaluate.md        # 3-step eval
 │   │       └── about.md           # naming, project history
 │   └── public/
 │       └── CNAME                  # added when domain is purchased
@@ -124,7 +126,8 @@ Top to bottom:
 
 1. **Hero**: tagline (Publilius epigraph "Bis dat qui cito dat."),
    one-paragraph pitch (working lede above), primary CTA
-   *"Try it locally →"* and secondary *"Star on GitHub"*.
+   *"Try it locally →"* and secondary *"Star on GitHub"*. The
+   local-evaluation CTA links to `/docs/deployment/try-it-locally`.
    - **Visual proof**: a faded example issue card on the left, an
      arrow, a faded example PR-diff card on the right. Makes the
      `issue → PR` shape concrete without prose. Sourced from the
@@ -168,7 +171,7 @@ casual users toward Compose; builds trust through transparency.
 
 ## The 3-step "Try it locally" page
 
-The most important page after the home page. Gets a visitor from
+The most important docs page after the home page. Gets a visitor from
 "I clicked the link" to "I see the agent doing something useful on
 my own code" in under 3 minutes.
 
@@ -194,7 +197,11 @@ Visitor evaluates Syrus against their own code in 60 seconds.
 
 Below the three steps: a sample output (formatted diff + a few
 lines of transcript). Below that: *"Like what you see? Deploy
-Syrus to your cluster →"* linking to the Docker Compose path.
+Syrus with Docker Compose →"* linking to the Docker Compose path.
+
+Canonical path: `/docs/deployment/try-it-locally`. Do not maintain a
+second `/evaluate` page; that route duplicated the deployment doc and was
+merged away in the IA pass for epic #751.
 
 ## Documentation structure
 
@@ -202,9 +209,14 @@ Standard OSS-docs outline. Most sections reuse content from
 existing in-repo docs (`ARCHITECTURE.md`, `ROADMAP.md`,
 `CLAUDE.md`) rather than duplicating.
 
+- **What is Syrus?**: plain product explanation and issue-to-PR flow.
+- **Why use Syrus?**: self-host, BYOK, multi-user, auditability, and
+  review-process positioning.
 - **Getting started**: installation, first run, basic concepts.
 - **Concepts**: Job / Workflow / Step / Run terminology, AASM
   states, trigger kinds. Mostly distilled from `ARCHITECTURE.md`.
+- **Feature docs**: feature map that points readers and future jobs to
+  canonical docs pages.
 - **Deployment**: the three paths (one page each) plus a "Source
   install (Ruby)" subsection.
 - **Configuration**: `.syrus.yml`, per-user settings, per-repo
@@ -213,7 +225,7 @@ existing in-repo docs (`ARCHITECTURE.md`, `ROADMAP.md`,
 - **Architecture**: link to `ARCHITECTURE.md` plus a short
   visual overview.
 - **API**: REST API reference once that lands (issue #196).
-- **Recipes**: common patterns — *"handle a failing test"*,
+- **How-tos and recipes**: common patterns — *"handle a failing test"*,
   *"respond to PR review"*, etc.
 - **Troubleshooting**: common issues, log locations, debug
   commands.
@@ -266,9 +278,9 @@ After this skeleton PR lands, file the following as
 2. **Home page content + hero visual.** Write the `index.astro`
    for the home page including the issue → diff hero visual. Use
    a real Syrus PR as the example.
-3. **3-step "Try it locally" eval page.** Write `evaluate.astro`
-   with the three-command flow + sample output. Depends on the OCI
-   image existing (separate issue).
+3. **3-step "Try it locally" docs page.** Finish
+   `/docs/deployment/try-it-locally` with the three-command flow +
+   sample output. Depends on the OCI image existing (separate issue).
 4. **About page.** Naming story, project history (sketch on a plane
    2026-05-01, working on itself since day 2), maintainer.
 5. **Docs: getting-started + concepts.** First-pass content for

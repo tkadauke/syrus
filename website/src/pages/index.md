@@ -32,4 +32,4 @@ Coding Agent. Owns the deterministic plumbing — clones, branches,
 PRs, cleanup — so the agent only writes code. Multi-user from day
 one. Runs on your hardware, your Anthropic key, your audit log.
 
-[Try it locally →](/evaluate) &nbsp;&nbsp; [Star on GitHub](https://github.com/tkadauke/syrus)
+[Try it locally →](/docs/deployment/try-it-locally) &nbsp;&nbsp; [What is Syrus?](/docs/what-is-syrus) &nbsp;&nbsp; [Star on GitHub](https://github.com/tkadauke/syrus)

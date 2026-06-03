@@ -1,9 +1,9 @@
 ---
-title: Recipes
-description: Common patterns for getting Syrus to do useful work.
+title: How-tos and recipes
+description: Task-focused patterns for getting Syrus to do useful work.
 ---
 
-# Recipes
+# How-tos and recipes
 
 These are copy-pasteable patterns for the Jobs people usually want
 Syrus to handle. The examples assume you have already registered a

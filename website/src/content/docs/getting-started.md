@@ -17,8 +17,9 @@ diff, and PR link as the work moves through the pipeline.
 
 :::tip
 If you only want to see what the agent does to your own code, start
-with the [60-second local evaluation](/evaluate). It does not require
-a GitHub app, database, or long-running Syrus install.
+with the [60-second local evaluation](/docs/deployment/try-it-locally).
+It does not require a GitHub app, database, or long-running Syrus
+install.
 :::
 
 ## Which Path Is Right For You?
@@ -73,8 +74,8 @@ read [Concepts](/docs/concepts).
 
 ## Where To Go Next
 
-- [Evaluate Syrus locally](/evaluate) if you want a quick diff before
-  deploying anything.
+- [Evaluate Syrus locally](/docs/deployment/try-it-locally) if you want
+  a quick diff before deploying anything.
 - [Deployment](/docs/deployment) if you are choosing between local,
   Compose, and Kubernetes.
 - [Concepts](/docs/concepts) if you want the mental model behind the

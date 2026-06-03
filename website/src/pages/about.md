@@ -65,4 +65,4 @@ Thomas can add the preferred email or social link here before launch.
 
 ---
 
-[Back to home](/) | [GitHub](https://github.com/tkadauke/syrus) | [Try Syrus locally](/evaluate)
+[Back to home](/) | [GitHub](https://github.com/tkadauke/syrus) | [Try Syrus locally](/docs/deployment/try-it-locally)
