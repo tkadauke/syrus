@@ -780,6 +780,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
         <NeutralStatePill state={item.state} />
         <OwnerBadge badge={item.owner_badge} />
+        <EpicProgressPill epic={item} />
         <span className="rounded bg-gray-100 px-1.5 py-0.5">{item.repository.slug}</span>
       </div>
     </article>
@@ -1189,6 +1190,7 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
       <div className="min-w-0">
         <div className="mb-1">
           <NeutralStatePill state={epic.state} />
+          <EpicProgressPill epic={epic} />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500">{epic.display_number}</span>
@@ -1216,7 +1218,16 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
       </td>
     )
   }
-  if (column === "state") return <td className="px-4 py-3"><NeutralStatePill state={epic.state} /></td>
+  if (column === "state") {
+    return (
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap gap-1">
+          <NeutralStatePill state={epic.state} />
+          <EpicProgressPill epic={epic} />
+        </div>
+      </td>
+    )
+  }
   if (column === "owner") return <td className="px-4 py-3 text-xs text-gray-600"><OwnerBadge badge={epic.owner_badge} /></td>
   if (column === "repository") return <td className="px-4 py-3 font-mono text-xs text-gray-600">{epic.repository.slug}</td>
   if (column === "updated") return <td className="px-4 py-3 text-gray-500">{formatDate(epic.updated_at)}</td>
@@ -1247,6 +1258,12 @@ function WorkflowsTable({ items, columns, prefix, sortState }: { items: Dashboar
       </table>
     </div>
   )
+}
+
+function EpicProgressPill({ epic }: { epic: DashboardEpicItem }) {
+  if (epic.state !== "in_progress") return null
+
+  return <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700">{epic.landed_jobs_count}/{epic.jobs_count} done</span>
 }
 
 function MobileWorkflowsList({ items, prefix }: { items: DashboardWorkflowItem[]; prefix: string }) {

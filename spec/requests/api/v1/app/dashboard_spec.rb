@@ -365,6 +365,23 @@ RSpec.describe "App API dashboard commands", type: :request do
       ))
     end
 
+    it "returns landed child job progress for Epics" do
+      epic = Factories.epic(user: user, repository: repo, title: "Repair roads", state: "in_progress")
+      Factories.job_record(repository: repo, epic: epic, issue_number: 31, issue_title: "Merge paving", state: "closed", closure_reason: "pr_merged")
+      Factories.job_record(repository: repo, epic: epic, issue_number: 32, issue_title: "External bridge", state: "closed", closure_reason: "external_pr_merged")
+      Factories.job_record(repository: repo, epic: epic, issue_number: 33, issue_title: "Cancelled canal", state: "closed", closure_reason: "cancelled")
+      Factories.job_record(repository: repo, epic: epic, issue_number: 34, issue_title: "Open gate", state: "implemented")
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "kanban" }
+
+      expect(response).to have_http_status(:ok)
+      item = parse_body.fetch("lanes").flat_map { |lane| lane.fetch("items") }.find { |row| row.fetch("id") == epic.id }
+      expect(item).to include(
+        "jobs_count" => 4,
+        "landed_jobs_count" => 2
+      )
+    end
+
     it "returns smart folder counts and hides empty when-present built-ins" do
       pinned = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Pinned aqueduct", state: "queued", owner_user: user)
       Factories.job_pin(user: user, job: pinned)

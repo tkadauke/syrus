@@ -636,6 +636,7 @@ module App
         owner_status: epic_owner_status(epic),
         owner_user: owner_user_json(epic_owner_for_display(epic)),
         jobs_count: epic.jobs.size,
+        landed_jobs_count: epic_landed_jobs_count(epic),
         created_at: epic.created_at&.iso8601,
         updated_at: epic.updated_at&.iso8601,
         done_at: epic.done_at&.iso8601,
@@ -649,6 +650,10 @@ module App
           app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim"
         }
       }
+    end
+
+    def epic_landed_jobs_count(epic)
+      epic.jobs.count { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
     end
 
     def owner_json(owner)
