@@ -13,7 +13,7 @@ class UsersController < ApplicationController
     if @user.save
       @invitation&.accept!
       start_new_session_for(@user)
-      redirect_to root_url, notice: signup_notice
+      redirect_to after_authentication_url, notice: signup_notice
     else
       redirect_to new_user_path(token: @invitation&.token),
                   alert: @user.errors.full_messages.to_sentence,

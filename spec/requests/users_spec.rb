@@ -6,12 +6,12 @@ RSpec.describe "User signup", type: :request do
   end
 
   describe "first signup (no users yet)" do
-    it "is always allowed and the new user becomes admin" do
+    it "is always allowed, promotes the new user to admin, and sends them to setup" do
       expect {
         post users_path, params: { user: valid_attrs }
       }.to change(User, :count).by(1)
 
-      expect(response).to redirect_to(root_url)
+      expect(response).to redirect_to(onboarding_url)
       user = User.last
       expect(user.email_address).to eq("new@example.com")
       expect(user.admin?).to be true

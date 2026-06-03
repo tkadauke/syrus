@@ -39,7 +39,11 @@ module Authentication
     end
 
     def after_authentication_url
-      session.delete(:return_to_after_authenticating) || root_url
+      after_authentication_redirect(default: root_url, onboarding: onboarding_url)
+    end
+
+    def after_authentication_path
+      after_authentication_redirect(default: root_path, onboarding: onboarding_path)
     end
 
     def start_new_session_for(user)
@@ -52,5 +56,12 @@ module Authentication
     def terminate_session
       Current.session.destroy
       cookies.delete(:session_id)
+    end
+
+    def after_authentication_redirect(default:, onboarding:)
+      requested_url = session.delete(:return_to_after_authenticating)
+      return onboarding if Current.user && !Current.user.first_run_setup_complete?
+
+      requested_url || default
     end
 end

@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "API: /api/v1/app/auth", type: :request do
   def parse_body = JSON.parse(response.body)
 
-  it "signs in with valid credentials" do
+  it "signs in incomplete first-run users and sends them to onboarding" do
     user = Factories.user(email_address: "operator@example.com", password: "supersecret")
 
     expect {
@@ -14,7 +14,27 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
     }.to change { user.sessions.count }.by(1)
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["redirect_to"]).to be_present
+    expect(parse_body["redirect_to"]).to eq(onboarding_path)
+  end
+
+  it "signs in completed users with the normal default route" do
+    user = Factories.user(email_address: "operator@example.com", password: "supersecret")
+    repository = Factories.repository(user: user)
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "closed",
+      closure_reason: "pr_merged",
+      finished_at: Time.current
+    )
+
+    post "/api/v1/app/auth/session", params: {
+      email_address: "operator@example.com",
+      password: "supersecret"
+    }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["redirect_to"]).to eq(root_path)
   end
 
   it "rejects invalid sign-in credentials as JSON" do
@@ -151,9 +171,9 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
     }.to change(User, :count).by(1)
 
     expect(response).to have_http_status(:created)
-    expect(parse_body["redirect_to"]).to eq(setup_path)
     expect(User.last).to be_admin
     expect(User.last.sessions.count).to eq(1)
+    expect(parse_body["redirect_to"]).to eq(onboarding_path)
   end
 
   it "creates an invited user through JSON sign-up" do
@@ -172,7 +192,7 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
     }.to change(User, :count).by(1)
 
     expect(response).to have_http_status(:created)
-    expect(parse_body["redirect_to"]).to eq(setup_path)
+    expect(parse_body["redirect_to"]).to eq(onboarding_path)
     expect(invitation.reload).to be_accepted
   end
 

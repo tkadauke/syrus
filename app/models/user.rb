@@ -298,6 +298,10 @@ class User < ApplicationRecord
     configured_agent_providers - [ agent_provider ]
   end
 
+  def first_run_setup_complete?
+    jobs.where(state: "closed", closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS).exists?
+  end
+
   def chat_available?
     claude_oauth_token.present?
   end
