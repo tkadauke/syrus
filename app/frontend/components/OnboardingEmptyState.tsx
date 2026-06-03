@@ -31,7 +31,7 @@ const setupCopy: Record<NonNullable<SetupStatus["next_step"]>, { title: string; 
   },
   watch_first_job: {
     title: "Watch the first job",
-    description: "The first job has started. Follow it until Syrus opens a PR or records a successful no-change result.",
+    description: "The first job has started. Watch it finish so Syrus can confirm the full issue-to-PR loop works.",
     action: "Open dashboard"
   }
 }

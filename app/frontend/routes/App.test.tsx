@@ -316,7 +316,7 @@ describe("App", () => {
   it("renders the logged-out landing CTA from public auth status", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
-        JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })),
+        JSON.stringify(publicBootstrapPayload()),
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
     )
@@ -7088,8 +7088,8 @@ function setupStatus(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function defaultSetupStatus(overrides: Record<string, unknown> = {}) {
-  return setupStatus(overrides)
+function defaultSetupStatus() {
+  return setupStatus()
 }
 
 function setupStatusPayload(overrides: Record<string, unknown> = {}) {
