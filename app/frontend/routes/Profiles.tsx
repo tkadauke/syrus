@@ -77,7 +77,9 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <Avatar avatarUrl={profile.avatar_url} displayName={profile.display_name} size="large" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-semibold text-gray-900">{profile.display_name}</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              <Link className="text-blue-600 hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
+            </h1>
             {profile.github_handle ? <a className="mt-1 inline-block text-sm text-blue-600 hover:underline" href={`https://github.com/${profile.github_handle}`} rel="noopener noreferrer" target="_blank">@{profile.github_handle}</a> : null}
             {profile.profile_bio ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-gray-700">{profile.profile_bio}</p> : null}
             <Counts counts={profile.counts} />

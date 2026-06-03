@@ -53,6 +53,7 @@ module Api
             profile_website: user.profile_website,
             avatar_url: user.avatar_url,
             counts: counts_json(user),
+            profile_path: profile_path(user),
             repositories: user.repositories.active.order(:owner, :name, :id).limit(RECENT_LIMIT).map { |repository| repository_json(repository) },
             epics: user.epics.includes(:repository).where.not(state: Epic::ARCHIVED_STATE).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |epic| epic_json(epic) },
             jobs: user.jobs.includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |job| job_json(job, show_owner: show_owner_labels_for?(user)) },

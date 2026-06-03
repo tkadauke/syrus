@@ -58,7 +58,9 @@ admin-only:
   - app/controllers/api/v1/app/credentials_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
+  - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
+  - app/controllers/api/v1/app/setup_controller.rb
 ```
 
 ## Per-user/private
@@ -126,4 +128,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/admin/queue_controller.rb` | admin-only | Reads queue/process state through admin-only payloads and user-aware filters. |
 | `app/controllers/api/v1/app/admin/spawned_processes_controller.rb` | admin-only | Lists and kills subprocesses through admin payloads, with the current admin passed for authorization/audit. |
 | `app/controllers/api/v1/app/admin/users_controller.rb` | admin-only | Lists user records through an admin payload with the current admin as actor. |
+| `app/controllers/api/v1/app/auth_controller.rb` | admin-only | Public auth status includes current-user context when a signed-in admin hits auth routes. |
 | `app/controllers/api/v1/app/credentials_controller.rb` | per-user/private and admin-only | Normal credential reads/writes mutate only the current user's credentials. API token rotation and revocation are admin-only because API bearer access exposes admin endpoints. |
+| `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with self-aware badges | Team profiles are deliberately visible across users, while ownership labels compare profile rows to the signed-in user. |
+| `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the current operator's credentials, repositories, and first job progress. |

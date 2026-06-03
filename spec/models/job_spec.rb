@@ -792,6 +792,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
     it "starts a dependent queued workflow when the parent reaches implemented with an open PR" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
+      prerequisite.advance_after_triage!
       job = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #42")
       job.advance_after_triage!
       first_step = job.reload.latest_workflow.first_step

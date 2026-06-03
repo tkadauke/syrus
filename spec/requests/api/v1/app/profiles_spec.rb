@@ -86,7 +86,8 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
       "profile_bio" => "Compiler operator.",
       "profile_location" => "Arlington",
       "profile_company" => "Navy",
-      "profile_website" => "https://example.com/grace"
+      "profile_website" => "https://example.com/grace",
+      "profile_path" => "/profiles/#{teammate.id}"
     )
     expect(profile["repositories"]).to include(include("slug" => "navy/cobol", "path" => "/repositories/#{repo.id}"))
     expect(profile["epics"]).to include(include("id" => epic.id, "title" => "Directory", "path" => "/epics/#{epic.id}"))

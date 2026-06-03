@@ -61,7 +61,7 @@ export type TeamProfileActivity = {
   path: string
 }
 
-export type TeamProfileDetail = Omit<TeamProfileSummary, "bio_excerpt" | "profile_path"> & {
+export type TeamProfileDetail = Omit<TeamProfileSummary, "bio_excerpt"> & {
   role_label: string
   profile_bio: string | null
   profile_location: string | null
