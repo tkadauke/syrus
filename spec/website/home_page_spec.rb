@@ -7,41 +7,26 @@ RSpec.describe "website home page" do
 
   let(:normalized_content) { content.gsub(/\s+/, " ") }
 
-  it "opens with a plain-language product sentence" do
-    expect(normalized_content).to include(
-      "Syrus is a self-hosted automation harness that turns GitHub issues, " \
-      "operator prompts, schedules, and PR feedback into coding-agent runs " \
-      "that open or update pull requests."
-    )
+  it "explains Syrus as a self-hosted harness for GitHub-to-PR agent work" do
+    expect(normalized_content).to include("self-hosted automation harness for agentic coding work")
+    expect(normalized_content).to include("turns GitHub issues, PR feedback, scheduled tasks, retries, and rebases into agent runs")
+    expect(normalized_content).to include("captures the commits and opens or updates the pull request")
+    expect(normalized_content).to include("The agent writes code; Syrus handles the job control around it.")
   end
 
-  it "explains the issue-to-PR loop without requiring internal model knowledge" do
-    expect(content).to include("GitHub issue")
-    expect(content).to include("-> Syrus Job")
-    expect(content).to include("-> agent writes code in a cloned workspace")
-    expect(content).to include("-> pull request")
-    expect(normalized_content).to include(
-      "You do not need to understand the internal Job and Workflow model to use it."
-    )
+  it "makes the issue-to-PR flow understandable without internal context" do
+    expect(content).to include("GitHub issue or task")
+    expect(content).to include("-> Syrus poller")
+    expect(content).to include("-> prepared workspace")
+    expect(content).to include("-> commit, push, pull request")
+    expect(normalized_content).to include("not just an agent prompt, but the machinery around the prompt")
   end
 
-  it "explains why self-hosting matters for control and auditability" do
-    expect(normalized_content).to include("Your repositories stay registered in your Syrus instance.")
-    expect(normalized_content).to include("Your GitHub credentials and agent-provider keys are stored and encrypted there.")
-    expect(normalized_content).to include("Your transcripts, diffs, logs, costs, retries, and operational history remain in infrastructure you control.")
-  end
-
-  it "covers the major use cases" do
-    expect(content).to include("**Issue ingestion.**")
-    expect(content).to include("**Direct jobs and chats.**")
-    expect(content).to include("**Scheduled maintenance.**")
-    expect(content).to include("**PR feedback and retries.**")
-  end
-
-  it "links to current evaluation, docs, and source pages" do
+  it "uses real current pages for primary calls to action" do
     expect(content).to include("[Try it locally](/docs/deployment/try-it-locally)")
-    expect(content).to include("[Get started](/docs/getting-started)")
-    expect(content).to include("[Read the docs](/docs/what-is-syrus)")
-    expect(content).to include("[View source](https://github.com/tkadauke/syrus)")
+    expect(content).to include("[Read the docs](/docs/getting-started)")
+    expect(content).to include("[Docker Compose guide](/docs/deployment/docker-compose)")
+    expect(content).to include("[Kubernetes guide](/docs/deployment/kubernetes)")
+    expect(content).to include("[Star on GitHub](https://github.com/tkadauke/syrus)")
   end
 end
