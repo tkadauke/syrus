@@ -266,8 +266,13 @@ module App
         case subject_name.to_s
         when "workflow"
           scope.where(jobs: { owner_user_id: nil })
+<<<<<<< HEAD
         when "epic"
           epic_claimable_scope(scope)
+=======
+        elsif subject_name.to_s == "epic"
+          scope.where(owner_id: nil, owner_user_id: nil, state: %w[backlog ready])
+>>>>>>> d8ea4cbc (Default epic dashboard to mine and claimable)
         else
           scope.where(owner_user_id: nil)
         end
