@@ -50,6 +50,46 @@ RSpec.describe Repository do
     expect(invalid.errors[:owner]).to be_present
   end
 
+  it "records optional upstream repository metadata" do
+    repo = Repository.create!(
+      user: owner,
+      owner: "acme",
+      name: "widgets",
+      upstream_owner: "rails",
+      upstream_name: "rails",
+      upstream_default_branch: "main"
+    )
+
+    expect(repo.upstream_slug).to eq("rails/rails")
+    expect(repo.upstream_default_branch).to eq("main")
+  end
+
+  it "normalizes blank upstream metadata without changing existing repositories" do
+    repo = Repository.create!(
+      user: owner,
+      owner: "acme",
+      name: "widgets",
+      upstream_owner: "",
+      upstream_name: "",
+      upstream_default_branch: ""
+    )
+
+    expect(repo.upstream_owner).to be_nil
+    expect(repo.upstream_name).to be_nil
+    expect(repo.upstream_default_branch).to be_nil
+    expect(repo.upstream_slug).to be_nil
+  end
+
+  it "rejects incomplete or malformed upstream targets" do
+    incomplete = Repository.new(user: owner, owner: "acme", name: "widgets", upstream_owner: "rails")
+    expect(incomplete).not_to be_valid
+    expect(incomplete.errors[:upstream_owner]).to be_present
+
+    malformed = Repository.new(user: owner, owner: "acme", name: "widgets", upstream_owner: "bad owner", upstream_name: "rails")
+    expect(malformed).not_to be_valid
+    expect(malformed.errors[:upstream_owner]).to be_present
+  end
+
   it "enforces uniqueness on (user, owner, name)" do
     Repository.create!(user: owner, owner: "acme", name: "widgets")
     dup = Repository.new(user: owner, owner: "acme", name: "widgets")

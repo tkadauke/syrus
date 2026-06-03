@@ -8,6 +8,10 @@ export type RepositoryRow = {
   name: string
   owner_user: RepositoryOwnerUser
   default_branch: string
+  upstream_owner: string | null
+  upstream_name: string | null
+  upstream_default_branch: string | null
+  upstream_slug: string | null
   trigger_label: string
   polling_enabled: boolean
   archived: boolean
@@ -35,6 +39,9 @@ export type RepositoryFormRecord = {
   name: string
   slug: string | null
   default_branch: string
+  upstream_owner: string
+  upstream_name: string
+  upstream_default_branch: string
   trigger_label: string
   polling_enabled: boolean
   prepare_enabled: boolean
@@ -70,6 +77,9 @@ export type RepositoryInput = {
   owner: string
   name: string
   default_branch: string
+  upstream_owner: string
+  upstream_name: string
+  upstream_default_branch: string
   trigger_label: string
   polling_enabled: boolean
   prepare_enabled: boolean
@@ -165,6 +175,10 @@ export type RepositoryDetailRecord = {
   owner: string
   name: string
   default_branch: string
+  upstream_owner: string | null
+  upstream_name: string | null
+  upstream_default_branch: string | null
+  upstream_slug: string | null
   trigger_label: string
   polling_enabled: boolean
   archived: boolean

@@ -22,6 +22,8 @@ class Repository < ApplicationRecord
 
   validates :owner, presence: true, format: { with: GITHUB_NAME }
   validates :name, presence: true, format: { with: GITHUB_NAME }
+  validates :upstream_owner, format: { with: GITHUB_NAME }, allow_blank: true
+  validates :upstream_name, format: { with: GITHUB_NAME }, allow_blank: true
   validates :default_branch, presence: true
   validates :trigger_label, presence: true
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
@@ -30,8 +32,10 @@ class Repository < ApplicationRecord
     case_sensitive: false,
     message: "has already been configured for this Syrus user and GitHub owner"
   }
+  validate :upstream_owner_and_name_are_paired
 
   before_validation :normalize_agent_provider
+  before_validation :normalize_upstream_metadata
   before_save :link_installation_from_owner
   before_destroy :destroy_chat_sessions, prepend: true
 
@@ -56,6 +60,12 @@ class Repository < ApplicationRecord
 
   def slug
     "#{owner}/#{name}"
+  end
+
+  def upstream_slug
+    return nil if upstream_owner.blank? || upstream_name.blank?
+
+    "#{upstream_owner}/#{upstream_name}"
   end
 
   def effective_agent_provider
@@ -89,6 +99,19 @@ class Repository < ApplicationRecord
 
   def normalize_agent_provider
     self.agent_provider = nil if agent_provider.blank?
+  end
+
+  def normalize_upstream_metadata
+    self.upstream_owner = upstream_owner.presence
+    self.upstream_name = upstream_name.presence
+    self.upstream_default_branch = upstream_default_branch.presence
+  end
+
+  def upstream_owner_and_name_are_paired
+    return if upstream_owner.blank? && upstream_name.blank?
+    return if upstream_owner.present? && upstream_name.present?
+
+    errors.add(:upstream_owner, "and upstream name must both be present")
   end
 
   def link_installation_from_owner

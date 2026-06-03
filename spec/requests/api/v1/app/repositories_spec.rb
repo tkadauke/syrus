@@ -126,6 +126,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("repository", "default_branch")).to eq("main")
+    expect(body.dig("repository", "upstream_owner")).to eq("")
+    expect(body.dig("repository", "upstream_name")).to eq("")
+    expect(body.dig("repository", "upstream_default_branch")).to eq("")
     expect(body.dig("repository", "trigger_label")).to eq("syrus")
     expect(body.dig("repository", "polling_enabled")).to eq(true)
     expect(body["configured_agent_providers"]).to include(
@@ -144,6 +147,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       owner: "acme",
       name: "widgets",
       default_branch: "trunk",
+      upstream_owner: "rails",
+      upstream_name: "rails",
+      upstream_default_branch: "main",
       trigger_label: "delegate",
       polling_enabled: false,
       prepare_enabled: false,
@@ -164,6 +170,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "name" => "widgets",
       "slug" => "acme/widgets",
       "default_branch" => "trunk",
+      "upstream_owner" => "rails",
+      "upstream_name" => "rails",
+      "upstream_default_branch" => "main",
       "trigger_label" => "delegate",
       "polling_enabled" => false,
       "prepare_enabled" => false,
@@ -430,6 +439,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
           owner: "acme",
           name: "widgets",
           default_branch: "main",
+          upstream_owner: "rails",
+          upstream_name: "rails",
+          upstream_default_branch: "main",
           trigger_label: "syrus",
           polling_enabled: "1",
           prepare_enabled: "0",
@@ -446,6 +458,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:created)
     repository = user.repositories.last
     expect(repository.slug).to eq("acme/widgets")
+    expect(repository.upstream_owner).to eq("rails")
+    expect(repository.upstream_name).to eq("rails")
+    expect(repository.upstream_default_branch).to eq("main")
     expect(repository.prepare_enabled).to eq(false)
     expect(repository.pr_cost_footer_enabled).to eq(false)
     expect(repository.auto_merge_enabled).to eq(true)
@@ -484,6 +499,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
         owner: "acme",
         name: "widgets",
         default_branch: "trunk",
+        upstream_owner: "rails",
+        upstream_name: "rails",
+        upstream_default_branch: "main",
         trigger_label: "delegate",
         polling_enabled: "0",
         prepare_enabled: "0",
@@ -498,6 +516,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload.default_branch).to eq("trunk")
+    expect(repository.upstream_owner).to eq("rails")
+    expect(repository.upstream_name).to eq("rails")
+    expect(repository.upstream_default_branch).to eq("main")
     expect(repository.trigger_label).to eq("delegate")
     expect(repository.polling_enabled).to eq(false)
     expect(repository.prepare_enabled).to eq(false)

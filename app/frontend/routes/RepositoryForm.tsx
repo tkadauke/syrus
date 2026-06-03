@@ -303,6 +303,41 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         </section>
 
         <section className="space-y-4 rounded border border-gray-200 bg-white p-4">
+          <h2 className="text-sm font-semibold text-gray-900">Upstream</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Upstream owner">
+              <input
+                aria-label="Upstream owner"
+                className={`${inputClass()} font-mono`}
+                onChange={(event) => setValues({ ...values, upstream_owner: event.target.value })}
+                type="text"
+                value={values.upstream_owner}
+              />
+            </Field>
+
+            <Field label="Upstream name">
+              <input
+                aria-label="Upstream name"
+                className={`${inputClass()} font-mono`}
+                onChange={(event) => setValues({ ...values, upstream_name: event.target.value })}
+                type="text"
+                value={values.upstream_name}
+              />
+            </Field>
+          </div>
+
+          <Field label="Upstream default branch">
+            <input
+              aria-label="Upstream default branch"
+              className={`${inputClass()} font-mono`}
+              onChange={(event) => setValues({ ...values, upstream_default_branch: event.target.value })}
+              type="text"
+              value={values.upstream_default_branch}
+            />
+          </Field>
+        </section>
+
+        <section className="space-y-4 rounded border border-gray-200 bg-white p-4">
           <h2 className="text-sm font-semibold text-gray-900">Automation</h2>
           <Field label="Default agent">
             <select
@@ -371,6 +406,9 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     owner: payload.repository.owner,
     name: payload.repository.name,
     default_branch: payload.repository.default_branch,
+    upstream_owner: payload.repository.upstream_owner,
+    upstream_name: payload.repository.upstream_name,
+    upstream_default_branch: payload.repository.upstream_default_branch,
     trigger_label: payload.repository.trigger_label,
     polling_enabled: payload.repository.polling_enabled,
     prepare_enabled: payload.repository.prepare_enabled,

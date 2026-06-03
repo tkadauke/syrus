@@ -454,6 +454,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_03_003224) do
     t.boolean "prepare_enabled", default: true, null: false
     t.string "trigger_label", default: "syrus", null: false
     t.datetime "updated_at", null: false
+    t.string "upstream_default_branch"
+    t.string "upstream_name"
+    t.string "upstream_owner"
     t.integer "user_id", null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"

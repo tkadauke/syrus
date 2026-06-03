@@ -4161,6 +4161,9 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "widgets" } })
     expect(await screen.findByRole("option", { name: "trunk" })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Default branch"), { target: { value: "trunk" } })
+    fireEvent.change(screen.getByLabelText("Upstream owner"), { target: { value: "rails" } })
+    fireEvent.change(screen.getByLabelText("Upstream name"), { target: { value: "rails" } })
+    fireEvent.change(screen.getByLabelText("Upstream default branch"), { target: { value: "main" } })
     fireEvent.change(screen.getByLabelText("Default agent"), { target: { value: "codex" } })
     fireEvent.change(screen.getByLabelText("Auto-approval fallback"), { target: { value: "if_graders_pass" } })
     fireEvent.click(screen.getByLabelText("Run prepare step on this repository's Workflows"))
@@ -4178,6 +4181,9 @@ describe("App", () => {
               owner: "acme",
               name: "widgets",
               default_branch: "trunk",
+              upstream_owner: "rails",
+              upstream_name: "rails",
+              upstream_default_branch: "main",
               trigger_label: "syrus",
               polling_enabled: true,
               prepare_enabled: false,
@@ -4208,6 +4214,10 @@ describe("App", () => {
             owner: "acme",
             name: "widgets",
             default_branch: "main",
+            upstream_owner: null,
+            upstream_name: null,
+            upstream_default_branch: null,
+            upstream_slug: null,
             trigger_label: "syrus",
             polling_enabled: true,
             archived: false,
@@ -4284,6 +4294,9 @@ describe("App", () => {
           name: "widgets",
           slug: "acme/widgets",
           default_branch: "main",
+          upstream_owner: "",
+          upstream_name: "",
+          upstream_default_branch: "",
           trigger_label: "syrus",
           polling_enabled: true,
           prepare_enabled: true,
@@ -7263,6 +7276,10 @@ function repositoriesPayload(overrides: {
           profile_path: "/profiles/9"
         },
         default_branch: "main",
+        upstream_owner: null,
+        upstream_name: null,
+        upstream_default_branch: null,
+        upstream_slug: null,
         trigger_label: "syrus",
         polling_enabled: true,
         archived: false,
@@ -7290,6 +7307,10 @@ function repositoriesPayload(overrides: {
           profile_path: "/profiles/9"
         },
         default_branch: "main",
+        upstream_owner: null,
+        upstream_name: null,
+        upstream_default_branch: null,
+        upstream_slug: null,
         trigger_label: "syrus",
         polling_enabled: false,
         archived: true,
@@ -7352,6 +7373,9 @@ function repositoryFormPayload(overrides: Partial<{
       name: "",
       slug: null,
       default_branch: "main",
+      upstream_owner: "",
+      upstream_name: "",
+      upstream_default_branch: "",
       trigger_label: "syrus",
       polling_enabled: true,
       prepare_enabled: true,
@@ -7386,6 +7410,10 @@ function repositoryDetailPayload() {
       owner: "acme",
       name: "widgets",
       default_branch: "main",
+      upstream_owner: null,
+      upstream_name: null,
+      upstream_default_branch: null,
+      upstream_slug: null,
       trigger_label: "syrus",
       polling_enabled: true,
       archived: false,
