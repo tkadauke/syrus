@@ -32,6 +32,7 @@ class Repository < ApplicationRecord
     case_sensitive: false,
     message: "has already been configured for this Syrus user and GitHub owner"
   }
+  validates :owner, uniqueness: { scope: [ :user_id, :name ], case_sensitive: false }
   validate :upstream_owner_and_name_are_paired
 
   before_validation :normalize_agent_provider
