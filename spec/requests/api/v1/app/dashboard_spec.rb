@@ -26,8 +26,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     it "returns a subject-aware dashboard read payload for the current user" do
       user.update_dashboard_sort!(subject: "job", column: "title", direction: "asc")
       tag = Factories.tag(user: user, name: "aqueduct", color: "blue")
-      first = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Build aqueduct", state: "queued", pr_number: 17)
-      second = Factories.job_record(repository: repo, issue_number: 2, issue_title: "Chart forum", state: "running")
+      first = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Build aqueduct", state: "queued", pr_number: 17, owner_user: user)
+      second = Factories.job_record(repository: repo, issue_number: 2, issue_title: "Chart forum", state: "running", owner_user: user)
       Workflow.create!(job: second, trigger_kind: "rebase", state: "running")
       first.tags << tag
       archived_repo = Factories.repository(user: user, owner: "acme", name: "archived", archived_at: Time.current)
@@ -236,6 +236,54 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(parse_body["items"].map { |item| item.fetch("id") }).to eq([ unowned_workflow.id ])
     end
 
+    it "defaults job and workflow dashboards to the current user's owned work" do
+      user.update_dashboard_preferences!(subject: "job", ownership_scope: "team")
+      user.update_dashboard_preferences!(subject: "workflow", ownership_scope: "team")
+      mine = Factories.job_record(repository: repo, issue_number: 21, issue_title: "My road", owner_user: user)
+      claimable = Factories.job_record(repository: repo, issue_number: 22, issue_title: "Unclaimed road", owner_user: nil)
+      mine_workflow = Workflow.create!(job: mine, trigger_kind: "initial", state: "queued")
+      Workflow.create!(job: claimable, trigger_kind: "initial", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership_scope", "scope")).to eq("mine")
+      expect(body.dig("ownership_scope", "owner_user_id")).to eq(user.id)
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ mine.id ])
+      expect(body["items"].map { |item| item.fetch("id") }).not_to include(claimable.id)
+      expect(user.reload.dashboard_preferences).to include("last_ownership_scope" => "team")
+
+      get "/api/v1/app/dashboard", params: { subject: "workflow" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership_scope", "scope")).to eq("mine")
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ mine_workflow.id ])
+    end
+
+    it "keeps explicit team and user scopes available for dashboard coordination" do
+      teammate = Factories.user(email_address: "teammate@example.com")
+      mine = Factories.job_record(repository: repo, issue_number: 31, issue_title: "My basilica", owner_user: user)
+      teammate_job = Factories.job_record(repository: repo, issue_number: 32, issue_title: "Their basilica", owner_user: teammate)
+      claimable = Factories.job_record(repository: repo, issue_number: 33, issue_title: "Loose basilica", owner_user: nil)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "team" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to contain_exactly(mine.id, teammate_job.id, claimable.id)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "user", owner_user_id: teammate.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership_scope", "owner_user")).to include(
+        "id" => teammate.id,
+        "email_address" => "teammate@example.com"
+      )
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ teammate_job.id ])
+    end
+
     it "returns validation errors for invalid dashboard ownership params" do
       get "/api/v1/app/dashboard", params: { subject: "job", scope: "somebody_else" }
 
@@ -312,7 +360,7 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "returns smart folder counts and hides empty when-present built-ins" do
-      pinned = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Pinned aqueduct", state: "queued")
+      pinned = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Pinned aqueduct", state: "queued", owner_user: user)
       Factories.job_pin(user: user, job: pinned)
       SmartFolder.create!(
         user: user,
@@ -364,7 +412,7 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "returns all workflows for the workflow subject without a hidden recency filter" do
-      job = Factories.job_record(repository: repo, issue_number: 10, issue_title: "Old aqueduct")
+      job = Factories.job_record(repository: repo, issue_number: 10, issue_title: "Old aqueduct", owner_user: user)
       old_workflow = Workflow.create!(
         job: job,
         trigger_kind: "initial",
@@ -389,8 +437,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "returns workflow dashboard items newest-first by default" do
-      newer_job = Factories.job_record(repository: repo, issue_number: 12, issue_title: "Newer aqueduct")
-      older_job = Factories.job_record(repository: repo, issue_number: 11, issue_title: "Older aqueduct")
+      newer_job = Factories.job_record(repository: repo, issue_number: 12, issue_title: "Newer aqueduct", owner_user: user)
+      older_job = Factories.job_record(repository: repo, issue_number: 11, issue_title: "Older aqueduct", owner_user: user)
       newer_workflow = Workflow.create!(
         job: newer_job,
         trigger_kind: "initial",
