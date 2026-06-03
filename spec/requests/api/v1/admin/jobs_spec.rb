@@ -37,6 +37,94 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
     end
   end
 
+  describe "POST /jobs" do
+    before { admin_token }
+
+    it "creates a direct job for the target repository owner and starts the workflow" do
+      owner = Factories.user(codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      repo = Factories.repository(user: owner, owner: "acme", name: "widgets", agent_provider: "codex")
+
+      expect {
+        post "/api/v1/admin/jobs",
+             params: {
+               job: {
+                 repository: "acme/widgets",
+                 title: "Invite the statues to speak",
+                 prompt: "Add a small note to the README.",
+                 priority: "high"
+               }
+             },
+             headers: auth(admin_token)
+      }.to change(Job, :count).by(1)
+        .and have_enqueued_job(RunJob)
+
+      expect(response).to have_http_status(:created)
+      created = Job.order(:created_at).last
+      expect(created.user).to eq(owner)
+      expect(created.repository).to eq(repo)
+      expect(created.kind).to eq("direct")
+      expect(created.issue_number).to be_nil
+      expect(created.issue_title).to eq("Invite the statues to speak")
+      expect(created.issue_body).to eq("Add a small note to the README.")
+      expect(created.priority).to eq("high")
+      expect(created.agent_provider).to eq("codex")
+      expect(created.runs.first.prompt).to include("Add a small note")
+
+      body = parse_body
+      expect(body["message"]).to eq("Direct job created.")
+      expect(body.dig("job", "id")).to eq(created.id)
+      expect(body.dig("job", "repository", "slug")).to eq("acme/widgets")
+      expect(body.dig("job", "workflows").first["trigger_kind"]).to eq("initial")
+    end
+
+    it "can create a direct job under an Epic and let the Epic block execution" do
+      repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
+      epic = Factories.epic(user: admin, repository: repo, title: "Marble administration")
+
+      expect {
+        post "/api/v1/admin/jobs",
+             params: {
+               job: {
+                 repository_id: repo.id,
+                 epic_id: epic.id,
+                 prompt: "Prepare the first piece of the Epic."
+               }
+             },
+             headers: auth(admin_token)
+      }.to change(Job, :count).by(1)
+
+      created = Job.order(:created_at).last
+      expect(response).to have_http_status(:created)
+      expect(created.epic).to eq(epic)
+      expect(created.state).to eq("blocked_by_epic")
+      expect(created.runs).to be_empty
+    end
+
+    it "rejects invalid create requests" do
+      repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
+
+      aggregate_failures do
+        expect {
+          post "/api/v1/admin/jobs", params: { job: { repository_id: repo.id, prompt: " " } }, headers: auth(admin_token)
+        }.not_to change(Job, :count)
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(parse_body.dig("error", "message")).to include("blank")
+
+        expect {
+          post "/api/v1/admin/jobs", params: { job: { repository: "missing/repo", prompt: "Do work." } }, headers: auth(admin_token)
+        }.not_to change(Job, :count)
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(parse_body.dig("error", "message")).to include("Repository not found")
+
+        expect {
+          post "/api/v1/admin/jobs", params: { job: { repository_id: repo.id, prompt: "Do work.", priority: "imperial" } }, headers: auth(admin_token)
+        }.not_to change(Job, :count)
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(parse_body.dig("error", "message")).to include("Priority")
+      end
+    end
+  end
+
   describe "payload shape" do
     before { sign_in_as(admin); admin_token }
 

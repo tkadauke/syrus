@@ -29,6 +29,59 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
     end
   end
 
+  describe "POST /epics" do
+    before { admin_token }
+
+    it "creates an Epic for the target repository owner" do
+      owner = Factories.user
+      target_repo = Factories.repository(user: owner, owner: "acme", name: "api")
+
+      expect {
+        post "/api/v1/admin/epics",
+             params: {
+               epic: {
+                 repo: "acme/api",
+                 title: "Treat the API as a public road",
+                 description: "Pave the path for external orchestrators.",
+                 auto_approve_mode: "if_graders_pass"
+               }
+             },
+             headers: auth(admin_token)
+      }.to change(Epic, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      created = Epic.order(:created_at).last
+      expect(created.user).to eq(owner)
+      expect(created.repository).to eq(target_repo)
+      expect(created.title).to eq("Treat the API as a public road")
+      expect(created.description).to eq("Pave the path for external orchestrators.")
+      expect(created.auto_approve_mode).to eq("if_graders_pass")
+
+      body = parse_body
+      expect(body["message"]).to eq("Epic created.")
+      expect(body.dig("epic", "id")).to eq(created.id)
+      expect(body.dig("epic", "repository", "slug")).to eq("acme/api")
+    end
+
+    it "rejects invalid Epic create requests" do
+      repo
+
+      aggregate_failures do
+        expect {
+          post "/api/v1/admin/epics", params: { epic: { repository_id: repo.id, title: "" } }, headers: auth(admin_token)
+        }.not_to change(Epic, :count)
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(parse_body.dig("error", "message")).to include("Title")
+
+        expect {
+          post "/api/v1/admin/epics", params: { epic: { repository: "missing/repo", title: "Lost" } }, headers: auth(admin_token)
+        }.not_to change(Epic, :count)
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(parse_body.dig("error", "message")).to include("Repository not found")
+      end
+    end
+  end
+
   describe "GET /epics (index)" do
     before do
       sign_in_as(admin)

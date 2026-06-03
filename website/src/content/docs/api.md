@@ -5,7 +5,61 @@ description: REST API for external systems to create and manage Syrus Jobs.
 
 # REST API
 
-> **Status: coming soon.** The REST API is not yet available. This page
-> will be updated with authentication details, endpoint references,
-> request and response schemas, idempotency guidance, rate limits, and
-> webhook adapter documentation once the API ships.
+Syrus exposes an admin REST API for external operators and orchestrators.
+Authenticate with an admin user's API token:
+
+```bash
+curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  https://syrus.example.com/api/v1/admin/overview
+```
+
+Non-admin tokens are rejected with `403 Forbidden`; missing or invalid
+tokens return a JSON `401` error.
+
+## Create a Direct Job
+
+`POST /api/v1/admin/jobs` creates a direct Job and starts the normal
+initial workflow when the Job is not blocked by dependencies or an Epic.
+The Job belongs to the owner of the target repository, so the repository
+owner's GitHub and agent credentials are used.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/admin/jobs \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job": {
+      "repository": "acme/widgets",
+      "title": "Update the README",
+      "prompt": "Add API setup instructions to the README.",
+      "priority": "high",
+      "agent_provider": "codex"
+    }
+  }'
+```
+
+Use either `repository_id` or `repository`/`repo` as `owner/name`.
+Optional fields are `priority` (`high`, `medium`, `low`), `agent_provider`,
+`epic_id`, and `owner_user_id`.
+
+## Create an Epic
+
+`POST /api/v1/admin/epics` creates an Epic in a repository owned by the
+repository's Syrus user.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/admin/epics \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "epic": {
+      "repository": "acme/widgets",
+      "title": "Documentation cleanup",
+      "description": "Group the docs polish work.",
+      "auto_approve_mode": "never"
+    }
+  }'
+```
+
+Optional fields are `github_issue_url`, `owner_user_id`, and
+`auto_approve_mode`.

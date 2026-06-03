@@ -55,7 +55,82 @@ module Api
           render json: payload
         end
 
+        def create
+          attrs = job_params
+          repository = find_active_repository(attrs)
+          return render_error("validation_failed", "Repository not found or not active.", status: :unprocessable_content) unless repository
+
+          prompt_text = attrs[:prompt].to_s.strip
+          return render_error("validation_failed", "Prompt can't be blank.", status: :unprocessable_content) if prompt_text.blank?
+
+          agent_provider = attrs[:agent_provider].to_s.presence
+          if agent_provider.present? && !repository.user.agent_provider_configured?(agent_provider)
+            return render_error("validation_failed", "That agent is not configured for the repository owner.", status: :unprocessable_content)
+          end
+
+          priority = attrs[:priority].to_s.presence || "medium"
+          unless Job::PRIORITIES.include?(priority)
+            return render_error("validation_failed", "Priority must be one of: #{Job::PRIORITIES.to_sentence}.", status: :unprocessable_content)
+          end
+
+          epic = find_epic(repository, attrs[:epic_id])
+          return render_error("validation_failed", "Epic not found in that repository.", status: :unprocessable_content) if attrs[:epic_id].present? && !epic
+
+          owner_user = find_owner_user(attrs[:owner_user_id])
+          return render_error("validation_failed", "Owner user not found.", status: :unprocessable_content) if attrs[:owner_user_id].present? && !owner_user
+
+          job = repository.user.jobs.create!(
+            repository: repository,
+            kind: "direct",
+            issue_number: nil,
+            issue_title: attrs[:title].to_s.strip.presence || "Direct job",
+            issue_body: prompt_text,
+            agent_provider: agent_provider || repository.effective_agent_provider,
+            priority: priority,
+            epic: epic,
+            owner_user: owner_user
+          )
+          job.advance_after_triage! if job.may_advance_after_triage?
+
+          render json: {
+            message: "Direct job created.",
+            job: serialize(job.reload)
+          }, status: :created
+        end
+
         private
+
+        def job_params
+          source = params[:job].present? ? params.require(:job) : params
+          source.permit(:repository_id, :repository, :repo, :title, :prompt, :priority, :agent_provider, :epic_id, :owner_user_id)
+        end
+
+        def find_active_repository(attrs)
+          scope = Repository.active.includes(:user)
+          if attrs[:repository_id].present?
+            scope.find_by(id: attrs[:repository_id])
+          else
+            slug = attrs[:repository].presence || attrs[:repo].presence
+            return if slug.blank?
+
+            owner, name = slug.to_s.split("/", 2)
+            return if owner.blank? || name.blank?
+
+            scope.find_by(owner: owner, name: name)
+          end
+        end
+
+        def find_epic(repository, epic_id)
+          return if epic_id.blank?
+
+          repository.epics.find_by(id: epic_id)
+        end
+
+        def find_owner_user(owner_user_id)
+          return if owner_user_id.blank?
+
+          User.find_by(id: owner_user_id)
+        end
 
         # `?has_active_workflow=true` etc. — accept the canonical
         # truthy strings and ignore the rest (don't raise on a typo).

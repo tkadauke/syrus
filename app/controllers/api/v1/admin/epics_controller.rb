@@ -45,7 +45,60 @@ module Api
           render json: serialize(epic)
         end
 
+        def create
+          attrs = epic_params
+          repository = find_active_repository(attrs)
+          return render_error("validation_failed", "Repository not found or not active.", status: :unprocessable_content) unless repository
+
+          owner_user = find_owner_user(attrs[:owner_user_id])
+          return render_error("validation_failed", "Owner user not found.", status: :unprocessable_content) if attrs[:owner_user_id].present? && !owner_user
+
+          epic = repository.user.epics.new(
+            repository: repository,
+            title: attrs[:title],
+            description: attrs[:description],
+            github_issue_url: attrs[:github_issue_url],
+            owner_user: owner_user
+          )
+          epic.auto_approve_mode = attrs[:auto_approve_mode] if attrs[:auto_approve_mode].present?
+
+          if epic.save
+            render json: {
+              message: "Epic created.",
+              epic: serialize(epic.reload)
+            }, status: :created
+          else
+            render_error("validation_failed", epic.errors.full_messages.to_sentence, status: :unprocessable_content)
+          end
+        end
+
         private
+
+        def epic_params
+          source = params[:epic].present? ? params.require(:epic) : params
+          source.permit(:repository_id, :repository, :repo, :title, :description, :github_issue_url, :owner_user_id, :auto_approve_mode)
+        end
+
+        def find_active_repository(attrs)
+          scope = Repository.active.includes(:user)
+          if attrs[:repository_id].present?
+            scope.find_by(id: attrs[:repository_id])
+          else
+            slug = attrs[:repository].presence || attrs[:repo].presence
+            return if slug.blank?
+
+            owner, name = slug.to_s.split("/", 2)
+            return if owner.blank? || name.blank?
+
+            scope.find_by(owner: owner, name: name)
+          end
+        end
+
+        def find_owner_user(owner_user_id)
+          return if owner_user_id.blank?
+
+          User.find_by(id: owner_user_id)
+        end
 
         def truthy?(value)
           %w[ true 1 yes ].include?(value.to_s.downcase)

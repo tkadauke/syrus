@@ -177,7 +177,7 @@ Rails.application.routes.draw do
         # `?repo=owner/name`, `?state=` to find a Job from external
         # references (a GH PR url, an issue link, etc.) so the agent
         # doesn't have to know the Syrus internal Job ID up front.
-        resources :jobs, only: %i[ show index ]
+        resources :jobs, only: %i[ show index create ]
 
         # Chat transcript diagnostics. `#index` is compact so an
         # admin API client can find recent sessions; `#show` returns
@@ -188,7 +188,7 @@ Rails.application.routes.draw do
         # ?repo=owner/name, ?user=, ?has_unfinished_children=true);
         # `#show` returns the full epic with child jobs + dependency
         # edges + pending dependency refs.
-        resources :epics, only: %i[ show index ]
+        resources :epics, only: %i[ show index create ]
 
         # Compact list of Runs for cross-Job investigations
         # ("show me everything that failed in the last hour"
