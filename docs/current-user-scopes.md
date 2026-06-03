@@ -31,7 +31,6 @@ per-user/private:
   - app/controllers/api/v1/app/job_pins_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
-  - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb

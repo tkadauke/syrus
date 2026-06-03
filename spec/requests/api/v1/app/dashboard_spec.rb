@@ -526,6 +526,12 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body.dig("ownership", "scope")).to eq("team")
       expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(mine.id, claimable.id, teammate_claimed.id, unclaimed_done.id)
       expect(body["items"].find { |item| item.fetch("id") == mine.id }.fetch("owner_badge")).to be_nil
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", ownership_scope: "claimable" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(claimable.id, unclaimed_done.id)
       expect(body["items"].find { |item| item.fetch("id") == claimable.id }.fetch("owner_badge")).to eq(
         "label" => "Claimable",
         "kind" => "claimable"
