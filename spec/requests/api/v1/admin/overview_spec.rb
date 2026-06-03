@@ -21,6 +21,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).to have_key("recent_failures_24h")
       expect(body).to have_key("github_rate_limits")
       expect(body).to have_key("github_api_blocked_users")
+      expect(body).to have_key("provider_circuits")
       expect(body).to have_key("agent_session_capture_rate")
       expect(body).not_to have_key("claude_session_capture_rate")
       expect(body).to have_key("workers")
@@ -78,6 +79,31 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
         "remaining" => 0,
         "limit" => 5_000,
         "resource" => "core"
+      )
+    end
+
+    it "surfaces open provider circuits" do
+      repository = Factories.repository(user: admin)
+      5.times do |index|
+        job = Factories.job(repository: repository, issue_number: index + 1, agent_provider: "codex")
+        Run.create!(
+          job: job,
+          step: job.latest_workflow.first_step,
+          trigger_kind: "initial",
+          state: "failed",
+          agent_provider: "codex",
+          agent_outcome: "provider_transient",
+          finished_at: 1.minute.ago
+        )
+      end
+
+      get "/api/v1/admin/overview", headers: auth
+
+      circuit = parse_body["provider_circuits"].find { |row| row["provider"] == "codex" }
+      expect(circuit).to include(
+        "open" => true,
+        "failure_count" => 5,
+        "job_count" => 5
       )
     end
   end

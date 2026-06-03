@@ -15,6 +15,7 @@ module Admin
         },
         github_rate_limits: low_rate_limit_users,
         github_api_blocked_users: blocked_github_api_users,
+        provider_circuits: provider_circuits,
         agent_session_capture_rate: capture_rate_payload,
         stuck: stuck_items
       }
@@ -59,6 +60,10 @@ module Admin
           }
         }
       end
+    end
+
+    def provider_circuits
+      ProviderCircuitBreaker.open_circuits.map(&:as_json)
     end
 
     def capture_rate_payload

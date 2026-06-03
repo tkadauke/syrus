@@ -447,7 +447,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
         <Link className={buttonClass("green")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>New job</Link>
         <button className={buttonClass("blue")} disabled={disabled} onClick={() => { onNotice(null); poll.mutate() }} type="button">Poll now</button>
         {retry.count > 0 ? (
-          <button className={buttonClass("amber")} disabled={disabled} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">Retry {retry.count} failed with {retry.agent_provider_label}</button>
+          <button className={buttonClass("amber")} disabled={disabled || retry.provider_circuit.open} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">Retry {retry.count} failed with {retry.agent_provider_label}</button>
         ) : null}
         <div className="relative" ref={moreMenuRef}>
           <button
@@ -468,6 +468,11 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
           ) : null}
         </div>
       </div>
+      {retry.provider_circuit.open ? (
+        <PanelMessage tone="warning">
+          {retry.agent_provider_label} retries are paused: {retry.provider_circuit.reason || "provider appears degraded"}.
+        </PanelMessage>
+      ) : null}
       {poll.isError ? <PanelMessage tone="error">{errorMessage(poll.error, "Repository poll failed.")}</PanelMessage> : null}
       {retryFailed.isError ? <PanelMessage tone="error">{errorMessage(retryFailed.error, "Retry failed jobs command failed.")}</PanelMessage> : null}
       {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, "Archive failed.")}</PanelMessage> : null}
@@ -663,10 +668,11 @@ function StatusPill({ children, tone }: { children: ReactNode; tone: "green" | "
   return <TonePill tone={tone}>{children}</TonePill>
 }
 
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
+function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warning" }) {
   const colors = {
     error: "border-red-200 bg-red-50 text-red-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    muted: "border-gray-200 bg-white text-gray-600",
+    warning: "border-amber-200 bg-amber-50 text-amber-800"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }

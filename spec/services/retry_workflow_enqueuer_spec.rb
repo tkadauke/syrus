@@ -17,6 +17,19 @@ RSpec.describe RetryWorkflowEnqueuer do
     Struct.new(:labels, keyword_init: true).new(labels: labels)
   end
 
+  def record_provider_transient_failure!(provider: "claude", issue_number:)
+    failed_job = Factories.job(repository: repository, issue_number: issue_number, agent_provider: provider)
+    Run.create!(
+      job: failed_job,
+      step: failed_job.latest_workflow.first_step,
+      trigger_kind: "initial",
+      state: "failed",
+      agent_provider: provider,
+      agent_outcome: "provider_transient",
+      finished_at: 1.minute.ago
+    )
+  end
+
   it "creates and starts a retry workflow" do
     finish_current_run!
 
@@ -111,5 +124,17 @@ it "transitions a :failed Job back to :queued before instantiating the new workf
 
     expect(result).not_to be_success
     expect(result.error).to eq("That agent is not available for retry.")
+  end
+
+  it "suppresses automatic retries while the provider circuit is open" do
+    finish_current_run!(state: "failed")
+    5.times { |index| record_provider_transient_failure!(issue_number: index + 100) }
+
+    expect {
+      result = described_class.call(job: job, automatic: true)
+      expect(result).not_to be_success
+      expect(result.circuit).to be_open
+      expect(result.error).to include("Claude Code appears degraded")
+    }.not_to change { job.workflows.where(trigger_kind: "retry").count }
   end
 end

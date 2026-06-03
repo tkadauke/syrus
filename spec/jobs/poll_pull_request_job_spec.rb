@@ -67,6 +67,19 @@ RSpec.describe PollPullRequestJob do
     )
   end
 
+  def record_provider_transient_failure!(provider: "claude", issue_number:)
+    failed_job = Factories.job(repository: repository, issue_number: issue_number, agent_provider: provider)
+    Run.create!(
+      job: failed_job,
+      step: failed_job.latest_workflow.first_step,
+      trigger_kind: "initial",
+      state: "failed",
+      agent_provider: provider,
+      agent_outcome: "provider_transient",
+      finished_at: 1.minute.ago
+    )
+  end
+
   describe "close conditions" do
     it "closes the Job with reason=pr_merged when the PR is merged" do
       stub_pr(state: "closed", merged: true)
@@ -468,6 +481,19 @@ RSpec.describe PollPullRequestJob do
       ])
       expect { described_class.perform_now(job.id, manual: true) }
         .to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+    end
+
+    it "suppresses autonomous ci_failure workflows while the provider circuit is open" do
+      5.times { |index| record_provider_transient_failure!(issue_number: index + 100) }
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+      expect(job.reload.last_ci_handled_sha).to be_nil
     end
 
     it "treats timed_out / action_required / cancelled as failures, ignores neutral / skipped" do

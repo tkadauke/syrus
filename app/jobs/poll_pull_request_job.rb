@@ -105,6 +105,7 @@ class PollPullRequestJob < ApplicationJob
   # each comment is processed exactly once.
   def react_to_pr_comments
     return if pending_followup?
+    return if provider_circuit_open?("pr_comment")
 
     cutoff = feedback_cutoff
     all_comments = fetch_all_comments
@@ -191,6 +192,7 @@ class PollPullRequestJob < ApplicationJob
     return if @job.last_ci_handled_sha == head_sha   # already reacted to this commit
     return if ci_failure_cap_reached?
     return if pending_ci_failure_run?
+    return if provider_circuit_open?("ci_failure")
 
     failed = @client.failed_check_runs_for(@slug, head_sha)
     return if failed.empty?
@@ -234,6 +236,19 @@ class PollPullRequestJob < ApplicationJob
 
   def pending_ci_failure_run?
     @job.workflows.active.where(trigger_kind: "ci_failure").exists?
+  end
+
+  def provider_circuit_open?(trigger_kind)
+    return false if @manual
+
+    circuit = ProviderCircuitBreaker.call(@agent_provider.presence || @job.agent_provider)
+    return false unless circuit.open?
+
+    Rails.logger.info(
+      "[PollPullRequestJob] job #{@job.id}: #{trigger_kind} suppressed because #{circuit.provider} circuit is open " \
+      "(#{circuit.reason}, failures=#{circuit.failure_count}, jobs=#{circuit.job_count}, retry_after=#{circuit.retry_after})"
+    )
+    true
   end
 
   def enqueue_ci_failure_run(head_sha, failed_checks)

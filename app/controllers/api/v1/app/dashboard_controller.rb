@@ -135,13 +135,15 @@ module Api
           end
 
           retried_ids = []
+          circuit_errors = []
           jobs.find_each do |job|
-            result = RetryWorkflowEnqueuer.call(job: job, agent_provider: agent_provider)
+            result = RetryWorkflowEnqueuer.call(job: job, agent_provider: agent_provider, automatic: true)
             retried_ids << job.id if result.success?
+            circuit_errors << result.error if result.circuit&.open?
           end
 
           if retried_ids.empty?
-            render_error("validation_failed", "No selected jobs were eligible for retry.", status: :unprocessable_content)
+            render_error("validation_failed", circuit_errors.first || "No selected jobs were eligible for retry.", status: :unprocessable_content)
           else
             agent_suffix = agent_provider.present? ? " with #{agent_provider.titleize}" : ""
             render_bulk_success(

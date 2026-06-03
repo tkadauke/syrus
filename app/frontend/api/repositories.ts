@@ -133,6 +133,15 @@ export type RepositoryDetailPayload = {
     count: number
     agent_provider: string
     agent_provider_label: string
+    provider_circuit: {
+      provider: string
+      open: boolean
+      reason: string | null
+      retry_after: string | null
+      failure_count: number
+      job_count: number
+      signature: string | null
+    }
   }
   credential_status: {
     mode: "app" | "pat"

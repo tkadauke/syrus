@@ -198,11 +198,18 @@ module Api
           end
 
           agent_provider = repository.effective_agent_provider
+          circuit = ProviderCircuitBreaker.call(agent_provider)
+          if circuit.open?
+            render_error("provider_circuit_open", provider_circuit_message(circuit), status: :unprocessable_content)
+            return
+          end
+
           retried = eligible.count do |job|
             RetryWorkflowEnqueuer.call(
               job: job,
               agent_provider: agent_provider,
-              provider_validation: :none
+              provider_validation: :none,
+              automatic: true
             ).success?
           end
 
@@ -441,11 +448,19 @@ module Api
 
         def retry_failed_jobs_json(repository)
           retryable = repository.jobs.open_threads.select { |job| !job.any_active_run? && job.current_run&.failed? }
+          circuit = ProviderCircuitBreaker.call(repository.effective_agent_provider)
           {
             count: retryable.size,
             agent_provider: repository.effective_agent_provider,
-            agent_provider_label: agent_provider_label(repository.effective_agent_provider)
+            agent_provider_label: agent_provider_label(repository.effective_agent_provider),
+            provider_circuit: circuit.as_json
           }
+        end
+
+        def provider_circuit_message(circuit)
+          label = agent_provider_label(circuit.provider)
+          until_text = circuit.retry_after ? " until #{circuit.retry_after.to_fs(:db)}" : ""
+          "#{label} appears degraded#{until_text}; automatic retries are paused."
         end
 
         def credential_status_json(repository)

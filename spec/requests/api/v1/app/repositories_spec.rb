@@ -229,6 +229,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
     expect(body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 1)
     expect(body["retry_failed_jobs"]).to include("count" => 1, "agent_provider_label" => "Codex")
+    expect(body.dig("retry_failed_jobs", "provider_circuit")).to include("provider" => "codex", "open" => false)
     expect(body["credential_status"]).to include(
       "mode" => "pat",
       "label" => "PAT fallback: no active App installation",
@@ -625,6 +626,32 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to eq("No failed jobs to retry.")
+  end
+
+  it "rejects repository-wide retries while the provider circuit is open" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex")
+    failed = Factories.job(repository: repository, issue_number: 1, agent_provider: "codex")
+    failed.current_run.update!(state: "failed", finished_at: Time.current)
+    5.times do |index|
+      job = Factories.job(repository: repository, issue_number: index + 100, agent_provider: "codex")
+      Run.create!(
+        job: job,
+        step: job.latest_workflow.first_step,
+        trigger_kind: "initial",
+        state: "failed",
+        agent_provider: "codex",
+        agent_outcome: "provider_transient",
+        finished_at: 1.minute.ago
+      )
+    end
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
+    }.not_to change { Workflow.where(trigger_kind: "retry").count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Codex appears degraded")
   end
 
   it "does not expose another user's repository commands" do

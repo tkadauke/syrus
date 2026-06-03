@@ -855,6 +855,7 @@ describe("App", () => {
           recent_failures_24h: { total: 0, by_trigger: {} },
           github_rate_limits: [],
           github_api_blocked_users: [],
+          provider_circuits: [],
           agent_session_capture_rate: { total: 3, captured: 3, rate: 1.0 },
           workers: { total: 1, stale: 0 },
           recurring: { overdue: [] },
@@ -910,6 +911,7 @@ describe("App", () => {
           recent_failures_24h: { total: 0, by_trigger: {} },
           github_rate_limits: [],
           github_api_blocked_users: [],
+          provider_circuits: [],
           agent_session_capture_rate: { total: 0, captured: 0, rate: null },
           workers: { total: 1, stale: 0 },
           recurring: { overdue: [] },
@@ -4580,7 +4582,8 @@ describe("App", () => {
           retry_failed_jobs: {
             count: 0,
             agent_provider: "codex",
-            agent_provider_label: "Codex"
+            agent_provider_label: "Codex",
+            provider_circuit: closedProviderCircuit("codex")
           }
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -7581,6 +7584,18 @@ function repositoryFormPayload(overrides: Partial<{
   }
 }
 
+function closedProviderCircuit(provider: string) {
+  return {
+    provider,
+    open: false,
+    reason: null,
+    retry_after: null,
+    failure_count: 0,
+    job_count: 0,
+    signature: null
+  }
+}
+
 function repositoryDetailPayload() {
   return {
     message: null,
@@ -7632,7 +7647,8 @@ function repositoryDetailPayload() {
     retry_failed_jobs: {
       count: 1,
       agent_provider: "codex",
-      agent_provider_label: "Codex"
+      agent_provider_label: "Codex",
+      provider_circuit: closedProviderCircuit("codex")
     },
     credential_status: {
       mode: "pat",

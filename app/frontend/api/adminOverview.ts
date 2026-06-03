@@ -23,6 +23,15 @@ export type AdminOverviewPayload = {
     email: string
     reason: string | null
   }>
+  provider_circuits: Array<{
+    provider: string
+    open: boolean
+    reason: string | null
+    retry_after: string | null
+    failure_count: number
+    job_count: number
+    signature: string | null
+  }>
   agent_session_capture_rate: {
     total: number
     captured: number
