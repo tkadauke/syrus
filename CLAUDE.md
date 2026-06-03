@@ -189,14 +189,10 @@ across web/worker processes.
   `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`). Each has a `to_s`. Compose
   by appending; never inline prompt text in jobs/services.
-- **Keep website docs current.** Product, feature, or workflow changes must
-  update `website/` when they affect what users need to know. This includes
-  new or changed features, workflows, settings, permissions, credentials,
-  onboarding, deployment, or troubleshooting paths; changed terminology or UI
-  navigation that appears in docs; new release-relevant limitations, caveats,
-  or supported/unsupported flows; and deleted or disabled features that
-  existing docs still mention. If no website update is needed, say why in the
-  PR body.
+- **Website/docs audit.** If no website/docs update is needed, the PR body
+  must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
+  `CLAUDE.md`; preserve that relationship and edit the shared guidance through
+  `CLAUDE.md`.
 - **Encrypted attributes** — `User#github_token`, `User#claude_oauth_token`
   use Active Record Encryption. Means `RAILS_MASTER_KEY` is required in
   any process that touches them. Smoke tests inside containers without
