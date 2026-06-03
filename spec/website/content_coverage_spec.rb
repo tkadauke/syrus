@@ -45,6 +45,17 @@ RSpec.describe "website content coverage" do
     expect(guide).to include("update `website/` in the same PR")
   end
 
+  it "documents the initial fork/upstream collaboration flow" do
+    getting_started = read_website("src/content/docs/getting-started.md")
+
+    expect(getting_started).to include("Owner A owns the upstream repository")
+    expect(getting_started).to include("Owner B owns a fork")
+    expect(getting_started).to include("Owner B claims the Epic or Jobs")
+    expect(getting_started).to include("opens PRs\n   inside B's fork")
+    expect(getting_started).to include("manually opens the upstream pull request")
+    expect(getting_started).to include("does not automatically open upstream pull requests")
+  end
+
   it "keeps markdown pages free of unfinished stub comments" do
     markdown_files = Dir[File.expand_path("../../website/**/*.md", __dir__)]
 
