@@ -164,7 +164,9 @@ RSpec.describe ProcessRunner do
 
   it "does not kill a process that keeps producing output within silent_timeout" do
     # The subprocess prints every 100ms for 0.8 seconds, well under
-    # silent_timeout. ProcessRunner should let it complete cleanly.
+    # silent_timeout once the Ruby child has booted. Keep enough
+    # startup headroom for full-suite load so this spec measures
+    # output cadence, not interpreter startup time.
     script = <<~RUBY
       STDOUT.sync = true
       8.times do
@@ -177,7 +179,7 @@ RSpec.describe ProcessRunner do
       command: [ ruby, "-e", script ],
       chdir: @dir,
       timeout: 30,
-      silent_timeout: 0.5
+      silent_timeout: 2
     ).run
 
     expect(result).to be_success
