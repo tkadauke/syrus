@@ -43,15 +43,18 @@ module Filters
               )
             )
           },
-          # `inbox` is the union of every reason a Job might be sitting
-          # in the operator's queue.
+          # `inbox` is the union of actionable operator work: review,
+          # repair, or feedback that is not already being handled by an
+          # active workflow.
           "inbox"              => -> {
             and_node(
               chip_node("state", "is", "open"),
               or_node(
-                chip_node("has_unread_feedback", "is_true", nil),
+                and_node(
+                  chip_node("has_unread_feedback", "is_true", nil),
+                  chip_node("state", "is_none_of", %w[triaging queued running landing])
+                ),
                 chip_node("state", "is", "failed"),
-                chip_node("triaging_reason", "is", "pending_epic_ref"),
                 chip_node("validity", "is_one_of", %w[duplicate already_implemented]),
                 chip_node("state", "is", "implemented")
               )
@@ -145,9 +148,8 @@ module Filters
 
         def apply_inbox
           open = scope.open_threads
-          open.where(id: unread_feedback_ids)
+          open.where(id: actionable_unread_feedback_ids)
               .or(open.where(state: "failed"))
-              .or(open.where(id: awaiting_epic_ids))
               .or(open.where(id: needs_review_ids))
               .or(open.where(id: awaiting_approval_ids))
         end
@@ -232,6 +234,12 @@ module Filters
         def unread_feedback_ids
           Job.where.not(last_seen_comment_at: nil)
              .where("last_feedback_addressed_at IS NULL OR last_seen_comment_at > last_feedback_addressed_at")
+             .select(:id)
+        end
+
+        def actionable_unread_feedback_ids
+          Job.where(id: unread_feedback_ids)
+             .where.not(state: %w[ triaging queued running landing ])
              .select(:id)
         end
 

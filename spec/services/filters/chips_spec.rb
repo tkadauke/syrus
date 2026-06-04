@@ -134,6 +134,35 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
+    it "inbox: returns only actionable review, repair, and idle feedback jobs" do
+      failed = Factories.job_record(repository: repo, issue_number: 11, state: "failed")
+      implemented = Factories.job_record(repository: repo, issue_number: 12, state: "implemented")
+      invalid = Factories.job_record(repository: repo, issue_number: 13, state: "triaging", validity: "duplicate")
+      unread_feedback = Factories.job_record(
+        repository: repo,
+        issue_number: 14,
+        state: "approved",
+        last_seen_comment_at: 5.minutes.ago,
+        last_feedback_addressed_at: 10.minutes.ago
+      )
+      Factories.job_record(repository: repo, issue_number: 15, state: "queued")
+      Factories.job_record(
+        repository: repo,
+        issue_number: 16,
+        state: "running",
+        last_seen_comment_at: 5.minutes.ago,
+        last_feedback_addressed_at: 10.minutes.ago
+      )
+      Factories.job_record(repository: repo, issue_number: 17, state: "triaging", triaging_reason: "pending_epic_ref")
+
+      expect(run(field: "attention", op: "is", value: "inbox")).to contain_exactly(
+        failed,
+        implemented,
+        invalid,
+        unread_feedback
+      )
+    end
+
     it "just_failed: returns jobs in :failed state" do
       failed = Factories.job(repository: repo, issue_number: 1)
       failed.update!(state: "failed")

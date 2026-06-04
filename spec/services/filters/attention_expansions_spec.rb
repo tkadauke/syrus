@@ -34,17 +34,25 @@ RSpec.describe Filters::Chips::Jobs::Attention do
       )
     end
 
-    it "expands inbox lossily — the OR group covers the primitives we have" do
+    it "expands inbox lossily — the OR group covers actionable primitives" do
       inbox = described_class.expansion_for("inbox")
       expect(inbox).to have_key("and")
       or_branch = inbox["and"].find { |child| child.key?("or") }
       expect(or_branch).not_to be_nil
-      fields = or_branch["or"].map { |c| c["field"] }
+      branches = or_branch["or"]
+      fields = branches.filter_map { |c| c["field"] }
       # `state` appears twice (once for :failed, once for :implemented)
       # after the Phase 4 cleanup; that's the lossy OR-group expansion.
       expect(fields).to include(
-        "has_unread_feedback", "triaging_reason", "validity", "state"
+        "validity", "state"
       )
+      expect(branches).to include(
+        "and" => [
+          { "field" => "has_unread_feedback", "op" => "is_true", "value" => nil },
+          { "field" => "state", "op" => "is_none_of", "value" => %w[triaging queued running landing] }
+        ]
+      )
+      expect(fields).not_to include("triaging_reason")
     end
 
     it "returns nil for unknown values" do
