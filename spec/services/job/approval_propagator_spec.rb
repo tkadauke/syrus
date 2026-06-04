@@ -40,6 +40,24 @@ RSpec.describe Job::ApprovalPropagator do
       expect(result).to be_skipped
     end
 
+    it "skips app-authored PRs because GitHub does not allow self-approval" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository.update!(installation: installation)
+      job.update!(pr_number: 123)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      allow(client).to receive(:pull_request)
+        .with("acme/widgets", 123, bypass_cache: true)
+        .and_return(Struct.new(:user).new(Struct.new(:login).new("operator-syrus[bot]")))
+      expect(client).not_to receive(:create_pr_review)
+
+      result = described_class.approve(job, user: user)
+
+      expect(result).to be_skipped
+      expect(result.message).to be_nil
+      expect(job.reload.approval_evidence).to eq({})
+    end
+
     it "swallows Octokit errors and returns an operator-facing note" do
       job.update!(pr_number: 123)
       allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)

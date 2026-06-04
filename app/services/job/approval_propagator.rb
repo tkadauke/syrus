@@ -29,6 +29,7 @@ class Job::ApprovalPropagator
   def approve
     return skipped unless job.repository.approval_propagates_to_github
     return skipped if job.pr_number.blank?
+    return skipped if app_authored_pull_request?
 
     review = client.create_pr_review(
       job.repository.slug,
@@ -63,6 +64,16 @@ class Job::ApprovalPropagator
 
   def client
     @client ||= GithubClient.for(repository: job.repository, user: user)
+  end
+
+  def app_authored_pull_request?
+    return false unless job.repository.app_credential_active?
+
+    app_slug = AppSetting.current.github_app_slug.to_s.presence
+    return false unless app_slug
+
+    pull_request = client.pull_request(job.repository.slug, job.pr_number, bypass_cache: true)
+    pull_request.user&.login == "#{app_slug}[bot]"
   end
 
   def skipped
