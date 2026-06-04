@@ -91,7 +91,7 @@ all share the same harness instead of becoming separate scripts.
 That is the product: not just an agent prompt, but the machinery around
 the prompt that lets a team delegate real GitHub work repeatedly.
 
-## Start Small
+## Get Started
 
 The shortest path is to run Syrus locally, connect a GitHub repository,
 and delegate one small GitHub issue with label-based triggering. From

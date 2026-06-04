@@ -45,10 +45,6 @@ class Epic < ApplicationRecord
   after_update_commit :broadcast_app_epic_updated
   after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
 
-  broadcasts_refreshes_to ->(epic) { [ epic.user, "jobs" ] }
-  broadcasts_refreshes_to ->(epic) { [ epic.repository, "jobs" ] }
-  broadcasts_refreshes
-
   scope :claimed, -> { where("owner_id IS NOT NULL OR owner_user_id IS NOT NULL") }
   scope :unclaimed, -> { where(owner_id: nil, owner_user_id: nil) }
   scope :owned_by, ->(user) { where("owner_id = :user_id OR owner_user_id = :user_id", user_id: user&.id) }

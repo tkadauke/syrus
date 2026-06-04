@@ -23,8 +23,10 @@ RSpec.describe "bin/healthcheck" do
   # no Bundler env vars set" — the conditions under which the K3s pod
   # was crashing with LoadError: cannot load such file -- mysql2.
   def spawn_clean(env_overrides = {})
+    bundle_env = ENV.to_h.slice("BUNDLE_APP_CONFIG", "BUNDLE_PATH", "BUNDLE_USER_CACHE", "BUNDLE_USER_HOME")
+
     Bundler.with_unbundled_env do
-      env = ENV.to_h.merge(env_overrides)
+      env = ENV.to_h.merge(bundle_env).merge(env_overrides)
       Open3.capture3(env, "ruby", script, unsetenv_others: true)
     end
   end
