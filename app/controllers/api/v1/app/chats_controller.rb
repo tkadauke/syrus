@@ -530,7 +530,7 @@ module Api
           case record
           when Repository then record.slug
           when Epic then record.display_number
-          when Job then "Job ##{record.id}: #{record.issue_title.presence || record.issue_number || record.kind}"
+          when Job then "#{::App::Presentation.job_slug(record)}: #{record.issue_title.presence || record.issue_number || record.kind}"
           when Document then "#{record.title} (#{record.repository&.slug})"
           else record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
           end
@@ -544,13 +544,13 @@ module Api
           when "remove_repo_note"
             "Remove repository note ##{payload['id']}"
           when "cancel_job"
-            "Cancel Job ##{payload['job_id']}"
+            "Cancel #{::App::Presentation.job_slug(payload['job_id'])}"
           when "retry_job"
-            "Retry Job ##{payload['job_id']}"
+            "Retry #{::App::Presentation.job_slug(payload['job_id'])}"
           when "rebase_job"
-            "Rebase Job ##{payload['job_id']}"
+            "Rebase #{::App::Presentation.job_slug(payload['job_id'])}"
           when "reopen_epic_and_attach_job"
-            "Reopen Epic ##{payload['epic_id']} and attach Job ##{payload['job_id']}"
+            "Reopen Epic ##{payload['epic_id']} and attach #{::App::Presentation.job_slug(payload['job_id'])}"
           else
             payload["label"].presence || action.action_type.to_s.humanize
           end
@@ -570,7 +570,7 @@ module Api
           record = result.respond_to?(:epic) && result.epic ? result.epic : result.jobs.first || proposal.reload.materialized_record
           case record
           when Job
-            "Proposal confirmed and filed as Job ##{record.id}."
+            "Proposal confirmed and filed as #{::App::Presentation.job_slug(record)}."
           when Epic
             "Proposal confirmed and filed as #{record.display_number}."
           else

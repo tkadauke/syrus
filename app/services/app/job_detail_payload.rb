@@ -209,10 +209,10 @@ module App
       if job.issue? && job.issue_number.present?
         title = job.issue_title.to_s.strip
         title = " - #{title}" if title.present?
-        "#{job.repository.slug} ##{job.issue_number}#{title} (Job ##{job.id})"
+        "#{job.repository.slug} ##{job.issue_number}#{title} (#{::App::Presentation.job_slug(job)})"
       else
         title = job.issue_title.to_s.strip.presence || job.kind.titleize
-        "#{job.repository.slug} Job ##{job.id} - #{title}"
+        "#{job.repository.slug} #{::App::Presentation.job_slug(job)} - #{title}"
       end
     end
 

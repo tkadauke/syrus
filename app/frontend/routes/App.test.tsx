@@ -6573,7 +6573,7 @@ describe("App", () => {
       pending_actions: [
         {
           id: 7,
-          label: "Cancel Job #44",
+          label: "Cancel JOB-44",
           action: "cancel_job",
           action_type: null,
           app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
@@ -6617,10 +6617,10 @@ describe("App", () => {
       if (path === `/api/v1/app/chats/8/proposals/5/confirm${search}` && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
           ...initialPayload,
-          message: "Proposal confirmed and filed as Job #88.",
+          message: "Proposal confirmed and filed as JOB-88.",
           messages: [initialPayload.messages[0], {
             ...proposalMessage,
-            proposal: { ...proposalMessage.proposal, proposed: false, state: "confirmed", state_label: "Confirmed", materialized_label: "Job #88", materialized_path: "/jobs/88" }
+            proposal: { ...proposalMessage.proposal, proposed: false, state: "confirmed", state_label: "Confirmed", materialized_label: "JOB-88", materialized_path: "/jobs/88" }
           }]
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -6697,13 +6697,13 @@ describe("App", () => {
         expect.objectContaining({ method: "POST" })
       )
     })
-    expect(await screen.findByRole("link", { name: "Job #88" })).toHaveAttribute("href", "/app-shell/jobs/88")
+    expect(await screen.findByRole("link", { name: "JOB-88" })).toHaveAttribute("href", "/app-shell/jobs/88")
     const proposalNotice = await screen.findByRole("status")
     expect(proposalNotice).toHaveClass("fixed")
-    expect(proposalNotice).toHaveTextContent("Proposal confirmed and filed as Job #88.")
+    expect(proposalNotice).toHaveTextContent("Proposal confirmed and filed as JOB-88.")
     fireEvent.click(within(proposalNotice).getByRole("button", { name: "Dismiss notification" }))
     await waitFor(() => {
-      expect(screen.queryByText("Proposal confirmed and filed as Job #88.")).not.toBeInTheDocument()
+      expect(screen.queryByText("Proposal confirmed and filed as JOB-88.")).not.toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
@@ -8146,7 +8146,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
     dependencies: [],
     dependents: [],
     unsatisfied_dependencies: [],
-    dependency_target_options: [{ label: "acme/widgets #11 - Build hill (Job #41)", value: "issue:3:11" }],
+    dependency_target_options: [{ label: "acme/widgets #11 - Build hill (JOB-41)", value: "issue:3:11" }],
     attachments: [
       {
         id: 8,

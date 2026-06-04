@@ -13,6 +13,11 @@ module App
       AGENT_PROVIDER_LABELS[provider] || provider.to_s.titleize
     end
 
+    def job_slug(job_or_id)
+      id = job_or_id.respond_to?(:id) ? job_or_id.id : job_or_id
+      "JOB-#{id}"
+    end
+
     def github_app_install_url_for(repositories)
       repos = Array(repositories).compact
       return nil unless AppSetting.github_app_registered?

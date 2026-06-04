@@ -447,7 +447,7 @@ RSpec.describe Epic do
 
     expect(job.reload.epic).to eq(epic)
     expect(epic.reload).to be_in_progress
-    expect(chat.messages.where(role: "system").last.content["text"]).to include("Job ##{job.id}")
+    expect(chat.messages.where(role: "system").last.content["text"]).to include("JOB-#{job.id}")
   end
 
   it "leaves stale done Epic matches unattached and suggests an operator confirmation" do

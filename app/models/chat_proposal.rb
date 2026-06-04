@@ -102,7 +102,7 @@ class ChatProposal < ApplicationRecord
   def materialized_label
     case materialized_record
     when Job
-      "Job ##{job.id}"
+      ::App::Presentation.job_slug(job)
     when Epic
       epic.display_number
     end

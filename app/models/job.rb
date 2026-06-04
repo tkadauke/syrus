@@ -731,7 +731,7 @@ class Job < ApplicationRecord
   end
 
   def log_epic_auto_reopen(closed_epic)
-    message = "Epic #{closed_epic.display_number} auto-reopened for Job ##{id}."
+    message = "Epic #{closed_epic.display_number} auto-reopened for #{::App::Presentation.job_slug(self)}."
     Rails.logger.info("[EpicAssignment] #{message}")
 
     planning_chat_for(closed_epic)&.messages&.create!(

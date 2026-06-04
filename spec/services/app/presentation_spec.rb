@@ -12,6 +12,15 @@ RSpec.describe App::Presentation do
     end
   end
 
+  describe ".job_slug" do
+    it "formats Syrus Job ids distinctly from GitHub issue numbers" do
+      job = Factories.job_record(id: 771)
+
+      expect(described_class.job_slug(job)).to eq("JOB-771")
+      expect(described_class.job_slug(772)).to eq("JOB-772")
+    end
+  end
+
   describe ".github_app_install_url_for" do
     it "builds a GitHub App install URL for repositories under one owner" do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")

@@ -119,7 +119,7 @@ function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { 
               {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
             </div>
             <p className="mt-1 text-sm text-gray-500">
-              Job #{payload.job.id} · {payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")}
+              {jobSlug(payload.job.id)} · {payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")}
               {payload.job.total_cost_usd == null ? null : <> · {formatCurrency(payload.job.total_cost_usd)}</>}
               {payload.job.prepare_skipped ? <span className="font-medium text-amber-700"> · prepare skipped</span> : null}
             </p>
@@ -551,7 +551,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
           <ul className="mt-2 divide-y divide-gray-100">
             {payload.dependents.map((dependent) => (
               <li className="py-2" key={dependent.id}>
-                <Link className="text-blue-600 hover:underline" to={withRoutePrefix(dependent.job.job_path, prefix)}>{dependent.job.repository_slug} {dependent.job.issue_number ? `#${dependent.job.issue_number}` : `Job #${dependent.job.id}`}</Link>
+                <Link className="text-blue-600 hover:underline" to={withRoutePrefix(dependent.job.job_path, prefix)}>{dependent.job.repository_slug} {dependent.job.issue_number ? `#${dependent.job.issue_number}` : jobSlug(dependent.job.id)}</Link>
                 <StatusPill state={dependent.job.summary_state} />
               </li>
             ))}
@@ -1209,15 +1209,19 @@ function jobSourceLabel(payload: JobDetailPayload) {
   if (payload.job.issue_number) return `#${payload.job.issue_number}`
   if (payload.job.kind === "direct") return "Direct Job"
   if (payload.job.kind === "cron") return "Scheduled Job"
-  return `Job #${payload.job.id}`
+  return jobSlug(payload.job.id)
 }
 
 function dependencyLabel(dependency: JobDependency) {
   if (dependency.pending) return dependency.unresolved_slug || "Unresolved dependency"
   const target = dependency.depends_on_job
   if (!target) return dependency.unresolved_slug || "Missing dependency"
-  const issue = target.issue_number ? `#${target.issue_number}` : `Job #${target.id}`
+  const issue = target.issue_number ? `#${target.issue_number}` : jobSlug(target.id)
   return `${target.repository_slug} ${issue} (${target.summary_state})`
+}
+
+function jobSlug(id: number) {
+  return `JOB-${id}`
 }
 
 function formatDate(value: string | null) {

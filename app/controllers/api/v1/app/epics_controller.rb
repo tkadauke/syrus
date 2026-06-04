@@ -240,7 +240,7 @@ module Api
           elsif job.issue_number.present?
             "##{job.issue_number}"
           else
-            "Job ##{job.id}"
+            ::App::Presentation.job_slug(job)
           end
 
           {

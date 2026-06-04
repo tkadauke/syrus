@@ -474,9 +474,9 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     }.to change(Job, :count).by(1)
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to match(/\AProposal confirmed and filed as Job #\d+\.\z/)
+    expect(parse_body["message"]).to match(/\AProposal confirmed and filed as JOB-\d+\.\z/)
     expect(confirmed.reload).to be_confirmed
-    expect(parse_body["messages"].first.dig("proposal", "materialized_label")).to eq("Job ##{confirmed.job.id}")
+    expect(parse_body["messages"].first.dig("proposal", "materialized_label")).to eq("JOB-#{confirmed.job.id}")
 
     post "/api/v1/app/chats/#{chat.id}/proposals/#{rejected.id}/reject"
 
@@ -496,8 +496,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to contain_exactly(
-      include("id" => confirm_action.id, "label" => "Cancel Job ##{job_to_cancel.id}", "app_confirm_path" => "/api/v1/app/chats/#{chat.id}/pending_actions/#{confirm_action.id}/confirm"),
-      include("id" => reject_action.id, "label" => "Cancel Job ##{job_to_keep.id}", "app_cancel_path" => "/api/v1/app/chats/#{chat.id}/pending_actions/#{reject_action.id}")
+      include("id" => confirm_action.id, "label" => "Cancel JOB-#{job_to_cancel.id}", "app_confirm_path" => "/api/v1/app/chats/#{chat.id}/pending_actions/#{confirm_action.id}/confirm"),
+      include("id" => reject_action.id, "label" => "Cancel JOB-#{job_to_keep.id}", "app_cancel_path" => "/api/v1/app/chats/#{chat.id}/pending_actions/#{reject_action.id}")
     )
 
     post "/api/v1/app/chats/#{chat.id}/pending_actions/#{confirm_action.id}/confirm"
