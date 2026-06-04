@@ -596,7 +596,7 @@ module App
         owner_user_id: job.owner_user_id,
         owner_user: owner_user_json(job.owner_user),
         claimed_at: job.claimed_at&.iso8601,
-        claimed_by_user: owner_json(job.claimed_by_user),
+        claimed_by_user: claim_owner_json(job.claimed_by_user),
         claimed_by_current_user: job.claimed_by_user_id == user.id,
         dependencies_overridden_at: job.dependencies_overridden_at&.iso8601,
         last_feedback_addressed_at: job.last_feedback_addressed_at&.iso8601,
@@ -625,7 +625,7 @@ module App
       }
     end
 
-    def owner_json(owner)
+    def claim_owner_json(owner)
       return unless owner
 
       {
