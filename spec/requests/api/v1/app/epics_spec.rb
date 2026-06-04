@@ -371,6 +371,9 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
   it "claims an unclaimed Epic for the current user when moving it to in-progress" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, state: "ready", owner_user: nil)
+    unowned_child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: nil)
+    existing_owner = Factories.user(email_address: "already-owned@example.com")
+    owned_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, owner_user: existing_owner)
 
     patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "in_progress" }
 
@@ -382,12 +385,19 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "owner_user" => include("id" => user.id, "email_address" => user.email_address)
     )
     expect(epic.reload.owner_user).to eq(user)
+    expect(unowned_child.reload.owner_user).to eq(user)
+    expect(owned_child.reload.owner_user).to eq(existing_owner)
+    expect(parse_body["jobs"]).to include(
+      include("id" => unowned_child.id, "owner_user_id" => user.id, "owner_user" => include("email_address" => user.email_address)),
+      include("id" => owned_child.id, "owner_user_id" => existing_owner.id, "owner_user" => include("email_address" => "already-owned@example.com"))
+    )
   end
 
   it "does not take over an already-owned Epic when moving it to in-progress" do
     sign_in_as(user)
     owner = Factories.user(email_address: "owner@example.com")
     epic = Factories.epic(user: user, repository: repository, state: "ready", owner_user: owner)
+    unowned_child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: nil)
 
     patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "in_progress" }
 
@@ -399,6 +409,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "owner_user" => include("id" => owner.id, "email_address" => "owner@example.com")
     )
     expect(epic.reload.owner_user).to eq(owner)
+    expect(unowned_child.reload.owner_user).to be_nil
   end
 
   it "moves ready Epics back to backlog through the app API" do

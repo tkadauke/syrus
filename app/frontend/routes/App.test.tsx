@@ -5005,6 +5005,13 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify(epicDetailPayload({
           message: "Epic updated.",
           state: "in_progress",
+          epic: {
+            owner_user_id: 1,
+            owner_status: "mine",
+            owner_user: { id: 1, email_address: "operator@example.com" },
+            owned_by_current_user: true,
+            claimable: false
+          },
           stateTransitions: [
             { label: "Move back to ready", target_state: "ready", confirm: null },
             { label: "Archive", target_state: "archived", confirm: "Archive this Epic?" }
@@ -5058,6 +5065,100 @@ describe("App", () => {
       "Edit",
       "Archive"
     ])
+  })
+
+  it("claims and unclaims an Epic from the detail controls", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/epics/7/claim" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(epicDetailPayload({
+          message: "Epic claimed.",
+          epic: {
+            owner_user_id: 1,
+            owner_status: "mine",
+            owner_user: { id: 1, email_address: "operator@example.com" },
+            owned_by_current_user: true
+          },
+          jobs: [
+            {
+              id: 42,
+              label: "#12",
+              title: "Survey forum",
+              path: "/jobs/42",
+              state: "closed",
+              owner_user_id: 1,
+              owner_user: { id: 1, email_address: "operator@example.com" },
+              repository_slug: "acme/widgets"
+            }
+          ]
+        })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/epics/7/unclaim" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(epicDetailPayload({
+          message: "Epic unclaimed."
+        })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(epicDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/epics/7"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Claim" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Unclaim" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Claim" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/epics/7/claim",
+        expect.objectContaining({ method: "PATCH", credentials: "same-origin" })
+      )
+    })
+    expect(await screen.findByText("Epic claimed.")).toBeInTheDocument()
+    expect(screen.getByText(/Owner operator@example\.com/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Claim" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Unclaim" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Unclaim" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/epics/7/unclaim",
+        expect.objectContaining({ method: "PATCH", credentials: "same-origin" })
+      )
+    })
+    expect(await screen.findByText("Epic unclaimed.")).toBeInTheDocument()
+    expect(screen.getByText(/Unclaimed/)).toBeInTheDocument()
+  })
+
+  it("does not show claim controls for an Epic owned by another user", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(epicDetailPayload({
+      epic: {
+        owner_user_id: 2,
+        owner_status: "other_owned",
+        owner_user: { id: 2, email_address: "teammate@example.com" },
+        owned_by_current_user: false
+      }
+    })), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/epics/7"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText(/Owner teammate@example\.com/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Claim" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Unclaim" })).not.toBeInTheDocument()
   })
 
   it("renders a Job detail page and runs commands through the app API", async () => {
@@ -8505,6 +8606,8 @@ function epicDetailPayload(overrides: {
   message?: string
   state?: string
   stateTransitions?: Array<Record<string, unknown>>
+  epic?: Record<string, unknown>
+  jobs?: Array<Record<string, unknown>>
 } = {}) {
   return {
     message: overrides.message,
@@ -8515,6 +8618,10 @@ function epicDetailPayload(overrides: {
       title: "Raise the forum",
       description: "Build **columns**.",
       state: overrides.state || "ready",
+      owner: null,
+      owned_by_current_user: false,
+      claimable: true,
+      claimed_at: null,
       github_issue_url: "https://github.com/acme/widgets/issues/12",
       updated_at: "2026-05-30T12:00:00Z",
       archived: false,
@@ -8527,7 +8634,8 @@ function epicDetailPayload(overrides: {
         id: 3,
         slug: "acme/widgets",
         repository_path: "/repositories/3"
-      }
+      },
+      ...overrides.epic
     },
     summary: {
       done_jobs_count: 1,
@@ -8548,13 +8656,15 @@ function epicDetailPayload(overrides: {
       job_blocker_count: 0,
       initially_open: true
     },
-    jobs: [
+    jobs: overrides.jobs || [
       {
         id: 42,
         label: "#12",
         title: "Survey forum",
         path: "/jobs/42",
         state: "closed",
+        owner_user_id: null,
+        owner_user: null,
         repository_slug: "acme/widgets"
       }
     ],
@@ -8562,7 +8672,10 @@ function epicDetailPayload(overrides: {
       dashboard_epics_path: "/dashboard/epics",
       edit_epic_path: "/epics/7/edit",
       app_state_path: "/api/v1/app/epics/7/state",
-      app_archive_path: "/api/v1/app/epics/7/archive"
+      app_archive_path: "/api/v1/app/epics/7/archive",
+      app_claim_path: "/api/v1/app/epics/7/claim",
+      app_unclaim_path: "/api/v1/app/epics/7/unclaim",
+      app_reassign_path: "/api/v1/app/epics/7/reassign"
     }
   }
 }

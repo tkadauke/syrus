@@ -345,12 +345,20 @@ module Api
         def auto_claim_started_epic!(epic, target_state)
           return unless target_state == "in_progress"
           return unless epic.in_progress?
+
+          if epic.owner_user_id == Current.user.id
+            epic.claim_unowned_child_jobs!(Current.user)
+            return
+          end
           return if epic.owner_user_id.present?
 
           updated = Current.user.epics
                                 .where(id: epic.id, owner_user_id: nil)
                                 .update_all(owner_user_id: Current.user.id, updated_at: Time.current)
-          epic.owner_user_id = Current.user.id if updated == 1
+          return unless updated == 1
+
+          epic.owner_user_id = Current.user.id
+          epic.claim_unowned_child_jobs!(Current.user)
         end
 
         def done_jobs_count(jobs)

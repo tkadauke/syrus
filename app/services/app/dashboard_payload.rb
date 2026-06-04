@@ -680,7 +680,8 @@ module App
       {
         id: owner.id,
         email_address: owner.email_address,
-        display_name: owner.team_display_name
+        display_name: owner.team_display_name,
+        profile_path: profile_path(owner)
       }
     end
 

@@ -82,13 +82,13 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
         <p className="text-sm text-gray-500">
           <Link className="font-mono hover:underline" to={withRoutePrefix(payload.epic.repository.repository_path, prefix)}>{payload.epic.repository.slug}</Link>
           <span> · {payload.epic.jobs_count} {payload.epic.jobs_count === 1 ? "Job" : "Jobs"}</span>
-          <span> · {ownerLabel(payload.epic.owner)}</span>
+          <span> · {ownerLabel(payload.epic)}</span>
           <span> · updated {formatRelative(payload.epic.updated_at)}</span>
         </p>
 
         {payload.state_transitions.length > 0 || payload.epic.claimable ? (
           <div className="flex flex-wrap items-center gap-2">
-            {payload.epic.claimable && !payload.epic.owner ? (
+            {payload.epic.claimable && payload.epic.owner_status === "unclaimed" ? (
               <button
                 className={secondaryButton()}
                 disabled={command.isPending}
@@ -300,7 +300,8 @@ function humanize(value: string) {
   return value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
 }
 
-function ownerLabel(owner: EpicDetailPayload["epic"]["owner"]) {
+function ownerLabel(epic: EpicDetailPayload["epic"]) {
+  const owner = epic.owner_user || epic.owner
   return owner ? `Owner ${owner.email_address}` : "Unclaimed"
 }
 
