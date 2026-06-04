@@ -101,12 +101,31 @@ module Api
             step_id:           run.step_id,
             step_kind:         run.step&.kind,
             agent_outcome:     run.agent_outcome,
+            failure_category:  failure_category(run.run_failure_classification),
             failure_classification: serialize_failure_classification(run.run_failure_classification),
             started_at:        run.started_at,
             finished_at:       run.finished_at,
             error_class:       run.run_diagnostic&.error_class,
             error_message:     run.run_diagnostic&.error_message&.[](0, 200)
           }
+        end
+
+        def failure_category(classification)
+          return unless classification
+
+          {
+            "rate_limited" => "provider_rate_limited",
+            "timeout" => "agent_timeout",
+            "worker_died" => "agent_process_died",
+            "provider_auth_or_config" => "provider_auth_or_config",
+            "provider_transient" => "provider_transient",
+            "git_state_corrupt" => "repo_conflict_or_git_state",
+            "git_failure" => "repo_conflict_or_git_state",
+            "validation_or_user_error" => "validation_or_user_error",
+            "database_lock" => "syrus_internal",
+            "mcp_sidecar_failure" => "syrus_internal",
+            "application_error" => "syrus_internal"
+          }.fetch(classification.classification, "unknown")
         end
 
         def serialize_failure_classification(classification)
