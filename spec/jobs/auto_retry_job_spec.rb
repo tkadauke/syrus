@@ -39,7 +39,7 @@ RSpec.describe AutoRetryJob do
 
   it "uses RetryWorkflowEnqueuer for retry-workflow attempts" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
-    result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil)
+    result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)
     allow(RetryWorkflowEnqueuer).to receive(:call).and_return(result)
 
     described_class.perform_now(attempt.id)
@@ -56,7 +56,7 @@ RSpec.describe AutoRetryJob do
   it "records skipped attempts when the retry primitive rejects the run" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
-      RetryWorkflowEnqueuer::Result.new(workflow: nil, error: "A Run is already in progress")
+      RetryWorkflowEnqueuer::Result.new(workflow: nil, error: "A Run is already in progress", circuit: nil)
     )
 
     described_class.perform_now(attempt.id)
