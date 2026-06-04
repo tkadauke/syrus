@@ -19,6 +19,7 @@ export type CredentialsUser = {
   agent_provider: string
   chat_provider: string | null
   codex_auth_mode: string
+  opencode_model: string | null
   agent_max_turns: number
   provider_availability_pause_thresholds: Record<string, number>
   provider_availability_overrides: Record<string, unknown>
@@ -130,6 +131,7 @@ export type CredentialsInput = {
   codex_api_key: string
   codex_auth_json: string
   gemini_api_key: string
+  opencode_model: string
   github_token: string
   agent_max_turns: number
   provider_availability_pause_thresholds: Record<string, number>

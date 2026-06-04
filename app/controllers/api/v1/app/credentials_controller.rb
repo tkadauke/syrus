@@ -253,6 +253,7 @@ module Api
             agent_provider: user.agent_provider,
             chat_provider: user.chat_provider,
             codex_auth_mode: user.codex_auth_mode,
+            opencode_model: user.opencode_model,
             agent_max_turns: user.agent_max_turns,
             provider_availability_pause_thresholds: User.agent_providers.to_h do |provider|
               [ provider, user.provider_availability_pause_threshold_for(provider) ]
@@ -330,7 +331,7 @@ module Api
           params.expect(user: [ :name, :first_name, :last_name, :github_handle, :profile_bio, :avatar_url,
                                 :profile_company, :profile_website,
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
-                                :codex_api_key, :codex_auth_json, :gemini_api_key, :github_token,
+                                :codex_api_key, :codex_auth_json, :gemini_api_key, :github_token, :opencode_model,
                                 :agent_max_turns, :scheduling_paused, :auto_approve_mode, :locale,
                                 { provider_availability_pause_thresholds: [ :claude, :codex ] },
                                 { notification_preferences: [ :desktop_job_implemented, :desktop_job_failed ] } ])

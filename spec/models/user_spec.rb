@@ -505,13 +505,13 @@ RSpec.describe User do
     it "includes Claude when a Claude token is set" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-test"))
 
-      expect(user.configured_agent_providers).to eq([ "claude" ])
+      expect(user.configured_agent_providers).to include("claude")
     end
 
     it "includes Codex when API key auth is selected and an API key is set" do
       user = User.create!(attrs.merge(codex_auth_mode: "api_key", codex_api_key: "sk-test"))
 
-      expect(user.configured_agent_providers).to eq([ "codex" ])
+      expect(user.configured_agent_providers).to include("codex")
     end
 
     it "includes Codex when ChatGPT login auth is selected and auth.json is set" do
@@ -522,7 +522,7 @@ RSpec.describe User do
         )
       )
 
-      expect(user.configured_agent_providers).to eq([ "codex" ])
+      expect(user.configured_agent_providers).to include("codex")
     end
 
     it "requires credentials for the active Codex auth mode" do
@@ -533,7 +533,7 @@ RSpec.describe User do
         )
       )
 
-      expect(user.configured_agent_providers).to be_empty
+      expect(user.configured_agent_providers).to eq(%w[ opencode ])
     end
 
     it "returns every configured provider in registry order" do
@@ -545,7 +545,13 @@ RSpec.describe User do
         )
       )
 
-      expect(user.configured_agent_providers).to eq(%w[ claude codex ])
+      expect(user.configured_agent_providers).to eq(%w[ claude codex opencode ])
+    end
+
+    it "always includes opencode (no credentials required — uses local Ollama)" do
+      user = User.create!(attrs)
+
+      expect(user.configured_agent_providers).to include("opencode")
     end
 
     it "returns configured providers other than the user's default provider" do
@@ -558,7 +564,8 @@ RSpec.describe User do
         )
       )
 
-      expect(user.alternate_configured_agent_providers).to eq([ "codex" ])
+      expect(user.alternate_configured_agent_providers).to include("codex", "opencode")
+      expect(user.alternate_configured_agent_providers).not_to include("claude")
     end
   end
 

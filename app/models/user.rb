@@ -624,8 +624,9 @@ class User < ApplicationRecord
   private
 
   PROVIDER_CONFIGURED_CHECKS = {
-    "claude" => :claude_configured?,
-    "codex"  => :codex_configured?
+    "claude"   => :claude_configured?,
+    "codex"    => :codex_configured?,
+    "opencode" => :opencode_configured?
   }.freeze
 
   CODEX_AUTH_MODE_CREDENTIALS = {
@@ -645,6 +646,12 @@ class User < ApplicationRecord
   def codex_configured?
     attr = CODEX_AUTH_MODE_CREDENTIALS[codex_auth_mode]
     attr ? public_send(attr).present? : false
+  end
+
+  # Opencode runs against a locally-running Ollama instance — no stored
+  # per-user credential is needed, so it's always considered configured.
+  def opencode_configured?
+    true
   end
 
   def generate_webauthn_id

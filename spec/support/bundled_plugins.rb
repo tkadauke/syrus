@@ -47,6 +47,21 @@ RSpec.configure do |config|
       )
     end
 
+    unless registered_names.include?("opencode_agent")
+      Syrus::PluginRegistry.register(
+        name:            "opencode_agent",
+        display_name:    "OpenCode Agent",
+        version:         "0.1.0",
+        description:     "Runs workflow and chat turns through OpenCode against a local Ollama model.",
+        default_enabled: true,
+        disableable:     true,
+        category:        "agent_provider",
+        provides: {
+          agent_provider: AgentProviders::Opencode
+        }
+      )
+    end
+
     unless registered_names.include?("github_source")
       Syrus::PluginRegistry.register(
         name:            "github_source",

@@ -722,6 +722,8 @@
     "avatar_url": "Avatar URL",
     "profile_bio": "Profile bio",
     "agent_provider": "Agent provider",
+    "opencode_model": "Ollama model",
+    "opencode_model_desc": "Model name as shown in `ollama list`. Ollama must be running at `localhost:11434` (or set `SYRUS_OLLAMA_URL` on the worker).",
     "max_turns": "Max turns",
     "language": "Language",
     "auto_approval_fallback": "Auto-approval fallback",

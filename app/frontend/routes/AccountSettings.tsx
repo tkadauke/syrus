@@ -207,6 +207,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
   }
 
   const selectedAutoApprove = payload.options.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)
+  const opencodeSelected = values.agent_provider === "opencode"
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
@@ -267,6 +268,19 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
             <select className={inputClass()} onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
               {payload.options.agent_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
             </select>
+          </Field>
+        ) : null}
+
+        {section === "agent" && opencodeSelected ? (
+          <Field label={t('account_settings.opencode_model')}>
+            <input
+              className={inputClass()}
+              onChange={(event) => setValues({ ...values, opencode_model: event.target.value })}
+              placeholder="qwen2.5-coder:32b"
+              type="text"
+              value={values.opencode_model}
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.opencode_model_desc')}</p>
           </Field>
         ) : null}
 
@@ -597,6 +611,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     codex_api_key: "",
     codex_auth_json: "",
     gemini_api_key: "",
+    opencode_model: payload.user.opencode_model || "",
     github_token: "",
     agent_max_turns: payload.user.agent_max_turns,
     provider_availability_pause_thresholds: payload.user.provider_availability_pause_thresholds || { claude: 10, codex: 10 },

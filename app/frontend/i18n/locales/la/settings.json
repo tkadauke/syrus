@@ -722,6 +722,8 @@
     "avatar_url": "URL Avatarum",
     "profile_bio": "Vita Personae",
     "agent_provider": "Praebitor Agentis",
+    "opencode_model": "Exemplar Ollama",
+    "opencode_model_desc": "Nomen exemplaris ut in `ollama list` monstratur. Ollama currere debet apud `localhost:11434` (aut `SYRUS_OLLAMA_URL` in fabro constitue).",
     "max_turns": "Vices Maximae",
     "language": "Lingua",
     "auto_approval_fallback": "Subsidiarium Adprobationis Automaticae",

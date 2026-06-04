@@ -2013,6 +2013,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_134500) do
     t.string "locale", null: false
     t.string "name"
     t.json "notification_preferences", null: false
+    t.string "opencode_model"
     t.string "password_digest", null: false
     t.text "profile_bio"
     t.string "profile_company"

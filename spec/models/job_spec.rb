@@ -1007,20 +1007,22 @@ describe "running / failed lifecycle (new in this commit)" do
     it "returns configured providers excluding the provider from the latest run" do
       finish_latest_workflow(state: "succeeded", provider: "claude")
 
-      expect(job.reload.retry_with_agent_providers).to eq([ "codex" ])
+      expect(job.reload.retry_with_agent_providers).to include("codex", "opencode")
+      expect(job.reload.retry_with_agent_providers).not_to include("claude")
     end
 
     it "supports failed workflows" do
       finish_latest_workflow(state: "failed", provider: "codex")
 
-      expect(job.reload.retry_with_agent_providers).to eq([ "claude" ])
+      expect(job.reload.retry_with_agent_providers).to include("claude", "opencode")
+      expect(job.reload.retry_with_agent_providers).not_to include("codex")
     end
 
-    it "returns no providers when only one agent is configured" do
+    it "returns only opencode when only one cloud agent is configured" do
       user.update!(codex_api_key: nil)
       finish_latest_workflow(state: "succeeded", provider: "claude")
 
-      expect(job.reload.retry_with_agent_providers).to be_empty
+      expect(job.reload.retry_with_agent_providers).to eq([ "opencode" ])
     end
 
     it "returns no providers when the latest workflow is not failed or succeeded" do
@@ -1032,7 +1034,8 @@ describe "running / failed lifecycle (new in this commit)" do
     it "uses the job's future workflow provider for alternate manual action choices" do
       job.update!(agent_provider: "codex")
 
-      expect(job.alternate_configured_agent_providers).to eq([ "codex" ])
+      expect(job.alternate_configured_agent_providers).to include("codex", "opencode")
+      expect(job.alternate_configured_agent_providers).not_to include("claude")
     end
   end
 
