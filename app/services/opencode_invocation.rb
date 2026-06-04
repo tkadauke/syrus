@@ -76,8 +76,9 @@ class OpencodeInvocation
       run: current_run,
       workflow: current_run&.workflow,
       on_output_line: ->(line) do
-        transcript_lines << line
-        update = process_event(line, log_sink)
+        safe_line = line.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+        transcript_lines << safe_line
+        update = process_event(safe_line, log_sink)
         metadata.merge!(update.compact) if update
       end
     ).run
@@ -111,22 +112,55 @@ class OpencodeInvocation
     ProcessRunner.forwarded_env(
       AgentInvocation::ENV_FORWARD,
       extra: WorkspaceDependencyEnv.for(@workspace_path).merge(
-        "OPENCODE_HOME" => opencode_home,
+        # XDG_CONFIG_HOME tells opencode where to find opencode.jsonc.
+        # We do NOT override XDG_DATA_HOME / XDG_STATE_HOME — opencode
+        # uses those to locate its bash tool working directory, so
+        # overriding them would make file writes land outside the
+        # workspace that Syrus tracks.
+        "XDG_CONFIG_HOME" => opencode_home,
         "SYRUS_OLLAMA_URL" => ollama_url
       )
     )
   end
 
   def write_config(opencode_home, model, mcp_server)
-    FileUtils.mkdir_p(opencode_home)
-    config = build_config(model, mcp_server)
-    File.write(File.join(opencode_home, "opencode.jsonc"), JSON.pretty_generate(config))
+    # opencode resolves config as XDG_CONFIG_HOME/opencode/opencode.jsonc
+    config_dir = File.join(opencode_home, "opencode")
+    FileUtils.mkdir_p(config_dir)
+    instructions_path = write_instructions(config_dir)
+    config = build_config(model, mcp_server, instructions_path)
+    File.write(File.join(config_dir, "opencode.jsonc"), JSON.pretty_generate(config))
   end
 
-  def build_config(model, mcp_server)
+  def write_instructions(config_dir)
+    path = File.join(config_dir, "syrus-instructions.md")
+    File.write(path, <<~MD)
+      You are an autonomous coding agent running inside a git repository.
+      Your job is to implement code changes by writing files directly using your tools.
+
+      CRITICAL RULES:
+      - Use the `write_file` tool to create or overwrite files with complete content.
+      - Use the `bash` tool to run shell commands when needed.
+      - DO NOT just describe what you plan to do — execute the writes immediately.
+      - DO NOT stop after exploring files. After exploring, write the files.
+      - Write every file completely with no placeholders or "implement here" comments.
+      - Keep going until all required files are written.
+    MD
+    path
+  end
+
+  def build_config(model, mcp_server, instructions_path = nil)
     ollama_url = ENV.fetch("SYRUS_OLLAMA_URL", DEFAULT_OLLAMA_URL)
     config = {
       "$schema" => "https://opencode.ai/config.json",
+      # Disable subagent spawning — forces the model to write files directly
+      # into the workspace rather than delegating to a child agent whose
+      # file writes land outside Syrus's tracked workspace path.
+      # Disable planning/subagent tools — forces the model to write files
+      # directly rather than delegating or making todo lists that never
+      # result in actual workspace changes.
+      "tools" => { "task" => false, "todowrite" => false, "todoread" => false },
+      "instructions" => (instructions_path ? [ instructions_path ] : []),
       "provider" => {
         "ollama" => {
           "id" => "openai",
@@ -147,11 +181,13 @@ class OpencodeInvocation
 
     if mcp_server
       env = mcp_server.fetch(:env, {}).compact
+      # OpenCode expects command as an array [binary, *args], plus enabled: true
+      command_array = [ mcp_server.fetch(:command) ] + mcp_server.fetch(:args, [])
       config["mcp"] = {
         "syrus-mcp-sidecar" => {
           "type" => "local",
-          "command" => mcp_server.fetch(:command),
-          "args" => mcp_server.fetch(:args, [])
+          "command" => command_array,
+          "enabled" => true
         }.merge(env.any? ? { "environment" => env } : {})
       }
     end

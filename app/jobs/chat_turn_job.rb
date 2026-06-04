@@ -54,6 +54,13 @@ class ChatTurnJob < ApplicationJob
     return if stop_requested?
     @current_assistant_content = []
 
+    if @chat.user.effective_chat_provider == "opencode"
+      run_ollama_turn!
+      touch_chat!
+      @chat.broadcast_controls
+      return
+    end
+
     provider = chat_provider
 
     if provider.credentials_missing?
@@ -70,6 +77,14 @@ class ChatTurnJob < ApplicationJob
     end
     record_skill_provenance!(@skill_invocation.resolution) if @skill_invocation
 
+    run_claude_turn!(provider)
+    touch_chat!
+    @chat.broadcast_controls
+  end
+
+  private
+
+  def run_claude_turn!(provider)
     workspace_path = ensure_workspace!
     parent_session_id = resume_session_id_for(provider)
     ChatContextCompactor.maybe_compact!(@chat) if Feature.chat_context_compaction_enabled?
@@ -112,7 +127,33 @@ class ChatTurnJob < ApplicationJob
     finalize_turn!
   end
 
-  private
+  def run_ollama_turn!
+    messages = ollama_messages_from_history
+    user = @chat.user
+    model = user.opencode_model.presence || OpencodeInvocation::DEFAULT_OLLAMA_MODEL
+
+    buffer = +""
+    OllamaChat.new(model: model).complete(messages) do |delta|
+      buffer << delta
+      create_message!("assistant", text: buffer.dup)
+    end
+  rescue => e
+    create_message!("system", text: "Ollama error: #{e.message.truncate(300)}")
+  end
+
+  def ollama_messages_from_history
+    prior = @chat.messages.where(role: %w[user assistant]).order(:created_at).last(20)
+    history = prior.filter_map do |msg|
+      text = msg.content["text"].to_s
+      next if text.blank?
+      { role: msg.role, content: text }
+    end
+
+    system_msg = { role: "system", content: OllamaChat::DEFAULT_SYSTEM_PROMPT }
+    user_msg = { role: "user", content: @user_message.content["text"].to_s }
+
+    [ system_msg ] + history + [ user_msg ]
+  end
 
   def clear_stale_stop_request!
     @chat.reload

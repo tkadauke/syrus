@@ -56,3 +56,6 @@ config/credentials/*.key
 .claude/scheduled_tasks.lock
 tmp/mcp_repro/
 .claude/worktrees/
+
+# Ignore key files for decrypting credentials and more.
+/config/credentials/*.key
