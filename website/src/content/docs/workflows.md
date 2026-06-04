@@ -28,8 +28,11 @@ or direct Job that uses the standard issue-to-PR path. Steps:
 `prepare -> implement -> summarize -> pr_open`. The agent makes and commits
 the change during `implement`, `summarize` collects PR copy via MCP and
 amends the commit message, and `pr_open` pushes the branch and opens the
-pull request. A successful Initial workflow leaves the Job open with a PR
-number attached.
+pull request. For GitHub issue Jobs, the implement prompt includes the
+original issue title and body plus subsequent issue comments in
+chronological order, so clarifications added before the Run starts are part
+of the agent context. A successful Initial workflow leaves the Job open
+with a PR number attached.
 
 ### PrFeedback
 

@@ -28,6 +28,7 @@ RSpec.describe Steps::Implement do
 
     issue = Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.")
     allow(handler).to receive(:fetch_issue).and_return(issue)
+    allow(handler).to receive(:fetch_initial_issue_comments).and_return([])
   end
 
   describe "prompt building" do
@@ -45,8 +46,57 @@ RSpec.describe Steps::Implement do
     it "builds and persists the prompt from Prompts::Implement" do
       handler.call
       expect(run.reload.prompt).to include("Add greeting helper")
+      expect(run.reload.prompt).to include("Original issue body")
       expect(run.reload.prompt).to include("Phased execution note: you're running the **implement** step")
       expect(run.reload.prompt).not_to include("quality graders flagged issues")
+    end
+
+    it "records an empty initial issue comment artifact when the issue has no comments" do
+      handler.call
+
+      expect(workflow.reload.artifact("initial_issue_comments")).to eq([])
+      expect(run.reload.prompt).not_to include("Subsequent issue comments")
+    end
+
+    it "records initial issue comments and includes them in the implement prompt" do
+      comments = [
+        { "author" => "octavia", "body" => "The original scope is too broad; only update the API.", "created_at" => "2026-05-01T10:00:00Z" },
+        { "author" => "lucius", "body" => "Also keep the existing endpoint name.", "created_at" => "2026-05-01T11:00:00Z" }
+      ]
+      allow(handler).to receive(:fetch_initial_issue_comments).and_return(comments)
+
+      handler.call
+
+      expect(workflow.reload.artifact("initial_issue_comments")).to eq(comments)
+      prompt = run.reload.prompt
+      expect(prompt).to include("Subsequent issue comments")
+      expect(prompt.index("The original scope is too broad")).to be < prompt.index("Also keep the existing endpoint name")
+    end
+
+    it "fetches issue comments chronologically and filters Syrus-authored bot noise" do
+      AppSetting.current.update!(github_app_slug: "tkadauke-syrus")
+      user_struct = Struct.new(:login)
+      comment_struct = Struct.new(:user, :body, :created_at)
+      earlier = Time.zone.parse("2026-05-01T10:00:00Z")
+      later = Time.zone.parse("2026-05-01T11:00:00Z")
+      client = instance_double(GithubClient)
+      allow(client).to receive(:issue_comments).with(repository.slug, job.issue_number).and_return([
+        comment_struct.new(user_struct.new("tkadauke-syrus[bot]"), "Syrus internal bookkeeping", later),
+        comment_struct.new(user_struct.new("octavia"), "First clarification", earlier),
+        comment_struct.new(user_struct.new("tkadauke-syrus[bot]"), "Syrus on behalf of @lucius\n\nSecond clarification", later)
+      ])
+      allow(GithubClient).to receive(:for).and_call_original
+      allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+      allow(handler).to receive(:fetch_initial_issue_comments).and_call_original
+
+      handler.call
+
+      comments = workflow.reload.artifact("initial_issue_comments")
+      expect(comments.map { |comment| comment["body"] }).to eq([
+        "First clarification",
+        "Syrus on behalf of @lucius\n\nSecond clarification"
+      ])
+      expect(run.reload.prompt).not_to include("Syrus internal bookkeeping")
     end
 
     it "appends grade failure feedback on later loop iterations" do

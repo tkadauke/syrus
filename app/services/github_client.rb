@@ -200,6 +200,13 @@ class GithubClient
     raise
   end
 
+  def issue_comments(repo_slug, issue_number)
+    track_rate_limits { @client.issue_comments(repo_slug, issue_number) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited on #{repo_slug}##{issue_number} issue_comments: #{e.message}")
+    raise
+  end
+
   # `bypass_cache: true` reaches GitHub directly via a parallel
   # Octokit client that has no faraday-http-cache middleware. Used
   # by the on-demand "Check now" path: GitHub computes PR

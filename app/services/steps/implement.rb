@@ -1,8 +1,8 @@
 module Steps
   # First step of Initial / Retry workflows. Spawns claude with
-  # Prompts::Implement (issue title + body + the standard safety
-  # block + a "don't call submit_summary here" nudge). Agent reads
-  # the codebase, makes file changes; this handler commits them
+  # Prompts::Implement (issue title + body + issue comments + the
+  # standard safety block + a "don't call submit_summary here" nudge).
+  # Agent reads the codebase, makes file changes; this handler commits them
   # locally; verifies HEAD shares ancestry with the default branch
   # (orphan-branch defense); records the diff for downstream pages
   # to render.
@@ -28,9 +28,11 @@ module Steps
       return if run.prompt.present?
 
       issue = fetch_issue
+      issue_comments = fetch_initial_issue_comments
       job.update!(issue_title: issue.title, issue_body: issue.body) if job.issue?
+      workflow.set_artifact!("initial_issue_comments", issue_comments) if job.issue?
       ctx = workflow.artifacts&.dig("replay_context")
-      run.update!(prompt: implement_prompt(issue: issue, replay_context: ctx))
+      run.update!(prompt: implement_prompt(issue: issue, issue_comments: issue_comments, replay_context: ctx))
     end
 
     def target_label
@@ -48,8 +50,34 @@ module Steps
       GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number)
     end
 
-    def implement_prompt(issue:, replay_context:)
-      prompt = Prompts::Implement.new(issue: issue, replay_context: replay_context).to_s
+    def fetch_initial_issue_comments
+      return [] unless job.issue?
+
+      client = GithubClient.for(repository: repository, user: job.user)
+      client.issue_comments(repository.slug, job.issue_number)
+        .sort_by { |comment| comment.created_at || Time.zone.at(0) }
+        .reject { |comment| syrus_authored_noise?(comment) }
+        .map { |comment| serialize_issue_comment(comment) }
+    end
+
+    def syrus_authored_noise?(comment)
+      app_slug = AppSetting.current.github_app_slug.to_s.presence
+      return false unless app_slug
+      return false unless comment.user&.login == "#{app_slug}[bot]"
+
+      !comment.body.to_s.start_with?("Syrus on behalf of @")
+    end
+
+    def serialize_issue_comment(comment)
+      {
+        "author" => comment.user&.login,
+        "body" => comment.body,
+        "created_at" => comment.created_at&.iso8601
+      }
+    end
+
+    def implement_prompt(issue:, issue_comments:, replay_context:)
+      prompt = Prompts::Implement.new(issue: issue, issue_comments: issue_comments, replay_context: replay_context).to_s
       return prompt unless run.iteration > 1
 
       [
