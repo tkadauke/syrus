@@ -3693,7 +3693,7 @@ describe("App", () => {
     fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Lovelace" } })
     fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } })
     fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Lovelace" } })
-    fireEvent.change(screen.getByLabelText("Profile bio"), { target: { value: "Mathematician and operator." } })
+    fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "Mathematician and operator." } })
     fireEvent.change(screen.getByLabelText("Company"), { target: { value: "Analytical Engines Ltd" } })
     fireEvent.change(screen.getByLabelText("Location"), { target: { value: "London" } })
     fireEvent.change(screen.getByLabelText("Website"), { target: { value: "https://example.com/ada" } })
@@ -7030,10 +7030,6 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
     },
     ...payloadOverrides
   }
-}
-
-function defaultSetupStatus() {
-  return setupStatus()
 }
 
 function setupStatus(overrides: Record<string, unknown> = {}) {
