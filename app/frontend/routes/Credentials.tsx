@@ -153,7 +153,7 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
           <input className={inputClass()} maxLength={500} onChange={(event) => setValues({ ...values, avatar_url: event.target.value })} type="url" value={values.avatar_url} />
         </Field>
 
-        <Field label="Bio">
+        <Field label="Profile bio">
           <textarea className={inputClass()} maxLength={1000} onChange={(event) => setValues({ ...values, profile_bio: event.target.value })} rows={4} value={values.profile_bio} />
         </Field>
 
