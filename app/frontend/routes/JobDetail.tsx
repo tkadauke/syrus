@@ -423,7 +423,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
       ) : null}
       {payload.job.landing_failure_reason ? <PanelMessage tone="error">Landing failed: {payload.job.landing_failure_reason}</PanelMessage> : null}
       <RetryStatePanel payload={payload} />
-      {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
+      {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} prefix={prefix} /> : null}
 
       <section className="grid gap-4 rounded border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <KeyValue label="Priority"><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
@@ -488,13 +488,20 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
   )
 }
 
-function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
+function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   return (
     <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <span className="font-medium">Waiting on {payload.unsatisfied_dependencies.length} {plural(payload.unsatisfied_dependencies.length, "dependency")}.</span>
-          <span className="ml-2">{payload.unsatisfied_dependencies.map(dependencyLabel).join(", ")}</span>
+          <span className="ml-2 inline-flex flex-wrap gap-x-2 gap-y-1">
+            {payload.unsatisfied_dependencies.map((dependency, index) => (
+              <span key={dependency.id}>
+                {index > 0 ? <span className="mr-2">,</span> : null}
+                <DependencyLink dependency={dependency} prefix={prefix} />
+              </span>
+            ))}
+          </span>
         </div>
         {payload.actions.can_override_dependencies ? (
           <CommandButton command={command} input={{ method: "post", path: payload.paths.app_dependency_override_path, confirm: "Bypass dependency checks for this Job?" }} tone="secondary">
@@ -553,7 +560,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
           <ul className="mt-2 divide-y divide-gray-100">
             {payload.dependencies.map((dependency) => (
               <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
-                <span>{dependencyLabel(dependency)} <span className="text-xs text-gray-400">({dependency.source})</span></span>
+                <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400">({dependency.source})</span></span>
                 {dependency.manual ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_dependencies_path}/${dependency.id}`, confirm: "Remove this dependency?" })} type="button">Remove</button> : null}
               </li>
             ))}
@@ -1268,6 +1275,14 @@ function dependencyLabel(dependency: JobDependency) {
   if (!target) return dependency.unresolved_slug || "Missing dependency"
   const issue = target.issue_number ? `#${target.issue_number}` : jobSlug(target.id)
   return `${target.repository_slug} ${issue} (${target.summary_state})`
+}
+
+function DependencyLink({ dependency, prefix }: { dependency: JobDependency; prefix: string }) {
+  const target = dependency.depends_on_job
+  const label = dependencyLabel(dependency)
+  if (dependency.pending || !target) return <span>{label}</span>
+
+  return <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(target.job_path, prefix)}>{label}</Link>
 }
 
 function jobSlug(id: number) {

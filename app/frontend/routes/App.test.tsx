@@ -5505,6 +5505,12 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
+    const dependencyLinks = await screen.findAllByRole("link", { name: "acme/widgets #11 (open)" })
+    expect(dependencyLinks).toHaveLength(2)
+    dependencyLinks.forEach((link) => {
+      expect(link).toHaveAttribute("href", "/app-shell/jobs/41")
+    })
+
     fireEvent.change(await screen.findByPlaceholderText("Add tag"), { target: { value: "urgent" } })
     fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0])
     await waitFor(() => {
