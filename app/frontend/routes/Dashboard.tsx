@@ -542,7 +542,7 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
         <OnboardingEmptyState
           fallbackActionPath={dashboardEmptyFallbackPath(payload)}
           fallbackActionText={payload.subject === "epic" ? "Create Epic" : "Create direct job"}
-          fallbackDescription={`No ${subjectLabel(payload.subject, 2)} exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.`}
+          fallbackDescription={dashboardEmptyFallbackDescription(payload)}
           fallbackTitle={`No ${subjectLabel(payload.subject, 2)} yet`}
           prefix={prefix}
           setupStatus={setupStatus}
@@ -590,7 +590,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
       <OnboardingEmptyState
         fallbackActionPath={dashboardEmptyFallbackPath(payload)}
         fallbackActionText={payload.subject === "epic" ? "Create Epic" : "Create direct job"}
-        fallbackDescription={`No ${subjectLabel(payload.subject, 2)} exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.`}
+        fallbackDescription={dashboardEmptyFallbackDescription(payload)}
         fallbackTitle={`No ${subjectLabel(payload.subject, 2)} yet`}
         prefix={prefix}
         setupStatus={setupStatus}
@@ -662,6 +662,15 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
 
 function dashboardEmptyFallbackPath(payload: DashboardPayload) {
   return payload.subject === "epic" ? payload.paths.new_epic_path : payload.paths.new_job_path
+}
+
+function dashboardEmptyFallbackDescription(payload: DashboardPayload) {
+  const subject = subjectLabel(payload.subject, 2)
+  if (payload.setup && !payload.setup.complete) {
+    return `No ${subject} exist yet. Finish setup, then create work from a direct prompt or a labelled GitHub issue.`
+  }
+
+  return `No ${subject} exist yet. Create work from a direct prompt or a labelled GitHub issue.`
 }
 
 function KanbanLane({

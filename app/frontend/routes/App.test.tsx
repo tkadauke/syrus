@@ -1734,6 +1734,34 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Create direct job" })).toHaveAttribute("href", "/app-shell/jobs/new")
   })
 
+  it("does not mention finishing setup on a completed empty dashboard", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            total: 0,
+            counts: { jobs: 0, epics: 0, workflows: 0 },
+            items: []
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("No jobs exist yet. Create work from a direct prompt or a labelled GitHub issue.")).toBeInTheDocument()
+    expect(screen.queryByText(/Finish setup/)).not.toBeInTheDocument()
+  })
+
   it("renders dashboard smart folder visibility groups and badges", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
