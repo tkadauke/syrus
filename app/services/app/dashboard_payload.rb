@@ -199,7 +199,7 @@ module App
             user.dashboard_preferences["last_owner_user_id"],
             exception: false
           )
-          raise InvalidScope, "owner_user_id is required for dashboard scope user" unless id
+          raise InvalidScope, "owner_id is required for dashboard scope user" unless id
 
           User.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
         end
@@ -270,7 +270,7 @@ module App
     end
 
     def default_epic_work_scope?(subject_name = subject)
-      subject_name.to_s == "epic" && mine_scope?
+      subject_name.to_s == "epic" && mine_scope? && (!ownership_param_present? || legacy_scope_param?)
     end
 
     def apply_default_epic_work_scope(scope)
@@ -1024,6 +1024,10 @@ module App
 
     def ownership_param_present?
       params.key?(:scope) || params.key?(:ownership_scope) || params.key?(:owner_id) || params.key?(:owner_user_id)
+    end
+
+    def legacy_scope_param?
+      params.key?(:scope) && !params.key?(:ownership_scope)
     end
 
     def normalize_subject(value)
