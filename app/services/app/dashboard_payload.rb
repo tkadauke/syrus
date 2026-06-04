@@ -259,7 +259,7 @@ module App
     end
 
     def default_epic_work_scope?(subject_name = subject)
-      subject_name.to_s == "epic" && mine_scope? && !ownership_param_present?
+      subject_name.to_s == "epic" && mine_scope?
     end
 
     def apply_default_epic_work_scope(scope)
