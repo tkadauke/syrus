@@ -7104,10 +7104,6 @@ function setupStatus(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function defaultSetupStatus() {
-  return setupStatus()
-}
-
 function setupStatusPayload(overrides: Record<string, unknown> = {}) {
   return {
     complete: false,
