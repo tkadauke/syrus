@@ -80,13 +80,12 @@ RSpec.describe Steps::Implement do
       earlier = Time.zone.parse("2026-05-01T10:00:00Z")
       later = Time.zone.parse("2026-05-01T11:00:00Z")
       client = instance_double(GithubClient)
-      allow(client).to receive(:issue_comments).with(repository.slug, job.issue_number).and_return([
+      allow(client).to receive(:issue_comments).with(job.repository.slug, job.issue_number).and_return([
         comment_struct.new(user_struct.new("tkadauke-syrus[bot]"), "Syrus internal bookkeeping", later),
         comment_struct.new(user_struct.new("octavia"), "First clarification", earlier),
         comment_struct.new(user_struct.new("tkadauke-syrus[bot]"), "Syrus on behalf of @lucius\n\nSecond clarification", later)
       ])
-      allow(GithubClient).to receive(:for).and_call_original
-      allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+      allow(GithubClient).to receive(:for).and_return(client)
       allow(handler).to receive(:fetch_initial_issue_comments).and_call_original
 
       handler.call

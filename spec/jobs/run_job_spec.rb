@@ -41,6 +41,10 @@ RSpec.describe RunJob do
       status: 200, headers: { "Content-Type" => "application/json" },
       body: { number: 42, title: "Add greeting helper", body: "We need a greeting helper.", state: "open" }.to_json
     )
+    stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42/comments").with(query: hash_including({})).to_return(
+      status: 200, headers: { "Content-Type" => "application/json" },
+      body: [].to_json
+    )
     @pr_stub = stub_request(:post, "https://api.github.com/repos/acme/widgets/pulls").to_return(
       status: 201, headers: { "Content-Type" => "application/json" },
       body: { number: 123, html_url: "https://github.com/acme/widgets/pull/123" }.to_json

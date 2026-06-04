@@ -17,7 +17,7 @@ export type DashboardOwner = {
 
 export type DashboardOwnerUser = {
   id: number
-  name?: string
+  name: string | null
   email_address: string
 }
 
