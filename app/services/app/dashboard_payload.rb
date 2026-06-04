@@ -154,7 +154,9 @@ module App
     end
 
     def active_repositories_scope
-      Repository.active
+      return Repository.active if team_scope? || user_scope? || claimable_scope? || default_epic_work_scope?
+
+      Repository.active.where(user_id: user.id)
     end
 
     def ownership_scope
@@ -190,7 +192,7 @@ module App
             user.dashboard_preferences["last_owner_user_id"],
             exception: false
           )
-          raise InvalidScope, "owner_id is required for dashboard scope user" unless id
+          raise InvalidScope, "owner_user_id is required for dashboard scope user" unless id
 
           User.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
         end
@@ -230,6 +232,8 @@ module App
       when "team"
         scope
       when "mine", "user"
+        return apply_default_epic_work_scope(scope) if default_epic_work_scope?(subject_name)
+
         owner_id = selected_owner_user.id
         if subject_name.to_s == "workflow"
           scope.where(jobs: { owner_user_id: owner_id })
@@ -250,20 +254,24 @@ module App
       end
     end
 
-    def default_epic_mine_scope?
-      subject == "epic" && mine_scope? && !ownership_param_present?
+    def default_epic_work_scope?(subject_name = subject)
+      subject_name.to_s == "epic" && mine_scope? && !ownership_param_present?
     end
 
-    def epic_owned_by_scope(scope, owner_id)
-      scope.where(owner_user_id: owner_id).or(scope.where(owner_id: owner_id))
-    end
-
-    def epic_claimable_scope(scope)
-      epic_unclaimed_scope(scope).where(state: %w[backlog ready])
-    end
-
-    def epic_unclaimed_scope(scope)
-      scope.where(owner_user_id: nil, owner_id: nil)
+    def apply_default_epic_work_scope(scope)
+      scope.where(
+        <<~SQL.squish,
+          epics.owner_user_id = :owner_id
+          OR epics.owner_id = :owner_id
+          OR (
+            epics.owner_user_id IS NULL
+            AND epics.owner_id IS NULL
+            AND epics.state IN (:claimable_states)
+          )
+        SQL
+        owner_id: user.id,
+        claimable_states: %w[backlog ready]
+      )
     end
 
     def jobs_base_scope

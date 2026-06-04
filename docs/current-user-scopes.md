@@ -23,6 +23,7 @@ per-user/private:
   - app/controllers/api/v1/app/direct_jobs_controller.rb
   - app/controllers/api/v1/app/epics_controller.rb
   - app/controllers/api/v1/app/filters_controller.rb
+  - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/job_attachments_controller.rb
   - app/controllers/api/v1/app/job_lifecycle_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb
@@ -44,6 +45,7 @@ admin-only:
   - app/controllers/admin/base_controller.rb
   - app/controllers/admin/github_app_controller.rb
   - app/controllers/application_controller.rb
+  - app/controllers/api/v1/app/auth_controller.rb
   - app/controllers/api/v1/app/admin/console_controller.rb
   - app/controllers/api/v1/app/admin/github_app_controller.rb
   - app/controllers/api/v1/app/admin/installations_controller.rb
@@ -82,6 +84,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/direct_jobs_controller.rb` | per-user/private | Direct jobs can only be created in active repositories owned by the current user, using that user's configured agent providers. |
 | `app/controllers/api/v1/app/epics_controller.rb` | per-user/private | Epic create/update/read paths use `Current.user.epics`; repository choices come from the same user. |
 | `app/controllers/api/v1/app/filters_controller.rb` | per-user/private | Foreign-key filter options resolve against user-owned repositories, epics, jobs, and tags. Hostnames are a cross-system option but only labels, not user data. |
+| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile reads and writes serialize or mutate the signed-in user's profile details. |
 | `app/controllers/api/v1/app/job_attachments_controller.rb` | per-user/private | Job attachment changes first find the job via `Current.user.jobs` and broadcast back to that user. |
 | `app/controllers/api/v1/app/job_lifecycle_controller.rb` | per-user/private | Retry, approval, cancellation, close, and broadcasts operate on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_metadata_controller.rb` | per-user/private and admin gate | Tags and dependency targets are user-scoped. Dependency override is separately admin-only. |
@@ -92,7 +95,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile visibility filters team/user profile data relative to the current user. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
-| `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness is computed for the signed-in user and their configured credentials/repositories. |
+| `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status and onboarding actions are computed for the signed-in user's repositories and credentials. |
 | `app/controllers/api/v1/app/smart_folders_controller.rb` | per-user/private | User-defined smart folders are owned by `Current.user`; built-ins are returned through `SmartFolder.for_user`. |
 | `app/controllers/api/v1/app/tags_controller.rb` | per-user/private | Tags are created, updated, deleted, and listed through `Current.user.tags`. |
 
@@ -114,6 +117,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | --- | --- | --- |
 | `app/controllers/admin/base_controller.rb` | admin-only | Documents that legacy `/admin/*` controllers use `require_admin`. |
 | `app/controllers/admin/github_app_controller.rb` | admin-only | Legacy GitHub App manifest callback queues installation sync for the current admin after `Admin::BaseController` gates access. |
+| `app/controllers/api/v1/app/auth_controller.rb` | admin-only | Reports authentication and admin status for the current session without exposing cross-user records. |
 | `app/controllers/api/v1/app/base_controller.rb` | admin-only guard | Defines the JSON `require_admin` guard used by SPA admin controllers and local admin-only actions. |
 | `app/controllers/api/v1/app/admin/console_controller.rb` | admin-only | Builds console payloads with the current admin as actor. |
 | `app/controllers/api/v1/app/admin/github_app_controller.rb` | admin-only | Builds GitHub App manifests using the current admin's identity/contact context. |

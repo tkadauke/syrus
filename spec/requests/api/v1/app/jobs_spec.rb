@@ -41,6 +41,8 @@ RSpec.describe "App API job detail", type: :request do
     user.update!(admin: false)
     owner = Factories.user(email_address: "owner@example.com")
     job.update!(owner_user: owner)
+    epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct", state: "in_progress")
+    job.update!(epic: epic)
     tag = Factories.tag(user: user, name: "priority:forum")
     job.job_tags.create!(tag: tag)
     target = Factories.job(repository: repo, issue_number: 41, issue_title: "Build hill")
@@ -71,6 +73,14 @@ RSpec.describe "App API job detail", type: :request do
     )
     expect(body.dig("job", "pr_url")).to eq("https://github.com/acme/widgets/pull/7")
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
+    expect(body["epic"]).to include(
+      "id" => epic.id,
+      "number" => epic.number,
+      "display_number" => epic.display_number,
+      "title" => "Raise the aqueduct",
+      "state" => "in_progress",
+      "epic_path" => "/epics/#{epic.id}"
+    )
     expect(body["pinned"]).to eq(false)
     expect(body["tags"]).to contain_exactly(include("id" => tag.id, "name" => "priority:forum"))
     expect(body["dependencies"]).to contain_exactly(include(

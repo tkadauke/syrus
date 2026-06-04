@@ -330,7 +330,8 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
+    expect(await screen.findByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
+    expect(screen.getByText("Invitation link")).toBeInTheDocument()
     expect(screen.getByText("Detected")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
@@ -5012,6 +5013,32 @@ describe("App", () => {
     expect(screen.getByText("pat")).toBeInTheDocument()
   })
 
+  it("links to the Epic from the Job detail summary when the Job belongs to one", async () => {
+    const payload = jobDetailPayload({
+      epic: {
+        id: 7,
+        number: 7,
+        display_number: "EPIC-7",
+        title: "Raise the aqueduct",
+        state: "in_progress",
+        epic_path: "/epics/7"
+      }
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "EPIC-7 Raise the aqueduct" })).toHaveAttribute("href", "/app-shell/epics/7")
+  })
+
   it("keeps the admin-only Job timeline collapsed until opened", async () => {
     const payload = jobDetailPayload({ actions: { can_view_timeline: true } })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -8092,6 +8119,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       default_branch: "main",
       repository_path: "/repositories/3"
     },
+    epic: null,
     pinned: false,
     tags: [{ id: 4, name: "priority:forum", color: "gray" }],
     tag_options: [{ id: 4, name: "priority:forum", color: "gray" }],

@@ -425,6 +425,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
       <section className="grid gap-4 rounded border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <KeyValue label="Priority"><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
         <KeyValue label="Validity"><span className="capitalize">{payload.job.validity}</span></KeyValue>
+        {payload.epic ? <KeyValue label="Epic"><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
         <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name || "-"}</code></KeyValue>
         <KeyValue label="Stack base"><StackBaseForm command={command} payload={payload} /></KeyValue>
         <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue>
@@ -451,6 +452,14 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
       <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} />
       <AttachmentPreview attachments={payload.attachments} />
     </div>
+  )
+}
+
+function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailPayload["epic"]>; prefix: string }) {
+  return (
+    <Link className="text-blue-600 hover:underline" to={withRoutePrefix(epic.epic_path, prefix)}>
+      {epic.display_number} {epic.title}
+    </Link>
   )
 }
 

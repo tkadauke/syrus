@@ -46,6 +46,13 @@ Operators see the work as Jobs, Workflows, Steps, and Runs. That gives
 each attempt a state, a log, a diff, and a link back to the GitHub PR
 instead of leaving agent work scattered across terminal sessions.
 
+The shortest path is a GitHub issue with label routing: connect the
+repository, choose the trigger label, and let Syrus turn the labeled issue
+into a tracked run and pull request.
+
+Get Started with the local guide when you want the smallest proof before
+connecting a team repository.
+
 ## Why Teams Run It
 
 **You own the keys.** Syrus is BYOK: run it with your own agent provider

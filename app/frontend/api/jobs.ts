@@ -9,6 +9,15 @@ export type JobRepository = {
   repository_path: string
 }
 
+export type JobEpic = {
+  id: number
+  number: number
+  display_number: string
+  title: string
+  state: string
+  epic_path: string
+}
+
 export type JobRecord = {
   id: number
   kind: string
@@ -253,6 +262,7 @@ export type JobDetailPayload = {
   message?: string | null
   job: JobRecord
   repository: JobRepository
+  epic: JobEpic | null
   pinned: boolean
   tags: JobTag[]
   tag_options: JobTag[]

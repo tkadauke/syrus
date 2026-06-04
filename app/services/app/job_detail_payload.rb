@@ -21,6 +21,7 @@ module App
       {
         job: job_json,
         repository: repository_json(@job.repository),
+        epic: epic_json(@job.epic),
         pinned: @user.job_pins.exists?(job: @job),
         tags: @job.tags.ordered.map { |tag| tag_json(tag) },
         tag_options: @user.tags.ordered.map { |tag| tag_json(tag) },
@@ -112,6 +113,19 @@ module App
         approval_propagates_to_github: repository.approval_propagates_to_github,
         credential_mode: repository.credential_mode,
         repository_path: repository_path(repository)
+      }
+    end
+
+    def epic_json(epic)
+      return unless epic
+
+      {
+        id: epic.id,
+        number: epic.number,
+        display_number: epic.display_number,
+        title: epic.title,
+        state: epic.state,
+        epic_path: epic_path(epic)
       }
     end
 

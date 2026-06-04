@@ -83,6 +83,7 @@ module Api
           Current.user.jobs
                       .includes(
                         :repository,
+                        :epic,
                         :owner_user,
                         :tags,
                         job_attachments: { file_attachment: :blob },

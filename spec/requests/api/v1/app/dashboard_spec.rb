@@ -116,8 +116,8 @@ RSpec.describe "App API dashboard commands", type: :request do
 
     it "keeps running jobs in the running Kanban lane even when blocked diagnostics are visible" do
       user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[blocked queued running])
-      prerequisite = Factories.job_record(repository: repo, issue_number: 5, issue_title: "Finish paving", state: "queued")
-      running = Factories.job_record(repository: repo, issue_number: 6, issue_title: "Raise aqueduct", state: "running")
+      prerequisite = Factories.job_record(repository: repo, issue_number: 5, issue_title: "Finish paving", state: "queued", owner_user: user)
+      running = Factories.job_record(repository: repo, issue_number: 6, issue_title: "Raise aqueduct", state: "running", owner_user: user)
       JobDependency.create!(job: running, depends_on_job: prerequisite, source: "manual", created_by_user: user)
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban" }
@@ -130,7 +130,7 @@ RSpec.describe "App API dashboard commands", type: :request do
 
     it "keeps queued jobs in the queued Kanban lane when the latest workflow snapshot is stale" do
       user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[blocked queued running])
-      queued = Factories.job_record(repository: repo, issue_number: 7, issue_title: "Catalog marble", state: "queued")
+      queued = Factories.job_record(repository: repo, issue_number: 7, issue_title: "Catalog marble", state: "queued", owner_user: user)
       Workflow.create!(job: queued, trigger_kind: "initial", state: "running")
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban" }
@@ -143,8 +143,8 @@ RSpec.describe "App API dashboard commands", type: :request do
 
     it "still surfaces non-running jobs with unsatisfied dependencies in the blocked Kanban lane" do
       user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[blocked queued running])
-      prerequisite = Factories.job_record(repository: repo, issue_number: 8, issue_title: "Approve quarry", state: "queued")
-      blocked = Factories.job_record(repository: repo, issue_number: 9, issue_title: "Lay road", state: "queued")
+      prerequisite = Factories.job_record(repository: repo, issue_number: 8, issue_title: "Approve quarry", state: "queued", owner_user: user)
+      blocked = Factories.job_record(repository: repo, issue_number: 9, issue_title: "Lay road", state: "queued", owner_user: user)
       JobDependency.create!(job: blocked, depends_on_job: prerequisite, source: "manual", created_by_user: user)
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban" }
@@ -465,8 +465,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "returns a nullable cost until a job has a billed run" do
-      unbilled = Factories.job(repository: repo, issue_number: 1, issue_title: "Wait in queue")
-      billed = Factories.job(repository: repo, issue_number: 2, issue_title: "Spend carefully")
+      unbilled = Factories.job(repository: repo, issue_number: 1, issue_title: "Wait in queue", owner_user: user)
+      billed = Factories.job(repository: repo, issue_number: 2, issue_title: "Spend carefully", owner_user: user)
       billed.initial_run.update!(cost_usd: 0.12)
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
@@ -477,11 +477,11 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "defaults jobs and workflows to the current executor" do
-      mine = Factories.job_record(user: user, repository: repo, issue_number: 20, issue_title: "My aqueduct")
+      mine = Factories.job_record(user: user, repository: repo, issue_number: 20, issue_title: "My aqueduct", owner_user: user)
       my_workflow = Workflow.create!(job: mine, trigger_kind: "initial", state: "queued")
       teammate = Factories.user(email_address: "teammate@example.com")
       teammate_repo = Factories.repository(user: teammate, owner: "acme", name: "api")
-      theirs = Factories.job_record(user: teammate, repository: teammate_repo, issue_number: 21, issue_title: "Their forum")
+      theirs = Factories.job_record(user: teammate, repository: teammate_repo, issue_number: 21, issue_title: "Their forum", owner_user: teammate)
       Workflow.create!(job: theirs, trigger_kind: "initial", state: "queued")
 
       get "/api/v1/app/dashboard", params: { subject: "job" }
@@ -506,9 +506,9 @@ RSpec.describe "App API dashboard commands", type: :request do
     it "defaults epics to mine plus claimable backlog and ready epics" do
       teammate = Factories.user(email_address: "teammate@example.com")
       teammate_repo = Factories.repository(user: teammate, owner: "globex", name: "api")
-      mine = Factories.epic(user: teammate, repository: teammate_repo, owner: user, state: "in_progress", title: "My claimed epic")
+      mine = Factories.epic(user: teammate, repository: teammate_repo, owner_user: user, state: "in_progress", title: "My claimed epic")
       claimable = Factories.epic(user: teammate, repository: teammate_repo, state: "ready", title: "Claimable epic")
-      hidden_claimed = Factories.epic(user: teammate, repository: teammate_repo, owner: teammate, state: "ready", title: "Teammate epic")
+      hidden_claimed = Factories.epic(user: teammate, repository: teammate_repo, owner_user: teammate, state: "ready", title: "Teammate epic")
       hidden_done = Factories.epic(user: teammate, repository: teammate_repo, state: "done", title: "Unclaimed done")
 
       get "/api/v1/app/dashboard", params: { subject: "epic" }
@@ -527,8 +527,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     it "supports team and per-user ownership scopes with useful badges" do
       teammate = Factories.user(email_address: "teammate@example.com", first_name: "Team", last_name: "Mate")
       teammate_repo = Factories.repository(user: teammate, owner: "globex", name: "api")
-      mine = Factories.job_record(user: user, repository: repo, issue_number: 30, issue_title: "Mine")
-      theirs = Factories.job_record(user: teammate, repository: teammate_repo, issue_number: 31, issue_title: "Theirs")
+      mine = Factories.job_record(user: user, repository: repo, issue_number: 30, issue_title: "Mine", owner_user: user)
+      theirs = Factories.job_record(user: teammate, repository: teammate_repo, issue_number: 31, issue_title: "Theirs", owner_user: teammate)
 
       get "/api/v1/app/dashboard", params: { subject: "job", ownership_scope: "team" }
 

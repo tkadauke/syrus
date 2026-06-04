@@ -11,6 +11,7 @@
 ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __dir__)
 
 require "rubygems"
+require_relative "../config/syrus_bundle_env"
 require "bundler/setup"
 
 load Gem.bin_path("rspec-core", "rspec")
