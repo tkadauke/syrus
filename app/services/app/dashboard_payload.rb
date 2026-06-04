@@ -154,7 +154,8 @@ module App
     end
 
     def active_repositories_scope
-      return Repository.active if team_scope? || user_scope? || claimable_scope? || default_epic_work_scope?
+      return Repository.active if subject == "epic"
+      return Repository.active if team_scope? || user_scope? || claimable_scope?
 
       Repository.active.where(user_id: user.id)
     end
@@ -219,6 +220,10 @@ module App
       ownership_scope == "user"
     end
 
+    def default_epic_mine_scope?
+      subject == "epic" && mine_scope? && !ownership_param_present?
+    end
+
     def team_user_count
       @team_user_count ||= User.count
     end
@@ -235,19 +240,23 @@ module App
         return apply_default_epic_work_scope(scope) if default_epic_work_scope?(subject_name)
 
         owner_id = selected_owner_user.id
-        if subject_name.to_s == "workflow"
+        if subject_name.to_s == "epic"
+          owned_scope = scope.where("owner_user_id = :owner_id OR owner_id = :owner_id", owner_id: owner_id)
+          if default_epic_mine_scope?
+            owned_scope.or(scope.where(owner_user_id: nil, owner_id: nil, state: %w[backlog ready]))
+          else
+            owned_scope
+          end
+        elsif subject_name.to_s == "workflow"
           scope.where(jobs: { owner_user_id: owner_id })
-        elsif subject_name.to_s == "epic"
-          owned = epic_owned_by_scope(scope, owner_id)
-          default_epic_mine_scope? ? owned.or(epic_claimable_scope(scope)) : owned
         else
           scope.where(owner_user_id: owner_id)
         end
       when "claimable"
-        if subject_name.to_s == "workflow"
+        if subject_name.to_s == "epic"
+          scope.where(owner_user_id: nil, owner_id: nil)
+        elsif subject_name.to_s == "workflow"
           scope.where(jobs: { owner_user_id: nil })
-        elsif subject_name.to_s == "epic"
-          epic_unclaimed_scope(scope)
         else
           scope.where(owner_user_id: nil)
         end

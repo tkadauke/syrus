@@ -11,9 +11,9 @@ private user data separated.
 
 ```yaml current_user_scope_files
 per-user/private:
-  - app/controllers/api/v1/app/auth_controller.rb
   - app/controllers/api/v1/app/bootstrap_controller.rb
   - app/controllers/api/v1/app/bug_reports_controller.rb
+  - app/controllers/api/v1/app/auth_controller.rb
   - app/controllers/api/v1/app/chat_whiteboards_controller.rb
   - app/controllers/api/v1/app/chats_controller.rb
   - app/controllers/api/v1/app/credentials_controller.rb
@@ -30,9 +30,9 @@ per-user/private:
   - app/controllers/api/v1/app/job_pins_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
+  - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
-  - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
   - app/controllers/api/v1/app/smart_folders_controller.rb
@@ -76,7 +76,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/views/spa/show.html.erb` | per-user/private | Renders the SPA bootstrap payload for the current browser session. |
 | `app/controllers/api/v1/app/bootstrap_controller.rb` | per-user/private | Serializes the signed-in user, app settings visible to that user, CSRF token, and default chat path. |
 | `app/controllers/api/v1/app/bug_reports_controller.rb` | per-user/private | Files bug reports with the current user as reporter/context. |
-| `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Serializes the current auth/session status for the signed-in user. |
+| `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Auth status resumes the current browser session and serializes the public auth state for that user. |
 | `app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Locates whiteboards through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/chats_controller.rb` | per-user/private | Chat sessions, proposals, attached repositories/jobs/documents/epics, and pending actions are all owned or selected through the current user's associations. |
 | `app/controllers/api/v1/app/credentials/documents_controller.rb` | per-user/private | Personal credential documents are listed, created, and deleted through `Current.user.documents`. |
@@ -85,7 +85,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/direct_jobs_controller.rb` | per-user/private | Direct jobs can only be created in active repositories owned by the current user, using that user's configured agent providers. |
 | `app/controllers/api/v1/app/epics_controller.rb` | per-user/private | Epic create/update/read paths use `Current.user.epics`; repository choices come from the same user. |
 | `app/controllers/api/v1/app/filters_controller.rb` | per-user/private | Foreign-key filter options resolve against user-owned repositories, epics, jobs, and tags. Hostnames are a cross-system option but only labels, not user data. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads omit credentials while using the current user for access context and profile-directory visibility. |
+| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile reads and writes serialize or mutate the signed-in user's profile details. Team profile payloads omit credentials while using the current user for access context, profile-directory visibility, and owner-label visibility for another operator's recent jobs. |
 | `app/controllers/api/v1/app/job_attachments_controller.rb` | per-user/private | Job attachment changes first find the job via `Current.user.jobs` and broadcast back to that user. |
 | `app/controllers/api/v1/app/job_lifecycle_controller.rb` | per-user/private | Retry, approval, cancellation, close, and broadcasts operate on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_metadata_controller.rb` | per-user/private and admin gate | Tags and dependency targets are user-scoped. Dependency override is separately admin-only. |
@@ -94,7 +94,6 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source use `Current.user.jobs`; timeline is separately admin-only because it exposes run history. |
 | `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions use `Current.user.repositories` and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile visibility filters team/user profile data relative to the current user. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the signed-in user's credentials, repositories, and first-run progress. |
 | `app/controllers/api/v1/app/smart_folders_controller.rb` | per-user/private | User-defined smart folders are owned by `Current.user`; built-ins are returned through `SmartFolder.for_user`. |

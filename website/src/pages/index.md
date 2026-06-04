@@ -86,6 +86,13 @@ all share the same harness instead of becoming separate scripts.
 That is the product: not just an agent prompt, but the machinery around
 the prompt that lets a team delegate real GitHub work repeatedly.
 
+## Get Started
+
+The shortest path is to run Syrus locally, connect a GitHub repository,
+and delegate one small GitHub issue with label-based triggering. From
+there, move to Docker Compose or Kubernetes when the workflow proves it
+can carry real review feedback and repeat attempts.
+
 ## Deployment Paths
 
 Start small, then deploy the full loop when the product proves useful.
