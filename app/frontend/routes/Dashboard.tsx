@@ -984,7 +984,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
           {job.kind !== "issue" ? <span className="text-xs text-gray-500">{humanizeOption(job.kind)}</span> : null}
         </div>
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
-          <IssueMetadata job={job} />
+          <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           <span>{approvalLabel}</span>
           <OwnerBadge badge={job.owner_badge} />
@@ -1010,7 +1010,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
       <td className="max-w-md px-4 py-3">
         <Link className="font-medium text-blue-600 hover:underline" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500">
-          <IssueMetadata job={job} />
+          <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           <OwnerBadge badge={job.owner_badge} />
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5" key={tag.id}>{tag.name}</span>)}
@@ -1041,7 +1041,16 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
   )
 }
 
-function IssueMetadata({ job }: { job: DashboardJobItem }) {
+function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
+  if (job.epic) {
+    return (
+      <span>
+        <Link className="text-gray-500 hover:text-blue-700 hover:underline" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
+        <span>/JOB-{job.id}</span>
+      </span>
+    )
+  }
+
   if (!job.issue_number) return <span>JOB-{job.id}</span>
 
   const label = `#${job.issue_number}`

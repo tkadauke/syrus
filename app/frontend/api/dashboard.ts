@@ -32,6 +32,13 @@ export type DashboardTag = {
   color: string
 }
 
+export type DashboardJobEpic = {
+  id: number
+  number: number
+  display_number: string
+  path: string
+}
+
 export type DashboardJobItem = {
   type: "job"
   id: number
@@ -55,13 +62,14 @@ export type DashboardJobItem = {
   finished_at: string | null
   approved_at: string | null
   owner_user_id: number | null
-  owner_user: DashboardOwnerUser | null
   dependencies_overridden_at: string | null
   last_feedback_addressed_at: string | null
   last_seen_comment_at: string | null
   pr_mergeable_checked_at: string | null
   workflows_count: number
   repository: DashboardRepository
+  epic: DashboardJobEpic | null
+  owner_user: DashboardOwnerUser | null
   owner_badge: DashboardOwnerBadge | null
   tags: DashboardTag[]
   paths: {

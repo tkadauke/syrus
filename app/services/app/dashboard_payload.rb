@@ -274,6 +274,22 @@ module App
       )
     end
 
+    def epic_owned_by_scope(scope, owner_id)
+      scope.where(owner_user_id: owner_id).or(scope.where(owner_id: owner_id))
+    end
+
+    def default_epic_mine_scope?
+      mine_scope? && !ownership_param_present?
+    end
+
+    def epic_claimable_scope(scope)
+      scope.where(owner_user_id: nil, owner_id: nil, state: %w[backlog ready])
+    end
+
+    def epic_unclaimed_scope(scope)
+      scope.where(owner_user_id: nil, owner_id: nil)
+    end
+
     def jobs_base_scope
       @jobs_base_scope ||= apply_ownership_scope(Job.where(repository_id: active_repo_ids), :job)
     end
@@ -303,7 +319,7 @@ module App
     def jobs_result
       scope = filtered_jobs_scope
       total = scope.count
-      scope = scope.with_latest_workflow_snapshot.preload(:repository, :owner_user, :tags, :workflows, :runs)
+      scope = scope.with_latest_workflow_snapshot.preload(:repository, :owner_user, :epic, :tags, :workflows, :runs)
       items = paginate(apply_sort(scope, :job)).map { |job| job_json(job) }
 
       { total: total, items: items }
@@ -579,6 +595,7 @@ module App
         pr_mergeable_checked_at: job.pr_mergeable_checked_at&.iso8601,
         workflows_count: job.workflows.size,
         repository: repository_json(job.repository),
+        epic: job_epic_json(job.epic),
         owner_user: owner_user_json(job.owner_user),
         owner_badge: owner_badge_for(job.owner_user),
         tags: job.tags.map { |tag| tag_json(tag) },
@@ -586,6 +603,17 @@ module App
           job_path: job_path(job),
           source_path: source_job_path(job)
         }
+      }
+    end
+
+    def job_epic_json(epic)
+      return nil unless epic
+
+      {
+        id: epic.id,
+        number: epic.number,
+        display_number: epic.display_number,
+        path: epic_path(epic)
       }
     end
 

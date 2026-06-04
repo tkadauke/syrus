@@ -26,7 +26,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     it "returns a subject-aware dashboard read payload for the current user" do
       user.update_dashboard_sort!(subject: "job", column: "title", direction: "asc")
       tag = Factories.tag(user: user, name: "aqueduct", color: "blue")
-      first = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Build aqueduct", state: "queued", pr_number: 17, owner_user: user)
+      epic = Factories.epic(user: user, repository: repo, title: "Raise the forum")
+      first = Factories.job_record(repository: repo, epic: epic, issue_number: 1, issue_title: "Build aqueduct", state: "queued", pr_number: 17, owner_user: user)
       second = Factories.job_record(repository: repo, issue_number: 2, issue_title: "Chart forum", state: "running", owner_user: user)
       Workflow.create!(job: second, trigger_kind: "rebase", state: "running")
       first.tags << tag
@@ -61,6 +62,12 @@ RSpec.describe "App API dashboard commands", type: :request do
         "issue_url" => "https://github.com/acme/widgets/issues/1",
         "pr_url" => "https://github.com/acme/widgets/pull/17",
         "repository" => include("slug" => "acme/widgets"),
+        "epic" => {
+          "id" => epic.id,
+          "number" => epic.number,
+          "display_number" => epic.display_number,
+          "path" => epic_path(epic)
+        },
         "tags" => [ include("name" => "aqueduct", "color" => "blue") ],
         "paths" => include("job_path" => job_path(first), "source_path" => source_job_path(first))
       )
@@ -300,7 +307,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body.dig("error", "message")).to eq("owner_id is required for dashboard scope user")
 
-      get "/api/v1/app/dashboard", params: { subject: "job", scope: "user", owner_user_id: 99_999_999 }
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "user", owner_id: 99_999_999 }
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body.dig("error", "message")).to eq("Unknown dashboard owner user: 99999999")

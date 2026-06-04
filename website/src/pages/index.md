@@ -19,11 +19,12 @@ creating branches, preparing workspaces, running the agent, recording
 transcripts and diffs, pushing commits, and keeping the PR current. The
 agent writes code; Syrus handles the job control around it.
 
-[Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs/getting-started) · [Star on GitHub](https://github.com/tkadauke/syrus)
+[Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs/getting-started) · [Star on GitHub](https://github.com/tkadauke/syrus)
 
 ## What Syrus Does
 
-Give Syrus a connected GitHub repository and a trigger label. When an
+Give Syrus a connected GitHub repository and a trigger label. A typical
+first run starts with a GitHub issue with label `syrus`. When an
 issue is labeled, Syrus creates a Job, runs a Workflow, lets the agent
 make the code change in an isolated clone, and opens the PR. When a
 reviewer leaves feedback, Syrus can run a follow-up attempt on the same

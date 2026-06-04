@@ -1258,7 +1258,21 @@ describe("App", () => {
             subject: "job",
             view: "list",
             items: [
-              dashboardJobItem({ id: 594, kind: "direct", title: "Navigate to Epic", issue_number: null, issue_url: null, pr_number: null, pr_url: null }),
+              dashboardJobItem({
+                id: 594,
+                kind: "direct",
+                title: "Navigate to Epic",
+                issue_number: null,
+                issue_url: null,
+                pr_number: null,
+                pr_url: null,
+                epic: {
+                  id: 7,
+                  number: 7,
+                  display_number: "EPIC-7",
+                  path: "/epics/7"
+                }
+              }),
               dashboardJobItem({ id: 595, kind: "issue", title: "GitHub issue", issue_number: 123, issue_url: "https://github.com/acme/widgets/issues/123", pr_number: null, pr_url: null })
             ]
           })
@@ -1276,7 +1290,8 @@ describe("App", () => {
     )
 
     expect(await screen.findByText("Navigate to Epic")).toBeInTheDocument()
-    expect(screen.getByText("JOB-594")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/app-shell/epics/7")
+    expect(screen.getByText("/JOB-594")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "#123" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/123")
     expect(screen.queryByText("#594")).not.toBeInTheDocument()
   })
@@ -7122,21 +7137,23 @@ function publicBootstrapPayload(overrides: Partial<BootstrapPayload["public"]> =
   }
 }
 
-function bootstrapSetupStatusPayload(overrides: { nextStep?: "configure_credentials" | "add_repository" | "start_first_job" | null } = {}) {
+function bootstrapSetupStatusPayload(overrides: { nextStep?: "configure_credentials" | "add_repository" | "start_first_job" | "watch_first_job" | null } = {}) {
   const nextStep = overrides.nextStep ?? "start_first_job"
   const nextStepPath = {
     configure_credentials: "/credentials/edit",
     add_repository: "/repositories/new",
-    start_first_job: "/jobs/new"
+    start_first_job: "/jobs/new",
+    watch_first_job: "/dashboard/jobs?view=list"
   }[nextStep || "start_first_job"] || null
 
   return {
-    state: nextStep === "configure_credentials" ? "not_started" : nextStep === "add_repository" ? "credentials_only" : nextStep === "start_first_job" ? "ready_for_first_job" : "first_successful_job",
+    state: nextStep === "configure_credentials" ? "not_started" : nextStep === "add_repository" ? "credentials_only" : nextStep === "start_first_job" ? "ready_for_first_job" : nextStep === "watch_first_job" ? "first_job_started" : "first_successful_job",
     next_step: nextStep,
     next_step_path: nextStep ? nextStepPath : null,
     first_admin: false,
     credentials_configured: nextStep !== "configure_credentials",
-    repository_configured: nextStep === "start_first_job" || nextStep === null,
+    repository_configured: nextStep === "start_first_job" || nextStep === "watch_first_job" || nextStep === null,
+    first_job_started: nextStep === "watch_first_job" || nextStep === null,
     first_successful_job_completed: nextStep === null,
     credential_status: {
       github: nextStep !== "configure_credentials",
@@ -7941,6 +7958,7 @@ function dashboardJobItem(overrides: Record<string, unknown> = {}) {
     pr_mergeable_checked_at: null,
     workflows_count: 1,
     repository: { id: 3, slug: "acme/widgets" },
+    epic: null,
     owner_user: { id: 1, name: "Operator", email_address: "operator@example.com" },
     owner_badge: null,
     tags: [{ id: 5, name: "urgent", color: "red" }],
