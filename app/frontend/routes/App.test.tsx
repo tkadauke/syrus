@@ -1729,27 +1729,7 @@ describe("App", () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
-    script.textContent = JSON.stringify(bootstrapPayload({
-      setup_status: setupStatus({
-        state: "not_started",
-        next_step: "configure_credentials",
-        next_step_path: "/credentials/edit",
-        first_successful_job_completed: false,
-        credentials_configured: false,
-        repository_configured: false,
-        first_job_started: false,
-        credential_status: {
-          github: false,
-          agent: false,
-          active_agent_provider: "claude"
-        },
-        counts: {
-          repositories: 0,
-          jobs: 0,
-          successful_jobs: 0
-        }
-      })
-    }))
+    script.textContent = JSON.stringify(bootstrapPayload({ setupStatus: null }))
     document.body.appendChild(script)
 
     vi.spyOn(window, "fetch").mockResolvedValue(
@@ -7152,8 +7132,6 @@ function setupStatus(overrides: Record<string, unknown> = {}) {
     ...overrides
   }
 }
-
-const defaultSetupStatus = setupStatus
 
 function setupStatusPayload(overrides: Record<string, unknown> = {}) {
   return {

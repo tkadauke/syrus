@@ -98,7 +98,7 @@ and delegate one small GitHub issue with label-based triggering. From
 there, move to Docker Compose or Kubernetes when the workflow proves it
 can carry real review feedback and repeat attempts.
 
-## Deployment Paths
+## Start Small
 
 Start small, then deploy the full loop when the product proves useful.
 
