@@ -21,7 +21,7 @@ agent writes code; Syrus handles the job control around it.
 
 [Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs/getting-started) · [Star on GitHub](https://github.com/tkadauke/syrus)
 
-## What Syrus Does
+## The Loop
 
 Give Syrus a connected GitHub repository and a trigger label. A typical
 first run starts with a GitHub issue with label `syrus`. When an
@@ -47,9 +47,11 @@ Operators see the work as Jobs, Workflows, Steps, and Runs. That gives
 each attempt a state, a log, a diff, and a link back to the GitHub PR
 instead of leaving agent work scattered across terminal sessions.
 
-The shortest path is a GitHub issue with label routing: connect the
-repository, choose the trigger label, and let Syrus turn the labeled issue
-into a tracked run and pull request.
+### Label GitHub issues
+
+The shortest path is label-based routing: connect the repository, choose
+the trigger label, and let Syrus turn the labeled issue into a tracked run
+and pull request.
 
 Get Started with the local guide when you want the smallest proof before
 connecting a team repository.
@@ -86,7 +88,7 @@ all share the same harness instead of becoming separate scripts.
 That is the product: not just an agent prompt, but the machinery around
 the prompt that lets a team delegate real GitHub work repeatedly.
 
-## Get Started
+## Start Small
 
 The shortest path is to run Syrus locally, connect a GitHub repository,
 and delegate one small GitHub issue with label-based triggering. From
