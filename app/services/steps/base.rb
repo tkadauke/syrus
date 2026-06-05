@@ -461,5 +461,12 @@ module Steps
         end
       end
     end
+
+    # Force a string to valid UTF-8, replacing any invalid/undefined bytes.
+    # Claude output arrives via the MCP sidecar stdio pipe as ASCII-8BIT;
+    # SQLite and JSON serialisation both require UTF-8.
+    def utf8(str)
+      str.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+    end
   end
 end
