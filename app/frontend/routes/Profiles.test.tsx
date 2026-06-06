@@ -150,6 +150,7 @@ function teamProfilePayload(overrides: Record<string, unknown> = {}) {
       profile_company: "Analytical Engines Ltd",
       profile_website: "https://example.com/ada",
       avatar_url: null,
+      profile_path: "/profiles/7",
       counts: { repositories: 1, epics: 1, jobs: 1, open_jobs: 1 },
       repositories: [
         { id: 3, slug: "acme/widgets", path: "/repositories/3" }
