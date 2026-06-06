@@ -42,6 +42,7 @@ per-user/private:
   - app/views/spa/show.html.erb
 team-visible: []
 public/session:
+  - app/controllers/concerns/authentication.rb
   - app/controllers/api/v1/app/auth_controller.rb
 admin-only:
   - app/controllers/admin/base_controller.rb
@@ -123,6 +124,7 @@ as optional session context.
 
 | File | Classification | Reason |
 | --- | --- | --- |
+| `app/controllers/concerns/authentication.rb` | public/current session | Resumes the browser session, redirects unauthenticated users to signup/sign-in, and sends incomplete signed-in users to onboarding after authentication. |
 | `app/controllers/api/v1/app/auth_controller.rb` | public/current session | Status returns the current session user when one exists; auth creation paths are otherwise public and session-scoped. |
 
 ## Admin-only

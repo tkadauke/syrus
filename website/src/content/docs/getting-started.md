@@ -80,7 +80,7 @@ account and admin access, GitHub credentials, agent credentials and
 provider, repository, first issue or direct Job, then watching the first
 Job until one closes successfully.
 
-## First Successful Job
+## First Successful Run
 
 The onboarding screen is called **Set up Syrus**. Its shortest path to
 normal operation is: start the app, create the first admin, configure
