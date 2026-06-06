@@ -10,6 +10,144 @@ Syrus to handle. The examples assume you have already registered a
 repository in Syrus, configured credentials, and left repository
 polling enabled.
 
+## How do I delegate my first GitHub issue?
+
+Use this when you want the basic issue-to-PR loop.
+
+1. Open an issue in the target GitHub repository.
+2. Write a narrow request with a clear success condition:
+
+   ```text
+   Add a regression spec for the empty-dashboard state and make the
+   dashboard show "No runs yet" when the current user has no Jobs.
+   ```
+
+3. Add the repository's Syrus trigger label. The default is `syrus`.
+4. Wait for the repository poller, or open the repository in Syrus and
+   use the GitHub issues panel to delegate it immediately.
+5. Open the new Job in Syrus and watch the Workflow:
+
+   ```text
+   prepare -> implement -> graders -> summarize -> pr_open
+   ```
+
+Expected outcome: Syrus creates a Job, checks out a workflow workspace,
+runs the agent, captures a diff, and opens a PR on a branch named for the
+Job.
+
+If no Job appears, see
+[The poller never picks up my issue](/docs/troubleshooting#the-poller-never-picks-up-my-issue).
+
+## How do I write an issue Syrus can act on?
+
+Good Syrus issues read like scoped engineering tasks, not product epics.
+Include the files, behavior, and tests when you know them.
+
+1. Start with the user-visible goal.
+2. Add acceptance criteria that can be checked in the repository.
+3. Name any tests, commands, screenshots, or docs that should change.
+4. Add boundaries for what should not change.
+5. Avoid "clean up", "modernize", or "improve everything" unless you
+   also define the exact surface area.
+
+Example:
+
+```text
+## Goal
+Show a "Retry workflow" action on failed Workflows from the Job detail
+page.
+
+## Acceptance criteria
+- The button appears only for failed Workflows that can retry in place.
+- Clicking it calls the existing retry endpoint and refreshes the Job.
+- Add a React test for the hidden and visible states.
+
+## Out of scope
+- New retry endpoints.
+- Retrying succeeded Workflows.
+- Changing the admin Workflow page.
+```
+
+Expected outcome: the agent can plan against concrete constraints, run a
+targeted test, and avoid unrelated refactors.
+
+## How do I configure repository setup commands?
+
+Use `.syrus.yml` when the auto-detected setup command is not enough. The
+file belongs at the root of the repository Syrus is working on, not in
+the Syrus deployment.
+
+1. Identify the commands a fresh clone needs before tests can run.
+2. Put those commands under `prepare`.
+3. Keep commands deterministic and non-interactive.
+4. Commit the file to the repository.
+5. Trigger a small Syrus Job and confirm the `prepare` Step succeeds.
+
+Rails example:
+
+```yaml
+prepare:
+  - bundle config set --local path vendor/bundle
+  - bundle install --jobs 4
+  - bin/rails db:prepare
+```
+
+Node example:
+
+```yaml
+prepare:
+  - npm ci
+  - npm run build
+```
+
+If the repository needs no setup, say that explicitly:
+
+```yaml
+prepare: []
+```
+
+Expected outcome: every Workflow starts from a prepared workspace, and
+agent runs spend their budget on the requested change instead of
+rediscovering dependency setup.
+
+If setup fails, see
+[The prepare Step fails](/docs/troubleshooting#the-prepare-step-fails).
+
+## How do I add tests or lint as Syrus graders?
+
+Graders are deterministic commands that run after agent work. Required
+grader failures send the agent into a bounded repair loop.
+
+1. Choose commands that are meaningful for most Syrus PRs in the repo.
+2. Add them to `.syrus.yml` under `grade.steps`.
+3. Mark noisy checks as `required: false` until they are stable.
+4. Trigger a small Syrus Job and inspect the `grader` Steps.
+5. Tighten the command or timeout if it produces too much unrelated
+   output.
+
+Example:
+
+```yaml
+prepare:
+  - npm ci
+grade:
+  max_iterations: 3
+  steps:
+    - name: tests
+      run: npm test -- --runInBand
+    - name: lint
+      run: npm run lint
+      required: false
+      timeout_minutes: 5
+```
+
+Expected outcome: the Job page shows one grader Step per configured
+command. Required failures are summarized back to the agent for repair;
+advisory failures are logged without blocking the Workflow.
+
+If graders run but do not trigger repair, see
+[A grader failed but the Workflow still passed](/docs/troubleshooting#a-grader-failed-but-the-workflow-still-passed).
+
 ## How do I get Syrus to handle a failing test?
 
 Syrus watches open PRs it created. When GitHub Checks report a completed
@@ -247,6 +385,77 @@ unbounded PRs.
 
 Troubleshooting: see
 [The agent burned through my Anthropic or OpenAI credits](/docs/troubleshooting#the-agent-burned-through-my-anthropic-or-openai-credits).
+
+## How do I switch a repository between Claude and Codex?
+
+Provider selection is resolved when Syrus creates the Job and Workflow.
+Use a repository override when one repo should consistently use a
+different provider from the user's default.
+
+1. Confirm the user has configured credentials for the target provider.
+2. Open the repository settings page in Syrus.
+3. Set **Agent provider override** to `claude` or `codex`.
+4. Save the repository.
+5. Create a new Job. Existing Jobs keep the provider they already
+   captured unless you explicitly run a follow-up with a different
+   provider.
+
+Expected outcome: new Jobs for that repository show the selected
+provider on their Workflows and Runs.
+
+If a Run fails immediately after switching, see
+[The agent provider cannot start](/docs/troubleshooting#the-agent-provider-cannot-start).
+
+## How do I approve and auto-merge a Syrus PR?
+
+Use auto-merge when you want Syrus to run final graders and land an
+approved Job without giving the agent more freedom than the PR branch
+already has.
+
+1. Enable auto-merge for the repository.
+2. Make sure required graders are configured in `.syrus.yml`.
+3. Review the Syrus PR and mark the Job approved in Syrus.
+4. Let the landing queue create an `auto_merge` Workflow:
+
+   ```text
+   prepare -> graders -> landing_fix -> push -> auto_merge
+   ```
+
+5. Watch the Job page. If final graders fail, Syrus runs `landing_fix`;
+   if the repair succeeds, it pushes the fix and attempts the GitHub
+   merge.
+
+Expected outcome: the PR is merged through GitHub's merge API, or the Job
+returns to an operator-visible state with the failed Step and reason.
+
+If the PR becomes unmergeable before landing, see
+[The PR is approved but will not merge](/docs/troubleshooting#the-pr-is-approved-but-will-not-merge).
+
+## How do I rebase an unmergeable Syrus PR?
+
+Syrus can maintain branches it controls when GitHub reports that a PR is
+not mergeable.
+
+1. Confirm the PR branch belongs to the Syrus installation, not a fork or
+   manually-created branch.
+2. Leave repository polling enabled.
+3. Wait for merge-state polling, or use the operator action that checks
+   merge state for the Job.
+4. Watch for a `rebase` Workflow:
+
+   ```text
+   auto_rebase -> agent_rebase -> force_push
+   ```
+
+5. If the deterministic rebase is clean, Syrus skips conflict resolution
+   and force-pushes with a lease. If conflicts remain, the agent resolves
+   them before the force-push Step.
+
+Expected outcome: the PR branch is updated against the base branch and
+GitHub can recompute mergeability.
+
+If force-push fails, see
+[Rebase finished but force-push failed](/docs/troubleshooting#rebase-finished-but-force-push-failed).
 
 ## How do I disable Syrus for a single PR?
 
