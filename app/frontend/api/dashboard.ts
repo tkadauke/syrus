@@ -25,7 +25,7 @@ export type DashboardOwnerUser = {
 
 export type DashboardOwnerBadge = {
   label: string
-  kind: "claimable" | "other_user"
+  kind: "claimable" | "current_user" | "other_user"
 }
 
 export type DashboardTag = {

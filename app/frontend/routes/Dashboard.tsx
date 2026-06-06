@@ -1029,7 +1029,6 @@ function MobileJobRow({ job, selected, onToggleOne, prefix }: { job: DashboardJo
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           <DashboardOwnerLabel job={job} prefix={prefix} quiet />
           <span>{approvalLabel}</span>
-          <OwnerBadge badge={job.owner_badge} />
           <span>{job.workflows_count} {pluralize(job.workflows_count, "workflow")}</span>
           <span>{formatDate(job.started_at || job.created_at)}</span>
         </div>
@@ -1486,6 +1485,8 @@ function OwnerBadge({ badge, fallback = null }: { badge: { label: string; kind: 
   const label = badge?.label || fallback
   const className = badge?.kind === "claimable"
     ? "rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700 ring-1 ring-amber-200"
+    : badge?.kind === "current_user"
+      ? "rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 ring-1 ring-blue-100"
     : "rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 ring-1 ring-gray-200"
 
   return <span className={className}>{label}</span>

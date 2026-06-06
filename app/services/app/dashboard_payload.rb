@@ -668,7 +668,7 @@ module App
         workflows_count: job.workflows.size,
         repository: repository_json(job.repository),
         epic: job_epic_json(job.epic),
-        owner_badge: owner_badge_for(owner_user),
+        owner_badge: owner_badge_for(job.owner_user, claimable: job.owner_user.nil?),
         tags: job.tags.map { |tag| tag_json(tag) },
         paths: {
           job_path: job_path(job),
@@ -774,7 +774,7 @@ module App
           state: job.state,
           repository: repository_json(job.repository),
           owner_user: owner_user_json(owner_user),
-          owner_badge: owner_badge_for(owner_user),
+          owner_badge: owner_badge_for(job.owner_user, claimable: job.owner_user.nil?),
           path: job_path(job)
         }
       }
@@ -799,7 +799,9 @@ module App
     def owner_badge_for(owner_user, claimable: false)
       return nil if team_user_count <= 1
       return { label: "Claimable", kind: "claimable" } if claimable && owner_user.nil?
-      return nil if owner_user.nil? || owner_user.id == user.id
+      return nil if owner_user.nil?
+      return nil unless team_scope?
+      return { label: "You", kind: "current_user" } if owner_user.id == user.id
 
       {
         label: owner_user.team_display_name,

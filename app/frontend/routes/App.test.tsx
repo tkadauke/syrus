@@ -1428,7 +1428,7 @@ describe("App", () => {
                   raw: {}
                 },
                 items: [
-                  dashboardJobItem({ title: "Mine", owner_badge: null }),
+                  dashboardJobItem({ title: "Mine", owner_badge: { label: "You", kind: "current_user" } }),
                   dashboardJobItem({
                     id: 43,
                     title: "Theirs",
@@ -1462,6 +1462,7 @@ describe("App", () => {
     const subjectNav = screen.getByRole("navigation", { name: "Dashboard subjects" })
     expect(within(subjectNav).getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list&ownership_scope=team")
     expect(within(subjectNav).getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows?view=list&ownership_scope=team")
+    expect(screen.getByText("You")).toBeInTheDocument()
     expect(screen.getByText("Teammate")).toBeInTheDocument()
     expect(screen.queryByText("Operator")).not.toBeInTheDocument()
   })
