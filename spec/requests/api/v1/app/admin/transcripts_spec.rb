@@ -75,14 +75,19 @@ RSpec.describe "API: /api/v1/app/admin/runs/:run_id/transcript", type: :request 
     expect(body["events"].first["kind"]).to eq("tool_use")
   end
 
-  it "404s when no session was captured" do
+  it "returns JobLog fallback events when no session was captured" do
     sign_in_as(admin)
     run.claude_session.destroy
+    JobLog.append!(run: run, chunk: "fallback transcript row", kind: "system")
 
     get "/api/v1/app/admin/runs/#{run.id}/transcript"
 
-    expect(response).to have_http_status(:not_found)
-    expect(parse_body.dig("error", "code")).to eq("not_found")
-    expect(parse_body.dig("error", "message")).to match(/No agent session captured/)
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["session_id"]).to be_nil
+    expect(parse_body["events"].map { |event| event["kind"] }).to eq([ "job_log" ])
+    expect(parse_body["events"].first["data"]).to include(
+      "kind" => "system",
+      "text" => "fallback transcript row"
+    )
   end
 end

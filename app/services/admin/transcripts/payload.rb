@@ -11,10 +11,10 @@ module Admin
       def show(run_id)
         run = Run.find(run_id)
         session = run.claude_session
-        return missing_session_payload(run) unless session
 
-        transcript = ClaudeTranscript.new(session.transcript_jsonl)
+        transcript = ClaudeTranscript.new(session&.transcript_jsonl)
         all_events = transcript.events.to_a
+        all_events.concat(job_log_events(run)) if include_job_log_fallback?(session, all_events)
         page = [ params.fetch(:page, 1).to_i, 1 ].max
         per = [ [ params.fetch(:per, DEFAULT_PER_PAGE).to_i, 1 ].max, MAX_PER_PAGE ].min
         slice = all_events.slice((page - 1) * per, per) || []
@@ -24,7 +24,7 @@ module Admin
           job_id: run.job_id,
           step_kind: run.step&.kind,
           workflow_trigger_kind: run.step&.workflow&.trigger_kind,
-          session_id: session.session_id,
+          session_id: session&.session_id,
           summary: serialize_summary(transcript.summary),
           pagination: {
             page: page,
@@ -40,14 +40,25 @@ module Admin
 
       attr_reader :params
 
-      def missing_session_payload(run)
-        {
-          error: {
-            code: "not_found",
-            message: "No agent session captured for Run ##{run.id}."
-          },
-          status: :not_found
-        }
+      def include_job_log_fallback?(session, events)
+        session.nil? ||
+          session.transcript_jsonl.blank? ||
+          events.empty? ||
+          events.none? { |event| event.kind == :result }
+      end
+
+      def job_log_events(run)
+        run.job_logs.order(:sequence).map do |log|
+          ClaudeTranscript::Event.new(
+            kind: :job_log,
+            timestamp: log.created_at&.iso8601,
+            data: {
+              sequence: log.sequence,
+              kind: log.kind,
+              text: log.chunk
+            }
+          )
+        end
       end
 
       def serialize_summary(summary)

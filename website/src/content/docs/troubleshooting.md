@@ -101,9 +101,11 @@ into chat or tickets.
 
 ## How do I read the transcript?
 
-The Job page renders each Run's transcript inline. Tool calls are hidden
-by default; use **Show tool calls** when you need to inspect commands and
-file edits.
+The Job page renders each Run's transcript inline. The full transcript
+viewer parses retained Claude and Codex session JSONL into assistant
+messages, tool calls, tool results, and system events where possible.
+If the provider session is missing or truncated, Syrus includes the
+Run's `JobLog` rows as fallback transcript events.
 
 Admins also get a full transcript viewer:
 

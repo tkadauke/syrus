@@ -91,6 +91,12 @@ RSpec.describe ClaudeTranscript do
       expect(kinds).to eq([ :system_init, :result ])
     end
 
+    it "skips malformed JSON fragments that are not event objects" do
+      input = "[1,2,3]\n{\"type\":\"assistant\",\"message\":\"not a hash\"}\n{\"type\":\"result\",\"subtype\":\"success\"}\n"
+      events = described_class.new(input).events.to_a
+      expect(events.map(&:kind)).to eq([ :result ])
+    end
+
     it "handles an empty / nil input without raising" do
       expect(described_class.new("").events.to_a).to eq([])
       expect(described_class.new(nil).events.to_a).to eq([])
@@ -194,6 +200,86 @@ RSpec.describe ClaudeTranscript do
       expect(summary.mcp_tool_called?).to be true
       expect(summary.tool_call_counts).to eq("mcp__syrus__submit_summary" => 1)
       expect(summary.exit_reason).to eq("success")
+    end
+  end
+
+  describe "Codex exec JSONL compatibility" do
+    let(:jsonl) do
+      [
+        {
+          "timestamp" => "2026-06-01T10:00:00Z",
+          "type" => "thread.started",
+          "thread_id" => "codex-thread-1",
+          "cwd" => "/work",
+          "model" => "gpt-5.5"
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:01Z",
+          "type" => "item.completed",
+          "item" => { "type" => "agent_message", "text" => "I will inspect the file." }
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:02Z",
+          "type" => "item.started",
+          "item" => {
+            "type" => "mcp_tool_call",
+            "server" => "syrus-mcp-sidecar",
+            "tool" => "submit_summary",
+            "arguments" => { "pr_title" => "Add thing" },
+            "call_id" => "call_1"
+          }
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:03Z",
+          "type" => "item.completed",
+          "item" => {
+            "type" => "mcp_tool_call",
+            "server" => "syrus-mcp-sidecar",
+            "tool" => "submit_summary",
+            "result" => { "ok" => true },
+            "call_id" => "call_1"
+          }
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:04Z",
+          "type" => "item.started",
+          "item" => { "type" => "command_execution", "command" => "bin/rspec", "id" => "cmd_1" }
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:05Z",
+          "type" => "turn.completed",
+          "usage" => { "input_tokens" => 10, "output_tokens" => 20 }
+        }
+      ].map(&:to_json).join("\n")
+    end
+
+    it "normalizes current Codex exec events into transcript events" do
+      events = described_class.new(jsonl).events.to_a
+      expect(events.map(&:kind)).to eq([ :system_init, :assistant_text, :tool_use, :tool_result, :tool_use, :result ])
+      expect(events[2].data).to include(
+        name: "mcp__syrus-mcp-sidecar__submit_summary",
+        id: "call_1"
+      )
+      expect(events[4].data).to include(
+        name: "command_execution",
+        input: { command: "bin/rspec" },
+        id: "cmd_1"
+      )
+      expect(events.last.data).to include(subtype: "success", usage: { "input_tokens" => 10, "output_tokens" => 20 })
+    end
+
+    it "summarizes current Codex exec sessions" do
+      summary = described_class.new(jsonl).summary
+      expect(summary.session_id).to eq("codex-thread-1")
+      expect(summary.model).to eq("gpt-5.5")
+      expect(summary.cwd).to eq("/work")
+      expect(summary.total_turns).to eq(1)
+      expect(summary.exit_reason).to eq("success")
+      expect(summary.mcp_tool_called?).to be true
+      expect(summary.tool_call_counts).to include(
+        "mcp__syrus-mcp-sidecar__submit_summary" => 1,
+        "command_execution" => 1
+      )
     end
   end
 end

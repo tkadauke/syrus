@@ -54,13 +54,41 @@ RSpec.describe "API: /api/v1/admin/runs/:run_id/transcript", type: :request do
       expect(body["events"].first["kind"]).to eq("tool_use")
     end
 
-    it "404s when no session was captured" do
+    it "returns JobLog fallback events when no session was captured" do
       run.claude_session.destroy
+      JobLog.append!(run: run, chunk: "assistant text captured from the run log", kind: "assistant_text")
+
       get "/api/v1/admin/runs/#{run.id}/transcript", headers: auth
-      expect(response).to have_http_status(:not_found)
-      expect(parse_body.dig("error", "code")).to eq("not_found")
-      expect(parse_body.dig("error", "message")).to match(/No agent session captured/)
-      expect(parse_body.dig("error", "message")).not_to match(/ClaudeSession|Claude session/)
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["session_id"]).to be_nil
+      expect(body["summary"]).to include(
+        "session_id" => nil,
+        "total_tool_calls" => 0,
+        "exit_reason" => nil
+      )
+      expect(body["events"].map { |event| event["kind"] }).to eq([ "job_log" ])
+      expect(body["events"].first["data"]).to include(
+        "sequence" => 0,
+        "kind" => "assistant_text",
+        "text" => "assistant text captured from the run log"
+      )
+    end
+
+    it "includes JobLog fallback events when a session transcript is incomplete" do
+      run.claude_session.update!(
+        transcript_jsonl: jsonl({ "type" => "assistant", "message" => { "content" => [
+          { "type" => "text", "text" => "Parsed from Codex JSONL." }
+        ] } })
+      )
+      JobLog.append!(run: run, chunk: "terminal log fallback", kind: "system")
+
+      get "/api/v1/admin/runs/#{run.id}/transcript", headers: auth
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["events"].map { |event| event["kind"] }).to eq([ "assistant_text", "job_log" ])
+      expect(parse_body["events"].last["data"]["text"]).to eq("terminal log fallback")
     end
   end
 

@@ -24,7 +24,7 @@ export type TranscriptPayload = {
   job_id: number
   step_kind: string | null
   workflow_trigger_kind: string | null
-  session_id: string
+  session_id: string | null
   summary: TranscriptSummary
   pagination: {
     page: number

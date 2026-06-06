@@ -20,6 +20,7 @@ class ClaudeTranscript
   #   :tool_use         — agent invoked a tool; data has name, input, id
   #   :tool_result      — response to a tool_use; data has tool_use_id, content, error
   #   :result           — terminal event; data has turns, cost_usd, etc.
+  #   :job_log          — fallback JobLog row when provider JSONL is absent/truncated
   #   :other            — anything we don't render specifically; kept for completeness
 
   Summary = Data.define(:total_turns, :total_tool_calls, :total_cost_usd,
@@ -54,6 +55,7 @@ class ClaudeTranscript
     line = line.strip
     return [] if line.empty?
     parsed = JSON.parse(line)
+    return [] unless parsed.is_a?(Hash)
 
     case parsed["type"]
     when "system"      then [ system_event(parsed) ].compact
@@ -63,9 +65,13 @@ class ClaudeTranscript
     when "session_meta" then [ codex_session_event(parsed) ]
     when "event_msg"    then codex_event_events(parsed)
     when "response_item" then codex_response_item_events(parsed)
+    when "thread.started" then [ codex_thread_started_event(parsed) ]
+    when "turn.completed" then [ codex_turn_completed_event(parsed) ]
+    when "turn.failed", "error" then [ codex_error_result_event(parsed) ]
+    when "item.started", "item.completed" then codex_item_events(parsed)
     else                    [ Event.new(kind: :other, timestamp: parsed["timestamp"], data: parsed) ]
     end
-  rescue JSON::ParserError
+  rescue JSON::ParserError, NoMethodError, TypeError
     []
   end
 
@@ -233,6 +239,117 @@ class ClaudeTranscript
     else
       []
     end
+  end
+
+  def codex_thread_started_event(parsed)
+    Event.new(
+      kind: :system_init,
+      timestamp: parsed["timestamp"],
+      data: {
+        model: parsed["model"],
+        cwd: parsed["cwd"],
+        tools: [],
+        session_id: parsed["thread_id"] || parsed["session_id"]
+      }
+    )
+  end
+
+  def codex_turn_completed_event(parsed)
+    usage = parsed["usage"] || {}
+    Event.new(
+      kind: :result,
+      timestamp: parsed["timestamp"],
+      data: {
+        turns: 1,
+        duration_ms: parsed["duration_ms"],
+        cost_usd: nil,
+        is_error: false,
+        subtype: "success",
+        final_text: parsed["final_text"] || parsed["last_agent_message"],
+        usage: usage.presence
+      }.compact
+    )
+  end
+
+  def codex_error_result_event(parsed)
+    Event.new(
+      kind: :result,
+      timestamp: parsed["timestamp"],
+      data: {
+        turns: nil,
+        duration_ms: parsed["duration_ms"],
+        cost_usd: nil,
+        is_error: true,
+        subtype: parsed["type"],
+        final_text: parsed["error"] || parsed["message"] || "Codex run failed"
+      }
+    )
+  end
+
+  def codex_item_events(parsed)
+    item = parsed["item"] || {}
+    timestamp = parsed["timestamp"]
+    status = item["status"] || parsed["type"].to_s.delete_prefix("item.")
+
+    case item["type"]
+    when "agent_message"
+      text = item["text"].to_s
+      return [] if text.blank?
+      [ Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ]
+    when "mcp_tool_call"
+      codex_mcp_tool_events(item, timestamp, status)
+    when "command_execution"
+      [ Event.new(
+        kind: :tool_use,
+        timestamp: timestamp,
+        data: {
+          name: "command_execution",
+          input: { command: item["command"] }.compact,
+          id: item["call_id"] || item["id"]
+        }
+      ) ]
+    when "file_change"
+      [ Event.new(
+        kind: :system_event,
+        timestamp: timestamp,
+        data: { type: "file_change", path: item["path"], status: status }.compact
+      ) ]
+    else
+      [ Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
+    end
+  end
+
+  def codex_mcp_tool_events(item, timestamp, status)
+    id = item["call_id"] || item["id"]
+    name = codex_mcp_tool_name(item)
+    if item["error"].present? || item["result"].present? || status == "completed"
+      content = item["error"].presence || item["result"].presence || { status: status }
+      [ Event.new(
+        kind: :tool_result,
+        timestamp: timestamp,
+        data: {
+          tool_use_id: id,
+          content: content,
+          error: item["error"].present?
+        }
+      ) ]
+    else
+      [ Event.new(
+        kind: :tool_use,
+        timestamp: timestamp,
+        data: {
+          name: name,
+          input: item["arguments"] || item["input"] || {},
+          id: id
+        }
+      ) ]
+    end
+  end
+
+  def codex_mcp_tool_name(item)
+    server = item["server"].presence || "mcp"
+    tool = item["tool"].presence || item["name"].presence || "tool"
+    "mcp__#{server}__#{tool}"
   end
 
   def compute_summary
