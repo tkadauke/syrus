@@ -3946,7 +3946,7 @@ describe("App", () => {
     expect(screen.getByText("Add profile page")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Add profile page" })).toHaveAttribute("href", "/app-shell/jobs/55")
     expect(screen.getByRole("link", { name: "@ada-lovelace" })).toHaveAttribute("href", "https://github.com/ada-lovelace")
-    expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
+    expect(within(screen.getByRole("heading", { name: "Ada Lovelace" })).getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
     expect(screen.queryByText("GitHub token")).not.toBeInTheDocument()
