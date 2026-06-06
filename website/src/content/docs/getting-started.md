@@ -69,8 +69,7 @@ operator has provided. You need:
 
 ## 2. Add Credentials
 
-Open the web UI and sign up. Create the first admin by registering the
-first user.
+Open the web UI and sign up. The first user becomes an admin.
 
 After that, go to **Credentials** and add:
 
