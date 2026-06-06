@@ -49,8 +49,11 @@ Common trigger kinds are:
 | `pr_comment` | Follow-up after review or conversation feedback on the PR. |
 | `ci_failure` | Follow-up after failing checks on the PR head SHA. |
 | `rebase` | Maintenance attempt that rebases a controlled branch onto the base branch. |
+| `stack_rebase` | Maintenance attempt that rebases dependent PR branches together. |
+| `auto_merge` | Landing attempt after approval and final merge gates. |
 | `retry` | Operator asks Syrus to run the normal attempt again. |
 | `manual` | Operator supplies an explicit manual prompt. |
+| `resume` | Operator continues a captured provider session. |
 | `local_dev` | Synchronous local-development path, used for local evaluation flows. |
 
 Each trigger kind maps to a Workflow template: a sequence of Steps.

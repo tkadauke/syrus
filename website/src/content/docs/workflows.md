@@ -6,9 +6,10 @@ description: Templates that define what an agent does for each trigger kind.
 # Workflows
 
 A Workflow template is a named sequence of Steps tied to a trigger kind.
-When something happens, such as a labelled issue, PR feedback, a retry
-click, or an unmergeable branch, Syrus creates a Workflow from the matching
-template and starts its first Step.
+When something happens, such as a labeled issue, PR feedback, a retry
+click, an approved Job entering the landing queue, or an unmergeable branch,
+Syrus creates a Workflow from the matching template and starts its first
+Step.
 
 In v1, templates are linear chains:
 
@@ -23,8 +24,8 @@ Retries create new Runs without erasing the old transcript.
 
 ### Initial
 
-Trigger: a GitHub issue with the repository's trigger label, or a new cron
-or direct Job that uses the standard issue-to-PR path. Steps:
+Trigger: a GitHub issue with the repository's trigger label, a scheduled
+task fire, or a direct Job that uses the standard issue-to-PR path. Steps:
 `prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> summarize -> pr_open`.
 The agent makes and commits the change during `implement`, graders run from
 the repository's `grade:` configuration, and failed required graders feed
@@ -36,7 +37,10 @@ chronological order, so clarifications added before the Run starts are part
 of the agent context. A successful Initial workflow leaves the Job open
 with a PR number attached.
 
-### PrFeedback
+The `prepare` Step is omitted when repository configuration or the
+`syrus-skip-prepare` issue label disables preparation.
+
+### PR Feedback
 
 Trigger: new review feedback or PR comments on an existing Syrus PR. Steps:
 `prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> summarize_amend -> push`.
@@ -66,13 +70,14 @@ for landing.
 
 ### Retry
 
-Trigger: an operator retries a failed or completed Job. Steps:
+Trigger: an operator retries a failed or completed Job. The `replay`
+trigger uses the same template. Steps:
 `prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> summarize -> pr_open`.
 It has the same shape as Initial, but runs on the existing Job and branch.
 `pr_open` is idempotent: if a PR already exists, it pushes the new commits
 instead of opening a second PR.
 
-### AutoMerge
+### Auto-Merge
 
 Trigger: an approved Job reaches the landing queue. Steps:
 `retry_until(grader_fanout -> grader_collect, repair: landing_fix) -> push -> auto_merge`.
@@ -91,7 +96,14 @@ prompt is passed directly to the configured agent provider. Manual
 workflows capture transcript and diff information, but they do not push or
 open a PR by themselves.
 
-### LocalDev
+### Resume
+
+Trigger: an operator continues a captured provider session. Steps:
+`manual`. Resume uses the manual Step handler but is tracked with its own
+trigger kind so the UI can distinguish a new free-form run from a continued
+session.
+
+### Local Dev
 
 Trigger: `bin/syrus dev` against a local checkout. Steps:
 `prepare -> implement`. It uses the same preparation and implementation
@@ -124,6 +136,10 @@ same Job.
 | `auto_rebase` | No | Try a deterministic rebase before involving an agent |
 | `agent_rebase` | Yes | Resolve rebase conflicts with the agent |
 | `force_push` | No | Force-push a rebased branch with an explicit `--force-with-lease` lease |
+| `stack_auto_rebase` | No | Try deterministic rebases across a dependent PR stack |
+| `stack_agent_rebase` | Yes | Resolve stack rebase conflicts with the agent |
+| `stack_force_push` | No | Force-push updated stack branches |
+| `grader` | No | Run one immutable grader command materialized by grader_fanout |
 | `auto_merge` | No | Re-check GitHub merge gates and merge the approved PR |
 | `manual` | Yes | Run an operator-supplied prompt |
 
@@ -145,7 +161,9 @@ Syrus chooses the template from the trigger kind:
 | `stack_rebase` | `Workflows::StackRebase` |
 | `auto_merge` | `Workflows::AutoMerge` |
 | `retry` | `Workflows::Retry` |
+| `replay` | `Workflows::Retry` |
 | `manual` | `Workflows::Manual` |
+| `resume` | `Workflows::Resume` |
 | `local_dev` | `Workflows::LocalDev` |
 
 The template creates a Workflow row, creates each Step row in order, and

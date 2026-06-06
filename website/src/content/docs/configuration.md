@@ -11,20 +11,30 @@ Syrus is configured in three layers:
 | --- | --- | --- |
 | Deployment | Environment variables and Rails credentials | Database access, encryption keys, worker storage, queue sizing |
 | User | The credentials/settings UI | GitHub token, agent credentials, preferred provider, max agent turns |
-| Repository | Repository settings plus optional `.syrus.yml` in the target repo | Trigger label, polling, default branch, provider override, prepare commands |
+| Repository | Repository settings plus optional `.syrus.yml` in the target repo | Trigger label, polling, default branch, provider override, prepare commands, grader commands |
 
 For deployment-specific placement, see [Deployment](/docs/deployment).
 
 ## `.syrus.yml`
 
 `.syrus.yml` is read from the root of the target repository during the
-`prepare` Step. It currently configures deterministic setup commands that
-run before the agent is invoked.
+Workflow. It configures deterministic setup commands that run before the
+agent is invoked and optional Syrus-native grader commands that run after
+agent work.
 
 ```yaml
 prepare:
   - bundle install
   - npm ci
+grade:
+  max_iterations: 3
+  steps:
+    - name: tests
+      run: bin/rspec
+    - name: lint
+      run: bin/rubocop
+      required: false
+      timeout_minutes: 5
 ```
 
 Schema:
@@ -34,12 +44,31 @@ Schema:
 | `prepare` | Array of strings | Shell commands to run in order before agent work starts |
 | `prepare` | `[]` | Explicitly run no preparation commands |
 | `prepare` | `false` | Opt out of preparation entirely |
+| `grade` | Array of grader steps | Grader commands using the global max-iteration setting |
+| `grade.steps` | Array of grader steps | Grader commands using the full grade mapping form |
+| `grade.max_iterations` | Integer | Maximum repair/check iterations for required grader failures; clamped to 1..10 |
+
+A grader step has:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `name` | Yes | Unique alphanumeric/dash identifier, such as `tests` |
+| `run` | Yes | Shell command to run from the workspace root |
+| `description` | No | Short context shown to the agent when failures are reported |
+| `required` | No | Defaults to `true`; required failures trigger repair iterations |
+| `timeout_minutes` | No | Defaults to 15 and is capped at 30 |
 
 Commands run from the workspace root under `bash -c`, so quoting, pipes,
 and `&&` work. Each command has a 10 minute timeout. The environment is
 scrubbed to a small safe allowlist so the Syrus worker's own Bundler,
 Rails, or production environment settings do not leak into the target
 repo's install.
+
+Grader commands also run from the workspace root. `grader_fanout`
+materializes one immutable grader Step per configured grader for each
+iteration, and `grader_collect` fails only when required graders fail.
+Advisory graders still run and are visible in logs, but they do not by
+themselves force another repair iteration.
 
 If `.syrus.yml` is missing, Syrus auto-detects one setup command from the
 first matching file:
@@ -87,6 +116,20 @@ Or, equivalently:
 prepare: false
 ```
 
+A repo with required tests and advisory lint:
+
+```yaml
+prepare:
+  - npm ci
+grade:
+  steps:
+    - name: tests
+      run: npm test -- --runInBand
+    - name: lint
+      run: npm run lint
+      required: false
+```
+
 ## Per-User Settings
 
 Each user owns their own credentials and agent preferences.
@@ -99,6 +142,7 @@ Each user owns their own credentials and agent preferences.
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag |
 | Scheduling paused | Skips scheduled task firing for that user |
+| Auto-approval mode | Controls whether eligible Jobs can be approved automatically |
 | Admin API token | Admin-only bearer token for `/api/v1/admin/*` diagnostics, including Jobs, Runs, queue/processes, and chat transcripts; shown once on rotation |
 
 Provider selection resolves from most specific to least specific:
@@ -125,7 +169,11 @@ Repository settings are stored in Syrus, not in `.syrus.yml`.
 | Trigger label | `syrus` | Label that turns an issue into a Job |
 | Polling enabled | `true` | If disabled, scheduled pollers skip the repo |
 | Agent provider override | Blank | If set, new Jobs for the repo use this provider instead of the user's default |
+| Prepare enabled | `true` | If disabled, workflows skip the prepare Step for Jobs in this repo |
 | PR cost footer | `true` | Adds or updates a cost footer on PRs when cost data exists |
+| Auto-merge enabled | `false` | Allows approved Jobs to enter the auto-merge landing workflow |
+| Approval propagates to GitHub | `true` | Syrus-side approvals can be mirrored as GitHub PR reviews |
+| Auto-approval mode | Inherited/blank | Controls whether eligible repo Jobs can be approved automatically |
 | Default issue workflow | `initial` | Label-triggered issues currently use the built-in Initial template |
 
 The default workflow is not a free-form per-repo template yet. In the

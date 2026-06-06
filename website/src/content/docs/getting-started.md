@@ -15,6 +15,10 @@ Syrus opens the pull request. Pollers notice the outside world,
 workers run the agent, and the web UI shows the Job, transcript,
 diff, and PR link as the work moves through the pipeline.
 
+The first run sequence is deliberately small: choose a path, boot Syrus,
+add credentials, register a repository, label one small issue, and confirm
+the PR opens.
+
 :::tip
 If you only want to see what the agent does to your own code, start
 with the [60-second local evaluation](/docs/deployment/try-it-locally).
@@ -36,6 +40,10 @@ The full deployment overview lives at [Deployment](/docs/deployment).
 Docker Compose is the recommended first real setup because it exercises
 the actual GitHub polling and PR flow without asking you to design a
 cluster on day one.
+
+Compose and Kubernetes pages currently document target flows for packaging
+that is still being polished. The product behavior is the important part:
+the exact deployment commands may change as those artifacts land.
 :::
 
 ## First Successful Run
@@ -46,10 +54,6 @@ register a repository, label one small issue, and confirm the PR opens.
 Keep it small: a typo fix, a short docs update, or one obvious failing
 test. You are proving credentials, polling, workspace setup, agent
 invocation, push, and PR creation before asking for broader work.
-
-Compose and Kubernetes pages currently document target flows for packaging
-that is still being polished, so the exact deployment commands may change
-as those artifacts land.
 
 ## 1. Start Syrus
 
@@ -65,8 +69,7 @@ operator has provided. You need:
 
 ## 2. Add Credentials
 
-Open the web UI and sign up. Create the first admin by registering the
-first user.
+Open the web UI and sign up. The first user becomes an admin.
 
 After that, go to **Credentials** and add:
 
@@ -105,7 +108,7 @@ turns a simple first run into an operations problem.
 
 `prepare: []` or `prepare: false` opts out. If `.syrus.yml` is absent,
 Syrus auto-detects one setup command from common files such as `Gemfile`,
-`package-lock.json`, or `package.json`.
+`yarn.lock`, `pnpm-lock.yaml`, `package-lock.json`, or `package.json`.
 
 ## 4. Trigger The First Job
 
