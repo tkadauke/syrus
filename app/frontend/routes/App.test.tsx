@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { App } from "./App"
 import type { BootstrapPayload } from "../api/bootstrap"
 import type { JobStep } from "../api/jobs"
@@ -22,6 +22,11 @@ const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
     callback(new Blob(["screenshot"], { type: "image/png" }))
   }
 })))
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
+}
 
 vi.mock("@rails/actioncable", () => ({
   createConsumer: () => ({
@@ -1079,10 +1084,10 @@ describe("App", () => {
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
     expect(screen.getByRole("link", { name: "kanban" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=kanban")
-    expect(screen.getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list")
-    expect(screen.getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+    expect(screen.getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list&ownership_scope=team")
+    expect(screen.getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=team")
     expect(screen.getByRole("link", { name: "Jobs" })).toHaveClass("bg-blue-50", "text-blue-700", "ring-blue-600")
-    expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows?view=list")
+    expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows?view=list&ownership_scope=team")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveAttribute("href", "/app-shell/epics/new")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveClass("bg-blue-600", "text-white")
     expect(screen.getByRole("link", { name: "New Job" })).toHaveAttribute("href", "/app-shell/jobs/new")
@@ -1454,8 +1459,97 @@ describe("App", () => {
     expect(within(scopeNav).getByRole("link", { name: "Team" })).toHaveClass("bg-gray-900", "text-white")
     expect(within(scopeNav).getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
     expect(within(scopeNav).getByRole("link", { name: "User" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=user&owner_id=1")
+    const subjectNav = screen.getByRole("navigation", { name: "Dashboard subjects" })
+    expect(within(subjectNav).getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list&ownership_scope=team")
+    expect(within(subjectNav).getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows?view=list&ownership_scope=team")
     expect(screen.getByText("Teammate")).toBeInTheDocument()
     expect(screen.queryByText("Operator")).not.toBeInTheDocument()
+  })
+
+  it("lets dashboard user scope pick a teammate without dropping the current view", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard?view=kanban&ownership_scope=user&owner_id=1&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "kanban",
+                ownership: { scope: "user", owner_id: 1, team_user_count: 2, badges_visible: true },
+                ownership_scope: {
+                  scope: "user",
+                  owner_user_id: 1,
+                  owner_user: { id: 1, name: "Operator", email_address: "operator@example.com" }
+                },
+                preferences: {
+                  sort: { column: "created_at", direction: "desc" },
+                  visible_columns: ["checkbox", "issue", "state", "repository", "latest", "workflows_count", "started"],
+                  kanban_lanes: ["queued", "running", "succeeded"],
+                  ownership_scope: "user",
+                  owner_user_id: 1,
+                  owner_id: 1,
+                  raw: {}
+                }
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      if (path === "/api/v1/app/dashboard?view=kanban&ownership_scope=user&owner_id=2&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "kanban",
+                ownership: { scope: "user", owner_id: 2, team_user_count: 2, badges_visible: true },
+                ownership_scope: {
+                  scope: "user",
+                  owner_user_id: 2,
+                  owner_user: { id: 2, name: "Teammate", email_address: "teammate@example.com" }
+                },
+                preferences: {
+                  sort: { column: "created_at", direction: "desc" },
+                  visible_columns: ["checkbox", "issue", "state", "repository", "latest", "workflows_count", "started"],
+                  kanban_lanes: ["queued", "running", "succeeded"],
+                  ownership_scope: "user",
+                  owner_user_id: 2,
+                  owner_id: 2,
+                  raw: {}
+                }
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=kanban&ownership_scope=user&owner_id=1"]}>
+          <App />
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const ownerSelect = await screen.findByLabelText("Dashboard owner")
+    expect(ownerSelect).toHaveValue("1")
+    fireEvent.change(ownerSelect, { target: { value: "2" } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs?view=kanban&ownership_scope=user&owner_id=2")
+    })
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/dashboard?view=kanban&ownership_scope=user&owner_id=2&subject=job",
+      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+    )
   })
 
   it("keeps dashboard folders and filters collapsed on mobile", async () => {

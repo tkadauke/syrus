@@ -237,6 +237,10 @@ function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-
     { key: "job", label: "Jobs", path: "/dashboard/jobs" },
     { key: "workflow", label: "Workflows", path: "/dashboard/workflows" }
   ]
+  const ownershipParams: Record<string, string | number | null> = {
+    ownership_scope: payload.ownership.scope,
+    owner_id: payload.ownership.scope === "user" ? payload.ownership.owner_id : null
+  }
 
   return (
     <nav aria-label="Dashboard subjects" className={className}>
@@ -244,7 +248,7 @@ function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-
         <Link
           className={`px-3 py-1.5 font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600" : "text-gray-700 hover:bg-gray-50"}`}
           key={subject.key}
-          to={dashboardLink(`${prefix}${subject.path}`, { view: payload.view })}
+          to={dashboardLink(`${prefix}${subject.path}`, { view: payload.view, ...ownershipParams })}
         >
           {subject.label}
         </Link>

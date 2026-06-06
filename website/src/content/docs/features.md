@@ -122,6 +122,10 @@ When more than one user exists, the app shows a team directory with each
 member's role, profile link, and lightweight workload counts. Single-user
 instances keep the primary navigation focused on the solo operator's work.
 
+The dashboard can switch between Mine, Team, Claimable, and a specific
+User scope so operators can move between personal queues, shared team
+work, and unclaimed work without leaving the current dashboard view.
+
 That model keeps solo operation simple and team operation centralized
 without turning every run into a shared global credential.
 
