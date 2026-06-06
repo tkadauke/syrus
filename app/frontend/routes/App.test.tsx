@@ -1434,6 +1434,12 @@ describe("App", () => {
                     title: "Theirs",
                     owner_user: { id: 2, name: "Teammate", email_address: "teammate@example.com" },
                     owner_badge: { label: "Teammate", kind: "other_user" }
+                  }),
+                  dashboardJobItem({
+                    id: 44,
+                    title: "Claimable",
+                    owner_user: null,
+                    owner_badge: { label: "Claimable", kind: "claimable" }
                   })
                 ]
               })
@@ -1458,13 +1464,58 @@ describe("App", () => {
     expect(within(scopeNav).getByRole("link", { name: "Mine" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=mine")
     expect(within(scopeNav).getByRole("link", { name: "Team" })).toHaveClass("bg-gray-900", "text-white")
     expect(within(scopeNav).getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+    expect(within(scopeNav).getByRole("link", { name: "Claimable" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=claimable")
     expect(within(scopeNav).getByRole("link", { name: "User" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=user&owner_id=1")
     const subjectNav = screen.getByRole("navigation", { name: "Dashboard subjects" })
     expect(within(subjectNav).getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list&ownership_scope=team")
     expect(within(subjectNav).getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows?view=list&ownership_scope=team")
     expect(screen.getByText("You")).toBeInTheDocument()
     expect(screen.getByText("Teammate")).toBeInTheDocument()
+    expect(screen.getAllByText("Claimable").length).toBeGreaterThanOrEqual(2)
     expect(screen.queryByText("Operator")).not.toBeInTheDocument()
+  })
+
+  it("suppresses dashboard ownership controls and owner badges for single-user teams", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false },
+            items: [
+              dashboardJobItem({
+                title: "Solo road",
+                owner_badge: null,
+                owner_user: { id: 1, name: "Operator", email_address: "operator@example.com" }
+              }),
+              dashboardJobItem({
+                id: 43,
+                title: "Unassigned road",
+                owner_badge: null,
+                owner_user: null
+              })
+            ]
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "Solo road" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Unassigned road" })).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Dashboard ownership scope" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Dashboard owner")).not.toBeInTheDocument()
+    expect(screen.queryByText("You")).not.toBeInTheDocument()
+    expect(screen.queryByText("Claimable")).not.toBeInTheDocument()
   })
 
   it("lets dashboard user scope pick a teammate without dropping the current view", async () => {

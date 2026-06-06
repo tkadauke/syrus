@@ -233,7 +233,7 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "filters dashboard records by ownership scope and persists the preference" do
-      teammate = Factories.user(email_address: "teammate@example.com")
+      teammate = Factories.user(email_address: "teammate@example.com", name: "Teammate")
       mine = Factories.job_record(repository: repo, issue_number: 11, issue_title: "My aqueduct", owner_user: user)
       teammate_job = Factories.job_record(repository: repo, issue_number: 12, issue_title: "Their forum", owner_user: teammate)
       claimable = Factories.job_record(repository: repo, issue_number: 13, issue_title: "Loose road", owner_user: nil)
@@ -321,7 +321,7 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "keeps explicit team and user scopes available for dashboard coordination" do
-      teammate = Factories.user(email_address: "teammate@example.com")
+      teammate = Factories.user(email_address: "teammate@example.com", name: "Teammate")
       mine = Factories.job_record(repository: repo, issue_number: 31, issue_title: "My basilica", owner_user: user)
       teammate_job = Factories.job_record(repository: repo, issue_number: 32, issue_title: "Their basilica", owner_user: teammate)
       claimable = Factories.job_record(repository: repo, issue_number: 33, issue_title: "Loose basilica", owner_user: nil)
@@ -340,6 +340,64 @@ RSpec.describe "App API dashboard commands", type: :request do
         "email_address" => "teammate@example.com"
       )
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ teammate_job.id ])
+    end
+
+    it "returns owner badges for team dashboards and hides them for single-user dashboards" do
+      mine = Factories.job_record(repository: repo, issue_number: 41, issue_title: "My column", owner_user: user)
+      claimable = Factories.job_record(repository: repo, issue_number: 42, issue_title: "Loose column", owner_user: nil)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "team" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership", "team_user_count")).to eq(1)
+      expect(body.dig("ownership", "badges_visible")).to eq(false)
+      expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(mine.id, claimable.id)
+      expect(body["items"].map { |item| item.fetch("owner_badge") }).to all(be_nil)
+
+      teammate = Factories.user(email_address: "teammate@example.com", name: "Teammate")
+      teammate_job = Factories.job_record(repository: repo, issue_number: 43, issue_title: "Their column", owner_user: teammate)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "team" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      badges = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("owner_badge") }
+      expect(body.dig("ownership", "team_user_count")).to eq(2)
+      expect(body.dig("ownership", "badges_visible")).to eq(true)
+      expect(badges).to include(
+        mine.id => { "label" => "You", "kind" => "current_user" },
+        claimable.id => { "label" => "Claimable", "kind" => "claimable" },
+        teammate_job.id => { "label" => "Teammate", "kind" => "other_user" }
+      )
+    end
+
+    it "applies user ownership filters to workflows and emits job owner badges" do
+      teammate = Factories.user(email_address: "teammate@example.com", name: "Teammate")
+      mine = Factories.job_record(repository: repo, issue_number: 51, issue_title: "My arch", owner_user: user)
+      teammate_job = Factories.job_record(repository: repo, issue_number: 52, issue_title: "Their arch", owner_user: teammate)
+      claimable = Factories.job_record(repository: repo, issue_number: 53, issue_title: "Loose arch", owner_user: nil)
+      mine_workflow = Workflow.create!(job: mine, trigger_kind: "initial", state: "queued")
+      teammate_workflow = Workflow.create!(job: teammate_job, trigger_kind: "initial", state: "running")
+      claimable_workflow = Workflow.create!(job: claimable, trigger_kind: "initial", state: "failed")
+
+      get "/api/v1/app/dashboard", params: { subject: "workflow", scope: "user", owner_id: teammate.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("ownership_scope", "owner_user")).to include("id" => teammate.id, "email_address" => "teammate@example.com")
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ teammate_workflow.id ])
+      expect(body.dig("items", 0, "job", "owner_badge")).to be_nil
+
+      get "/api/v1/app/dashboard", params: { subject: "workflow", scope: "team" }
+
+      expect(response).to have_http_status(:ok)
+      badges = parse_body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.dig("job", "owner_badge") }
+      expect(badges).to include(
+        mine_workflow.id => { "label" => "You", "kind" => "current_user" },
+        teammate_workflow.id => { "label" => "Teammate", "kind" => "other_user" },
+        claimable_workflow.id => { "label" => "Claimable", "kind" => "claimable" }
+      )
     end
 
     it "returns validation errors for invalid dashboard ownership params" do
