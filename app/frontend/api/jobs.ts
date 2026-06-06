@@ -112,20 +112,6 @@ export type JobCredentialSummary = {
   user_label: string | null
 }
 
-export type JobCredentialUser = {
-  id: number
-  email_address: string
-}
-
-export type JobCredentialSummary = {
-  mode: string
-  label: string
-  description: string
-  status: string
-  account_login: string | null
-  user_label: string | null
-}
-
 export type JobTag = {
   id: number
   name: string
