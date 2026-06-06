@@ -68,6 +68,7 @@ export type JobRecord = {
   claimed_by_user: JobOwner | null
   claimed_by_current_user: boolean
   total_cost_usd: number | null
+  owner_badge: JobOwnerBadge | null
   billed_runs_count: number
   workflows_count: number
   runs_count: number
@@ -83,6 +84,12 @@ export type JobRecord = {
 export type JobOwnerUser = {
   id: number
   email_address: string
+  display_name?: string
+}
+
+export type JobOwnerBadge = {
+  label: string
+  kind: string
 }
 
 export type JobOwner = {

@@ -91,7 +91,8 @@ RSpec.describe "App API job detail", type: :request do
     expect(body["job"].to_json).not_to include("ghp_never_render_this", "github_token")
     expect(body["job"]).to include(
       "owner_user_id" => owner.id,
-      "owner_user" => include("id" => owner.id, "email_address" => "owner@example.com")
+      "owner_user" => include("id" => owner.id, "email_address" => "owner@example.com"),
+      "owner_badge" => include("label" => owner.team_display_name, "kind" => "other")
     )
     expect(body.dig("job", "pr_url")).to eq("https://github.com/acme/widgets/pull/7")
     expect(body.dig("job", "issue_url")).to eq("https://github.com/acme/widgets/issues/#{job.issue_number}")

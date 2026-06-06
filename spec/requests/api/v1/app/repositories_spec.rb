@@ -200,7 +200,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
     active_note = repository.repository_notes.create!(body: "Use staging for smoke tests.", author: "operator")
     repository.repository_notes.create!(body: "Removed context.", author: "agent", removed_at: Time.current)
+    other_owner = Factories.user(email_address: "teammate@example.com")
     failed = Factories.job(repository: repository, issue_number: 1, issue_title: "Fix forum")
+    failed.update!(owner_user: other_owner)
     failed.current_run.update!(state: "failed", finished_at: Time.current)
     failed.latest_workflow.update!(
       state: "failed",
@@ -208,6 +210,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       artifacts: { "failure_classification" => "agent_timeout", "auto_retry_exhausted" => true }
     )
     running = Factories.job(repository: repository, issue_number: 2, issue_title: "Survey aqueduct")
+    running.update!(owner_user: user)
     running.current_run.update!(state: "running", started_at: Time.current)
     queued = Factories.job(repository: repository, issue_number: 3, issue_title: "Polish marble")
     queued.current_run.update!(state: "queued")
@@ -255,9 +258,11 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
           "classification" => "agent_timeout",
           "auto_retry_exhausted" => true,
           "state_label" => "Auto-retry exhausted"
-        )
+        ),
+        "owner_user" => include("id" => other_owner.id, "email_address" => "teammate@example.com"),
+        "owner_badge" => include("label" => other_owner.team_display_name, "kind" => "other")
       ),
-      include("id" => running.id, "issue_title" => "Survey aqueduct"),
+      include("id" => running.id, "issue_title" => "Survey aqueduct", "owner_badge" => nil),
       include("id" => queued.id, "issue_title" => "Polish marble")
     )
     expect(body.to_s).not_to include("Private")

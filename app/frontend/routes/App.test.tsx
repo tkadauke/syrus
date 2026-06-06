@@ -4416,6 +4416,7 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Repositories" })).toHaveClass("max-w-[96rem]")
     expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Working repository" })).toBeInTheDocument()
+    expect(screen.queryByText(/Syrus owner/)).not.toBeInTheDocument()
     expect(screen.getByText("rails/rails")).toBeInTheDocument()
     expect(screen.getByText("old/repo")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Add" })).toHaveAttribute("href", "/app-shell/repositories/new")
@@ -4746,6 +4747,46 @@ describe("App", () => {
     expect(screen.getByText("1 running")).toBeInTheDocument()
     expect(screen.getByText("1 queued")).toBeInTheDocument()
     expect(screen.getByText("1 failed 7d")).toBeInTheDocument()
+  })
+
+  it("shows repository job owner badges only for someone else's work", async () => {
+    const basePayload = repositoryDetailPayload()
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        ...basePayload,
+        jobs: [
+          {
+            ...basePayload.jobs[0],
+            id: 44,
+            issue_title: "Mine",
+            owner_user_id: 9,
+            owner_user: basePayload.repository.owner_user,
+            owner_badge: null
+          },
+          {
+            ...basePayload.jobs[0],
+            id: 45,
+            issue_title: "Theirs",
+            job_path: "/jobs/45",
+            owner_user_id: 10,
+            owner_user: { id: 10, display_name: "Teammate", email_address: "teammate@example.com", admin: false, profile_path: "/profiles/10" },
+            owner_badge: { label: "Teammate", kind: "other" }
+          }
+        ]
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/3"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "Mine" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Theirs" })).toBeInTheDocument()
+    expect(screen.getByText("Teammate")).toBeInTheDocument()
   })
 
   it("runs repository note commands through the app API", async () => {
@@ -5530,6 +5571,30 @@ describe("App", () => {
     expect(screen.getByText("implemented")).toBeInTheDocument()
     expect(screen.getByText("codex")).toBeInTheDocument()
     expect(screen.getByText("pat")).toBeInTheDocument()
+  })
+
+  it("shows a Job detail owner badge only for someone else's work", async () => {
+    const payload = jobDetailPayload({
+      job: {
+        owner_user_id: 10,
+        owner_user: { id: 10, email_address: "teammate@example.com", display_name: "Teammate" },
+        owner_badge: { label: "Teammate", kind: "other" }
+      }
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Repair aqueduct" })).toBeInTheDocument()
+    expect(screen.getByText("Teammate")).toBeInTheDocument()
   })
 
   it("links to the Epic from the Job detail summary when the Job belongs to one", async () => {
@@ -8527,6 +8592,9 @@ function repositoryDetailPayload() {
         external_pr_url: null,
         current_step_caption: "currently: Implement (workflow: Initial)",
         runs_count: 2,
+        owner_user_id: null,
+        owner_user: null,
+        owner_badge: null,
         updated_at: "2026-05-30T12:00:00Z"
       }
     ],
@@ -9030,6 +9098,9 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       claimed_by_user: null,
       claimed_by_current_user: false,
       total_cost_usd: 0.1234,
+      owner_user_id: null,
+      owner_user: null,
+      owner_badge: null,
       billed_runs_count: 1,
       workflows_count: 1,
       runs_count: 1,

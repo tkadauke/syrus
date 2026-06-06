@@ -142,6 +142,7 @@ function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { 
                 <JobSourceLink payload={payload} />
               </p>
               <StatusPill state={payload.job.summary_state} />
+              <OwnerBadge badge={payload.job.owner_badge} />
               {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
               {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
             </div>
@@ -167,6 +168,12 @@ function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { 
       {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} /> : null}
     </>
   )
+}
+
+function OwnerBadge({ badge }: { badge: JobDetailPayload["job"]["owner_badge"] }) {
+  if (!badge) return null
+
+  return <SmallPill>{badge.label}</SmallPill>
 }
 
 function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, onNotice: (message: string | null) => void) {

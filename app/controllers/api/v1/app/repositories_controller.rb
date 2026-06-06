@@ -242,7 +242,7 @@ module Api
 
         def repository_detail_payload(repository, page:, message: nil)
           jobs_scope = repository.jobs
-            .includes(:runs, :scheduled_task, workflows: :steps)
+            .includes(:owner_user, :runs, :scheduled_task, workflows: :steps)
             .order(updated_at: :desc)
           total_jobs = repository.jobs.count
           total_pages = [ (total_jobs / PER_PAGE.to_f).ceil, 1 ].max
@@ -527,8 +527,25 @@ module Api
             current_step_caption: ::App::Presentation.current_step_caption(job),
             retry_state: ::App::RetryState.for(job),
             runs_count: job.runs.size,
+            owner_user_id: job.owner_user_id,
+            owner_user: owner_user_json(job.owner_user),
+            owner_badge: owner_badge_for(job.owner_user),
             updated_at: job.updated_at.iso8601
           }
+        end
+
+        def owner_badge_for(owner_user)
+          return nil if team_user_count <= 1
+          return nil if owner_user.nil? || owner_user.id == Current.user.id
+
+          {
+            label: owner_user.team_display_name,
+            kind: "other"
+          }
+        end
+
+        def team_user_count
+          @team_user_count ||= User.count
         end
 
         def job_source_json(job)

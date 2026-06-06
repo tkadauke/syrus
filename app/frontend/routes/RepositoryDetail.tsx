@@ -616,6 +616,7 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
       <td className="px-4 py-3">
         <SourceLink job={job} prefix={prefix} />
         {job.issue_title ? <Link className="ml-1 text-gray-700 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title}</Link> : null}
+        <OwnerBadge badge={job.owner_badge} />
         {job.pr_number && job.pr_url ? <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">PR #{job.pr_number}</a> : null}
         {job.external_pr_number && job.external_pr_url ? <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">PR #{job.external_pr_number}</a> : null}
         {job.current_step_caption ? <div className="mt-0.5 text-xs italic text-gray-500">{job.current_step_caption}</div> : null}
@@ -646,6 +647,12 @@ function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
       {retry.next_auto_retry_at ? <span>next {formatRelative(retry.next_auto_retry_at)}</span> : null}
     </div>
   )
+}
+
+function OwnerBadge({ badge }: { badge: RepositoryDetailJob["owner_badge"] }) {
+  if (!badge) return null
+
+  return <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">{badge.label}</span>
 }
 
 function SourceLink({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {

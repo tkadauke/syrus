@@ -88,6 +88,7 @@ module App
         approved_by_user_id: @job.approved_by_user_id,
         owner_user_id: @job.owner_user_id,
         owner_user: owner_user_json(@job.owner_user),
+        owner_badge: owner_badge_for(@job.owner_user),
         approval_evidence: @job.approval_evidence,
         claimed_at: iso8601(@job.claimed_at),
         claimed_by_user: owner_json(@job.claimed_by_user),
@@ -150,8 +151,23 @@ module App
 
       {
         id: owner_user.id,
-        email_address: owner_user.email_address
+        email_address: owner_user.email_address,
+        display_name: owner_user.team_display_name
       }
+    end
+
+    def owner_badge_for(owner_user)
+      return nil if team_user_count <= 1
+      return nil if owner_user.nil? || owner_user.id == @user.id
+
+      {
+        label: owner_user.team_display_name,
+        kind: "other"
+      }
+    end
+
+    def team_user_count
+      @team_user_count ||= User.count
     end
 
     def credential_user_json(credential_user)

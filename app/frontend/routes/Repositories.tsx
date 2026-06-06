@@ -141,9 +141,6 @@ function RepositoryTable({
                 </div>
               ) : null}
               <div className="mt-0.5 text-xs text-gray-500">
-                Syrus owner {repository.owner_user.email_address}
-              </div>
-              <div className="mt-0.5 text-xs text-gray-500">
                 <span className="font-mono">{repository.default_branch}</span>
                 <span className="mx-1 text-gray-300">·</span>
                 label <code className="rounded bg-gray-100 px-1">{repository.trigger_label}</code>

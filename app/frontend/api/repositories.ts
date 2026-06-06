@@ -248,7 +248,15 @@ export type RepositoryDetailJob = {
   current_step_caption: string | null
   retry_state?: JobRetryState
   runs_count: number
+  owner_user_id: number | null
+  owner_user: RepositoryOwnerUser | null
+  owner_badge: RepositoryOwnerBadge | null
   updated_at: string
+}
+
+export type RepositoryOwnerBadge = {
+  label: string
+  kind: string
 }
 
 export type RepositoryIssuesPayload = {
