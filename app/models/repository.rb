@@ -34,6 +34,7 @@ class Repository < ApplicationRecord
   }
   validates :owner, uniqueness: { scope: [ :user_id, :name ], case_sensitive: false }
   validate :upstream_owner_and_name_are_paired
+  validate :upstream_default_branch_requires_target
 
   before_validation :normalize_agent_provider
   before_validation :normalize_upstream_metadata
@@ -113,6 +114,13 @@ class Repository < ApplicationRecord
     return if upstream_owner.present? && upstream_name.present?
 
     errors.add(:upstream_owner, "and upstream name must both be present")
+  end
+
+  def upstream_default_branch_requires_target
+    return if upstream_default_branch.blank?
+    return if upstream_owner.present? && upstream_name.present?
+
+    errors.add(:upstream_default_branch, "requires upstream owner and name")
   end
 
   def link_installation_from_owner

@@ -505,6 +505,27 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(parse_body.dig("error", "message")).to include("Owner")
   end
 
+  it "rejects upstream branch metadata without an upstream repository" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/repositories", params: {
+        repository: {
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          upstream_owner: "",
+          upstream_name: "",
+          upstream_default_branch: "main",
+          trigger_label: "syrus"
+        }
+      }
+    }.not_to change(user.repositories, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Upstream default branch requires upstream owner and name")
+  end
+
   it "updates repositories" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
@@ -544,6 +565,36 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(repository.github_owner_id).to eq(123)
     expect(repository.github_repository_id).to eq(456)
     expect(parse_body).to include("message" => "Repository acme/widgets updated.", "redirect_to" => repositories_path)
+  end
+
+  it "clears upstream metadata on update" do
+    sign_in_as(user)
+    repository = Factories.repository(
+      user: user,
+      owner: "acme",
+      name: "widgets",
+      upstream_owner: "rails",
+      upstream_name: "rails",
+      upstream_default_branch: "main"
+    )
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: {
+      repository: {
+        owner: "acme",
+        name: "widgets",
+        default_branch: "main",
+        upstream_owner: "",
+        upstream_name: "",
+        upstream_default_branch: "",
+        trigger_label: "syrus"
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    repository.reload
+    expect(repository.upstream_owner).to be_nil
+    expect(repository.upstream_name).to be_nil
+    expect(repository.upstream_default_branch).to be_nil
   end
 
   it "enqueues a forced poll and returns the refreshed index payload" do

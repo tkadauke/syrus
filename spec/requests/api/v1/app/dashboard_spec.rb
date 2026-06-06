@@ -440,7 +440,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       get "/api/v1/app/dashboard", params: { subject: "job", scope: "user" }
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(parse_body.dig("error", "message")).to eq("owner_id is required for dashboard scope user")
+      expect(parse_body.dig("error", "message")).to eq("owner_user_id is required for dashboard scope user")
 
       get "/api/v1/app/dashboard", params: { subject: "job", scope: "user", owner_id: 99_999_999 }
 

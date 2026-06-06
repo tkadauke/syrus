@@ -85,6 +85,10 @@ RSpec.describe Repository do
     expect(incomplete).not_to be_valid
     expect(incomplete.errors[:upstream_owner]).to be_present
 
+    branch_only = Repository.new(user: owner, owner: "acme", name: "widgets", upstream_default_branch: "main")
+    expect(branch_only).not_to be_valid
+    expect(branch_only.errors[:upstream_default_branch]).to include("requires upstream owner and name")
+
     malformed = Repository.new(user: owner, owner: "acme", name: "widgets", upstream_owner: "bad owner", upstream_name: "rails")
     expect(malformed).not_to be_valid
     expect(malformed.errors[:upstream_owner]).to be_present

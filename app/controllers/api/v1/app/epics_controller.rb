@@ -199,7 +199,7 @@ module Api
             description: epic.description.to_s,
             state: epic.state,
             owner: owner_json(epic.owner),
-            owned_by_current_user: epic.owner_user_id == Current.user.id || epic.claimed_by?(Current.user),
+            owned_by_current_user: epic_owned_by_current_user?(epic),
             claimable: epic.claimable?,
             claimed_at: epic.claimed_at&.iso8601,
             github_issue_url: epic.github_issue_url.to_s,
@@ -277,6 +277,10 @@ module Api
           epic.update!(owner_user: owner_user) unless epic.owner_user_id == owner_user.id
 
           render json: detail_payload(epic.reload, message: "Epic reassigned.")
+        end
+
+        def epic_owned_by_current_user?(epic)
+          epic.owner_user_id == Current.user.id || epic.claimed_by?(Current.user)
         end
 
         def owner_user_json(owner_user)

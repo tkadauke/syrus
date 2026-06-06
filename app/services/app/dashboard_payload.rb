@@ -733,7 +733,7 @@ module App
         description: epic.description.to_s,
         state: epic.state,
         owner: owner_json(epic.owner),
-        owned_by_current_user: epic.owner_user_id == user.id || epic.claimed_by?(user),
+        owned_by_current_user: epic_owned_by_current_user?(epic),
         claimable: epic.claimable?,
         owner_badge: owner_badge_for(owner_user, claimable: epic.claimable?),
         claimed_at: epic.claimed_at&.iso8601,
@@ -815,8 +815,16 @@ module App
       job.owner_user || job.user
     end
 
+    def epic_owned_by_current_user?(epic)
+      epic.owner_user_id == user.id || epic.claimed_by?(user)
+    end
+
     def epic_owner_user(epic)
       epic.owner_user || epic.owner
+    end
+
+    def epic_owner_for_display(epic)
+      epic_owner_user(epic)
     end
 
     def owner_badge_for(owner_user, claimable: false)

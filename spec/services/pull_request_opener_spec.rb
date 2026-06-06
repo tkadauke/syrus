@@ -67,4 +67,34 @@ RSpec.describe PullRequestOpener do
       body: "B"
     )
   end
+
+  it "does not automatically open pull requests against upstream metadata" do
+    fork = Factories.repository(
+      user: user,
+      owner: "octavia",
+      name: "widgets",
+      default_branch: "main",
+      upstream_owner: "rails",
+      upstream_name: "rails",
+      upstream_default_branch: "main"
+    )
+    fake_pr = double(number: 102)
+    fake_client = instance_double(GithubClient, create_pull_request: fake_pr)
+
+    opener = described_class.new(fork, client: fake_client)
+    pr_number = opener.open(branch: "syrus/issue-4-4", title: "T", body: "B")
+
+    expect(pr_number).to eq(102)
+    expect(fake_client).to have_received(:create_pull_request).with(
+      "octavia/widgets",
+      base: "main",
+      head: "octavia:syrus/issue-4-4",
+      title: "T",
+      body: "B"
+    )
+    expect(fake_client).not_to have_received(:create_pull_request).with(
+      "rails/rails",
+      anything
+    )
+  end
 end

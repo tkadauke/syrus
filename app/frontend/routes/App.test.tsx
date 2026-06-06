@@ -3922,7 +3922,7 @@ describe("App", () => {
     fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Lovelace" } })
     fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } })
     fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Lovelace" } })
-    fireEvent.change(screen.getByLabelText("Profile bio"), { target: { value: "Mathematician and operator." } })
+    fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "Mathematician and operator." } })
     fireEvent.change(screen.getByLabelText("Company"), { target: { value: "Analytical Engines Ltd" } })
     fireEvent.change(screen.getByLabelText("Location"), { target: { value: "London" } })
     fireEvent.change(screen.getByLabelText("Website"), { target: { value: "https://example.com/ada" } })
@@ -4644,9 +4644,9 @@ describe("App", () => {
           name: "widgets",
           slug: "acme/widgets",
           default_branch: "main",
-          upstream_owner: "",
-          upstream_name: "",
-          upstream_default_branch: "",
+          upstream_owner: "rails",
+          upstream_name: "rails",
+          upstream_default_branch: "main",
           trigger_label: "syrus",
           polling_enabled: true,
           prepare_enabled: true,
@@ -4671,9 +4671,14 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Edit Repository" })).toBeInTheDocument()
     expect(await screen.findByDisplayValue("acme")).toBeInTheDocument()
+    expect(screen.getAllByDisplayValue("rails")).toHaveLength(2)
+    expect(screen.getAllByDisplayValue("main")).toHaveLength(2)
     expect(screen.getByRole("link", { name: "Back to repository" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/app-shell/repositories")
     fireEvent.change(screen.getByLabelText("Trigger label"), { target: { value: "delegate" } })
+    fireEvent.change(screen.getByLabelText("Upstream owner"), { target: { value: "" } })
+    fireEvent.change(screen.getByLabelText("Upstream name"), { target: { value: "" } })
+    fireEvent.change(screen.getByLabelText("Upstream default branch"), { target: { value: "" } })
     fireEvent.click(screen.getByRole("button", { name: "Save Repository" }))
 
     await waitFor(() => {
@@ -4682,7 +4687,25 @@ describe("App", () => {
         expect.objectContaining({
           method: "PATCH",
           credentials: "same-origin",
-          body: expect.stringContaining('"trigger_label":"delegate"')
+          body: JSON.stringify({
+            repository: {
+              owner: "acme",
+              name: "widgets",
+              default_branch: "main",
+              upstream_owner: "",
+              upstream_name: "",
+              upstream_default_branch: "",
+              trigger_label: "delegate",
+              polling_enabled: true,
+              prepare_enabled: true,
+              pr_cost_footer_enabled: true,
+              auto_merge_enabled: false,
+              agent_provider: "",
+              auto_approve_mode: "never",
+              github_owner_id: "",
+              github_repository_id: ""
+            }
+          })
         })
       )
     })
