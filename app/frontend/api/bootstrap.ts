@@ -67,6 +67,17 @@ export type BootstrapPayload = {
     alert?: string | null
     notice?: string | null
   }
+  system_alerts?: Array<{
+    id: string
+    severity: "alarm" | "warn" | "info" | string
+    title: string
+    message: string
+    action_steps: string[]
+    cta: {
+      text: string
+      path: string
+    } | null
+  }>
   csrf_token: string
   feature_flags: {
     migrated_routes: string[]

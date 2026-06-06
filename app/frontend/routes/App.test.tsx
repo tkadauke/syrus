@@ -162,6 +162,41 @@ describe("App", () => {
     )
   })
 
+  it("renders system alert banners from bootstrap data", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      system_alerts: [
+        {
+          id: "data_root_disk_usage",
+          severity: "alarm",
+          title: "Worker data volume usage is critical.",
+          message: "SYRUS_DATA_ROOT is 96% full with <code>3.5GB</code> available.",
+          action_steps: [
+            "Inspect retained workflow workspaces under <code>/syrus/workflows</code>."
+          ],
+          cta: { text: "Open admin overview", path: "/admin" }
+        }
+      ]
+    }))
+    document.body.appendChild(script)
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const alerts = await screen.findByRole("region", { name: "System alerts" })
+    expect(within(alerts).getByRole("heading", { name: "Worker data volume usage is critical." })).toBeInTheDocument()
+    expect(within(alerts).getByText("3.5GB")).toBeInTheDocument()
+    expect(within(alerts).getByText("/syrus/workflows")).toBeInTheDocument()
+    expect(within(alerts).getByRole("link", { name: "Open admin overview" })).toHaveAttribute("href", "/app-shell/admin")
+  })
+
   it("renders first-run landing CTA for a new instance", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify(publicBootstrapPayload({ first_signup: true })), {
@@ -883,6 +918,7 @@ describe("App", () => {
           github_api_blocked_users: [],
           provider_circuits: [],
           agent_session_capture_rate: { total: 3, captured: 3, rate: 1.0 },
+          data_root_disk_usage: { path: "/syrus-home/.syrus", filesystem: "/dev/pvc", total_bytes: 100, used_bytes: 90, available_bytes: 10, used_percent: 90, mounted_on: "/syrus-home", observed_at: "2026-06-05T12:00:00Z", level: "warning" },
           workers: { total: 1, stale: 0 },
           recurring: { overdue: [] },
           stuck: [
@@ -930,6 +966,8 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: /Active runs/ })).toHaveAttribute("href", "/app-shell/admin/queue/active")
     expect(screen.getByRole("link", { name: /Stuck things/ })).toHaveAttribute("href", "/app-shell/admin/stuck")
     expect(screen.getByRole("link", { name: "Run #4 silent for 10m" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
+    expect(screen.getByText("Data root disk")).toBeInTheDocument()
+    expect(screen.getByText("90%")).toBeInTheDocument()
     expect(screen.getByText("2")).toBeInTheDocument()
   })
 
@@ -944,6 +982,7 @@ describe("App", () => {
           github_api_blocked_users: [],
           provider_circuits: [],
           agent_session_capture_rate: { total: 0, captured: 0, rate: null },
+          data_root_disk_usage: null,
           workers: { total: 1, stale: 0 },
           recurring: { overdue: [] },
           stuck: []

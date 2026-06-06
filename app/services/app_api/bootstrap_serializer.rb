@@ -17,6 +17,7 @@ module AppApi
         navigation: navigation_payload,
         setup: setup_payload,
         flash: flash_payload,
+        system_alerts: system_alerts_payload,
         csrf_token: @csrf_token,
         feature_flags: {
           migrated_routes: []
@@ -87,6 +88,19 @@ module AppApi
         alert: @flash[:alert].presence,
         notice: @flash[:notice].presence
       }
+    end
+
+    def system_alerts_payload
+      SystemAlerts.active_for(user: user).map do |alert|
+        {
+          id: alert.id,
+          severity: alert.severity.to_s,
+          title: alert.title,
+          message: alert.message,
+          action_steps: alert.action_steps,
+          cta: alert.cta
+        }
+      end
     end
 
     def app_revision

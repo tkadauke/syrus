@@ -23,6 +23,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).to have_key("github_api_blocked_users")
       expect(body).to have_key("provider_circuits")
       expect(body).to have_key("agent_session_capture_rate")
+      expect(body).to have_key("data_root_disk_usage")
       expect(body).not_to have_key("claude_session_capture_rate")
       expect(body).to have_key("workers")
       expect(body).to have_key("recurring")
@@ -104,6 +105,33 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
         "open" => true,
         "failure_count" => 5,
         "job_count" => 5
+      )
+    end
+
+    it "includes worker data-root disk detail" do
+      snapshot = instance_double(
+        DataRootDiskUsage::Snapshot,
+        as_json: {
+          path: "/syrus-home/.syrus",
+          filesystem: "/dev/pvc",
+          total_bytes: 100.gigabytes,
+          used_bytes: 90.gigabytes,
+          available_bytes: 10.gigabytes,
+          used_percent: 90,
+          mounted_on: "/syrus-home",
+          observed_at: "2026-06-05T12:00:00Z",
+          level: "warning"
+        }
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(snapshot)
+
+      get "/api/v1/admin/overview", headers: auth
+
+      expect(parse_body["data_root_disk_usage"]).to include(
+        "path" => "/syrus-home/.syrus",
+        "available_bytes" => 10.gigabytes,
+        "used_percent" => 90,
+        "level" => "warning"
       )
     end
   end

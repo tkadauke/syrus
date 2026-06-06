@@ -17,6 +17,7 @@ module Admin
         github_api_blocked_users: blocked_github_api_users,
         provider_circuits: provider_circuits,
         agent_session_capture_rate: capture_rate_payload,
+        data_root_disk_usage: data_root_disk_usage_payload,
         stuck: stuck_items
       }
 
@@ -80,6 +81,10 @@ module Admin
         captured: captured,
         rate: total.zero? ? nil : (captured.to_f / total).round(3)
       }
+    end
+
+    def data_root_disk_usage_payload
+      DataRootDiskUsage.current&.as_json
     end
 
     def workers_payload

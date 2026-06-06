@@ -4,6 +4,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
   before do
     AppSetting.current.update!(polling_paused: false, runs_paused: false)
     allow(GithubClient).to receive(:for_user).and_return(instance_double(GithubClient, readiness_check!: true))
+    allow(DataRootDiskUsage).to receive(:current).and_return(nil)
   end
 
   def parse_body
@@ -93,7 +94,24 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body.dig("setup", "next_step")).to eq("credentials")
     expect(body.dig("setup", "paths", "setup_path")).to eq(setup_path)
     expect(body["csrf_token"]).to be_present
+    expect(body["system_alerts"]).to eq([])
     expect(body["feature_flags"]).to eq("migrated_routes" => [])
+  end
+
+  it "serializes active system alerts for the SPA shell" do
+    user = Factories.user
+    sign_in_as(user)
+    user.mark_gh_api_blocked!("Resource not accessible by personal access token")
+
+    get api_v1_app_bootstrap_path
+
+    alert = parse_body.fetch("system_alerts").find { |row| row["id"] == "github_token_scope:#{user.id}" }
+    expect(alert).to include(
+      "severity" => "alarm",
+      "title" => a_string_matching(/GitHub API access/i),
+      "cta" => { "text" => "Update token", "path" => "/credentials/edit" }
+    )
+    expect(alert.fetch("action_steps")).not_to be_empty
   end
 
   it "reports credentials-only setup status without exposing write-only credential values" do

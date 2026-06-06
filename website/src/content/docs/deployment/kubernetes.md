@@ -112,7 +112,12 @@ running Workflows and cached clone state may need cleanup or retry.
 
 The immediate operational signals are Rails logs, worker logs, queue
 depth, failed Runs, stale running Runs, GitHub rate-limit errors, and
-agent invocation failures. Prometheus integration is planned in
+agent invocation failures. Admin users also see a banner when the worker
+data-root filesystem approaches full: warning at 85% used, critical at
+95% used or less than 5GB free. The banner reports the used percentage,
+available space, and `$SYRUS_DATA_ROOT` path so operators can clean old
+workflow workspaces or resize the PVC before clone and prepare steps
+start failing. Prometheus integration is planned in
 [#197](https://github.com/tkadauke/syrus/issues/197) and
 [#198](https://github.com/tkadauke/syrus/issues/198); until then, route
 container logs to your cluster logging stack and alert on repeated worker

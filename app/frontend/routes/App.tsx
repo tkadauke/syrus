@@ -348,6 +348,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
       </header>
       {showsAdminNavigation(normalizedPath) ? <AdminNavigation normalizedPath={normalizedPath} prefix={prefix} /> : null}
       {showsSettingsNavigation(normalizedPath) ? <SettingsNavigation normalizedPath={normalizedPath} prefix={prefix} /> : null}
+      <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
       <FlashBanner flash={data?.flash} />
       {redirectsToSetup(data, normalizedPath) ? <Navigate replace to={`${prefix}/setup`} /> : children}
       {showsPubliliusSyrusFooter(normalizedPath) ? <PubliliusSyrusFooter quote={quote} /> : null}
@@ -450,6 +451,48 @@ function FlashBanner({ flash }: { flash?: BootstrapPayload["flash"] }) {
     <div className="mx-auto max-w-[96rem] px-6 pt-4">
       <p className={`inline-block rounded border px-3 py-2 text-sm ${tone}`}>{message}</p>
     </div>
+  )
+}
+
+function SystemAlertsBanner({ alerts, prefix }: { alerts?: BootstrapPayload["system_alerts"]; prefix: string }) {
+  const active = alerts || []
+  if (active.length === 0) return null
+
+  return (
+    <section aria-label="System alerts" className="mx-auto max-w-[96rem] space-y-3 px-6 pt-4">
+      {active.map((alert) => <SystemAlertItem alert={alert} key={alert.id} prefix={prefix} />)}
+    </section>
+  )
+}
+
+function SystemAlertItem({ alert, prefix }: { alert: NonNullable<BootstrapPayload["system_alerts"]>[number]; prefix: string }) {
+  const tone = {
+    alarm: "border-red-200 bg-red-50 text-red-900",
+    warn: "border-amber-200 bg-amber-50 text-amber-900",
+    info: "border-blue-200 bg-blue-50 text-blue-900"
+  }[alert.severity] || "border-gray-200 bg-gray-50 text-gray-900"
+
+  return (
+    <article className={`rounded border px-4 py-3 text-sm ${tone}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <h2 className="font-semibold">{alert.title}</h2>
+          <p dangerouslySetInnerHTML={{ __html: alert.message }} />
+          {alert.action_steps.length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5">
+              {alert.action_steps.map((step) => (
+                <li dangerouslySetInnerHTML={{ __html: step }} key={step} />
+              ))}
+            </ul>
+          ) : null}
+        </div>
+        {alert.cta ? (
+          <Link className="inline-flex shrink-0 items-center justify-center rounded border border-current px-3 py-1.5 font-medium hover:bg-white/60" to={withRoutePrefix(alert.cta.path, prefix)}>
+            {alert.cta.text}
+          </Link>
+        ) : null}
+      </div>
+    </article>
   )
 }
 

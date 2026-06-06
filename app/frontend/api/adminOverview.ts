@@ -37,6 +37,17 @@ export type AdminOverviewPayload = {
     captured: number
     rate: number | null
   }
+  data_root_disk_usage: {
+    path: string
+    filesystem: string
+    total_bytes: number
+    used_bytes: number
+    available_bytes: number
+    used_percent: number
+    mounted_on: string
+    observed_at: string
+    level: "ok" | "warning" | "critical" | string
+  } | null
   workers: {
     total?: number
     stale?: number

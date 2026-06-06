@@ -25,6 +25,7 @@ export function AdminOverview() {
   const data = overview.data
   const captureRate = data.agent_session_capture_rate.rate
   const overdueRecurring = data.recurring.overdue || []
+  const dataRoot = data.data_root_disk_usage
 
   return (
     <main aria-label="Admin overview" className="mx-auto max-w-6xl space-y-6 p-6">
@@ -42,6 +43,7 @@ export function AdminOverview() {
         <Metric title="Provider circuits" value={data.provider_circuits.length} context={data.provider_circuits.length > 0 ? data.provider_circuits.map((circuit) => circuit.provider).join(", ") : "all closed"} tone={data.provider_circuits.length > 0 ? "alarm" : "ok"} />
         <Metric title="GitHub rate limits" value={data.github_rate_limits.length} context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : "all healthy"} tone={data.github_rate_limits.length > 0 ? "warn" : "ok"} />
         <Metric title="Agent session capture" value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`} context={`${data.agent_session_capture_rate.captured} of ${data.agent_session_capture_rate.total}`} tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"} />
+        <Metric title="Data root disk" value={dataRoot ? `${dataRoot.used_percent}%` : "?"} context={dataRoot ? `${formatBytes(dataRoot.available_bytes)} free at ${dataRoot.path}` : "unavailable"} tone={dataRootTone(dataRoot?.level)} />
         <Metric title="Stuck things" value={data.stuck.length} context={data.stuck.length > 0 ? "needs attention" : "nothing flagged"} href={withRoutePrefix("/admin/stuck", prefix)} tone={data.stuck.some((item) => item.severity === "alarm") ? "alarm" : data.stuck.length > 0 ? "warn" : "ok"} />
       </section>
 
@@ -134,4 +136,23 @@ function workersContext(workers: { stale?: number; unreachable?: boolean }) {
   if (workers.unreachable) return "queue tables unreachable"
   if (workers.stale && workers.stale > 0) return `${workers.stale} stale`
   return "all healthy"
+}
+
+function dataRootTone(level?: string) {
+  if (level === "critical") return "alarm"
+  if (level === "warning") return "warn"
+  if (level === "ok") return "ok"
+  return "idle"
+}
+
+function formatBytes(bytes: number) {
+  const units: Array<[number, string]> = [
+    [1024 ** 4, "TB"],
+    [1024 ** 3, "GB"],
+    [1024 ** 2, "MB"]
+  ]
+  const [factor, suffix] = units.find(([unit]) => bytes >= unit) || [1024, "KB"]
+  const value = bytes / factor
+
+  return `${value >= 10 ? Math.round(value) : Math.round(value * 10) / 10}${suffix}`
 }

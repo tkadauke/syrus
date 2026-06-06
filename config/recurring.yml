@@ -28,6 +28,9 @@ default: &default
   reap_stale_runs:
     class: ReapStaleRunsJob
     schedule: every minute
+  refresh_data_root_disk_usage:
+    class: DataRootDiskUsageRefreshJob
+    schedule: every minute
   reap_classifier_pending:
     class: ReapClassifierPendingJob
     schedule: every 5 minutes
