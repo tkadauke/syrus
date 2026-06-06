@@ -360,7 +360,11 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-    expect((await screen.findAllByRole("link", { name: "Create account from invitation" }))[0]).toHaveAttribute("href", "/users/new?token=invite-token")
+    const invitationLinks = await screen.findAllByRole("link", { name: "Create account from invitation" })
+    expect(invitationLinks.length).toBeGreaterThan(0)
+    invitationLinks.forEach((link) => {
+      expect(link).toHaveAttribute("href", "/users/new?token=invite-token")
+    })
     expect(screen.getAllByText("Invitation-only").length).toBeGreaterThan(0)
     expect(screen.getByText("Invitation link")).toBeInTheDocument()
     expect(screen.getByText("Detected")).toBeInTheDocument()

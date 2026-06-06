@@ -1,6 +1,11 @@
 require "rails_helper"
 
 RSpec.describe "SPA shell", type: :request do
+  def bootstrap_data
+    json = response.body.match(%r{<script id="syrus-bootstrap-data" type="application/json">\s*(.*?)\s*</script>}m)[1]
+    JSON.parse(json)
+  end
+
   it "uses the normal HTML authentication flow when signed out" do
     Factories.user
 
@@ -19,6 +24,88 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('"current_user":null')
   end
 
+  it "serves logged-out root with first-admin public state" do
+    get root_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+    expect(bootstrap_data).to include(
+      "current_user" => nil,
+      "team_user_count" => 0,
+      "public" => include(
+        "first_signup" => true,
+        "signups_open" => false,
+        "signup_path" => "/users/new",
+        "sign_in_path" => "/session/new"
+      )
+    )
+  end
+
+  it "serves logged-out root with open-signup public state" do
+    Factories.user(email_address: "operator@example.com")
+    AppSetting.current.update!(signups_open: true)
+
+    get root_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+    expect(bootstrap_data).to include(
+      "current_user" => nil,
+      "team_user_count" => 0,
+      "public" => include(
+        "first_signup" => false,
+        "signups_open" => true,
+        "signup_path" => "/users/new",
+        "sign_in_path" => "/session/new"
+      )
+    )
+    expect(response.body).not_to include("operator@example.com")
+  end
+
+  it "serves logged-out root with invite-only public state" do
+    admin = Factories.user(email_address: "operator@example.com")
+    Invitation.create!(invited_by: admin, email_address: "guest@example.com")
+
+    get root_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+    expect(bootstrap_data).to include(
+      "current_user" => nil,
+      "team_user_count" => 0,
+      "public" => include(
+        "first_signup" => false,
+        "signups_open" => false,
+        "signup_path" => "/users/new",
+        "sign_in_path" => "/session/new"
+      )
+    )
+    expect(response.body).not_to include("operator@example.com")
+    expect(response.body).not_to include("guest@example.com")
+  end
+
+  it "serves logged-out root with an invitation token without exposing invitation metadata" do
+    admin = Factories.user(email_address: "operator@example.com")
+    invitation = Invitation.create!(invited_by: admin, email_address: "guest@example.com")
+
+    get root_path(token: invitation.token)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+    expect(bootstrap_data).to include(
+      "current_user" => nil,
+      "public" => include(
+        "first_signup" => false,
+        "signups_open" => false,
+        "signup_path" => "/users/new",
+        "sign_in_path" => "/session/new"
+      )
+    )
+    expect(response.body).not_to include("operator@example.com")
+    expect(response.body).not_to include("guest@example.com")
+    expect(response.body).not_to include(invitation.token)
+  end
+
   it "serves the authenticated app shell at root when signed in" do
     user = Factories.user(email_address: "root-operator@example.com")
     sign_in_as(user)
@@ -29,6 +116,13 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('id="syrus-spa-root"')
     expect(response.body).to include("root-operator@example.com")
     expect(response.body).not_to include('"current_user":null')
+    expect(bootstrap_data).to include(
+      "current_user" => include(
+        "id" => user.id,
+        "email_address" => "root-operator@example.com"
+      ),
+      "team_user_count" => 1
+    )
   end
 
   it "serves public auth routes through the SPA shell" do
@@ -92,9 +186,11 @@ RSpec.describe "SPA shell", type: :request do
   it "requires authentication for canonical dashboard routes" do
     Factories.user
 
-    get dashboard_jobs_path
+    [ dashboard_path, dashboard_jobs_path, new_job_path, repositories_path, edit_credentials_path ].each do |path|
+      get path
 
-    expect(response).to redirect_to(new_session_path)
+      expect(response).to redirect_to(new_session_path)
+    end
   end
 
   it "requires admin access for admin SPA routes" do
