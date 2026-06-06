@@ -107,7 +107,7 @@ issue, add the label, and let Syrus carry it through to a pull request.
 
 Choose a deployment path based on how much of the loop you want to run.
 
-## Deployment Paths
+## Start Small
 
 Start small, then deploy the full loop when the product proves useful.
 
