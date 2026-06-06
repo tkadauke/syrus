@@ -539,7 +539,7 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
 }
 
 function ToolGroup({ item }: { item: ChatToolGroupItem }) {
-  const details = item.calls.map((call) => call.detail).filter(Boolean).join(", ")
+  const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
   return (
     <details className="group/tool">
       <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900">
@@ -552,6 +552,7 @@ function ToolGroup({ item }: { item: ChatToolGroupItem }) {
         {item.calls.map((call) => (
           <div key={call.message_id}>
             <div className="break-words font-mono text-gray-700">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
+            {call.result_summary ? <div className="mt-1 font-mono text-gray-500">{call.result_summary}</div> : null}
             {call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={item.tool} /> : null}
           </div>
         ))}
@@ -1666,7 +1667,8 @@ function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
         message_id: message.id,
         detail: toolDetail(toolName, contentInput(message.content)),
         result_body: "",
-        result_error: false
+        result_error: false,
+        result_summary: ""
       }
       const tool = toolLabel(toolName)
       if (currentGroup !== null && currentGroup.tool === tool) {
@@ -1679,8 +1681,9 @@ function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
       const lastCall = currentGroup?.calls.at(-1)
       if (lastCall && lastCall.result_body === "") {
         const content = contentRecord(message.content)
-        lastCall.result_body = content ? fullResultBody(content.result) : String(message.content ?? message.text)
+        lastCall.result_body = shortenWorkspacePaths(content ? fullResultBody(content.result) : String(message.content ?? message.text))
         lastCall.result_error = content?.is_error === true
+        lastCall.result_summary = toolResultSummary(currentGroup?.tool || "", lastCall.result_body)
       } else {
         currentGroup = null
         items.push(renderMessage(message))
@@ -1793,8 +1796,9 @@ function toolLabel(name: string) {
   return name.startsWith("mcp__") ? name.split("__", 3).at(-1) || name : name
 }
 
-const CHAT_REPOSITORY_ROOT_PATTERN = /(?:\/[^\s'"`,:;\])}]+)+\/\.syrus\/chat-workspaces\/\d+\/repositories\/[^/\s'"`,:;\])}]+\/[^/\s'"`,:;\])}]+\/?/g
-const WORKFLOW_ROOT_PATTERN = /(?:\/[^\s'"`,:;\])}]+)+\/\.syrus\/workflows\/\d+\/?/g
+const WORKSPACE_ROOT_PATTERN = /(?:\/[^\s'"`,:;\])}]+)+\/\.syrus\/(?:chat-workspaces\/\d+\/repositories\/[^/\s'"`,:;\])}]+\/[^/\s'"`,:;\])}]+|workflows\/\d+)\/?/g
+const COUNTED_RESULT_TOOLS = new Set(["Read", "Glob", "Grep"])
+const RESULT_SUMMARY_LINE_THRESHOLD = 8
 
 function toolDetail(name: string, input: Record<string, unknown>) {
   let detail = ""
@@ -1846,13 +1850,21 @@ function toolDetail(name: string, input: Record<string, unknown>) {
       detail = firstLine(JSON.stringify(input))
   }
 
-  return shortenChatRepositoryPaths(detail)
+  return shortenWorkspacePaths(detail)
 }
 
-function shortenChatRepositoryPaths(value: string) {
-  return value
-    .replace(CHAT_REPOSITORY_ROOT_PATTERN, (match) => match.endsWith("/") ? "" : ".")
-    .replace(WORKFLOW_ROOT_PATTERN, (match) => match.endsWith("/") ? "" : ".")
+function shortenWorkspacePaths(value: string) {
+  return value.replace(WORKSPACE_ROOT_PATTERN, (match) => match.endsWith("/") ? "" : ".")
+}
+
+function toolResultSummary(name: string, body: string) {
+  if (!COUNTED_RESULT_TOOLS.has(name)) return ""
+
+  const lines = body.split(/\r?\n/).filter((line) => line.trim().length > 0)
+  if (lines.length <= RESULT_SUMMARY_LINE_THRESHOLD) return ""
+
+  const noun = name === "Glob" ? "path" : name === "Grep" ? "match" : "line"
+  return `${lines.length} ${noun}${lines.length === 1 ? "" : "s"}`
 }
 
 type ToolResultLanguage = "ruby" | "javascript" | "json" | "yaml" | "shell" | "css" | "html"
@@ -2028,11 +2040,11 @@ function stringEndIndex(line: string, start: number, quote: string) {
 }
 
 function fullResultBody(content: unknown): string {
-  if (typeof content === "string") return shortenChatRepositoryPaths(content)
+  if (typeof content === "string") return shortenWorkspacePaths(content)
   if (Array.isArray(content)) {
     return content.map((item) => {
       const record = contentRecord(item)
-      if (record?.type === "text") return shortenChatRepositoryPaths(stringValue(record.text))
+      if (record?.type === "text") return shortenWorkspacePaths(stringValue(record.text))
       if (record?.type === "tool_reference") return `-> ${stringValue(record.tool_name)}`
       return ""
     }).filter(Boolean).join("\n")

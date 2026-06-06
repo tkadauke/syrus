@@ -124,10 +124,18 @@ module AgentEventAbbreviator
   private_class_method :truncate
 
   def shorten_paths(text, path_roots)
+    shortened = text.to_s
+      .gsub(%r!(?:/[^\s'"`,:;\])}]+)+/\.syrus/chat-workspaces/\d+/repositories/[^/\s'"`,:;\])}]+/[^/\s'"`,:;\])}]+/?!) do |match|
+        match.end_with?("/") ? "" : "."
+      end
+      .gsub(%r!(?:/[^\s'"`,:;\])}]+)+/\.syrus/workflows/\d+/?!) do |match|
+        match.end_with?("/") ? "" : "."
+      end
+
     roots = Array(path_roots).filter_map { |root| root.to_s.presence&.delete_suffix("/") }
                              .uniq
                              .sort_by { |root| -root.length }
-    roots.reduce(text.to_s) do |out, root|
+    roots.reduce(shortened) do |out, root|
       escaped = Regexp.escape(root)
       out.gsub(%r{#{escaped}/}, "")
          .gsub(/#{escaped}(?=$|[\s'"`),:;\]}])/, ".")

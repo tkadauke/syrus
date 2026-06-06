@@ -7029,6 +7029,48 @@ describe("App", () => {
           },
           {
             type: "message",
+            id: 23,
+            role: "tool_use",
+            tool_name: "Bash",
+            content: { input: { command: "rg perform /syrus-home/.syrus/workflows/42/app/jobs" } },
+            text: "",
+            bookmarkable: false
+          },
+          {
+            type: "message",
+            id: 24,
+            role: "tool_use",
+            tool_name: "Glob",
+            content: { input: { pattern: "**/*.rb" } },
+            text: "",
+            bookmarkable: false
+          },
+          {
+            type: "message",
+            id: 25,
+            role: "tool_result",
+            tool_name: "Glob",
+            content: {
+              result: [{
+                type: "text",
+                text: [
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/app/models/chat.rb",
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/app/models/job.rb",
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/app/models/run.rb",
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/app/jobs/chat_turn_job.rb",
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/app/jobs/run_job.rb",
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/app/services/chat_workspace.rb",
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/app/services/workflow_workspace.rb",
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/spec/jobs/chat_turn_job_spec.rb",
+                  "/syrus-home/.syrus/chat-workspaces/5/repositories/tkadauke/syrus/spec/services/chat_workspace_spec.rb"
+                ].join("\n")
+              }]
+            },
+            text: "",
+            bookmarkable: false
+          },
+          {
+            type: "message",
             id: 12,
             role: "system",
             tool_name: null,
@@ -7112,6 +7154,9 @@ describe("App", () => {
     expect(screen.getByText("Bash")).toBeInTheDocument()
     expect(screen.getAllByText(/rg queue_as app\/jobs/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/bin\/rspec spec\/models\/job_spec\.rb/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/rg perform app\/jobs/).length).toBeGreaterThan(0)
+    expect(screen.getByText("9 paths")).toBeInTheDocument()
+    expect(screen.getByText(/spec\/services\/chat_workspace_spec\.rb/)).toBeInTheDocument()
     expect(screen.queryByText(/\/syrus-home\/\.syrus\/chat-workspaces/)).not.toBeInTheDocument()
     expect(screen.queryByText(/\/syrus-home\/\.syrus\/workflows/)).not.toBeInTheDocument()
     expect(screen.getAllByText("class")[0]).toHaveClass("font-semibold", "text-blue-700")

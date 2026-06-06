@@ -35,6 +35,33 @@ RSpec.describe AgentEventAbbreviator do
         .to eq("● Bash(find . -type f -name '*.rb')")
     end
 
+    it "shortens chat workspace repository paths to repository-relative paths" do
+      root = "/syrus-home/.syrus/chat-workspaces/4"
+
+      expect(described_class.tool_use(
+        "Read",
+        { "file_path" => "#{root}/repositories/acme/widgets/app/models/widget.rb" },
+        path_roots: [ root ]
+      ))
+        .to eq("● Read(app/models/widget.rb)")
+    end
+
+    it "shortens workflow workspace paths to repository-relative paths" do
+      root = "/syrus-home/.syrus/workflows/42"
+
+      expect(described_class.tool_use(
+        "Bash",
+        { "command" => "rg queue_as #{root}/app/jobs" },
+        path_roots: [ root ]
+      ))
+        .to eq("● Bash(rg queue_as app/jobs)")
+    end
+
+    it "leaves non-workspace paths intact" do
+      expect(described_class.tool_use("Read", { "file_path" => "/tmp/syrus/app/models/widget.rb" }))
+        .to eq("● Read(/tmp/syrus/app/models/widget.rb)")
+    end
+
     it "Edit and Write → file path" do
       expect(described_class.tool_use("Edit", { "file_path" => "x.rb" })).to include("Edit(x.rb)")
       expect(described_class.tool_use("Write", { "file_path" => "x.rb" })).to include("Write(x.rb)")

@@ -95,6 +95,7 @@ export type ChatToolGroupItem = {
     detail: string
     result_body: string
     result_error: boolean
+    result_summary: string
   }>
 }
 
