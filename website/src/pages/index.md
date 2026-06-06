@@ -101,7 +101,7 @@ can carry real review feedback and repeat attempts.
 The shortest proof is a GitHub issue with a trigger label: file the
 issue, add the label, and let Syrus carry it through to a pull request.
 
-## Deployment Paths
+## Start Small
 
 Start small, then deploy the full loop when the product proves useful.
 
