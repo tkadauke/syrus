@@ -203,7 +203,7 @@ module App
             user.dashboard_preferences["last_owner_user_id"],
             exception: false
           )
-          raise InvalidScope, "owner_user_id is required for dashboard scope user" unless id
+          raise InvalidScope, "owner_id is required for dashboard scope user" unless id
 
           User.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
         end
@@ -267,7 +267,7 @@ module App
         when "workflow"
           scope.where(jobs: { owner_user_id: nil })
         when "epic"
-          scope.where(owner_id: nil, owner_user_id: nil, state: %w[backlog ready])
+          epic_claimable_scope(scope)
         else
           scope.where(owner_user_id: nil)
         end
