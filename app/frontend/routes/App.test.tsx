@@ -625,6 +625,124 @@ describe("App", () => {
     }
   })
 
+  it.each([
+    {
+      name: "credentials missing",
+      setup: setupStatus({
+        state: "first_admin",
+        next_step: "configure_credentials",
+        next_step_path: "/credentials/edit",
+        credentials_configured: false,
+        repository_configured: false,
+        first_job_started: false,
+        first_successful_job_completed: false,
+        credential_status: {
+          github: false,
+          agent: false,
+          active_agent_provider: "claude"
+        },
+        counts: {
+          repositories: 0,
+          jobs: 0,
+          successful_jobs: 0
+        }
+      }),
+      progress: "1 of 6 complete",
+      activeLink: "Configure GitHub",
+      href: "/app-shell/credentials/edit",
+      detail: "Connect a GitHub token or register the GitHub App."
+    },
+    {
+      name: "repository missing",
+      setup: setupStatus({
+        state: "credentials_only",
+        next_step: "add_repository",
+        next_step_path: "/repositories/new",
+        credentials_configured: true,
+        repository_configured: false,
+        first_job_started: false,
+        first_successful_job_completed: false,
+        counts: {
+          repositories: 0,
+          jobs: 0,
+          successful_jobs: 0
+        }
+      }),
+      progress: "3 of 6 complete",
+      activeLink: "Add repository",
+      href: "/app-shell/repositories/new",
+      detail: "Add the first repository Syrus should poll or run against."
+    },
+    {
+      name: "ready to start first job",
+      setup: setupStatus({
+        state: "ready_for_first_job",
+        next_step: "start_first_job",
+        next_step_path: "/jobs/new",
+        credentials_configured: true,
+        repository_configured: true,
+        first_job_started: false,
+        first_successful_job_completed: false,
+        counts: {
+          repositories: 1,
+          jobs: 0,
+          successful_jobs: 0
+        }
+      }),
+      progress: "4 of 6 complete",
+      activeLink: "Start direct job",
+      href: "/app-shell/jobs/new",
+      detail: "Create a direct job or delegate a GitHub issue to start the first run."
+    },
+    {
+      name: "first job in flight",
+      setup: setupStatus({
+        state: "first_job_started",
+        next_step: "watch_first_job",
+        next_step_path: "/dashboard/jobs?view=list",
+        credentials_configured: true,
+        repository_configured: true,
+        first_job_started: true,
+        first_successful_job_completed: false,
+        counts: {
+          repositories: 1,
+          jobs: 1,
+          successful_jobs: 0
+        }
+      }),
+      progress: "5 of 6 complete",
+      activeLink: "Watch jobs",
+      href: "/app-shell/dashboard/jobs?view=list",
+      detail: "Track the first run until it closes successfully."
+    }
+  ])("renders onboarding state when $name", async ({ setup, progress, activeLink, href, detail }) => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({ setup_status: setup }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockRejectedValue(new Error("unexpected fetch"))
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/onboarding"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const main = await screen.findByRole("main", { name: "Onboarding" })
+      expect(within(main).getByText((_content, element) => element?.textContent === progress)).toBeInTheDocument()
+      expect(within(main).getByText(detail)).toBeInTheDocument()
+      expect(within(main).getByRole("link", { name: activeLink })).toHaveAttribute("href", href)
+      expect(within(main).getByRole("link", { name: activeLink })).toHaveClass("bg-blue-600")
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      script.remove()
+    }
+  })
+
   it("renders the next useful onboarding step for a job already in flight", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
