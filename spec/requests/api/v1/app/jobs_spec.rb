@@ -281,6 +281,85 @@ RSpec.describe "App API job detail", type: :request do
     expect(parse_body["job"].to_json).not_to include("ghp_fallback_secret", "github_token")
   end
 
+  it "keeps two users' forked execution graphs and private chat whiteboards separated" do
+    AppSetting.current.update!(github_app_id: "123")
+    teammate = Factories.user(email_address: "teammate@example.com", github_token: "ghp_teammate_secret")
+    installation = Factories.installation(user: user, account_login: "operator-fork")
+    operator_fork = Factories.repository(
+      user: user,
+      owner: "operator-fork",
+      name: "widgets",
+      upstream_owner: "acme",
+      upstream_name: "widgets",
+      upstream_default_branch: "main",
+      installation: installation
+    )
+    teammate_fork = Factories.repository(
+      user: teammate,
+      owner: "teammate-fork",
+      name: "widgets",
+      upstream_owner: "acme",
+      upstream_name: "widgets",
+      upstream_default_branch: "main"
+    )
+    epic = Factories.epic(user: teammate, repository: teammate_fork, title: "Claimed fork epic", state: "in_progress", owner_user: teammate)
+    epicless_job = Factories.job(repository: operator_fork, issue_number: 70, issue_title: "Epicless fork work", owner_user: user)
+    claimed_epic_job = Factories.job(repository: teammate_fork, issue_number: 71, issue_title: "Claimed epic fork work", epic: epic, owner_user: teammate)
+    private_chat = ChatSession.create!(user: teammate, repository: teammate_fork, title: "Private fork chat")
+    private_chat.create_whiteboard!(
+      scene_json: { "elements" => [ { "id" => "private-fork-box" } ], "appState" => {}, "files" => {} },
+      version: 1
+    )
+
+    expect(epicless_job.epic).to be_nil
+    expect(claimed_epic_job.epic).to eq(epic)
+    expect(claimed_epic_job.owner_user).to eq(teammate)
+    [ epicless_job, claimed_epic_job ].each do |owned_job|
+      expect(owned_job.workflows).not_to be_empty
+      expect(owned_job.runs).not_to be_empty
+      expect(owned_job.workflows.map(&:user)).to all(eq(owned_job.user))
+      expect(owned_job.runs.map(&:user)).to all(eq(owned_job.user))
+      expect(owned_job.runs.map { |run| run.step.workflow.user }).to all(eq(owned_job.user))
+    end
+
+    get "/api/v1/app/jobs/#{epicless_job.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("repository", "slug")).to eq("operator-fork/widgets")
+    expect(body.dig("job", "epic_id")).to be_nil
+    expect(body.dig("job", "credential_summary")).to include(
+      "mode" => "app",
+      "label" => "GitHub App",
+      "status" => "active",
+      "account_login" => "operator-fork",
+      "user_label" => user.email_address
+    )
+
+    get "/api/v1/app/dashboard", params: { subject: "job", ownership_scope: "team" }
+
+    expect(response).to have_http_status(:ok)
+    dashboard = parse_body
+    expect(dashboard["items"].map { |item| item.fetch("id") }).to include(epicless_job.id, claimed_epic_job.id)
+    expect(dashboard["items"].find { |item| item.fetch("id") == epicless_job.id }).to include(
+      "epic" => nil,
+      "owner_badge" => nil
+    )
+    expect(dashboard["items"].find { |item| item.fetch("id") == claimed_epic_job.id }).to include(
+      "epic" => include("id" => epic.id, "display_number" => epic.display_number),
+      "owner_badge" => include("label" => teammate.team_display_name, "kind" => "other_user")
+    )
+
+    get "/api/v1/app/jobs/#{claimed_epic_job.id}"
+
+    expect(response).to have_http_status(:not_found)
+
+    get "/api/v1/app/chats/#{private_chat.id}/whiteboard", as: :json
+
+    expect(response).to have_http_status(:not_found)
+    expect(response.body).not_to include("private-fork-box", "ghp_teammate_secret")
+  end
+
   it "paginates workflows on the job detail payload" do
     job.workflows.destroy_all
     12.times do |index|

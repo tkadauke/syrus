@@ -5597,6 +5597,66 @@ describe("App", () => {
     expect(screen.getByText("Teammate")).toBeInTheDocument()
   })
 
+  it("renders two-user owned execution metadata on a forked Job detail", async () => {
+    const payload = jobDetailPayload({
+      job: {
+        issue_number: 71,
+        issue_title: "Claimed epic fork work",
+        branch_name: "syrus/issue-71",
+        credential_mode: "app",
+        owner_user_id: 10,
+        owner_user: { id: 10, email_address: "teammate@example.com", display_name: "Teammate" },
+        owner_badge: { label: "Teammate", kind: "other" },
+        credential_summary: {
+          mode: "app",
+          label: "GitHub App",
+          status: "active",
+          description: "Using the Syrus GitHub App installation for teammate-fork.",
+          account_login: "teammate-fork",
+          user_label: "teammate@example.com"
+        }
+      },
+      repository: {
+        id: 33,
+        slug: "teammate-fork/widgets",
+        owner: "teammate-fork",
+        name: "widgets",
+        default_branch: "main",
+        repository_path: "/repositories/33"
+      },
+      epic: {
+        id: 7,
+        number: 7,
+        display_number: "EPIC-7",
+        title: "Claimed fork epic",
+        state: "in_progress",
+        epic_path: "/epics/7"
+      }
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/71"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Claimed epic fork work" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "teammate-fork/widgets" })).toHaveAttribute("href", "/app-shell/repositories/33")
+    expect(screen.getByText("#71")).toBeInTheDocument()
+    expect(screen.getByText("Teammate")).toBeInTheDocument()
+    expect(screen.getAllByText("app").length).toBeGreaterThan(0)
+    expect(screen.getByText("GitHub App")).toBeInTheDocument()
+    expect(screen.getByText("active")).toBeInTheDocument()
+    expect(screen.getByText("teammate-fork")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-7 Claimed fork epic" })).toHaveAttribute("href", "/app-shell/epics/7")
+    expect(screen.getByText("syrus/issue-71")).toBeInTheDocument()
+  })
+
   it("links to the Epic from the Job detail summary when the Job belongs to one", async () => {
     const payload = jobDetailPayload({
       epic: {
@@ -9101,6 +9161,14 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       owner_user_id: null,
       owner_user: null,
       owner_badge: null,
+      credential_summary: {
+        mode: "pat",
+        label: "User PAT",
+        status: "configured",
+        description: "Using the repository owner's GitHub token.",
+        account_login: null,
+        user_label: "operator@example.com"
+      },
       billed_runs_count: 1,
       workflows_count: 1,
       runs_count: 1,
