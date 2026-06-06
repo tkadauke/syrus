@@ -1,0 +1,50 @@
+site:
+  name: Syrus
+  url: https://syrusai.dev
+  title_template: "%s | Syrus"
+  description: Self-hosted, multi-user, BYOK issue-to-PR automation for engineering teams.
+  social:
+    title: Syrus
+    description: Turn GitHub issues, review feedback, scheduled tasks, retries, and rebases into controlled agent-authored pull requests.
+
+navigation:
+  primary:
+    - label: Home
+      url: /
+    - label: What is Syrus?
+      url: /docs/what-is-syrus
+    - label: Why use Syrus?
+      url: /docs/why-use-syrus
+    - label: Getting Started
+      url: /docs/getting-started
+    - label: Docs
+      url: /docs
+  footer:
+    - title: Learn
+      links:
+        - label: What is Syrus?
+          url: /docs/what-is-syrus
+        - label: Why use Syrus?
+          url: /docs/why-use-syrus
+        - label: Concepts
+          url: /docs/concepts
+        - label: Features
+          url: /docs/features
+    - title: Operate
+      links:
+        - label: Getting Started
+          url: /docs/getting-started
+        - label: Try it locally
+          url: /docs/deployment/try-it-locally
+        - label: Deployment
+          url: /docs/deployment
+        - label: Troubleshooting
+          url: /docs/troubleshooting
+    - title: Project
+      links:
+        - label: About
+          url: /about
+        - label: API
+          url: /docs/api
+        - label: GitHub
+          url: https://github.com/tkadauke/syrus

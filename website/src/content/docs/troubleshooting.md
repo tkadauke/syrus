@@ -473,3 +473,9 @@ automatic entry points.
 Repo-level and account-level dollar budgets are roadmap work. Until they
 ship, max-turns, cancellation, prompt scope, and scheduled-task policy
 are the practical controls.
+
+## Next
+
+For setup and grader examples, return to [Recipes](/docs/recipes). For the
+underlying Job, Workflow, Step, and Run model, read [Concepts](/docs/concepts)
+and [Workflows](/docs/workflows).

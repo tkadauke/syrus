@@ -19,7 +19,7 @@ creating branches, preparing workspaces, running the agent, recording
 transcripts and diffs, pushing commits, and keeping the PR current. The
 agent writes code; Syrus handles the job control around it.
 
-[What is Syrus?](/what-is-syrus) · [Why use Syrus?](/why-use-syrus) · [Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs/getting-started) · [Star on GitHub](https://github.com/tkadauke/syrus)
+[What is Syrus?](/docs/what-is-syrus) · [Why use Syrus?](/docs/why-use-syrus) · [Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs) · [Star on GitHub](https://github.com/tkadauke/syrus)
 
 ## The Loop
 
@@ -59,7 +59,7 @@ and pull request.
 Get Started with the local guide when you want the smallest proof before
 connecting a team repository.
 
-Need the longer version? Read [What is Syrus?](/what-is-syrus).
+Need the longer version? Read [What is Syrus?](/docs/what-is-syrus).
 
 ## Why Teams Run It
 
@@ -79,7 +79,7 @@ CI-failure retries, scheduled maintenance, manual retries, and rebases
 all share the same harness instead of becoming separate scripts.
 
 For the adoption argument and fit checks, read
-[Why use Syrus?](/why-use-syrus).
+[Why use Syrus?](/docs/why-use-syrus).
 
 ## A Concrete Example
 
@@ -96,16 +96,6 @@ For the adoption argument and fit checks, read
 That is the product: not just an agent prompt, but the machinery around
 the prompt that lets a team delegate real GitHub work repeatedly.
 
-## Get Started
-
-The shortest path is to run Syrus locally, connect a GitHub repository,
-and delegate one small GitHub issue with label-based triggering. From
-there, move to Docker Compose or Kubernetes when the workflow proves it
-can carry real review feedback and repeat attempts.
-
-The shortest proof is a GitHub issue with a trigger label: file the
-issue, add the label, and let Syrus carry it through to a pull request.
-
 ## Start Small
 
 Start small, then deploy the full loop when the product proves useful.
@@ -120,12 +110,6 @@ Choose the path that matches how much of the system you want to exercise.
 
 If you are still choosing a path, read [Getting Started](/docs/getting-started)
 or the [deployment overview](/docs/deployment).
-
-## Get Started
-
-Use [Try it locally](/docs/deployment/try-it-locally) for the shortest
-proof, then move to Docker Compose or Kubernetes when you want the full
-polling, worker, and PR loop.
 
 ## Honest Status
 

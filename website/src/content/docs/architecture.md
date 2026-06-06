@@ -118,3 +118,9 @@ workspace for retry until the prune job removes old terminal workspaces.
 | Agent providers | [`app/services/agent_providers/`](https://github.com/tkadauke/syrus/tree/main/app/services/agent_providers) |
 | MCP sidecar | [`app/services/syrus_mcp/`](https://github.com/tkadauke/syrus/tree/main/app/services/syrus_mcp), [`bin/syrus-mcp-sidecar`](https://github.com/tkadauke/syrus/blob/main/bin/syrus-mcp-sidecar) |
 | Pollers | [`app/jobs/poll_all_repositories_job.rb`](https://github.com/tkadauke/syrus/blob/main/app/jobs/poll_all_repositories_job.rb), [`app/jobs/poll_pull_request_job.rb`](https://github.com/tkadauke/syrus/blob/main/app/jobs/poll_pull_request_job.rb), [`app/jobs/poll_rebase_job.rb`](https://github.com/tkadauke/syrus/blob/main/app/jobs/poll_rebase_job.rb), [`app/jobs/poll_scheduled_tasks_job.rb`](https://github.com/tkadauke/syrus/blob/main/app/jobs/poll_scheduled_tasks_job.rb) |
+
+## Next
+
+For the operator-facing version of these internals, read
+[Concepts](/docs/concepts) and [Workflows](/docs/workflows). For deployment
+shape, continue to [Deployment](/docs/deployment).

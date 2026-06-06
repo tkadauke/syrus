@@ -63,3 +63,9 @@ curl -X POST https://syrus.example.com/api/v1/admin/epics \
 
 Optional fields are `github_issue_url`, `owner_user_id`, and
 `auto_approve_mode`.
+
+## Next
+
+For the product objects these endpoints create, read [Concepts](/docs/concepts)
+and [Features](/docs/features). For operational debugging paths, continue
+to [Troubleshooting](/docs/troubleshooting).

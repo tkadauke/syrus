@@ -47,3 +47,10 @@ because it owns the answers to "what else should I install?"
 ingress, persistent storage, secrets management, backups, and operational
 monitoring. It is the hard-mode path; use it when you need cluster-native
 operations, not because it looks more official.
+
+## Next
+
+After choosing a deployment path, continue to
+[Getting Started](/docs/getting-started) for the first issue-to-PR loop or
+[Configuration](/docs/configuration) for credentials, repository settings,
+and worker environment.

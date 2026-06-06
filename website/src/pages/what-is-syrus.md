@@ -99,6 +99,7 @@ and pull requests to be the coordination layer.
 
 ## Next
 
-[Why use Syrus?](/why-use-syrus) explains the value tradeoffs. [Try Syrus
-locally](/evaluate) is the shortest proof. [Getting Started](/docs/getting-started)
-walks through the first real deployment path.
+[Why use Syrus?](/docs/why-use-syrus) explains the value tradeoffs. [Try
+Syrus locally](/docs/deployment/try-it-locally) is the shortest proof.
+[Getting Started](/docs/getting-started) walks through the first real
+deployment path.

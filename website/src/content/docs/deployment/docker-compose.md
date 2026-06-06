@@ -130,3 +130,9 @@ If you're a Ruby developer with the toolchain already, you can also run
 from source: `git clone`, `bundle install`, and `bin/dev`. Docker Compose
 is recommended because it owns the answers to "what else should I
 install?"
+
+## Next
+
+Continue to [Getting Started](/docs/getting-started) for the first
+repository and trigger-label run. If the stack starts but jobs do not move,
+use [Troubleshooting](/docs/troubleshooting).

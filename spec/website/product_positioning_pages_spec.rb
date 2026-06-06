@@ -11,8 +11,8 @@ RSpec.describe "website product positioning pages" do
   let(:normalized_why_use_syrus) { why_use_syrus.gsub(/\s+/, " ") }
 
   it "links the explanatory pages from the home page" do
-    expect(home).to include("[What is Syrus?](/what-is-syrus)")
-    expect(home).to include("[Why use Syrus?](/why-use-syrus)")
+    expect(home).to include("[What is Syrus?](/docs/what-is-syrus)")
+    expect(home).to include("[Why use Syrus?](/docs/why-use-syrus)")
   end
 
   it "explains what Syrus is using current product terminology" do

@@ -180,3 +180,6 @@ what the change needs.
 
 Read the canonical roadmap entry:
 [Job as execution DAG](https://github.com/tkadauke/syrus/blob/main/ROADMAP.md#job-as-execution-dag-phased-agent-execution).
+
+For operator-facing examples of these templates in use, continue to
+[Recipes](/docs/recipes).

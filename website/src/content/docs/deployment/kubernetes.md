@@ -117,3 +117,9 @@ agent invocation failures. Prometheus integration is planned in
 [#198](https://github.com/tkadauke/syrus/issues/198); until then, route
 container logs to your cluster logging stack and alert on repeated worker
 failures or growing queue depth.
+
+## Next
+
+Use [Configuration](/docs/configuration) for environment variables,
+credentials, and worker storage. Use [Troubleshooting](/docs/troubleshooting)
+for poller, provider, PR, rebase, and queue failure modes.

@@ -24,6 +24,11 @@ The local evaluation path is canonical at
 `/docs/deployment/try-it-locally`; do not recreate a separate
 `/evaluate` page.
 
+`src/site.yml` is the release metadata and navigation source for the
+future Starlight/Astro shell. Keep page titles, descriptions, primary
+navigation, footer groups, and social copy there instead of scattering
+them across generated templates.
+
 ## Structure
 
 ```
@@ -45,6 +50,7 @@ website/
 │   │       ├── recipes.md        # "How-tos and recipes"
 │   │       ├── troubleshooting.md
 │   │       └── faq.md
+│   ├── site.yml                  # Site metadata, primary nav, footer nav
 │   └── pages/                    # custom routes
 │       ├── index.md              # home — becomes .astro once Starlight lands
 │       └── about.md              # naming, project history

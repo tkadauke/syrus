@@ -1,6 +1,6 @@
 ---
 title: FAQ
-description: Frequently-asked questions about Syrus.
+description: Frequently asked questions about Syrus, coding-agent alternatives, safety, costs, providers, and operations.
 ---
 
 # FAQ
@@ -143,3 +143,10 @@ clearly.
 See [About](/about). Short version: the name points at Publilius Syrus,
 whose "quick help counts twice" line fits an issue-to-PR automation tool
 well enough that the joke became load-bearing.
+
+## Next
+
+Start with [Getting Started](/docs/getting-started), compare the product
+shape in [Why use Syrus?](/docs/why-use-syrus), or jump to
+[Troubleshooting](/docs/troubleshooting) if you are already operating an
+instance.

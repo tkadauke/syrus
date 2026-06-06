@@ -481,3 +481,9 @@ PR remains open unless you close it yourself.
 Troubleshooting: if you reopen the Job in Syrus while `syrus-stop` is
 still on the PR, the next poll will close it again. Remove the label
 before reopening.
+
+## Next
+
+For configuration reference, read [Configuration](/docs/configuration).
+For failed runs, missing PRs, provider errors, and runaway usage, continue
+to [Troubleshooting](/docs/troubleshooting).

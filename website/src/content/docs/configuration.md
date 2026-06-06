@@ -231,3 +231,9 @@ new token is generated. For Rails encryption key rotation, follow Rails
 Active Record Encryption rotation practice: deploy the new scheme while
 retaining read access to old ciphertext, rewrite encrypted attributes, then
 remove the old scheme after verification.
+
+## Next
+
+Use [Recipes](/docs/recipes) for concrete `.syrus.yml`, grader, provider,
+and scheduling examples. Use [Troubleshooting](/docs/troubleshooting) when
+setup, credentials, or workers fail at runtime.
