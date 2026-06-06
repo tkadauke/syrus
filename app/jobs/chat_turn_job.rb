@@ -96,7 +96,7 @@ class ChatTurnJob < ApplicationJob
 
   def record_agent_event(chunk, kind: nil, tool_name: nil, tool_input: nil,
                          tool_result_content: nil, tool_result_error: nil,
-                         tool_use_id: nil, **)
+                         tool_use_id: nil, mcp_servers: nil, **)
     case kind.to_s
     when "tool_call"
       # Persist the structured tool invocation. Abbreviation is the
@@ -120,8 +120,50 @@ class ChatTurnJob < ApplicationJob
     when "assistant_text"
       create_message!("assistant", text: chunk.to_s)
     else
-      create_message!("system", text: chunk.to_s)
+      create_message!("system", system_content_for(chunk, mcp_servers: mcp_servers))
     end
+  end
+
+  def system_content_for(chunk, mcp_servers:)
+    content = { text: chunk.to_s }
+    return content unless mcp_servers.present?
+
+    content.merge(mcp_health: mcp_health_for(mcp_servers))
+  end
+
+  def mcp_health_for(servers)
+    Array(servers).filter_map do |server|
+      name = server["name"].to_s
+      status = server["status"].to_s.presence || "unknown"
+      next if name.blank?
+
+      tool_names = mcp_tool_names_for(name)
+      {
+        "name" => name,
+        "status" => status,
+        "available_tools" => mcp_available?(status) ? tool_names : [],
+        "pending_tools" => mcp_pending?(status) ? tool_names : [],
+        "unavailable_tools" => mcp_unavailable?(status) ? tool_names : []
+      }
+    end
+  end
+
+  def mcp_tool_names_for(name)
+    return SyrusChatMcp::Sidecar.tool_names if name == "syrus-chat-sidecar"
+
+    []
+  end
+
+  def mcp_available?(status)
+    status.in?(%w[connected running ready])
+  end
+
+  def mcp_pending?(status)
+    status == "pending"
+  end
+
+  def mcp_unavailable?(status)
+    !mcp_available?(status) && !mcp_pending?(status)
   end
 
   def stop_requested?

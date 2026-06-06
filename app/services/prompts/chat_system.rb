@@ -153,6 +153,13 @@ module Prompts
             repository checkouts whenever a current view would help
             you answer the operator's question. Use `repo_info` when
             you want a quick repository status summary.
+          - MCP tools can be available, pending, or unavailable at turn
+            start. If a tool you need is unavailable or still pending,
+            say that explicitly, continue with ordinary read-only shell
+            inspection when possible, and ask the operator to retry the
+            turn or check the chat sidecar health before you draft
+            proposals, schedules, bookmarks, or whiteboard edits that
+            require MCP persistence.
 
         Your output:
 

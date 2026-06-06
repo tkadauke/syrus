@@ -231,6 +231,50 @@ RSpec.describe ChatTurnJob do
     )
   end
 
+  it "records available, pending, and unavailable MCP tools in structured chat context" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call(
+        "[mcp_servers] syrus-chat-sidecar=connected",
+        kind: "system",
+        mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "connected" } ]
+      )
+      log_sink.call(
+        "[mcp_servers] syrus-chat-sidecar=pending",
+        kind: "system",
+        mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "pending" } ]
+      )
+      log_sink.call(
+        "[mcp_servers] syrus-chat-sidecar=failed",
+        kind: "system",
+        mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "failed" } ]
+      )
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    connected, pending, failed = chat.messages.where(role: "system").order(:id).last(3)
+    expect(connected.content.dig("mcp_health", 0)).to include(
+      "name" => "syrus-chat-sidecar",
+      "status" => "connected",
+      "available_tools" => include("propose_job", "repo_info"),
+      "pending_tools" => [],
+      "unavailable_tools" => []
+    )
+    expect(pending.content.dig("mcp_health", 0)).to include(
+      "status" => "pending",
+      "available_tools" => [],
+      "pending_tools" => include("propose_job", "repo_info"),
+      "unavailable_tools" => []
+    )
+    expect(failed.content.dig("mcp_health", 0)).to include(
+      "status" => "failed",
+      "available_tools" => [],
+      "pending_tools" => [],
+      "unavailable_tools" => include("propose_job", "repo_info")
+    )
+  end
+
   it "captures Claude's canonical transcript when the result omits transcript data" do
     Dir.mktmpdir("syrus-chat-home") do |home|
       saved_home = ENV["HOME"]

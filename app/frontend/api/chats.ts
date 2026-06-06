@@ -28,6 +28,14 @@ export type ChatSystemMessage = {
   body: string
 }
 
+export type ChatMcpHealth = {
+  name: string
+  status: string
+  available_tools: string[]
+  pending_tools: string[]
+  unavailable_tools: string[]
+}
+
 export type ChatProposal = {
   id: number
   kind: string

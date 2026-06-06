@@ -24,6 +24,7 @@ import {
   stopChat,
   type ChatAttachmentResult,
   type ChatAttachmentRow,
+  type ChatMcpHealth,
   type ChatNavRecord,
   type ChatMessageItem,
   type ChatPendingAction,
@@ -1687,7 +1688,7 @@ function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
 
 function renderMessage(message: ChatMessageItem): ChatRenderItem {
   if (message.role === "system") {
-    return { ...message, system: systemMessage(message.text) }
+    return { ...message, system: systemMessage(message) }
   }
 
   if (message.role === "tool_use" || message.role === "tool_result") {
@@ -1718,7 +1719,11 @@ function structuredTool(message: ChatMessageItem): ChatStructuredTool {
   }
 }
 
-function systemMessage(text: string): ChatSystemMessage {
+function systemMessage(message: ChatMessageItem): ChatSystemMessage {
+  const text = message.text
+  const mcpHealth = mcpHealthFromContent(message.content)
+  if (mcpHealth.length > 0) return structuredMcpMessage(mcpHealth)
+
   const result = text.match(/^\[(?:codex )?result\]\s+(.+)$/)
   if (result) return systemResultMessage(parseSystemFields(result[1]))
 
@@ -1729,6 +1734,72 @@ function systemMessage(text: string): ChatSystemMessage {
   if (codexError) return { tone: "error", label: "Error", body: codexError[1] }
 
   return { tone: "neutral", label: "System", body: text }
+}
+
+function structuredMcpMessage(servers: ChatMcpHealth[]): ChatSystemMessage {
+  const pending = servers.filter((server) => server.pending_tools.length > 0)
+  const unavailable = servers.filter((server) => server.unavailable_tools.length > 0)
+  const available = servers.filter((server) => server.available_tools.length > 0)
+
+  if (unavailable.length > 0) {
+    return {
+      tone: "warning",
+      label: "MCP unavailable",
+      body: `MCP unavailable: ${serverStatusList(unavailable)}. Tools unavailable: ${toolSummary(unavailable, "unavailable_tools")}. Retry the turn or check the chat sidecar logs before asking the agent to persist proposals, schedules, bookmarks, or whiteboard edits.`
+    }
+  }
+
+  if (pending.length > 0) {
+    return {
+      tone: "warning",
+      label: "MCP pending",
+      body: `MCP still pending: ${serverStatusList(pending)}. Tools pending: ${toolSummary(pending, "pending_tools")}. If this does not clear on the next turn, retry the turn or check worker logs for chat sidecar startup.`
+    }
+  }
+
+  if (available.length > 0) {
+    return {
+      tone: "success",
+      label: "MCP ready",
+      body: `MCP tools available: ${toolSummary(available, "available_tools")}`
+    }
+  }
+
+  return { tone: "neutral", label: "MCP", body: "MCP server status unavailable" }
+}
+
+function serverStatusList(servers: ChatMcpHealth[]) {
+  return servers.map((server) => `${server.name} ${server.status || "unknown"}`).join(", ")
+}
+
+function toolSummary(servers: ChatMcpHealth[], key: "available_tools" | "pending_tools" | "unavailable_tools") {
+  const names = Array.from(new Set(servers.flatMap((server) => server[key] || [])))
+  if (names.length === 0) return "none reported"
+  if (names.length <= 4) return names.join(", ")
+
+  return `${names.slice(0, 4).join(", ")} +${names.length - 4} more`
+}
+
+function mcpHealthFromContent(content: unknown): ChatMcpHealth[] {
+  const raw = contentRecord(content)?.mcp_health
+  if (!Array.isArray(raw)) return []
+
+  return raw.map((item) => {
+    const record = contentRecord(item)
+    if (!record) return null
+
+    return {
+      name: stringValue(record.name),
+      status: stringValue(record.status) || "unknown",
+      available_tools: stringArray(record.available_tools),
+      pending_tools: stringArray(record.pending_tools),
+      unavailable_tools: stringArray(record.unavailable_tools)
+    }
+  }).filter((item): item is ChatMcpHealth => item != null && item.name.length > 0)
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.map(stringValue).filter(Boolean) : []
 }
 
 function systemResultMessage(fields: Record<string, string>): ChatSystemMessage {

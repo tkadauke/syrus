@@ -199,9 +199,11 @@ class ClaudeInvocation
         # unconditionally so the post-mortem doesn't depend on
         # remembering to enable a debug flag.
         if event["mcp_servers"]
+          servers = event["mcp_servers"].map { |server| { "name" => server["name"], "status" => server["status"] } }
           log_sink.call(
-            "[mcp_servers] #{event['mcp_servers'].map { |s| "#{s['name']}=#{s['status']}" }.join(', ')}",
-            kind: "system"
+            "[mcp_servers] #{servers.map { |s| "#{s['name']}=#{s['status']}" }.join(', ')}",
+            kind: "system",
+            mcp_servers: servers
           )
         end
         { session_id: event["session_id"] } if event["session_id"]

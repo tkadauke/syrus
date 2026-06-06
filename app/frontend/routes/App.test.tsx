@@ -6969,7 +6969,18 @@ describe("App", () => {
             id: 14,
             role: "system",
             tool_name: null,
-            content: { text: "[mcp_servers] syrus-chat-sidecar=connected" },
+            content: {
+              text: "[mcp_servers] syrus-chat-sidecar=connected",
+              mcp_health: [
+                {
+                  name: "syrus-chat-sidecar",
+                  status: "connected",
+                  available_tools: ["attach_repository", "propose_job", "repo_info"],
+                  pending_tools: [],
+                  unavailable_tools: []
+                }
+              ]
+            },
             text: "[mcp_servers] syrus-chat-sidecar=connected",
             bookmarkable: false
           },
@@ -6978,7 +6989,18 @@ describe("App", () => {
             id: 15,
             role: "system",
             tool_name: null,
-            content: { text: "[mcp_servers] syrus-chat-sidecar=failed" },
+            content: {
+              text: "[mcp_servers] syrus-chat-sidecar=failed",
+              mcp_health: [
+                {
+                  name: "syrus-chat-sidecar",
+                  status: "failed",
+                  available_tools: [],
+                  pending_tools: [],
+                  unavailable_tools: ["attach_repository", "propose_job", "repo_info"]
+                }
+              ]
+            },
             text: "[mcp_servers] syrus-chat-sidecar=failed",
             bookmarkable: false
           },
@@ -6987,7 +7009,18 @@ describe("App", () => {
             id: 16,
             role: "system",
             tool_name: null,
-            content: { text: "[mcp_servers] syrus-chat-sidecar=pending" },
+            content: {
+              text: "[mcp_servers] syrus-chat-sidecar=pending",
+              mcp_health: [
+                {
+                  name: "syrus-chat-sidecar",
+                  status: "pending",
+                  available_tools: [],
+                  pending_tools: ["attach_repository", "propose_job", "repo_info"],
+                  unavailable_tools: []
+                }
+              ]
+            },
             text: "[mcp_servers] syrus-chat-sidecar=pending",
             bookmarkable: false
           },
@@ -7028,22 +7061,22 @@ describe("App", () => {
     expect(screen.queryByText(/\/syrus-home\/\.syrus\/chat-workspaces/)).not.toBeInTheDocument()
     expect(screen.getByText(/class Chat\s+end/)).toBeInTheDocument()
     expect(screen.queryByText(/Agent run succeeded/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/MCP connected: syrus-chat-sidecar/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/MCP starting: syrus-chat-sidecar/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/MCP issue: syrus-chat-sidecar pending/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/MCP tools available: attach_repository, propose_job, repo_info/)).not.toBeInTheDocument()
+    expect(screen.getByText(/MCP still pending: syrus-chat-sidecar pending/)).toBeInTheDocument()
+    expect(screen.getByText(/check worker logs for chat sidecar startup/)).toBeInTheDocument()
     expect(screen.queryByText("Cancelled by operator.")).not.toBeInTheDocument()
     expect(screen.getByText(/Agent run failed: Error max turns/)).toBeInTheDocument()
     expect(screen.getByText(/1\.2s/)).toBeInTheDocument()
-    expect(screen.getByText(/MCP issue: syrus-chat-sidecar failed/)).toBeInTheDocument()
+    expect(screen.getByText(/MCP unavailable: syrus-chat-sidecar failed/)).toBeInTheDocument()
+    expect(screen.getByText(/Retry the turn or check the chat sidecar logs/)).toBeInTheDocument()
     expect(screen.getByText("command timed out")).toBeInTheDocument()
     expect(screen.getByTestId("chat-message-stream")).toHaveClass("pt-12")
-    fireEvent.click(screen.getByRole("button", { name: "Show 4 hidden system messages" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show 3 hidden system messages" }))
     expect(screen.getByText(/Agent run succeeded/)).toBeInTheDocument()
     expect(screen.getByText(/4 turns/)).toBeInTheDocument()
     expect(screen.getByText(/2\.8m/)).toBeInTheDocument()
     expect(screen.getByText(/\$0\.37/)).toBeInTheDocument()
-    expect(screen.getByText(/MCP connected: syrus-chat-sidecar/)).toBeInTheDocument()
-    expect(screen.getByText(/MCP starting: syrus-chat-sidecar/)).toBeInTheDocument()
+    expect(screen.getByText(/MCP tools available: attach_repository, propose_job, repo_info/)).toBeInTheDocument()
     expect(screen.getByText("Cancelled by operator.")).toBeInTheDocument()
   })
 

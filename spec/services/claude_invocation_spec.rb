@@ -135,6 +135,31 @@ RSpec.describe ClaudeInvocation do
       expect(update).to eq(session_id: "abc-123-xyz")
     end
 
+    it "streams structured MCP server health from the system/init event" do
+      events = []
+      event = {
+        type: "system",
+        subtype: "init",
+        session_id: "abc-123-xyz",
+        mcp_servers: [
+          { "name" => "syrus-chat-sidecar", "status" => "pending" }
+        ]
+      }.to_json
+
+      update = invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(update).to eq(session_id: "abc-123-xyz")
+      expect(events).to contain_exactly(
+        [
+          "[mcp_servers] syrus-chat-sidecar=pending",
+          {
+            kind: "system",
+            mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "pending" } ]
+          }
+        ]
+      )
+    end
+
     it "ignores other system subtypes (only system/init carries the session_id we need)" do
       event = { type: "system", subtype: "other", session_id: "xxx" }.to_json
       update = invocation.send(:process_event, event, ->(l, **_) { lines << l })

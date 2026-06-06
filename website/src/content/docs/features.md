@@ -69,6 +69,11 @@ Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
 
+Chat transcripts also surface MCP sidecar health. Syrus distinguishes
+available, pending, and unavailable chat tools so operators can tell when
+proposal, schedule, bookmark, or whiteboard persistence is not ready and
+retry the turn or inspect worker logs instead of chasing blind retries.
+
 ## Direct Jobs
 
 Direct Jobs are for work that should start from an operator prompt instead

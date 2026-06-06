@@ -129,6 +129,15 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to match(/Use `repo_info` when\s+you want a quick repository status summary\./)
   end
 
+  it "gives the agent a fallback path when MCP tools are unavailable" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("MCP tools can be available, pending, or unavailable")
+    expect(out).to match(/continue with ordinary read-only shell\s+inspection when possible/)
+    expect(out).to match(/ask the operator to retry the\s+turn or check the chat sidecar health/)
+    expect(out).to include("proposals, schedules, bookmarks, or whiteboard edits")
+  end
+
   it "supports top-level chats that do not start with a repository" do
     out = described_class.new(repository: nil).to_s
 
