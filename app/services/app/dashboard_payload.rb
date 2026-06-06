@@ -8,7 +8,7 @@ module App
     DEFAULT_SUBJECT = "epic"
     DEFAULT_VIEW = "list"
     DEFAULT_OWNERSHIP_SCOPE = "mine"
-    USER_FOCUSED_SUBJECTS = [].freeze
+    USER_FOCUSED_SUBJECTS = %w[epic].freeze
     TEAM_FOCUSED_SUBJECTS = %w[job workflow].freeze
     PER_PAGE = 25
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
@@ -168,7 +168,7 @@ module App
         raw_scope = params[:scope].presence || params[:ownership_scope].presence
         raw_scope ||= "user" if params[:owner_id].present? || params[:owner_user_id].present?
         raw_scope ||= "mine" if default_user_focused_subject? && !ownership_param_present?
-        raw_scope ||= user.dashboard_preferences.dig(subject.pluralize, "ownership_scope").to_s.presence
+        raw_scope ||= user.dashboard_preferences.dig(subject.pluralize, "ownership_scope").to_s.presence unless default_user_focused_subject? && !ownership_param_present?
         raw_scope = "team" if default_team_focused_subject? && raw_scope == "mine" && !ownership_param_present?
         raw_scope ||= user.dashboard_preferences["last_ownership_scope"].to_s.presence unless default_user_focused_subject? || default_team_focused_subject?
         raw_scope ||= "mine" if default_user_focused_subject?

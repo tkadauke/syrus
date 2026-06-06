@@ -617,7 +617,7 @@ RSpec.describe "App API dashboard commands", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(claimable.id, unclaimed_done.id)
+      expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(claimable_backlog.id, claimable.id)
       expect(body["items"].find { |item| item.fetch("id") == claimable.id }.fetch("owner_badge")).to eq(
         "label" => "Claimable",
         "kind" => "claimable"

@@ -36,7 +36,7 @@ class User < ApplicationRecord
     "epics" => {
       "sort_column" => "updated_at",
       "sort_direction" => "desc",
-      "ownership_scope" => "mine",
+      "ownership_scope" => "team",
       "visible_columns" => %w[epic state repository updated],
       "kanban_lanes" => %w[backlog ready in_progress done]
     },
