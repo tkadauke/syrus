@@ -50,8 +50,8 @@ same Workflow pipeline.
 - `initial` — first attempt on a Job (issue → branch → PR)
 - `pr_comment` — review feedback follow-up; reuses the same branch
 - `ci_failure`, `retry`, `manual` — operator-initiated retries
-- `auto_merge` — landing-queue attempt for an approved Job; runs after
-  approval/check gates pass and owns the final GitHub merge path.
+- `auto_merge` — landing-queue attempt for an approved Job; runs final
+  graders, optional repair, push, and the GitHub merge path.
 - `rebase` — maintenance Run that rebases the PR's branch onto base
   when the PR has gone unmergeable. Skips the closed-Job guard (a
   preempted Job's external PR can still need rebases), skips
@@ -60,6 +60,9 @@ same Workflow pipeline.
   instead of fast-forward, and skips the PR-opening step. Triggered by
   `PollAllMergeStatesJob` when a PR is `mergeable: false` and we control
   the head branch.
+- `stack_rebase` — maintenance Run that rebases a dependent PR stack
+  branch-by-branch, force-pushes each updated branch, then resumes
+  landing for approved stack Jobs.
 
 ### Per-Workflow pipeline (`app/jobs/run_job.rb`, `app/services/workflows/`, `app/services/steps/`)
 
@@ -73,12 +76,13 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → implement → summarize → pr_open
-pr_comment:  prepare → respond → summarize_amend → push
+initial:     prepare → retry_until(implement → graders) → summarize → pr_open
+pr_comment:  prepare → retry_until(respond → graders) → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
-retry:       prepare → implement → summarize → pr_open
+retry:       prepare → retry_until(implement → graders) → summarize → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
-auto_merge:  auto_merge
+stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
+auto_merge:  prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 ```
 
 Key steps:
@@ -100,6 +104,13 @@ Key steps:
   and still `force_push`. On conflict, `agent_rebase` resolves it, then
   `force_push` updates the PR branch with an explicit `--force-with-lease`
   against the branch SHA Syrus observed.
+- **`grader_fanout`** / **`grader`** / **`grader_collect`** — Read grader
+  commands from `.syrus.yml`, materialize one immutable `grader` Step per
+  configured grader, and aggregate required failures. `Workflows::RetryUntil`
+  appends bounded repair/check iterations using `AppSetting.grade_max_iterations`.
+- **`landing_fix`** — Agentic repair step inside auto-merge. It runs only
+  after final graders fail on the exact PR branch Syrus is about to land;
+  successful repairs are pushed before the merge API call.
 - **`auto_merge`** — Non-agentic landing step. Transient GitHub merge
   failures defer the Job back to `approved`; a 405 saying the PR can't be
   rebased is non-retryable and fails landing so an operator can intervene.
@@ -139,6 +150,13 @@ parsed dependencies are kept for audit, and only admins can override the gate.
 `last_feedback_addressed_at`; successful `pr_comment` workflows mark the
 newest addressed comment, and future polls use the later timestamp as the
 cutoff so already-handled feedback is not re-enqueued.
+
+**Failure resilience** — failed Runs persist a `RunFailureClassification`
+from diagnostics, recent logs, spawned process outcomes, and agent outcome.
+`AutoRetryScheduler` may retry transient failures up to three times with
+5m/20m/1h backoff, either from the failed Step while the workspace remains
+or as a fresh retry Workflow. `ProviderCircuitBreaker` suppresses automatic
+retries/CI repair during provider-wide transient outages.
 
 ### Scheduled tasks
 
