@@ -32,6 +32,18 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Pinned context:")).to be < out.index("Your environment:")
   end
 
+  it "includes a compact environment snapshot with chat tool availability" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("Agent environment snapshot:")
+    expect(out).to include("Chat: ##{chat.id} scoped to acme/widgets")
+    expect(out).to include("no commit, push, or PR-opening tool is available in chat")
+    expect(out).to include("live Syrus state: list_jobs, read_job, read_pr")
+    expect(out.index("Agent environment snapshot:")).to be < out.index("Attached context:")
+  end
+
   it "renders supporting document hints without fetching document content" do
     file = Rack::Test::UploadedFile.new(
       StringIO.new("pdf"),

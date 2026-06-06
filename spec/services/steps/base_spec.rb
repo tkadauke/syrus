@@ -148,6 +148,39 @@ RSpec.describe Steps::Base do
     end
   end
 
+  describe "#run_agent" do
+    let(:fake_result) do
+      AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: "done",
+        session_id: nil
+      )
+    end
+
+    it "prepends the live environment snapshot to the adapter prompt" do
+      fake_adapter = instance_double(AgentProviders::Base)
+      received_prompt = nil
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run) do |prompt:, **|
+        received_prompt = prompt
+        fake_result
+      end
+      allow(fake_adapter).to receive(:record_result!).and_return(fake_result)
+
+      handler.send(:run_agent, prompt: "repair the aqueduct")
+
+      expect(received_prompt).to start_with("Agent environment snapshot:")
+      expect(received_prompt).to include("Repository: #{job.repository.slug}")
+      expect(received_prompt).to include("Workflow: ##{workflow.id} trigger=initial")
+      expect(received_prompt).to include("MCP/tools: run sidecar `syrus-mcp-sidecar`")
+      expect(received_prompt).to include("repair the aqueduct")
+    end
+  end
+
   describe "#perform_agentic_change_step" do
     let(:fake_ws) { instance_double(WorkflowWorkspace, setup: nil, path: Rails.root) }
 

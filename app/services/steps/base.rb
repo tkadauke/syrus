@@ -127,6 +127,7 @@ module Steps
     # captures the new session transcript on success, raises StepFailed
     # on any of the non-success outcomes.
     def run_agent(prompt:, max_turns: nil)
+      prompt = AgentEnvironmentSnapshot.new(run: run, workspace_path: workspace.path).apply_to(prompt)
       prompt = JobAttachmentContext.new(job: job, workspace_path: workspace.path).apply_to(prompt)
       sink, flush = buffered_log_sink
       begin

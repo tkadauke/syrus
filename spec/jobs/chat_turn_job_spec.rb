@@ -209,7 +209,7 @@ RSpec.describe ChatTurnJob do
     expect(control_events.map { |event| event.dig(:payload, :agent_busy) }).to eq([ true, false ])
   end
 
-  it "resumes the existing Claude session after the first turn and omits the system prompt" do
+  it "resumes the existing Claude session with a fresh snapshot and without the full system prompt" do
     chat.create_claude_session!(
       provider: "claude",
       session_id: "chat-session-1",
@@ -224,7 +224,10 @@ RSpec.describe ChatTurnJob do
     described_class.perform_now(chat.id, user_message.id)
 
     expect(received[:resume_session_id]).to eq("chat-session-1")
-    expect(received[:prompt]).to eq("What is the plan?")
+    expect(received[:prompt]).to include("Agent environment snapshot:")
+    expect(received[:prompt]).to include("Chat: ##{chat.id} scoped to acme/widgets")
+    expect(received[:prompt]).to include("What is the plan?")
+    expect(received[:prompt]).not_to include("embedded research and planning assistant")
     expect(chat.reload.claude_session).to have_attributes(
       session_id: "chat-session-2",
       transcript_jsonl: "new"

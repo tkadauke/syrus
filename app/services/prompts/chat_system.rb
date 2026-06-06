@@ -18,6 +18,8 @@ module Prompts
         Pinned context:
         #{pinned_context}
 
+        #{environment_snapshot}
+
         #{attached_context}
 
         #{documents_hint}
@@ -242,6 +244,10 @@ module Prompts
         suffix = clipped.length < body.length ? "..." : ""
         "  - #{clipped}#{suffix}"
       end.compact.join("\n")
+    end
+
+    def environment_snapshot
+      AgentEnvironmentSnapshot.for_chat(repository: @repository, chat_session: @chat_session)
     end
 
     def attached_context
