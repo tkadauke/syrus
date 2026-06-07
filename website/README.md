@@ -29,6 +29,17 @@ future Starlight/Astro shell. Keep page titles, descriptions, primary
 navigation, footer groups, and social copy there instead of scattering
 them across generated templates.
 
+## Verification
+
+Run `bin/test-website` before merging website changes. The command checks
+the markdown content, frontmatter, `src/site.yml`, configured navigation,
+internal routes, and hash anchors. It is also wired into `bin/test`, and
+can be invoked from npm as `npm run test:website`.
+
+When the Astro/Starlight shell lands, extend `bin/test-website` with the
+real website build command. Hosting and deployment remain separate from
+this content shippability check.
+
 ## Structure
 
 ```

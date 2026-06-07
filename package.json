@@ -4,7 +4,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test:react": "vitest run && npm run typecheck"
+    "test:react": "vitest run && npm run typecheck",
+    "test:website": "bin/test-website"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",

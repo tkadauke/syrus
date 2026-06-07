@@ -15,6 +15,7 @@ RSpec.describe "website content coverage" do
     expect(readme).to include("Why use Syrus?")
     expect(readme).to include("Getting Started")
     expect(readme).to include("Troubleshooting")
+    expect(readme).to include("bin/test-website")
     expect(readme).to include("A feature is not done if the user-facing page that explains it is stale")
   end
 

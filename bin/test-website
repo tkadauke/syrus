@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Checks the framework-light public website content until the Astro/Starlight
+# shell lands. Keep this command wired into bin/test so website regressions are
+# caught before merge.
+
+set -euo pipefail
+
+bin/rspec spec/docs/website_navigation_spec.rb spec/website
