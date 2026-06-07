@@ -8,7 +8,7 @@ module App
     DEFAULT_SUBJECT = "epic"
     DEFAULT_VIEW = "list"
     DEFAULT_OWNERSHIP_SCOPE = "mine"
-    USER_FOCUSED_SUBJECTS = [].freeze
+    USER_FOCUSED_SUBJECTS = %w[epic].freeze
     TEAM_FOCUSED_SUBJECTS = %w[job workflow].freeze
     PER_PAGE = 25
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
@@ -203,7 +203,7 @@ module App
             user.dashboard_preferences["last_owner_user_id"],
             exception: false
           )
-          raise InvalidScope, "owner_user_id is required for dashboard scope user" unless id
+          raise InvalidScope, "owner_id is required for dashboard scope user" unless id
 
           User.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
         end
