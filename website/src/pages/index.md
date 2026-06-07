@@ -27,7 +27,7 @@ The shortest proof is a GitHub issue with label-based delegation:
 connect a repository, choose the trigger label, and let Syrus turn that
 issue into a branch, run, and pull request.
 
-## What Syrus Does
+## The Loop
 
 Give Syrus a connected GitHub repository and a trigger label. A typical
 first run starts with a GitHub issue with label `syrus`. When an
