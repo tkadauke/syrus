@@ -25,7 +25,7 @@ RSpec.describe "website content coverage" do
       "src/content/docs/what-is-syrus.md" => ["The 30-Second Version", "What Syrus Owns", "The Core Terms"],
       "src/content/docs/why-use-syrus.md" => ["Own The Keys", "Keep GitHub As The Workflow", "Good Fits"],
       "src/content/docs/features.md" => ["Epics", "Chats", "GitHub App And PAT Behavior"],
-      "src/content/docs/getting-started.md" => ["First Successful Run", "Create the first admin", "Review the PR"]
+      "src/content/docs/getting-started.md" => ["First Successful Job", "Create the first admin", "Review the PR"]
     }
 
     pages.each do |path, expected_sections|
