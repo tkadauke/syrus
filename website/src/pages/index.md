@@ -19,7 +19,7 @@ creating branches, preparing workspaces, running the agent, recording
 transcripts and diffs, pushing commits, and keeping the PR current. The
 agent writes code; Syrus handles the job control around it.
 
-[Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs/getting-started) · [Star on GitHub](https://github.com/tkadauke/syrus)
+[Get Started](/docs/getting-started) · [Try it locally](/docs/deployment/try-it-locally) · [Read the docs](/docs) · [Star on GitHub](https://github.com/tkadauke/syrus)
 
 ## The Loop
 

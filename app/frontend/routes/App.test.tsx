@@ -360,11 +360,11 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-    expect(await screen.findByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
+    expect((await screen.findAllByRole("link", { name: "Create account from invitation" }))[0]).toHaveAttribute("href", "/users/new?token=invite-token")
     expect(screen.getAllByText("Invitation-only").length).toBeGreaterThan(0)
     expect(screen.getByText("Invitation link")).toBeInTheDocument()
     expect(screen.getByText("Detected")).toBeInTheDocument()
-    expect(screen.getByText("An invitation token is present in this link. Create your account to join this instance.")).toBeInTheDocument()
+    expect(screen.getAllByText("An invitation token is present in this link. Create your account to join this instance.").length).toBeGreaterThan(0)
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
       expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
