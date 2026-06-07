@@ -5450,6 +5450,10 @@ describe("App", () => {
     })
     expect(await screen.findByText("tests grade log")).toBeInTheDocument()
     expect(screen.getByText("rspec output")).toBeInTheDocument()
+    const gradeLogStream = screen.getByTestId("run-grade-log-stream")
+    expect(gradeLogStream.closest("section")).toHaveClass("max-md:fixed", "max-md:inset-0", "max-md:h-[100dvh]")
+    fireEvent.click(screen.getByRole("button", { name: "Close artifact viewer" }))
+    expect(screen.queryByText("rspec output")).not.toBeInTheDocument()
   })
 
   it("coalesces adjacent transcript chunks with the same kind", async () => {

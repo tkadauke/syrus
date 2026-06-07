@@ -992,7 +992,10 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
   const [artifactView, setArtifactView] = useState<"transcript" | "diff" | null>(null)
   const gradeLog = useMutation({
     mutationFn: (path: string) => fetchJobGradeLog(path),
-    onSuccess: () => setGradeLogOpen(true)
+    onSuccess: () => {
+      setArtifactView(null)
+      setGradeLogOpen(true)
+    }
   })
   const artifacts = useQuery({
     queryKey: ["job_run_artifacts", String(payload.job.id), String(run.id)],
@@ -1005,6 +1008,17 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
   function showArtifacts(view: "transcript" | "diff") {
     setGradeLogOpen(false)
     setArtifactView((current) => current === view ? null : view)
+  }
+
+  function showGradeLog(path: string) {
+    setArtifactView(null)
+    if (gradeLogOpen) {
+      setGradeLogOpen(false)
+    } else if (gradeLog.data) {
+      setGradeLogOpen(true)
+    } else {
+      gradeLog.mutate(path)
+    }
   }
 
   return (
@@ -1039,7 +1053,7 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
           {run.can_diagnose ? <CommandButton command={command} input={{ method: "post", path: run.app_diagnose_path }} tone="secondary">Diagnose</CommandButton> : null}
           {run.can_resume ? <CommandButton command={command} input={{ method: "post", path: payload.paths.app_resume_path, body: { source_run_id: run.id } }} tone="secondary">Resume</CommandButton> : null}
           {run.app_grade_log_path ? (
-            <button className={buttonClass("secondary")} disabled={gradeLog.isPending} onClick={() => gradeLog.mutate(run.app_grade_log_path!)} type="button">
+            <button className={buttonClass("secondary")} disabled={gradeLog.isPending} onClick={() => showGradeLog(run.app_grade_log_path!)} type="button">
               {gradeLog.isPending ? "Loading log..." : "Grade log"}
             </button>
           ) : null}
@@ -1049,13 +1063,7 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
       {artifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView} /> : null}
       {gradeLog.isError ? <p className="mt-3 text-xs text-red-700">{errorMessage(gradeLog.error, "Grade log failed.")}</p> : null}
       {gradeLogOpen && gradeLog.data ? (
-        <section className="mt-3 rounded border border-gray-200 bg-gray-50">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2">
-            <h4 className="text-xs font-semibold uppercase text-gray-500">{gradeLog.data.name || `Run #${gradeLog.data.run_id}`} grade log</h4>
-            <button className="text-xs text-gray-500 underline hover:text-gray-700" onClick={() => setGradeLogOpen(false)} type="button">Hide</button>
-          </div>
-          <pre className="max-h-96 overflow-auto p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap">{gradeLog.data.contents}</pre>
-        </section>
+        <RunGradeLogPanel onClose={() => setGradeLogOpen(false)} payload={gradeLog.data} />
       ) : null}
     </div>
   )
@@ -1077,6 +1085,15 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>Transcript</ArtifactPanelHeader>
       {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400">No transcript rows captured for this run.</p>}
+    </section>
+  )
+}
+
+function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<typeof fetchJobGradeLog>>; onClose: () => void }) {
+  return (
+    <section className={artifactPanelClass()}>
+      <ArtifactPanelHeader onClose={onClose}>{payload.name || `Run #${payload.run_id}`} grade log</ArtifactPanelHeader>
+      <pre className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none" data-testid="run-grade-log-stream">{payload.contents}</pre>
     </section>
   )
 }
