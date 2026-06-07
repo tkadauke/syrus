@@ -40,6 +40,17 @@ type HeaderAction = {
   input: CommandInput
   tone: ButtonTone
 }
+type PrepareFailure = {
+  command?: string
+  workdir?: string
+  exit_status?: number | null
+  timed_out?: boolean
+  stopped?: boolean
+  operator_killed?: boolean
+  aliveness_failed?: boolean
+  duration_s?: number | null
+  output_tail?: string | null
+}
 
 const RUN_TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24
 
@@ -907,6 +918,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
   const runs = sortedRunsNewestFirst(step.runs)
   const activeRun = runs.find((run) => isActiveState(run.state))
   const displayStatus = activeRun ? activeRun.state : step.display_status
+  const prepareFailure = prepareFailureDetails(step)
 
   return (
     <div className="border-b border-gray-200 bg-white last:border-b-0">
@@ -941,7 +953,8 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
               <span> since {formatDate(activeRun.started_at || activeRun.created_at)}</span>
             </div>
           ) : null}
-          {step.details ? <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600">{stringify(step.details)}</pre> : null}
+          {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
+          {step.details && !prepareFailure ? <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600">{stringify(step.details)}</pre> : null}
           {runs.length > 0 ? (
             <div className="mt-3 space-y-2">
               {runs.map((run) => <RunRow active={activeRun?.id === run.id} command={command} key={run.id} payload={payload} run={run} />)}
@@ -950,6 +963,27 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
         </div>
       ) : null}
     </div>
+  )
+}
+
+function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
+  const status = prepareFailureStatus(failure)
+
+  return (
+    <section className="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+      <div className="font-semibold">Setup failed before the agent started</div>
+      <dl className="mt-2 grid gap-x-4 gap-y-1 md:grid-cols-[max-content_1fr]">
+        <dt className="font-medium">Command</dt>
+        <dd className="min-w-0 break-words font-mono">{failure.command || "-"}</dd>
+        <dt className="font-medium">Working directory</dt>
+        <dd className="min-w-0 break-words font-mono">{failure.workdir || "-"}</dd>
+        <dt className="font-medium">Status</dt>
+        <dd>{status}</dd>
+      </dl>
+      {failure.output_tail ? (
+        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-[11px] text-amber-950 whitespace-pre-wrap">{failure.output_tail}</pre>
+      ) : null}
+    </section>
   )
 }
 
@@ -1795,6 +1829,25 @@ function runSortTime(run: JobRun) {
 
 function isActiveState(state: string) {
   return state === "queued" || state === "running"
+}
+
+function prepareFailureDetails(step: JobStep): PrepareFailure | null {
+  if (step.kind !== "prepare" || !isRecord(step.details)) return null
+  const failure = step.details.prepare_failure
+  return isRecord(failure) ? failure as PrepareFailure : null
+}
+
+function prepareFailureStatus(failure: PrepareFailure) {
+  if (failure.timed_out) return "timed out"
+  if (failure.operator_killed) return "operator killed"
+  if (failure.stopped) return "stopped"
+  if (failure.aliveness_failed) return "process disappeared"
+  if (failure.exit_status != null) return `exit ${failure.exit_status}`
+  return "failed"
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function stringify(value: unknown) {

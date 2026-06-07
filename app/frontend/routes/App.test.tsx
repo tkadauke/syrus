@@ -6054,6 +6054,81 @@ describe("App", () => {
     expect(screen.getByText("Run #10").compareDocumentPosition(screen.getByText("Run #9"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
+  it("renders prepare failures as setup failures on the workflows tab", async () => {
+    const base = jobDetailPayload()
+    const workflow = base.workflows[0]
+    const template = workflow.steps[0] as JobStep
+    const prepareRun = {
+      ...template.runs[0],
+      id: 16,
+      state: "failed",
+      agent_provider: null,
+      agent_outcome: null,
+      agent_turns: 0,
+      agent_summary: null,
+      agent_diff_present: false,
+      agent_diff_bytes: 0,
+      failure_classification: {
+        id: 17,
+        classification: "application_error",
+        confidence: 0.4,
+        retryable: false,
+        reason: "The run failed with an unclassified application error.",
+        diagnostic_summary: "Steps::Base::StepFailed: prepare command failed",
+        classified_at: "2026-05-30T10:03:00Z"
+      }
+    }
+    const prepareFailure = {
+      command: "npm ci",
+      workdir: "/workflows/42/repo",
+      exit_status: 1,
+      timed_out: false,
+      output_tail: "npm ERR! missing package-lock.json"
+    }
+
+    vi.spyOn(window, "fetch").mockImplementation(() => {
+      return Promise.resolve(new Response(JSON.stringify(jobDetailPayload({
+        job: { state: "open", summary_state: "failed" },
+        workflows: [
+          {
+            ...workflow,
+            state: "failed",
+            failure_count: 1,
+            steps: [
+              {
+                ...template,
+                id: 15,
+                kind: "prepare",
+                display_name: "Prepare workspace",
+                display_status: "failed",
+                position: 0,
+                state: "failed",
+                details: { prepare_failure: prepareFailure },
+                runs: [prepareRun]
+              }
+            ]
+          }
+        ]
+      })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=workflows"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: /Prepare workspace/i }))
+
+    expect(screen.getByText("Setup failed before the agent started")).toBeInTheDocument()
+    expect(screen.getByText("npm ci")).toBeInTheDocument()
+    expect(screen.getByText("/workflows/42/repo")).toBeInTheDocument()
+    expect(screen.getByText("exit 1")).toBeInTheDocument()
+    expect(screen.getByText("npm ERR! missing package-lock.json")).toBeInTheDocument()
+  })
+
   it("groups grader setup and aggregation under one Grade step", async () => {
     const base = jobDetailPayload()
     const workflow = base.workflows[0]

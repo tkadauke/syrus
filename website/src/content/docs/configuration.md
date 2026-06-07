@@ -41,6 +41,10 @@ scrubbed to a small safe allowlist so the Syrus worker's own Bundler,
 Rails, or production environment settings do not leak into the target
 repo's install.
 
+When a prepare command fails, Syrus fails the workflow before starting
+the agent and records the command, workspace directory, exit status or
+timeout state, and a compact tail of command output on the workflow page.
+
 If `.syrus.yml` is missing, Syrus auto-detects one setup command from the
 first matching file:
 

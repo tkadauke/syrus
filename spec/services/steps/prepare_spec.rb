@@ -30,6 +30,8 @@ RSpec.describe Steps::Prepare do
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("no commands to run")
+    expect(workflow.reload.artifact("prepare_failure")).to be_nil
+    expect(step.reload.details["prepare_failure"]).to be_nil
   end
 
   it "runs each command from .syrus.yml in order" do
@@ -50,6 +52,8 @@ RSpec.describe Steps::Prepare do
     expect(chunks.join("\n")).to include("first")
     expect(chunks.join("\n")).to include("second")
     expect(chunks.last).to include("all commands completed successfully")
+    expect(workflow.reload.artifact("prepare_failure")).to be_nil
+    expect(step.reload.details["prepare_failure"]).to be_nil
   end
 
   it "auto-detects bundle install on a Gemfile-bearing repo" do
@@ -113,9 +117,24 @@ RSpec.describe Steps::Prepare do
   it "raises StepFailed when a prepare command exits non-zero" do
     File.write(@ws_path.join(".syrus.yml"), <<~YAML)
       prepare:
-        - bash -c 'exit 7'
+        - bash -c 'printf "alpha\\\\nbeta\\\\n"; exit 7'
     YAML
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /exit 7/)
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /exit 7.*Output tail/m)
+
+    failure = workflow.reload.artifact("prepare_failure")
+    expect(failure).to include(
+      "command" => "bash -c 'printf \"alpha\\\\nbeta\\\\n\"; exit 7'",
+      "workdir" => @ws_path.to_s,
+      "exit_status" => 7,
+      "timed_out" => false,
+      "output_tail" => include("alpha", "beta")
+    )
+    expect(step.reload.details["prepare_failure"]).to eq(failure)
+
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("[prepare] failure: prepare command failed (exit 7)")
+    expect(chunks).to include("alpha")
+    expect(chunks).to include("beta")
   end
 
   describe "#stream_buffered" do

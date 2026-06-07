@@ -16,6 +16,7 @@ module Steps
   # reaper trips.
   class Prepare < Base
     PER_COMMAND_TIMEOUT = 10.minutes.to_i
+    OUTPUT_TAIL_BYTES = 8.kilobytes
 
     # Mirror of AgentInvocation::ENV_FORWARD. Prep commands
     # run with EXACTLY this env (unsetenv_others: true) so the
@@ -59,6 +60,7 @@ module Steps
     # the process tree if it exceeds the budget.
     def run_shell(cmd)
       buffer = new_log_buffer
+      tail = +""
       result = ProcessRunner.new(
         env: env,
         command: [ "bash", "-c", cmd ],
@@ -67,15 +69,72 @@ module Steps
         kind: "prepare",
         run: run,
         workflow: workflow,
-        on_output_chunk: ->(chunk) { stream_buffered_chunk(buffer, chunk) }
+        on_output_chunk: ->(chunk) {
+          append_output_tail(tail, chunk)
+          stream_buffered_chunk(buffer, chunk)
+        }
       ).run
       flush_log_buffer(buffer)
 
       if result.timed_out
-        raise StepFailed, "prepare command timed out after #{PER_COMMAND_TIMEOUT}s: #{cmd}"
+        failure = prepare_failure_payload(cmd, result, tail)
+        record_prepare_failure!(failure)
+        raise StepFailed, prepare_failure_message(failure)
       elsif !result.success?
-        raise StepFailed, "prepare command failed (exit #{result.exit_status}): #{cmd}"
+        failure = prepare_failure_payload(cmd, result, tail)
+        record_prepare_failure!(failure)
+        raise StepFailed, prepare_failure_message(failure)
       end
+    end
+
+    def append_output_tail(tail, chunk)
+      tail << chunk.to_s
+      overflow = tail.bytesize - OUTPUT_TAIL_BYTES
+      tail.byteslice(0, overflow)&.bytesize&.then { |bytes| tail.bytesplice(0, bytes, "") } if overflow.positive?
+    end
+
+    def prepare_failure_payload(cmd, result, tail)
+      {
+        "command" => cmd,
+        "workdir" => workspace.path.to_s,
+        "exit_status" => result.exit_status,
+        "timed_out" => result.timed_out?,
+        "stopped" => result.stopped?,
+        "operator_killed" => result.operator_killed?,
+        "aliveness_failed" => result.aliveness_failed?,
+        "duration_s" => result.duration_s&.round(2),
+        "output_tail" => compact_output_tail(tail)
+      }
+    end
+
+    def record_prepare_failure!(failure)
+      step.update!(details: (step.details || {}).merge("prepare_failure" => failure))
+      workflow.set_artifact!("prepare_failure", failure)
+      log("[prepare] failure: #{prepare_failure_message(failure)}")
+    end
+
+    def prepare_failure_message(failure)
+      status = if failure["timed_out"]
+        "timed out after #{PER_COMMAND_TIMEOUT}s"
+      elsif failure["operator_killed"]
+        "operator killed"
+      elsif failure["stopped"]
+        "stopped"
+      elsif failure["aliveness_failed"]
+        "process disappeared"
+      else
+        "exit #{failure["exit_status"] || "unknown"}"
+      end
+
+      message = "prepare command failed (#{status}) in #{failure["workdir"]}: #{failure["command"]}"
+      tail = failure["output_tail"].to_s
+      return message if tail.blank?
+
+      "#{message}\nOutput tail:\n#{tail}"
+    end
+
+    def compact_output_tail(tail)
+      tail.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?").strip
     end
 
     # Read `io` until EOF, batching writes into JobLog. Flush becomes due

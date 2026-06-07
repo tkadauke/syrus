@@ -78,6 +78,11 @@ prepare:
   - npm test -- --runInBand
 ```
 
+If the Workflow fails at the `prepare` Step, the agent has not started
+yet. Open the prepare Step details to see the failed setup command, its
+working directory, exit status, and the final output tail from the
+installer or setup command.
+
 For cron Jobs, no diff can be a successful result. Scheduled prompts
 should explicitly say what counts as "nothing to do" so the agent can
 close cleanly instead of inventing work.
