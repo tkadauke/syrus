@@ -14,7 +14,7 @@ RSpec.describe "Filters::Chips::Epics" do
   end
 
   def child_job(epic, **attrs)
-    issue_number = attrs.delete(:issue_number) || SecureRandom.random_number(10_000)
+    issue_number = attrs.delete(:issue_number) || SecureRandom.random_number(1..10_000)
     Factories.job(repository: repo, epic: epic, issue_number: issue_number, **attrs)
   end
 
