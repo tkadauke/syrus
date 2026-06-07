@@ -637,10 +637,9 @@ function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
   const retry = job.retry_state
   if (!retry || retry.state_label === "No failure") return null
 
-  const tone = retry.auto_retry_exhausted ? "text-red-700 bg-red-50 border-red-200" : retry.provider_circuit_open ? "text-amber-800 bg-amber-50 border-amber-200" : "text-gray-700 bg-gray-50 border-gray-200"
   return (
-    <div className={`mt-1 inline-flex flex-wrap items-center gap-1.5 rounded border px-2 py-1 text-xs ${tone}`}>
-      <span className="font-medium">{retry.state_label}</span>
+    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-600">
+      <TonePill tone={retry.tone}>{retry.state_label}</TonePill>
       <span>{retry.classification_label}</span>
       <span>{retry.retry_budget_remaining} retries left</span>
       {retry.next_auto_retry_at ? <span>next {formatRelative(retry.next_auto_retry_at)}</span> : null}

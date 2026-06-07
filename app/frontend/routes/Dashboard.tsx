@@ -1147,9 +1147,7 @@ function RetryStateInline({ job }: { job: DashboardJobItem }) {
     retry.provider_circuit_open ? "provider circuit open" : null
   ].filter(Boolean).join(" · ")
 
-  const tone = retry.auto_retry_exhausted ? "red" : retry.provider_circuit_open ? "amber" : "gray"
-
-  return <TonePill title={details} tone={tone}>{retry.state_label}</TonePill>
+  return <TonePill title={details} tone={retry.tone}>{retry.state_label}</TonePill>
 }
 
 function ExternalMetadataLink({ children, className = "text-gray-500 hover:text-blue-700 hover:underline", href }: { children: ReactNode; className?: string; href: string | null }) {

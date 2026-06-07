@@ -46,6 +46,40 @@ RSpec.describe AutoRetryScheduler do
     end
   end
 
+  it "schedules transient failures from persisted run classification" do
+    freeze_time do
+      fail_workflow!(agent_outcome: nil)
+      run.run_failure_classification.update!(
+        classification: "provider_transient",
+        confidence: 0.8,
+        retryable: true,
+        reason: "The provider failed transiently.",
+        classified_at: Time.current
+      )
+
+      described_class.schedule_for_workflow(workflow: workflow)
+
+      attempt = AutoRetryAttempt.last
+      expect(attempt.failure_classification).to eq("provider_transient")
+      expect(attempt.scheduled_at).to eq(5.minutes.from_now)
+    end
+  end
+
+  it "does not schedule operator-required failures from persisted run classification" do
+    fail_workflow!(agent_outcome: nil)
+    run.run_failure_classification.update!(
+      classification: "operator_required",
+      confidence: 0.9,
+      retryable: false,
+      reason: "The failure requires operator intervention before retrying.",
+      classified_at: Time.current
+    )
+
+    expect {
+      described_class.schedule_for_workflow(workflow: workflow)
+    }.not_to change { AutoRetryAttempt.count }
+  end
+
   it "does not schedule non-retryable failures" do
     fail_workflow!(agent_outcome: "error_max_turns")
 

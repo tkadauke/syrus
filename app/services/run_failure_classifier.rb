@@ -35,6 +35,8 @@ class RunFailureClassifier
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when process_died?
       result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
+    when operator_required?
+      result("operator_required", 0.90, false, "The failure requires operator intervention before retrying.")
     when git_state_corrupt?
       result("git_state_corrupt", 0.85, false, "The workspace git state was corrupt or unsafe.")
     when max_turns?
@@ -87,6 +89,10 @@ class RunFailureClassifier
     run.agent_outcome == "worker_died" ||
       text_match?(/ProcessPrunedError|worker died|process (is )?gone|process died|sigkill|killed|terminated|exit status/i) ||
       spawned_processes.any? { |process| %w[aliveness_failed orphaned stopped operator_killed].include?(process.outcome) }
+  end
+
+  def operator_required?
+    LandingFailureHandler.operator_required?(searchable_text)
   end
 
   def git_state_corrupt?

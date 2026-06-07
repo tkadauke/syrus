@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { CloseIcon } from "../components/CloseIcon"
 import { NoticeToast } from "../components/NoticeToast"
-import { StatusPill } from "../components/StatusPill"
+import { StatusPill, TonePill } from "../components/StatusPill"
 import { workflowSlug } from "../lib/slugs"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
@@ -553,13 +553,13 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
   if (!retry || (retry.state_label === "No failure" && !retry.classification)) return null
 
   return (
-    <section className={`rounded border px-4 py-3 text-sm ${retry.auto_retry_exhausted ? "border-red-200 bg-red-50 text-red-800" : retry.provider_circuit_open ? "border-amber-200 bg-amber-50 text-amber-900" : "border-gray-200 bg-white text-gray-700"}`}>
+    <section className={`rounded border px-4 py-3 text-sm ${retryPanelTone(retry.tone)}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold">{retry.state_label}</span>
-        <SmallPill>{retry.classification_label}</SmallPill>
-        <SmallPill>{retry.retryable ? "retryable" : "not retryable"}</SmallPill>
-        <SmallPill>{retry.retry_attempt_count}/{retry.retry_budget} attempts</SmallPill>
-        <SmallPill>{retry.retry_budget_remaining} remaining</SmallPill>
+        <TonePill tone={retry.tone}>{retry.classification_label}</TonePill>
+        <TonePill tone={retry.retryable ? "blue" : "gray"}>{retry.retryable ? "retryable" : "not retryable"}</TonePill>
+        <TonePill tone="gray">{retry.retry_attempt_count}/{retry.retry_budget} attempts</TonePill>
+        <TonePill tone="gray">{retry.retry_budget_remaining} remaining</TonePill>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {retry.next_auto_retry_at ? <span>Next retry {formatDate(retry.next_auto_retry_at)}</span> : null}
@@ -568,6 +568,17 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
       </div>
     </section>
   )
+}
+
+function retryPanelTone(tone: NonNullable<JobDetailPayload["job"]["retry_state"]>["tone"]) {
+  const tones = {
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+    blue: "border-blue-200 bg-blue-50 text-blue-900",
+    gray: "border-gray-200 bg-white text-gray-700",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    red: "border-red-200 bg-red-50 text-red-800"
+  }
+  return tones[tone]
 }
 
 function JobOwnerLabel({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {

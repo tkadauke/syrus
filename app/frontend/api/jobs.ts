@@ -31,6 +31,8 @@ export type JobRetryState = {
   retry_delayed_until: string | null
   retry_delay_reason: string | null
   state_label: string
+  state_key: "none" | "retryable" | "scheduled" | "delayed" | "exhausted" | "intervention_required" | "waiting_for_operator"
+  tone: "red" | "green" | "blue" | "gray" | "amber"
 }
 
 export type JobRecord = {

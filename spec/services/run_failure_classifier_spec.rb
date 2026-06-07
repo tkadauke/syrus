@@ -107,6 +107,15 @@ RSpec.describe RunFailureClassifier do
     expect(classification.classification).to eq("validation_or_user_error")
   end
 
+  it "classifies operator-required blockers as non-retryable" do
+    run.update!(state: "failed")
+    diagnostic("Octokit::Forbidden", "Resource not accessible by integration while merging PR")
+
+    expect(classification.classification).to eq("operator_required")
+    expect(classification.retryable).to eq(false)
+    expect(classification.reason).to include("operator intervention")
+  end
+
   it "classifies unmatched application exceptions as application errors" do
     run.update!(state: "failed")
     diagnostic("NoMethodError", "undefined method `call' for nil")

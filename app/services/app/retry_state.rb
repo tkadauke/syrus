@@ -37,7 +37,9 @@ module App
         provider_circuit_open: provider_circuit_open?,
         retry_delayed_until: iso8601(retry_delayed_until),
         retry_delay_reason: retry_delay_reason,
-        state_label: state_label
+        state_label: state_label,
+        state_key: state_key,
+        tone: tone
       }
     end
 
@@ -67,12 +69,16 @@ module App
       @classification ||= begin
         explicit = first_present(CLASSIFICATION_KEYS - [ "failure_reason" ])&.to_s&.presence
         explicit ||
+          latest_run_failure_classification&.classification ||
+          ("operator_required" if LandingFailureHandler.operator_required?(failure_text)) ||
           ("non_retryable_failure" if non_retryable_failure_text?) ||
           first_present([ "failure_reason" ])&.to_s&.presence
       end
     end
 
     def classification_label
+      return "Operator intervention required" if classification == "operator_required"
+
       classification&.tr("_", " ")&.capitalize || "Unclassified"
     end
 
@@ -81,6 +87,8 @@ module App
       return explicit unless explicit.nil?
       return false unless latest_failed_workflow || latest_failed_run
       return false if auto_retry_exhausted?
+      return false if operator_required_failure?
+      return latest_run_failure_classification.retryable unless latest_run_failure_classification.nil?
       return false if non_retryable_failure_text?
 
       job.open? && !job.any_active_run?
@@ -98,18 +106,18 @@ module App
       explicit = integer_value(first_present(BUDGET_KEYS))
       return explicit if explicit
 
-      [ retry_budget - retry_attempt_count, 0 ].max
+      [ retry_budget - retry_attempt_count_for_budget, 0 ].max
     end
 
     def retry_budget
-      AppSetting.max_job_failures
+      latest_auto_retry_attempts.any? ? AutoRetryScheduler::MAX_ATTEMPTS : AppSetting.max_job_failures
     end
 
     def auto_retry_exhausted?
       explicit = boolean_value(first_present(EXHAUSTED_KEYS))
       return explicit unless explicit.nil?
 
-      job.closure_reason == "too_many_failures" || retry_attempt_count >= retry_budget
+      job.closure_reason == "too_many_failures" || retry_attempt_count_for_budget >= retry_budget
     end
 
     def provider_circuit_open?
@@ -127,6 +135,7 @@ module App
     def state_label
       return "Auto-retry exhausted" if auto_retry_exhausted?
       return "Provider circuit open" if provider_circuit_open?
+      return "Operator intervention required" if operator_required_failure?
       return "Retry scheduled" if next_auto_retry_at
       return "Retryable failure" if retryable?
       return "Waiting for operator" if latest_failed_workflow || latest_failed_run
@@ -134,8 +143,32 @@ module App
       "No failure"
     end
 
+    def state_key
+      return "exhausted" if auto_retry_exhausted?
+      return "delayed" if provider_circuit_open?
+      return "intervention_required" if operator_required_failure?
+      return "scheduled" if next_auto_retry_at
+      return "retryable" if retryable?
+      return "waiting_for_operator" if latest_failed_workflow || latest_failed_run
+
+      "none"
+    end
+
+    def tone
+      case state_key
+      when "exhausted", "intervention_required" then "red"
+      when "delayed", "scheduled" then "amber"
+      when "retryable" then "blue"
+      else "gray"
+      end
+    end
+
     def non_retryable_failure_text?
       @non_retryable_failure_text ||= AutoRetryFailureClassifier.non_retryable_message?(failure_text)
+    end
+
+    def operator_required_failure?
+      @operator_required_failure ||= classification == "operator_required" || LandingFailureHandler.operator_required?(failure_text)
     end
 
     def failure_text
@@ -143,9 +176,27 @@ module App
         job.landing_failure_reason,
         latest_failed_workflow&.failure_reason,
         artifacts["failure_reason"],
+        latest_run_failure_classification&.classification,
+        latest_run_failure_classification&.reason,
         latest_failed_run&.run_diagnostic&.error_class,
         latest_failed_run&.run_diagnostic&.error_message
       ].compact.join("\n")
+    end
+
+    def latest_run_failure_classification
+      latest_failed_run&.run_failure_classification
+    end
+
+    def retry_attempt_count_for_budget
+      [ retry_attempt_count, latest_auto_retry_attempts.size ].max
+    end
+
+    def latest_auto_retry_attempts
+      @latest_auto_retry_attempts ||= begin
+        scope = job.auto_retry_attempts
+        scope = scope.where(failure_classification: classification) if classification.present?
+        scope.to_a
+      end
     end
 
     def first_present(keys)

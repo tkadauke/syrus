@@ -64,6 +64,14 @@ class AutoRetryFailureClassifier
   def call
     run = latest_failed_run
     return non_retryable("unknown", "no failed run") unless run
+    if actionable_persisted_classification?(run.run_failure_classification)
+      classification = run.run_failure_classification
+      return Result.new(
+        classification: classification.classification,
+        retryable: classification.retryable,
+        reason: classification.reason.presence || "run failure classification"
+      )
+    end
 
     outcome = run.agent_outcome.to_s.presence
     return non_retryable(outcome, NON_RETRYABLE_AGENT_OUTCOMES.fetch(outcome)) if NON_RETRYABLE_AGENT_OUTCOMES.key?(outcome)
@@ -72,6 +80,7 @@ class AutoRetryFailureClassifier
     diagnostic = run.run_diagnostic
     if diagnostic
       message = [ diagnostic.error_message, diagnostic.error_class ].compact.join(" ")
+      return non_retryable("operator_required", "operator-required blocker") if LandingFailureHandler.operator_required?(message)
       return non_retryable("non_retryable_failure", "known user/code/config failure") if self.class.non_retryable_message?(message)
       return retryable(diagnostic.error_class, "retryable exception class") if retryable_error_class?(diagnostic.error_class)
       return retryable("transient_process_failure", "retryable diagnostic message") if RETRYABLE_MESSAGE_PATTERNS.any? { |pattern| message.match?(pattern) }
@@ -85,12 +94,18 @@ class AutoRetryFailureClassifier
   attr_reader :workflow
 
   def latest_failed_run
-    workflow.runs.where(state: "failed").includes(:run_diagnostic).order(created_at: :desc).first
+    workflow.runs.where(state: "failed").includes(:run_diagnostic, :run_failure_classification).order(created_at: :desc).first
   end
 
   def retryable_error_class?(error_class)
     RETRYABLE_ERROR_CLASSES.include?(error_class.to_s) ||
       error_class.to_s.end_with?("TimeoutError", "Timeout")
+  end
+
+  def actionable_persisted_classification?(classification)
+    return false unless classification
+
+    classification.retryable? || classification.classification == "operator_required"
   end
 
   def retryable(classification, reason)

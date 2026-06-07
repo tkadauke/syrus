@@ -99,6 +99,25 @@ GitHub API error there. Also verify that the token-bearing push URL is
 constructed only at push time; do not paste raw logs containing tokens
 into chat or tickets.
 
+## Landing is paused after a failure
+
+Syrus classifies failed Runs as retryable, auto-retry exhausted, or
+operator intervention required. Transient failures can schedule automatic
+retries. Exhausted failures have spent the retry budget and need an
+operator decision.
+
+Operator-required landing blockers include disk-full conditions, missing
+GitHub permissions, protected-branch policy errors, and rebase-cap
+failures. Disk and permission blockers pause the user's landing queue so
+Syrus does not keep trying the same merge until the environment or token is
+fixed. Rebase-cap blockers keep the Job approved but defer landing until a
+manual rebase, PR head change, base branch change, or explicit operator
+action clears the blocker.
+
+After clearing the underlying problem, use **Resume landing** from the
+dashboard. Approved Jobs remain in the landing queue and can continue
+without database edits.
+
 ## How do I read the transcript?
 
 The Job page renders each Run's transcript inline. Tool calls are hidden

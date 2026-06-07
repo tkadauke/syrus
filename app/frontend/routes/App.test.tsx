@@ -1037,7 +1037,9 @@ describe("App", () => {
                       provider_circuit_open: false,
                       retry_delayed_until: null,
                       retry_delay_reason: null,
-                      state_label: "Retryable failure"
+                      state_label: "Retryable failure",
+                      state_key: "retryable",
+                      tone: "blue"
                     }
                   })
                 ]

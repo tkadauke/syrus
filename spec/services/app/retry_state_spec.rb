@@ -40,7 +40,9 @@ RSpec.describe App::RetryState do
         classification: nil,
         classification_label: "Unclassified",
         retryable: false,
-        state_label: "No failure"
+        state_label: "No failure",
+        state_key: "none",
+        tone: "gray"
       )
     end
 
@@ -82,7 +84,9 @@ RSpec.describe App::RetryState do
         classification: nil,
         classification_label: "Unclassified",
         retryable: false,
-        state_label: "No failure"
+        state_label: "No failure",
+        state_key: "none",
+        tone: "gray"
       )
     end
 
@@ -100,7 +104,48 @@ RSpec.describe App::RetryState do
         classification: "git_failure",
         classification_label: "Git failure",
         retryable: true,
-        state_label: "Retryable failure"
+        state_label: "Retryable failure",
+        state_key: "retryable",
+        tone: "blue"
+      )
+    end
+
+    it "reports exhausted retry state from auto-retry attempts" do
+      job = Factories.job(agent_provider: "claude")
+      workflow = job.latest_workflow
+      run = job.initial_run
+      workflow.update!(state: "failed", finished_at: 1.minute.ago)
+      run.update_columns(state: "failed", finished_at: 1.minute.ago, agent_provider: "claude")
+      run.create_run_failure_classification!(
+        classification: "provider_transient",
+        confidence: 0.8,
+        retryable: true,
+        reason: "The provider failed transiently.",
+        classified_at: Time.current
+      )
+      AutoRetryScheduler::MAX_ATTEMPTS.times do |index|
+        AutoRetryAttempt.create!(
+          job: job,
+          workflow: workflow,
+          run: run,
+          agent_provider: "claude",
+          failure_classification: "provider_transient",
+          retry_kind: "failed_step",
+          attempt_number: index + 1,
+          scheduled_at: Time.current
+        )
+      end
+
+      expect(described_class.for(job.reload)).to include(
+        classification: "provider_transient",
+        classification_label: "Provider transient",
+        retryable: false,
+        retry_budget_remaining: 0,
+        retry_budget: AutoRetryScheduler::MAX_ATTEMPTS,
+        auto_retry_exhausted: true,
+        state_label: "Auto-retry exhausted",
+        state_key: "exhausted",
+        tone: "red"
       )
     end
 
@@ -124,10 +169,12 @@ RSpec.describe App::RetryState do
       )
 
       expect(described_class.for(job.reload)).to include(
-        classification: "non_retryable_failure",
-        classification_label: "Non retryable failure",
+        classification: "operator_required",
+        classification_label: "Operator intervention required",
         retryable: false,
-        state_label: "Waiting for operator"
+        state_label: "Operator intervention required",
+        state_key: "intervention_required",
+        tone: "red"
       )
     end
   end
