@@ -30,7 +30,7 @@ RSpec.describe "MySQL fresh install compatibility" do
     expect(approved_at_position).to be < landing_index_position
   end
 
-  it "uses bigint columns for user foreign keys added outside references helpers" do
+  it "uses MySQL-compatible columns for user foreign keys" do
     expect(migration_sources.fetch("20260602234619_add_owner_to_epics.rb"))
       .to include("add_column :epics, :owner_id, :bigint")
     expect(migration_sources.fetch("20260602232855_add_owner_user_to_dashboard_records.rb"))

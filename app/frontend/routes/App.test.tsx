@@ -7916,8 +7916,8 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
   }
 }
 
-function defaultSetupStatus() {
-  return setupStatus()
+function defaultSetupStatus(overrides: Record<string, unknown> = {}) {
+  return setupStatus(overrides)
 }
 
 function setupStatus(overrides: Record<string, unknown> = {}) {
