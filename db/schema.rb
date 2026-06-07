@@ -420,6 +420,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_06_235251) do
     t.string "closure_reason"
     t.datetime "created_at", null: false
     t.string "credential_mode", default: "pat", null: false
+    t.integer "credential_user_id", null: false
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
     t.integer "epic_id"
@@ -457,6 +458,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_06_235251) do
     t.index ["claimed_at"], name: "index_jobs_on_claimed_at"
     t.index ["claimed_by_user_id"], name: "index_jobs_on_claimed_by_user_id"
     t.index ["credential_mode"], name: "index_jobs_on_credential_mode"
+    t.index ["credential_user_id"], name: "index_jobs_on_credential_user_id"
     t.index ["dependencies_overridden_by_user_id"], name: "index_jobs_on_dependencies_overridden_by_user_id"
     t.index ["epic_id"], name: "index_jobs_on_epic_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
@@ -863,6 +865,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_06_235251) do
   add_foreign_key "jobs", "users"
   add_foreign_key "jobs", "users", column: "approved_by_user_id"
   add_foreign_key "jobs", "users", column: "claimed_by_user_id"
+  add_foreign_key "jobs", "users", column: "credential_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "jobs", "users", column: "owner_user_id"
   add_foreign_key "repositories", "installations"
