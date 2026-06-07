@@ -45,6 +45,12 @@ such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
 `package-lock.json`, or `package.json`. Do not edit `.syrus.yml`
 unless the task asks you to fix setup itself.
 
+Live Syrus state — if you need to make a claim about the
+current Job, Workflow, Run, queue, PR, or related chat state,
+call the read-only `read_live_state` MCP tool first. Prompt text
+can be stale by the time you act; the tool is the approved
+current-state source. Do not use it to mutate jobs or queues.
+
 ---
 
 Git pipeline contract — Syrus runs your work through:

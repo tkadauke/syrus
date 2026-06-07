@@ -36,6 +36,13 @@ RSpec.describe Prompts::Implement do
     expect(out).to include("auto-detects one setup command")
   end
 
+  it "explains when to use the read-only live-state tool" do
+    out = described_class.new(issue: issue).to_s
+    expect(out).to include("read_live_state")
+    expect(out).to include("current Job, Workflow, Run, queue, PR, or related chat state")
+    expect(out).to include("Do not use it to mutate jobs or queues")
+  end
+
   it "includes the phased-execution note telling the agent NOT to call submit_summary" do
     out = described_class.new(issue: issue).to_s
     expect(out).to include("Phased execution note: you're running the **implement** step")

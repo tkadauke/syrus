@@ -22,6 +22,13 @@ RSpec.describe Prompts::GitSafety do
   it "explains the pipeline contract" do
     expect(described_class::TEXT).to include("git diff origin/<default_branch>...HEAD")
   end
+
+  it "tells agents to read live Syrus state before operational claims" do
+    text = described_class::TEXT
+    expect(text).to include("read_live_state")
+    expect(text).to include("current Job, Workflow, Run, queue, PR, or related chat state")
+    expect(text).to include("Do not use it to mutate jobs or queues")
+  end
 end
 
 # Defense-in-depth: every primary-agent prompt that runs the

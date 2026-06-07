@@ -44,12 +44,14 @@ operator's network.
 
 Agentic Steps launch the configured provider with an MCP config that starts
 `bin/syrus-mcp-sidecar` over stdio. The sidecar exposes a small tool
-surface, currently centered on `submit_summary(pr_title, pr_body, summary)`.
-When the agent calls it, the sidecar writes structured artifacts onto the
-Workflow and appends an audit log line. Later Steps consume those artifacts:
-`pr_open` reads PR copy, and `summarize_amend` provides follow-up commit
-messages. The tool name and sidecar binary name intentionally match so
-the provider can invoke the registered MCP tool.
+surface for the active Run. `read_live_state` is read-only and returns compact
+current Job, Workflow, Run, queue, and related chat state so agents can check
+live Syrus state before making operational claims. `submit_summary(pr_title,
+pr_body, summary)` writes structured artifacts onto the Workflow and appends an
+audit log line. Later Steps consume those artifacts: `pr_open` reads PR copy,
+and `summarize_amend` provides follow-up commit messages. The tool name and
+sidecar binary name intentionally match so the provider can invoke the
+registered MCP tool.
 
 ## Credential Encryption
 

@@ -11,7 +11,7 @@ RSpec.describe SyrusMcp::Sidecar do
   def server_for(run)
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
-      tools: [ SyrusMcp::SubmitSummaryTool ],
+      tools: [ SyrusMcp::ReadLiveStateTool, SyrusMcp::SubmitSummaryTool ],
       server_context: { run_id: run.id }
     )
   end
@@ -29,11 +29,36 @@ RSpec.describe SyrusMcp::Sidecar do
       expect(response[:result][:protocolVersion]).to be_a(String)
     end
 
-    it "advertises the submit_summary tool via `tools/list`" do
+    it "advertises the run-scoped tools via `tools/list`" do
       _ = jsonrpc(server_for(run), "initialize", id: 0)
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
-      expect(tool_names).to eq(%w[submit_summary])
+      expect(tool_names).to eq(%w[read_live_state submit_summary])
+    end
+
+    it "exposes read_live_state as a read-only tool without arbitrary job lookup arguments" do
+      _ = jsonrpc(server_for(run), "initialize", id: 0)
+      response = jsonrpc(server_for(run), "tools/list", id: 1)
+      tool = response[:result][:tools].find { |candidate| candidate[:name] == "read_live_state" }
+
+      expect(tool[:description]).to include("read-only")
+      expect(tool[:inputSchema][:properties].keys).to eq([ :detail ])
+    end
+  end
+
+  describe "tools/call read_live_state" do
+    it "returns compact state for the current Run via the JSON-RPC path" do
+      response = jsonrpc(server_for(run), "tools/call", params: {
+        name: "read_live_state",
+        arguments: {}
+      })
+
+      expect(response[:result][:isError]).to be_falsey
+      payload = JSON.parse(response[:result][:content].first[:text])
+      expect(payload.dig("job", "id")).to eq(run.job_id)
+      expect(payload.dig("run", "id")).to eq(run.id)
+      expect(payload).to include("workflow", "queue", "chat")
+      expect(payload.dig("links", "api_job")).to eq("/api/v1/admin/jobs/#{run.job_id}")
     end
   end
 
