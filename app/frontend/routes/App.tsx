@@ -276,14 +276,16 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
           <div>
             <p className="text-sm font-medium text-blue-700">This instance</p>
             <h2 className="mt-2 text-2xl font-semibold text-gray-950">{cta.label}</h2>
-            <p className="mt-3 text-sm leading-6 text-gray-600">{cta.description}</p>
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              {cta.kind === "invite" ? "Use the invitation token in this URL to create your account on this instance." : cta.description}
+            </p>
             {!payload.public.first_signup && !payload.public.signups_open && !invitationToken ? (
               <p className="mt-2 text-sm leading-6 text-gray-600">
                 Access to this Syrus instance is controlled by its operator. Use an invitation link, or sign in with an existing account.
               </p>
             ) : null}
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link className={landingPrimaryButtonClass()} to={cta.href}>{cta.label}</Link>
+              <Link aria-label={`${cta.label} from instance access`} className={landingPrimaryButtonClass()} to={cta.href}>{cta.label}</Link>
               {cta.kind === "locked" ? null : <Link className={landingSecondaryButtonClass()} to={signInPath}>Sign in</Link>}
             </div>
           </div>
