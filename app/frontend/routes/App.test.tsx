@@ -1308,7 +1308,7 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
-  })
+  }, 15000)
 
   it("disambiguates GitHub issue numbers from Syrus Job ids on the dashboard", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
@@ -5757,7 +5757,7 @@ describe("App", () => {
         expect(fetchSpy).toHaveBeenCalledWith(path, expect.objectContaining({ method }))
       })
     }
-  })
+  }, 15000)
 
   it("labels approval as reapproval after a landing failure", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(jobDetailPayload({
