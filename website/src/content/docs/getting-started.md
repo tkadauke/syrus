@@ -41,12 +41,17 @@ cluster on day one.
 ## First Successful Run
 
 The first useful full-product loop is one boring issue that produces one
-pull request. Keep it small: a typo fix, a short docs update, or one
-obvious failing test. You are proving credentials, polling, workspace
-setup, agent invocation, push, and PR creation before asking for broader
-work.
+pull request. The sequence is: choose a path, boot Syrus, add credentials,
+register a repository, label one small issue, and confirm the PR opens.
+Keep it small: a typo fix, a short docs update, or one obvious failing
+test. You are proving credentials, polling, workspace setup, agent
+invocation, push, and PR creation before asking for broader work.
 
-### 1. Start Syrus
+Compose and Kubernetes pages currently document target flows for packaging
+that is still being polished, so the exact deployment commands may change
+as those artifacts land.
+
+## 1. Start Syrus
 
 Use the [Docker Compose guide](/docs/deployment/docker-compose) once the
 published Compose packaging is available, or the deployment path your
@@ -58,7 +63,7 @@ operator has provided. You need:
 - `$SYRUS_DATA_ROOT`, so the worker has durable clone and workspace
   storage.
 
-### 2. Create the first admin
+## 2. Add Credentials
 
 Open the web UI and sign up. The first user becomes an admin.
 
@@ -73,13 +78,13 @@ If your deployment supports GitHub App installations, prefer the app for
 repository access and keep the PAT fallback narrow. Syrus records the
 credential mode on Jobs for operator visibility.
 
-### 3. Register a repository
+## 3. Register A Repository
 
 Add the GitHub repository by owner/name and default branch. Confirm:
 
 - Polling is enabled.
-- The trigger label is present or can be created in GitHub. The default
-  label is `syrus`.
+- The trigger label is present or can be created in GitHub. The default is
+  `syrus`.
 - The repository provider override is blank unless this repo should use a
   different provider than your user default.
 - Preparation is enabled unless you know the repo needs no setup.
@@ -97,7 +102,11 @@ prepare:
 Use only the commands the agent needs before it starts. Long, flaky setup
 turns a simple first run into an operations problem.
 
-### 4. File the first issue
+`prepare: []` or `prepare: false` opts out. If `.syrus.yml` is absent,
+Syrus auto-detects one setup command from common files such as `Gemfile`,
+`package-lock.json`, or `package.json`.
+
+## 4. Trigger The First Job
 
 Create a small GitHub issue in the registered repo and add the trigger
 label.
@@ -114,16 +123,12 @@ the smallest relevant check.
 Avoid "refactor the app", "improve performance", and other broad prompts
 until the basic loop works.
 
-### 5. Watch the Job
+## 5. Watch The Run
 
 The Job page should show:
 
 ```text
-initial Workflow
-  prepare
-  implement
-  summarize
-  pr_open
+prepare -> implement -> summarize -> pr_open
 ```
 
 The useful checkpoints are:
@@ -134,7 +139,10 @@ The useful checkpoints are:
 - `summarize` records PR copy.
 - `pr_open` pushes a branch and attaches the GitHub PR number.
 
-### 6. Review the PR
+You are done when the Job shows a successful Workflow and includes a PR
+link.
+
+## 6. Review The PR
 
 Open the PR from the Job page. Review it like any other pull request:
 read the diff, check CI, ask for changes, or merge it. If you comment on
