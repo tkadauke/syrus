@@ -65,7 +65,8 @@ operator has provided. You need:
 
 ## 2. Add Credentials
 
-Open the web UI and sign up. The first user becomes an admin.
+Open the web UI and sign up. Create the first admin by registering the
+first user.
 
 After that, go to **Credentials** and add:
 
@@ -142,7 +143,7 @@ The useful checkpoints are:
 You are done when the Job shows a successful Workflow and includes a PR
 link.
 
-## 6. Review The PR
+## 6. Review the PR
 
 Open the PR from the Job page. Review it like any other pull request:
 read the diff, check CI, ask for changes, or merge it. If you comment on
