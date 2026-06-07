@@ -44,6 +44,34 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Agent environment snapshot:")).to be < out.index("Attached context:")
   end
 
+  it "renders compact repository context for a single-repository chat" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("Repository context:")
+    expect(out).to include("Intended target repository: acme/widgets (default branch: main)")
+    expect(out).to include("Attached repositories:\n    - acme/widgets (default branch: main)")
+    expect(out).not_to include("Multiple repositories are attached")
+    expect(out.index("Repository context:")).to be < out.index("Pinned context:")
+  end
+
+  it "normalizes attached repository slugs and warns before choosing among multiple repositories" do
+    user = repo.user
+    mixed_case = Factories.repository(user: user, owner: "Acme", name: "Forum", default_branch: "trunk")
+    other = Factories.repository(user: user, owner: "Beta", name: "Roads", default_branch: "develop")
+    chat = ChatSession.create!(user: user, repository: mixed_case)
+    chat.chat_attachments.create!(attachable: other)
+
+    out = described_class.new(repository: mixed_case, chat_session: chat).to_s
+
+    expect(out).to include("Intended target repository: acme/forum (default branch: trunk)")
+    expect(out).to include("- acme/forum (default branch: trunk)")
+    expect(out).to include("- beta/roads (default branch: develop)")
+    expect(out).to include("Multiple repositories are attached.")
+    expect(out).to include("ask which checkout to inspect before using one")
+  end
+
   it "renders supporting document hints without fetching document content" do
     file = Rack::Test::UploadedFile.new(
       StringIO.new("pdf"),
@@ -142,10 +170,14 @@ RSpec.describe Prompts::ChatSystem do
   end
 
   it "supports top-level chats that do not start with a repository" do
-    out = described_class.new(repository: nil).to_s
+    chat = ChatSession.create!(user: repo.user)
+
+    out = described_class.new(repository: nil, chat_session: chat).to_s
 
     expect(out).to include("embedded research and planning assistant for the\nchat workspace")
     expect(out).to include("Use `attach_repository(slug)`")
+    expect(out).to include("Repository context:")
+    expect(out).to include("No repository is attached yet.")
     expect(out).to include("Pinned context:\n  - (none)")
   end
 

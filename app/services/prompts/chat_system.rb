@@ -15,6 +15,9 @@ module Prompts
         operator inspect the code, think through changes, and draft
         Syrus Jobs — NOT to make code changes yourself.
 
+        Repository context:
+        #{repository_context}
+
         Pinned context:
         #{pinned_context}
 
@@ -226,6 +229,44 @@ module Prompts
       return "chat workspace" unless @repository
 
       "#{@repository.slug} repository"
+    end
+
+    def repository_context
+      repositories = attached_repositories
+      if repositories.empty?
+        return "  - No repository is attached yet. Ask which repository to use, " \
+               "or call `attach_repository(slug)` when the operator names one."
+      end
+
+      lines = []
+      if @repository
+        lines << "  - Intended target repository: #{repository_label(@repository)}"
+      else
+        lines << "  - Intended target repository: unknown"
+      end
+      lines << "  - Attached repositories:"
+      repositories.each { |repository| lines << "    - #{repository_label(repository)}" }
+      if repositories.length > 1
+        lines << "  - Multiple repositories are attached. Use the intended target above " \
+                 "when the request clearly matches it; otherwise choose the repository " \
+                 "named by the operator, or ask which checkout to inspect before using one."
+      end
+      lines.join("\n")
+    end
+
+    def attached_repositories
+      repositories = @chat_session&.attached_repositories&.order(:owner, :name, :id)&.to_a
+      repositories ||= []
+      repositories << @repository if @repository && repositories.none? { |repo| repo.id == @repository.id }
+      repositories
+    end
+
+    def repository_label(repository)
+      "#{normalized_slug(repository)} (default branch: #{repository.default_branch})"
+    end
+
+    def normalized_slug(repository)
+      repository.slug.downcase
     end
 
     def pinned_context
