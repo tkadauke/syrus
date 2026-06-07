@@ -5351,7 +5351,7 @@ describe("App", () => {
     expect(screen.getByText("rspec output")).toBeInTheDocument()
   })
 
-  it("coalesces adjacent transcript chunks with the same kind", async () => {
+  it("coalesces adjacent transcript chunks from the same command source", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/42/runs/9/artifacts") {
@@ -5360,11 +5360,14 @@ describe("App", () => {
           run_id: 9,
           agent_diff: null,
           agent_diff_bytes: 0,
-          logs_count: 3,
+          logs_count: 6,
           logs: [
-            { id: 1, sequence: 0, kind: "system", chunk: "Fetching rack 3.2.6", created_at: "2026-05-30T10:02:00Z" },
-            { id: 2, sequence: 1, kind: "system", chunk: "Fetching rack-session 2.1.2", created_at: "2026-05-30T10:02:01Z" },
-            { id: 3, sequence: 2, kind: "tool_call", chunk: "bundle install", created_at: "2026-05-30T10:02:02Z" }
+            { id: 1, sequence: 0, kind: "system", chunk: "[prepare] (1/2) $ bundle install", created_at: "2026-05-30T10:02:00Z" },
+            { id: 2, sequence: 1, kind: "system", chunk: "Fetching rack 3.2.6", created_at: "2026-05-30T10:02:01Z" },
+            { id: 3, sequence: 2, kind: "system", chunk: "Fetching rack-session 2.1.2", created_at: "2026-05-30T10:02:02Z" },
+            { id: 4, sequence: 3, kind: "system", chunk: "[prepare] (2/2) $ npm ci", created_at: "2026-05-30T10:02:03Z" },
+            { id: 5, sequence: 4, kind: "system", chunk: "added 42 packages", created_at: "2026-05-30T10:02:04Z" },
+            { id: 6, sequence: 5, kind: "tool_call", chunk: "bundle install", created_at: "2026-05-30T10:02:05Z" }
           ]
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -5386,9 +5389,17 @@ describe("App", () => {
 
     expect(await screen.findByText((_, element) => (
       element?.tagName === "PRE" &&
-      element.textContent === "Fetching rack 3.2.6\nFetching rack-session 2.1.2"
+      element.textContent === "[prepare] (1/2) $ bundle install\nFetching rack 3.2.6\nFetching rack-session 2.1.2"
     ))).toBeInTheDocument()
-    expect(screen.getAllByText("System")).toHaveLength(1)
+    expect(screen.getByText((_, element) => (
+      element?.tagName === "PRE" &&
+      element.textContent === "[prepare] (2/2) $ npm ci\nadded 42 packages"
+    ))).toBeInTheDocument()
+    expect(screen.queryByText((_, element) => (
+      element?.tagName === "PRE" &&
+      element.textContent === "[prepare] (1/2) $ bundle install\nFetching rack 3.2.6\nFetching rack-session 2.1.2\n[prepare] (2/2) $ npm ci\nadded 42 packages"
+    ))).not.toBeInTheDocument()
+    expect(screen.getAllByText("System")).toHaveLength(2)
     expect(screen.getByText("Tool")).toBeInTheDocument()
   })
 
@@ -6075,7 +6086,17 @@ describe("App", () => {
             steps: [
               step({ id: 61, kind: "prepare", display_name: "Prepare workspace", display_status: "succeeded", position: 0, state: "succeeded" }),
               step({ id: 62, kind: "grader_fanout", display_name: "Plan graders", display_status: "succeeded", position: 1, loop_id: "grade-loop", iteration: 1, state: "succeeded" }),
-              step({ id: 63, kind: "grader", display_name: "rspec", display_status: "failed", position: 2, loop_id: "grade-loop", iteration: 1, state: "failed", details: { name: "rspec" } }),
+              step({
+                id: 63,
+                kind: "grader",
+                display_name: "rspec",
+                display_status: "failed",
+                position: 2,
+                loop_id: "grade-loop",
+                iteration: 1,
+                state: "failed",
+                details: { name: "rspec", required: true, exit_code: 1, duration_s: 2.4, log_bytes: 2048 }
+              }),
               step({ id: 64, kind: "grader_collect", display_name: "Aggregate graders", display_status: "failed", position: 3, loop_id: "grade-loop", iteration: 1, state: "failed" }),
               step({ id: 65, kind: "push", display_name: "Push", display_status: null, position: 4, state: "queued" })
             ]
@@ -6094,7 +6115,8 @@ describe("App", () => {
 
     expect(await screen.findByRole("button", { name: /Prepare workspace/i })).toBeInTheDocument()
     const grade = screen.getByRole("button", { name: /Grade/i })
-    expect(within(grade).getByText(/failed/i)).toBeInTheDocument()
+    expect(within(grade).getAllByText(/failed/i).length).toBeGreaterThan(0)
+    expect(within(grade).getByText("1 failed")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Push/i })).toBeInTheDocument()
     expect(screen.queryByText("Plan graders")).not.toBeInTheDocument()
     expect(screen.queryByText("Aggregate graders")).not.toBeInTheDocument()
@@ -6102,6 +6124,12 @@ describe("App", () => {
 
     fireEvent.click(grade)
 
+    expect(screen.getByText("Grade summary")).toBeInTheDocument()
+    expect(screen.getByText("required")).toBeInTheDocument()
+    expect(screen.getByText("exit 1")).toBeInTheDocument()
+    expect(screen.getByText("2.4s")).toBeInTheDocument()
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument()
+    expect(screen.getByText("Open an individual grader below to view raw logs.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Setup/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /rspec/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Result/i })).toBeInTheDocument()

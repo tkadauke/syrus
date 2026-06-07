@@ -862,6 +862,7 @@ function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepIt
   const [open, setOpen] = useState(false)
   const status = gradeDisplayStatus(item)
   const phases = gradePhases(item)
+  const summaries = gradeSummaries(item)
 
   return (
     <div className="border-b border-gray-200 bg-white last:border-b-0">
@@ -875,6 +876,7 @@ function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepIt
           <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400">{numberLabel}.</span>
           <span className="truncate text-sm font-medium text-gray-900">Grade</span>
           {item.graders.length > 0 ? <SmallPill>{item.graders.length} {plural(item.graders.length, "check")}</SmallPill> : null}
+          {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {status ? <StatusPill state={status} /> : null}
@@ -883,6 +885,7 @@ function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepIt
       </button>
       {open ? (
         <div className="border-t border-violet-100 bg-violet-50/20 p-3">
+          {summaries.length > 0 ? <GradeSummaryTable summaries={summaries} /> : null}
           <div className="overflow-hidden rounded border border-violet-100 bg-white">
             {phases.map((phase, index) => (
               <StepCard
@@ -898,6 +901,51 @@ function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepIt
           </div>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+type GradeSummary = {
+  name: string
+  status: "passed" | "failed" | "error" | "running" | "queued" | "cancelled" | "unknown"
+  required: boolean | null
+  exitCode: number | null
+  duration: number | null
+  logBytes: number | null
+}
+
+function GradeSummaryPills({ summaries }: { summaries: GradeSummary[] }) {
+  const counts = gradeSummaryCounts(summaries)
+  return (
+    <span className="hidden items-center gap-1 sm:inline-flex">
+      {counts.passed > 0 ? <SmallPill>{counts.passed} passed</SmallPill> : null}
+      {counts.failed > 0 ? <SmallPill>{counts.failed} failed</SmallPill> : null}
+      {counts.error > 0 ? <SmallPill>{counts.error} error</SmallPill> : null}
+    </span>
+  )
+}
+
+function GradeSummaryTable({ summaries }: { summaries: GradeSummary[] }) {
+  return (
+    <div className="mb-3 overflow-hidden rounded border border-violet-100 bg-white text-xs">
+      <div className="border-b border-violet-100 bg-white px-3 py-2 font-semibold uppercase text-gray-500">Grade summary</div>
+      <div className="divide-y divide-gray-100">
+        {summaries.map((summary) => (
+          <div className="grid items-center gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_7rem_6rem_6rem_6rem]" key={summary.name}>
+            <div className="min-w-0">
+              <div className="truncate font-medium text-gray-900">{summary.name}</div>
+              <div className="text-gray-500">{summary.required === false ? "optional" : "required"}</div>
+            </div>
+            <StatusPill state={summary.status} />
+            <div className="text-gray-600">{summary.exitCode === null ? "-" : `exit ${summary.exitCode}`}</div>
+            <div className="text-gray-600">{summary.duration === null ? "-" : `${summary.duration.toFixed(1)}s`}</div>
+            <div className="text-gray-600">{summary.logBytes === null ? "-" : formatBytes(summary.logBytes)}</div>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-gray-100 px-3 py-2 text-gray-500">
+        Open an individual grader below to view raw logs.
+      </div>
     </div>
   )
 }
@@ -1191,24 +1239,49 @@ function RunTranscriptLogs({ logs }: { logs: Awaited<ReturnType<typeof fetchJobR
 }
 
 type TranscriptLog = Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"][number]
+type DisplayTranscriptLog = TranscriptLog & { sourceKey: string }
 
 function coalesceTranscriptLogs(logs: TranscriptLog[]) {
-  const displayLogs: TranscriptLog[] = []
+  const displayLogs: DisplayTranscriptLog[] = []
+  const sourceByKind = new Map<string, string>()
+
   for (const log of logs) {
+    const displayLog = { ...log, sourceKey: transcriptLogSourceKey(log, sourceByKind) }
     const previous = displayLogs.at(-1)
-    if (previous && shouldCoalesceTranscriptLogs(previous, log)) {
-      previous.chunk = joinTranscriptChunks(previous.chunk, log.chunk)
+    if (previous && shouldCoalesceTranscriptLogs(previous, displayLog)) {
+      previous.chunk = joinTranscriptChunks(previous.chunk, displayLog.chunk)
       continue
     }
 
-    displayLogs.push({ ...log })
+    displayLogs.push(displayLog)
   }
 
   return displayLogs
 }
 
-function shouldCoalesceTranscriptLogs(previous: TranscriptLog, next: TranscriptLog) {
+function transcriptLogSourceKey(log: TranscriptLog, sourceByKind: Map<string, string>) {
+  const kind = log.kind || "log"
+  const command = commandMarkerSource(log.chunk)
+  if (command) {
+    const source = `${kind}:command:${command}`
+    sourceByKind.set(kind, source)
+    return source
+  }
+
+  return sourceByKind.get(kind) || `${kind}:run`
+}
+
+function commandMarkerSource(chunk: string) {
+  const firstLine = chunk.split(/\r?\n/, 1)[0]?.trim() || ""
+  const marker = firstLine.match(/^\[(prepare|grade|grader:[^\]]+)\](?: \(\d+\/\d+\))? \$ (.+)$/)
+  if (!marker) return null
+
+  return `${marker[1]}:${marker[2]}`
+}
+
+function shouldCoalesceTranscriptLogs(previous: DisplayTranscriptLog, next: DisplayTranscriptLog) {
   if (previous.kind !== next.kind) return false
+  if (previous.sourceKey !== next.sourceKey) return false
   return !["tool_call", "rate_limited"].includes(previous.kind || "")
 }
 
@@ -1752,6 +1825,41 @@ function gradeDisplayStatus(item: GradeStepItem) {
   return null
 }
 
+function gradeSummaries(item: GradeStepItem): GradeSummary[] {
+  return item.graders.map((step) => {
+    const details = objectDetails(step.details)
+    const status = gradeSummaryStatus(step, details)
+    return {
+      name: stringValue(details.name) || step.display_name || "grader",
+      status,
+      required: booleanValue(details.required),
+      exitCode: numberValue(details.exit_code),
+      duration: numberValue(details.duration_s),
+      logBytes: numberValue(details.log_bytes)
+    }
+  })
+}
+
+function gradeSummaryStatus(step: JobStep, details: Record<string, unknown>): GradeSummary["status"] {
+  const status = stringValue(details.status)
+  if (status === "passed" || status === "failed" || status === "error" || status === "cancelled") return status
+  if (step.state === "succeeded") return "passed"
+  if (step.state === "failed") return numberValue(details.exit_code) === null ? "error" : "failed"
+  if (step.state === "running") return "running"
+  if (step.state === "queued") return "queued"
+  if (step.state === "cancelled") return "cancelled"
+  return "unknown"
+}
+
+function gradeSummaryCounts(summaries: GradeSummary[]) {
+  return summaries.reduce((counts, summary) => {
+    if (summary.status === "passed") counts.passed += 1
+    else if (summary.status === "failed") counts.failed += 1
+    else if (summary.status === "error") counts.error += 1
+    return counts
+  }, { passed: 0, failed: 0, error: 0 })
+}
+
 function loopDisplayName(item: LoopStepItem) {
   const kinds = item.iterations.flatMap((iteration) => iteration.steps.map((step) => step.kind))
   if (kinds.some((kind) => kind === "grade" || kind === "grader" || kind.startsWith("grader_"))) return "Grade loop"
@@ -1803,6 +1911,28 @@ function stringify(value: unknown) {
 
 function humanize(value: string) {
   return value.replaceAll("_", " ")
+}
+
+function objectDetails(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  return value as Record<string, unknown>
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : null
+}
+
+function numberValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function booleanValue(value: unknown) {
+  return typeof value === "boolean" ? value : null
 }
 
 function errorMessage(error: Error, fallback: string) {
