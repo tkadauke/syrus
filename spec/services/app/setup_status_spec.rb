@@ -35,4 +35,17 @@ RSpec.describe App::SetupStatus do
     expect(complete_payload[:next_step]).to eq("complete")
     expect(complete_payload.dig(:progress, :completed)).to eq(4)
   end
+
+  it "treats a registered GitHub App as ready GitHub credentials" do
+    AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+    user = Factories.user(github_token: nil, claude_oauth_token: "oat-test")
+
+    payload = described_class.call(user: user)
+
+    expect(payload[:next_step]).to eq("repository")
+    expect(payload.dig(:credentials, :ready)).to eq(true)
+    expect(payload.dig(:github_app, :registered)).to eq(true)
+    credentials_step = payload.dig(:progress, :steps).find { |step| step[:key] == "credentials" }
+    expect(credentials_step).to include(complete: true)
+  end
 end

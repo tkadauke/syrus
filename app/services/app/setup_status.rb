@@ -121,7 +121,11 @@ module App
     end
 
     def credentials_ready?
-      user.github_token.present? && user.agent_provider_configured?(user.agent_provider)
+      github_credentials_ready? && user.agent_provider_configured?(user.agent_provider)
+    end
+
+    def github_credentials_ready?
+      user.github_token.present? || AppSetting.github_app_registered?
     end
 
     def active_repository?
