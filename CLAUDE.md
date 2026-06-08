@@ -260,10 +260,11 @@ across web/worker processes.
   keyed on `job_id` so two Workflows on the same Job never overlap. (Was
   per-repo; changed because the shared WorkflowWorkspace path is per-Workflow-id,
   so the collision risk is within a Job, not across repos.)
-- **Three SolidQueue queues** — `runs` (dedicated worker) for long agent
-  invocations; `chat` (dedicated low-concurrency worker) for ChatTurnJob and
-  ChatWorkspaceJob; `default` for pollers, app-event broadcasts, and reaper jobs.
-  Splitting prevents long RunJobs from starving chat, the reaper, and UI
+- **SolidQueue queues** — `runs` for normal agent workflow Runs; `merges`
+  for auto-merge, rebase, and stack-rebase workflow roots; `chat`
+  (dedicated low-concurrency worker) for ChatTurnJob and ChatWorkspaceJob;
+  `default` for pollers, app-event broadcasts, and reaper jobs. Splitting
+  prevents long RunJobs from starving landing, chat, the reaper, and UI
   broadcasts.
 - **Per-user max-turns** — `User#agent_max_turns` (default 200, range
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
