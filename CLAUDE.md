@@ -80,9 +80,10 @@ initial:     prepare → retry_until(implement → graders) → summarize → pr
 pr_comment:  prepare → retry_until(respond → graders) → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
 retry:       prepare → retry_until(implement → graders) → summarize → pr_open
+resume:      manual
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
-auto_merge:  prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
+auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 ```
 
 Key steps:
@@ -111,6 +112,10 @@ Key steps:
 - **`landing_fix`** — Agentic repair step inside auto-merge. It runs only
   after final graders fail on the exact PR branch Syrus is about to land;
   successful repairs are pushed before the merge API call.
+- **`mergeability_preflight`** — Non-agentic auto-merge gate that refreshes
+  GitHub mergeability, runs a local rebase preflight when GitHub is still
+  computing, dispatches rebase workflows for conflicts, and can skip already
+  validated landing checks for the same PR head/base pair.
 - **`auto_merge`** — Non-agentic landing step. Transient GitHub merge
   failures defer the Job back to `approved`; a 405 saying the PR can't be
   rebased is non-retryable and fails landing so an operator can intervene.
@@ -123,7 +128,8 @@ Key steps:
   Non-agentic: run service code (`PullRequestOpener`, `git push`, etc.).
 
 **MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over stdio
-via a per-step `mcp.json` tempfile. Exposes one tool,
+via a per-step `mcp.json` tempfile. Exposes `read_live_state(detail)`,
+a read-only current Job/Workflow/Run/queue/chat snapshot for agents, and
 `submit_summary(pr_title, pr_body, summary)`, which writes directly onto
 the Workflow's `artifacts` bag and appends a `JobLog` audit line.
 The config key and binary basename must match (`syrus-mcp-sidecar`) so the
@@ -158,8 +164,9 @@ cutoff so already-handled feedback is not re-enqueued.
 from diagnostics, recent logs, spawned process outcomes, and agent outcome.
 `AutoRetryScheduler` may retry transient failures up to three times with
 5m/20m/1h backoff, either from the failed Step while the workspace remains
-or as a fresh retry Workflow. `ProviderCircuitBreaker` suppresses automatic
-retries/CI repair during provider-wide transient outages.
+or as a fresh retry Workflow. Failed agentic runs with captured sessions can
+resume from the failed Step instead of starting over. `ProviderCircuitBreaker`
+suppresses automatic retries/CI repair during provider-wide transient outages.
 
 ### Scheduled tasks
 
@@ -303,6 +310,10 @@ across web/worker processes.
   `Job#solid_queue_priority` (high→0, medium→10, low→20); the
   `Run#enqueue_run_job` path and paused-run re-enqueue in `RunJob` both
   use it. Admin API exposes `priority` on job list and detail responses.
+- **Execution ownership** — `Workflow#user_id` and `Run#user_id` must match
+  the parent Job owner. Creation paths default from `job.user`; tests and
+  manual records should do the same because `RunJob` refuses mismatched
+  execution graphs.
 - **Job/Epic ownership** — `owner_user_id` is the durable assignee used
   by dashboard scopes, admin APIs, and Epic-owned child Jobs. Job
   `claimed_by_user_id` / `claimed_at` is a lightweight app claim shown in
@@ -588,13 +599,12 @@ scrubbing, write a redaction script (regex
 **Deploys SIGKILL in-flight Runs.** Every `bin/deploy` rolling
 restart kills any active RunJob mid-perform after the K8s grace
 period (~30s). RunJob's `ensure` cleanup may not finish; orphan
-worktrees and zombie Runs can accumulate. The orphan-sweep on next
-setup (`5e325b0`) catches terminal Runs' worktrees, but Runs whose
-state is stuck in `running` are cleaned up by `ReapStaleRunsJob`. If you see a
-"refusing to fetch into branch X checked out at /worktrees/N" error
-post-deploy, it's a stale registration — clean by walking
-`<bare>/.git/worktrees/*` and force-removing whose Run is
-terminal-or-zombie.
+worktrees and zombie Runs can accumulate. `ReapStaleRunsJob` marks dead
+Runs failed and schedules the same auto-retry path used for other failures;
+agentic runs with captured sessions resume from the failed Step when possible.
+If you see a "refusing to fetch into branch X checked out at /worktrees/N"
+error post-deploy, it's a stale registration — clean by walking
+`<bare>/.git/worktrees/*` and force-removing whose Run is terminal-or-zombie.
 
 ## Workflows
 
