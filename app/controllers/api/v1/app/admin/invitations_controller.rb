@@ -11,6 +11,8 @@ module Api
             invitation = Invitation.new(invitation_params.merge(invited_by: Current.user))
 
             if invitation.save
+              InvitationMailer.invite(invitation).deliver_later
+
               render json: invitations_payload.merge(message: "Invitation created for #{invitation.email_address}."),
                      status: :created
             else

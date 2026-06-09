@@ -53,6 +53,7 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
     expect {
       post "/api/v1/app/admin/invitations", params: { invitation: { email_address: "Guest@Example.com " } }
     }.to change(Invitation, :count).by(1)
+      .and have_enqueued_mail(InvitationMailer, :invite)
 
     expect(response).to have_http_status(:created)
     invitation = Invitation.last

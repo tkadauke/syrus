@@ -167,6 +167,12 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
 | `SYRUS_BUG_REPORT_OWNER` | Yes | GitHub owner or organization for in-app bug reports; Syrus uses the configured `syrus` repository under that owner |
+| `SYRUS_MAILER_FROM` | No | From address for password reset and invitation email; defaults to `Syrus <noreply@$SYRUS_APP_HOST>` |
+| `SMTP_ADDRESS` | No | Enables SMTP delivery for password reset and invitation email when set |
+| `SMTP_PORT` | No | SMTP port; defaults to `587` |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | No | SMTP credentials, when required by the server |
+| `SMTP_AUTHENTICATION` | No | SMTP authentication mode; defaults to `plain` |
+| `SMTP_ENABLE_STARTTLS_AUTO` | No | Whether Action Mailer should auto-enable STARTTLS; defaults to `true` |
 | `JOB_CONCURRENCY` | No | Solid Queue worker thread count for the `runs` queue; defaults to `3` |
 | `RAILS_MAX_THREADS` | No | Rails and database pool sizing |
 | `RAILS_LOG_LEVEL` | No | Production log level; defaults to `info` |
