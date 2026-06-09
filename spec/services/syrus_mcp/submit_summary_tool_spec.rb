@@ -49,6 +49,21 @@ RSpec.describe SyrusMcp::SubmitSummaryTool do
       )
     end
 
+    it "normalizes binary-tagged UTF-8 fields before persisting" do
+      call(
+        pr_title: "Add ● summary".b,
+        pr_body: "Preserve ● body.".b,
+        summary: "Stored ● summary.".b
+      )
+
+      expect(run.reload).to have_attributes(
+        agent_pr_title: "Add ● summary",
+        agent_pr_body: "Preserve ● body.",
+        agent_summary: "Stored ● summary."
+      )
+      expect(run.agent_pr_title.encoding).to eq(Encoding::UTF_8)
+    end
+
     it "writes a JobLog audit line so the operator sees the call in the transcript" do
       expect { call(pr_title: "Add greet") }.to change { run.job_logs.count }.by(1)
       expect(run.job_logs.last.chunk).to include("[mcp] submit_summary received")

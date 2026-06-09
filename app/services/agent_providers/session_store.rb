@@ -28,7 +28,7 @@ module AgentProviders
         resumable: @run,
         provider: capture.provider,
         session_id: capture.session_id,
-        transcript_jsonl: capture.transcript_jsonl
+        transcript_jsonl: utf8(capture.transcript_jsonl)
       )
       log("[agent_session] captured #{capture.provider} #{capture.session_id} (#{capture.transcript_jsonl.bytesize} bytes)")
     rescue StandardError => e
@@ -39,6 +39,15 @@ module AgentProviders
 
     def log(message)
       @log.call(message)
+    end
+
+    def utf8(text)
+      string = text.to_s
+      if string.encoding == Encoding::ASCII_8BIT
+        string.dup.force_encoding(Encoding::UTF_8).scrub("")
+      else
+        string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
+      end
     end
   end
 end

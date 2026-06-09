@@ -20,7 +20,16 @@ class GitRunner
   DEFAULT_TIMEOUT = 10.minutes
 
   def self.redact(text)
-    text.to_s.gsub(AUTH_URL_PATTERN, '\1[REDACTED]\2')
+    utf8(text).gsub(AUTH_URL_PATTERN, '\1[REDACTED]\2')
+  end
+
+  def self.utf8(text)
+    string = text.to_s
+    if string.encoding == Encoding::ASCII_8BIT
+      string.dup.force_encoding(Encoding::UTF_8).scrub("")
+    else
+      string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
+    end
   end
 
   def self.ignorable_output_line?(line)

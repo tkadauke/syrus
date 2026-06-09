@@ -119,6 +119,15 @@ module Steps
       flush_due && rate_ok
     end
 
+    def utf8(text)
+      string = text.to_s
+      if string.encoding == Encoding::ASCII_8BIT
+        string.dup.force_encoding(Encoding::UTF_8).scrub("")
+      else
+        string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
+      end
+    end
+
     # ---- Agentic helpers (used by agent-spawning handlers) ----
 
     # Drive the configured agent provider in this Workflow's workspace,

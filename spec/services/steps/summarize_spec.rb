@@ -86,6 +86,23 @@ RSpec.describe Steps::Summarize do
       expect(workflow.artifact("summary")).to eq("Added a greeting helper method.")
     end
 
+    it "normalizes binary-tagged UTF-8 summary artifacts" do
+      implement_run.assign_attributes(
+        agent_pr_title: "Add ● helper".b,
+        agent_pr_body: "Adds ● body.".b,
+        agent_summary: "Stored ● summary.".b
+      )
+      allow(handler).to receive(:implement_run_with_summary).and_return(implement_run)
+
+      handler.call
+
+      workflow.reload
+      expect(workflow.artifact("pr_title")).to eq("Add ● helper")
+      expect(workflow.artifact("pr_body")).to eq("Adds ● body.")
+      expect(workflow.artifact("summary")).to eq("Stored ● summary.")
+      expect(workflow.artifact("pr_title").encoding).to eq(Encoding::UTF_8)
+    end
+
     it "rewrites the commit message using the implement run's pr_title" do
       handler.call
       expect(commit_message).to start_with("Add greeting helper")

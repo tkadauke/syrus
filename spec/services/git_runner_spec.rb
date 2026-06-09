@@ -117,5 +117,30 @@ RSpec.describe GitRunner do
       combined = lines.join
       expect(combined).not_to include("github_pat_BBB"), "log_sink received an unredacted token: #{combined.inspect}"
     end
+
+    it "normalizes binary-tagged UTF-8 output before it reaches log_sink" do
+      result = ProcessRunner::Result.new(
+        exit_status: 0,
+        timed_out: false,
+        stopped: false,
+        silent_timed_out: false,
+        operator_killed: false,
+        aliveness_failed: false,
+        duration_s: 0.1,
+        spawned_process_id: nil
+      )
+      allow(ProcessRunner).to receive(:new) do |on_output_line:, **|
+        on_output_line.call("● git output\n".b)
+        instance_double(ProcessRunner, run: result)
+      end
+
+      lines = []
+      output = described_class.new(log_sink: ->(line) { lines << line }).run("status")
+
+      expect(output).to eq("● git output\n")
+      expect(output.encoding).to eq(Encoding::UTF_8)
+      expect(lines).to eq([ "● git output\n" ])
+      expect(lines.first.encoding).to eq(Encoding::UTF_8)
+    end
   end
 end

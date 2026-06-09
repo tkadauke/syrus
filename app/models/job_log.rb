@@ -2,7 +2,7 @@ class JobLog < ApplicationRecord
   belongs_to :run
 
   def self.append!(run:, chunk:, kind: nil)
-    text = chunk.to_s
+    text = utf8(chunk)
     return nil if text.strip.empty?
 
     transaction do
@@ -21,4 +21,13 @@ class JobLog < ApplicationRecord
   before_update { raise ActiveRecord::ReadOnlyRecord, "JobLog is append-only" }
   before_destroy { raise ActiveRecord::ReadOnlyRecord, "JobLog is append-only" unless destroyed_by_association }
 
+  def self.utf8(chunk)
+    string = chunk.to_s
+    if string.encoding == Encoding::ASCII_8BIT
+      string.dup.force_encoding(Encoding::UTF_8).scrub("")
+    else
+      string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
+    end
+  end
+  private_class_method :utf8
 end

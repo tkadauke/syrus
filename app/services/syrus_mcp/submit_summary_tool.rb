@@ -42,9 +42,9 @@ module SyrusMcp
       def call(pr_title:, pr_body:, summary:, server_context:)
         run = SyrusMcp.run_from_context(server_context)
 
-        title   = pr_title.to_s.strip
-        body    = pr_body.to_s.strip
-        summary = summary.to_s.strip
+        title   = utf8(pr_title).strip
+        body    = utf8(pr_body).strip
+        summary = utf8(summary).strip
 
         return invalid("pr_title is required")                          if title.empty?
         return invalid("pr_title too long (#{title.length} chars)")     if title.length > MAX_TITLE_LENGTH
@@ -68,6 +68,15 @@ module SyrusMcp
 
       def invalid(reason)
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{reason}" } ], error: true)
+      end
+
+      def utf8(text)
+        string = text.to_s
+        if string.encoding == Encoding::ASCII_8BIT
+          string.dup.force_encoding(Encoding::UTF_8).scrub("")
+        else
+          string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
+        end
       end
     end
   end

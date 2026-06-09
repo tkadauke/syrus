@@ -37,6 +37,13 @@ RSpec.describe JobLog do
     expect(run.job_logs.count).to eq(0)
   end
 
+  it "normalizes binary-tagged UTF-8 chunks before persisting" do
+    log = described_class.append!(run: run, chunk: "● Bash(ls)\n".b, kind: "tool_call")
+
+    expect(log.chunk).to eq("● Bash(ls)\n")
+    expect(log.chunk.encoding).to eq(Encoding::UTF_8)
+  end
+
   it "rejects update — append-only" do
     log = JobLog.create!(run: run, chunk: "hello", sequence: 0)
     expect { log.update!(chunk: "rewritten") }.to raise_error(ActiveRecord::ReadOnlyRecord)

@@ -26,6 +26,21 @@ RSpec.describe AgentProviders::SessionStore do
       expect(messages.join("\n")).to include("captured codex codex-thread")
     end
 
+    it "normalizes binary-tagged UTF-8 transcripts before persisting" do
+      capture = AgentProviders::Base::SessionCapture.new(
+        provider: "claude",
+        session_id: "claude-thread",
+        transcript_jsonl: "{\"type\":\"tool_use\",\"text\":\"● Bash(ls)\"}\n".b,
+        missing_message: nil
+      )
+
+      described_class.new(run: run, log: ->(_message) {}).capture!(capture)
+
+      transcript = run.reload.claude_session.transcript_jsonl
+      expect(transcript).to include("● Bash(ls)")
+      expect(transcript.encoding).to eq(Encoding::UTF_8)
+    end
+
     it "logs missing transcript captures without creating a session row" do
       messages = []
       capture = AgentProviders::Base::SessionCapture.new(

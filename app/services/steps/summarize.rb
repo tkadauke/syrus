@@ -46,9 +46,9 @@ module Steps
       source = from || run
       raise StepFailed, "agent didn't call submit_summary" if source.agent_pr_title.blank?
 
-      workflow.set_artifact!("pr_title", source.agent_pr_title)
-      workflow.set_artifact!("pr_body",  source.agent_pr_body) if source.agent_pr_body.present?
-      workflow.set_artifact!("summary",  source.agent_summary) if source.agent_summary.present?
+      workflow.set_artifact!("pr_title", utf8(source.agent_pr_title))
+      workflow.set_artifact!("pr_body",  utf8(source.agent_pr_body)) if source.agent_pr_body.present?
+      workflow.set_artifact!("summary",  utf8(source.agent_summary)) if source.agent_summary.present?
     end
 
     # Replace the implement step's placeholder commit message with
