@@ -52,6 +52,9 @@ same Workflow pipeline.
 - `ci_failure`, `retry`, `manual` — operator-initiated retries
 - `auto_merge` — landing-queue attempt for an approved Job; runs final
   graders, optional repair, push, and the GitHub merge path.
+- `merge_train` — landing-queue attempt for a ready Epic when
+  `AppSetting.merge_train_enabled` is on; builds and lands all open
+  approved child PRs atomically through one integration branch.
 - `rebase` — maintenance Run that rebases the PR's branch onto base
   when the PR has gone unmergeable. Skips the closed-Job guard (a
   preempted Job's external PR can still need rebases), skips
@@ -84,6 +87,7 @@ resume:      manual
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
+merge_train: merge_train_assemble → merge_train_build → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
 ```
 
 Key steps:
@@ -117,8 +121,16 @@ Key steps:
   computing, dispatches rebase workflows for conflicts, and can skip already
   validated landing checks for the same PR head/base pair.
 - **`auto_merge`** — Non-agentic landing step. Transient GitHub merge
-  failures defer the Job back to `approved`; a 405 saying the PR can't be
-  rebased is non-retryable and fails landing so an operator can intervene.
+  failures defer the Job back to `approved`; right after Syrus pushes it waits
+  briefly for GitHub's transient `mergeable_state` to settle before deferring.
+  A 405 saying the PR can't be rebased dispatches the rebase path instead of
+  treating the landing attempt as a terminal failure.
+- **`merge_train_assemble`** / **`merge_train_build`** / **`merge_train_land`** —
+  Epic merge-train steps. Assemble requires every open child Job to be approved
+  and under `AppSetting.merge_train_max_size`; build starts from the base tip
+  and integrates member branches in dependency order, invoking the agent only
+  for merge conflicts; land pushes the integration branch, merges one
+  integration PR into base, then comments on and closes the member PRs.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
   If the implement step already called `submit_summary` (artifacts contain
@@ -154,6 +166,14 @@ satisfied once the upstream Job is `approved` or `landing`, so a stack
 inside one Epic can keep flowing while the landing queue serializes merges.
 Operators can add/remove manual dependencies; parsed dependencies are kept
 for audit, and only admins can override the gate.
+
+**Epic merge-train landing** — when `AppSetting.merge_train_enabled` is true,
+approved Epic child Jobs do not land one-by-one. They remain `approved` with
+blocked reason `waiting for Epic merge-train` until every open sibling is
+approved, then Syrus lands the Epic as an all-or-nothing `merge_train`
+Workflow. A failed train reverts members out of `landing` and observes a
+30-minute retry cooldown so an unrepaired integration conflict does not churn
+the landing queue.
 
 **PR feedback watermarking** tracks both `last_seen_comment_at` and
 `last_feedback_addressed_at`; successful `pr_comment` workflows mark the
@@ -280,6 +300,10 @@ across web/worker processes.
   installation is removed or absent. Repository owner changes relink through
   `InstallationLinker`; Jobs persist the resulting `credential_mode` for
   operator visibility.
+- **Clean-rebase grade carry-forward** — `Repository#trust_clean_rebase_grade`
+  is off by default. When enabled, a clean `rebase` Workflow may record a prior
+  green landing validation for the new head/base pair instead of forcing
+  auto-merge to re-run required graders.
 - **GitHub issue actions** — Repository pages can list GitHub issues and
   comment, close, delegate (add the trigger label), or bulk delegate/close
   them through `GithubClient`. Keep single and bulk paths in sync.
