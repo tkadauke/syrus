@@ -38,6 +38,7 @@ import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import { SetupRoute } from "./Setup"
 import { SmartFolders } from "./SmartFolders"
+import { SpendingInsightsRoute } from "./SpendingInsights"
 import { Tags } from "./Tags"
 import { TeamDirectoryRoute, TeamProfileRoute } from "./Profiles"
 
@@ -66,6 +67,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/epics", element: <DashboardRoute /> },
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
+  { path: "/insights/spending", element: <SpendingInsightsRoute /> },
   { path: "/setup", element: <SetupRoute /> },
   { path: "/admin", element: <AdminOverview /> },
   { path: "/admin/queue", element: <AdminQueueRoute /> },
@@ -398,6 +400,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
   const navItems: Array<{ label: string; to: string; active: boolean; desktopOnly?: boolean }> = user ? [
     ...(data?.setup && !data.setup.complete ? [{ label: "Setup", to: `${prefix}/setup`, active: normalizedPath === "/setup" }] : []),
     { label: "Dashboard", to: `${prefix}/dashboard/jobs?view=list`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard") },
+    { label: "Spending", to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), desktopOnly: true },
     { label: "Repos", to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories") },
     ...(data && data.team_user_count > 1 ? [ { label: "Team", to: `${prefix}/profiles`, active: normalizedPath.startsWith("/profiles"), desktopOnly: true } ] : []),
     { label: "Schedules", to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), desktopOnly: true }

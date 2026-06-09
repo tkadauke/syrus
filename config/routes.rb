@@ -84,6 +84,7 @@ Rails.application.routes.draw do
         patch "epics/:id/state", to: "epics#update_state", constraints: { id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"
         get "filters/suggestions", to: "filters#suggestions"
+        get "insights/spending", to: "insights/spending#show"
         get "dashboard", to: "dashboard#show"
         patch "dashboard/preferences", to: "dashboard#preferences"
         post "dashboard/landing_pause", to: "dashboard#landing_pause"
@@ -298,6 +299,7 @@ Rails.application.routes.draw do
   get "dashboard/epics", to: "spa#show", as: :dashboard_epics
   get "dashboard/jobs", to: "spa#show", as: :dashboard_jobs
   get "dashboard/workflows", to: "spa#show", as: :dashboard_workflows
+  get "insights/spending", to: "spa#show", as: :insights_spending
   get "jobs", to: redirect(status: 302) { |_params, request|
     query = request.query_parameters.except("subject").to_query
     query.present? ? "/dashboard/jobs?#{query}" : "/dashboard/jobs"

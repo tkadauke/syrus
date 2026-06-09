@@ -130,6 +130,18 @@ instances keep the primary navigation focused on the solo operator's work.
 That model keeps solo operation simple and team operation centralized
 without turning every run into a shared global credential.
 
+## Spending Insights
+
+The spending dashboard at `/insights/spending` rolls up captured
+`runs.cost_usd` into operator-facing cost views. It shows week, month,
+lifetime, average Job, and average merged-PR totals, plus breakdowns by
+Epic, user, repository, trigger kind, a daily trend chart, and the most
+expensive individual Runs.
+
+The view respects the same ownership model as the rest of the app:
+non-admin users see only their own Run and chat costs, while admins see
+global totals across the instance.
+
 ## Repository Automation
 
 Repository settings control trigger label, polling, default branch,

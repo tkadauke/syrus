@@ -992,6 +992,62 @@ describe("App", () => {
     expect(screen.getByRole("main", { name: "Admin overview" })).toBeInTheDocument()
   })
 
+  it("renders the spending insights route from the app API", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          scope: { admin: true, user_id: 1, label: "All users" },
+          filters: { start_date: "2026-06-01", end_date: "2026-06-05", default_window_days: 90 },
+          totals: {
+            week_usd: 3.75,
+            month_usd: 3.75,
+            lifetime_usd: 4.5,
+            workflow_lifetime_usd: 3.75,
+            chat_lifetime_usd: 0.75,
+            average_job_30d_usd: 1.875,
+            average_merged_pr_30d_usd: 1.25
+          },
+          breakdowns: {
+            epics: [{ id: 7, label: "Cost Senate", path: "/epics/7", jobs_count: 1, total_usd: 1.25, average_job_usd: 1.25, display_number: "EPIC-7" }],
+            users: [{ id: 2, label: "operator@example.com", path: "/profiles/2", jobs_count: 2, total_usd: 3.75, average_job_usd: 1.875, last_30_days_usd: 3.75 }],
+            repositories: [{ id: 3, label: "acme/syrus", path: "/repositories/3", jobs_count: 2, total_usd: 3.75, average_job_usd: 1.875 }],
+            trigger_kinds: [{ trigger_kind: "initial", jobs_count: 2, runs_count: 2, total_usd: 3.75, average_usd: 1.875 }]
+          },
+          top_runs: [{
+            id: 11,
+            cost_usd: 2.5,
+            trigger_kind: "initial",
+            agent_provider: "codex",
+            created_at: "2026-06-04T12:00:00Z",
+            job: { id: 9, title: "Measure the treasury", path: "/jobs/9?tab=workflows#workflow-4" },
+            repository: { id: 3, slug: "acme/syrus", path: "/repositories/3" },
+            epic: { id: 7, display_number: "EPIC-7", title: "Cost Senate", path: "/epics/7" }
+          }],
+          trend: [
+            { date: "2026-06-03", total_usd: 1.25 },
+            { date: "2026-06-04", total_usd: 2.5 }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/insights/spending?start_date=2026-06-01&end_date=2026-06-05"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("This week")).toBeInTheDocument()
+    expect(screen.getByRole("main", { name: "Spending insights" })).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insights/spending?start_date=2026-06-01&end_date=2026-06-05", expect.objectContaining({ credentials: "same-origin" }))
+    expect(screen.getByRole("link", { name: "EPIC-7 / Cost Senate" })).toHaveAttribute("href", "/app-shell/epics/7")
+    expect(screen.getByRole("link", { name: "Measure the treasury" })).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-4")
+    expect(screen.getByRole("img", { name: "Daily spend" })).toBeInTheDocument()
+  })
+
   it("renders the app-shell dashboard route from the app dashboard API", async () => {
     let sortColumn = "title"
     let sortDirection = "desc"
