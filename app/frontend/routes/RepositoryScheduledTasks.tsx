@@ -82,7 +82,7 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
             <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
               <tr>
                 <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Hourly schedule</th>
+                <th className="px-4 py-3">Schedule</th>
                 <th className="px-4 py-3">Next window</th>
                 <th className="px-4 py-3">State</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -95,7 +95,7 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
                     <Link className="font-medium text-blue-600 underline hover:no-underline" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
                     <div className="mt-1 max-w-xl truncate text-xs text-gray-500">{task.prompt}</div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-700">{task.hourly_cron_expression || task.schedule_label || "none"}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-700">{task.schedule_label || "none"}</td>
                   <td className="px-4 py-3 text-gray-700">{formatDate(task.next_fire_at) || "none"}</td>
                   <td className="px-4 py-3"><StatePill state={task.state} /></td>
                   <td className="px-4 py-3">

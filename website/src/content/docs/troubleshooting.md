@@ -211,8 +211,8 @@ Check:
 2. The task state is `scheduled`, not `paused`, `auto_paused`, or
    `fired`.
 3. The owning user's **Pause scheduling** setting is off.
-4. The cron expression fires at most once per hour and is interpreted in
-   UTC.
+4. The cron expression fires at most once per hour, is interpreted in
+   UTC, and produces a future scheduled time.
 5. The previous scheduled PR is not still open when
    `pr_pileup_policy` is `skip`.
 6. The default queue worker is running `PollScheduledTasksJob`.

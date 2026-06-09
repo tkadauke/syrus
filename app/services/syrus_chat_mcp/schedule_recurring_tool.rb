@@ -12,7 +12,7 @@ module SyrusChatMcp
 
     input_schema(
       properties: {
-        cron_expression: { type: "string", description: "Five-field cron expression, interpreted in UTC. The minute field is ignored; schedules fire by hourly window." },
+        cron_expression: { type: "string", description: "Five-field cron expression, interpreted in UTC. The minute field is honored; schedules fire at most once per matching hourly window." },
         label: { type: "string", description: "Short operator-facing label for this recurring task." },
         prompt: { type: "string", description: "Prompt to run as a scheduled cron Job each time the schedule fires." }
       },

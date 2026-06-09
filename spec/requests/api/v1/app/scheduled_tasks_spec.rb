@@ -160,6 +160,20 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body.dig("error", "message")).to include("valid cron expression")
   end
 
+  it "returns validation errors for parser-invalid cron schedules" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/scheduled_tasks", params: {
+        scheduled_task: valid_cron_attrs.merge(cron_expression: "49 4 0 0 1")
+      }
+    }.not_to change { ScheduledTask.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("valid cron expression")
+  end
+
   it "updates a task" do
     sign_in_as(user)
     task = repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)

@@ -267,7 +267,7 @@ module Api
 
         def schedule_label(task)
           if task.cron?
-            task.hourly_cron_expression
+            task.display_cron_expression
           else
             task.fire_at&.utc&.strftime("%Y-%m-%d %H:%M UTC")
           end

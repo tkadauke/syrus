@@ -30,7 +30,7 @@ RSpec.describe PollScheduledTasksJob do
     freeze_time Time.current.change(min: 10, sec: 0, usec: 0) do
       task = cron_task
       now = Time.current
-      task.update_columns(minute_offset: now.min + 1, last_fired_at: 1.minute.ago)
+      task.update_columns(cron_expression: "#{now.min + 1} * * * *", last_fired_at: 1.minute.ago)
 
       expect_any_instance_of(ScheduledTaskFire).not_to receive(:call)
       described_class.perform_now

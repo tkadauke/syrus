@@ -3751,7 +3751,7 @@ describe("App", () => {
               kind: "cron",
               state: "scheduled",
               repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
-              schedule_label: "17 9 * * 1",
+              schedule_label: "0 9 * * 1",
               last_fired_at: null,
               archived_at: null,
               consecutive_failure_count: 0,
@@ -3776,6 +3776,7 @@ describe("App", () => {
 
     expect(screen.getByRole("main", { name: "Scheduled tasks" })).toHaveClass("max-w-[96rem]")
     expect(await screen.findByText("Weekly tests")).toBeInTheDocument()
+    expect(screen.getByText("0 9 * * 1")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Weekly tests" })).toHaveAttribute("href", "/app-shell/scheduled_tasks/12")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -3807,6 +3808,8 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Scheduled task detail" })).toHaveClass("max-w-[96rem]")
     expect(await screen.findByText("Keep tests moving.")).toBeInTheDocument()
+    expect(screen.queryByText("Effective cron")).not.toBeInTheDocument()
+    expect(screen.getByText("0 9 * * 1")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByRole("link", { name: "#44" })).toHaveAttribute("href", "/app-shell/jobs/44")
     fireEvent.click(screen.getByRole("button", { name: "Pause" }))
@@ -8131,14 +8134,14 @@ function scheduledTaskDetailPayload(overrides: { state?: string; message?: strin
       kind: "cron",
       state: overrides.state || "scheduled",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
-      schedule_label: "17 9 * * 1",
+      schedule_label: "0 9 * * 1",
       last_fired_at: null,
       archived_at: null,
       consecutive_failure_count: 0,
       scheduled_task_path: "/scheduled_tasks/12",
       prompt: "Keep tests moving.",
       cron_expression: "0 9 * * 1",
-      hourly_cron_expression: "17 9 * * 1",
+      hourly_cron_expression: "0 9 * * 1",
       fire_at: null,
       next_fire_at: "2026-05-31T09:17:00Z",
       pr_pileup_policy: "skip",

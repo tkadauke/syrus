@@ -229,8 +229,6 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
           <dd>{payload.task.kind}</dd>
           <dt className="text-gray-500">Cron expression</dt>
           <dd className="font-mono">{payload.task.cron_expression || "none"}</dd>
-          <dt className="text-gray-500">Effective cron</dt>
-          <dd className="font-mono">{payload.task.hourly_cron_expression || "none"}</dd>
           <dt className="text-gray-500">Fire at</dt>
           <dd>{formatDate(payload.task.fire_at) || "none"}</dd>
           <dt className="text-gray-500">Next fire</dt>

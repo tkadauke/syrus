@@ -66,7 +66,7 @@ RSpec.describe ScheduledTaskFire do
     end
 
     it "uses the same window guard for poll and manual fires" do
-      task.update!(cron_expression: "37 9 * * 1", minute_offset: 5)
+      task.update!(cron_expression: "5 9 * * 1", minute_offset: 49)
       now = Time.utc(2026, 5, 4, 9, 5, 0)
 
       poll_result = described_class.new(task, now: now, require_due: true).call

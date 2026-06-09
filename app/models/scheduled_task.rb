@@ -62,22 +62,21 @@ class ScheduledTask < ApplicationRecord
     state == "fired"
   end
 
-  # Cron expression used for scheduling. Syrus intentionally ignores the
-  # user-supplied minute field for MVP scheduled tasks: a cron task is
-  # evaluated as an hourly window, and can fire at most once inside that
-  # window. The stored minute_offset is still spliced in so tasks with the
-  # same nominal hourly schedule are spread across the hour.
+  # Cron expression used for scheduling. Kept under the historical
+  # hourly_cron_expression name for API compatibility.
   def hourly_cron_expression
     return nil unless cron? && cron_expression.present?
-    fields = cron_expression.split(/\s+/, 5)
-    return cron_expression if fields.size < 5
-    [ minute_offset.to_s, *fields[1..] ].join(" ")
+    cron_expression
+  end
+
+  def display_cron_expression
+    cron? ? cron_expression : nil
   end
 
   # When does this task fire next, after `from`? Returns nil if it
   # won't (paused, archived, fired one_shot, malformed cron). For
-  # cron tasks, the minute field is ignored and the next hourly window
-  # is returned.
+  # cron tasks, the next hourly window is returned once the scheduled
+  # minute has arrived.
   def next_fire_at(from: Time.current)
     return nil unless active?
 
@@ -217,6 +216,11 @@ class ScheduledTask < ApplicationRecord
     end
 
     hourly_cron = Fugit.parse(hourly_cron_expression)
+    if hourly_cron.nil? || !hourly_cron.is_a?(Fugit::Cron) || next_cron_time(hourly_cron).nil?
+      errors.add(:cron_expression, "does not produce a future scheduled time")
+      return
+    end
+
     min_gap = min_consecutive_gap(hourly_cron)
     if min_gap < MIN_CRON_INTERVAL.to_i
       errors.add(:cron_expression, "must fire at most once per hour (smallest interval seen: #{min_gap / 60} minutes)")
@@ -229,10 +233,16 @@ class ScheduledTask < ApplicationRecord
     times = []
     cursor = from
     samples.times do
-      cursor = cron.next_time(cursor).to_t
+      cursor = next_cron_time(cron, from: cursor)
+      return 0 if cursor.nil?
+
       times << cursor
     end
     times.each_cons(2).map { |a, b| (b - a).to_i }.min
+  end
+
+  def next_cron_time(cron, from: Time.utc(2026, 1, 1, 0, 0, 0))
+    cron.next_time(from)&.to_t
   end
 
   def fire_at_is_in_the_future_at_create

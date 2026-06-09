@@ -105,11 +105,10 @@ Prompt:
   report no changes.
 ```
 
-Cron expressions are five-field cron in UTC. In the MVP, Syrus treats
-cron tasks as hourly windows: the minute field is ignored for matching,
-and a task can fire at most once in a matching UTC hour. Syrus stores a
-stable per-task minute offset, so many tasks scheduled for the same hour
-do not all fire on the same poll tick.
+Cron expressions are five-field cron in UTC and must produce a future
+scheduled time. In the MVP, Syrus treats cron tasks as hourly windows:
+the entered minute is honored, and a task can fire at most once in a
+matching UTC hour.
 
 The `pr_pileup_policy` controls what happens when the previous scheduled
 PR is still open:

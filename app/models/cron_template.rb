@@ -25,6 +25,11 @@ class CronTemplate < ApplicationRecord
       return
     end
     hourly_cron = Fugit.parse(hourly_cron_expression)
+    if hourly_cron.nil? || !hourly_cron.is_a?(Fugit::Cron) || next_cron_time(hourly_cron).nil?
+      errors.add(:cron_expression, "does not produce a future scheduled time")
+      return
+    end
+
     min_gap = min_consecutive_gap(hourly_cron)
     if min_gap < MIN_CRON_INTERVAL.to_i
       errors.add(:cron_expression, "must fire at most once per hour (smallest interval seen: #{min_gap / 60} minutes)")
@@ -37,15 +42,19 @@ class CronTemplate < ApplicationRecord
     times = []
     cursor = from
     samples.times do
-      cursor = cron.next_time(cursor).to_t
+      cursor = next_cron_time(cron, from: cursor)
+      return 0 if cursor.nil?
+
       times << cursor
     end
     times.each_cons(2).map { |a, b| (b - a).to_i }.min
   end
 
+  def next_cron_time(cron, from: Time.utc(2026, 1, 1, 0, 0, 0))
+    cron.next_time(from)&.to_t
+  end
+
   def hourly_cron_expression
-    fields = cron_expression.to_s.split(/\s+/, 5)
-    return cron_expression if fields.size < 5
-    [ "0", *fields[1..] ].join(" ")
+    cron_expression
   end
 end
