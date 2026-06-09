@@ -128,9 +128,14 @@ Key steps:
 - **`merge_train_assemble`** / **`merge_train_build`** / **`merge_train_land`** —
   Epic merge-train steps. Assemble requires every open child Job to be approved
   and under `AppSetting.merge_train_max_size`; build starts from the base tip
-  and integrates member branches in dependency order, invoking the agent only
-  for merge conflicts; land pushes the integration branch, merges one
-  integration PR into base, then comments on and closes the member PRs.
+  and rebases member branches onto the growing integration tip in dependency
+  order. Build tries a mechanical `git rebase` first; on conflict it hands
+  that in-progress rebase to the agent, which must resolve conflicts and run
+  `git rebase --continue` until the same rebase finishes. Syrus verifies by
+  end-state (scratch branch checkout, clean worktree, integration branch is an
+  ancestor), not by rebase-internal refs like `REBASE_HEAD`; land pushes the
+  integration branch, merges one integration PR into base, then comments on
+  and closes the member PRs.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
   If the implement step already called `submit_summary` (artifacts contain
