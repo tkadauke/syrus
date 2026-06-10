@@ -62,7 +62,10 @@ same Workflow pipeline.
   tree), uses `git push --force-with-lease=<branch>:<observed_sha>`
   instead of fast-forward, and skips the PR-opening step. Triggered by
   `PollAllMergeStatesJob` when a PR is `mergeable: false` and we control
-  the head branch.
+  the head branch. Closed-preempted Jobs stay in this poll scope only
+  while their tracked external PR is open; once that PR merges or closes,
+  `PollMergeStateJob` finalizes them as `external_pr_merged` /
+  `external_pr_closed`.
 - `stack_rebase` — maintenance Run that rebases a dependent PR stack
   branch-by-branch, force-pushes each updated branch, then resumes
   landing for approved stack Jobs.
@@ -198,10 +201,10 @@ suppresses automatic retries/CI repair during provider-wide transient outages.
 `ScheduledTask` lets the operator attach recurring or one-shot agent
 prompts to a repository — no GitHub issue required. `kind=cron` uses a
 5-field cron expression (validated to fire at most once per hour);
-`kind=one_shot` uses a `fire_at` datetime. Each task has a random
-`minute_offset` seeded at create time so two tasks with the same nominal
-schedule never collide on the wall clock. Tasks can optionally reference
-a `CronTemplate` (`app/models/cron_template.rb`) — a per-user reusable
+`kind=one_shot` uses a `fire_at` datetime. Cron tasks honor the entered
+minute exactly and are evaluated in UTC hourly windows so repeated poller
+ticks do not double-fire the same hour. Tasks can optionally reference a
+`CronTemplate` (`app/models/cron_template.rb`) — a per-user reusable
 prompt+schedule config that multiple ScheduledTasks can share.
 
 `PollScheduledTasksJob` (runs every minute) evaluates due tasks and fires
