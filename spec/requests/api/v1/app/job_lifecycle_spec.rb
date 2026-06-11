@@ -5,7 +5,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets", auto_merge_enabled: true) }
   let(:job) { Factories.job(repository: repo, issue_number: 42) }
 
-  before { sign_in_as(user) }
+  before { sign_in_as(user) unless RSpec.current_example.metadata[:skip_sign_in] }
 
   def parse_body = JSON.parse(response.body)
   def app_job_path(job_record, action) = "/api/v1/app/jobs/#{job_record.id}/#{action}"
@@ -99,6 +99,18 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(job.approved_at).to be_nil
     expect(job.approved_via).to be_nil
     expect(parse_body).to include("message" => "Job unapproved.")
+  end
+
+  it "approves an implemented job with bearer token auth", :skip_sign_in do
+    token = user.generate_api_token!
+    job.update!(state: "implemented")
+
+    post app_job_path(job, "approve"), headers: { "Authorization" => "Bearer #{token}" }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_approved
+    expect(job.approved_by_user).to eq(user)
+    expect(parse_body).to include("message" => "Job approved.")
   end
 
   it "reapproves a landing failure and immediately dispatches landing" do

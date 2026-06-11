@@ -34,6 +34,6 @@ func NewRootCommand() *cobra.Command {
 		},
 	}
 
-	rootCmd.AddCommand(NewLoginCommand())
+	rootCmd.AddCommand(NewApproveCommand(), NewLoginCommand())
 	return rootCmd
 }

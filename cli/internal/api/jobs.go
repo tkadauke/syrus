@@ -50,3 +50,7 @@ func (c *Client) CreateDirectJob(ctx context.Context, params CreateJobParams) (J
 	err := c.do(ctx, http.MethodPost, "/api/v1/admin/jobs", CreateJobRequest{Job: params}, &out)
 	return JobResponse(out), err
 }
+
+func (c *Client) ApproveJob(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/approve", nil, nil)
+}

@@ -37,6 +37,16 @@ The CLI sends the same bearer token header as the REST examples:
 `Authorization: Bearer <token>`. If credentials are missing or incomplete,
 it prints `Run 'syrus login' to set up your Syrus instance URL and API token.`
 
+After reviewing and testing a Job locally, approve it from the terminal:
+
+```bash
+syrus approve JOB-456
+```
+
+On success the command prints `Approved JOB-456. Landing will begin shortly.`
+If Syrus rejects the approval, for example because the Job is not ready or
+auto-merge is disabled, the CLI prints the API error and exits non-zero.
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal
