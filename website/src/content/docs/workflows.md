@@ -87,12 +87,12 @@ asynchronously after a push, `auto_merge` briefly polls for a transient
 `unknown` state to settle before deferring, so a completed green grade is
 not thrown away just because GitHub had not finished recomputing yet.
 
-By default every landing attempt re-runs the graders on the rebased
-branch, since a clean (conflict-free) rebase can still introduce a
-logical conflict. Repositories can opt into **Trust clean rebases**
-(`trust_clean_rebase_grade`) to skip that re-grade when a PR already
-passed graders and the only change since was a conflict-free rebase —
-trading a small logical-conflict risk for landing throughput.
+Landing attempts reuse a prior green grading result when the exact same
+head SHA has already passed required graders, so an unchanged PR does not
+spend another full grade cycle at merge time. Repositories can also opt
+into **Trust clean rebases** (`trust_clean_rebase_grade`) to carry a
+green result across a conflict-free rebase, trading a small
+logical-conflict risk for landing throughput.
 
 ### MergeTrain (Epic merge-train)
 
@@ -108,7 +108,9 @@ children — topologically sorted by dependency — into a single integration
 branch, runs the graders **once** on the combined tree, lets the agent
 commit reconciliation fixes if needed, and then lands the whole branch in
 a **single atomic merge**. The child PRs are closed with a back-link to
-the integration merge and their Jobs marked merged.
+the integration merge and their Jobs marked merged. If a retry rebuilds
+the same integration SHA that already passed required graders, Syrus
+reuses that signal and proceeds directly to landing.
 
 The guarantee is **Epic consistency**: an Epic advances as a whole,
 green, dependency-closed set or not at all — there are never half-merged

@@ -45,6 +45,7 @@ module Steps
       sha = @git.run("rev-parse", "HEAD", chdir: @chdir).strip
       train.update!(integration_branch: @integration, integration_sha: sha, state: "grading")
       log("merge_train: built #{@integration} at #{sha.first(9)} (#{members.size} member(s) integrated)")
+      skip_revalidated_grade_steps!(sha) if LandingValidationCache.valid_head_for?(job: job, head_sha: sha)
     end
 
     private
@@ -113,6 +114,21 @@ module Steps
         integration_branch: @integration,
         pr_number: member.pr_number
       ).to_s
+    end
+
+    def skip_revalidated_grade_steps!(sha)
+      log("merge_train: reusing cached grading validation for #{sha.first(7)}", kind: "system")
+      Step.suppress_cancel_cascade do
+        cursor = step.next_step
+        while cursor && cursor.kind != "merge_train_land"
+          if cursor.may_cancel?
+            cursor.cancellation_reason = "landing_validation_cached"
+            cursor.cancel!
+            cursor.save!
+          end
+          cursor = cursor.next_step
+        end
+      end
     end
   end
 end

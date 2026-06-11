@@ -16,10 +16,15 @@ class LandingValidationCache
 
   def self.valid_for?(job:, pr:)
     head_sha = MergeabilityRecorder.head_sha(pr)
-    base_sha = MergeabilityRecorder.base_sha(pr)
-    return false if head_sha.blank? || base_sha.blank?
+    return false if head_sha.blank?
 
-    matching_artifact(job, head_sha: head_sha, base_sha: base_sha).present?
+    valid_head_for?(job: job, head_sha: head_sha)
+  end
+
+  def self.valid_head_for?(job:, head_sha:)
+    return false if head_sha.blank?
+
+    matching_artifact(job, head_sha: head_sha).present?
   end
 
   # Did this Job pass required graders at some point (any head/base)?
@@ -33,21 +38,20 @@ class LandingValidationCache
     end
   end
 
-  # auto_merge workflows write the validation when graders pass; rebase
-  # workflows write it when carrying a green grade across a clean rebase
-  # (opt-in). Both are valid sources for skip-on-revalidation.
+  # Any workflow with a successful grader_collect writes the validation;
+  # rebase workflows write it when carrying a green grade across a clean
+  # rebase (opt-in). Both are valid sources for skip-on-revalidation.
   def self.recorded_workflows(job)
-    job.workflows.where(trigger_kind: %w[ auto_merge rebase ]).reorder(id: :desc)
+    job.workflows.reorder(id: :desc)
   end
   private_class_method :recorded_workflows
 
-  def self.matching_artifact(job, head_sha:, base_sha:)
+  def self.matching_artifact(job, head_sha:)
     recorded_workflows(job).detect do |workflow|
       artifact = workflow.artifact(ARTIFACT_KEY)
       artifact.is_a?(Hash) &&
         artifact["required_graders_passed"] == true &&
-        artifact["head_sha"] == head_sha &&
-        artifact["base_sha"] == base_sha
+        artifact["head_sha"] == head_sha
     end&.artifact(ARTIFACT_KEY)
   end
   private_class_method :matching_artifact

@@ -114,13 +114,13 @@ RSpec.describe Steps::MergeabilityPreflight do
     expect(StepDispatcher).to have_received(:start_workflow).with(an_instance_of(Workflow))
   end
 
-  it "skips prepare, graders, and push when the same head/base already passed landing validation" do
-    prior = Workflows::AutoMerge.instantiate(job: job)
+  it "skips prepare, graders, and push when the same head already passed grading" do
+    prior = Workflows::Initial.instantiate(job: job)
     prior.update!(artifacts: {
       LandingValidationCache::ARTIFACT_KEY => {
         "required_graders_passed" => true,
         "head_sha" => "abc",
-        "base_sha" => "def",
+        "base_sha" => "old-base",
         "base_ref" => "main"
       }
     })

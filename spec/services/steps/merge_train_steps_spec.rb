@@ -80,6 +80,41 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(train.integration_sha).to eq("intsha999")
     end
 
+    it "skips prepare and graders when the built integration SHA already passed grading" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      prior = Workflow.create!(
+        job: b,
+        trigger_kind: "merge_train",
+        artifacts: {
+          LandingValidationCache::ARTIFACT_KEY => {
+            "required_graders_passed" => true,
+            "head_sha" => "intsha999"
+          }
+        }
+      )
+      Step.create!(workflow: prior, kind: "merge_train_land", position: 0)
+
+      workflow = Workflows::MergeTrain.instantiate(job: b, artifacts: { "merge_train_id" => train.id })
+      build_step = workflow.steps.find_by!(kind: "merge_train_build")
+      run = Run.create!(job: b, step: build_step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      git = stub_git(handler)
+      allow(handler).to receive(:run_agent)
+
+      handler.call
+
+      expect(git).to have_received(:run).with("rebase", train.integration_branch, chdir: "/tmp/ws").twice
+      expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
+        [ "prepare", "cancelled" ],
+        [ "grader_fanout", "cancelled" ],
+        [ "grader_collect", "cancelled" ],
+        [ "merge_train_land", "queued" ]
+      )
+      expect(train.reload.integration_sha).to eq("intsha999")
+    end
+
     it "hands the in-progress rebase to the agent on conflict, then verifies by end-state and integrates" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
