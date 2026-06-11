@@ -378,6 +378,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(response).to be_successful
       ids = parse_body["jobs"].map { |j| j["id"] }
       expect(ids).to contain_exactly(job_124.id)
+      expect(parse_body["jobs"].first["issue_title"]).to eq(job_124.issue_title)
     end
 
     it "filters by issue_number across repos (caller likely wants to narrow with ?repo=)" do
