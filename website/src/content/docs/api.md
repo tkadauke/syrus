@@ -26,7 +26,7 @@ cd cli
 make build
 ```
 
-Run `syrus configure` once to write `~/.syrus/credentials`:
+Run `syrus login` once to write `~/.syrus/credentials`:
 
 ```text
 url=https://syrus.example.com
@@ -35,7 +35,7 @@ token=your-api-token
 
 The CLI sends the same bearer token header as the REST examples:
 `Authorization: Bearer <token>`. If credentials are missing or incomplete,
-it prints `Run 'syrus configure' to set up your Syrus instance URL and API token.`
+it prints `Run 'syrus login' to set up your Syrus instance URL and API token.`
 
 ## Create a Direct Job
 

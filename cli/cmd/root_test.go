@@ -20,18 +20,18 @@ func TestRootCommandReportsMissingCredentials(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected missing credentials error")
 	}
-	if err.Error() != configureMessage {
+	if err.Error() != loginMessage {
 		t.Fatalf("error = %q", err.Error())
 	}
 }
 
-func TestConfigureCommandWritesCredentials(t *testing.T) {
+func TestLoginCommandWritesCredentials(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
 	input := strings.NewReader("https://syrus.example.com\nsecret-token\n")
 	output := &bytes.Buffer{}
-	command := NewConfigureCommand()
+	command := NewLoginCommand()
 	command.SetIn(input)
 	command.SetOut(output)
 

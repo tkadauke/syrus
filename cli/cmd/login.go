@@ -10,10 +10,10 @@ import (
 	"github.com/tkadauke/syrus/cli/internal/config"
 )
 
-func NewConfigureCommand() *cobra.Command {
+func NewLoginCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:           "configure",
-		Short:         "Configure Syrus API credentials",
+		Use:           "login",
+		Short:         "Log in to a Syrus instance",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
