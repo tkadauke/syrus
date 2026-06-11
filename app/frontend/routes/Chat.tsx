@@ -399,11 +399,40 @@ function SystemMessagesToggle({ count, expanded, onToggle }: { count: number; ex
   )
 }
 
+const WORKING_PHRASES = [
+  { latin: "Cogitans", english: "thinking it through" },
+  { latin: "Machinans", english: "contriving, plotting" },
+  { latin: "Moliens", english: "striving, setting in motion" },
+  { latin: "Meditans", english: "planning, turning over in the mind" },
+  { latin: "Excogitans", english: "thinking out, devising" },
+  { latin: "Elaborans", english: "working it out carefully" },
+  { latin: "Perscrutans", english: "examining thoroughly" },
+  { latin: "Computans", english: "calculating" },
+  { latin: "Conficiens", english: "bringing to completion" },
+  { latin: "Agitans", english: "setting things in motion" },
+  { latin: "Evolvens", english: "unrolling, unfolding" },
+  { latin: "Ponderans", english: "weighing carefully" },
+  { latin: "Consilians", english: "taking counsel, deliberating" },
+  { latin: "Exsequens", english: "carrying out, executing" },
+  { latin: "Investigans", english: "tracking down, hunting through" },
+  { latin: "Versans", english: "turning over in the mind" },
+  { latin: "Struens", english: "building, constructing" },
+  { latin: "Nectens", english: "weaving together, binding" },
+  { latin: "Vigilans", english: "keeping watch" },
+  { latin: "Expediens", english: "making ready, dispatching" }
+] as const
+
+const STARTING_PHRASE = { latin: "Accingitur", english: "girding itself" } as const
+
 function AgentActivityIndicator({ running }: { running: boolean }) {
-  const label = running ? "Agent is working" : "Agent is starting"
+  const workingPhrase = useMemo(
+    () => WORKING_PHRASES[Math.floor(Math.random() * WORKING_PHRASES.length)],
+    []
+  )
+  const phrase = running ? workingPhrase : STARTING_PHRASE
 
   return (
-    <div aria-label={label} aria-live="polite" className="flex justify-start" role="status">
+    <div aria-label={phrase.english} aria-live="polite" className="flex justify-start" role="status">
       <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm">
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {[0, 1, 2].map((index) => (
@@ -414,7 +443,7 @@ function AgentActivityIndicator({ running }: { running: boolean }) {
             />
           ))}
         </span>
-        <span>{running ? "Agent working" : "Agent starting"}</span>
+        <span title={phrase.english}>{phrase.latin}</span>
       </div>
     </div>
   )

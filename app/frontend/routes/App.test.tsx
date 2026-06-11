@@ -6960,6 +6960,7 @@ describe("App", () => {
   })
 
   it("shows an animated chat agent activity indicator", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0)
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify(chatPayload({ agentBusy: true, turnInFlight: false })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
@@ -6972,7 +6973,9 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("status", { name: "Agent is working" })).toHaveTextContent("Agent working")
+    const status = await screen.findByRole("status", { name: "thinking it through" })
+    expect(status).toHaveTextContent("Cogitans")
+    expect(screen.getByTitle("thinking it through")).toHaveTextContent("Cogitans")
   })
 
   it("hides chat Send and keeps Stop compact while the agent is busy", async () => {
@@ -7007,7 +7010,9 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("status", { name: "Agent is starting" })).toHaveTextContent("Agent starting")
+    const status = await screen.findByRole("status", { name: "girding itself" })
+    expect(status).toHaveTextContent("Accingitur")
+    expect(screen.getByTitle("girding itself")).toHaveTextContent("Accingitur")
   })
 
   it("grows the chat input up to five rows", async () => {
