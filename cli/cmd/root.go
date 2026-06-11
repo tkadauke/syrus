@@ -8,7 +8,7 @@ import (
 	"github.com/tkadauke/syrus/cli/internal/config"
 )
 
-const configureMessage = "Run 'syrus configure' to set up your Syrus instance URL and API token."
+const loginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
 
 func Execute() error {
 	return NewRootCommand().Execute()
@@ -24,7 +24,7 @@ func NewRootCommand() *cobra.Command {
 			creds, err := config.LoadDefaultCredentials()
 			if err != nil {
 				if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
-					return errors.New(configureMessage)
+					return errors.New(loginMessage)
 				}
 				return err
 			}
@@ -34,6 +34,6 @@ func NewRootCommand() *cobra.Command {
 		},
 	}
 
-	rootCmd.AddCommand(NewConfigureCommand())
+	rootCmd.AddCommand(NewLoginCommand())
 	return rootCmd
 }
