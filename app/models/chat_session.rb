@@ -1,5 +1,13 @@
 class ChatSession < ApplicationRecord
   MESSAGE_PAGE_SIZE = 30
+  TITLE_MAX_LENGTH = 60
+  TITLE_GENERIC_WORDS = %w[
+    app application build change feature idea project request something stuff task thing this tool update
+  ].freeze
+  TITLE_ACRONYMS = %w[
+    AI API CI CLI CSS CSV DB DNS FAQ GitHub HTML HTTP JSON JWT MCP OAuth PDF PR Rails
+    REST RSpec SAML SDK SQL SSO UI URL UX VCR
+  ].index_by(&:downcase).freeze
 
   belongs_to :user
 
@@ -57,6 +65,14 @@ class ChatSession < ApplicationRecord
     joins(:chat_attachments)
       .where(chat_attachments: { attachable_type: "Repository", attachable_id: repository.id })
   }
+
+  def self.interpreted_title_for(text, repository: nil)
+    fallback = repository_title(repository)
+    source = text.to_s.squish
+    candidate = interpreted_title_from(source)
+
+    limit_title(candidate.presence || fallback)
+  end
 
   def repository=(repository)
     @initial_repository = repository
@@ -133,6 +149,109 @@ class ChatSession < ApplicationRecord
   end
 
   private
+
+  class << self
+    private
+
+    def repository_title(repository)
+      return unless repository
+
+      repository.try(:name).presence || repository.try(:slug).presence
+    end
+
+    def interpreted_title_from(source)
+      return if source.blank?
+
+      normalized = normalize_title_source(source)
+      subject = title_subject(normalized)
+      return if generic_title?(subject)
+
+      format_title(subject)
+    end
+
+    def normalize_title_source(source)
+      source
+        .gsub(/!\[[^\]]*\]\([^)]+\)/, " ")
+        .gsub(/\[[^\]]+\]\([^)]+\)/) { |match| match[/\A\[([^\]]+)\]/, 1].to_s }
+        .gsub(/`([^`]+)`/, '\1')
+        .gsub(%r{https?://\S+}, " ")
+        .gsub(/[#*_>~]/, " ")
+        .squish
+    end
+
+    def title_subject(text)
+      stripped = strip_request_prefix(text)
+      subject = direct_change_subject(stripped) || imperative_subject(stripped) || stripped
+      cleanup_subject(subject)
+    end
+
+    def strip_request_prefix(text)
+      current = text.dup
+      loop do
+        updated = current.sub(
+          /\A(?:please|pls|hey\s+syrus,?|syrus,?|can\s+you|could\s+you|would\s+you|i\s+(?:want|need)\s+(?:you\s+)?to|help\s+me\s+(?:to\s+)?|let'?s)\s+/i,
+          ""
+        ).squish
+        break current if updated == current
+
+        current = updated
+      end
+    end
+
+    def direct_change_subject(text)
+      match = text.match(/\A(?:change|rename|replace|update)\s+(?:the\s+)?(.+?)\s+(?:to|with|from)\b/i)
+      match && match[1]
+    end
+
+    def imperative_subject(text)
+      match = text.match(/\A(?:build|create|make|design|scaffold|prototype|implement|add|fix|repair|update|change|improve|refactor|rename|replace|convert|support|wire\s+up)\s+(?:me\s+|us\s+|a\s+|an\s+|the\s+)?(.+)/i)
+      match && match[1]
+    end
+
+    def cleanup_subject(subject)
+      subject.to_s
+        .sub(/\A(?:a|an|the)\s+/i, "")
+        .sub(/\s+(?:so\s+that|because|when|if|please)\b.+\z/i, "")
+        .sub(/\s+and\s+(?:make|ensure|also|then)\b.+\z/i, "")
+        .sub(/[.!?].+\z/, "")
+        .sub(/[,;:]\z/, "")
+        .sub(/\s+for\s+(?:me|us)\z/i, "")
+        .sub(/\s+in\s+(?:this|the)\s+(?:repo|repository|project)\z/i, "")
+        .gsub(/[\"'“”‘’]/, "")
+        .squish
+    end
+
+    def generic_title?(subject)
+      words = subject.to_s.downcase.scan(/[a-z0-9]+/)
+      return true if words.empty?
+
+      words.all? { |word| TITLE_GENERIC_WORDS.include?(word) }
+    end
+
+    def format_title(subject)
+      titled = subject.split(/\s+/).map { |word| title_word(word) }.join(" ")
+      limit_title(titled)
+    end
+
+    def title_word(word)
+      leading = word[/\A[^[:alnum:]]*/].to_s
+      trailing = word[/[^[:alnum:]]*\z/].to_s
+      core = word[leading.length...(word.length - trailing.length)].to_s
+      acronym = TITLE_ACRONYMS[core.downcase]
+      return "#{leading}#{acronym}#{trailing}" if acronym
+
+      "#{leading}#{core.downcase.capitalize}#{trailing}"
+    end
+
+    def limit_title(title)
+      value = title.to_s.squish
+      return if value.blank?
+      return value if value.length <= TITLE_MAX_LENGTH
+
+      trimmed = value[0, TITLE_MAX_LENGTH].sub(/\s+\S*\z/, "").squish
+      trimmed.presence || value[0, TITLE_MAX_LENGTH]
+    end
+  end
 
   def broadcast_app_header_update
     AppEvents.broadcast(

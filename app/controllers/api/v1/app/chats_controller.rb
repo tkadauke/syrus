@@ -48,7 +48,10 @@ module Api
 
           user_message = nil
           ApplicationRecord.transaction do
-            chat_session.update!(last_message_at: Time.current, title: chat_session.title.presence || text.truncate(80))
+            chat_session.update!(
+              last_message_at: Time.current,
+              title: chat_session.title.presence || ChatSession.interpreted_title_for(text, repository: chat_session.repository)
+            )
             user_message = chat_session.messages.create!(role: "user", content: { "text" => text })
           end
           enqueue_chat_turn(chat_session, user_message)
@@ -376,7 +379,7 @@ module Api
             chat_session = ChatSession.create!(
               user: Current.user,
               repository: repository,
-              title: text.presence&.truncate(80),
+              title: ChatSession.interpreted_title_for(text, repository: repository),
               last_message_at: text.present? ? Time.current : nil
             )
             if text.present?

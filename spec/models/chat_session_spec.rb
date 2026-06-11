@@ -208,6 +208,41 @@ RSpec.describe ChatSession do
     expect(repo.user.chat_sessions).to include(session)
   end
 
+  describe ".interpreted_title_for" do
+    it "names a chat from the project requested instead of copying the full prompt" do
+      title = described_class.interpreted_title_for(
+        "Please build a habit tracker with streaks and calendar heatmaps, and make it work on mobile",
+        repository: repo
+      )
+
+      expect(title).to eq("Habit Tracker With Streaks And Calendar Heatmaps")
+    end
+
+    it "uses the changed subject for phrasing that describes the desired replacement" do
+      title = described_class.interpreted_title_for(
+        "change chat title to short, interpreted name of project",
+        repository: repo
+      )
+
+      expect(title).to eq("Chat Title")
+    end
+
+    it "caps interpreted titles at 60 characters without cutting the final word" do
+      title = described_class.interpreted_title_for(
+        "Build a very detailed compliance reporting dashboard for regional water district auditors",
+        repository: repo
+      )
+
+      expect(title).to eq("Very Detailed Compliance Reporting Dashboard For Regional")
+      expect(title.length).to be <= 60
+    end
+
+    it "falls back to the repository name for blank or generic prompts" do
+      expect(described_class.interpreted_title_for("", repository: repo)).to eq(repo.name)
+      expect(described_class.interpreted_title_for("please build something", repository: repo)).to eq(repo.name)
+    end
+  end
+
   describe "React app events" do
     it "emits a header update payload for cached chat metadata" do
       stopped_at = Time.zone.parse("2026-05-30 12:00:00 UTC")

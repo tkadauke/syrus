@@ -63,7 +63,8 @@ Chats are operator conversations with repository context. A chat can
 attach repositories, Jobs, documents, notes, and whiteboard state. The chat
 agent can read selected repository context, propose Jobs, propose Epics,
 schedule recurring work, inspect existing Jobs or PRs, and create proposal
-cards for the operator to confirm.
+cards for the operator to confirm. New chats use a short interpreted title
+from the first prompt, with the repository name as the fallback.
 
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,

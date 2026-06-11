@@ -41,6 +41,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:created)
     chat = ChatSession.last
     expect(chat.user).to eq(user)
+    expect(chat.title).to eq("widgets")
     expect(chat.attached_repositories).to contain_exactly(repository)
     expect(parse_body).to include("message" => "Chat created.", "redirect_to" => chat_path(chat))
     expect(parse_body.dig("chat", "repository", "slug")).to eq("acme/widgets")
@@ -67,8 +68,26 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       .and have_enqueued_job(ChatTurnJob)
 
     chat = ChatSession.last
+    expect(chat.title).to eq("Map Auth")
     expect(chat.messages.last.content).to eq("text" => "Map auth")
     expect(parse_body).to include("message" => "Message sent.", "redirect_to" => chat_path(chat))
+  end
+
+  it "stores a short interpreted title for the first chat message" do
+    sign_in_as(user)
+
+    post "/api/v1/app/chats", params: {
+      repository_id: repository.id,
+      chat_message: {
+        text: "Please build a habit tracker with streaks and calendar heatmaps, and make it work on mobile"
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    chat = ChatSession.last
+    expect(chat.title).to eq("Habit Tracker With Streaks And Calendar Heatmaps")
+    expect(chat.title.length).to be <= 60
+    expect(parse_body.dig("chat", "title")).to eq(chat.title)
   end
 
   it "retries a transient Solid Queue lock when creating the first turn" do
@@ -105,6 +124,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     chat = ChatSession.last
     expect(chat.attached_repositories).to be_empty
+    expect(chat.title).to eq("Map Tkadauke/syrus")
     expect(chat.messages.last.content).to eq("text" => "Map tkadauke/syrus")
   end
 
