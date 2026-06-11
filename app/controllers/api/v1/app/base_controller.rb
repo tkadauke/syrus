@@ -5,6 +5,8 @@ module Api
       # from Api::BaseController, which is token-authenticated for
       # external callers.
       class BaseController < ApplicationController
+        include ActionController::HttpAuthentication::Token::ControllerMethods
+
         skip_before_action :compute_system_alerts
 
         rescue_from ActiveRecord::RecordNotFound do |e|
@@ -16,6 +18,17 @@ module Api
         end
 
         private
+
+        def resume_session
+          super || resume_api_token_session
+        end
+
+        def resume_api_token_session
+          authenticate_with_http_token do |token, _options|
+            user = User.find_by(api_token: token)
+            Current.session = Session.new(user: user) if user
+          end
+        end
 
         def request_authentication
           render_error("unauthorized", "Sign in to use the app API.", status: :unauthorized)

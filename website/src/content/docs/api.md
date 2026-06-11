@@ -37,6 +37,19 @@ The CLI sends the same bearer token header as the REST examples:
 `Authorization: Bearer <token>`. If credentials are missing or incomplete,
 it prints `Run 'syrus login' to set up your Syrus instance URL and API token.`
 
+The CLI can also send a single streaming chat turn:
+
+```bash
+syrus chat 123 "Inspect the queued proposals"
+```
+
+Chat streaming posts to `/api/v1/app/chats/:id/message` with
+`Accept: text/event-stream`, prints assistant chunks as they arrive, and
+renders Markdown with terminal wrapping. Pressing Ctrl+C asks Syrus to stop
+the in-flight turn instead of crashing the CLI process. Unlike the admin
+REST endpoints above, chat streaming accepts the owning user's API token
+for chats that user can access.
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal

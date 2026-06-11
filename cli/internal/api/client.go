@@ -54,6 +54,20 @@ func (c *Client) WithHTTPClient(client *http.Client) *Client {
 	return c
 }
 
+func (c *Client) newRequest(ctx context.Context, method string, path string, body io.Reader) (*http.Request, error) {
+	relative, err := url.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := c.baseURL.ResolveReference(relative)
+	req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	return req, nil
+}
+
 func (c *Client) do(ctx context.Context, method string, path string, input any, output any) error {
 	var body io.Reader
 	if input != nil {
@@ -64,16 +78,10 @@ func (c *Client) do(ctx context.Context, method string, path string, input any, 
 		body = bytes.NewReader(payload)
 	}
 
-	relative, err := url.Parse(path)
+	req, err := c.newRequest(ctx, method, path, body)
 	if err != nil {
 		return err
 	}
-	endpoint := c.baseURL.ResolveReference(relative)
-	req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/json")
 	if input != nil {
 		req.Header.Set("Content-Type", "application/json")
