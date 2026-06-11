@@ -14,9 +14,12 @@ type ScreenshotCapture = {
 }
 type ScreenshotCaptures = Partial<Record<Exclude<ScreenshotChoice, "none">, ScreenshotCapture>>
 
+const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
+
 export function BugReportButton({ context }: { context: string }) {
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
+  const [capturingFullPage, setCapturingFullPage] = useState(false)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [captures, setCaptures] = useState<ScreenshotCaptures>({})
@@ -50,16 +53,10 @@ export function BugReportButton({ context }: { context: string }) {
 
     try {
       const html2canvas = await loadHtml2Canvas()
-      const [viewportCanvas, fullPageCanvas] = await Promise.all([
-        captureViewport(html2canvas),
-        captureFullPage(html2canvas)
-      ])
-      const [viewport, fullPage] = await Promise.all([
-        canvasToCapture(viewportCanvas, "bug-report-viewport.png"),
-        canvasToCapture(fullPageCanvas, "bug-report-full-page.png")
-      ])
+      const viewportCanvas = await captureViewport(html2canvas)
+      const viewport = await canvasToCapture(viewportCanvas, "bug-report-viewport.png")
 
-      setCaptures({ viewport, fullPage })
+      setCaptures({ viewport })
     } catch (error) {
       console.error(error)
       setScreenshotChoice("none")
@@ -67,6 +64,28 @@ export function BugReportButton({ context }: { context: string }) {
     } finally {
       setCapturing(false)
       setOpen(true)
+    }
+  }
+
+  async function chooseScreenshot(choice: ScreenshotChoice) {
+    setScreenshotChoice(choice)
+
+    if (choice !== "fullPage" || captures.fullPage || capturingFullPage) return
+
+    setCaptureError(null)
+    setCapturingFullPage(true)
+
+    try {
+      const html2canvas = await loadHtml2Canvas()
+      const fullPageCanvas = await captureFullPage(html2canvas)
+      const fullPage = await canvasToCapture(fullPageCanvas, "bug-report-full-page.png")
+      setCaptures((current) => ({ ...current, fullPage }))
+    } catch (error) {
+      console.error(error)
+      setScreenshotChoice(captures.viewport ? "viewport" : "none")
+      setCaptureError("Full-page screenshot is too large for this page. The viewport screenshot is still available.")
+    } finally {
+      setCapturingFullPage(false)
     }
   }
 
@@ -149,20 +168,20 @@ export function BugReportButton({ context }: { context: string }) {
                     capture={captures.viewport}
                     choice="viewport"
                     label="Viewport"
-                    onChange={setScreenshotChoice}
+                    onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "viewport"}
                   />
                   <ScreenshotOption
                     capture={captures.fullPage}
                     choice="fullPage"
-                    label="Full page"
-                    onChange={setScreenshotChoice}
+                    label={capturingFullPage ? "Capturing..." : "Full page"}
+                    onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "fullPage"}
                   />
                   <ScreenshotOption
                     choice="none"
                     label="No screenshot"
-                    onChange={setScreenshotChoice}
+                    onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "none"}
                   />
                 </div>
@@ -284,6 +303,10 @@ function captureFullPage(html2canvas: Html2Canvas) {
     document.documentElement.scrollHeight,
     window.innerHeight
   )
+
+  if (width * height > MAX_FULL_PAGE_SCREENSHOT_PIXELS) {
+    throw new Error(`Full-page screenshot is too large: ${width}x${height}`)
+  }
 
   return html2canvas(document.body, {
     width,
