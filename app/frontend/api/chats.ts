@@ -9,6 +9,7 @@ export type ChatRepository = {
 export type ChatRecord = {
   id: number
   title: string | null
+  title_pending: boolean
   chat_path: string
   repository: ChatRepository | null
   stop_requested_at: string | null

@@ -152,7 +152,13 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
       (current) => {
         if (!current) return current
         patched = true
-        return { ...current, chat: { ...current.chat, ...header.chat } }
+        return {
+          ...current,
+          chat: { ...current.chat, ...header.chat },
+          recent_chats: current.recent_chats.map((chat) => (
+            chat.id === current.chat.id ? { ...chat, ...header.chat } : chat
+          ))
+        }
       }
     )
     return patched
@@ -193,7 +199,7 @@ type ChatControlsPayload = {
 
 type ChatHeaderPayload = {
   action: "update_header"
-  chat: Partial<Pick<ChatRecord, "title" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd">>
+  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd">>
 }
 
 type ChatBookmarkPayload = {
@@ -246,6 +252,7 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   const chat = candidate.chat
   const updates: ChatHeaderPayload["chat"] = {}
   if (typeof chat.title === "string" || chat.title === null) updates.title = chat.title
+  if (typeof chat.title_pending === "boolean") updates.title_pending = chat.title_pending
   if (typeof chat.stop_requested_at === "string" || chat.stop_requested_at === null) updates.stop_requested_at = chat.stop_requested_at
   if (typeof chat.cumulative_input_tokens === "number") updates.cumulative_input_tokens = chat.cumulative_input_tokens
   if (typeof chat.cumulative_output_tokens === "number") updates.cumulative_output_tokens = chat.cumulative_output_tokens

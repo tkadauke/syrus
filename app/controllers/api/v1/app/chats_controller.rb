@@ -50,9 +50,12 @@ module Api
           ApplicationRecord.transaction do
             chat_session.update!(
               last_message_at: Time.current,
-              title: chat_session.title.presence || ChatSession.interpreted_title_for(text, repository: chat_session.repository)
+              title: chat_session.title.presence
             )
             user_message = chat_session.messages.create!(role: "user", content: { "text" => text })
+          end
+          if chat_session.title.blank? && (title_message = first_user_message(chat_session))
+            enqueue_chat_title(chat_session, title_message)
           end
           enqueue_chat_turn(chat_session, user_message)
 
@@ -379,7 +382,7 @@ module Api
             chat_session = ChatSession.create!(
               user: Current.user,
               repository: repository,
-              title: ChatSession.interpreted_title_for(text, repository: repository),
+              title: text.present? ? nil : ChatSession.fallback_title_for(repository),
               last_message_at: text.present? ? Time.current : nil
             )
             if text.present?
@@ -387,8 +390,17 @@ module Api
             end
           end
 
+          enqueue_chat_title(chat_session, user_message) if user_message
           enqueue_chat_turn(chat_session, user_message) if user_message
           chat_session
+        end
+
+        def enqueue_chat_title(chat_session, user_message)
+          ChatTitleJob.perform_later(chat_session.id, user_message.id)
+        end
+
+        def first_user_message(chat_session)
+          chat_session.messages.where(role: "user").order(:created_at, :id).first
         end
 
         def enqueue_chat_turn(chat_session, user_message)
@@ -496,6 +508,7 @@ module Api
           {
             id: chat_session.id,
             title: chat_session.title,
+            title_pending: chat_session.title_pending?,
             chat_path: chat_path(chat_session),
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,

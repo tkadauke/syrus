@@ -42,6 +42,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     chat = ChatSession.last
     expect(chat.user).to eq(user)
     expect(chat.title).to eq("widgets")
+    expect(chat).not_to be_title_pending
     expect(chat.attached_repositories).to contain_exactly(repository)
     expect(parse_body).to include("message" => "Chat created.", "redirect_to" => chat_path(chat))
     expect(parse_body.dig("chat", "repository", "slug")).to eq("acme/widgets")
@@ -65,15 +66,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       post "/api/v1/app/chats", params: { repository_id: repository.id, chat_message: { text: "Map auth" } }
     }.to change(ChatSession, :count).by(1)
       .and change(ChatMessage, :count).by(1)
+      .and have_enqueued_job(ChatTitleJob)
       .and have_enqueued_job(ChatTurnJob)
 
     chat = ChatSession.last
-    expect(chat.title).to eq("Map Auth")
+    expect(chat.title).to be_nil
+    expect(chat).to be_title_pending
     expect(chat.messages.last.content).to eq("text" => "Map auth")
     expect(parse_body).to include("message" => "Message sent.", "redirect_to" => chat_path(chat))
+    expect(parse_body.dig("chat", "title_pending")).to eq(true)
   end
 
-  it "stores a short interpreted title for the first chat message" do
+  it "starts the first-message chat with a pending generated title" do
     sign_in_as(user)
 
     post "/api/v1/app/chats", params: {
@@ -85,9 +89,11 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(response).to have_http_status(:created)
     chat = ChatSession.last
-    expect(chat.title).to eq("Habit Tracker With Streaks And Calendar Heatmaps")
-    expect(chat.title.length).to be <= 60
-    expect(parse_body.dig("chat", "title")).to eq(chat.title)
+    expect(chat.title).to be_nil
+    expect(chat).to be_title_pending
+    expect(parse_body.dig("chat", "title")).to be_nil
+    expect(parse_body.dig("chat", "title_pending")).to eq(true)
+    expect(ChatTitleJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
   end
 
   it "retries a transient Solid Queue lock when creating the first turn" do
@@ -107,6 +113,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       post "/api/v1/app/chats", params: { repository_id: repository.id, chat_message: { text: "Map auth" } }
     }.to change(ChatSession, :count).by(1)
       .and change(ChatMessage, :count).by(1)
+      .and have_enqueued_job(ChatTitleJob)
       .and have_enqueued_job(ChatTurnJob)
 
     expect(response).to have_http_status(:created)
@@ -124,7 +131,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     chat = ChatSession.last
     expect(chat.attached_repositories).to be_empty
-    expect(chat.title).to eq("Map Tkadauke/syrus")
+    expect(chat.title).to be_nil
     expect(chat.messages.last.content).to eq("text" => "Map tkadauke/syrus")
   end
 
@@ -542,6 +549,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect {
       post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Now inspect proposals" } }
     }.to change { chat.messages.count }.by(1)
+      .and have_enqueued_job(ChatTitleJob).with(chat.id, kind_of(Integer))
       .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
 
     expect(response).to have_http_status(:ok)
@@ -549,6 +557,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["message"]).to eq("Message sent.")
     expect(parse_body["turn_in_flight"]).to eq(true)
     expect(parse_body["agent_busy"]).to eq(false)
+  end
+
+  it "uses the first user message for a delayed initial title" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+    first = chat.messages.create!(role: "user", content: { "text" => "Build the calendar" }, created_at: 1.hour.ago)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Also add email alerts" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(ChatTitleJob).to have_been_enqueued.with(chat.id, first.id)
   end
 
   it "returns a validation error for blank chat messages" do

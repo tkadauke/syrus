@@ -152,6 +152,7 @@ describe("applyAppEvent", () => {
         action: "update_header",
         chat: {
           title: "Updated chat",
+          title_pending: false,
           cumulative_input_tokens: 1500,
           cumulative_output_tokens: 250,
           cumulative_cost_usd: 0.125
@@ -162,6 +163,7 @@ describe("applyAppEvent", () => {
     expect(invalidate).not.toHaveBeenCalled()
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
     expect(updated?.chat.title).toBe("Updated chat")
+    expect(updated?.chat.title_pending).toBe(false)
     expect(updated?.chat.cumulative_input_tokens).toBe(1500)
     expect(updated?.chat.cumulative_output_tokens).toBe(250)
     expect(updated?.chat.cumulative_cost_usd).toBe(0.125)
@@ -254,6 +256,7 @@ function chatPayload(messages: Array<ReturnType<typeof message>>) {
     chat: {
       id: 9,
       title: "Chat",
+      title_pending: true,
       chat_path: "/chats/9",
       repository: null,
       stop_requested_at: null,

@@ -128,7 +128,7 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
   const [whiteboardFullscreen, setWhiteboardFullscreen] = useState(false)
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
-  const title = payload.chat.title || payload.chat.repository?.slug || "New chat"
+  const title = chatDisplayTitle(payload.chat)
 
   useEffect(() => {
     setWhiteboardFullscreen(false)
@@ -150,7 +150,7 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
       {whiteboardFullscreen || !isDesktop ? null : (
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="break-words text-3xl font-semibold text-gray-900">{title}</h1>
+            <h1 className={`break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400" : "text-gray-900"}`}>{title}</h1>
           </div>
         </header>
       )}
@@ -1418,7 +1418,7 @@ function ChatNavigator({ payload, prefix, onBookmarkSelect }: { payload: ChatPay
                 key={chat.id}
                 to={withRoutePrefix(chat.chat_path, prefix)}
               >
-                <span className="block truncate font-medium">{chatDisplayTitle(chat)}</span>
+                <span className={`block truncate font-medium ${chat.title_pending ? "animate-pulse text-gray-400" : ""}`}>{chatDisplayTitle(chat)}</span>
                 <span className="mt-0.5 block truncate font-mono text-[0.7rem] text-gray-500">{chat.repository?.slug || `Chat #${chat.id}`}</span>
               </Link>
             ))}
@@ -1673,7 +1673,9 @@ function clampWorkspaceWidth(width: number) {
   return Math.min(Math.max(width, CHAT_WORKSPACE_MIN_WIDTH), CHAT_WORKSPACE_MAX_WIDTH)
 }
 
-function chatDisplayTitle(chat: Pick<ChatNavRecord, "id" | "title" | "repository">) {
+function chatDisplayTitle(chat: Pick<ChatNavRecord, "id" | "title" | "title_pending" | "repository">) {
+  if (chat.title_pending) return "Naming chat..."
+
   return chat.title || chat.repository?.slug || `Chat #${chat.id}`
 }
 

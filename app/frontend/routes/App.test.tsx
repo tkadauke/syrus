@@ -9508,6 +9508,7 @@ function chatPayload(overrides: {
     chat: {
       id: 8,
       title: "Aqueduct planning",
+      title_pending: false,
       chat_path: "/chats/8",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
       stop_requested_at: null,
@@ -9537,6 +9538,7 @@ function chatPayload(overrides: {
       {
         id: 8,
         title: "Aqueduct planning",
+        title_pending: false,
         chat_path: "/chats/8",
         repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
         stop_requested_at: null,
@@ -9549,6 +9551,7 @@ function chatPayload(overrides: {
       {
         id: 4,
         title: "Road survey",
+        title_pending: false,
         chat_path: "/chats/4",
         repository: { id: 4, slug: "acme/roads", repository_path: "/repositories/4" },
         stop_requested_at: null,

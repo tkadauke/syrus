@@ -208,38 +208,25 @@ RSpec.describe ChatSession do
     expect(repo.user.chat_sessions).to include(session)
   end
 
-  describe ".interpreted_title_for" do
-    it "names a chat from the project requested instead of copying the full prompt" do
-      title = described_class.interpreted_title_for(
-        "Please build a habit tracker with streaks and calendar heatmaps, and make it work on mobile",
-        repository: repo
-      )
+  describe ".fallback_title_for" do
+    it "uses the repository name as the fallback title" do
+      expect(described_class.fallback_title_for(repo)).to eq(repo.name)
+    end
+  end
 
-      expect(title).to eq("Habit Tracker With Streaks And Calendar Heatmaps")
+  describe "#title_pending?" do
+    it "is pending when a user message exists before the generated title is stored" do
+      session = described_class.create!(repository: repo, user: repo.user, title: nil)
+      session.messages.create!(role: "user", content: { "text" => "Build a calendar" })
+
+      expect(session).to be_title_pending
     end
 
-    it "uses the changed subject for phrasing that describes the desired replacement" do
-      title = described_class.interpreted_title_for(
-        "change chat title to short, interpreted name of project",
-        repository: repo
-      )
+    it "is not pending once a title is stored" do
+      session = described_class.create!(repository: repo, user: repo.user, title: "Calendar")
+      session.messages.create!(role: "user", content: { "text" => "Build a calendar" })
 
-      expect(title).to eq("Chat Title")
-    end
-
-    it "caps interpreted titles at 60 characters without cutting the final word" do
-      title = described_class.interpreted_title_for(
-        "Build a very detailed compliance reporting dashboard for regional water district auditors",
-        repository: repo
-      )
-
-      expect(title).to eq("Very Detailed Compliance Reporting Dashboard For Regional")
-      expect(title.length).to be <= 60
-    end
-
-    it "falls back to the repository name for blank or generic prompts" do
-      expect(described_class.interpreted_title_for("", repository: repo)).to eq(repo.name)
-      expect(described_class.interpreted_title_for("please build something", repository: repo)).to eq(repo.name)
+      expect(session).not_to be_title_pending
     end
   end
 
@@ -265,6 +252,7 @@ RSpec.describe ChatSession do
           action: "update_header",
           chat: {
             title: "Updated chat",
+            title_pending: false,
             stop_requested_at: stopped_at.iso8601,
             cumulative_input_tokens: 1500,
             cumulative_output_tokens: 250,
