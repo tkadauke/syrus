@@ -7,6 +7,13 @@ module Api
         CHAT_STREAM_POLL_INTERVAL = 0.25.seconds
         CHAT_STREAM_TIMEOUT = 30.minutes
 
+        def index
+          render json: {
+            chats: recent_chats_index_json,
+            repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) }
+          }
+        end
+
         def new
           render json: form_payload
         end
@@ -281,6 +288,20 @@ module Api
             chat_json(chat_session).merge(
               current: chat_session.id == current_chat_session.id,
               last_message_at: chat_session.last_message_at&.iso8601
+            )
+          end
+        end
+
+        def recent_chats_index_json
+          Current.user.chat_sessions
+            .preload(repository_attachments: :attachable)
+            .order(Arel.sql("COALESCE(chat_sessions.last_message_at, chat_sessions.updated_at, chat_sessions.created_at) DESC"))
+            .limit(20)
+            .map do |chat_session|
+            chat_json(chat_session).merge(
+              last_message_at: chat_session.last_message_at&.iso8601,
+              created_at: chat_session.created_at.iso8601,
+              updated_at: chat_session.updated_at.iso8601
             )
           end
         end

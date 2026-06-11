@@ -46,10 +46,16 @@ func streamTurn(parent context.Context, chatID string, message string, out, errO
 		return err
 	}
 
+	return streamTurnWithClient(parent, client, chatID, message, out, errOut)
+}
+
+func streamTurnWithClient(parent context.Context, client *api.Client, chatID string, message string, out, errOut interface {
+	Write([]byte) (int, error)
+}) error {
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt)
 	defer stop()
 
-	err = client.StreamTurn(ctx, chatID, message, api.StreamTurnOptions{
+	err := client.StreamTurn(ctx, chatID, message, api.StreamTurnOptions{
 		Out:      out,
 		Renderer: render.NewMarkdownRenderer(out),
 	})

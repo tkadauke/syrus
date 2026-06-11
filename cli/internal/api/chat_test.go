@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,68 @@ type stubRenderer struct{}
 
 func (stubRenderer) Render(markdown string) (string, error) {
 	return "rendered:" + markdown, nil
+}
+
+func TestListChatsSendsBearerToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/chats" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer secret-token" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"chats":[{"id":42,"title":"Planning","repository":{"id":7,"slug":"tkadauke/syrus"}}],"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := client.ListChats(context.Background())
+	if err != nil {
+		t.Fatalf("ListChats returned error: %v", err)
+	}
+	if len(list.Chats) != 1 || list.Chats[0].ID != 42 {
+		t.Fatalf("chats = %#v", list.Chats)
+	}
+	if len(list.Repositories) != 1 || list.Repositories[0].Slug != "tkadauke/syrus" {
+		t.Fatalf("repositories = %#v", list.Repositories)
+	}
+}
+
+func TestCreateChatPostsRepositoryID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/chats" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var payload CreateChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.RepositoryID != 7 {
+			t.Fatalf("repository_id = %d", payload.RepositoryID)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"chat":{"id":99,"title":"syrus","repository":{"id":7,"slug":"tkadauke/syrus"}}}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	chat, err := client.CreateChat(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CreateChat returned error: %v", err)
+	}
+	if chat.ID != 99 {
+		t.Fatalf("chat ID = %d", chat.ID)
+	}
 }
 
 func TestParseChatStreamDispatchesMultilineSSEEvents(t *testing.T) {

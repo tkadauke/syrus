@@ -37,6 +37,19 @@ The CLI sends the same bearer token header as the REST examples:
 `Authorization: Bearer <token>`. If credentials are missing or incomplete,
 it prints `Run 'syrus login' to set up your Syrus instance URL and API token.`
 
+Run `syrus` with no subcommand to pick from recent chat sessions, create a
+new session, and enter the interactive chat REPL:
+
+```bash
+syrus
+```
+
+The picker calls `GET /api/v1/app/chats`, puts sessions attached to the
+current GitHub repository first when run inside a checkout, and uses
+`POST /api/v1/app/chats` for a new session. The REPL sends each line as a
+streaming turn until Ctrl+D exits. Ctrl+C stops the active turn and returns
+to the prompt.
+
 The CLI can also send a single streaming chat turn:
 
 ```bash

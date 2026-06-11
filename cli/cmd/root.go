@@ -1,12 +1,6 @@
 package cmd
 
-import (
-	"errors"
-	"fmt"
-
-	"github.com/spf13/cobra"
-	"github.com/tkadauke/syrus/cli/internal/config"
-)
+import "github.com/spf13/cobra"
 
 const loginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
 
@@ -21,16 +15,7 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			creds, err := config.LoadDefaultCredentials()
-			if err != nil {
-				if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
-					return errors.New(loginMessage)
-				}
-				return err
-			}
-
-			fmt.Fprintf(cmd.OutOrStdout(), "Configured for %s\n", creds.URL)
-			return nil
+			return runInteractiveChat(cmd)
 		},
 	}
 

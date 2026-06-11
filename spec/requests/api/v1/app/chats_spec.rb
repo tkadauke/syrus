@@ -41,6 +41,41 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["repositories_path"]).to eq(repositories_path)
   end
 
+  it "lists recent chats and active repositories for CLI session picking" do
+    sign_in_as(user)
+    repository
+    other_repo = Factories.repository(user: user, owner: "acme", name: "api")
+    current_chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Planning open source release",
+      last_message_at: 2.hours.ago
+    )
+    older_chat = ChatSession.create!(
+      user: user,
+      repository: other_repo,
+      title: "Auth refactor discussion",
+      last_message_at: 1.day.ago
+    )
+    ChatSession.create!(user: Factories.user, title: "Foreign chat", last_message_at: Time.current)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["repositories"]).to contain_exactly(
+      include("id" => repository.id, "slug" => "acme/widgets"),
+      include("id" => other_repo.id, "slug" => "acme/api")
+    )
+    expect(body["chats"].map { |chat| chat["id"] }).to eq([ current_chat.id, older_chat.id ])
+    expect(body["chats"].first).to include(
+      "title" => "Planning open source release",
+      "repository" => include("id" => repository.id, "slug" => "acme/widgets")
+    )
+    expect(body["chats"].first["last_message_at"]).to be_present
+    expect(body.to_s).not_to include("Foreign chat")
+  end
+
   it "creates a fresh chat with an optional repository attachment" do
     sign_in_as(user)
 

@@ -92,6 +92,7 @@ Rails.application.routes.draw do
         post "dashboard/epics/bulk", to: "dashboard#bulk_epics"
         patch "dashboard/epics/:id/auto_approval", to: "dashboard#epic_auto_approval", constraints: { id: /\d+/ }
         get "chats/new", to: "chats#new"
+        get "chats", to: "chats#index"
         post "chats", to: "chats#create"
         get "chats/:id", to: "chats#show", constraints: { id: /\d+/ }
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }

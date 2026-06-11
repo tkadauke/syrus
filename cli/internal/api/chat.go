@@ -14,6 +14,34 @@ import (
 	"strings"
 )
 
+type ChatRepository struct {
+	ID   int64  `json:"id"`
+	Slug string `json:"slug"`
+}
+
+type ChatSession struct {
+	ID            int64           `json:"id"`
+	Title         string          `json:"title"`
+	TitlePending  bool            `json:"title_pending"`
+	Repository    *ChatRepository `json:"repository"`
+	LastMessageAt string          `json:"last_message_at"`
+	CreatedAt     string          `json:"created_at"`
+	UpdatedAt     string          `json:"updated_at"`
+}
+
+type ChatList struct {
+	Chats        []ChatSession    `json:"chats"`
+	Repositories []ChatRepository `json:"repositories"`
+}
+
+type CreateChatRequest struct {
+	RepositoryID int64 `json:"repository_id,omitempty"`
+}
+
+type CreateChatResponse struct {
+	Chat ChatSession `json:"chat"`
+}
+
 type ChatTurnRenderer interface {
 	Render(markdown string) (string, error)
 }
@@ -32,6 +60,18 @@ type StreamTurnOptions struct {
 type ChatStreamEvent struct {
 	Event string
 	Data  json.RawMessage
+}
+
+func (c *Client) ListChats(ctx context.Context) (ChatList, error) {
+	var out ChatList
+	err := c.do(ctx, http.MethodGet, "/api/v1/app/chats", nil, &out)
+	return out, err
+}
+
+func (c *Client) CreateChat(ctx context.Context, repositoryID int64) (ChatSession, error) {
+	var out CreateChatResponse
+	err := c.do(ctx, http.MethodPost, "/api/v1/app/chats", CreateChatRequest{RepositoryID: repositoryID}, &out)
+	return out.Chat, err
 }
 
 func (c *Client) StreamTurn(ctx context.Context, chatID string, message string, options StreamTurnOptions) error {
