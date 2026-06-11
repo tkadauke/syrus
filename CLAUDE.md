@@ -255,6 +255,11 @@ across web/worker processes.
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
   `CLAUDE.md`.
+- **Spending insights** live at `/insights/spending` and roll up `Run#cost_usd`
+  plus `ChatSession#cumulative_cost_usd` by date window, Epic, user,
+  repository, trigger kind, trend, and top Runs. Non-admins only see their own
+  spend; admins see instance-wide totals. Keep cost/accounting changes aligned
+  with `App::SpendingPayload`, `docs/current-user-scopes.md`, and public docs.
 - **Workflow/Step registries** — `Workflow::TriggerKind` and `Step::Kind`
   are the single source for trigger/step metadata: valid values, handler or
   template class, UI label/style, and whether a step is agentic. Add new
