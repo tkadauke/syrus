@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatMessageItem, ChatPayload, ChatRecord } from "../api/chats"
+import type { ChatBookmark, ChatMessageItem, ChatPayload, ChatRecord } from "../api/chats"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const DASHBOARD_INVALIDATION_RETRY_MS = 1_000
@@ -158,6 +158,20 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return patched
   }
 
+  const bookmark = chatBookmarkPayload(event.payload)
+  if (bookmark) {
+    let patched = false
+    queryClient.setQueriesData<ChatPayload>(
+      { queryKey: ["chats", String(event.id)] },
+      (current) => {
+        if (!current) return current
+        patched = true
+        return { ...current, bookmarks: upsertBookmark(current.bookmarks, bookmark.bookmark) }
+      }
+    )
+    return patched
+  }
+
   return false
 }
 
@@ -180,6 +194,11 @@ type ChatControlsPayload = {
 type ChatHeaderPayload = {
   action: "update_header"
   chat: Partial<Pick<ChatRecord, "title" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd">>
+}
+
+type ChatBookmarkPayload = {
+  action: "upsert_bookmark"
+  bookmark: ChatBookmark
 }
 
 function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null {
@@ -238,6 +257,19 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   }
 }
 
+function chatBookmarkPayload(payload: unknown): ChatBookmarkPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatBookmarkPayload>
+  if (candidate.action !== "upsert_bookmark") return null
+  if (!isChatBookmark(candidate.bookmark)) return null
+
+  return {
+    action: "upsert_bookmark",
+    bookmark: candidate.bookmark
+  }
+}
+
 function isChatMessages(value: unknown): value is ChatMessageItem[] {
   return Array.isArray(value) && value.every((item) => {
     if (!item || typeof item !== "object") return false
@@ -245,6 +277,18 @@ function isChatMessages(value: unknown): value is ChatMessageItem[] {
     const candidate = item as Partial<ChatMessageItem>
     return candidate.type === "message" && typeof candidate.id === "number"
   })
+}
+
+function isChatBookmark(value: unknown): value is ChatBookmark {
+  if (!value || typeof value !== "object") return false
+
+  const candidate = value as Partial<ChatBookmark>
+  return (
+    typeof candidate.id === "number" &&
+    typeof candidate.label === "string" &&
+    typeof candidate.chat_message_id === "number" &&
+    (typeof candidate.anchor_message_id === "number" || candidate.anchor_message_id == null)
+  )
 }
 
 function replaceMessageTail(current: ChatMessageItem[], replaceFromId: number, nextMessages: ChatMessageItem[]) {
@@ -266,4 +310,10 @@ function dedupeMessages(messages: ChatMessageItem[]) {
   }
 
   return result
+}
+
+function upsertBookmark(current: ChatBookmark[], bookmark: ChatBookmark) {
+  const next = current.filter((item) => item.id !== bookmark.id)
+  next.push(bookmark)
+  return next.sort((a, b) => a.chat_message_id - b.chat_message_id || a.id - b.id)
 }

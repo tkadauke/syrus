@@ -166,6 +166,51 @@ describe("applyAppEvent", () => {
     expect(updated?.chat.cumulative_output_tokens).toBe(250)
     expect(updated?.chat.cumulative_cost_usd).toBe(0.125)
   })
+
+  it("applies chat bookmark payloads directly to cached chat data", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "9", ""], {
+      ...chatPayload([message(1, "user", "old")]),
+      bookmarks: [{ id: 4, label: "Opening", chat_message_id: 1, anchor_message_id: 1 }]
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "upsert_bookmark",
+        bookmark: { id: 5, label: "Fresh aqueduct", chat_message_id: 3, anchor_message_id: 6 }
+      }
+    })
+
+    expect(invalidate).not.toHaveBeenCalled()
+    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(updated?.bookmarks).toEqual([
+      { id: 4, label: "Opening", chat_message_id: 1, anchor_message_id: 1 },
+      { id: 5, label: "Fresh aqueduct", chat_message_id: 3, anchor_message_id: 6 }
+    ])
+  })
+
+  it("replaces existing cached chat bookmarks by id", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], {
+      ...chatPayload([message(1, "user", "old")]),
+      bookmarks: [{ id: 4, label: "Opening", chat_message_id: 1, anchor_message_id: 1 }]
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "upsert_bookmark",
+        bookmark: { id: 4, label: "Opening revised", chat_message_id: 1, anchor_message_id: 1 }
+      }
+    })
+
+    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(updated?.bookmarks).toEqual([
+      { id: 4, label: "Opening revised", chat_message_id: 1, anchor_message_id: 1 }
+    ])
+  })
 })
 
 function event(resource: string, id: number | null) {

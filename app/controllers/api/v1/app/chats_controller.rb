@@ -246,25 +246,8 @@ module Api
             id: bookmark.id,
             label: bookmark.label,
             chat_message_id: bookmark.chat_message_id,
-            anchor_message_id: bookmark_anchor_message_id(bookmark)
+            anchor_message_id: bookmark.anchor_message_id
           }
-        end
-
-        def bookmark_anchor_message_id(bookmark)
-          message = bookmark.chat_message
-          return message.id if message.bookmarkable?
-
-          message.chat_session.messages
-            .where(role: %w[user assistant])
-            .where("id > ?", message.id)
-            .order(:created_at, :id)
-            .pick(:id) ||
-            message.chat_session.messages
-              .where(role: %w[user assistant])
-              .where("id < ?", message.id)
-              .order(created_at: :desc, id: :desc)
-              .pick(:id) ||
-            message.id
         end
 
         def recent_chats_json(current_chat_session)

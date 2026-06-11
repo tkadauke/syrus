@@ -57,4 +57,38 @@ RSpec.describe ChatBookmark do
 
     expect { bookmark.destroy }.to change(described_class, :count).by(-1)
   end
+
+  it "anchors to the next rendered chat message when attached to a tool row" do
+    user_message = session.messages.create!(role: "user", content: { "text" => "Start here." })
+    tool_message = session.messages.create!(role: "tool_use", content: { "name" => "set_bookmark" })
+    assistant_message = session.messages.create!(role: "assistant", content: { "text" => "Continue here." })
+    bookmark = tool_message.bookmarks.create!(label: "Aqueduct ruling", kind: "topic")
+
+    expect(bookmark.anchor_message_id).to eq(assistant_message.id)
+    expect(bookmark.anchor_message_id).not_to eq(user_message.id)
+  end
+
+  it "broadcasts a typed bookmark payload for cached chat navigation" do
+    allow(AppEvents).to receive(:broadcast)
+    message
+
+    expect(AppEvents).to receive(:broadcast).with(
+      user: repo.user,
+      type: "updated",
+      resource: "chat",
+      id: session.id,
+      changed: [ "bookmarks" ],
+      payload: {
+        action: "upsert_bookmark",
+        bookmark: {
+          id: kind_of(Integer),
+          label: "Fresh aqueduct",
+          chat_message_id: message.id,
+          anchor_message_id: message.id
+        }
+      }
+    )
+
+    message.bookmarks.create!(label: "Fresh aqueduct", kind: "topic")
+  end
 end
