@@ -214,34 +214,42 @@ function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: s
     <section aria-label="Top runs" className="overflow-hidden rounded border border-gray-200 bg-white">
       <TableHeader title="Top Runs" />
       {payload.top_runs.length === 0 ? <EmptyTable label="No billed runs in this window." /> : (
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
-            <tr>
-              <th className="px-4 py-2 font-medium">Run</th>
-              <th className="px-4 py-2 font-medium">Job</th>
-              <th className="px-4 py-2 font-medium">Repository</th>
-              <th className="px-4 py-2 text-right font-medium">Cost</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 bg-white">
-            {payload.top_runs.map((run) => (
-              <tr key={run.id}>
-                <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">Run #{run.id}</div>
-                  <div className="text-xs text-gray-500">{humanize(run.trigger_kind)} / {run.agent_provider}</div>
-                </td>
-                <td className="max-w-0 px-4 py-3">
-                  <Link className="truncate text-blue-700 underline hover:no-underline" to={withRoutePrefix(run.job.path, prefix)}>{run.job.title || `Job #${run.job.id}`}</Link>
-                  {run.epic ? <div className="truncate text-xs text-gray-500">{run.epic.display_number} / {run.epic.title}</div> : null}
-                </td>
-                <td className="px-4 py-3">
-                  <Link className="font-mono text-xs text-blue-700 underline hover:no-underline" to={withRoutePrefix(run.repository.path, prefix)}>{run.repository.slug}</Link>
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCurrency(run.cost_usd)}</td>
+        <div className="overflow-x-auto">
+          <table className="min-w-[56rem] table-fixed divide-y divide-gray-200 text-sm w-full">
+            <colgroup>
+              <col className="w-1/4" />
+              <col className="w-1/2" />
+              <col className="w-40" />
+              <col className="w-28" />
+            </colgroup>
+            <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">Run</th>
+                <th className="px-4 py-2 font-medium">Job</th>
+                <th className="px-4 py-2 font-medium">Repository</th>
+                <th className="px-4 py-2 text-right font-medium">Cost</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {payload.top_runs.map((run) => (
+                <tr key={run.id}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900">Run #{run.id}</div>
+                    <div className="text-xs text-gray-500">{humanize(run.trigger_kind)} / {run.agent_provider}</div>
+                  </td>
+                  <td className="max-w-0 px-4 py-3">
+                    <Link className="block truncate text-blue-700 underline hover:no-underline" title={run.job.title || `Job #${run.job.id}`} to={withRoutePrefix(run.job.path, prefix)}>{run.job.title || `Job #${run.job.id}`}</Link>
+                    {run.epic ? <div className="truncate text-xs text-gray-500" title={`${run.epic.display_number} / ${run.epic.title}`}>{run.epic.display_number} / {run.epic.title}</div> : null}
+                  </td>
+                  <td className="max-w-0 px-4 py-3">
+                    <Link className="block truncate font-mono text-xs text-blue-700 underline hover:no-underline" title={run.repository.slug} to={withRoutePrefix(run.repository.path, prefix)}>{run.repository.slug}</Link>
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCurrency(run.cost_usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   )

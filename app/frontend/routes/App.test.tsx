@@ -1065,8 +1065,8 @@ describe("App", () => {
             trigger_kind: "initial",
             agent_provider: "codex",
             created_at: "2026-06-04T12:00:00Z",
-            job: { id: 9, title: "Measure the treasury", path: "/jobs/9?tab=workflows#workflow-4" },
-            repository: { id: 3, slug: "acme/syrus", path: "/repositories/3" },
+            job: { id: 9, title: "Replace Meyer's-singleton statics with inline-variable constants across every remaining math header", path: "/jobs/9?tab=workflows#workflow-4" },
+            repository: { id: 3, slug: "tkadauke/raytracer", path: "/repositories/3" },
             epic: { id: 7, display_number: "EPIC-7", title: "Cost Senate", path: "/epics/7" }
           }],
           trend: [
@@ -1090,7 +1090,12 @@ describe("App", () => {
     expect(screen.getByRole("main", { name: "Spending insights" })).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insights/spending?start_date=2026-06-01&end_date=2026-06-05", expect.objectContaining({ credentials: "same-origin" }))
     expect(screen.getByRole("link", { name: "EPIC-7 / Cost Senate" })).toHaveAttribute("href", "/app-shell/epics/7")
-    expect(screen.getByRole("link", { name: "Measure the treasury" })).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-4")
+    const topRunJobLink = screen.getByRole("link", { name: "Replace Meyer's-singleton statics with inline-variable constants across every remaining math header" })
+    expect(topRunJobLink).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-4")
+    expect(topRunJobLink).toHaveClass("block", "truncate")
+    const repositoryLink = screen.getByRole("link", { name: "tkadauke/raytracer" })
+    expect(repositoryLink).toHaveAttribute("href", "/app-shell/repositories/3")
+    expect(repositoryLink).toHaveClass("block", "truncate")
     expect(screen.getByRole("img", { name: "Daily spend" })).toBeInTheDocument()
   })
 
