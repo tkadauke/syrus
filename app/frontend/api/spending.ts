@@ -29,6 +29,11 @@ export type SpendingPayload = {
     start_date: string
     end_date: string
     default_window_days: number
+    agent_provider: string | null
+    agent_providers: Array<{
+      value: string
+      label: string
+    }>
   }
   totals: {
     week_usd: number

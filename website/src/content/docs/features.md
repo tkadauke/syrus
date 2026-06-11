@@ -137,7 +137,9 @@ The spending dashboard at `/insights/spending` rolls up captured
 `runs.cost_usd` into operator-facing cost views. It shows week, month,
 lifetime, average Job, and average merged-PR totals, plus breakdowns by
 Epic, user, repository, trigger kind, a daily trend chart, and the most
-expensive individual Runs.
+expensive individual Runs. When spending exists across multiple agent
+providers, the dashboard can filter those views by model provider such as
+Claude Code or Codex.
 
 The view respects the same ownership model as the rest of the app:
 non-admin users see only their own Run and chat costs, while admins see

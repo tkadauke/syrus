@@ -96,4 +96,47 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     )
     expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(mine).id, "cost_usd" => 0.4))
   end
+
+  it "filters workflow spending by agent provider" do
+    user = Factories.user(email_address: "mine@example.com")
+    repo = Factories.repository(user: user)
+    claude_job = Factories.job(user: user, repository: repo, issue_number: 303, agent_provider: "claude")
+    codex_job = Factories.job(user: user, repository: repo, issue_number: 404, agent_provider: "codex")
+    set_run_cost(initial_run(claude_job), 0.40, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+    set_run_cost(initial_run(codex_job), 0.60, created_at: Time.zone.parse("2026-06-03 12:00:00"))
+    ChatSession.create!(user: user, cumulative_cost_usd: 0.25)
+
+    sign_in_as(user)
+    get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05", agent_provider: "codex" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("filters", "agent_provider")).to eq("codex")
+    expect(body.dig("filters", "agent_providers")).to eq([
+      { "value" => "claude", "label" => "Claude Code" },
+      { "value" => "codex", "label" => "Codex" }
+    ])
+    expect(body.dig("totals", "lifetime_usd")).to eq(0.6)
+    expect(body.dig("totals", "workflow_lifetime_usd")).to eq(0.6)
+    expect(body.dig("totals", "chat_lifetime_usd")).to eq(0.0)
+    expect(body.dig("breakdowns", "repositories")).to contain_exactly(include("total_usd" => 0.6, "jobs_count" => 1))
+    expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(codex_job).id, "agent_provider" => "codex", "cost_usd" => 0.6))
+    expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
+      { "date" => "2026-06-03", "total_usd" => 0.6 }
+    )
+  end
+
+  it "ignores unsupported agent provider filters" do
+    user = Factories.user(email_address: "mine@example.com")
+    job = Factories.job(user: user, repository: Factories.repository(user: user), issue_number: 303, agent_provider: "claude")
+    set_run_cost(initial_run(job), 0.40, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+
+    sign_in_as(user)
+    get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05", agent_provider: "llama" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("filters", "agent_provider")).to be_nil
+    expect(body.dig("totals", "lifetime_usd")).to eq(0.4)
+  end
 end

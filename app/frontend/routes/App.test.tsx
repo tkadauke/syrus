@@ -1043,7 +1043,16 @@ describe("App", () => {
       new Response(
         JSON.stringify({
           scope: { admin: true, user_id: 1, label: "All users" },
-          filters: { start_date: "2026-06-01", end_date: "2026-06-05", default_window_days: 90 },
+          filters: {
+            start_date: "2026-06-01",
+            end_date: "2026-06-05",
+            default_window_days: 90,
+            agent_provider: null,
+            agent_providers: [
+              { value: "claude", label: "Claude Code" },
+              { value: "codex", label: "Codex" }
+            ]
+          },
           totals: {
             week_usd: 3.75,
             month_usd: 3.75,
@@ -1092,6 +1101,11 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "EPIC-7 / Cost Senate" })).toHaveAttribute("href", "/app-shell/epics/7")
     expect(screen.getByRole("link", { name: "Measure the treasury" })).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-4")
     expect(screen.getByRole("img", { name: "Daily spend" })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole("combobox", { name: "Model" }), { target: { value: "codex" } })
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insights/spending?start_date=2026-06-01&end_date=2026-06-05&agent_provider=codex", expect.objectContaining({ credentials: "same-origin" }))
+    })
   })
 
   it("renders the app-shell dashboard route from the app dashboard API", async () => {

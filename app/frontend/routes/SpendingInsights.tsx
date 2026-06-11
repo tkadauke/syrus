@@ -72,12 +72,19 @@ function DateRangeForm({ pathname, search, payload }: { pathname: string; search
   const params = new URLSearchParams(search)
   const [startDate, setStartDate] = useState(params.get("start_date") || payload.filters.start_date)
   const [endDate, setEndDate] = useState(params.get("end_date") || payload.filters.end_date)
+  const [agentProvider, setAgentProvider] = useState(params.get("agent_provider") || payload.filters.agent_provider || "")
+  const showAgentProvider = payload.filters.agent_providers.length > 1
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const next = new URLSearchParams(search)
     next.set("start_date", startDate)
     next.set("end_date", endDate)
+    if (agentProvider) {
+      next.set("agent_provider", agentProvider)
+    } else {
+      next.delete("agent_provider")
+    }
     navigate(`${pathname}?${next.toString()}`)
   }
 
@@ -91,6 +98,17 @@ function DateRangeForm({ pathname, search, payload }: { pathname: string; search
         End
         <input className="rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
       </label>
+      {showAgentProvider ? (
+        <label className="grid gap-1 text-xs font-medium text-gray-600">
+          Model
+          <select className="rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" value={agentProvider} onChange={(event) => setAgentProvider(event.target.value)}>
+            <option value="">All models</option>
+            {payload.filters.agent_providers.map((provider) => (
+              <option key={provider.value} value={provider.value}>{provider.label}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <button className="rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700" type="submit">Apply</button>
     </form>
   )

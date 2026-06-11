@@ -11,6 +11,7 @@ module App
       @start_date = parse_date(params[:start_date]) || (@today - DEFAULT_WINDOW_DAYS.days)
       @end_date = parse_date(params[:end_date]) || @today
       @start_date, @end_date = @end_date, @start_date if @start_date > @end_date
+      @agent_provider = parse_agent_provider(params[:agent_provider])
     end
 
     def as_json(*)
@@ -31,7 +32,7 @@ module App
 
     private
 
-    attr_reader :user, :start_date, :end_date, :today
+    attr_reader :user, :start_date, :end_date, :today, :agent_provider
 
     def scope_json
       {
@@ -45,7 +46,9 @@ module App
       {
         start_date: start_date.iso8601,
         end_date: end_date.iso8601,
-        default_window_days: DEFAULT_WINDOW_DAYS
+        default_window_days: DEFAULT_WINDOW_DAYS,
+        agent_provider: agent_provider,
+        agent_providers: available_agent_providers
       }
     end
 
@@ -53,9 +56,9 @@ module App
       {
         week_usd: decimal_to_float(runs_in_window(today.beginning_of_week, today).sum(:cost_usd)),
         month_usd: decimal_to_float(runs_in_window(today.beginning_of_month, today).sum(:cost_usd)),
-        lifetime_usd: decimal_to_float(scoped_runs.sum(:cost_usd) + scoped_chat_sessions.sum(:cumulative_cost_usd)),
-        workflow_lifetime_usd: decimal_to_float(scoped_runs.sum(:cost_usd)),
-        chat_lifetime_usd: decimal_to_float(scoped_chat_sessions.sum(:cumulative_cost_usd)),
+        lifetime_usd: decimal_to_float(provider_scoped_runs.sum(:cost_usd) + provider_scoped_chat_sessions.sum(:cumulative_cost_usd)),
+        workflow_lifetime_usd: decimal_to_float(provider_scoped_runs.sum(:cost_usd)),
+        chat_lifetime_usd: decimal_to_float(provider_scoped_chat_sessions.sum(:cumulative_cost_usd)),
         average_job_30d_usd: average_cost_per_job(30.days.ago.to_date, today),
         average_merged_pr_30d_usd: average_cost_per_merged_pr(30.days.ago.to_date, today)
       }
@@ -82,12 +85,24 @@ module App
       relation.where(user_id: user.id)
     end
 
+    def provider_scoped_runs
+      return scoped_runs if agent_provider.blank?
+
+      scoped_runs.where(agent_provider: agent_provider)
+    end
+
+    def provider_scoped_chat_sessions
+      return scoped_chat_sessions if agent_provider.blank? || agent_provider == "claude"
+
+      scoped_chat_sessions.none
+    end
+
     def filtered_runs
       runs_in_window(start_date, end_date)
     end
 
     def runs_in_window(first_date, last_date)
-      scoped_runs.where(created_at: first_date.beginning_of_day..last_date.end_of_day)
+      provider_scoped_runs.where(created_at: first_date.beginning_of_day..last_date.end_of_day)
     end
 
     def jobs_with_windowed_run_cost(first_date, last_date)
@@ -95,6 +110,17 @@ module App
         .joins(:runs)
         .where.not(runs: { cost_usd: nil })
         .where(runs: { created_at: first_date.beginning_of_day..last_date.end_of_day })
+        .then { |relation| agent_provider.present? ? relation.where(runs: { agent_provider: agent_provider }) : relation }
+    end
+
+    def available_agent_providers
+      @available_agent_providers ||= begin
+        providers = scoped_runs.distinct.pluck(:agent_provider).compact
+        providers << "claude" if scoped_chat_sessions.where("cumulative_cost_usd > 0").exists?
+        User::AGENT_PROVIDERS.select { |provider| providers.include?(provider) }.map do |provider|
+          { value: provider, label: App::Presentation.agent_provider_label(provider) }
+        end
+      end
     end
 
     def average_cost_per_job(first_date, last_date)
@@ -284,6 +310,14 @@ module App
 
       Date.iso8601(value.to_s)
     rescue ArgumentError
+      nil
+    end
+
+    def parse_agent_provider(value)
+      provider = value.to_s.presence
+      return if provider.blank?
+      return provider if User::AGENT_PROVIDERS.include?(provider) && available_agent_providers.any? { |option| option[:value] == provider }
+
       nil
     end
 
