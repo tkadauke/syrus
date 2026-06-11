@@ -398,7 +398,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       row = parse_body["jobs"].first
       expect(row).to include(
         "id", "state", "kind", "credential_mode", "agent_provider", "repository",
-        "issue_number", "pr_number", "branch_name", "pr_mergeable",
+        "issue_number", "issue_title", "pr_number", "branch_name", "pr_mergeable",
         "pr_mergeable_checked_at", "github_mergeable", "github_mergeable_state",
         "mergeability_head_sha", "mergeability_base_sha", "mergeability_base_ref",
         "mergeability_checked_at", "local_mergeable", "local_mergeable_state",
@@ -407,6 +407,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
         "last_feedback_addressed_at", "last_ci_handled_sha"
       )
       expect(row["repository"]).to eq("acme/widgets")
+      expect(row["issue_title"]).to eq(job_124.issue_title)
       expect(row["agent_provider"]).to eq(job_124.agent_provider)
       expect(row).not_to have_key("workflows")
     end

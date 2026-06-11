@@ -37,6 +37,19 @@ The CLI sends the same bearer token header as the REST examples:
 `Authorization: Bearer <token>`. If credentials are missing or incomplete,
 it prints `Run 'syrus login' to set up your Syrus instance URL and API token.`
 
+Use `syrus status` to list active Jobs across repositories:
+
+```bash
+syrus status
+syrus status --repo acme/widgets
+syrus status --closed
+```
+
+The command calls `GET /api/v1/admin/jobs?state=open` by default and prints
+a compact 80-column table with Job ID, repository, title, state, and PR
+number. Terminals with color support highlight running, implemented,
+approved, failed, and queued states.
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal

@@ -172,6 +172,7 @@ module Api
             agent_provider: job.agent_provider,
             repository:     job.repository.slug,
             issue_number:   job.issue_number,
+            issue_title:    job.issue_title,
             pr_number:      job.pr_number,
             branch_name:    job.branch_name,
             pr_mergeable:   job.pr_mergeable,

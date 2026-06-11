@@ -8,8 +8,17 @@ import (
 )
 
 type JobList struct {
-	Count int             `json:"count"`
-	Jobs  json.RawMessage `json:"jobs"`
+	Count int   `json:"count"`
+	Jobs  []Job `json:"jobs"`
+}
+
+type Job struct {
+	ID          int64  `json:"id"`
+	Repository  string `json:"repository"`
+	IssueTitle  string `json:"issue_title"`
+	State       string `json:"state"`
+	PRNumber    *int64 `json:"pr_number"`
+	IssueNumber *int64 `json:"issue_number"`
 }
 
 type JobResponse json.RawMessage
