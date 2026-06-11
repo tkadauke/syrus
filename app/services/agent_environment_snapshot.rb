@@ -59,7 +59,7 @@ class AgentEnvironmentSnapshot
       "- Agent provider: #{run.agent_provider.presence || workflow&.agent_provider || job.agent_provider}",
       "- Workspace: #{workspace_path || '(not available)'}",
       "- Branch/base: #{branch_summary(job)}",
-      "- MCP/tools: run sidecar `syrus-mcp-sidecar` is configured with `submit_summary`; implement/respond turns normally do not need it, summarize/summarize_amend turns do."
+      "- MCP/tools: run sidecar `syrus-mcp-sidecar` is configured with `submit_summary` and `submit_test_plan`; implement/respond turns normally do not need them, summarize/summarize_amend/test_plan turns do."
     ]
 
     lines.concat(admin_links(job, workflow, run))

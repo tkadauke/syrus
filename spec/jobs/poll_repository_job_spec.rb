@@ -33,7 +33,7 @@ RSpec.describe PollRepositoryJob do
       job.advance_after_triage!
       workflow = job.workflows.first
       expect(job).to be_skip_prepare
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize test_plan pr_open ])
       expect(workflow.first_step.kind).to eq("implement")
     end
 
@@ -51,7 +51,7 @@ RSpec.describe PollRepositoryJob do
       job = Job.find_by!(repository: repository, issue_number: 42)
       job.advance_after_triage!
       workflow = job.workflows.first
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize test_plan pr_open ])
     end
 
     it "keeps the initial workflow starting with prepare when the skip-prepare label is absent" do
@@ -63,7 +63,7 @@ RSpec.describe PollRepositoryJob do
       job = Job.find_by!(repository: repository, issue_number: 42)
       job.advance_after_triage!
       workflow = job.workflows.first
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement grader_fanout grader_collect summarize pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement grader_fanout grader_collect summarize test_plan pr_open ])
       expect(workflow.first_step.kind).to eq("prepare")
     end
 
@@ -385,7 +385,7 @@ RSpec.describe PollRepositoryJob do
       job = Job.find_by!(repository: repository, issue_number: 99)
       job.advance_after_triage!
       workflow = job.latest_workflow
-      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize pr_open ])
+      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize test_plan pr_open ])
       expect(workflow.artifact("prepare_skipped_reason")).to eq("issue_label")
     end
 

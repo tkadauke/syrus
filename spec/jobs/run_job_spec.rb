@@ -88,6 +88,7 @@ RSpec.describe RunJob do
         [ "grader_fanout",  "succeeded" ],
         [ "grader_collect", "succeeded" ],
         [ "summarize",      "succeeded" ],
+        [ "test_plan",      "succeeded" ],
         [ "pr_open",        "succeeded" ]
       ])
       expect(wf.artifact("pr_title")).to eq("Add greeting helper")
@@ -118,6 +119,8 @@ RSpec.describe RunJob do
             agent_pr_body: "Adds a tiny greet helper used by the welcome page.",
             agent_summary: "Implemented greet."
           )
+        elsif current.step.kind == "test_plan"
+          current.workflow.set_artifact!("test_plan", { steps: [ "Run bin/rspec" ], notes: nil })
         end
         AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
                                     outcome: "success", final_text: nil, session_id: "S-#{current.iteration}",
@@ -162,6 +165,8 @@ RSpec.describe RunJob do
             agent_pr_body: "Adds a tiny greet helper used by the welcome page.",
             agent_summary: "Implemented greet."
           )
+        elsif current.step.kind == "test_plan"
+          current.workflow.set_artifact!("test_plan", { steps: [ "Run bin/rspec" ], notes: nil })
         end
         AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
                                     outcome: "success", final_text: nil, session_id: "S-#{current.iteration}",
@@ -204,6 +209,8 @@ RSpec.describe RunJob do
             agent_pr_body: "Exercises controlled grade-loop recovery.",
             agent_summary: "Recovered from a failed grade."
           )
+        elsif current.step.kind == "test_plan"
+          current.workflow.set_artifact!("test_plan", { steps: [ "Run bin/rspec" ], notes: nil })
         end
         AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false,
                                     outcome: "success", final_text: nil, session_id: "S-#{current.iteration}",
@@ -956,6 +963,8 @@ RSpec.describe RunJob do
         agent_pr_body:  "Adds a tiny greet helper used by the welcome page.",
         agent_summary:  "Implemented greet."
       )
+    when "test_plan"
+      current.workflow.set_artifact!("test_plan", { steps: [ "Run bin/rspec" ], notes: nil })
     when "agent_rebase"
       sh("git -c user.name=t -c user.email=t@e -C #{workspace_path} commit --allow-empty -q -m 'rebased'")
     end

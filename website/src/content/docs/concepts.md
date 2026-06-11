@@ -150,10 +150,13 @@ signals are:
 | Signal | Purpose |
 | --- | --- |
 | `submit_summary` | Provide PR title, PR body, and a short run summary. |
+| `submit_test_plan` | Provide reviewer-facing test steps and optional notes. |
 
 `submit_summary` is the core PR-copy path: the PR opener reads the
 structured title and body first, then falls back to generated or
-templated copy only if the agent did not provide them.
+templated copy only if the agent did not provide them. `submit_test_plan`
+adds a structured `Testing` section to Initial PR bodies when the plan is
+available.
 
 ## The Shape Of A Normal Issue
 

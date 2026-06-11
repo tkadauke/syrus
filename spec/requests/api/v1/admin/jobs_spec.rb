@@ -162,6 +162,10 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       # the implement step with a succeeded Run + captured agent session so
       # the assertions below match real production-shape data.
       wf = job.workflows.last
+      wf.set_artifact!("test_plan", {
+        steps: [ "Run bin/rspec spec/services/steps/test_plan_spec.rb" ],
+        notes: "Verify admin payload exposure."
+      })
       implement = wf.steps.find_by(kind: "implement")
       run = implement.runs.create!(job: job, trigger_kind: "initial",
                                    agent_provider: "codex",
@@ -215,6 +219,10 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       wf = body["workflows"].first
       expect(wf["trigger_kind"]).to eq("initial")
       expect(wf["state"]).to eq("succeeded")
+      expect(wf["artifacts"]["test_plan"]).to eq(
+        "steps" => [ "Run bin/rspec spec/services/steps/test_plan_spec.rb" ],
+        "notes" => "Verify admin payload exposure."
+      )
       expect(wf["cleaned_up_at"]).to be_present
       expect(wf["retry_available"]).to be false  # cleaned up
       expect(wf["created_at"]).to be_present

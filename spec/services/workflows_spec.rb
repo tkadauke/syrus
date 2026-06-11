@@ -35,7 +35,7 @@ RSpec.describe Workflows do
       expect(wf.agent_provider).to eq("claude")
       expect(wf.state).to eq("queued")
       expect(wf.steps.pluck(:kind, :position)).to eq([
-        [ "prepare", 0 ], [ "implement", 1 ], [ "grader_fanout", 2 ], [ "grader_collect", 3 ], [ "summarize", 4 ], [ "pr_open", 5 ]
+        [ "prepare", 0 ], [ "implement", 1 ], [ "grader_fanout", 2 ], [ "grader_collect", 3 ], [ "summarize", 4 ], [ "test_plan", 5 ], [ "pr_open", 6 ]
       ])
       expect(wf.chain_template).to include(
         {
@@ -54,7 +54,7 @@ RSpec.describe Workflows do
       wf = Workflows::Initial.instantiate(job: job)
 
       expect(wf.steps.pluck(:kind, :position)).to eq([
-        [ "implement", 0 ], [ "grader_fanout", 1 ], [ "grader_collect", 2 ], [ "summarize", 3 ], [ "pr_open", 4 ]
+        [ "implement", 0 ], [ "grader_fanout", 1 ], [ "grader_collect", 2 ], [ "summarize", 3 ], [ "test_plan", 4 ], [ "pr_open", 5 ]
       ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect ])
       expect(wf.artifacts).to include("prepare_skipped" => true)
@@ -83,7 +83,7 @@ RSpec.describe Workflows do
 
       wf = Workflows::Initial.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize test_plan pr_open ])
       expect(wf.artifact("prepare_skipped_reason")).to eq("repository_configuration")
     end
 
@@ -92,7 +92,7 @@ RSpec.describe Workflows do
 
       wf = Workflows::Initial.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect summarize test_plan pr_open ])
       expect(wf.artifact("prepare_skipped_reason")).to eq("issue_label")
     end
 
@@ -125,13 +125,14 @@ RSpec.describe Workflows do
 
     it "wires next_step_id top-down (linear chain)" do
       wf = Workflows::Initial.instantiate(job: job)
-      a, b, c, d, e, f = wf.steps.order(:position)
+      a, b, c, d, e, f, g = wf.steps.order(:position)
       expect(a.next_step).to eq(b)
       expect(b.next_step).to eq(c)
       expect(c.next_step).to eq(d)
       expect(d.next_step).to eq(e)
       expect(e.next_step).to eq(f)
-      expect(f.next_step).to be_nil
+      expect(f.next_step).to eq(g)
+      expect(g.next_step).to be_nil
     end
 
     it "materializes the first iteration of a loop node inside the chain" do

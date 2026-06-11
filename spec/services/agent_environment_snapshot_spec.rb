@@ -33,7 +33,7 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include("Workflow: ##{workflow.id} trigger=initial")
       expect(snapshot).to include("Step/Run: implement step ##{step.id}, run ##{run.id}, iteration 2")
       expect(snapshot).to include("Agent provider: codex")
-      expect(snapshot).to include("MCP/tools: run sidecar `syrus-mcp-sidecar` is configured with `submit_summary`")
+      expect(snapshot).to include("MCP/tools: run sidecar `syrus-mcp-sidecar` is configured with `submit_summary` and `submit_test_plan`")
       expect(snapshot).to include("Prepare plan: .syrus.yml: bundle install")
       expect(snapshot).to include('Graders: .syrus.yml: rspec="bin/rspec" (required)')
       expect(snapshot).to include('Package scripts: test="vitest"; build="vite build"')

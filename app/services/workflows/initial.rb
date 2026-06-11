@@ -1,7 +1,7 @@
 module Workflows
   # Issue → PR.
   #
-  #   prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → pr_open
+  #   prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open
   #
   # prepare reads `.syrus.yml` (or auto-detects from lockfiles)
   # and runs deterministic setup like `bundle install` so the
@@ -22,7 +22,9 @@ module Workflows
   # summarize is a short claude call that --resumes implement's
   # session and asks the agent to call submit_summary; tokens are
   # essentially free because Anthropic's session reuse caches the
-  # conversation server-side. pr_open is non-agentic — it reads
+  # conversation server-side. test_plan is another short resumed call
+  # that stores reviewer-facing test instructions. pr_open is
+  # non-agentic — it reads
   # workflow.artifacts["pr_title"]/["pr_body"] and runs
   # PullRequestOpener.
   class Initial < Base
@@ -32,6 +34,7 @@ module Workflows
             check: [ :grader_fanout, :grader_collect ]
           ),
           :summarize,
+          :test_plan,
           :pr_open
 
     def self.trigger_kind = "initial"
@@ -45,6 +48,7 @@ module Workflows
           check: [ :grader_fanout, :grader_collect ]
         ),
         "summarize",
+        "test_plan",
         "pr_open"
       ]
       prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain

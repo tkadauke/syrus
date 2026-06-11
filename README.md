@@ -30,7 +30,7 @@ and PR-creation boilerplate. When that mechanics layer goes off the rails
 
 Syrus ships these MVP workflows:
 
-- Labeled GitHub issue → prepare → implement → summarize → open PR.
+- Labeled GitHub issue → prepare → implement → summarize → test plan → open PR.
 - PR feedback or failing checks → prepare → agent follow-up → summarize
   amendment → push to the same PR.
 - Unmergeable controlled PR branch → deterministic rebase first, then an

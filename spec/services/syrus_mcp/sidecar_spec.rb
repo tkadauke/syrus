@@ -11,7 +11,7 @@ RSpec.describe SyrusMcp::Sidecar do
   def server_for(run)
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
-      tools: [ SyrusMcp::ReadLiveStateTool, SyrusMcp::SubmitSummaryTool ],
+      tools: [ SyrusMcp::ReadLiveStateTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool ],
       server_context: { run_id: run.id }
     )
   end
@@ -33,7 +33,7 @@ RSpec.describe SyrusMcp::Sidecar do
       _ = jsonrpc(server_for(run), "initialize", id: 0)
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
-      expect(tool_names).to eq(%w[read_live_state submit_summary])
+      expect(tool_names).to eq(%w[read_live_state submit_summary submit_test_plan])
     end
 
     it "exposes read_live_state as a read-only tool without arbitrary job lookup arguments" do
@@ -101,6 +101,24 @@ RSpec.describe SyrusMcp::Sidecar do
       expect(response[:error]).to be_present
       expect(response[:error][:code]).to eq(-32602)  # JSON-RPC "invalid params"
       expect(response[:error][:data]).to match(/Missing required arguments/)
+    end
+  end
+
+  describe "tools/call submit_test_plan" do
+    it "persists the test plan on the Workflow via the JSON-RPC path" do
+      response = jsonrpc(server_for(run), "tools/call", params: {
+        name: "submit_test_plan",
+        arguments: {
+          steps: [ "Run bin/rspec spec/services/steps/test_plan_spec.rb" ],
+          notes: "Manual check for PR copy."
+        }
+      })
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(run.workflow.reload.artifact("test_plan")).to eq(
+        "steps" => [ "Run bin/rspec spec/services/steps/test_plan_spec.rb" ],
+        "notes" => "Manual check for PR copy."
+      )
     end
   end
 

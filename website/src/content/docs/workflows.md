@@ -25,12 +25,13 @@ Retries create new Runs without erasing the old transcript.
 
 Trigger: a GitHub issue with the repository's trigger label, or a new cron
 or direct Job that uses the standard issue-to-PR path. Steps:
-`prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> summarize -> pr_open`.
+`prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> summarize -> test_plan -> pr_open`.
 The agent makes and commits the change during `implement`, graders run from
 the repository's `grade:` configuration, and failed required graders feed
 the next bounded repair iteration. `summarize` collects PR copy via MCP and
-amends the commit message, and `pr_open` pushes the branch and opens the
-pull request. For GitHub issue Jobs, the implement prompt includes the
+amends the commit message. `test_plan` stores reviewer-facing checks, which
+`pr_open` appends as a `Testing` section before pushing the branch and
+opening the pull request. For GitHub issue Jobs, the implement prompt includes the
 original issue title and body plus subsequent issue comments in
 chronological order, so clarifications added before the Run starts are part
 of the agent context. A successful Initial workflow leaves the Job open
@@ -151,6 +152,7 @@ same Job.
 | `landing_fix` | Yes | Make final merge-gate fixes before the landing graders run |
 | `summarize` | Yes | Collect PR title/body/summary through MCP |
 | `summarize_amend` | Yes | Produce follow-up commit copy for PR feedback and CI-failure workflows |
+| `test_plan` | Yes | Collect reviewer-facing test steps for Initial PR bodies |
 | `pr_open` | No | Push the branch and open the pull request if one does not already exist |
 | `push` | No | Push commits to an existing PR branch and update the cost footer |
 | `grader_fanout` | No | Materialize one grader Step per configured repo grader |

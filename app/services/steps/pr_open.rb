@@ -104,6 +104,10 @@ module Steps
       parts << "Closes ##{job.issue_number}" if job.issue?
       parts << "" if job.issue?
       parts << body
+      if (testing = testing_section).present?
+        parts << ""
+        parts << testing
+      end
       if job.direct? && (handle = BotIdentity.github_handle(job.user))
         parts << ""
         parts << "Triggered by @#{handle}"
@@ -137,6 +141,23 @@ module Steps
       details << "trigger=#{workflow.trigger_kind}"
 
       "*Authored by #{author} (#{details.join(', ')}). Review carefully.*"
+    end
+
+    def testing_section
+      test_plan = workflow.artifact("test_plan")
+      return if test_plan.blank?
+
+      steps = Array(test_plan["steps"] || test_plan[:steps]).map(&:to_s).map(&:strip).reject(&:empty?)
+      notes = (test_plan["notes"] || test_plan[:notes]).to_s.strip
+      return if steps.empty? && notes.blank?
+
+      lines = [ "## Testing" ]
+      steps.each { |step| lines << "- #{step}" }
+      if notes.present?
+        lines << ""
+        lines << notes
+      end
+      lines.join("\n")
     end
 
     def template_title

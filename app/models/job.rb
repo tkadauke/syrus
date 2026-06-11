@@ -737,7 +737,7 @@ class Job < ApplicationRecord
   end
 
   # Issue Jobs auto-instantiate Workflows::Initial on create. The
-  # workflow lays out the implement → summarize → pr_open chain;
+  # workflow lays out the implement → summarize → test_plan → pr_open chain;
   # StepDispatcher.start_workflow creates the first Run. RunJob still
   # auto-enqueues via Run's after_create_commit, so background work
   # waits for the surrounding transaction to commit. Same
