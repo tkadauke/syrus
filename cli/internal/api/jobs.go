@@ -14,6 +14,15 @@ type JobList struct {
 
 type JobResponse json.RawMessage
 
+type JobDetail struct {
+	ID         int    `json:"id"`
+	State      string `json:"state"`
+	BranchName string `json:"branch_name"`
+	Repository struct {
+		Slug string `json:"slug"`
+	} `json:"repository"`
+}
+
 type CreateJobRequest struct {
 	Job CreateJobParams `json:"job"`
 }
@@ -43,6 +52,12 @@ func (c *Client) GetJob(ctx context.Context, id string) (JobResponse, error) {
 	var out json.RawMessage
 	err := c.do(ctx, http.MethodGet, "/api/v1/admin/jobs/"+url.PathEscape(id), nil, &out)
 	return JobResponse(out), err
+}
+
+func (c *Client) GetJobDetail(ctx context.Context, id string) (JobDetail, error) {
+	var out JobDetail
+	err := c.do(ctx, http.MethodGet, "/api/v1/admin/jobs/"+url.PathEscape(id), nil, &out)
+	return out, err
 }
 
 func (c *Client) CreateDirectJob(ctx context.Context, params CreateJobParams) (JobResponse, error) {

@@ -37,6 +37,11 @@ The CLI sends the same bearer token header as the REST examples:
 `Authorization: Bearer <token>`. If credentials are missing or incomplete,
 it prints `Run 'syrus login' to set up your Syrus instance URL and API token.`
 
+From a local checkout whose `origin` remote matches the Job's repository,
+use `syrus checkout JOB-456` to fetch and check out the Job branch. If the
+Job has not created a branch yet, the CLI exits with a clear state-specific
+message instead of changing the checkout.
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal
