@@ -10,7 +10,9 @@ module Prompts
         the diff you produced, and any edge cases you noticed.
 
         Review that implementation context and produce a concise,
-        actionable test plan by calling the `submit_test_plan` MCP tool:
+        actionable test plan for a human reviewer or operator to follow,
+        not instructions for another agent. Call the `submit_test_plan`
+        MCP tool:
 
         - `steps`: an array of exact user flows to exercise, URLs or
           commands where relevant, and edge cases you know about from
