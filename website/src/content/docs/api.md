@@ -132,12 +132,21 @@ syrus job diff 456
 syrus epic list
 syrus epic search "launch"
 syrus epic show 12
+syrus epic create
+syrus epic open 12
 ```
 
 `job log` pages completed transcripts through `$PAGER` and streams
 running transcripts until the Job finishes or the command is interrupted.
 `job diff` fetches the pull request diff through Syrus' GitHub credential;
 if no GitHub token is available, it prints the pull request URL instead.
+
+`epic create` runs from a GitHub checkout, prompts for a title and
+multi-line description, confirms the current repository, creates the Epic,
+and prints the Epic ID plus app URL. It uses the app API as the configured
+user, so the current repository must be attached to that account. Use
+`--yes` to skip the confirmation prompt. `epic open EPIC-ID` opens the Epic
+URL for the configured Syrus instance in the default browser.
 
 ## Create a Direct Job
 
