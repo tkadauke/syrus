@@ -16,6 +16,27 @@ curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
 Non-admin tokens are rejected with `403 Forbidden`; missing or invalid
 tokens return a JSON `401` error.
 
+## Command Line Client
+
+The repository includes a standalone Go CLI scaffold under `cli/`. It is
+separate from the Rails app and builds to a single `syrus` binary:
+
+```bash
+cd cli
+make build
+```
+
+Run `syrus configure` once to write `~/.syrus/credentials`:
+
+```text
+url=https://syrus.example.com
+token=your-api-token
+```
+
+The CLI sends the same bearer token header as the REST examples:
+`Authorization: Bearer <token>`. If credentials are missing or incomplete,
+it prints `Run 'syrus configure' to set up your Syrus instance URL and API token.`
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal
