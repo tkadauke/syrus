@@ -8,6 +8,7 @@ class ClaudeInvocation
                  max_turns: AgentInvocation::DEFAULT_MAX_TURNS,
                  mcp_config: nil,
                  resume_session_id: nil,
+                 disallowed_tools: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { })
     @workspace_path = workspace_path.to_s
@@ -19,6 +20,7 @@ class ClaudeInvocation
     @max_turns = max_turns
     @mcp_config = mcp_config
     @resume_session_id = resume_session_id
+    @disallowed_tools = Array(disallowed_tools).compact
     @stop_requested = stop_requested
     @process_started = process_started
   end
@@ -33,6 +35,7 @@ class ClaudeInvocation
       max_turns: @max_turns,
       mcp_config: @mcp_config,
       resume_session_id: @resume_session_id,
+      disallowed_tools: @disallowed_tools,
       stop_requested: @stop_requested,
       process_started: @process_started
     )
@@ -51,6 +54,7 @@ class ClaudeInvocation
   # trust posture as letting a human dev pair on a branch.
   def default_runner(workspace_path:, prompt:, oauth_token:, log_sink:, timeout:,
                      max_turns:, mcp_config: nil, resume_session_id: nil,
+                     disallowed_tools: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { })
     env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path)
     cmd = [ "claude", "--print" ]
@@ -64,6 +68,7 @@ class ClaudeInvocation
     # for symmetry and to leave the prompt as the only trailing arg.
     cmd += [ "--mcp-config", mcp_config ] if mcp_config
     cmd += [ "--resume", resume_session_id ] if resume_session_id
+    cmd += [ "--disallowedTools", *Array(disallowed_tools) ] if disallowed_tools.present?
     cmd += [ "--output-format", "stream-json",
              "--verbose",
              "--dangerously-skip-permissions" ]

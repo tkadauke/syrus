@@ -2,6 +2,12 @@ require "tempfile"
 
 class ChatTurnJob < ApplicationJob
   CONCURRENCY_GROUP = "repository_chat"
+  DISALLOWED_CLAUDE_TOOLS = %w[
+    Write
+    Edit
+    MultiEdit
+    NotebookEdit
+  ].freeze
 
   queue_as :chat
   discard_on StandardError
@@ -49,6 +55,7 @@ class ChatTurnJob < ApplicationJob
         max_turns: nil,
         mcp_config: mcp_config,
         resume_session_id: parent_session_id,
+        disallowed_tools: DISALLOWED_CLAUDE_TOOLS,
         stop_requested: method(:stop_requested?),
         process_started: ->(_process) { @chat.broadcast_controls }
       ).run

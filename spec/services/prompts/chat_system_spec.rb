@@ -17,6 +17,11 @@ RSpec.describe Prompts::ChatSystem do
 
     expect(out).to include("draft\nSyrus Jobs — NOT to make code changes yourself.")
     expect(out).to match(/No\s+commit or push tool is available to you here\./)
+    expect(out).to include("Attached repository checkouts are READ-ONLY for you.")
+    expect(out).to include("/syrus-home/.syrus/chat-workspaces/*/repositories/")
+    expect(out).to match(/must NEVER use\s+Write, Edit, or Bash to create, modify, delete, rename,\s+move, format, or generate files/)
+    expect(out).to match(/propose a Syrus Job, Epic, or issue and wait\s+for the operator to confirm it\./)
+    expect(out).to match(/You may write only to your own non-repository chat memory\s+directory/)
     expect(out).to include("Recommend; don't decide.")
   end
 

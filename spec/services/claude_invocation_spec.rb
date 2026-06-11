@@ -23,6 +23,7 @@ RSpec.describe ClaudeInvocation do
       expect(received[:timeout]).to eq(60)
       expect(received[:max_turns]).to eq(7)
       expect(received[:mcp_config]).to be_nil
+      expect(received[:disallowed_tools]).to eq([])
       expect(received[:stop_requested].call).to eq(false)
       expect(received[:process_started]).to respond_to(:call)
       expect(result.turns).to eq(2)
@@ -217,6 +218,26 @@ RSpec.describe ClaudeInvocation do
       expect(idx).not_to be_nil, "expected --resume in cmd: #{cmd.inspect}"
       expect(cmd[idx + 1]).to eq("abc-123")
       expect(cmd[idx + 2]).to start_with("--"), "arg after resume id must be another flag — got #{cmd[idx + 2].inspect}"
+    end
+
+    it "passes --disallowedTools before the output flags when tools are denied" do
+      invocation = described_class.new("/tmp", prompt: "P", oauth_token: "x",
+                                       disallowed_tools: %w[Write Edit MultiEdit])
+      cmd = []
+      allow(Open3).to receive(:popen2e) do |_env, *args, **_opts, &blk|
+        cmd.replace(args)
+        rd, wr = IO.pipe; wr.close
+        fake_wait = Struct.new(:value, :pid).new(Struct.new(:exitstatus).new(0), 0)
+        blk.call($stdin, rd, fake_wait)
+        rd.close
+      end
+
+      invocation.run
+
+      idx = cmd.index("--disallowedTools")
+      expect(idx).not_to be_nil
+      expect(cmd[idx + 1, 3]).to eq(%w[Write Edit MultiEdit])
+      expect(cmd[idx + 4]).to start_with("--"), "arg after disallowed tool list must be another flag — got #{cmd[idx + 4].inspect}"
     end
 
     it "omits --resume when resume_session_id is nil (default)" do

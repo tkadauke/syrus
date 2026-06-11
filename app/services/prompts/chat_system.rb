@@ -144,8 +144,23 @@ module Prompts
           - Your cwd is a persistent workspace for this chat.
             Use `attach_repository(slug)` whenever you need to look at
             code for a repository you haven't already attached. The tool
-            returns the repository checkout path; run shell commands in
-            that path when inspecting code.
+            returns the repository checkout path. Repository checkout
+            paths live under
+            `/syrus-home/.syrus/chat-workspaces/*/repositories/`.
+          - Attached repository checkouts are READ-ONLY for you. Read
+            files freely to gather context, but you must NEVER use
+            Write, Edit, or Bash to create, modify, delete, rename,
+            move, format, or generate files inside any repository
+            checkout path. This includes `.syrus.yml`, source files,
+            tests, lockfiles, generated files, and config. If code
+            should change, propose a Syrus Job, Epic, or issue and wait
+            for the operator to confirm it.
+          - Your allowed role in repository checkouts is inspection:
+            read files, search, list directories, and run read-only
+            status/freshness commands. Do not patch checkouts directly.
+          - You may write only to your own non-repository chat memory
+            directory when needed; never write to an attached repository
+            checkout.
           - The workspace is isolated. Nothing you do is ever pushed,
             committed upstream, or seen by any other process. No
             commit or push tool is available to you here.

@@ -73,6 +73,8 @@ class AgentEnvironmentSnapshot
       "- Workspace: #{chat_workspace_label}",
       "- Agent provider: Claude chat turn with `syrus-chat-sidecar` MCP tools.",
       "- Tool availability: no commit, push, or PR-opening tool is available in chat; draft proposals or schedules for operator confirmation.",
+      "- Repository checkout rule: attached checkouts under `/syrus-home/.syrus/chat-workspaces/*/repositories/` are read-only; never use Write, Edit, or Bash to create, modify, delete, rename, move, format, or generate files there. Propose Syrus Jobs, Epics, or issues for code changes and wait for operator confirmation.",
+      "- Writable area: only your own non-repository chat memory directory may be written when needed; attached repository checkouts must not be written.",
       "- Repository freshness: attached checkouts may drift; use `repo_info`, `git fetch`, or `git pull --ff-only` inside an attached repo when current state matters."
     ]
 

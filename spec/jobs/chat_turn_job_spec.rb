@@ -76,6 +76,7 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).to include("What is the plan?")
     expect(received[:resume_session_id]).to be_nil
     expect(received[:max_turns]).to be_nil
+    expect(received[:disallowed_tools]).to eq(%w[Write Edit MultiEdit NotebookEdit])
 
     expect(chat.messages.order(:created_at).pluck(:role)).to eq(
       [ "user", "assistant", "tool_use", "tool_result" ]

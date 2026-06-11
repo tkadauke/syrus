@@ -70,6 +70,12 @@ Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
 
+Attached repository checkouts are read-only for the chat agent. It may read,
+search, list, and refresh checkouts for context, but code changes must be
+drafted as proposals for operator confirmation. Chat turns also deny Claude's
+file-editing tools (`Write`, `Edit`, `MultiEdit`, and `NotebookEdit`) so the
+planning surface does not patch repository files directly.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
