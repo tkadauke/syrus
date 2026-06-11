@@ -14,7 +14,9 @@ import {
   confirmChatProposal,
   confirmPendingAction,
   createChatBookmark,
+  deleteQueuedChatMessage,
   deleteChatAttachment,
+  enqueueChatMessage,
   fetchChat,
   fetchChatMessages,
   fetchChatWhiteboard,
@@ -22,6 +24,7 @@ import {
   rejectChatProposal,
   sendChatMessage,
   stopChat,
+  updateQueuedChatMessage,
   type ChatAttachmentResult,
   type ChatAttachmentRow,
   type ChatMcpHealth,
@@ -31,6 +34,7 @@ import {
   type ChatPayload,
   type ChatProposal,
   type ChatProposalChild,
+  type ChatQueuedMessage,
   type ChatRenderItem,
   type ChatStructuredTool,
   type ChatSystemMessage,
@@ -38,6 +42,7 @@ import {
   type ChatWhiteboardScene,
   type ChatToolGroupItem
 } from "../api/chats"
+import { CloseIcon } from "../components/CloseIcon"
 import { Markdown } from "../lib/Markdown"
 
 const WHITEBOARD_SAVE_DEBOUNCE_MS = 500
@@ -749,7 +754,9 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
   const send = useMutation({
-    mutationFn: () => sendChatMessage(appendSearch(payload.paths.app_message_path, search), text),
+    mutationFn: () => agentActive
+      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), text)
+      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), text),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setText("")
@@ -758,7 +765,7 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
   })
 
   function submitMessage() {
-    if (agentActive || send.isPending || text.length === 0) return
+    if (send.isPending || text.trim().length === 0) return
     onNotice(null)
     send.mutate()
   }
@@ -795,22 +802,90 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
   return (
     <form className="rounded border border-gray-200 bg-white p-3" onSubmit={submit}>
       {send.isError ? <div className="mb-2 text-sm text-red-700">{errorMessage(send.error, "Message failed.")}</div> : null}
+      {payload.queued_messages.length > 0 ? <QueuedMessages messages={payload.queued_messages} queryKey={queryKey} /> : null}
       <div className="flex items-end gap-3">
         <textarea
           className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5"
-          disabled={agentActive || send.isPending}
+          disabled={send.isPending}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={payload.chat.repository ? "Ask about this repository..." : "Attach a repository to start chatting..."}
+          placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Attach a repository to start chatting..."}
           ref={textareaRef}
           required
           rows={1}
           value={text}
         />
-        {agentActive ? null : <button className={primaryButton()} disabled={send.isPending} type="submit">Send</button>}
+        <button className={primaryButton()} disabled={send.isPending || text.trim().length === 0} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
         {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
       </div>
     </form>
+  )
+}
+
+function QueuedMessages({ messages, queryKey }: { messages: ChatQueuedMessage[]; queryKey: ChatQueryKey }) {
+  return (
+    <div className="mb-3 space-y-2 border-b border-gray-100 pb-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Queued messages</div>
+      {messages.map((message, index) => <QueuedMessageRow key={message.id} message={message} position={index + 1} queryKey={queryKey} />)}
+    </div>
+  )
+}
+
+function QueuedMessageRow({ message, position, queryKey }: { message: ChatQueuedMessage; position: number; queryKey: ChatQueryKey }) {
+  const queryClient = useQueryClient()
+  const search = queryKey[2]
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(message.text)
+  const update = useMutation({
+    mutationFn: () => updateQueuedChatMessage(appendSearch(message.app_update_path, search), draft),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      setEditing(false)
+    }
+  })
+  const remove = useMutation({
+    mutationFn: () => deleteQueuedChatMessage(appendSearch(message.app_delete_path, search)),
+    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+  })
+
+  useEffect(() => {
+    if (!editing) setDraft(message.text)
+  }, [editing, message.text])
+
+  if (editing) {
+    return (
+      <div className="rounded border border-blue-200 bg-blue-50 p-2">
+        {update.isError ? <div className="mb-2 text-xs text-red-700">{errorMessage(update.error, "Queued message could not be updated.")}</div> : null}
+        <textarea
+          aria-label={`Edit queued message ${position}`}
+          className="min-h-16 w-full resize-y rounded border border-blue-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-blue-500"
+          onChange={(event) => setDraft(event.target.value)}
+          value={draft}
+        />
+        <div className="mt-2 flex justify-end gap-2">
+          <button className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" disabled={update.isPending} onClick={() => setEditing(false)} type="button">Cancel</button>
+          <button className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} type="button">Save</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-start gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5">
+      <span className="mt-0.5 shrink-0 text-xs font-medium text-gray-500">{position}</span>
+      <button className="min-w-0 flex-1 text-left text-sm text-gray-700 hover:text-blue-700" onClick={() => setEditing(true)} type="button">
+        <span className="line-clamp-2 whitespace-pre-wrap break-words">{message.text}</span>
+      </button>
+      <button
+        aria-label={`Delete queued message ${position}`}
+        className="rounded p-1 text-gray-400 hover:bg-white hover:text-red-600 disabled:text-gray-300"
+        disabled={remove.isPending}
+        onClick={() => remove.mutate()}
+        type="button"
+      >
+        <CloseIcon className="h-4 w-4" />
+      </button>
+    </div>
   )
 }
 

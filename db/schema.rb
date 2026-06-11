@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_09_132553) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_11_213911) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -189,6 +189,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_09_132553) do
     t.index ["parent_proposal_id"], name: "index_chat_proposals_on_parent_proposal_id"
     t.index ["repository_id"], name: "index_chat_proposals_on_repository_id"
     t.index ["target_epic_id"], name: "index_chat_proposals_on_target_epic_id"
+  end
+
+  create_table "chat_queued_messages", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.json "content", null: false
+    t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "delivered_at", "created_at", "id"], name: "idx_chat_queued_messages_pending_order"
+    t.index ["chat_session_id"], name: "index_chat_queued_messages_on_chat_session_id"
   end
 
   create_table "chat_sessions", force: :cascade do |t|
@@ -880,6 +890,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_09_132553) do
   add_foreign_key "chat_proposals", "epics", column: "target_epic_id"
   add_foreign_key "chat_proposals", "jobs"
   add_foreign_key "chat_proposals", "repositories"
+  add_foreign_key "chat_queued_messages", "chat_sessions"
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"

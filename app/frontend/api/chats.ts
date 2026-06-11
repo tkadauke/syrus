@@ -126,6 +126,14 @@ export type ChatPendingAction = {
   app_cancel_path: string
 }
 
+export type ChatQueuedMessage = {
+  id: number
+  text: string
+  created_at: string | null
+  app_update_path: string
+  app_delete_path: string
+}
+
 export type ChatAttachmentRow = {
   id: number
   label: string
@@ -186,6 +194,7 @@ export type ChatPayload = {
   bookmarks: ChatBookmark[]
   recent_chats: ChatNavRecord[]
   pending_actions: ChatPendingAction[]
+  queued_messages: ChatQueuedMessage[]
   attachment_groups: {
     repositories: ChatAttachmentRow[]
     epics: ChatAttachmentRow[]
@@ -206,6 +215,7 @@ export type ChatPayload = {
     repositories_path: string
     app_messages_path: string
     app_message_path: string
+    app_enqueue_message_path: string
     app_stop_path: string
     app_bookmarks_path: string
     app_attachments_path: string
@@ -255,6 +265,18 @@ export function createChat(values: CreateChatInput) {
 
 export function sendChatMessage(path: string, text: string) {
   return postJson<ChatPayload>(path, { chat_message: { text } })
+}
+
+export function enqueueChatMessage(path: string, text: string) {
+  return postJson<ChatPayload>(path, { chat_message: { text } })
+}
+
+export function updateQueuedChatMessage(path: string, text: string) {
+  return patchJson<ChatPayload>(path, { chat_message: { text } })
+}
+
+export function deleteQueuedChatMessage(path: string) {
+  return deleteJson<ChatPayload>(path)
 }
 
 export function stopChat(path: string) {

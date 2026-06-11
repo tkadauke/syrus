@@ -201,9 +201,71 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body.dig("whiteboard", "files", "file-1", "dataURL")).to eq("data:image/png;base64,abc")
     expect(body.dig("paths", "app_messages_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
     expect(body.dig("paths", "app_message_path")).to eq("/api/v1/app/chats/#{chat.id}/message")
+    expect(body.dig("paths", "app_enqueue_message_path")).to eq("/api/v1/app/chats/#{chat.id}/queued_messages")
     expect(body.dig("paths", "app_attachments_path")).to eq("/api/v1/app/chats/#{chat.id}/attachments")
     expect(body.dig("paths", "app_whiteboard_path")).to eq("/api/v1/app/chats/#{chat.id}/whiteboard")
+    expect(body["queued_messages"]).to eq([])
     expect(body["paths"].keys).not_to include("chat_messages_path", "chat_attachments_path", "chat_whiteboard_path")
+  end
+
+  it "queues, edits, and deletes a message while a chat turn is active" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    chat.messages.create!(role: "user", content: { "text" => "Start mapping" })
+    SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "worker-1",
+      started_at: Time.current
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/queued_messages", params: { chat_message: { text: "Inspect the aqueducts" } }
+    }.to change(ChatQueuedMessage, :count).by(1)
+    expect(ChatMessage.count).to eq(1)
+    expect(ChatTurnJob).not_to have_been_enqueued
+
+    expect(response).to have_http_status(:ok)
+    queued_message = chat.chat_queued_messages.last
+    expect(parse_body["message"]).to eq("Message queued.")
+    expect(parse_body["queued_messages"]).to contain_exactly(include(
+      "id" => queued_message.id,
+      "text" => "Inspect the aqueducts",
+      "app_update_path" => "/api/v1/app/chats/#{chat.id}/queued_messages/#{queued_message.id}",
+      "app_delete_path" => "/api/v1/app/chats/#{chat.id}/queued_messages/#{queued_message.id}"
+    ))
+
+    patch "/api/v1/app/chats/#{chat.id}/queued_messages/#{queued_message.id}", params: { chat_message: { text: "Inspect the forum" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(queued_message.reload.text).to eq("Inspect the forum")
+    expect(parse_body["queued_messages"]).to contain_exactly(include("id" => queued_message.id, "text" => "Inspect the forum"))
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/queued_messages/#{queued_message.id}"
+    }.to change { chat.reload.queued_messages.count }.from(1).to(0)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Queued message deleted.")
+    expect(parse_body["queued_messages"]).to eq([])
+  end
+
+  it "sends a queued-message request immediately when the chat is idle" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/queued_messages", params: { chat_message: { text: "Start now" } }
+    }.to change(ChatQueuedMessage, :count).by(1)
+      .and change(ChatMessage, :count).by(1)
+      .and have_enqueued_job(ChatTurnJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Message sent.")
+    expect(chat.reload.queued_messages).to be_empty
+    expect(chat.chat_queued_messages.last.delivered_at).to be_present
+    expect(chat.messages.last.content).to eq("text" => "Start now")
   end
 
   it "does not return another user's private chat payload or messages" do

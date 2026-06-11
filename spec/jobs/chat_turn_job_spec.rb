@@ -187,6 +187,22 @@ RSpec.describe ChatTurnJob do
     described_class.perform_now(chat.id, message.id)
   end
 
+  it "promotes the next queued message after the agent turn finishes" do
+    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Follow up on aqueducts" })
+    ChatTurnJob.agent_runner = ->(**_) {
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    expect {
+      described_class.perform_now(chat.id, user_message.id)
+    }.to have_enqueued_job(described_class).with(chat.id, kind_of(Integer))
+
+    delivered = chat.messages.order(:created_at, :id).last
+    expect(delivered).to have_attributes(role: "user", content: { "text" => "Follow up on aqueducts" })
+    expect(queued_message.reload.delivered_at).to be_present
+    expect(chat.reload.queued_messages).to be_empty
+  end
+
   it "broadcasts chat controls when the agent process starts" do
     message = user_message
     events = []

@@ -74,6 +74,56 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Stop requested.")
         end
 
+        def enqueue_message
+          chat_session = find_chat_session
+          text = message_text
+          if text.blank?
+            render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
+            return
+          end
+
+          queued_message = chat_session.chat_queued_messages.create!(content: { "text" => text })
+          notice = "Message queued."
+
+          unless chat_session.turn_in_flight? || chat_session.agent_busy?
+            user_message = promote_queued_message(chat_session, queued_message)
+            enqueue_chat_title(chat_session, user_message) if chat_session.title.blank? && user_message == first_user_message(chat_session)
+            enqueue_chat_turn(chat_session, user_message)
+            notice = "Message sent."
+          end
+
+          render json: chat_payload(chat_session.reload, message: notice)
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
+          raise unless transient_chat_lock_error?(e)
+
+          render_temporary_chat_lock_error
+        end
+
+        def update_queued_message
+          chat_session = find_chat_session
+          queued_message = chat_session.queued_messages.find(params[:queued_message_id])
+          text = message_text
+          if text.blank?
+            render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
+            return
+          end
+
+          queued_message.update!(content: { "text" => text })
+          render json: chat_payload(chat_session.reload, message: "Queued message updated.")
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
+        def destroy_queued_message
+          chat_session = find_chat_session
+          queued_message = chat_session.queued_messages.find(params[:queued_message_id])
+          queued_message.destroy!
+
+          render json: chat_payload(chat_session.reload, message: "Queued message deleted.")
+        end
+
         def add_attachment
           chat_session = find_chat_session
           attachable = attachable_from_params(chat_session)
@@ -201,6 +251,7 @@ module Api
             bookmarks: chat_session.bookmarks.includes(:chat_message).map { |bookmark| bookmark_json(bookmark) },
             recent_chats: recent_chats_json(chat_session),
             pending_actions: pending_actions_json(chat_session),
+            queued_messages: chat_session.queued_messages_payload,
             attachment_groups: attachment_groups_json(attachment_groups),
             documents_in_scope: chat_session.attached_documents_in_scope.includes(:attachable).order(:title, :id).map { |document| document_json(document) },
             attachment_results: attachment_search_results(chat_session).map { |record| attachable_result_json(record) },
@@ -216,6 +267,7 @@ module Api
               repositories_path: repositories_path,
               app_messages_path: "/api/v1/app/chats/#{chat_session.id}/messages",
               app_message_path: "/api/v1/app/chats/#{chat_session.id}/message",
+              app_enqueue_message_path: "/api/v1/app/chats/#{chat_session.id}/queued_messages",
               app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
               app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
               app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
@@ -416,6 +468,21 @@ module Api
             sleep(delay) if delay.positive?
             retry
           end
+        end
+
+        def promote_queued_message(chat_session, queued_message)
+          user_message = nil
+          ApplicationRecord.transaction do
+            locked_chat = ChatSession.lock.find(chat_session.id)
+            locked_queued_message = locked_chat.queued_messages.find(queued_message.id)
+            user_message = locked_chat.messages.create!(role: "user", content: locked_queued_message.content)
+            locked_queued_message.update!(delivered_at: Time.current)
+            locked_chat.update!(
+              last_message_at: Time.current,
+              title: locked_chat.title.presence
+            )
+          end
+          user_message
         end
 
         def render_temporary_chat_lock_error

@@ -76,6 +76,11 @@ drafted as proposals for operator confirmation. Chat turns also deny Claude's
 file-editing tools (`Write`, `Edit`, `MultiEdit`, and `NotebookEdit`) so the
 planning surface does not patch repository files directly.
 
+When the chat agent is already running, operators can queue follow-up
+messages instead of waiting for the turn to finish. Queued messages remain
+editable and deletable until Syrus promotes the next one into the transcript
+and starts the following turn.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and

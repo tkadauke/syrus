@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatBookmark, ChatMessageItem, ChatPayload, ChatRecord } from "../api/chats"
+import type { ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord } from "../api/chats"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const DASHBOARD_INVALIDATION_RETRY_MS = 1_000
@@ -110,6 +110,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
           ...current,
           turn_in_flight: replaceTail.turn_in_flight ?? current.turn_in_flight,
           agent_busy: replaceTail.agent_busy ?? current.agent_busy,
+          queued_messages: replaceTail.queued_messages ?? current.queued_messages,
           messages: replaceMessageTail(current.messages, replaceTail.replace_from_id, replaceTail.messages),
           chat: {
             ...current.chat,
@@ -134,6 +135,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
           ...current,
           turn_in_flight: controls.turn_in_flight,
           agent_busy: controls.agent_busy ?? current.agent_busy,
+          queued_messages: controls.queued_messages ?? current.queued_messages,
           chat: {
             ...current.chat,
             stop_requested_at: controls.stop_requested_at
@@ -188,6 +190,7 @@ type ChatReplaceTailPayload = {
   turn_in_flight?: boolean
   agent_busy?: boolean
   stop_requested_at?: string | null
+  queued_messages?: ChatQueuedMessage[]
 }
 
 type ChatControlsPayload = {
@@ -195,6 +198,7 @@ type ChatControlsPayload = {
   turn_in_flight: boolean
   agent_busy?: boolean
   stop_requested_at: string | null
+  queued_messages?: ChatQueuedMessage[]
 }
 
 type ChatHeaderPayload = {
@@ -222,7 +226,8 @@ function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null
     messages,
     turn_in_flight: typeof candidate.turn_in_flight === "boolean" ? candidate.turn_in_flight : undefined,
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
-    stop_requested_at: typeof candidate.stop_requested_at === "string" || candidate.stop_requested_at === null ? candidate.stop_requested_at : undefined
+    stop_requested_at: typeof candidate.stop_requested_at === "string" || candidate.stop_requested_at === null ? candidate.stop_requested_at : undefined,
+    queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
   }
 }
 
@@ -238,7 +243,8 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
     action: "update_controls",
     turn_in_flight: candidate.turn_in_flight,
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
-    stop_requested_at: candidate.stop_requested_at
+    stop_requested_at: candidate.stop_requested_at,
+    queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
   }
 }
 
@@ -283,6 +289,21 @@ function isChatMessages(value: unknown): value is ChatMessageItem[] {
 
     const candidate = item as Partial<ChatMessageItem>
     return candidate.type === "message" && typeof candidate.id === "number"
+  })
+}
+
+function isChatQueuedMessages(value: unknown): value is ChatQueuedMessage[] {
+  return Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== "object") return false
+
+    const candidate = item as Partial<ChatQueuedMessage>
+    return (
+      typeof candidate.id === "number" &&
+      typeof candidate.text === "string" &&
+      (typeof candidate.created_at === "string" || candidate.created_at == null) &&
+      typeof candidate.app_update_path === "string" &&
+      typeof candidate.app_delete_path === "string"
+    )
   })
 }
 

@@ -64,7 +64,7 @@ class ChatTurnJob < ApplicationJob
     capture_session!(result) if result
     @chat.record_turn_usage!(result) if result
     touch_chat!
-    @chat.broadcast_controls
+    @chat.broadcast_controls unless deliver_next_queued_message!
   end
 
   private
@@ -219,5 +219,26 @@ class ChatTurnJob < ApplicationJob
 
   def touch_chat!
     @chat.update!(last_message_at: Time.current)
+  end
+
+  def deliver_next_queued_message!
+    user_message = nil
+
+    ApplicationRecord.transaction do
+      locked_chat = ChatSession.lock.find(@chat.id)
+      queued_message = locked_chat.queued_messages.first
+      if queued_message
+        user_message = locked_chat.messages.create!(role: "user", content: queued_message.content)
+        queued_message.update!(delivered_at: Time.current)
+        locked_chat.update!(
+          last_message_at: Time.current,
+          title: locked_chat.title.presence
+        )
+      end
+    end
+    return false unless user_message
+
+    ChatTurnJob.perform_later(@chat.id, user_message.id)
+    true
   end
 end

@@ -43,7 +43,8 @@ class ChatMessage < ApplicationRecord
         messages: ::App::ChatMessagePayload.messages(tail, repository: chat.repository),
         turn_in_flight: chat.turn_in_flight?,
         agent_busy: chat.agent_busy?,
-        stop_requested_at: chat.stop_requested_at&.iso8601
+        stop_requested_at: chat.stop_requested_at&.iso8601,
+        queued_messages: chat.queued_messages_payload
       }
     )
   end

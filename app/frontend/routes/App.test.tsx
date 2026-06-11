@@ -7130,10 +7130,31 @@ describe("App", () => {
     expect(screen.getByTitle("thinking it through")).toHaveTextContent("Cogitans")
   })
 
-  it("hides chat Send and keeps Stop compact while the agent is busy", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(chatPayload({ agentBusy: true, turnInFlight: false })), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+  it("enqueues and edits follow-up messages while the agent is busy", async () => {
+    let queuedMessages: Array<Record<string, unknown>> = [
+      {
+        id: 14,
+        text: "Already queued",
+        created_at: "2026-06-01T10:05:00Z",
+        app_update_path: "/api/v1/app/chats/8/queued_messages/14",
+        app_delete_path: "/api/v1/app/chats/8/queued_messages/14"
+      }
+    ]
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/queued_messages" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ agentBusy: true, queuedMessages })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/queued_messages/14" && init?.method === "PATCH") {
+        queuedMessages = []
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ agentBusy: true, queuedMessages })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ agentBusy: true, turnInFlight: false, queuedMessages })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -7142,6 +7163,17 @@ describe("App", () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
+
+    const input = await screen.findByPlaceholderText("Queue a follow-up message...")
+    fireEvent.change(input, { target: { value: "Check the forum routes" } })
+    fireEvent.click(screen.getByRole("button", { name: "Enqueue" }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/queued_messages", expect.objectContaining({ method: "POST" })))
+
+    fireEvent.click(screen.getByText("Already queued"))
+    const editor = await screen.findByLabelText("Edit queued message 1")
+    fireEvent.change(editor, { target: { value: "Check the aqueduct routes" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/queued_messages/14", expect.objectContaining({ method: "PATCH" })))
 
     const stop = await screen.findByRole("button", { name: "Stop" })
     expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument()
@@ -9518,6 +9550,7 @@ function jobSourcePayload(overrides: { withFile?: boolean } = {}) {
 function chatPayload(overrides: {
   message?: string
   messages?: Array<Record<string, unknown>>
+  queuedMessages?: Array<Record<string, unknown>>
   turnInFlight?: boolean
   agentBusy?: boolean
   hasMoreOlder?: boolean
@@ -9553,6 +9586,7 @@ function chatPayload(overrides: {
     bookmarks: [
       { id: 1, label: "Aqueducts", chat_message_id: 9, anchor_message_id: 9 }
     ],
+    queued_messages: overrides.queuedMessages || [],
     recent_chats: [
       {
         id: 8,
@@ -9606,6 +9640,7 @@ function chatPayload(overrides: {
       repositories_path: "/repositories",
       app_messages_path: "/api/v1/app/chats/8/messages",
       app_message_path: "/api/v1/app/chats/8/message",
+      app_enqueue_message_path: "/api/v1/app/chats/8/queued_messages",
       app_stop_path: "/api/v1/app/chats/8/stop",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
       app_attachments_path: "/api/v1/app/chats/8/attachments",

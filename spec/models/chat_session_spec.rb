@@ -277,7 +277,8 @@ RSpec.describe ChatSession do
           action: "update_controls",
           turn_in_flight: false,
           agent_busy: false,
-          stop_requested_at: stopped_at.iso8601
+          stop_requested_at: stopped_at.iso8601,
+          queued_messages: []
         }
       )
 

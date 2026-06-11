@@ -34,6 +34,8 @@ class ChatSession < ApplicationRecord
            source: :attachable,
            source_type: "Document"
   has_many :messages, class_name: "ChatMessage", dependent: :destroy
+  has_many :chat_queued_messages, class_name: "ChatQueuedMessage", dependent: :destroy
+  has_many :queued_messages, -> { pending.order(:created_at, :id) }, class_name: "ChatQueuedMessage"
   has_many :bookmarks,
            -> { order("chat_messages.created_at ASC", "chat_messages.id ASC", "chat_bookmarks.id ASC") },
            through: :messages,
@@ -143,6 +145,18 @@ class ChatSession < ApplicationRecord
     broadcast_app_controls_update if app_event
   end
 
+  def queued_messages_payload
+    queued_messages.map do |message|
+      {
+        id: message.id,
+        text: message.text,
+        created_at: message.created_at&.iso8601,
+        app_update_path: "/api/v1/app/chats/#{id}/queued_messages/#{message.id}",
+        app_delete_path: "/api/v1/app/chats/#{id}/queued_messages/#{message.id}"
+      }
+    end
+  end
+
   private
 
   def broadcast_app_header_update
@@ -177,7 +191,8 @@ class ChatSession < ApplicationRecord
         action: "update_controls",
         turn_in_flight: turn_in_flight?,
         agent_busy: agent_busy?,
-        stop_requested_at: stop_requested_at&.iso8601
+        stop_requested_at: stop_requested_at&.iso8601,
+        queued_messages: queued_messages_payload
       }
     )
   end
