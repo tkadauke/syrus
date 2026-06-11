@@ -45,6 +45,8 @@ module Api
         def render_error(code, message, status:)
           render json: { error: { code: code, message: message } }, status: status
         end
+
+        ApiTokenSession = Struct.new(:user)
       end
     end
   end

@@ -172,6 +172,7 @@ module Api
             state: task.state,
             repository: repository_json(task.repository),
             schedule_label: schedule_label(task),
+            next_fire_at: task.next_fire_at&.iso8601,
             last_fired_at: task.last_fired_at&.iso8601,
             archived_at: task.archived_at&.iso8601,
             consecutive_failure_count: task.consecutive_failure_count,

@@ -43,11 +43,28 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["active_tasks"]).to contain_exactly(include("id" => active.id, "name" => "Weekly tests", "repository" => include("slug" => "acme/widgets")))
+    expect(body["active_tasks"]).to contain_exactly(
+      include(
+        "id" => active.id,
+        "name" => "Weekly tests",
+        "repository" => include("slug" => "acme/widgets"),
+        "next_fire_at" => active.next_fire_at.iso8601
+      )
+    )
     expect(body["fired_one_shots"]).to contain_exactly(include("id" => fired.id, "name" => "One shot"))
     expect(body["archived_tasks"]).to contain_exactly(include("id" => archived.id, "name" => "Archived"))
     expect(body.dig("options", "kinds")).to eq(ScheduledTask::KINDS)
     expect(response.body).not_to include("Their task")
+  end
+
+  it "accepts bearer API tokens for CLI callers" do
+    token = user.generate_api_token!
+    repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)
+
+    get "/api/v1/app/scheduled_tasks", headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("active_tasks", 0, "name")).to eq("Weekly tests")
   end
 
   it "shows a task with recent jobs" do

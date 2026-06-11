@@ -132,12 +132,23 @@ syrus job diff 456
 syrus epic list
 syrus epic search "launch"
 syrus epic show 12
+
+syrus schedule list
+syrus schedule create
+syrus schedule show 42
+syrus schedule delete 42
+syrus schedule run 42
 ```
 
 `job log` pages completed transcripts through `$PAGER` and streams
 running transcripts until the Job finishes or the command is interrupted.
 `job diff` fetches the pull request diff through Syrus' GitHub credential;
 if no GitHub token is available, it prints the pull request URL instead.
+
+Schedule commands use the app scheduled-task API with the same API token.
+`schedule list` scopes to the current checkout when possible and otherwise
+shows all schedules. `schedule create` must run from a configured repository
+checkout because scheduled tasks are repository-owned.
 
 ## Create a Direct Job
 
