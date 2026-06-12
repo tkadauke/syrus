@@ -25,6 +25,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(NewTestPlanCommand())
 	rootCmd.AddCommand(NewApproveCommand())
 	rootCmd.AddCommand(NewStatusCommand())
+	rootCmd.AddCommand(NewInboxCommand())
 	rootCmd.AddCommand(NewJobCommand())
 	rootCmd.AddCommand(NewEpicCommand())
 	rootCmd.AddCommand(NewRepoCommand())

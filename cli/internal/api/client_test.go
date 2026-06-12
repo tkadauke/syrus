@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -55,6 +56,35 @@ func TestAPIErrorUsesJSONMessage(t *testing.T) {
 	}
 	if apiErr.Message != "Provide a valid API token." {
 		t.Fatalf("message = %q", apiErr.Message)
+	}
+}
+
+func TestJobActionsPostToAppEndpoints(t *testing.T) {
+	var requests []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.Method+" "+r.URL.Path)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := client.ApproveJob(context.Background(), "456"); err != nil {
+		t.Fatalf("ApproveJob returned error: %v", err)
+	}
+	if err := client.RetryJob(context.Background(), "443"); err != nil {
+		t.Fatalf("RetryJob returned error: %v", err)
+	}
+
+	want := []string{
+		"POST /api/v1/app/jobs/456/approve",
+		"POST /api/v1/app/jobs/443/run_again",
+	}
+	if !slices.Equal(requests, want) {
+		t.Fatalf("requests = %v, want %v", requests, want)
 	}
 }
 

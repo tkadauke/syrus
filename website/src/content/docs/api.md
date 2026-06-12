@@ -121,6 +121,10 @@ user can see, except `job create` which requires `--repo` outside a checkout.
 ```bash
 syrus whoami
 syrus repo list
+syrus inbox
+syrus inbox --watch
+syrus inbox --repo tkadauke/myapp
+
 syrus job list --state open --limit 20
 syrus job search "dark mode"
 syrus job show 456
@@ -145,6 +149,15 @@ syrus epic show 12
 running transcripts until the Job finishes or the command is interrupted.
 `job diff` fetches the pull request diff through Syrus' GitHub credential;
 if no GitHub token is available, it prints the pull request URL instead.
+
+`inbox` opens an interactive terminal view for Jobs that need operator
+attention: `implemented` Jobs awaiting approval and `failed` Jobs awaiting
+retry. It scopes to the current GitHub checkout when possible, accepts
+`--repo owner/name` as an override, and falls back to all visible
+repositories outside a checkout. The TUI can approve implemented Jobs,
+retry failed Jobs, open PRs, checkout branches from the matching local repo,
+and page diffs or logs through `$PAGER`. With `--watch`, an empty inbox
+stays open and refreshes every 30 seconds.
 
 Action commands use the app API with the same bearer token. `job create`
 prompts for a title and multi-line description, defaults to the current

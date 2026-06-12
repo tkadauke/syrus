@@ -34,9 +34,10 @@ type JobItem struct {
 }
 
 type WorkflowBrief struct {
-	ID    int64       `json:"id"`
-	State string      `json:"state"`
-	Steps []StepBrief `json:"steps"`
+	ID        int64          `json:"id"`
+	State     string         `json:"state"`
+	Artifacts map[string]any `json:"artifacts"`
+	Steps     []StepBrief    `json:"steps"`
 }
 
 type StepBrief struct {
@@ -55,6 +56,7 @@ type JobDetail struct {
 	Repository struct {
 		Slug string `json:"slug"`
 	} `json:"repository"`
+	Summary   *JobSummary     `json:"summary"`
 	Workflows []WorkflowBrief `json:"workflows"`
 }
 
@@ -78,6 +80,12 @@ type AdminWorkflow struct {
 	Artifacts  map[string]any `json:"artifacts"`
 }
 
+type JobSummary struct {
+	RunID      int64  `json:"run_id"`
+	Text       string `json:"text"`
+	FinishedAt string `json:"finished_at"`
+}
+
 type JobTranscript struct {
 	JobID    int64    `json:"job_id"`
 	RunID    int64    `json:"run_id"`
@@ -90,7 +98,7 @@ type JobDiff struct {
 	JobID         int64  `json:"job_id"`
 	PRURL         string `json:"pr_url"`
 	Diff          string `json:"diff"`
-	NoGithubToken bool  `json:"no_github_token"`
+	NoGithubToken bool   `json:"no_github_token"`
 }
 
 type CreateJobRequest struct {
@@ -170,4 +178,8 @@ func (c *Client) GetAdminJob(ctx context.Context, id string) (AdminJobDetail, er
 
 func (c *Client) ApproveJob(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/approve", nil, nil)
+}
+
+func (c *Client) RetryJob(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/run_again", nil, nil)
 }
