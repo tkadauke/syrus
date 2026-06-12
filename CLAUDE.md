@@ -324,10 +324,11 @@ across web/worker processes.
   operator visibility.
 - **Clean-rebase grade carry-forward** — `Repository#trust_clean_rebase_grade`
   is off by default. When enabled, a clean `rebase` Workflow may record a prior
-  green landing validation for the new head SHA instead of forcing auto-merge
-  to re-run required graders. Successful required graders on any Workflow can
-  record landing validation; landing and merge-train preflights may skip
-  revalidation when the current head SHA already has a green record.
+  green landing validation for the new head/base pair instead of forcing
+  auto-merge to re-run required graders. Required grader success is recorded
+  via `LandingValidationCache`, and later auto-merge or merge-train retries may
+  skip revalidation only when the artifact matches the exact PR/integration
+  head SHA being landed.
 - **GitHub issue actions** — Repository pages can list GitHub issues and
   comment, close, delegate (add the trigger label), or bulk delegate/close
   them through `GithubClient`. Keep single and bulk paths in sync.
