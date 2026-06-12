@@ -128,6 +128,14 @@ syrus job show 456
 syrus job log 456
 syrus job watch 456
 syrus job diff 456
+syrus job create
+syrus job approve 456
+syrus job cancel 456
+syrus job retry 456
+syrus job rebase 456
+syrus job checkout 456
+syrus job test-plan 456
+syrus job open 456
 
 syrus epic list
 syrus epic search "launch"
@@ -138,6 +146,12 @@ syrus epic show 12
 running transcripts until the Job finishes or the command is interrupted.
 `job diff` fetches the pull request diff through Syrus' GitHub credential;
 if no GitHub token is available, it prints the pull request URL instead.
+
+Action commands use the app API with the same bearer token. `job create`
+prompts for a title and multi-line description, defaults to the current
+GitHub checkout's repository, and accepts `--repo owner/name` and `--yes`.
+`job checkout` verifies the current checkout matches the Job repository,
+fetches the Syrus branch from `origin`, and checks it out locally.
 
 ## Create a Direct Job
 

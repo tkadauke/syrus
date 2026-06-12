@@ -23,6 +23,35 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+  it "accepts a bearer API token for app API requests" do
+    token = user.generate_api_token!
+    repository
+
+    get "/api/v1/app/jobs/new", headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"]).to include(include("slug" => "acme/widgets"))
+  end
+
+  it "creates direct jobs with a bearer API token" do
+    token = user.generate_api_token!
+
+    expect {
+      post "/api/v1/app/jobs",
+           params: {
+             repository_id: repository.id,
+             title: "Summon the build consul",
+             prompt: "Make the tiny CLI action work.",
+             priority: "medium"
+           },
+           headers: { "Authorization" => "Bearer #{token}" }
+    }.to change(Job, :count).by(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body.dig("job", "title")).to eq("Summon the build consul")
+  end
+
   it "returns the direct job form options for the signed-in user" do
     sign_in_as(user)
     user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")

@@ -4,10 +4,11 @@ module Api
       # JSON API for the browser SPA and app-scoped CLI calls. Browser
       # requests use session cookies; CLI requests may use bearer tokens.
       class BaseController < ApplicationController
-        include ActionController::HttpAuthentication::Token::ControllerMethods
+        TokenSession = Struct.new(:user, keyword_init: true) do
+          def destroy; end
+        end
 
         skip_before_action :compute_system_alerts
-        prepend_before_action :authenticate_bearer_token_if_present
 
         rescue_from ActiveRecord::RecordNotFound do |e|
           render_error("not_found", e.message, status: :not_found)
@@ -19,17 +20,18 @@ module Api
 
         private
 
-        def require_authentication
-          return if Current.user
-
-          super
+        def resume_session
+          super || resume_api_token_session
         end
 
-        def authenticate_bearer_token_if_present
-          return if Current.user
+        def resume_api_token_session
+          token = request.authorization.to_s[/\ABearer\s+(.+)\z/i, 1]
+          return if token.blank?
 
-          token = request.authorization.to_s[/\ABearer\s+(.+)\z/, 1]
-          Current.api_user = User.find_by(api_token: token) if token.present?
+          user = User.find_by(api_token: token)
+          return unless user
+
+          Current.session = TokenSession.new(user: user)
         end
 
         def request_authentication
