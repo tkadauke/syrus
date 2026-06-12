@@ -11,7 +11,7 @@ import (
 
 func TestListJobsSendsBearerToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/admin/jobs" {
+		if r.URL.Path != "/api/v1/app/jobs" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		if got := r.Header.Get("Authorization"); got != "Bearer secret-token" {

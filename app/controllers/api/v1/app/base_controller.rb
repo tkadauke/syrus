@@ -1,12 +1,13 @@
 module Api
   module V1
     module App
-      # JSON API for the browser SPA and narrow CLI actions. Browser requests
-      # use the signed session cookie; CLI requests may use a bearer token.
+      # JSON API for the browser SPA and app-scoped CLI calls. Browser
+      # requests use session cookies; CLI requests may use bearer tokens.
       class BaseController < ApplicationController
         include ActionController::HttpAuthentication::Token::ControllerMethods
 
         skip_before_action :compute_system_alerts
+        prepend_before_action :authenticate_bearer_token_if_present
 
         rescue_from ActiveRecord::RecordNotFound do |e|
           render_error("not_found", e.message, status: :not_found)
@@ -19,14 +20,16 @@ module Api
         private
 
         def require_authentication
-          authenticate_via_api_token || super
+          return if Current.user
+
+          super
         end
 
-        def authenticate_via_api_token
-          authenticate_with_http_token do |token, _options|
-            user = User.find_by(api_token: token)
-            Current.api_user = user if user
-          end
+        def authenticate_bearer_token_if_present
+          return if Current.user
+
+          token = request.authorization.to_s[/\ABearer\s+(.+)\z/, 1]
+          Current.api_user = User.find_by(api_token: token) if token.present?
         end
 
         def request_authentication

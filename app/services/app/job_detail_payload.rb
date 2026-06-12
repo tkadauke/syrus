@@ -65,6 +65,8 @@ module App
         issue_number: @job.issue_number,
         issue_url: issue_url,
         issue_title: @job.issue_title,
+        title: @job.issue_title,
+        repository_slug: @job.repository.slug,
         issue_body: @job.issue_body,
         branch_name: @job.branch_name,
         pr_number: @job.pr_number,

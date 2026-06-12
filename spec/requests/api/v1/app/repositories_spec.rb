@@ -68,6 +68,10 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
     expect(body.to_s).not_to include("other/private")
     expect(body["new_repository_path"]).to eq(new_repository_path)
+    expect(body["repositories"]).to include(
+      include("slug" => "acme/widgets", "active_jobs_count" => 0),
+      include("slug" => "old/repo", "archived" => true)
+    )
   end
 
   it "allows two users to configure the same GitHub slug independently" do

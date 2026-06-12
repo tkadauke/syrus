@@ -30,6 +30,28 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(body["dashboard_epics_path"]).to eq(dashboard_epics_path)
   end
 
+  it "lists epics for bearer-token CLI clients with repository scoping" do
+    user.update!(api_token: "syrus_cli_token")
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum", state: "in_progress")
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "open")
+    other_user = Factories.user
+    Factories.epic(user: other_user, repository: Factories.repository(user: other_user, owner: "other", name: "repo"), title: "Private")
+
+    get "/api/v1/app/epics", params: { repo: "acme/widgets" },
+      headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["epics"]).to contain_exactly(include(
+      "id" => epic.id,
+      "title" => "Raise the forum",
+      "repository_slug" => "acme/widgets",
+      "done_jobs_count" => 1,
+      "total_jobs_count" => 2
+    ))
+    expect(parse_body.to_s).not_to include("Private")
+  end
+
   it "returns the edit epic form payload" do
     sign_in_as(user)
     epic = Factories.epic(

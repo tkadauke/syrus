@@ -101,14 +101,13 @@ func TestStatusCommandFiltersClosedJobsByRepo(t *testing.T) {
 }
 
 func TestStatusCommandTruncatesLongTitlesForEightyColumns(t *testing.T) {
-	pr := int64(1234)
 	output := &bytes.Buffer{}
-	renderStatus(output, []api.Job{{
-		ID:         77,
-		Repository: "tkadauke/myapp",
-		IssueTitle: "This title is intentionally far too long for the fixed eighty column status view",
-		State:      "running",
-		PRNumber:   &pr,
+	renderStatus(output, []api.JobItem{{
+		ID:             77,
+		RepositorySlug: "tkadauke/myapp",
+		Title:          "This title is intentionally far too long for the fixed eighty column status view",
+		State:          "running",
+		PRNumber:       1234,
 	}}, 80, false)
 
 	lines := strings.Split(strings.TrimRight(output.String(), "\n"), "\n")

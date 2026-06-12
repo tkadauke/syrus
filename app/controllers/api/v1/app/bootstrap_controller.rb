@@ -7,12 +7,17 @@ module Api
         def show
           authenticated?
 
-          render json: AppApi::BootstrapSerializer.new(
+          payload = AppApi::BootstrapSerializer.new(
             user: Current.user,
             csrf_token: form_authenticity_token,
             default_chat_path: default_chat_path,
             flash: {}
           ).as_json
+          payload[:whoami] = {
+            email: Current.user&.email_address,
+            token_suffix: Current.user&.api_token.to_s.last(4)
+          }
+          render json: payload
         end
       end
     end

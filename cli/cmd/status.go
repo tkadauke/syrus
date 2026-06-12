@@ -72,7 +72,7 @@ func runStatus(ctx context.Context, out io.Writer, opts *statusOptions, color bo
 	return nil
 }
 
-func renderStatus(out io.Writer, jobs []api.Job, width int, color bool) {
+func renderStatus(out io.Writer, jobs []api.JobItem, width int, color bool) {
 	if width < 40 {
 		width = defaultStatusWidth
 	}
@@ -100,14 +100,14 @@ func renderStatus(out io.Writer, jobs []api.Job, width int, color bool) {
 		}
 		fmt.Fprintf(out, "%-*s  %-*s  %-*s  %s  %*s\n",
 			idWidth, "JOB-"+strconv.FormatInt(job.ID, 10),
-			repoWidth, fit(job.Repository, repoWidth),
-			titleWidth, fit(job.IssueTitle, titleWidth),
+			repoWidth, fit(job.RepositorySlug, repoWidth),
+			titleWidth, fit(job.Title, titleWidth),
 			state,
 			prWidth, prLabel(job.PRNumber))
 	}
 }
 
-func maxPRWidth(jobs []api.Job) int {
+func maxPRWidth(jobs []api.JobItem) int {
 	width := len("PR")
 	for _, job := range jobs {
 		if labelWidth := len(prLabel(job.PRNumber)); labelWidth > width {
@@ -117,11 +117,11 @@ func maxPRWidth(jobs []api.Job) int {
 	return width
 }
 
-func prLabel(number *int64) string {
-	if number == nil {
+func prLabel(number int64) string {
+	if number == 0 {
 		return "-"
 	}
-	return "#" + strconv.FormatInt(*number, 10)
+	return "#" + strconv.FormatInt(number, 10)
 }
 
 func fit(value string, width int) string {

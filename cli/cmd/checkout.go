@@ -45,17 +45,17 @@ func NewCheckoutCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if strings.TrimSpace(job.BranchName) == "" {
-				return fmt.Errorf("Job %s does not have a branch yet (state: %s)", jobRef, job.State)
+			if strings.TrimSpace(job.Job.BranchName) == "" {
+				return fmt.Errorf("Job %s does not have a branch yet (state: %s)", jobRef, job.Job.State)
 			}
 			if strings.TrimSpace(job.Repository.Slug) == "" {
 				return fmt.Errorf("Job %s response did not include a repository slug", jobRef)
 			}
 
-			if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, job.Repository.Slug, job.BranchName); err != nil {
+			if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, job.Repository.Slug, job.Job.BranchName); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s — run 'syrus test-plan %s' to see the test plan.\n", job.BranchName, jobRef)
+			fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s — run 'syrus test-plan %s' to see the test plan.\n", job.Job.BranchName, jobRef)
 			return nil
 		},
 	}

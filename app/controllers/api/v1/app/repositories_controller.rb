@@ -312,6 +312,7 @@ module Api
           {
             active_repositories: repos.active.map { |repository| repository_json(repository) },
             archived_repositories: repos.archived.map { |repository| repository_json(repository) },
+            repositories: repos.map { |repository| repository_cli_json(repository) },
             new_repository_path: new_repository_path,
             setup: ::App::SetupStatus.call(user: Current.user),
             message: message
@@ -341,6 +342,23 @@ module Api
             last_poll_error: repository.last_poll_error,
             repository_path: repository_path(repository),
             edit_repository_path: edit_repository_path(repository)
+          }
+        end
+
+        def repository_cli_json(repository)
+          jobs = repository.jobs.order(updated_at: :desc)
+          last_job = jobs.first
+          {
+            id: repository.id,
+            slug: repository.slug,
+            archived: repository.archived?,
+            active_jobs_count: repository.jobs.open_threads.count,
+            last_job: last_job && {
+              id: last_job.id,
+              title: last_job.issue_title.to_s,
+              state: last_job.state,
+              updated_at: last_job.updated_at&.iso8601
+            }
           }
         end
 

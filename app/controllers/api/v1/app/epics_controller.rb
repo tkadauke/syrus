@@ -2,6 +2,20 @@ module Api
   module V1
     module App
       class EpicsController < BaseController
+        def index
+          epics = Current.user.epics.includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
+          if params[:repo].present?
+            owner, name = params[:repo].to_s.split("/", 2)
+            epics = epics.joins(:repository).where(repositories: { owner: owner, name: name })
+          end
+          limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
+
+          render json: {
+            count: epics.count,
+            epics: epics.limit(limit).map { |epic| compact_epic_json(epic) }
+          }
+        end
+
         def show
           render json: detail_payload(find_epic)
         end
@@ -124,6 +138,20 @@ module Api
 
         private
 
+        def compact_epic_json(epic)
+          jobs = epic.jobs.to_a
+          {
+            id: epic.id,
+            number: epic.number,
+            title: epic.title.to_s,
+            state: epic.state,
+            repository_slug: epic.repository.slug,
+            done_jobs_count: done_jobs_count(jobs),
+            total_jobs_count: jobs.size,
+            updated_at: epic.updated_at&.iso8601
+          }
+        end
+
         class UnavailableTransition < StandardError; end
 
         def form_payload(epic)
@@ -210,6 +238,7 @@ module Api
             owner_user_id: epic.owner_user_id,
             owner_status: owner_status(epic),
             owner_user: owner_user_json(epic.owner_user),
+            repository_slug: epic.repository.slug,
             repository: repository_json(epic.repository).merge(repository_path: repository_path(epic.repository))
           }
         end
@@ -249,6 +278,8 @@ module Api
             title: job.issue_title.to_s,
             path: job_path(job),
             state: job_summary_state(job),
+            pr_number: job.pr_number,
+            pr_url: ::App::Presentation.job_pr_url(job),
             owner_user_id: job.owner_user_id,
             owner_user: owner_user_json(job.owner_user),
             repository_slug: job.repository.slug

@@ -112,6 +112,33 @@ a compact 80-column table with Job ID, repository, title, state, and PR
 number. Terminals with color support highlight running, implemented,
 approved, failed, and queued states.
 
+Read-only inspect commands use the app-scoped API and work with the
+configured user's own Jobs, Epics, and repositories. When run inside a
+GitHub checkout, list/search commands scope to that repository's
+`owner/name`; outside a checkout they fall back to all repositories the
+user can see.
+
+```bash
+syrus whoami
+syrus repo list
+
+syrus job list --state open --limit 20
+syrus job search "dark mode"
+syrus job show 456
+syrus job log 456
+syrus job watch 456
+syrus job diff 456
+
+syrus epic list
+syrus epic search "launch"
+syrus epic show 12
+```
+
+`job log` pages completed transcripts through `$PAGER` and streams
+running transcripts until the Job finishes or the command is interrupted.
+`job diff` fetches the pull request diff through Syrus' GitHub credential;
+if no GitHub token is available, it prints the pull request URL instead.
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal

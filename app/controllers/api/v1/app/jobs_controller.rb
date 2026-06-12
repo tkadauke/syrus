@@ -1,7 +1,24 @@
+require "net/http"
+
 module Api
   module V1
     module App
       class JobsController < BaseController
+        def index
+          jobs = Current.user.jobs.includes(:repository, :runs, workflows: { steps: :runs }).order(updated_at: :desc, id: :desc)
+          if params[:repo].present?
+            owner, name = params[:repo].to_s.split("/", 2)
+            jobs = jobs.joins(:repository).where(repositories: { owner: owner, name: name })
+          end
+          jobs = jobs.where(state: params[:state]) if params[:state].present? && params[:state] != "all"
+          limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
+
+          render json: {
+            count: jobs.count,
+            jobs: jobs.limit(limit).map { |job| compact_job_json(job) }
+          }
+        end
+
         def show
           render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
         end
@@ -73,7 +90,89 @@ module Api
           }
         end
 
+        def transcript
+          job = find_job
+          run = job.runs.includes(:job_logs).order(created_at: :desc, id: :desc).first
+          unless run
+            render json: { job_id: job.id, run_id: nil, state: job.state, complete: job.closed?, lines: [] }
+            return
+          end
+
+          render json: {
+            job_id: job.id,
+            run_id: run.id,
+            state: run.state,
+            complete: run.finished_at.present?,
+            lines: run.job_logs.order(:sequence).map { |log| log.chunk.to_s }
+          }
+        end
+
+        def diff
+          job = find_job
+          unless job.pr_number.present?
+            render_error("no_pr", "Job does not have a pull request.", status: :unprocessable_content)
+            return
+          end
+
+          client = GithubClient.for(repository: job.repository, user: Current.user)
+          uri = URI("https://api.github.com/repos/#{job.repository.slug}/pulls/#{job.pr_number}")
+          request = Net::HTTP::Get.new(uri)
+          request["Accept"] = "application/vnd.github.diff"
+          request["Authorization"] = "Bearer #{client.access_token}"
+          request["User-Agent"] = GithubClient::USER_AGENT
+          response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 30) do |http|
+            http.request(request)
+          end
+
+          if response.is_a?(Net::HTTPSuccess)
+            render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: response.body.to_s }
+          else
+            render_error("github_error", "GitHub diff request failed: #{response.code}", status: :bad_gateway)
+          end
+        rescue ArgumentError
+          render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: nil, no_github_token: true }
+        end
+
         private
+
+        def compact_job_json(job)
+          workflow = job.workflows.max_by { |candidate| candidate.created_at || Time.zone.at(0) }
+          steps = workflow&.steps&.sort_by(&:position) || []
+          {
+            id: job.id,
+            state: job.state,
+            summary_state: ::App::Presentation.job_summary_state(job),
+            title: job.issue_title.to_s,
+            repository_slug: job.repository.slug,
+            pr_number: job.pr_number,
+            pr_url: ::App::Presentation.job_pr_url(job),
+            created_at: job.created_at&.iso8601,
+            updated_at: job.updated_at&.iso8601,
+            started_at: job.started_at&.iso8601,
+            finished_at: job.finished_at&.iso8601,
+            current_step: ::App::Presentation.current_step_caption(job),
+            latest_run_id: job.runs.max_by { |run| run.created_at || Time.zone.at(0) }&.id,
+            workflow: workflow && {
+              id: workflow.id,
+              state: workflow.state,
+              steps: steps.map { |step| compact_step_json(step) }
+            }
+          }
+        end
+
+        def compact_step_json(step)
+          run = step.runs.max_by { |candidate| candidate.created_at || Time.zone.at(0) }
+          {
+            id: step.id,
+            kind: step.kind,
+            display_name: Step::Kind.label_for(step.kind),
+            state: step.state,
+            started_at: step.started_at&.iso8601,
+            finished_at: step.finished_at&.iso8601,
+            run_id: run&.id,
+            run_state: run&.state
+          }
+        end
 
         def find_job
           find_job_by_param(:id)

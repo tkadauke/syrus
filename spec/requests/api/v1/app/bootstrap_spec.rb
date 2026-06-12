@@ -11,6 +11,18 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     JSON.parse(response.body)
   end
 
+  it "returns whoami fields for bearer-token CLI clients" do
+    user = Factories.user(email_address: "cli@example.com", api_token: "syrus_cli_token")
+
+    get "/api/v1/app/bootstrap", headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["whoami"]).to include(
+      "email" => "cli@example.com",
+      "token_suffix" => "oken"
+    )
+  end
+
   def with_env(vars)
     old_values = vars.keys.to_h { |key| [ key, ENV[key] ] }
     vars.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
