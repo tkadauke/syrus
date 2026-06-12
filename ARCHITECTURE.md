@@ -36,6 +36,7 @@ domain concepts. File paths are repo-relative.
 - **Solid Queue** for background jobs · **Solid Cache** · **Solid Cable**
   for browser app events
 - **Tailwind** via `tailwindcss-rails` · **React** for the web UI
+- **Go CLI** under `cli/` for terminal chat access to the app API
 - **Octokit** for the GitHub API
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
@@ -566,7 +567,7 @@ Core (the agent loop):
 | `AgentProviders::*` | Provider abstraction for Claude and Codex. Selects credentials, prepares provider home/session state, wires MCP, invokes the provider-specific runner, captures transcript/session metadata, and returns a normalized result. |
 | `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
 | `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state` and `submit_summary`. See [MCP sidecar](#mcp-sidecar). |
-| `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, plus `PullRequestSummary` for `PrSummarizer` and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 
 Git and GitHub:
 
@@ -608,9 +609,10 @@ Landing is also a Workflow, not an inline merge button. `auto_merge`
 starts with `mergeability_preflight`, runs final graders on the exact
 branch about to land, optionally invokes `landing_fix`, pushes repairs,
 and then calls GitHub's merge API. Epic merge-train landing builds a
-single integration branch from approved child PRs, validates it, merges
-one integration PR, and comments on/closes member PRs as an all-or-
-nothing unit.
+single integration branch from approved child PRs by fetching each
+member branch with repository credentials (private repos included),
+validates it, merges one integration PR, and comments on/closes member
+PRs as an all-or-nothing unit.
 
 ## MCP sidecar
 
@@ -709,6 +711,17 @@ Several layers, each catching different failure modes:
 Realtime updates use `AppUserChannel` app events consumed by React.
 Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
 between web and worker.
+
+The standalone Go CLI (`cli/`) shares the app API rather than a separate
+backend. `syrus login` stores the instance URL and API token in
+`~/.syrus/credentials`; running `syrus` without a subcommand lists recent
+chat sessions, prefers sessions for the current checkout's GitHub repo
+when it can detect one, and enters an interactive REPL. `syrus chat
+CHAT_ID MESSAGE` sends a single streaming turn. Both paths post to
+`/api/v1/app/chats/:id/message` with `Accept: text/event-stream`, render
+assistant chunks as server-sent events arrive, expose proposed Jobs/Epics
+for inline confirm/reject, and translate Ctrl+C into the chat stop API
+instead of abandoning the Rails-side turn.
 
 ## Deployment topology
 
