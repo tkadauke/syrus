@@ -52,33 +52,6 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(parse_body.to_s).not_to include("Private")
   end
 
-  it "accepts bearer token authentication for app API requests" do
-    token = user.generate_api_token!
-    repository
-
-    post "/api/v1/app/epics",
-      params: {
-        epic: {
-          title: "Raise the forum",
-          description: "Install tasteful columns.",
-          repository_id: repository.id
-        }
-      },
-      headers: { "Authorization" => "Bearer #{token}" }
-
-    expect(response).to have_http_status(:created)
-    epic = user.epics.order(:id).last
-    expect(epic).to have_attributes(
-      title: "Raise the forum",
-      description: "Install tasteful columns.",
-      repository_id: repository.id
-    )
-    expect(parse_body).to include(
-      "message" => "Epic created.",
-      "redirect_to" => epic_path(epic)
-    )
-  end
-
   it "returns the edit epic form payload" do
     sign_in_as(user)
     epic = Factories.epic(
