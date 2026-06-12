@@ -145,7 +145,8 @@ running transcripts until the Job finishes or the command is interrupted.
 `job diff` fetches the pull request diff through Syrus' GitHub credential;
 if no GitHub token is available, it prints the pull request URL instead.
 
-Schedule commands use the app scheduled-task API with the same API token.
+The standalone Go CLI schedule commands use the app scheduled-task API with
+the same API token.
 `schedule list` scopes to the current checkout when possible and otherwise
 shows all schedules. `schedule create` must run from a configured repository
 checkout because scheduled tasks are repository-owned.
