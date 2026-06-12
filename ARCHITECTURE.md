@@ -60,10 +60,10 @@ PollAllRepos…    PollAllPullRequests… PollAllMergeStates… PollScheduledTas
   (fan-out)         (fan-out)          (fan-out)        (in-process)      (sweeper)
        │                  │             │                  │                  │
        ▼                  ▼             ▼                  ▼                  ▼
-PollRepositoryJob  PollPullRequestJob  PollMergeStateJob ScheduledTaskFire marks running
-  per repo           per Job-with-PR    per Job-with-PR  service per task   Runs as failed
+PollRepositoryJob  PollPullRequestJob  PollMergeStateJob ScheduledTaskFire reaps/requeues
+  per repo           per Job-with-PR    per Job-with-PR  service per task   orphaned Runs
        │                  │             │                  │                  ▼
-       │       creates    │   creates   │   creates        │              (no enqueue)
+       │       creates    │   creates   │   creates        │              (recovery)
        └──────────────────┴─────────────┴──────────────────┘
                                         │
                                         ▼
@@ -84,9 +84,10 @@ The state-transition callback and dispatcher (`Job#advance_after_triage`
 created a Job" to "a worker picks up a Run." Pollers instantiate
 Workflows or move Jobs through state; the dispatcher creates Runs, and
 pollers do not call `RunJob.perform_later` directly. `ReapStaleRunsJob`
-does not enqueue runs at all — it transitions stuck `running` Runs to
-`failed`; terminal Workflow cleanup and `WorkflowWorkspacePruneJob`
-handle workspaces.
+is a recovery sweep, not a normal dispatcher: it fails orphaned or stale
+`running` Runs, re-enqueues queued successor Runs orphaned after inline
+Step advancement, and lets terminal Workflow cleanup plus
+`WorkflowWorkspacePruneJob` handle workspaces.
 
 `Job` is the thread (one per GitHub issue, scheduled-task fire, or direct
 operator prompt). `Workflow` is an attempt to move that Job forward.
@@ -315,7 +316,7 @@ deliberately includes preempted Jobs.
 | `PollAllMergeStatesJob` | every 5 min | Fans out to `PollMergeStateJob` per Job-with-PR |
 | `LandingQueueProcessorJob` | every 30 sec | Picks approved Jobs/Epics for landing workflows |
 | `PollScheduledTasksJob` | every 1 min | Finds due `ScheduledTask`s; fires via `ScheduledTaskFire` |
-| `ReapStaleRunsJob` | every 1 min | Marks Runs whose heartbeat is older than 30 min as `failed` |
+| `ReapStaleRunsJob` | every 1 min | Recovers RunJob crashes: fails orphaned/stale `running` Runs, re-enqueues orphaned `queued` Runs, and finishes terminal Workflows |
 | `DataRootDiskUsageRefreshJob` | every 1 min | Refreshes `$SYRUS_DATA_ROOT` disk usage for operator visibility |
 | `ReapClassifierPendingJob` | every 5 min | Re-enqueues classifier work for Jobs stuck in classifier-pending triage |
 | `ReapOrphanedSpawnedProcessesJob` | every 1 min | Finalizes subprocess rows owned by dead hosts |
@@ -432,15 +433,30 @@ fire the same hour.
 
 ```
 ReapStaleRunsJob (every minute)
-  → Run.running.where("last_heartbeat_at < ?", 30.minutes.ago)
+  → Solid Queue RunJobs failed by ProcessPrunedError
+      → expand root Run ids to any inline running Runs in the same Workflow
       → mark as failed (agent_outcome: "worker_died")
-      → workflow workspace cleanup when the Workflow reaches terminal state
+  → running Runs with no active SolidQueue::Job after a grace period
+      → mark as failed (agent_outcome: "worker_died")
+  → running Runs with stale last_heartbeat_at
+      → mark as failed (agent_outcome: "worker_died")
+  → queued Runs with no active RunJob driving their Workflow
+      → re-enqueue (the successor was created for inline execution but the worker died)
+  → terminal Workflows left active by a crash
+      → finish the Workflow and let terminal cleanup handle the workspace
 ```
 
-The 30-minute threshold is generous on purpose: provider CLIs can be
-quiet for several minutes during long thinking phases. The heartbeat
-is bumped on every `JobLog#log` write — not on a separate timer — so
-"agent producing transcript output" implicitly counts as alive.
+The 30-minute heartbeat threshold is the backstop, not the only signal.
+The faster paths use Solid Queue evidence: a `ProcessPrunedError` means
+the worker process is gone, and a `running` Run with no active RunJob
+after the grace period has no worker that can resume it. The queued-Run
+path exists because `RunJob` drives a Workflow chain inline: after one
+Step succeeds, the next Step's Run is created in `queued` state and is
+normally picked up by the same worker without a new queue row. If that
+worker dies in the gap, the recovery action is to enqueue the side-
+effect-free queued Run, not fail it. The heartbeat is bumped on every
+`JobLog#log` write — not on a separate timer — so "agent producing
+transcript output" implicitly counts as alive.
 
 ## Per-Workflow pipeline
 
@@ -508,8 +524,9 @@ match GitHub's "Files changed" tab.
   for non-rebase Runs (rebase failures don't bump `failure_count`).
 - On SIGTERM: Solid Queue's graceful-shutdown timeout lets the current
   Run finish if it can. If the worker is killed mid-flight (K8s deploys,
-  OOM), the Run is left in `running`; `ReapStaleRunsJob` transitions it
-  to `failed` after 30 min of heartbeat silence.
+  OOM), `ReapStaleRunsJob` uses Solid Queue prune evidence, orphaned
+  Run detection, and the heartbeat backstop to either fail the abandoned
+  `running` Run or re-enqueue an abandoned `queued` successor Run.
 
 ## End-to-end GitHub workflow
 
@@ -645,12 +662,14 @@ Several layers, each catching different failure modes:
 2. **Workflow terminal cleanup** — terminal transitions clean up or retain
    the shared workspace according to state. Cleanup failures are logged but
    don't suppress the original exception.
-3. **Heartbeat reaper** — `RunJob#log` bumps `last_heartbeat_at` on
-   every `JobLog` write. `ReapStaleRunsJob` runs every minute and
-   fails any `running` Run whose heartbeat is older than 30 min
-   (worker died, OOM, K8s SIGKILL past grace period). The 30-minute
-   window is generous on purpose: provider CLIs can be quiet for several
-   minutes during long thinking phases.
+3. **Run reaper** — `ReapStaleRunsJob` runs every minute and combines
+   Solid Queue state with Run state. It fails `running` Runs whose
+   RunJob was pruned with `ProcessPrunedError`, `running` Runs that have
+   no active RunJob after the grace period, and `running` Runs whose
+   heartbeat is older than 30 min. It also re-enqueues orphaned
+   `queued` successor Runs that were created for inline execution before
+   their worker died, and finishes terminal Workflows left active by a
+   crash.
 4. **Re-entrancy guard** — distinct from the terminal-state bailout.
    On entry, `RunJob#perform` first bails silently if the Run is
    already `terminal?` (idempotent retry). Only if the Run is
