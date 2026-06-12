@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-05-26 (against the MVP cleanup branch)._
+_Last reviewed: 2026-06-12._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -20,7 +20,7 @@ domain concepts. File paths are repo-relative.
 - [Domain model](#domain-model) — Job, Workflow, Step, Run, JobLog, Repository, User, ScheduledTask
 - [Recurring schedule](#recurring-schedule)
 - [Per-poller flow](#per-poller-flow) — issue ingest, PR feedback, rebase, scheduled tasks, reaping
-- [Per-Workflow pipeline](#per-workflow-pipeline) — initial/follow-up path and rebase path
+- [Per-Workflow pipeline](#per-workflow-pipeline) — materialized step chains and Run execution
 - [End-to-end GitHub workflow](#end-to-end-github-workflow)
 - [Services](#services)
 - [MCP sidecar](#mcp-sidecar)
@@ -37,9 +37,9 @@ domain concepts. File paths are repo-relative.
   for browser app events
 - **Tailwind** via `tailwindcss-rails` · **React** for the web UI
 - **Octokit** for the GitHub API
-- **AASM** for state machines on `Job` and `Run`
-- **`claude-code` CLI** as the agent (subprocess; see
-  [Per-Run pipeline](#per-run-pipeline) for invocation details)
+- **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
+- **Claude Code** and **Codex** as agent providers (subprocesses behind
+  `AgentProviders::*`; see [Per-Workflow pipeline](#per-workflow-pipeline))
 
 ## The big picture
 
@@ -67,23 +67,26 @@ PollRepositoryJob  PollPullRequestJob  PollMergeStateJob ScheduledTaskFire marks
        └──────────────────┴─────────────┴──────────────────┘
                                         │
                                         ▼
-                                 Job#after_create_commit
-                                 Run#after_create_commit
+                         ClassifyIssueJob / advance_after_triage
+                       StepDispatcher + Run#after_create_commit
                                         │
                                         ▼
                                   RunJob.perform_later
                                         │
                                         ▼
-                       WorkflowWorkspace + AgentInvocation +
+                       WorkflowWorkspace + AgentProviders::* +
                        MCP sidecar + PullRequestOpener
 ```
 
-The model callbacks (`Job#after_create_commit → create_initial_run`,
-`Run#after_create_commit → enqueue_run_job`) are what actually wire
-"a poller created a row" to "a worker picks up the run." The pollers
-never call `RunJob.perform_later` directly. `ReapStaleRunsJob` does
-not enqueue runs at all — it transitions stuck `running` Runs to
-`failed` and cleans up their worktrees.
+The state-transition callback and dispatcher (`Job#advance_after_triage`
+→ `create_initial_run_if_needed`, `StepDispatcher.start_workflow`, and
+`Run#after_create_commit → enqueue_run_job`) are what wire "a poller
+created a Job" to "a worker picks up a Run." Pollers instantiate
+Workflows or move Jobs through state; the dispatcher creates Runs, and
+pollers do not call `RunJob.perform_later` directly. `ReapStaleRunsJob`
+does not enqueue runs at all — it transitions stuck `running` Runs to
+`failed`; terminal Workflow cleanup and `WorkflowWorkspacePruneJob`
+handle workspaces.
 
 `Job` is the thread (one per GitHub issue, scheduled-task fire, or direct
 operator prompt). `Workflow` is an attempt to move that Job forward.
@@ -94,25 +97,29 @@ Step.
 
 ### Job — the *thread*
 
-Lives in `app/models/job.rb`. One `Job` per GitHub issue (or per cron
-fire). Carries the GitHub identifiers and lifecycle state.
+Lives in `app/models/job.rb`. One `Job` per GitHub issue, cron fire, or
+direct operator prompt. Carries GitHub identifiers, ownership,
+dependency/epic state, priority, selected agent provider, and lifecycle
+state.
 
 | Column | Meaning |
 |---|---|
 | `kind` | `"issue"` (created from a labeled issue), `"cron"` (created from a `ScheduledTask` fire), or `"direct"` (created from an operator prompt) |
-| `state` | `"open"` ⇄ `"closed"` (AASM) |
-| `repository_id`, `user_id` | scope |
-| `issue_number` | nullable for cron jobs |
+| `state` | AASM lifecycle: triage/dependency states, execution states, approval/landing states, and `closed` |
+| `repository_id`, `user_id`, `owner_user_id` | scope and durable assignee |
+| `issue_number` | nullable for cron and direct jobs |
 | `issue_title`, `issue_body` | cached at ingest |
-| `branch_name` | `syrus/issue-{N}-{job_id}` (issue Jobs), `syrus/scheduled-{task_id}-{job_id}` (cron Jobs), or a direct-job branch; assigned by workspace setup and persisted on the Job for follow-up Workflows to reuse |
+| `branch_name` | `syrus/issue-{N}-{job_id}` (issue Jobs), `syrus/scheduled-{task_id}-{job_id}` (cron Jobs), or a direct-job branch; assigned by workspace setup and persisted for follow-up Workflows |
 | `pr_number` | the Syrus-opened PR, if any |
 | `external_pr_number` | the *preempted* path — see below |
-| `pr_mergeable`, `pr_mergeable_checked_at` | latest from GitHub; updated by `PollRebaseJob` |
+| `pr_mergeable`, `pr_mergeable_checked_at` | latest from GitHub; updated by `PollMergeStateJob` |
 | `failure_count` | consecutive non-rebase Run failures; reset on reopen; threshold `AppSetting.max_job_failures` auto-closes the thread with reason `too_many_failures` |
 | `closure_reason` | string tag explaining why the thread closed (see table below) |
-| `last_seen_comment_at` | watermark for the PR-feedback poller |
+| `last_seen_comment_at`, `last_feedback_addressed_at` | PR-feedback watermarks; the poller uses the later timestamp so handled feedback is not re-enqueued |
 | `last_ci_handled_sha` | watermark for CI-failure follow-ups |
 | `scheduled_task_id` | nullable; set on cron Jobs |
+| `priority` | `high` / `medium` / `low`, mapped to Solid Queue priorities 0 / 10 / 20 |
+| `agent_provider` | provider captured for the Job; Workflows/Runs denormalize the selected provider |
 
 `closure_reason` values:
 
@@ -125,15 +132,28 @@ fire). Carries the GitHub identifiers and lifecycle state.
 | `too_many_failures` | `failure_count` hit `AppSetting.max_job_failures` |
 | `no_changes` | a cron Run finished with an empty diff and a one-line summary |
 | `preempted` | the issue already had a human-opened PR when we ingested it |
+| `pr_merged` | Syrus-opened PR merged |
+| `external_pr_merged` | tracked preempting PR merged |
+| `external_pr_closed` | tracked preempting PR closed without merge |
+| `pr_approved` | operator accepted an approved PR as successful without auto-merge |
 
 States and transitions:
 
 ```ruby
-state :open, initial: true
+state :triaging, initial: true
+state :blocked_by_epic, :queued, :running, :implemented, :failed
+state :approved, :landing
 state :closed
 
-event :close   { from: :open,   to: :closed }
-event :reopen  { from: :closed, to: :open }   # clears closure_reason, finished_at, failure_count
+event :advance_after_triage
+event :start_running
+event :mark_implemented
+event :mark_failed
+event :retry_after_failure
+event :approve / :unapprove
+event :start_landing / :defer_landing / :fail_landing
+event :close
+event :reopen # clears closure_reason, finished_at, failure_count
 ```
 
 ### Workflow, Step, Run — the *attempt machinery*
@@ -150,6 +170,7 @@ Step execution.
 | `trigger_kind` | what the Workflow/Run is *for* (see table below) |
 | `prompt` | the full prompt the agent sees |
 | `agent_turns`, `agent_outcome`, `agent_diff`, `head_sha` | populated from the stream-json `result` event + post-run git capture |
+| `agent_provider`, `cost_usd` | provider used for execution and captured provider cost |
 | `agent_pr_title`, `agent_pr_body`, `agent_summary` | written by the agent via the MCP `submit_summary` tool |
 | `parent_session_id` | prior session id used for supported same-workflow continuations such as summarize/amend and loop iterations |
 | `last_heartbeat_at` | bumped on every `JobLog` write; used by `ReapStaleRunsJob` |
@@ -178,12 +199,17 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 
 | Kind | Triggered by | Notes |
 |---|---|---|
-| `initial` | `Job` create (issue Jobs auto-spawn the first Run; cron Jobs do it via `PollScheduledTasksJob`) | makes the branch + opens the PR |
+| `initial` | `Job` create (issue Jobs auto-spawn the first Workflow after triage; cron Jobs do it via `PollScheduledTasksJob`) | makes the branch + opens the PR |
 | `pr_comment` | `PollPullRequestJob` finds new review comments since `last_seen_comment_at` | reuses the same branch |
 | `ci_failure` | `PollPullRequestJob` finds failing checks on the head SHA | reuses the same branch; gated on `last_ci_handled_sha` |
-| `rebase` | `PollRebaseJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; pushes with an explicit `--force-with-lease` lease |
+| `rebase` | `PollMergeStateJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; pushes with an explicit `--force-with-lease` lease |
+| `stack_rebase` | dependent PR stack needs to be rebased branch-by-branch | force-pushes each updated branch and resumes landing |
+| `auto_merge` | landing queue picked an approved Job | runs final gates, optional repair, push, and GitHub merge |
+| `merge_train` | landing queue picked a ready Epic when merge train is enabled | builds and lands all approved child PRs atomically |
 | `retry` | operator: "Run again" | new Run on the existing branch |
+| `replay` | operator replay of a failed/retryable path | uses the retry Workflow template |
 | `manual` | operator: explicit manual prompt | freeform |
+| `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
 | `local_dev` | local CLI path | runs against a local checkout without opening a PR |
 
 State changes reach the browser through app events; see
@@ -191,9 +217,9 @@ State changes reach the browser through app events; see
 
 ### JobLog — the transcript
 
-Append-only chunks per Run (`belongs_to :run`). `RunJob#log`,
-`AgentInvocation`, the MCP sidecar, and `WorkflowWorkspace` all write to
-it. Unique on `(run_id, sequence)`. `before_update` raises
+Append-only chunks per Run (`belongs_to :run`). `RunJob#log`, provider
+invocations, the MCP sidecar, and `WorkflowWorkspace` all write to it.
+Unique on `(run_id, sequence)`. `before_update` raises
 `ReadOnlyRecord` — once written, never edited.
 
 `broadcasts_to` per JobLog drives the live transcript on the job page.
@@ -202,21 +228,25 @@ it. Unique on `(run_id, sequence)`. `before_update` raises
 
 Unique on `(user_id, owner, name)`: the same GitHub repo can be
 registered by multiple Syrus users, but not twice by the same user.
-Per-user is the natural scope because Syrus uses each user's own
-GitHub PAT and Claude OAuth token — there is no shared "Syrus account"
-on GitHub today. Carries `default_branch`, `polling_enabled`,
-`trigger_label` (default `"syrus"`), `archived_at`. Archive blocks
-polling even if `polling_enabled` is true.
+Per-user is the natural scope because Syrus uses either the linked
+GitHub App installation or the user's PAT, plus the user's configured
+agent credentials. Carries `default_branch`, `polling_enabled`,
+`trigger_label` (default `"syrus"`), `archived_at`, `prepare_enabled`,
+`trust_clean_rebase_grade`, and optional repository-level
+`agent_provider`. Archive blocks polling even if `polling_enabled` is
+true.
 
 ### User
 
-Encrypted attributes for `claude_oauth_token` and `github_token`
+Encrypted attributes include GitHub, Claude, and Codex credentials
 (Active Record Encryption — `RAILS_MASTER_KEY` is required to read
-them). `agent_max_turns` is the per-user ceiling on `claude
---max-turns`; `0` (or `nil`) means "no `--max-turns` flag" — the
-30-minute per-Run wall-clock timeout still applies. The first user
-to sign up is auto-promoted to admin (bootstrap convenience, not a
-core architectural concern).
+them). `agent_provider` is the user's default for new Jobs; a
+Repository can override it and per-Job retry/direct actions can choose
+an explicitly configured provider. `agent_max_turns` is the per-user
+ceiling on Claude `--max-turns`; `0` means "no `--max-turns` flag" —
+the per-Run wall-clock timeout still applies. The first user to sign
+up is auto-promoted to admin (bootstrap convenience, not a core
+architectural concern).
 
 ### ScheduledTask
 
@@ -224,8 +254,9 @@ Cron-style schedule (5-field expression, validated to fire at most
 once per hour) or one-shot `fire_at`, attached to a Repository.
 Periodically spawns a cron `Job` with a pre-rendered prompt
 (`{{repo_slug}}`, `{{last_fired_at}}`, etc. expanded at fire time).
-A random `minute_offset` is seeded at creation so two tasks with the
-same nominal schedule don't collide on the wall clock.
+Cron tasks honor the entered minute exactly and are evaluated in UTC
+hourly windows so repeated poller ticks do not double-fire the same
+hour.
 
 This is the single user-facing recurring-work model. Chat-created
 recurring schedules requested through `schedule_recurring` are confirmed
@@ -247,13 +278,14 @@ A `consecutive_failure` counter on the task auto-pauses the schedule
 once `AppSetting.max_job_failures` is hit; the operator must click
 Unpause to re-enable.
 
-### ClaudeSession
+### ClaudeSession and provider sessions
 
-One row per Run that completes a `claude` invocation, holding the
-`session_id` and the JSONL transcript path on disk. Used by supported
-same-workflow continuations to call `claude --resume <session_id>`.
-Retained for **14 days
-after the parent Run reaches a terminal state**
+One row per Run that captures a provider session, holding the provider,
+`session_id`, transcript JSONL, and enough metadata for supported
+same-workflow continuations. Claude sessions can resume with
+`claude --resume <session_id>`; Codex continuations replay retained
+transcript JSONL through `CodexInvocation`. Retained for **14 days after
+the parent Run reaches a terminal state**
 (`ClaudeSession::RETAIN_AFTER_TERMINAL`), then deleted by
 `ClaudeSessionPruneJob` (daily at 3am). Sessions whose parent Run is
 still `queued` or `running` are never pruned, regardless of age.
@@ -281,8 +313,20 @@ deliberately includes preempted Jobs.
 | `PollAllRepositoriesJob` | every 5 min | Fans out to `PollRepositoryJob` per active repo |
 | `PollAllPullRequestsJob` | every 5 min | Fans out to `PollPullRequestJob` per Job-with-PR |
 | `PollAllMergeStatesJob` | every 5 min | Fans out to `PollMergeStateJob` per Job-with-PR |
+| `LandingQueueProcessorJob` | every 30 sec | Picks approved Jobs/Epics for landing workflows |
 | `PollScheduledTasksJob` | every 1 min | Finds due `ScheduledTask`s; fires via `ScheduledTaskFire` |
 | `ReapStaleRunsJob` | every 1 min | Marks Runs whose heartbeat is older than 30 min as `failed` |
+| `DataRootDiskUsageRefreshJob` | every 1 min | Refreshes `$SYRUS_DATA_ROOT` disk usage for operator visibility |
+| `ReapClassifierPendingJob` | every 5 min | Re-enqueues classifier work for Jobs stuck in classifier-pending triage |
+| `ReapOrphanedSpawnedProcessesJob` | every 1 min | Finalizes subprocess rows owned by dead hosts |
+| `ReapStaleInstanceVersionsJob` | every 1 min | Finalizes stale web/worker instance rows |
+| `SpawnedProcessPruneJob` | daily 3:20am | Deletes old finished subprocess rows |
+| `ClaudeSessionPruneJob` | daily 3:00am | Deletes expired retained provider sessions |
+| `RunDiagnosticPruneJob` | daily 3:10am | Deletes old run diagnostics |
+| `WorkflowWorkspacePruneJob` | every 2 hours | Removes old terminal Workflow workspaces |
+| `SyncAgentSkillsJob` | every hour | Synchronizes agent skill metadata |
+| `SyncInstallationsJob` | every 5 min | Refreshes GitHub App installation links |
+| `ReconcileJobStatesJob` | every 5 min | Repairs drift between Job state and terminal evidence |
 Plus one Solid Queue housekeeping entry, `clear_solid_queue_finished_jobs`,
 which is production-only because dev wipes the Solid Queue tables
 often enough on its own. It runs hourly and `delete_all`s finished
@@ -297,21 +341,27 @@ PollRepositoryJob (per repo, serialized via SolidQueue concurrency key)
   → GithubClient.for(repository:, user:).issues_with_label(slug, trigger_label)
   → IngestPolicy filters (skip closed issues, PRs, syrus-skip label)
   → For each surviving issue:
-      Job.find_or_create_by(repository, issue_number, state: open)
-      Job#after_create_commit → create_initial_run
-        Run(trigger_kind: "initial", state: "queued") created
-        Run#after_create_commit → enqueue_run_job
-          RunJob.perform_later(run_id) hits SolidQueue
+      Job.find_or_create_by(repository, issue_number, non-closed state)
+      classifier/dependency/epic gates run
+      if ready:
+        Workflows::Initial.instantiate(job:)
+        StepDispatcher.start_workflow(workflow)
+          first Step's Run is created
+          Run#after_create_commit → enqueue_run_job
+            RunJob.perform_later(run_id) hits SolidQueue
 ```
 
-The initial Workflow is autostart for issue-kind Jobs only. Cron-kind Jobs
-have their initial Run created explicitly by `PollScheduledTasksJob`
-with a pre-rendered prompt (so `{{date}}` and friends reflect fire
-time, not RunJob start time).
+The initial Workflow autostarts for issue-kind Jobs only once triage,
+Epic gating, and dependencies release the Job. Cron-kind Jobs have their
+initial Workflow/Run created explicitly by `PollScheduledTasksJob` with
+a pre-rendered prompt (so `{{date}}` and friends reflect fire time, not
+RunJob start time). Direct Jobs are operator-created free-form prompts
+and use the same Workflow machinery.
 
 The dedup is the `Job.find_or_create_by(repository, issue_number,
-state: "open")` with the partial unique index — a closed thread plus
-an open thread for the same issue is allowed (retry-after-close).
+non-closed state)` path backed by a partial unique index — a closed
+thread plus a new active thread for the same issue is allowed
+(retry-after-close).
 
 ### PR feedback (`pr_comment`, `ci_failure`)
 
@@ -319,13 +369,14 @@ an open thread for the same issue is allowed (retry-after-close).
 PollAllPullRequestsJob
   → PollPullRequestJob per open Job with pr_number
       → fetch issue comments, review comments, reviews, checks
-      → filter to events newer than last_seen_comment_at
+      → filter to events newer than max(last_seen_comment_at,
+        last_feedback_addressed_at)
       → if any new comment exists:
-          Run.create!(trigger_kind: "pr_comment",
-                      prompt: Prompts::PrFeedback.new(...).to_s)
+          Workflows::PrFeedback.instantiate(...)
+          StepDispatcher.start_workflow(...)
       → if checks on pr.head.sha are failing AND sha != last_ci_handled_sha:
-          Run.create!(trigger_kind: "ci_failure",
-                      prompt: Prompts::CiFailure.new(...).to_s)
+          Workflows::CiFailure.instantiate(...)
+          StepDispatcher.start_workflow(...)
       → bump last_seen_comment_at / last_ci_handled_sha as watermarks
 ```
 
@@ -345,16 +396,17 @@ PollAllMergeStatesJob (includes preempted threads that still need merge-state ch
       → bail if head is from a fork (we don't push)
       → bail if a rebase Run is already active
       → bail if rebase attempt cap reached
-      → AutoRebase.try first (non-interactive `git rebase`):
-          clean? force-with-lease push against the observed branch SHA,
-          mark Job mergeable, done — no Run created
-          conflict? fall through to:
-      → Run.create!(trigger_kind: "rebase")
+      → Workflows::Rebase.instantiate(...)
+      → auto_rebase Step tries deterministic `git rebase`
+          clean? cancel only agent_rebase, continue to force_push
+          conflict? leave in-progress rebase for agent_rebase
 ```
 
-The fast path through `AutoRebase` matters: most rebases are
-mechanical and don't need the agent. Only conflicts that require
-judgment escalate to a Run. See [Services](#services) for details.
+The fast path is now a Step inside the Workflow instead of an in-poller
+shortcut. Most rebases still avoid the agent: `auto_rebase` succeeds,
+`agent_rebase` is cancelled, and `force_push` updates the PR branch.
+Only conflicts that require judgment escalate to the agentic
+`agent_rebase` Step.
 
 ### Scheduled tasks
 
@@ -366,15 +418,15 @@ PollScheduledTasksJob (every minute)
         → render prompt (variable expansion: {{date}}, etc.)
         → apply pr_pileup_policy if a prior cron-Job's PR is still open
         → Job.create!(kind: "cron", scheduled_task_id: task.id, ...)
-        → Run.create!(trigger_kind: "initial", prompt: rendered)
+        → Workflows::Initial.instantiate(...)
+        → first Run created with prompt: rendered
         → bump last_fired_at, last_successful_fire_at, etc.
 ```
 
-Cron expressions are interpreted in UTC. For the MVP, recurring tasks are
-hourly-window schedules: Syrus ignores the minute field for matching,
-normalizes it to `0` when computing due windows, and fires at most once per
-matching UTC hour. A per-task `minute_offset` spreads otherwise-identical
-schedules across poll ticks.
+Cron expressions are interpreted in UTC. Five-field cron schedules must
+fire at most once per hour, but Syrus honors the entered minute exactly
+and records the evaluated window so repeated poller ticks do not double
+fire the same hour.
 
 ### Stale Run reaping
 
@@ -385,72 +437,67 @@ ReapStaleRunsJob (every minute)
       → workflow workspace cleanup when the Workflow reaches terminal state
 ```
 
-The 30-minute threshold is generous on purpose: claude-code can be
+The 30-minute threshold is generous on purpose: provider CLIs can be
 quiet for several minutes during long thinking phases. The heartbeat
 is bumped on every `JobLog#log` write — not on a separate timer — so
 "agent producing transcript output" implicitly counts as alive.
 
-## Per-Workflow pipeline (`RunJob#perform`)
+## Per-Workflow pipeline
 
-There are two pipelines depending on `trigger_kind`. The
-**initial / follow-up** path (everything except `rebase`) edits files
-and produces a diff. The **rebase** path rewrites history and
-pushes with an explicit `--force-with-lease=<branch>:<observed_sha>` lease;
-it skips diff capture and PR opening entirely.
+Workflow definitions live in `app/services/workflows/` and Step
+handlers live in `app/services/steps/`. `Workflows::Base` materializes a
+chain of Step rows and stores the serialized chain template; `Step` rows
+are wired with `next_step_id`, and `StepDispatcher` creates exactly one
+Run for each Step as the chain advances. Control nodes such as
+`Workflows::RetryUntil` append bounded repair/check iterations when a
+grader-collect step fails.
 
-Both pipelines share the front matter:
+Current Workflow chains:
 
-1. Find `@run`; bail if `Run.terminal?`. Rebase Runs ignore the
-   Job-closed guard; non-rebase Runs bail if `@job.closed?`.
-2. Re-entrancy guard: if `@run` is already `running`, fail it
-   immediately rather than starting again — the only way that state
-   arises is recovery from a crashed prior worker.
-3. AASM `start!`; record `started_at`.
-4. `WorkflowWorkspace.setup(@workflow)`:
-   - Fresh shallow clone (`--depth 50`) at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`.
-     All Steps in a Workflow share this workspace.
-   - Always clones the default branch so it is a local ref for three-dot diff.
-   - Branch: fetches and checks out existing for follow-up Runs; creates new for initial Runs.
-5. Compose the prompt via the appropriate `Prompts::*` class
-   (`Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `DirectJob`, or
-   the pre-rendered `ScheduledTask` body).
-6. Spawn the agent via `AgentInvocation`:
-   - `claude --print --output-format stream-json --dangerously-skip-permissions`
-   - `--max-turns N` only if `User#agent_max_turns > 0` (omitted when
-     `0` or `nil`).
-   - `--mcp-config` slotted between flags (never adjacent to the
-     prompt — it's variadic).
-   - 30-minute wall-clock cap (`AgentInvocation::DEFAULT_TIMEOUT_SECONDS`)
-     enforced by killing the subprocess if exceeded.
-   - `SyrusMcp::Sidecar` runs in-process; agent talks to it over stdio.
-   - Stream-json events: assistant text → `JobLog`; final `result`
-     event → metadata (`agent_turns`, `agent_outcome`, `final_text`,
-     `session_id`).
-7. Persist the agent metadata on the Run.
+| Trigger | Chain |
+|---|---|
+| `initial` | `prepare → retry_until(implement → grader_fanout → grader_collect) → summarize → pr_open` |
+| `pr_comment` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
+| `ci_failure` | `prepare → analyze_and_fix → summarize_amend → push` |
+| `retry` / `replay` | same shape as `initial`, reusing the existing branch and PR if present |
+| `manual` / `resume` | `manual` |
+| `local_dev` | `prepare → implement` |
+| `rebase` | `auto_rebase → agent_rebase → force_push` |
+| `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
+| `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
+| `merge_train` | `merge_train_assemble → merge_train_build → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
 
-### Initial / follow-up tail (everything except rebase)
+`prepare` reads `.syrus.yml` or auto-detects setup commands from
+lockfiles. It can be disabled per repository or skipped for one Job with
+the `syrus-skip-prepare` label; the skip is recorded in Workflow
+artifacts and logged on the first Run.
 
-8. `commit_agent_changes` — catch-all if the working tree has
-   uncommitted changes after the agent exited.
-9. `capture_diff_against_default` — three-dot diff vs default branch
-   (`git diff main...HEAD`); raises if empty (treated as Run failure
-   for issue Jobs, treated as success-with-`no_changes` for cron Jobs).
-10. Push the branch via the per-user GitHub token.
-11. `open_pull_request_if_missing`, in priority order:
-    1. Agent submitted via the MCP `submit_summary` tool → use
-       `agent_pr_title` / `agent_pr_body`.
-    2. `PrSummarizer` second-shot `claude` call → `{title, body}` JSON.
-    3. Templated default.
+Agentic Steps (`implement`, `respond`, `analyze_and_fix`, rebase repair,
+landing repair, summarize, and manual) invoke the Workflow's configured
+provider through `AgentProviders::*`. Non-agentic Steps run service code:
+graders, git push/force-push, PR opening, mergeability gates, merge API
+calls, and merge-train assembly/landing.
 
-    Then `PullRequestOpener.open(...)`.
-12. AASM `succeed!`; record `finished_at`.
+`RunJob#perform` is now the per-Step executor:
 
-### Rebase tail
+1. Find the Run, Step, Workflow, and Job; bail if the Run is terminal.
+2. Enforce the Job-closed guard except for maintenance workflows that
+   intentionally operate on preempted/external PRs.
+3. Start the Workflow/Step/Run AASM states and record timestamps.
+4. Ensure the shared `WorkflowWorkspace` exists at
+   `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`, with the default branch
+   available for three-dot diffs and the correct work branch checked out.
+5. Dispatch to `Step::Kind.handler_for(step.kind)`.
+6. Persist Run metadata: provider result, turns, session capture, cost,
+   diff/head SHA where relevant, and failure diagnostics.
+7. On Step success, `StepDispatcher.advance_from` creates the next Run
+   or marks the Workflow succeeded. On failure, graders aggregate and may
+   trigger another retry iteration; ordinary failures fail the Workflow.
 
-8. Force-push the rebased branch with
-   `git push --force-with-lease=<branch>:<observed_sha>`.
-9. AASM `succeed!`. No commit, no diff capture, no PR opening — the
-   PR already exists; we've just moved its head SHA.
+Terminal Workflow transitions own workspace lifecycle. `commit_agent_changes`
+is called by file-editing agentic handlers before downstream diff/push
+steps. Diff capture uses `git diff <default_branch>...HEAD` so PR views
+match GitHub's "Files changed" tab.
 
 ### Cleanup and error handling
 
@@ -472,22 +519,28 @@ What happens to a single labeled issue, from label to merge:
    `syrus`).
 2. **Within 5 min**, `PollRepositoryJob` for that repo finds the issue.
    `IngestPolicy` lets it through (open, not a PR, no `syrus-skip`
-   label, no existing open `Job`). A `Job(state: open, kind: issue)`
-   is created.
-3. **`Job#after_create_commit`** spawns the initial `Run(trigger_kind:
-   initial, state: queued)`.
+   label, no existing active `Job`). A `Job(kind: issue)` is created
+   and triage/dependency/Epic gates decide when it can run.
+3. **Triage completes.** `ClassifyIssueJob` (or an explicit direct/cron
+   creation path) calls `advance_after_triage!`; that transition invokes
+   `create_initial_run_if_needed`, instantiates the initial Workflow, and
+   `StepDispatcher.start_workflow` creates the first `Run(trigger_kind:
+   initial, state: queued)` once the Job is executable.
 4. **`Run#after_create_commit`** enqueues `RunJob.perform_later(run.id)`.
 5. **A worker picks up the RunJob**:
    - Sets up the worktree on a fresh branch `syrus/issue-{N}-{job_id}`.
    - Composes the initial prompt from the issue title + body via
      `Prompts::Initial`.
-   - Invokes `claude-code` with the MCP sidecar attached.
-   - Agent works: edits files, commits, optionally calls
-     `submit_summary` via MCP.
-   - Worker captures diff, pushes branch, opens PR (using agent's
-     summary if provided; falling back through `PrSummarizer` to
-     templated copy otherwise).
-   - Run transitions to `succeeded`. Job stays open.
+   - Invokes the selected provider (Claude Code or Codex) with the MCP
+     sidecar attached.
+   - Agent works in the `implement` Step: edits files and commits.
+   - Grader Steps run configured `.syrus.yml` checks; failures append
+     another bounded repair/check iteration.
+   - The `summarize` Step asks the agent to call `submit_summary`
+     unless the implement Step already provided PR copy.
+   - `pr_open` pushes the branch and opens the PR (using Workflow
+     artifacts first, then `PrSummarizer`, then templated copy).
+   - Workflow transitions to `succeeded`; Job moves to `implemented`.
 6. **PR is now open**. From this point:
    - `PollPullRequestJob` watches every 5 min for new review comments
      on this Job. New comment → `pr_comment` follow-up Run on the
@@ -495,15 +548,13 @@ What happens to a single labeled issue, from label to merge:
    - `PollPullRequestJob` watches CI checks. Failing check on the
      head SHA → `ci_failure` follow-up Run on the same branch.
    - `PollMergeStateJob` watches mergeability. Unmergeable + we
-     control the head → `PollRebaseJob` may create a `rebase` Run
-     that re-anchors the branch.
-7. **PR is merged.** Today: nothing automatic. The Job stays open
-   until the operator clicks "Close thread", or until
-   `failure_count` from later runs trips the auto-close threshold.
-
-The thread close → branch deletion → worktree cleanup chain is
-intentionally manual today; auto-close-on-merge is a future idea
-adjacent to "Auto rebase-and-merge on approval" in `ROADMAP.md`.
+     control the head → a `rebase` Workflow re-anchors the branch.
+   - GitHub approvals can mark the Job `approved`; the landing queue
+     creates an `auto_merge` Workflow, or a `merge_train` Workflow for
+     ready Epics when merge trains are enabled.
+7. **PR is merged or otherwise finalized.** Syrus closes the Job with a
+   terminal `closure_reason` such as `pr_merged`, `external_pr_merged`,
+   `external_pr_closed`, `pr_approved`, or `no_changes`.
 
 ## Services
 
@@ -512,9 +563,10 @@ Core (the agent loop):
 | Service | Purpose |
 |---|---|
 | `WorkflowWorkspace` | Fresh per-Workflow clone at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`. Default root `~/.syrus` (override with `SYRUS_DATA_ROOT`). Clones never live inside `Rails.root` — protects the operator's checkout from agent chdir mishaps. |
-| `AgentInvocation` | Spawns `claude-code` via `Open3.popen2e`, parses stream-json, threads stdout chunks into `JobLog`, returns a `Result` struct (turns, outcome, exit status, final text, session id). Wires the MCP sidecar. Enforces the 30-minute wall-clock timeout. |
-| `SyrusMcp::Sidecar` | In-process MCP server the agent talks to over stdio. Exposes `submit_summary`. See [MCP sidecar](#mcp-sidecar). |
-| `Prompts::*` | One class per Run kind: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, plus `PullRequestSummary` for `PrSummarizer` and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `AgentProviders::*` | Provider abstraction for Claude and Codex. Selects credentials, prepares provider home/session state, wires MCP, invokes the provider-specific runner, captures transcript/session metadata, and returns a normalized result. |
+| `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
+| `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state` and `submit_summary`. See [MCP sidecar](#mcp-sidecar). |
+| `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, plus `PullRequestSummary` for `PrSummarizer` and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 
 Git and GitHub:
 
@@ -523,63 +575,73 @@ Git and GitHub:
 | `GitRunner` | Subprocess wrapper around `git` that streams stdout/stderr into `JobLog` and redacts `https://x-access-token:TOKEN@github.com/...` URLs from error messages. |
 | `GithubClient` | One Octokit client per user. Wraps `issues_with_label`, `pull_request`, `pull_request_comments`, `pull_request_reviews`, `combined_status_for_ref`, etc. Surfaces `Octokit::TooManyRequests` to callers (logged then re-raised). |
 | `PullRequestOpener` | Octokit `create_pull_request` with retry on transient failures. |
-| `AutoRebase` | See subsection below. |
+| `LandingQueueProcessor` | Moves approved Jobs/Epics into `auto_merge` or `merge_train` Workflows and applies landing state transitions. |
+| `LandingValidationCache` | Records prior green landing checks; optionally lets clean rebases carry validation forward for repositories that trust it. |
 
 Policy and pipeline glue:
 
 | Service | Purpose |
 |---|---|
 | `IngestPolicy` | The "should we make a Job for this issue?" filter — skips PRs, closed issues, the `syrus-skip` label, etc. |
-| `PrSummarizer` | Second-shot `claude` call (`max_turns: 1`, tmpdir-rooted) that takes issue + diff and returns `{title, body}` JSON. Tier 2 fallback when the agent didn't call `submit_summary`. |
+| `PrSummarizer` | Second-shot provider call that takes issue + diff and returns `{title, body}` JSON. Tier 2 fallback when the agent didn't call `submit_summary`. |
 | `ScheduledTaskFire` | Encapsulates the "fire a due ScheduledTask" decision: pile-up policy, prompt rendering, Job + Run creation, watermark bumping. |
+| `ProviderCircuitBreaker` / `AutoRetryScheduler` | Suppress automatic work during provider-wide outages and retry transient failures with bounded backoff. |
 
-### AutoRebase
+### Rebase and landing
 
 Most rebases are mechanical: PR was opened, base branch moved, no
-overlapping edits. Spinning up an entire agent Run for those is
-wasteful — `claude` boot-up alone costs more than the rebase itself.
+overlapping edits. The rebase Workflow keeps that path cheap by trying
+`auto_rebase` before invoking the agent.
 
-`AutoRebase.try` checks out the PR's branch in a worktree, runs
+`auto_rebase` checks out the PR's branch in the Workflow workspace, runs
 `git rebase origin/<base>` non-interactively, and:
 
 - **Clean rebase** → pushes the rebased branch with an explicit
-  `--force-with-lease` lease, marks the Job
-  mergeable, and `PollRebaseJob` skips creating a `rebase` Run. The
-  whole thing happens inside the polling job; no worker handoff.
-- **Conflict** → aborts the rebase, leaves the worktree clean, and
-  returns false. `PollRebaseJob` falls through to creating an agent
-  `rebase` Run, which gets the conflict context in its prompt and
-  resolves it with judgment.
+  `--force-with-lease` lease in the later `force_push` Step. The
+  agentic Step is cancelled.
+- **Conflict** → leaves the in-progress rebase for `agent_rebase`,
+  which resolves conflicts and runs `git rebase --continue` until the
+  same rebase finishes. `force_push` then updates the branch with the
+  observed lease.
 
-This is the single biggest cost optimization in the pipeline. Worth
-preserving — any change to rebase handling should keep the fast path.
+Landing is also a Workflow, not an inline merge button. `auto_merge`
+starts with `mergeability_preflight`, runs final graders on the exact
+branch about to land, optionally invokes `landing_fix`, pushes repairs,
+and then calls GitHub's merge API. Epic merge-train landing builds a
+single integration branch from approved child PRs, validates it, merges
+one integration PR, and comments on/closes member PRs as an all-or-
+nothing unit.
 
 ## MCP sidecar
 
-`AgentInvocation` constructs a `SyrusMcp::Sidecar` per Run and writes
-an MCP config tempfile pointing the agent at it. Today's tool surface:
+Provider adapters construct a `SyrusMcp::Sidecar` per Run and point the
+agent at it over stdio. Today's tool surface:
 
+- `read_live_state(detail:)` — read-only snapshot of the current Job,
+  Workflow, Run, queue, and related chat state; agents use it before
+  making operational claims.
 - `submit_summary(pr_title:, pr_body:, summary:)` — records
-  agent-authored PR copy on the Run. Read tier-1 by `RunJob` when
-  opening the PR.
+  agent-authored PR copy on Workflow artifacts and appends an audit
+  `JobLog` line. Read tier-1 by `pr_open`/`push`/summary promotion
+  paths.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
-ActiveRecord calls scoped to the running Run via
-`Thread.current[:syrus_current_run]`. No network, no auth plumbing.
+ActiveRecord calls scoped to the active Run. No network, no auth
+plumbing.
 
-`bin/syrus-mcp-sidecar` is the binstub `claude` actually spawns; it
-boots Rails and hands stdio to `SyrusMcp::Sidecar`. SIGTERM is trapped
-to drain cleanly. Roadmap items under **Agent ↔ Syrus MCP sidecar**
-in `ROADMAP.md` describe the broader tool-surface vision.
+`bin/syrus-mcp-sidecar` is the binstub providers spawn; it boots Rails
+and hands stdio to `SyrusMcp::Sidecar`. For Claude, the MCP config key
+must match the binary basename (`syrus-mcp-sidecar`) so resumed sessions
+keep the same tool prefix. SIGTERM is trapped to drain cleanly.
 
 ## Failure recovery
 
 Several layers, each catching different failure modes:
 
-1. **`AgentInvocation` timeout** — 30-minute wall-clock cap (and
-   `--max-turns` for users with `agent_max_turns > 0`). Either kills
-   the `claude` subprocess and returns a `Result` with `timed_out:
-   true`. `RunJob` calls `fail!`.
+1. **Provider timeout** — 30-minute wall-clock cap (and Claude
+   `--max-turns` for users with `agent_max_turns > 0`). The provider
+   adapter kills the subprocess and returns a timed-out result; `RunJob`
+   calls `fail!`.
 2. **Workflow terminal cleanup** — terminal transitions clean up or retain
    the shared workspace according to state. Cleanup failures are logged but
    don't suppress the original exception.
@@ -587,41 +649,62 @@ Several layers, each catching different failure modes:
    every `JobLog` write. `ReapStaleRunsJob` runs every minute and
    fails any `running` Run whose heartbeat is older than 30 min
    (worker died, OOM, K8s SIGKILL past grace period). The 30-minute
-   window is generous on purpose: `claude` can be quiet for several
+   window is generous on purpose: provider CLIs can be quiet for several
    minutes during long thinking phases.
 4. **Re-entrancy guard** — distinct from the terminal-state bailout.
    On entry, `RunJob#perform` first bails silently if the Run is
    already `terminal?` (idempotent retry). Only if the Run is
    already in `running` state — which only happens when the prior
    worker crashed — does it call `fail!` and skip execution.
-5. **`failure_count` and auto-close** — `Job#record_run_failure!` is
+5. **Failure classification + auto-retry** — failed Runs persist a
+   `RunFailureClassification` from diagnostics, logs, spawned process
+   outcomes, and agent outcome. `AutoRetryScheduler` can retry
+   transient failures with bounded backoff, unless
+   `ProviderCircuitBreaker` has opened for that provider.
+6. **Subprocess inventory** — `ProcessRunner` registers agent, grader,
+   git, and prepare subprocesses as `SpawnedProcess` rows with
+   heartbeats, host metrics, and a cross-pod kill switch. An in-process
+   supervisor catches local dead pids; `ReapOrphanedSpawnedProcessesJob`
+   catches dead worker hosts.
+7. **`failure_count` and auto-close** — `Job#record_run_failure!` is
    called by `RunJob` after a non-rebase Run fails. It increments
    `failure_count`; if the result hits `AppSetting.max_job_failures`,
    the Job auto-closes with `closure_reason="too_many_failures"`.
    Reopening a Job resets the counter. **Rebase Run failures don't
    count** — they're independent of the issue's progress and a
    transient base-branch tangle shouldn't burn through the failure
-   budget. Rebase Runs have their own per-PR attempt cap inside
-   `PollRebaseJob`.
+   budget. Rebase and stack-rebase workflows have their own caps.
 
 ## UI surface (what shows up where)
 
 - **`/`** — dashboard: per-user job table, status pills,
   manual-poll button, search filters.
 - **`/repositories`** — registry: add/remove, archive, toggle
-  polling, per-repo trigger label, manual poll, scheduled tasks.
+  polling, per-repo trigger label, prepare/trust-rebase settings,
+  agent provider, manual poll, scheduled tasks.
 - **`/repositories/:id`** — show page: metadata, recent jobs,
-  GitHub link.
+  GitHub link, retry failed Jobs with alternate providers.
 - **`/jobs/:id`** — the operational hub for a single thread:
   live-streaming transcript per Run, agent diff, PR + branch links,
   action buttons (`run_again`, `restart`, `cancel`, `reopen`,
-  `poll_feedback`, `rebase`, `check_mergeability`, `stop_run`).
+  `poll_feedback`, `rebase`, `check_mergeability`, `stop_run`,
+  approval/landing actions, claim/release, dependencies, tags).
 - **`/scheduled_tasks`** — cron task management.
-- **`/credentials/edit`** — paste GH PAT and Claude OAuth token
-  (write-only, never echoed).
-- **`/settings`** — admin toggles (signups open, max job failures);
-  redirects non-admins to credentials.
+- **`/direct_jobs/new`** — operator-created free-form Jobs.
+- **`/chats`** — repository-scoped chat sessions, proposals, and
+  queued follow-up messages.
+- **`/insights/spending`** — Run and chat spend by window, Epic, user,
+  repository, trigger kind, provider, trend, and top Runs.
+- **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause, and
+  default provider settings.
+- **`/settings`** — admin console toggles (signups open, max job
+  failures, merge-train enablement, etc.); redirects non-admins to
+  credentials.
 - **`/invitations`** — admin invite flow.
+- **`/admin/processes`** — subprocess inventory with host metrics and
+  kill controls.
+- **`/api/v1/admin/*`** — bearer-token admin API for overview, jobs,
+  workflows, runs, queues, processes, and version/instance status.
 
 Realtime updates use `AppUserChannel` app events consumed by React.
 Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
@@ -631,13 +714,18 @@ between web and worker.
 
 - Two Kubernetes Deployments behind one Service: `syrus-web` (Puma)
   and `syrus-worker` (`bin/jobs`). The worker process supervises separate
-  Solid Queue pools for `runs`, `chat`, and `default` jobs. MySQL runs in
-  its own pod.
+  Solid Queue pools for `runs`, `merges`, `chat`, and `default` jobs.
+  MySQL runs in its own pod.
 - Ingress routes the configured app host, for example `syrus.example.com`.
 - Persistent volume mounted at `$SYRUS_DATA_ROOT` (default
-  `/home/rails/.syrus`) on worker pods, holding active per-Run clones
-  at `runs/<run_id>/` and AutoRebase clones at `auto-rebase/<job_id>/`.
-  Web pods don't need this volume.
+  `/home/rails/.syrus`) on worker pods, holding active Workflow
+  workspaces at `workflows/<workflow_id>/` and provider homes under the
+  agent workspace area. Web pods don't need this volume.
+- Every web and worker process registers an `InstanceVersion` row on
+  boot when `SYRUS_ROLE` is set, heartbeats every 30s, and is finalized
+  on graceful exit or by `ReapStaleInstanceVersionsJob`. The admin
+  version endpoint shows the request handler plus fresh instances, which
+  makes rolling deploy state visible.
 - Two clusters: staging (default kubeconfig) and production
   (`~/.kube/config-production`). Diagnostic recipes are in `CLAUDE.md`
   under "Debugging staging / production via kubectl".
@@ -648,16 +736,17 @@ between web and worker.
 
 These belong to `ROADMAP.md`; only their current status is recorded:
 
-- **Sandboxed Docker-per-Run isolation.** Today: fresh per-Run clone
+- **Sandboxed Docker-per-Run isolation.** Today: fresh per-Workflow clone
   on the worker filesystem; the agent is trusted not to escape.
 - **Public REST / MCP API.** The sidecar is internal-only; there's no
   external auth surface.
-- **Quality graders / visual graders / agent-authored test plans.**
-  Today the only gate on a Run's output is "diff is non-empty."
+- **Visual graders / agent-authored test plans.** Today configured
+  command graders from `.syrus.yml` are first-class Workflow Steps, but
+  richer visual and agent-authored grading remains roadmap.
 - **Global rate limiting.** Today only Solid Queue's per-key
   concurrency: per-repo polling, per-Job PR/rebase polling, per-Job
   RunJob serialization. No tenant-wide or process-wide cap.
-- **Auto rebase-and-merge on approval.** Today a human merges; Syrus
-  doesn't watch review state.
+- **Fully general agent MCP API.** The internal sidecar exposes only
+  scoped operational tools needed by active Runs.
 
 See `ROADMAP.md` for design notes on each.
