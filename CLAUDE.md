@@ -230,7 +230,15 @@ Authenticated operator pages are React routes rendered by
 `app/views/spa/show.html.erb` and backed by `/api/v1/app/*` JSON
 controllers. React uses TanStack Query for server state and
 `AppUserChannel` app events for live invalidation or compact payload
-updates, notably chat message tails and whiteboard changes.
+updates, notably chat message tails, queued chat messages, controls,
+and whiteboard changes.
+
+Chat turns run in persistent chat workspaces, not repository workflow
+workspaces. Attached repository checkouts under chat workspaces are
+read-only to agents; chat can inspect code and queue/propose Jobs, Epics,
+or issues, but implementation belongs in workflow Runs. While a chat turn
+is busy, follow-up user messages are stored as `ChatQueuedMessage`s and
+delivered sequentially after the current turn finishes.
 
 Dev and prod use `solid_cable` (NOT `async`) so browser app events work
 across web/worker processes.
@@ -257,9 +265,10 @@ across web/worker processes.
   `CLAUDE.md`.
 - **Spending insights** live at `/insights/spending` and roll up `Run#cost_usd`
   plus `ChatSession#cumulative_cost_usd` by date window, Epic, user,
-  repository, trigger kind, trend, and top Runs. Non-admins only see their own
-  spend; admins see instance-wide totals. Keep cost/accounting changes aligned
-  with `App::SpendingPayload`, `docs/current-user-scopes.md`, and public docs.
+  repository, trigger kind, agent provider, trend, and top Runs. Non-admins
+  only see their own spend; admins see instance-wide totals. Keep
+  cost/accounting changes aligned with `App::SpendingPayload`,
+  `docs/current-user-scopes.md`, and public docs.
 - **Workflow/Step registries** — `Workflow::TriggerKind` and `Step::Kind`
   are the single source for trigger/step metadata: valid values, handler or
   template class, UI label/style, and whether a step is agentic. Add new
@@ -315,8 +324,10 @@ across web/worker processes.
   operator visibility.
 - **Clean-rebase grade carry-forward** — `Repository#trust_clean_rebase_grade`
   is off by default. When enabled, a clean `rebase` Workflow may record a prior
-  green landing validation for the new head/base pair instead of forcing
-  auto-merge to re-run required graders.
+  green landing validation for the new head SHA instead of forcing auto-merge
+  to re-run required graders. Successful required graders on any Workflow can
+  record landing validation; landing and merge-train preflights may skip
+  revalidation when the current head SHA already has a green record.
 - **GitHub issue actions** — Repository pages can list GitHub issues and
   comment, close, delegate (add the trigger label), or bulk delegate/close
   them through `GithubClient`. Keep single and bulk paths in sync.
