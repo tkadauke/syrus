@@ -132,12 +132,19 @@ syrus job diff 456
 syrus epic list
 syrus epic search "launch"
 syrus epic show 12
+syrus epic create
+syrus epic open 12
 ```
 
 `job log` pages completed transcripts through `$PAGER` and streams
 running transcripts until the Job finishes or the command is interrupted.
 `job diff` fetches the pull request diff through Syrus' GitHub credential;
 if no GitHub token is available, it prints the pull request URL instead.
+`epic create` must run inside a GitHub checkout. It prompts for a title and
+multi-line description, confirms the current repository, creates the Epic
+through the app API as the configured user, then prints the Epic ID and URL.
+Use `--yes` to skip the confirmation prompt. `epic open EPIC-ID` opens the
+Epic URL for the configured Syrus instance in the default browser.
 
 ## Create a Direct Job
 
@@ -186,3 +193,19 @@ curl -X POST https://syrus.example.com/api/v1/admin/epics \
 
 Optional fields are `github_issue_url`, `owner_user_id`, and
 `auto_approve_mode`.
+
+User-scoped clients can also create Epics through the app API with any
+user API token:
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/epics \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "epic": {
+      "repository_id": 123,
+      "title": "Documentation cleanup",
+      "description": "Group the docs polish work."
+    }
+  }'
+```

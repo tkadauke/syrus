@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -17,6 +19,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/api"
 	"github.com/tkadauke/syrus/cli/internal/config"
+)
+
+var (
+	detectCurrentRepoSlug = currentRepoSlug
+	openURL               = openBrowser
 )
 
 func NewJobCommand() *cobra.Command {
@@ -181,8 +188,22 @@ func newJobDiffCommand() *cobra.Command {
 }
 
 func NewEpicCommand() *cobra.Command {
-	cmd := &cobra.Command{Use: "epic", Short: "Inspect Syrus epics"}
-	cmd.AddCommand(newEpicListCommand(false), newEpicListCommand(true), newEpicShowCommand())
+	cmd := &cobra.Command{Use: "epic", Short: "Inspect and manage Syrus epics"}
+	cmd.AddCommand(newEpicCreateCommand(), newEpicListCommand(false), newEpicListCommand(true), newEpicOpenCommand(), newEpicShowCommand())
+	return cmd
+}
+
+func newEpicCreateCommand() *cobra.Command {
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create an epic in the current repository",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runEpicCreate(cmd, yes)
+		},
+	}
+	cmd.Flags().BoolVar(&yes, "yes", false, "create without prompting for confirmation")
 	return cmd
 }
 
@@ -206,6 +227,26 @@ func newEpicListCommand(search bool) *cobra.Command {
 	}
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
 	return cmd
+}
+
+func newEpicOpenCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "open EPIC-ID",
+		Short: "Open an epic in the default browser",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			creds, err := loadCredentials()
+			if err != nil {
+				return err
+			}
+			target := appURL(creds.URL, "/epics/"+url.PathEscape(args[0]))
+			if err := openURL(target); err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), target)
+			return nil
+		},
+	}
 }
 
 func newEpicShowCommand() *cobra.Command {
@@ -290,7 +331,7 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string) error
 	filters := url.Values{}
 	filters.Set("state", state)
 	filters.Set("limit", strconv.Itoa(limit))
-	if repo := currentRepoSlug(); repo != "" {
+	if repo := detectCurrentRepoSlug(); repo != "" {
 		filters.Set("repo", repo)
 	}
 	list, err := client.ListJobs(cmd.Context(), filters)
@@ -315,7 +356,7 @@ func runEpicList(cmd *cobra.Command, limit int, query string) error {
 	}
 	filters := url.Values{}
 	filters.Set("limit", strconv.Itoa(limit))
-	if repo := currentRepoSlug(); repo != "" {
+	if repo := detectCurrentRepoSlug(); repo != "" {
 		filters.Set("repo", repo)
 	}
 	list, err := client.ListEpics(cmd.Context(), filters)
@@ -333,16 +374,146 @@ func runEpicList(cmd *cobra.Command, limit int, query string) error {
 	return tw.Flush()
 }
 
-func apiClient() (*api.Client, config.Credentials, error) {
-	creds, err := config.LoadDefaultCredentials()
+func runEpicCreate(cmd *cobra.Command, yes bool) error {
+	repo := detectCurrentRepoSlug()
+	if repo == "" {
+		return errors.New("syrus epic create requires a GitHub repository remote")
+	}
+
+	client, creds, err := apiClient()
 	if err != nil {
-		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
-			return nil, config.Credentials{}, errors.New(loginMessage)
+		return err
+	}
+	form, err := client.NewEpicPayload(cmd.Context())
+	if err != nil {
+		return err
+	}
+	repositoryID, ok := repositoryIDForSlug(form.Repositories, repo)
+	if !ok {
+		return fmt.Errorf("repository %s is not available to this Syrus user", repo)
+	}
+
+	reader := bufio.NewReader(cmd.InOrStdin())
+	title, err := prompt(reader, cmd.OutOrStdout(), "Title: ")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(title) == "" {
+		return errors.New("Title can't be blank")
+	}
+	fmt.Fprintln(cmd.OutOrStdout(), "Description (blank line to finish):")
+	description, err := readMultiline(reader)
+	if err != nil {
+		return err
+	}
+
+	if !yes {
+		answer, err := prompt(reader, cmd.OutOrStdout(), fmt.Sprintf("Create epic in %s? [y/N] ", repo))
+		if err != nil {
+			return err
 		}
+		if !confirmed(answer) {
+			fmt.Fprintln(cmd.OutOrStdout(), "Cancelled.")
+			return nil
+		}
+	}
+
+	created, err := client.CreateEpic(cmd.Context(), api.CreateEpicParams{
+		RepositoryID: repositoryID,
+		Title:        title,
+		Description:  description,
+	})
+	if err != nil {
+		return err
+	}
+	target := created.RedirectTo
+	if target == "" {
+		target = fmt.Sprintf("/epics/%d", created.Epic.ID)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Epic #%d\n%s\n", created.Epic.ID, appURL(creds.URL, target))
+	return nil
+}
+
+func repositoryIDForSlug(repositories []api.RepositoryItem, slug string) (int64, bool) {
+	for _, repository := range repositories {
+		if repository.Slug == slug {
+			return repository.ID, true
+		}
+	}
+	return 0, false
+}
+
+func apiClient() (*api.Client, config.Credentials, error) {
+	creds, err := loadCredentials()
+	if err != nil {
 		return nil, config.Credentials{}, err
 	}
 	client, err := api.NewClient(creds.URL, creds.Token)
 	return client, creds, err
+}
+
+func loadCredentials() (config.Credentials, error) {
+	creds, err := config.LoadDefaultCredentials()
+	if err != nil {
+		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
+			return config.Credentials{}, errors.New(loginMessage)
+		}
+		return config.Credentials{}, err
+	}
+	return creds, nil
+}
+
+func readMultiline(reader *bufio.Reader) (string, error) {
+	var lines []string
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return "", err
+		}
+		line = strings.TrimSuffix(line, "\n")
+		line = strings.TrimSuffix(line, "\r")
+		if line == "" {
+			return strings.Join(lines, "\n"), nil
+		}
+		lines = append(lines, line)
+		if err == io.EOF {
+			return strings.Join(lines, "\n"), nil
+		}
+	}
+}
+
+func confirmed(answer string) bool {
+	switch strings.ToLower(strings.TrimSpace(answer)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+func appURL(base string, path string) string {
+	parsed, err := url.Parse(strings.TrimRight(base, "/") + "/")
+	if err != nil {
+		return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(path, "/")
+	}
+	relative, err := url.Parse(strings.TrimLeft(path, "/"))
+	if err != nil {
+		return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(path, "/")
+	}
+	return parsed.ResolveReference(relative).String()
+}
+
+func openBrowser(target string) error {
+	var command *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		command = exec.Command("open", target)
+	case "windows":
+		command = exec.Command("cmd", "/c", "start", "", target)
+	default:
+		command = exec.Command("xdg-open", target)
+	}
+	return command.Run()
 }
 
 func currentRepoSlug() string {

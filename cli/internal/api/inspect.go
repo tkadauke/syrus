@@ -27,6 +27,26 @@ type EpicDetail struct {
 	Jobs []JobItem `json:"jobs"`
 }
 
+type EpicFormPayload struct {
+	Repositories []RepositoryItem `json:"repositories"`
+}
+
+type CreateEpicRequest struct {
+	Epic CreateEpicParams `json:"epic"`
+}
+
+type CreateEpicParams struct {
+	RepositoryID int64  `json:"repository_id"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+}
+
+type CreateEpicResponse struct {
+	Message    string   `json:"message"`
+	RedirectTo string   `json:"redirect_to"`
+	Epic       EpicItem `json:"epic"`
+}
+
 type RepositoryList struct {
 	Repositories []RepositoryItem `json:"repositories"`
 }
@@ -59,6 +79,18 @@ func (c *Client) ListEpics(ctx context.Context, filters url.Values) (EpicList, e
 func (c *Client) GetEpic(ctx context.Context, id string) (EpicDetail, error) {
 	var out EpicDetail
 	err := c.do(ctx, http.MethodGet, "/api/v1/app/epics/"+url.PathEscape(id), nil, &out)
+	return out, err
+}
+
+func (c *Client) NewEpicPayload(ctx context.Context) (EpicFormPayload, error) {
+	var out EpicFormPayload
+	err := c.do(ctx, http.MethodGet, "/api/v1/app/epics/new", nil, &out)
+	return out, err
+}
+
+func (c *Client) CreateEpic(ctx context.Context, params CreateEpicParams) (CreateEpicResponse, error) {
+	var out CreateEpicResponse
+	err := c.do(ctx, http.MethodPost, "/api/v1/app/epics", CreateEpicRequest{Epic: params}, &out)
 	return out, err
 }
 
