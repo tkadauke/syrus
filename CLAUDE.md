@@ -136,9 +136,11 @@ Key steps:
   that in-progress rebase to the agent, which must resolve conflicts and run
   `git rebase --continue` until the same rebase finishes. Syrus verifies by
   end-state (scratch branch checkout, clean worktree, integration branch is an
-  ancestor), not by rebase-internal refs like `REBASE_HEAD`; land pushes the
-  integration branch, merges one integration PR into base, then comments on
-  and closes the member PRs.
+  ancestor), not by rebase-internal refs like `REBASE_HEAD`; build fetches
+  base/member refs through the repository's authenticated GitHub URL so private
+  branches work under App or PAT credentials; land pushes the integration
+  branch, merges one integration PR into base, then comments on and closes the
+  member PRs.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
   If the implement step already called `submit_summary` (artifacts contain
@@ -257,8 +259,10 @@ across web/worker processes.
 - **Prompts** all live under `app/services/prompts/` as PORO classes
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`,
-  `Prompts::ScheduledTask`, `Prompts::DirectJob`). Each has a `to_s`. Compose
-  by appending; never inline prompt text in jobs/services.
+  `Prompts::ScheduledTask`, `Prompts::DirectJob`, `Prompts::EpicContext`).
+  Each has a `to_s`. Compose by appending; never inline prompt text in
+  jobs/services. Epic-aware prompts append `Prompts::EpicContext` as
+  orientation only; it must not expand the current Job's implementation scope.
 - **Website/docs audit.** If no website/docs update is needed, the PR body
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
