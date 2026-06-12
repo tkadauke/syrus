@@ -38,25 +38,7 @@ when "dev"
     warn "syrus dev failed: #{e.message}"
     exit 1
   end
-when "test-plan"
-  parser = OptionParser.new do |opts|
-    opts.banner = "Usage: bin/syrus test-plan JOB-456"
-    opts.on("-h", "--help", "Show this help") do
-      puts opts
-      exit 0
-    end
-  end
-
-  parser.parse!(ARGV)
-  slug = ARGV.shift
-
-  begin
-    SyrusCli::TestPlan.call(slug: slug)
-  rescue StandardError => e
-    warn "syrus test-plan failed: #{e.message}"
-    exit 1
-  end
 else
-  warn "Usage: bin/syrus <dev|test-plan> ..."
+  warn "Usage: bin/syrus dev /path/to/repo --prompt PROMPT [--output FILE]"
   exit 1
 end

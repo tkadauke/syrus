@@ -18,7 +18,7 @@ tokens return a JSON `401` error.
 
 ## Print a Job Test Plan
 
-`bin/syrus test-plan JOB-456` fetches `GET /api/v1/admin/jobs/456`
+`syrus test-plan JOB-456` fetches `GET /api/v1/admin/jobs/456`
 and prints the newest completed workflow's `test_plan` artifact as a
 numbered checklist, followed by notes when present.
 
@@ -28,7 +28,7 @@ Set `SYRUS_URL` or `SYRUS_APP_HOST` to the Syrus instance URL and
 ```bash
 SYRUS_URL=https://syrus.example.com \
 SYRUS_API_TOKEN=syrus_... \
-bin/syrus test-plan JOB-456
+syrus test-plan JOB-456
 ```
 
 If no completed workflow has published a test plan yet, the command says
