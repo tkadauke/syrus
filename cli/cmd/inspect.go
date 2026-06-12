@@ -21,7 +21,22 @@ import (
 
 func NewJobCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "job", Short: "Inspect Syrus jobs"}
-	cmd.AddCommand(newJobListCommand(false), newJobSearchCommand(), newJobShowCommand(), newJobLogCommand(), newJobWatchCommand(), newJobDiffCommand())
+	cmd.AddCommand(
+		newJobListCommand(false),
+		newJobSearchCommand(),
+		newJobShowCommand(),
+		newJobLogCommand(),
+		newJobWatchCommand(),
+		newJobDiffCommand(),
+		newJobCreateCommand(),
+		newJobActionCommand("approve", "approve", "Approved"),
+		newJobActionCommand("cancel", "cancel", "Cancellation requested"),
+		newJobActionCommand("retry", "run_again", "Retry enqueued"),
+		newJobActionCommand("rebase", "rebase", "Rebase enqueued"),
+		newJobCheckoutCommand(),
+		newJobTestPlanCommand(),
+		newJobOpenCommand(),
+	)
 	return cmd
 }
 

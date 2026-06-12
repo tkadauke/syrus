@@ -18,8 +18,8 @@ tokens return a JSON `401` error.
 
 ## Command Line Client
 
-The repository includes a standalone Go CLI scaffold under `cli/`. It is
-separate from the Rails app and builds to a single `syrus` binary:
+The repository includes a standalone Go CLI under `cli/`. It is separate
+from the Rails app and builds to a single `syrus` binary:
 
 ```bash
 cd cli
@@ -116,12 +116,11 @@ Read-only inspect commands use the app-scoped API and work with the
 configured user's own Jobs, Epics, and repositories. When run inside a
 GitHub checkout, list/search commands scope to that repository's
 `owner/name`; outside a checkout they fall back to all repositories the
-user can see.
+user can see, except `job create` which requires `--repo` outside a checkout.
 
 ```bash
 syrus whoami
 syrus repo list
-
 syrus job list --state open --limit 20
 syrus job search "dark mode"
 syrus job show 456

@@ -19,6 +19,7 @@ type JobItem struct {
 	State          string         `json:"state"`
 	SummaryState   string         `json:"summary_state"`
 	Title          string         `json:"title"`
+	IssueTitle     string         `json:"issue_title"`
 	RepositorySlug string         `json:"repository_slug"`
 	BranchName     string         `json:"branch_name"`
 	PRNumber       int64          `json:"pr_number"`
@@ -57,6 +58,26 @@ type JobDetail struct {
 	Workflows []WorkflowBrief `json:"workflows"`
 }
 
+type AdminJobDetail struct {
+	ID          int64           `json:"id"`
+	IssueTitle  string          `json:"issue_title"`
+	BranchName  string          `json:"branch_name"`
+	Repository  AdminRepository `json:"repository"`
+	Workflows   []AdminWorkflow `json:"workflows"`
+}
+
+type AdminRepository struct {
+	Slug string `json:"slug"`
+}
+
+type AdminWorkflow struct {
+	ID         int64          `json:"id"`
+	State      string         `json:"state"`
+	FinishedAt string         `json:"finished_at"`
+	CreatedAt  string         `json:"created_at"`
+	Artifacts  map[string]any `json:"artifacts"`
+}
+
 type JobTranscript struct {
 	JobID    int64    `json:"job_id"`
 	RunID    int64    `json:"run_id"`
@@ -73,7 +94,11 @@ type JobDiff struct {
 }
 
 type CreateJobRequest struct {
-	Job CreateJobParams `json:"job"`
+	RepositoryID  int64  `json:"repository_id,omitempty"`
+	Title         string `json:"title,omitempty"`
+	Prompt        string `json:"prompt"`
+	Priority      string `json:"priority,omitempty"`
+	AgentProvider string `json:"agent_provider,omitempty"`
 }
 
 type CreateJobParams struct {
@@ -121,10 +146,26 @@ func (c *Client) GetJobDiff(ctx context.Context, id string) (JobDiff, error) {
 	return out, err
 }
 
-func (c *Client) CreateDirectJob(ctx context.Context, params CreateJobParams) (JobResponse, error) {
-	var out json.RawMessage
-	err := c.do(ctx, http.MethodPost, "/api/v1/admin/jobs", CreateJobRequest{Job: params}, &out)
-	return JobResponse(out), err
+func (c *Client) CreateDirectJob(ctx context.Context, params CreateJobParams) (JobDetail, error) {
+	var out JobDetail
+	err := c.do(ctx, http.MethodPost, "/api/v1/app/jobs", CreateJobRequest{
+		RepositoryID:  params.RepositoryID,
+		Title:         params.Title,
+		Prompt:        params.Prompt,
+		Priority:      params.Priority,
+		AgentProvider: params.AgentProvider,
+	}, &out)
+	return out, err
+}
+
+func (c *Client) RunJobAction(ctx context.Context, id string, action string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/"+url.PathEscape(action), nil, nil)
+}
+
+func (c *Client) GetAdminJob(ctx context.Context, id string) (AdminJobDetail, error) {
+	var out AdminJobDetail
+	err := c.do(ctx, http.MethodGet, "/api/v1/admin/jobs/"+url.PathEscape(id), nil, &out)
+	return out, err
 }
 
 func (c *Client) ApproveJob(ctx context.Context, id string) error {

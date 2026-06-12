@@ -38,15 +38,15 @@ Rails.application.routes.draw do
           resources :documents, only: %i[ index create destroy ], controller: "credentials/documents"
         end
         get "jobs/new", to: "direct_jobs#new"
+        get "jobs", to: "jobs#index"
         post "jobs", to: "direct_jobs#create"
         get "jobs/:id/source", to: "jobs#source", constraints: { id: /\d+/ }
         get "jobs/:id/timeline", to: "jobs#timeline", constraints: { id: /\d+/ }
-        get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /\d+/, run_id: /\d+/ }
-        get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /\d+/, run_id: /\d+/ }
-        get "jobs", to: "jobs#index"
-        get "jobs/:id", to: "jobs#show", constraints: { id: /\d+/ }
         get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /\d+/ }
         get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /\d+/ }
+        get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /\d+/, run_id: /\d+/ }
+        get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /\d+/, run_id: /\d+/ }
+        get "jobs/:id", to: "jobs#show", constraints: { id: /\d+/ }
         post "jobs/:job_id/pin", to: "job_pins#create", constraints: { job_id: /\d+/ }
         delete "jobs/:job_id/pin", to: "job_pins#destroy", constraints: { job_id: /\d+/ }
         post "jobs/:job_id/attachments", to: "job_attachments#create", constraints: { job_id: /\d+/ }

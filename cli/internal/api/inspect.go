@@ -28,7 +28,9 @@ type EpicDetail struct {
 }
 
 type RepositoryList struct {
-	Repositories []RepositoryItem `json:"repositories"`
+	Repositories        []RepositoryItem `json:"repositories"`
+	ActiveRepositories  []RepositoryItem `json:"active_repositories"`
+	ArchivedRepositories []RepositoryItem `json:"archived_repositories"`
 }
 
 type RepositoryItem struct {
@@ -65,6 +67,10 @@ func (c *Client) GetEpic(ctx context.Context, id string) (EpicDetail, error) {
 func (c *Client) ListRepositories(ctx context.Context) (RepositoryList, error) {
 	var out RepositoryList
 	err := c.do(ctx, http.MethodGet, "/api/v1/app/repositories", nil, &out)
+	if len(out.Repositories) == 0 {
+		out.Repositories = append(out.Repositories, out.ActiveRepositories...)
+		out.Repositories = append(out.Repositories, out.ArchivedRepositories...)
+	}
 	return out, err
 }
 
