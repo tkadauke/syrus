@@ -50,6 +50,11 @@ current GitHub repository first when run inside a checkout, and uses
 streaming turn until Ctrl+D exits. Ctrl+C stops the active turn and returns
 to the prompt.
 
+When a chat turn proposes a Job or Epic, the CLI pauses the stream and shows
+an inline proposal card. Press `c` to confirm and file it through the app
+proposal endpoint, or `s` to skip it. Multiple proposals in one turn are
+handled one at a time before the REPL prompt returns.
+
 The CLI can also send a single streaming chat turn:
 
 ```bash

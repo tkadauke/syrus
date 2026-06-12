@@ -34,6 +34,20 @@ type ChatList struct {
 	Repositories []ChatRepository `json:"repositories"`
 }
 
+type ChatProposal struct {
+	ID                  int64  `json:"id"`
+	Kind                string `json:"kind"`
+	KindLabel           string `json:"kind_label"`
+	Title               string `json:"title"`
+	Slug                string `json:"slug"`
+	Proposed            bool   `json:"proposed"`
+	EpicBundle          bool   `json:"epic_bundle"`
+	ActiveChildrenCount int    `json:"active_children_count"`
+	ScopedRepository    string `json:"scoped_repository_slug"`
+	ConfirmPath         string `json:"app_confirm_path"`
+	RejectPath          string `json:"app_reject_path"`
+}
+
 type CreateChatRequest struct {
 	RepositoryID int64 `json:"repository_id,omitempty"`
 }
@@ -53,8 +67,9 @@ func (PlainRenderer) Render(markdown string) (string, error) {
 }
 
 type StreamTurnOptions struct {
-	Out      io.Writer
-	Renderer ChatTurnRenderer
+	Out             io.Writer
+	Renderer        ChatTurnRenderer
+	ProposalHandler func(context.Context, ChatProposal) error
 }
 
 type ChatStreamEvent struct {
@@ -115,12 +130,20 @@ func (c *Client) StreamTurn(ctx context.Context, chatID string, message string, 
 	}
 
 	return ParseChatStream(resp.Body, func(event ChatStreamEvent) error {
-		return handleChatStreamEvent(event, out, renderer)
+		return handleChatStreamEvent(ctx, event, out, renderer, options.ProposalHandler)
 	})
 }
 
 func (c *Client) StopChat(ctx context.Context, chatID string) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/app/chats/"+url.PathEscape(chatID)+"/stop", nil, nil)
+}
+
+func (c *Client) ConfirmChatProposal(ctx context.Context, path string) error {
+	return c.do(ctx, http.MethodPost, path, nil, nil)
+}
+
+func (c *Client) RejectChatProposal(ctx context.Context, path string) error {
+	return c.do(ctx, http.MethodPost, path, nil, nil)
 }
 
 func ParseChatStream(r io.Reader, handle func(ChatStreamEvent) error) error {
@@ -174,15 +197,21 @@ func ParseChatStream(r io.Reader, handle func(ChatStreamEvent) error) error {
 	return dispatch()
 }
 
-func handleChatStreamEvent(event ChatStreamEvent, out io.Writer, renderer ChatTurnRenderer) error {
+func handleChatStreamEvent(ctx context.Context, event ChatStreamEvent, out io.Writer, renderer ChatTurnRenderer, proposalHandler func(context.Context, ChatProposal) error) error {
 	switch event.Event {
 	case "text_chunk":
 		var payload struct {
 			Content string `json:"content"`
 			Text    string `json:"text"`
+			Message struct {
+				Proposal *ChatProposal `json:"proposal"`
+			} `json:"message"`
 		}
 		if err := json.Unmarshal(event.Data, &payload); err != nil {
 			return err
+		}
+		if payload.Message.Proposal != nil {
+			return nil
 		}
 		text := payload.Content
 		if text == "" {
@@ -204,21 +233,16 @@ func handleChatStreamEvent(event ChatStreamEvent, out io.Writer, renderer ChatTu
 		}
 	case "proposal":
 		var payload struct {
-			Proposal struct {
-				Title string `json:"title"`
-				Slug  string `json:"slug"`
-			} `json:"proposal"`
+			Proposal ChatProposal `json:"proposal"`
 		}
 		if err := json.Unmarshal(event.Data, &payload); err != nil {
 			return err
 		}
-		label := strings.TrimSpace(payload.Proposal.Title)
-		if label == "" {
-			label = strings.TrimSpace(payload.Proposal.Slug)
+		if payload.Proposal.ID == 0 {
+			return nil
 		}
-		if label != "" {
-			_, err := fmt.Fprintf(out, "Proposal: %s\n", label)
-			return err
+		if proposalHandler != nil {
+			return proposalHandler(ctx, payload.Proposal)
 		}
 	case "error":
 		var payload struct {

@@ -150,6 +150,62 @@ func TestRootCommandCreatesRepoAttachedSession(t *testing.T) {
 	}
 }
 
+func TestRootCommandHandlesMultipleChatProposalsSequentially(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeTestCredentials(t, home, "")
+
+	var actions []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/chats":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"chats":[{"id":42,"title":"Planning","repository":{"id":7,"slug":"tkadauke/syrus"},"updated_at":"2026-06-11T12:00:00Z"}],"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+		case "/api/v1/app/chats/42/message":
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Write([]byte("event: text_chunk\ndata: {\"content\":\"Proposal proposed.\",\"message\":{\"proposal\":{\"id\":5,\"title\":\"Add dark mode\"}}}\n\n"))
+			w.Write([]byte("event: proposal\ndata: {\"proposal\":{\"id\":5,\"title\":\"Add dark mode\",\"scoped_repository_slug\":\"tkadauke/myapp\",\"app_confirm_path\":\"/api/v1/app/chats/42/proposals/5/confirm\",\"app_reject_path\":\"/api/v1/app/chats/42/proposals/5/reject\"}}\n\n"))
+			w.Write([]byte("event: proposal\ndata: {\"proposal\":{\"id\":6,\"title\":\"Settings dignity\",\"epic_bundle\":true,\"active_children_count\":2,\"app_confirm_path\":\"/api/v1/app/chats/42/proposals/6/confirm\",\"app_reject_path\":\"/api/v1/app/chats/42/proposals/6/reject\"}}\n\n"))
+			w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+		case "/api/v1/app/chats/42/proposals/5/confirm":
+			actions = append(actions, "confirm-5")
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"message":"Proposal confirmed."}`))
+		case "/api/v1/app/chats/42/proposals/6/reject":
+			actions = append(actions, "reject-6")
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"message":"Proposal rejected."}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeTestCredentials(t, home, server.URL)
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader("1\nhello\nc\nx\n"))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if got := strings.Join(actions, ","); got != "confirm-5,reject-6" {
+		t.Fatalf("actions = %q", got)
+	}
+	text := output.String()
+	for _, want := range []string{"Proposed Job", "Add dark mode", "Repository: tkadauke/myapp", "Filed.", "Proposed Epic", "2 child Jobs", "Choose c to confirm or s to skip. Skipping.", "Skipped."} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("output missing %q: %q", want, text)
+		}
+	}
+	if strings.Contains(text, "Proposal proposed.") {
+		t.Fatalf("placeholder proposal text was rendered: %q", text)
+	}
+}
+
 func writeTestCredentials(t *testing.T, home string, serverURL string) {
 	t.Helper()
 	if serverURL == "" {

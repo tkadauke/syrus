@@ -139,6 +139,47 @@ func TestStreamTurnPostsContentAndRendersTextChunks(t *testing.T) {
 	}
 }
 
+func TestStreamTurnDispatchesProposalEventsWithoutRenderingPlaceholderText(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/chats/42/message" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("event: text_chunk\ndata: {\"content\":\"Proposal proposed.\",\"message\":{\"proposal\":{\"id\":5,\"title\":\"Add dark mode\"}}}\n\n"))
+		w.Write([]byte("event: proposal\ndata: {\"proposal\":{\"id\":5,\"title\":\"Add dark mode\",\"scoped_repository_slug\":\"tkadauke/myapp\",\"app_confirm_path\":\"/api/v1/app/chats/42/proposals/5/confirm\",\"app_reject_path\":\"/api/v1/app/chats/42/proposals/5/reject\"}}\n\n"))
+		w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	var proposals []ChatProposal
+	err = client.StreamTurn(context.Background(), "42", "draft it", StreamTurnOptions{
+		Out:      out,
+		Renderer: stubRenderer{},
+		ProposalHandler: func(_ context.Context, proposal ChatProposal) error {
+			proposals = append(proposals, proposal)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("StreamTurn returned error: %v", err)
+	}
+	if got := out.String(); got != "" {
+		t.Fatalf("output = %q", got)
+	}
+	if len(proposals) != 1 {
+		t.Fatalf("proposals = %#v", proposals)
+	}
+	if proposals[0].ID != 5 || proposals[0].Title != "Add dark mode" || proposals[0].ConfirmPath == "" || proposals[0].RejectPath == "" {
+		t.Fatalf("proposal = %#v", proposals[0])
+	}
+}
+
 func TestStreamTurnReturnsCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
