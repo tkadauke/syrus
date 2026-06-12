@@ -150,6 +150,7 @@ ARG MISE_RUBIES="3.2 3.3"
 # own NODE_MAJOR=22 pin, both stable across upstream LTS rotations.
 ARG MISE_NODES="24 22"
 ARG MISE_PYTHONS="3.11"
+ARG MISE_GO_VERSION="1.26.4"
 
 ENV MISE_DATA_DIR=/opt/mise \
     DEBIAN_FRONTEND=noninteractive
@@ -171,6 +172,7 @@ RUN curl -fsSL https://mise.jdx.dev/install.sh | \
 RUN /usr/local/bin/mise install $(for v in $MISE_RUBIES;  do echo ruby@$v;   done) && \
     /usr/local/bin/mise install $(for v in $MISE_NODES;   do echo node@$v;   done) && \
     /usr/local/bin/mise install $(for v in $MISE_PYTHONS; do echo python@$v; done) && \
+    /usr/local/bin/mise install go@$MISE_GO_VERSION && \
     rm -rf /opt/mise/cache /opt/mise/tmp
 
 
@@ -193,6 +195,7 @@ USER root
 
 ARG POETRY_VERSION=2.3.4
 ARG UV_VERSION=0.11.7
+ARG MISE_GO_VERSION="1.26.4"
 
 # Native build deps + DB clients (no servers) + CLI tooling. Each tool
 # justified in greenacres#16 / syrus#114; ripgrep+fd in particular speed
@@ -241,7 +244,7 @@ RUN npm install -g yarn pnpm && npm cache clean --force && \
     ln -s /opt/python-tools/bin/poetry /usr/local/bin/poetry && \
     ln -s /opt/python-tools/bin/uv /usr/local/bin/uv
 
-ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
+ENV PATH="/opt/mise/installs/go/${MISE_GO_VERSION}/bin:/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
     MISE_DATA_DIR=/opt/mise
 
 # ============================================================================
@@ -253,6 +256,8 @@ ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
 FROM worker-deps AS worker-dev
 
 USER 1000:1000
+
+RUN go version
 
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
