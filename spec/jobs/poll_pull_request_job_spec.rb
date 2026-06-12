@@ -119,7 +119,7 @@ RSpec.describe PollPullRequestJob do
       expect(job.closure_reason).to be_nil
     end
 
-    it "leaves the Job open on a new APPROVED review when auto-merge is disabled" do
+    it "clears approval when fresh PR feedback is queued after an APPROVED review" do
       repository.update!(auto_merge_enabled: false)
       stub_pr
       stub_reviews([
@@ -137,8 +137,9 @@ RSpec.describe PollPullRequestJob do
       }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
 
       expect(job.reload).to be_open
-      expect(job.state).to eq("approved")
-      expect(job.approved_via).to eq("github_review")
+      expect(job.state).to eq("implemented")
+      expect(job.approved_via).to be_nil
+      expect(job.approved_at).to be_nil
       expect(job.closure_reason).to be_nil
     end
 

@@ -186,6 +186,22 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
+    it "awaiting_approval: excludes jobs with active PR feedback workflows" do
+      ready = Factories.job_record(repository: repo, issue_number: 31, state: "implemented")
+      queued_feedback = Factories.job_record(repository: repo, issue_number: 32, state: "implemented")
+      running_feedback = Factories.job_record(repository: repo, issue_number: 33, state: "implemented")
+      completed_feedback = Factories.job_record(repository: repo, issue_number: 34, state: "implemented")
+
+      Workflow.create!(job: queued_feedback, trigger_kind: "pr_comment", state: "queued")
+      Workflow.create!(job: running_feedback, trigger_kind: "pr_comment", state: "running")
+      Workflow.create!(job: completed_feedback, trigger_kind: "pr_comment", state: "succeeded")
+
+      expect(run(field: "attention", op: "is", value: "awaiting_approval")).to contain_exactly(
+        ready,
+        completed_feedback
+      )
+    end
+
     it "just_failed: returns jobs in :failed state" do
       failed = Factories.job(repository: repo, issue_number: 1)
       failed.update!(state: "failed")

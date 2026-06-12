@@ -143,6 +143,7 @@ class PollPullRequestJob < ApplicationJob
 
   def enqueue_followup_run(all_comments:, new_comments:, cutoff:)
     ingest_comment_images(new_comments)
+    clear_stale_approval!
 
     # Stash the full comment payload + the cutoff timestamp on the
     # workflow as a structured artifact; Steps::Respond reads it at
@@ -157,6 +158,12 @@ class PollPullRequestJob < ApplicationJob
 
     latest = new_comments.map(&:created_at).compact.max
     @job.update!(last_seen_comment_at: latest) if latest && (@job.last_seen_comment_at.nil? || latest > @job.last_seen_comment_at)
+  end
+
+  def clear_stale_approval!
+    return unless @job.may_unapprove?
+
+    @job.unapprove!
   end
 
   def ingest_comment_images(new_comments)

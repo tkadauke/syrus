@@ -261,7 +261,13 @@ module Filters
         end
 
         def awaiting_approval_ids
-          Job.where(state: "implemented").select(:id)
+          Job.where(state: "implemented")
+             .where.not(id: active_pr_comment_job_ids)
+             .select(:id)
+        end
+
+        def active_pr_comment_job_ids
+          Workflow.active.where(trigger_kind: "pr_comment").select(:job_id)
         end
 
         def unread_feedback_ids
