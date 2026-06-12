@@ -112,38 +112,6 @@ a compact 80-column table with Job ID, repository, title, state, and PR
 number. Terminals with color support highlight running, implemented,
 approved, failed, and queued states.
 
-## Read-Only Instance Inspection
-
-`bin/syrus` can inspect a running instance with the same admin API token.
-Set the instance URL and token in the environment:
-
-
-```bash
-export SYRUS_INSTANCE_URL=https://syrus.example.com
-export SYRUS_API_TOKEN=syrus_...
-```
-
-Inspect commands auto-scope to the current GitHub repository when they are
-run from a checkout with a GitHub `origin` or `upstream` remote. Outside a
-checkout they fall back to all repositories.
-
-```bash
-bin/syrus whoami
-bin/syrus repo list
-bin/syrus job list --state open --limit 20
-bin/syrus job search "dark mode"
-bin/syrus job show 456
-bin/syrus job log 456
-bin/syrus job watch 456
-bin/syrus job diff 456
-bin/syrus epic list
-bin/syrus epic show 12
-```
-
-`job diff` prints the GitHub PR URL unless `SYRUS_GITHUB_TOKEN` or
-`GITHUB_TOKEN` is available locally, in which case it fetches the PR diff
-from GitHub and sends it to the pager.
-
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal
