@@ -21,6 +21,7 @@ class MergeTrainDispatcher
 
   def try_dispatch!
     return unless AppSetting.merge_train_enabled?
+    return if active_train_in_progress?
     return if landing_in_progress?
     return if cooling_down?
 
@@ -60,6 +61,11 @@ class MergeTrainDispatcher
   end
 
   private
+
+  def active_train_in_progress?
+    MergeTrain.active.where(epic_id: @epic.id).exists? ||
+      Workflow.active.where(trigger_kind: "merge_train", job_id: @epic.jobs.select(:id)).exists?
+  end
 
   def landing_in_progress?
     Job.landing.where(repository_id: @epic.repository_id).exists?

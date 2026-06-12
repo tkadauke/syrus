@@ -61,6 +61,24 @@ RSpec.describe MergeTrainDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "does not dispatch a second train when the Epic already has an active train" do
+    approved_child(1)
+    active_train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master", state: "grading")
+
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.all).to contain_exactly(active_train)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
+  it "does not dispatch a second train when the Epic already has an active merge-train workflow" do
+    child = approved_child(1)
+    Workflow.create!(job: child, trigger_kind: "merge_train", state: "running")
+
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does not re-dispatch during the cooldown after a failed train" do
     approved_child(1)
     MergeTrain.create!(epic: epic, repository: repository, base_branch: "master",
