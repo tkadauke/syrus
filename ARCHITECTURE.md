@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-12._
+_Last reviewed: 2026-06-13._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -473,7 +473,7 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → retry_until(implement → grader_fanout → grader_collect) → summarize → pr_open` |
+| `initial` | `prepare → retry_until(implement → grader_fanout → grader_collect) → summarize → test_plan → pr_open` |
 | `pr_comment` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
 | `ci_failure` | `prepare → analyze_and_fix → summarize_amend → push` |
 | `retry` / `replay` | same shape as `initial`, reusing the existing branch and PR if present |
@@ -490,10 +490,10 @@ the `syrus-skip-prepare` label; the skip is recorded in Workflow
 artifacts and logged on the first Run.
 
 Agentic Steps (`implement`, `respond`, `analyze_and_fix`, rebase repair,
-landing repair, summarize, and manual) invoke the Workflow's configured
-provider through `AgentProviders::*`. Non-agentic Steps run service code:
-graders, git push/force-push, PR opening, mergeability gates, merge API
-calls, and merge-train assembly/landing.
+landing repair, summarize, test_plan, and manual) invoke the Workflow's
+configured provider through `AgentProviders::*`. Non-agentic Steps run
+service code: graders, git push/force-push, PR opening, mergeability
+gates, merge API calls, and merge-train assembly/landing.
 
 `RunJob#perform` is now the per-Step executor:
 
@@ -556,6 +556,8 @@ What happens to a single labeled issue, from label to merge:
      another bounded repair/check iteration.
    - The `summarize` Step asks the agent to call `submit_summary`
      unless the implement Step already provided PR copy.
+   - The `test_plan` Step asks the agent to call `submit_test_plan`
+     with reviewer-facing checks; `pr_open` appends them to the PR body.
    - `pr_open` pushes the branch and opens the PR (using Workflow
      artifacts first, then `PrSummarizer`, then templated copy).
    - Workflow transitions to `succeeded`; Job moves to `implemented`.
@@ -583,8 +585,8 @@ Core (the agent loop):
 | `WorkflowWorkspace` | Fresh per-Workflow clone at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`. Default root `~/.syrus` (override with `SYRUS_DATA_ROOT`). Clones never live inside `Rails.root` — protects the operator's checkout from agent chdir mishaps. |
 | `AgentProviders::*` | Provider abstraction for Claude and Codex. Selects credentials, prepares provider home/session state, wires MCP, invokes the provider-specific runner, captures transcript/session metadata, and returns a normalized result. |
 | `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
-| `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state` and `submit_summary`. See [MCP sidecar](#mcp-sidecar). |
-| `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, and `submit_test_plan`. See [MCP sidecar](#mcp-sidecar). |
+| `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 
 Git and GitHub:
 
@@ -643,6 +645,10 @@ agent at it over stdio. Today's tool surface:
   agent-authored PR copy on Workflow artifacts and appends an audit
   `JobLog` line. Read tier-1 by `pr_open`/`push`/summary promotion
   paths.
+- `submit_test_plan(steps:, notes:)` — records reviewer-facing manual
+  test steps on Workflow artifacts and appends an audit `JobLog` line.
+  `pr_open` reads this artifact and adds a Testing section to initial
+  PR bodies.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
 ActiveRecord calls scoped to the active Run. No network, no auth
@@ -772,9 +778,10 @@ These belong to `ROADMAP.md`; only their current status is recorded:
   on the worker filesystem; the agent is trusted not to escape.
 - **Public REST / MCP API.** The sidecar is internal-only; there's no
   external auth surface.
-- **Visual graders / agent-authored test plans.** Today configured
-  command graders from `.syrus.yml` are first-class Workflow Steps, but
-  richer visual and agent-authored grading remains roadmap.
+- **Visual graders / agent-authored graders.** Today configured
+  command graders from `.syrus.yml` are first-class Workflow Steps and
+  the initial Workflow can collect an agent-authored reviewer test plan,
+  but richer visual and agent-authored grading remains roadmap.
 - **Global rate limiting.** Today only Solid Queue's per-key
   concurrency: per-repo polling, per-Job PR/rebase polling, per-Job
   RunJob serialization. No tenant-wide or process-wide cap.
