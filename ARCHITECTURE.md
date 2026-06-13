@@ -36,7 +36,8 @@ domain concepts. File paths are repo-relative.
 - **Solid Queue** for background jobs · **Solid Cache** · **Solid Cable**
   for browser app events
 - **Tailwind** via `tailwindcss-rails` · **React** for the web UI
-- **Go CLI** under `cli/` for terminal chat access to the app API
+- **Go CLI** under `cli/` for terminal chat plus Job, Epic, repository,
+  schedule, checkout, and approval workflows through the app API
 - **Octokit** for the GitHub API
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
@@ -739,14 +740,27 @@ between web and worker.
 
 The standalone Go CLI (`cli/`) shares the app API rather than a separate
 backend. `syrus login` stores the instance URL and API token in
-`~/.syrus/credentials`; running `syrus` without a subcommand lists recent
+`~/.syrus/credentials`. Running `syrus` without a subcommand lists recent
 chat sessions, prefers sessions for the current checkout's GitHub repo
 when it can detect one, and enters an interactive REPL. `syrus chat
-CHAT_ID MESSAGE` sends a single streaming turn. Both paths post to
+CHAT_ID MESSAGE` sends a single streaming turn. Both chat paths post to
 `/api/v1/app/chats/:id/message` with `Accept: text/event-stream`, render
 assistant chunks as server-sent events arrive, expose proposed Jobs/Epics
 for inline confirm/reject, and translate Ctrl+C into the chat stop API
 instead of abandoning the Rails-side turn.
+
+The same binary also covers operator workflows from a terminal:
+`syrus status`, `syrus inbox`, `syrus checkout`, `syrus test-plan`, and
+`syrus approve` are top-level shortcuts; grouped commands under
+`syrus job`, `syrus epic`, `syrus repo`, and `syrus schedule` inspect and
+act on Jobs, Epics, repositories, and recurring schedules. These commands
+use the app-scoped JSON API where possible so ordinary users can inspect
+and act on their own work; admin-only commands still call admin endpoints
+such as `GET /api/v1/admin/jobs/:id` when they need cross-workflow
+artifacts. Repository-aware commands detect the current GitHub checkout
+from `origin`, scope lists to that repository by default, and refuse
+checkout-changing operations when the local repository does not match the
+Job's repository.
 
 ## Deployment topology
 
