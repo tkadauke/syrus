@@ -83,7 +83,7 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → retry_until(implement → graders) → summarize → pr_open
+initial:     prepare → retry_until(implement → graders) → summarize → test_plan → pr_open
 pr_comment:  prepare → retry_until(respond → graders) → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
 retry:       prepare → retry_until(implement → graders) → summarize → pr_open
@@ -147,14 +147,18 @@ Key steps:
   If the implement step already called `submit_summary` (artifacts contain
   `agent_pr_title`), the summarize step skips the agent call entirely and
   promotes artifacts directly — saving a full agent turn.
+- **`test_plan`** — Short agentic step in the initial Workflow after
+  `summarize`. It asks the agent to call `submit_test_plan` with concise
+  reviewer-facing checks; `pr_open` appends them as a Testing section.
 - **`pr_open`** / **`push`** —
   Non-agentic: run service code (`PullRequestOpener`, `git push`, etc.).
 
 **MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over stdio
 via a per-step `mcp.json` tempfile. Exposes `read_live_state(detail)`,
-a read-only current Job/Workflow/Run/queue/chat snapshot for agents, and
-`submit_summary(pr_title, pr_body, summary)`, which writes directly onto
-the Workflow's `artifacts` bag and appends a `JobLog` audit line.
+a read-only current Job/Workflow/Run/queue/chat snapshot for agents,
+`submit_summary(pr_title, pr_body, summary)`, and
+`submit_test_plan(steps, notes)`, which write directly onto the Workflow's
+`artifacts` bag and append `JobLog` audit lines.
 The config key and binary basename must match (`syrus-mcp-sidecar`) so the
 agent can invoke the tool name registered in the MCP config. See
 `app/services/syrus_mcp/`.
@@ -259,7 +263,8 @@ across web/worker processes.
   while leaving the public docs stale are incomplete.
 - **Prompts** all live under `app/services/prompts/` as PORO classes
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
-  `Prompts::SubmitSummaryInstructions`, `Prompts::Rebase`,
+  `Prompts::SubmitSummaryInstructions`, `Prompts::TestPlan`,
+  `Prompts::Rebase`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`, `Prompts::EpicContext`).
   Each has a `to_s`. Compose by appending; never inline prompt text in
   jobs/services. Epic-aware prompts append `Prompts::EpicContext` as
