@@ -9,7 +9,8 @@ and `ROADMAP.md` for milestone planning.
 
 Rails 8.1.3 · Ruby 3.2.3 · SQLite (dev/test) / MySQL (prod) ·
 Solid Queue + Solid Cache + Solid Cable · React + TypeScript via Vite ·
-TanStack Query · Tailwind via `tailwindcss-rails` · Octokit for GitHub.
+TanStack Query · Tailwind via `tailwindcss-rails` · Go CLI under `cli/` ·
+Octokit for GitHub.
 
 ## Architecture in 60 seconds
 
@@ -267,6 +268,10 @@ across web/worker processes.
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
   `CLAUDE.md`.
+- **Go CLI** lives under `cli/` and talks to the app-scoped JSON API
+  (`/api/v1/app/*`). Keep CLI commands, API serializers/controllers, and
+  `website/src/content/docs/api.md` aligned when changing terminal-visible
+  behavior; test CLI changes with `go test ./...` from `cli/`.
 - **Spending insights** live at `/insights/spending` and roll up `Run#cost_usd`
   plus `ChatSession#cumulative_cost_usd` by date window, Epic, user,
   repository, trigger kind, agent provider, trend, and top Runs. Non-admins
