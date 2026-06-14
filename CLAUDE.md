@@ -276,7 +276,10 @@ across web/worker processes.
 - **Go CLI** lives under `cli/` and talks to the app-scoped JSON API
   (`/api/v1/app/*`). Keep CLI commands, API serializers/controllers, and
   `website/src/content/docs/api.md` aligned when changing terminal-visible
-  behavior; test CLI changes with `go test ./...` from `cli/`.
+  behavior; test CLI changes with `go test ./...` from `cli/`. The CLI covers
+  chat plus Job, Epic, repository, schedule, checkout, inbox, test-plan, and
+  approval workflows; repo-aware commands should detect `origin`, scope to that
+  repo by default, and refuse checkout changes when the local repo mismatches.
 - **Spending insights** live at `/insights/spending` and roll up `Run#cost_usd`
   plus `ChatSession#cumulative_cost_usd` by date window, Epic, user,
   repository, trigger kind, agent provider, trend, and top Runs. Non-admins
