@@ -17,7 +17,8 @@ domain concepts. File paths are repo-relative.
 
 - [Stack](#stack)
 - [The big picture](#the-big-picture)
-- [Domain model](#domain-model) — Job, Workflow, Step, Run, JobLog, Repository, User, ScheduledTask
+- [Domain model](#domain-model) — Job, Workflow, Step, Run, JobLog,
+  Repository, User, ScheduledTask, CronTemplate
 - [Recurring schedule](#recurring-schedule)
 - [Per-poller flow](#per-poller-flow) — issue ingest, PR feedback, rebase, scheduled tasks, reaping
 - [Per-Workflow pipeline](#per-workflow-pipeline) — materialized step chains and Run execution
@@ -261,6 +262,13 @@ Cron tasks honor the entered minute exactly and are evaluated in UTC
 hourly windows so repeated poller ticks do not double-fire the same
 hour.
 
+Scheduled tasks can optionally reference a `CronTemplate`. The
+scheduled task stores its own prompt, cron expression, and pile-up
+policy at creation time; the template is the reusable starting point
+and audit link, not runtime indirection. Updating a template therefore
+does not rewrite existing tasks, and deleting a template nulls the
+reference on applied tasks.
+
 This is the single user-facing recurring-work model. Chat-created
 recurring schedules requested through `schedule_recurring` are confirmed
 into `ScheduledTask(kind: "cron")` rows and fire through the same
@@ -280,6 +288,24 @@ is still open at the next fire:
 A `consecutive_failure` counter on the task auto-pauses the schedule
 once `AppSetting.max_job_failures` is hit; the operator must click
 Unpause to re-enable.
+
+### CronTemplate
+
+Reusable per-user schedule template. A `CronTemplate` stores a name,
+description, prompt, cron expression, enabled flag, and
+`pr_pileup_policy`. It has many `ScheduledTask`s with
+`dependent: :nullify`, which preserves already-applied scheduled tasks
+if the template is later deleted.
+
+The app API under `/api/v1/app/cron_templates` is user-scoped: users can
+list, create, edit, delete, and view applied tasks for their own
+templates. The "apply" flow links from a template to a repository's new
+scheduled-task form with `from_template=<id>`, where the scheduled task
+form copies the template values into a concrete repository-owned task.
+
+Cron expression validation mirrors `ScheduledTask`: Fugit parses the
+five-field expression and rejects schedules that can fire more than once
+per hour.
 
 ### ClaudeSession and provider sessions
 
@@ -718,6 +744,8 @@ Several layers, each catching different failure modes:
   `poll_feedback`, `rebase`, `check_mergeability`, `stop_run`,
   approval/landing actions, claim/release, dependencies, tags).
 - **`/scheduled_tasks`** — cron task management.
+- **`/cron_templates`** — reusable schedule templates and links to apply
+  them to repositories.
 - **`/direct_jobs/new`** — operator-created free-form Jobs.
 - **`/chats`** — repository-scoped chat sessions, proposals, and
   queued follow-up messages.
