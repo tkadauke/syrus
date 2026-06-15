@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-13._
+_Last reviewed: 2026-06-14._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -37,8 +37,9 @@ domain concepts. File paths are repo-relative.
 - **Solid Queue** for background jobs · **Solid Cache** · **Solid Cable**
   for browser app events
 - **Tailwind** via `tailwindcss-rails` · **React** for the web UI
-- **Go CLI** under `cli/` for terminal chat plus Job, Epic, repository,
-  schedule, checkout, and approval workflows through the app API
+- **Go CLI** under `cli/` for terminal chat, inbox review, checkout,
+  test-plan, approval, identity, and Job/Epic/repository/schedule
+  workflows through the app API
 - **Octokit** for the GitHub API
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
