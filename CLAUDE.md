@@ -212,7 +212,9 @@ prompts to a repository — no GitHub issue required. `kind=cron` uses a
 minute exactly and are evaluated in UTC hourly windows so repeated poller
 ticks do not double-fire the same hour. Tasks can optionally reference a
 `CronTemplate` (`app/models/cron_template.rb`) — a per-user reusable
-prompt+schedule config that multiple ScheduledTasks can share.
+prompt+schedule config that multiple ScheduledTasks can share. Applying a
+template copies its values into the task; later template edits do not rewrite
+existing tasks.
 
 `PollScheduledTasksJob` (runs every minute) evaluates due tasks and fires
 them. Each fire creates a `Job` with `kind=cron` (linked via
