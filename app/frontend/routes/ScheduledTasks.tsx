@@ -32,6 +32,7 @@ const fallbackOptions: ScheduledTaskOptions = {
     { value: "if_graders_pass_and_tagged_safe", label: "If graders pass and tagged safe", preview: "Jobs using this rule also need the safe tag before landing." }
   ]
 }
+const cronHelpText = "Five fields in UTC: minute hour day-of-month month day-of-week. Examples: 0 9 * * 1 for Mondays at 09:00; 30 14 * * * for every day at 14:30."
 
 export function ScheduledTasksIndex() {
   const location = useLocation()
@@ -381,6 +382,7 @@ function ScheduledTaskForm({
       ) : (
         <Field label="Cron expression">
           <input className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, cron_expression: event.target.value })} placeholder="0 9 * * 1" type="text" value={values.cron_expression} />
+          <p className="mt-1 text-xs text-gray-500">{cronHelpText}</p>
         </Field>
       )}
       <Field label="PR pileup policy">

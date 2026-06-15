@@ -23,6 +23,7 @@ const emptyTemplate: CronTemplateInput = {
   prompt: "",
   enabled: true
 }
+const cronHelpText = "Five fields in UTC: minute hour day-of-month month day-of-week. Examples: 0 9 * * 1 for Mondays at 09:00; 30 14 * * * for every day at 14:30."
 
 export function CronTemplatesIndex() {
   const location = useLocation()
@@ -266,6 +267,7 @@ function CronTemplateForm({
       </Field>
       <Field label="Cron expression">
         <input className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, cron_expression: event.target.value })} placeholder="0 9 * * 1" type="text" value={values.cron_expression} />
+        <p className="mt-1 text-xs text-gray-500">{cronHelpText}</p>
       </Field>
       <Field label="PR pileup policy">
         <select className={inputClass()} onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>

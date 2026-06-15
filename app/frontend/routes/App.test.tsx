@@ -3862,6 +3862,29 @@ describe("App", () => {
     )
   })
 
+  it("renders cron help text on the cron template form", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pr_pileup_policies: ["skip", "pile", "replace"],
+          templates: []
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/cron_templates/new"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "New cron template" })).toBeInTheDocument()
+    expect(await screen.findByText("Five fields in UTC: minute hour day-of-month month day-of-week. Examples: 0 9 * * 1 for Mondays at 09:00; 30 14 * * * for every day at 14:30.")).toBeInTheDocument()
+  })
+
   it("renders the scheduled tasks route from the app API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
@@ -3991,6 +4014,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "New scheduled task" })).toBeInTheDocument()
     expect(await screen.findByDisplayValue("Weekly tests")).toBeInTheDocument()
+    expect(screen.getByText("Five fields in UTC: minute hour day-of-month month day-of-week. Examples: 0 9 * * 1 for Mondays at 09:00; 30 14 * * * for every day at 14:30.")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Create task" }))
 
     await waitFor(() => {
