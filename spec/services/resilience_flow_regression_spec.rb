@@ -118,6 +118,60 @@ RSpec.describe "resilience flow regressions" do
     expect(payload_run.fetch(:run_diagnostic)).to include(error_class: "SolidQueue::ProcessPrunedError")
   end
 
+  it "uses the newest failed run classification for the workflow-level admin payload" do
+    first_failed_run = run
+    second_failed_run = step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "failed",
+      started_at: 4.minutes.ago,
+      finished_at: 3.minutes.ago
+    )
+
+    first_failed_run.update_columns(
+      state: "failed",
+      started_at: 10.minutes.ago,
+      finished_at: 9.minutes.ago
+    )
+    first_failed_run.create_run_failure_classification!(
+      classification: "agent_timeout",
+      confidence: 0.8,
+      retryable: true,
+      reason: "No agent heartbeat",
+      diagnostic_summary: "Timed out",
+      classifier_inputs: { "agent_outcome" => "timeout" },
+      classified_at: 9.minutes.ago
+    )
+    second_failed_run.create_run_failure_classification!(
+      classification: "worker_died",
+      confidence: 0.95,
+      retryable: true,
+      reason: "Worker disappeared",
+      diagnostic_summary: "Solid Queue process pruned",
+      classifier_inputs: { "error_class" => "SolidQueue::ProcessPrunedError" },
+      classified_at: 3.minutes.ago
+    )
+    step.update!(state: "failed", started_at: 10.minutes.ago, finished_at: 3.minutes.ago)
+    workflow.update!(state: "failed", started_at: 10.minutes.ago, finished_at: 3.minutes.ago)
+
+    payload = Admin::JobStateSerializer.workflow(workflow)
+
+    expect(payload.fetch(:failure_classification)).to include(
+      classification: "worker_died",
+      confidence: 0.95,
+      retryable: true,
+      reason: "Worker disappeared",
+      diagnostic_summary: "Solid Queue process pruned",
+      classifier_inputs: { "error_class" => "SolidQueue::ProcessPrunedError" }
+    )
+    run_payloads = payload.fetch(:steps).flat_map { |s| s.fetch(:runs) }
+    expect(run_payloads.find { |item| item.fetch(:id) == first_failed_run.id }.fetch(:failure_classification))
+      .to include(classification: "agent_timeout")
+    expect(run_payloads.find { |item| item.fetch(:id) == second_failed_run.id }.fetch(:failure_classification))
+      .to include(classification: "worker_died")
+  end
+
   it "keeps retry budget exhaustion scoped to the failed workflow" do
     AppSetting.current.update!(max_job_failures: 1)
     workflow.update!(state: "running", started_at: 1.minute.ago)
