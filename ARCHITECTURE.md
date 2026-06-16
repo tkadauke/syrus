@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-14._
+_Last reviewed: 2026-06-16._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -269,6 +269,10 @@ policy at creation time; the template is the reusable starting point
 and audit link, not runtime indirection. Updating a template therefore
 does not rewrite existing tasks, and deleting a template nulls the
 reference on applied tasks.
+
+The scheduled-task and cron-template forms surface the same cron
+contract at the input: five fields, interpreted in UTC, with the minute
+field honored and schedules limited to one fire per hour.
 
 This is the single user-facing recurring-work model. Chat-created
 recurring schedules requested through `schedule_recurring` are confirmed
