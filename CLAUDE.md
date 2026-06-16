@@ -195,6 +195,12 @@ the landing queue.
 newest addressed comment, and future polls use the later timestamp as the
 cutoff so already-handled feedback is not re-enqueued.
 
+**Closed PR resolution** does not blindly treat every closed PR as
+`pr_closed`: merged PRs close as `pr_merged`, and closed unmerged PRs whose
+branch has no unique patches left against the PR base close as `no_changes`.
+`no_changes` is a successful parent resolution for dependency gates, stack
+rebases, and landing queue wakeups.
+
 **Failure resilience** — failed Runs persist a `RunFailureClassification`
 from diagnostics, recent logs, spawned process outcomes, and agent outcome.
 `AutoRetryScheduler` may retry transient failures up to three times with
