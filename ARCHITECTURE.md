@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-14._
+_Last reviewed: 2026-06-16._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -138,6 +138,7 @@ state.
 | `no_changes` | a cron Run finished with an empty diff and a one-line summary |
 | `preempted` | the issue already had a human-opened PR when we ingested it |
 | `pr_merged` | Syrus-opened PR merged |
+| `pr_closed` | Syrus-opened PR was closed without merge and its branch still has unique patches |
 | `external_pr_merged` | tracked preempting PR merged |
 | `external_pr_closed` | tracked preempting PR closed without merge |
 | `pr_approved` | operator accepted an approved PR as successful without auto-merge |
@@ -424,7 +425,7 @@ PollAllMergeStatesJob (includes preempted threads that still need merge-state ch
       → fetch PR, persist pr_mergeable + pr_mergeable_checked_at
       → bail if merged / closed / mergeable in (true, nil)
       → bail if head is from a fork (we don't push)
-      → bail if a rebase Run is already active
+      → bail if a runnable rebase/stack-rebase Workflow is already active
       → bail if rebase attempt cap reached
       → Workflows::Rebase.instantiate(...)
       → auto_rebase Step tries deterministic `git rebase`
@@ -437,6 +438,16 @@ shortcut. Most rebases still avoid the agent: `auto_rebase` succeeds,
 `agent_rebase` is cancelled, and `force_push` updates the PR branch.
 Only conflicts that require judgment escalate to the agentic
 `agent_rebase` Step.
+
+`RebaseWorkflowSelector` is the shared gate for rebase vs. stack-rebase
+selection and for "already active" checks. Its active scope deliberately
+ignores stale active Workflow rows that never created a Run, so old
+no-run rebase attempts do not block future merge-state polling or manual
+rebase commands. If `StepDispatcher.start_workflow` later discovers that
+dependencies or stack readiness make a newly-created rebase Workflow
+unstartable, it cancels that Workflow and records
+`start_blocked_reason` in artifacts instead of leaving an active
+Workflow with no Run.
 
 ### Scheduled tasks
 
@@ -601,8 +612,13 @@ What happens to a single labeled issue, from label to merge:
      creates an `auto_merge` Workflow, or a `merge_train` Workflow for
      ready Epics when merge trains are enabled.
 7. **PR is merged or otherwise finalized.** Syrus closes the Job with a
-   terminal `closure_reason` such as `pr_merged`, `external_pr_merged`,
-   `external_pr_closed`, `pr_approved`, or `no_changes`.
+   terminal `closure_reason` such as `pr_merged`, `pr_closed`,
+   `external_pr_merged`, `external_pr_closed`, `pr_approved`, or
+   `no_changes`. When a Syrus-opened PR is closed without merge,
+   `ClosedPullRequestResolution` checks whether the branch patch is
+   already present on the base branch with `git cherry`: patch-equivalent
+   closures become `no_changes`, while closures with still-unique
+   patches become `pr_closed`.
 
 ## Services
 
@@ -625,6 +641,7 @@ Git and GitHub:
 | `PullRequestOpener` | Octokit `create_pull_request` with retry on transient failures. |
 | `LandingQueueProcessor` | Moves approved Jobs/Epics into `auto_merge` or `merge_train` Workflows and applies landing state transitions. |
 | `LandingValidationCache` | Records prior green landing checks; optionally lets clean rebases carry validation forward for repositories that trust it. |
+| `ClosedPullRequestResolution` / `BranchPatchPresence` | Classifies closed Syrus PRs as merged, no-change, or closed-with-unique-patches. The patch-presence check clones the base branch under `$SYRUS_DATA_ROOT/closed-pr-checks`, fetches the Syrus branch, and uses `git cherry` to detect whether any patch remains unique to the PR branch. |
 
 Policy and pipeline glue:
 
