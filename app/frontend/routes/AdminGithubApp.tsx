@@ -41,9 +41,9 @@ export function AdminGithubAppConfirm() {
         description="Syrus stored the App credentials and queued an installation sync."
       />
 
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="font-medium text-gray-900">Next steps</h2>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <h2 className="font-medium text-gray-900 dark:text-gray-100">Next steps</h2>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-200">
           <li>Install the App on your repositories via GitHub.</li>
           <li>Wait for the installation sync, or let the 5-minute recurring sync pick it up.</li>
           <li>Keep a personal access token configured for repositories that do not have an active App installation.</li>
@@ -60,16 +60,16 @@ export function AdminGithubAppConfirm() {
 function RegisterView({ payload }: { payload: AdminGithubAppRegisterPayload }) {
   return (
     <>
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="font-medium text-gray-900">Current status</h2>
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <h2 className="font-medium text-gray-900 dark:text-gray-100">Current status</h2>
         <div className="mt-2 text-sm">
           <GithubAppStatus app={payload.github_app} />
         </div>
       </section>
 
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="font-medium text-gray-900">Register with GitHub</h2>
-        <p className="mt-1 max-w-prose text-xs text-gray-600">
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <h2 className="font-medium text-gray-900 dark:text-gray-100">Register with GitHub</h2>
+        <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">
           GitHub will create the App from the manifest, then redirect back here with temporary credentials. Registration alone does not grant repository access; install the App after registration.
         </p>
         <form
@@ -82,7 +82,7 @@ function RegisterView({ payload }: { payload: AdminGithubAppRegisterPayload }) {
         >
           <input name="manifest" type="hidden" value={payload.manifest} />
           <button
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+            className="rounded bg-blue-600 dark:bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-400"
             formTarget="_blank"
             type="submit"
           >
@@ -96,9 +96,9 @@ function RegisterView({ payload }: { payload: AdminGithubAppRegisterPayload }) {
 
 function StoredRegistration({ app }: { app: AdminGithubAppStatus }) {
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
-      <h2 className="font-medium text-gray-900">Stored registration</h2>
-      <p className="mt-2 text-sm text-gray-600">
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <h2 className="font-medium text-gray-900 dark:text-gray-100">Stored registration</h2>
+      <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
         {app.registered ? (
           <>
             <span className="font-mono">{app.slug || `app-${app.id || "unknown"}`}</span>
@@ -114,29 +114,29 @@ function StoredRegistration({ app }: { app: AdminGithubAppStatus }) {
 
 function GithubAppStatus({ app }: { app: AdminGithubAppStatus }) {
   if (!app.registered) {
-    return <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs uppercase text-gray-700">not registered</span>
+    return <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-mono text-xs uppercase text-gray-700 dark:text-gray-200">not registered</span>
   }
 
   return (
     <>
-      <span className="rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs uppercase text-emerald-700">registered</span>
-      <span className="ml-2 text-gray-600">{app.slug || `GitHub App #${app.id || "unknown"}`}</span>
+      <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 font-mono text-xs uppercase text-emerald-700 dark:text-emerald-300">registered</span>
+      <span className="ml-2 text-gray-600 dark:text-gray-300">{app.slug || `GitHub App #${app.id || "unknown"}`}</span>
     </>
   )
 }
 
 function PageHeader({ title, description }: { title: string; description: string }) {
   return (
-    <header className="border-b border-gray-200 pb-4">
-      <p className="text-xs font-medium uppercase text-gray-500">Admin</p>
-      <h1 className="mt-1 text-2xl font-semibold text-gray-900">{title}</h1>
-      <p className="mt-1 text-sm text-gray-500">{description}</p>
+    <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+      <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+      <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p>
     </header>
   )
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <section className={`rounded border border-gray-200 bg-white p-4 text-sm ${tone === "error" ? "text-red-700" : "text-gray-600"}`}>{children}</section>
+  return <section className={`rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</section>
 }
 
 function errorMessage(error: Error, fallback: string) {

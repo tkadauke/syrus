@@ -58,13 +58,13 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
 
   return (
     <main aria-label="Admin queue" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex items-end justify-between gap-4 border-b border-gray-200 pb-4">
+      <header className="flex items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500">Admin</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900">Queue</h1>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Queue</h1>
         </div>
         <button
-          className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+          className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-500"
           disabled={reaper.isPending}
           onClick={() => reaper.mutate()}
           type="button"
@@ -78,8 +78,8 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
           <Link
             className={`rounded border px-3 py-1.5 text-sm ${
               candidate === tab
-                ? "border-gray-900 bg-gray-900 text-white"
-                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                ? "border-gray-900 dark:border-gray-100 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900"
+                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
             }`}
             key={candidate}
             to={`${basePath}/${candidate}`}
@@ -90,10 +90,10 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
       </nav>
 
       {reaper.isSuccess ? (
-        <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{reaper.data.message}</p>
+        <p className="rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">{reaper.data.message}</p>
       ) : null}
       {reaper.isError ? (
-        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">Unable to run stale-run reaper.</p>
+        <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300">Unable to run stale-run reaper.</p>
       ) : null}
 
       {queue.isPending ? <PanelMessage>Loading queue...</PanelMessage> : null}
@@ -132,7 +132,7 @@ function QueueContent({ basePath, pathname, payload, prefix, search, tab }: { ba
         />
       ) : null}
     >
-      <section className="rounded border border-gray-200 bg-white">
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <QueueTabPanel tab={tab} payload={payload} />
       </section>
     </AdminFiltersLayout>
@@ -161,7 +161,7 @@ function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {
 function PendingTable({ payload }: { payload: PendingQueuePayload }) {
   return (
     <>
-      <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600">Showing {payload.jobs.length} of {payload.total}</div>
+      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">Showing {payload.jobs.length} of {payload.total}</div>
       <JobsTable emptyLabel="No queued jobs." jobs={payload.jobs} />
     </>
   )
@@ -172,8 +172,8 @@ function JobsTable({ jobs, showClaimed = false, emptyLabel }: { jobs: QueueJob[]
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">Class</th>
             <th className="px-4 py-2">Queue</th>
@@ -182,14 +182,14 @@ function JobsTable({ jobs, showClaimed = false, emptyLabel }: { jobs: QueueJob[]
             {showClaimed ? <th className="px-4 py-2">Claimed</th> : null}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {jobs.map((job) => (
             <tr key={job.id}>
-              <td className="px-4 py-2 font-medium text-gray-900">{job.class_name}</td>
-              <td className="px-4 py-2 text-gray-700">{job.queue_name}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-600">{formatArguments(job.arguments)}</td>
-              <td className="px-4 py-2 text-gray-600">{formatDate(job.created_at)}</td>
-              {showClaimed ? <td className="px-4 py-2 text-gray-600">{formatDate(job.claimed_at)}</td> : null}
+              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{job.class_name}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{job.queue_name}</td>
+              <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{formatArguments(job.arguments)}</td>
+              <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatDate(job.created_at)}</td>
+              {showClaimed ? <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatDate(job.claimed_at)}</td> : null}
             </tr>
           ))}
         </tbody>
@@ -203,8 +203,8 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">Created</th>
             <th className="px-4 py-2">Class</th>
@@ -213,14 +213,14 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
             <th className="px-4 py-2">Arguments</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {payload.failures.map((failure: QueueFailure) => (
             <tr key={failure.id}>
-              <td className="px-4 py-2 text-gray-600">{formatDate(failure.created_at)}</td>
-              <td className="px-4 py-2 font-medium text-gray-900">{failure.class_name || "-"}</td>
-              <td className="px-4 py-2 text-gray-700">{failure.exception_class || "-"}</td>
-              <td className="max-w-md px-4 py-2 text-gray-700">{failure.message || "-"}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-600">{formatArguments(failure.arguments)}</td>
+              <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatDate(failure.created_at)}</td>
+              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{failure.class_name || "-"}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{failure.exception_class || "-"}</td>
+              <td className="max-w-md px-4 py-2 text-gray-700 dark:text-gray-200">{failure.message || "-"}</td>
+              <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{formatArguments(failure.arguments)}</td>
             </tr>
           ))}
         </tbody>
@@ -234,8 +234,8 @@ function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">Key</th>
             <th className="px-4 py-2">Class</th>
@@ -244,14 +244,14 @@ function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
             <th className="px-4 py-2">Last finished</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {tasks.map((task) => (
             <tr key={task.key}>
-              <td className="px-4 py-2 font-medium text-gray-900">{task.key}</td>
-              <td className="px-4 py-2 text-gray-700">{task.class_name || "-"}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-600">{task.schedule}</td>
-              <td className="px-4 py-2 text-gray-600">{formatDate(task.last_run_at)}</td>
-              <td className="px-4 py-2 text-gray-600">{formatDate(task.last_finished_at)}</td>
+              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{task.key}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{task.class_name || "-"}</td>
+              <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{task.schedule}</td>
+              <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatDate(task.last_run_at)}</td>
+              <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatDate(task.last_finished_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -273,9 +273,9 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
   if (workers.length === 0) return <PanelMessage>No workers registered.</PanelMessage>
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+    <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">Host</th>
             <th className="px-4 py-2">PID</th>
@@ -285,15 +285,15 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
             <th className="px-4 py-2">State</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {workers.map((worker) => (
             <tr key={`${worker.hostname}-${worker.pid}`}>
-              <td className="px-4 py-2 font-medium text-gray-900">{worker.hostname || "-"}</td>
-              <td className="px-4 py-2 text-gray-700">{worker.pid}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-600">{formatQueues(worker.queues)}</td>
-              <td className="px-4 py-2 text-gray-700">{worker.threads ?? "-"}</td>
-              <td className="px-4 py-2 text-gray-600">{formatDate(worker.last_heartbeat_at)}</td>
-              <td className={`px-4 py-2 ${worker.stale ? "text-red-700" : "text-emerald-700"}`}>{worker.stale ? "stale" : "healthy"}</td>
+              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{worker.hostname || "-"}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{worker.pid}</td>
+              <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{formatQueues(worker.queues)}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{worker.threads ?? "-"}</td>
+              <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatDate(worker.last_heartbeat_at)}</td>
+              <td className={`px-4 py-2 ${worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{worker.stale ? "stale" : "healthy"}</td>
             </tr>
           ))}
         </tbody>
@@ -306,9 +306,9 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
   if (processes.length === 0) return <PanelMessage>No SolidQueue processes registered.</PanelMessage>
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+    <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">Kind</th>
             <th className="px-4 py-2">Host</th>
@@ -316,13 +316,13 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
             <th className="px-4 py-2">Heartbeat</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {processes.map((process) => (
             <tr key={`${process.kind}-${process.hostname}-${process.pid}`}>
-              <td className="px-4 py-2 font-medium text-gray-900">{process.kind}</td>
-              <td className="px-4 py-2 text-gray-700">{process.hostname || "-"}</td>
-              <td className="px-4 py-2 text-gray-700">{process.pid}</td>
-              <td className="px-4 py-2 text-gray-600">{formatDate(process.last_heartbeat_at)}</td>
+              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{process.kind}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{process.hostname || "-"}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{process.pid}</td>
+              <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatDate(process.last_heartbeat_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -345,7 +345,7 @@ function formatQueues(queues: QueueWorker["queues"]) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700" : "text-gray-600"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
 
 function formatDate(value: string | null | undefined) {

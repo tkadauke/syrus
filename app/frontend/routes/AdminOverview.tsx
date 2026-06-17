@@ -11,13 +11,13 @@ export function AdminOverview() {
   })
 
   if (overview.isPending) {
-    return <main aria-label="Admin overview" className="p-6 text-sm text-gray-600">Loading...</main>
+    return <main aria-label="Admin overview" className="p-6 text-sm text-gray-600 dark:text-gray-300">Loading...</main>
   }
 
   if (overview.isError) {
     return (
       <main aria-label="Admin overview" className="p-6">
-        <p className="text-sm text-red-700">Unable to load admin overview.</p>
+        <p className="text-sm text-red-700 dark:text-red-300">Unable to load admin overview.</p>
       </main>
     )
   }
@@ -29,9 +29,9 @@ export function AdminOverview() {
 
   return (
     <main aria-label="Admin overview" className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500">Admin</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900">Overview</h1>
+      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Overview</h1>
       </header>
 
       <section aria-label="System metrics" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -48,13 +48,13 @@ export function AdminOverview() {
       </section>
 
       {data.stuck.length > 0 ? (
-        <section aria-label="Stuck things" className="overflow-hidden rounded border border-amber-200 bg-white">
-          <div className="bg-amber-50 px-4 py-2 text-xs font-medium uppercase text-amber-700">Stuck things</div>
-          <ul className="divide-y divide-gray-100">
+        <section aria-label="Stuck things" className="overflow-hidden rounded border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-900">
+          <div className="bg-amber-50 dark:bg-amber-950/40 px-4 py-2 text-xs font-medium uppercase text-amber-700 dark:text-amber-300">Stuck things</div>
+          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
             {data.stuck.map((item) => (
               <li className="flex items-center justify-between gap-3 px-4 py-3 text-sm" key={`${item.kind}-${item.run_id}-${item.workflow_id}`}>
                 <StuckDetail item={item} prefix={prefix} />
-                <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600">{item.age_label}</span>
+                <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-mono text-xs text-gray-600 dark:text-gray-300">{item.age_label}</span>
               </li>
             ))}
           </ul>
@@ -66,10 +66,10 @@ export function AdminOverview() {
 
 function StuckDetail({ item, prefix }: { item: AdminOverviewPayload["stuck"][number]; prefix: string }) {
   const href = item.workflow_path || item.job_path
-  if (!href) return <span className="text-gray-800">{item.detail}</span>
+  if (!href) return <span className="text-gray-800 dark:text-gray-100">{item.detail}</span>
 
   return (
-    <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(href, prefix)}>
+    <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(href, prefix)}>
       {item.detail}
     </Link>
   )
@@ -100,17 +100,17 @@ function Metric({
   tone?: "idle" | "ok" | "warn" | "alarm"
 }) {
   const toneClass = {
-    idle: "border-gray-200",
-    ok: "border-emerald-200",
-    warn: "border-amber-200",
-    alarm: "border-red-200"
+    idle: "border-gray-200 dark:border-gray-700",
+    ok: "border-emerald-200 dark:border-emerald-800",
+    warn: "border-amber-200 dark:border-amber-800",
+    alarm: "border-red-200 dark:border-red-800"
   }[tone]
-  const className = `rounded border ${toneClass} bg-white p-4 ${href ? "block hover:bg-gray-50" : ""}`
+  const className = `rounded border ${toneClass} bg-white dark:bg-gray-900 p-4 ${href ? "block hover:bg-gray-50 dark:hover:bg-gray-800" : ""}`
   const content = (
     <>
-      <h2 className="text-sm font-medium text-gray-700">{title}</h2>
-      <p className="mt-2 text-3xl font-semibold text-gray-900">{value}</p>
-      <p className="mt-1 text-xs text-gray-500">{context}</p>
+      <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200">{title}</h2>
+      <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{context}</p>
     </>
   )
 

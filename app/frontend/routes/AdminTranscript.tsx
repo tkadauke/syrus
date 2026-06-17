@@ -35,22 +35,22 @@ export function AdminTranscript() {
 function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefix: string }) {
   return (
     <>
-      <header className="shrink-0 flex flex-col gap-3 border-b border-gray-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+      <header className="shrink-0 flex flex-col gap-3 border-b border-gray-200 dark:border-gray-700 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-xs uppercase text-gray-500">
+          <div className="text-xs uppercase text-gray-500 dark:text-gray-400">
             <Link className="underline hover:no-underline" to={withRoutePrefix(`/jobs/${payload.job_id}`, prefix)}>back to job #{payload.job_id}</Link>
           </div>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900">
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
             Run #{payload.run_id} · transcript
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Session <span className="font-mono">{payload.session_id}</span>
             {payload.summary.model ? <> · {payload.summary.model}</> : null}
             {payload.step_kind ? <> · {payload.step_kind}</> : null}
             {payload.workflow_trigger_kind ? <> · {payload.workflow_trigger_kind}</> : null}
           </p>
         </div>
-        <a className="text-sm text-blue-600 underline hover:no-underline" href={`/admin/runs/${payload.run_id}/transcript/download`}>
+        <a className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" href={`/admin/runs/${payload.run_id}/transcript/download`}>
           Download JSONL
         </a>
       </header>
@@ -119,7 +119,7 @@ function TranscriptEventStream({ payload }: { payload: TranscriptPayload }) {
       </section>
       {hasNewMessages ? (
         <button
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-gray-800"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-gray-900 dark:bg-gray-100 px-4 py-2 text-sm font-medium text-white dark:text-gray-900 shadow-lg hover:bg-gray-800 dark:hover:bg-gray-200"
           onClick={scrollToBottom}
           type="button"
         >
@@ -134,17 +134,17 @@ function SummaryGrid({ payload }: { payload: TranscriptPayload }) {
   const summary = payload.summary
 
   return (
-    <section aria-label="Transcript summary" className="grid gap-4 rounded border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+    <section aria-label="Transcript summary" className="grid gap-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
       <SummaryItem label="Turns" value={summary.total_turns ?? "-"} />
       <SummaryItem label="Tool calls" value={summary.total_tool_calls} />
       <SummaryItem label="Cost" value={summary.total_cost_usd == null ? "-" : `$${summary.total_cost_usd.toFixed(4)}`} />
       <SummaryItem label="Exit reason" value={summary.exit_reason || "-"} mono />
-      <div className="border-t border-gray-100 pt-3 sm:col-span-2 lg:col-span-4">
-        <div className="mb-2 text-xs uppercase text-gray-500">Tool call breakdown</div>
+      <div className="border-t border-gray-100 dark:border-gray-800 pt-3 sm:col-span-2 lg:col-span-4">
+        <div className="mb-2 text-xs uppercase text-gray-500 dark:text-gray-400">Tool call breakdown</div>
         {Object.keys(summary.tool_call_counts).length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {Object.entries(summary.tool_call_counts).map(([name, count]) => (
-              <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-700" key={name}>{name} x{count}</span>
+              <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-mono text-xs text-gray-700 dark:text-gray-200" key={name}>{name} x{count}</span>
             ))}
           </div>
         ) : (
@@ -158,8 +158,8 @@ function SummaryGrid({ payload }: { payload: TranscriptPayload }) {
 function SummaryItem({ label, value, mono = false }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
     <div>
-      <div className="text-xs uppercase text-gray-500">{label}</div>
-      <div className={`font-medium text-gray-900 ${mono ? "font-mono text-xs" : ""}`}>{value}</div>
+      <div className="text-xs uppercase text-gray-500 dark:text-gray-400">{label}</div>
+      <div className={`font-medium text-gray-900 dark:text-gray-100 ${mono ? "font-mono text-xs" : ""}`}>{value}</div>
     </div>
   )
 }
@@ -170,22 +170,22 @@ function Pagination({ payload }: { payload: TranscriptPayload }) {
   const { page, per, total_pages: totalPages, total_events: totalEvents } = payload.pagination
 
   if (totalPages <= 1) {
-    return <p className="text-sm text-gray-600">Showing {totalEvents} events.</p>
+    return <p className="text-sm text-gray-600 dark:text-gray-300">Showing {totalEvents} events.</p>
   }
 
   return (
-    <nav aria-label="Transcript pagination" className="flex items-center justify-between text-sm text-gray-600">
+    <nav aria-label="Transcript pagination" className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
       <span>Page {page} of {totalPages} · {totalEvents} events</span>
       <div className="flex gap-2">
         {page > 1 ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50" to={`${basePath}?page=${page - 1}&per=${per}`}>Previous</Link>
+          <Link className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 hover:bg-gray-50 dark:hover:bg-gray-800" to={`${basePath}?page=${page - 1}&per=${per}`}>Previous</Link>
         ) : (
-          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">Previous</span>
+          <span className="rounded border border-gray-200 dark:border-gray-700 px-3 py-1 text-gray-300">Previous</span>
         )}
         {page < totalPages ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50" to={`${basePath}?page=${page + 1}&per=${per}`}>Next</Link>
+          <Link className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 hover:bg-gray-50 dark:hover:bg-gray-800" to={`${basePath}?page=${page + 1}&per=${per}`}>Next</Link>
         ) : (
-          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">Next</span>
+          <span className="rounded border border-gray-200 dark:border-gray-700 px-3 py-1 text-gray-300">Next</span>
         )}
       </div>
     </nav>
@@ -214,30 +214,30 @@ function TranscriptEventCard({ event }: { event: TranscriptEvent }) {
 }
 
 function TextEvent({ badge, text, tone = "gray" }: { badge: string; text: string; tone?: "blue" | "gray" }) {
-  const classes = tone === "blue" ? "border-blue-100 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500"
+  const classes = tone === "blue" ? "border-blue-100 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400"
 
   return (
     <div className={`rounded border px-3 py-2 ${classes}`}>
       <div className="mb-1 text-xs font-medium uppercase">{badge}</div>
-      <pre className="whitespace-pre-wrap break-words text-sm text-gray-800">{text}</pre>
+      <pre className="whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-100">{text}</pre>
     </div>
   )
 }
 
 function DetailsEvent({ badge, title, data, tone = "gray" }: { badge: string; title: string; data: unknown; tone?: "gray" | "red" | "emerald" }) {
   const badgeClass = {
-    gray: "bg-gray-100 text-gray-700",
-    red: "bg-red-100 text-red-700",
-    emerald: "bg-emerald-100 text-emerald-700"
+    gray: "bg-gray-100  text-gray-700 dark:text-gray-200",
+    red: "bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300",
+    emerald: "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
   }[tone]
 
   return (
-    <details className="rounded border border-gray-200 bg-white text-xs">
+    <details className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs">
       <summary className="flex cursor-pointer items-center gap-2 px-3 py-2">
         <span className={`rounded px-1.5 py-0.5 font-mono uppercase ${badgeClass}`}>{badge}</span>
-        <span className="truncate font-mono text-gray-800">{title}</span>
+        <span className="truncate font-mono text-gray-800 dark:text-gray-100">{title}</span>
       </summary>
-      <pre className="overflow-x-auto whitespace-pre-wrap break-words px-3 pb-3 font-mono text-gray-600">{pretty(data)}</pre>
+      <pre className="overflow-x-auto whitespace-pre-wrap break-words px-3 pb-3 font-mono text-gray-600 dark:text-gray-300">{pretty(data)}</pre>
     </details>
   )
 }
@@ -246,14 +246,14 @@ function ResultEvent({ data }: { data: Record<string, unknown> }) {
   const isError = data.is_error === true
 
   return (
-    <div className={`rounded border px-3 py-2 text-xs ${isError ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}>
+    <div className={`rounded border px-3 py-2 text-xs ${isError ? "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40" : "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40"}`}>
       <div className="flex flex-wrap gap-3 font-mono">
-        <span className={`font-semibold uppercase ${isError ? "text-red-700" : "text-emerald-700"}`}>result</span>
+        <span className={`font-semibold uppercase ${isError ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>result</span>
         <span>turns={stringValue(data.turns)}</span>
         <span>duration={stringValue(data.duration_ms)}ms</span>
         <span>subtype={stringValue(data.subtype)}</span>
       </div>
-      {data.final_text != null && data.final_text !== "" ? <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-800">{stringValue(data.final_text)}</pre> : null}
+      {data.final_text != null && data.final_text !== "" ? <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-100">{stringValue(data.final_text)}</pre> : null}
     </div>
   )
 }
@@ -265,7 +265,7 @@ function TranscriptError({ error }: { error: Error }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`rounded border border-gray-200 bg-white p-4 text-sm ${tone === "error" ? "text-red-700" : "text-gray-600"}`}>{children}</div>
+  return <div className={`rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
 
 function routePrefix(pathname: string) {

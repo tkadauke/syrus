@@ -17,13 +17,13 @@ export function AdminStuck() {
 
   return (
     <main aria-label="Admin stuck items" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex items-end justify-between gap-4 border-b border-gray-200 pb-4">
+      <header className="flex items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500">Admin</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900">Stuck Things</h1>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Stuck Things</h1>
         </div>
         <button
-          className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+          className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-500"
           disabled={stuck.isFetching}
           onClick={() => void stuck.refetch()}
           type="button"
@@ -32,7 +32,7 @@ export function AdminStuck() {
         </button>
       </header>
 
-      <section className="rounded border border-gray-200 bg-white">
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         {stuck.isPending ? <PanelMessage>Loading stuck items...</PanelMessage> : null}
         {stuck.isError ? <PanelMessage tone="error">Unable to load stuck items.</PanelMessage> : null}
         {stuck.isSuccess ? <StuckTable items={stuck.data.items} prefix={prefix} /> : null}
@@ -44,7 +44,7 @@ export function AdminStuck() {
 function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
   if (items.length === 0) {
     return (
-      <div className="bg-emerald-50 p-6 text-sm text-emerald-800">
+      <div className="bg-emerald-50 dark:bg-emerald-950/40 p-6 text-sm text-emerald-800 dark:text-emerald-200">
         Nothing stuck. Reaper, pruner, and worker pool are all keeping up.
       </div>
     )
@@ -52,8 +52,8 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">Severity</th>
             <th className="px-4 py-2">Kind</th>
@@ -63,7 +63,7 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
             <th className="px-4 py-2 text-right">Links</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {items.map((item) => (
             <tr key={`${item.kind}-${item.run_id || "none"}-${item.workflow_id || "none"}`}>
               <td className="px-4 py-2">
@@ -71,17 +71,17 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
                   {item.severity}
                 </span>
               </td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-700">{item.kind}</td>
-              <td className="px-4 py-2 text-gray-700">{item.detail}</td>
-              <td className="px-4 py-2 text-xs text-gray-600">{contextLabel(item)}</td>
-              <td className="px-4 py-2 text-xs text-gray-500">{item.age_label}</td>
+              <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200">{item.kind}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{item.detail}</td>
+              <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{contextLabel(item)}</td>
+              <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{item.age_label}</td>
               <td className="space-x-3 px-4 py-2 text-right text-xs">
                 {item.workflow_path ? (
-                  <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(item.workflow_path, prefix)}>{item.workflow_slug || "Workflow"}</Link>
+                  <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.workflow_path, prefix)}>{item.workflow_slug || "Workflow"}</Link>
                 ) : null}
-                {item.job_id ? <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}>Job</Link> : null}
+                {item.job_id ? <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}>Job</Link> : null}
                 {item.run_id && item.has_transcript ? (
-                  <Link className="text-indigo-600 underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${item.run_id}/transcript`, prefix)}>Transcript</Link>
+                  <Link className="text-indigo-600 dark:text-indigo-300 underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${item.run_id}/transcript`, prefix)}>Transcript</Link>
                 ) : null}
               </td>
             </tr>
@@ -93,7 +93,7 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700" : "text-gray-600"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
 
 function routePrefix(pathname: string) {
@@ -108,7 +108,7 @@ function withRoutePrefix(path: string, prefix: string) {
 }
 
 function severityClass(severity: string) {
-  return severity === "alarm" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+  return severity === "alarm" ? "bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300" : "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300"
 }
 
 function contextLabel(item: StuckItem) {

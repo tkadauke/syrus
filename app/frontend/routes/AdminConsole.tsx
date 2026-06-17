@@ -22,9 +22,9 @@ export function AdminConsole() {
 
   return (
     <main aria-label="Admin console" className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500">Admin</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900">Operator Console</h1>
+      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Operator Console</h1>
       </header>
 
       {consoleQuery.isPending ? <PanelMessage>Loading console...</PanelMessage> : null}
@@ -99,17 +99,17 @@ function TogglePanel({
   })
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-medium text-gray-900">{title}</h2>
-          <p className="mt-1 max-w-prose text-xs text-gray-600">{description}</p>
+          <h2 className="font-medium text-gray-900 dark:text-gray-100">{title}</h2>
+          <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">{description}</p>
           <p className="mt-3 text-xs">
-            State: <span className={`rounded px-2 py-0.5 font-mono uppercase ${warning ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{value}</span>
+            State: <span className={`rounded px-2 py-0.5 font-mono uppercase ${warning ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300" : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"}`}>{value}</span>
           </p>
         </div>
         <button
-          className={`rounded px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed ${warning ? "bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-300" : "bg-amber-600 hover:bg-amber-500 disabled:bg-amber-300"}`}
+          className={`rounded px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed ${warning ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-500 dark:hover:bg-emerald-400 disabled:bg-emerald-300 dark:disabled:bg-emerald-900" : "bg-amber-600 dark:bg-amber-500 hover:bg-amber-500 dark:hover:bg-amber-400 disabled:bg-amber-300 dark:disabled:bg-amber-900"}`}
           disabled={mutation.isPending}
           onClick={() => mutation.mutate()}
           type="button"
@@ -133,14 +133,14 @@ function ReaperPanel() {
   })
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-medium text-gray-900">Reap stale Runs now</h2>
-          <p className="mt-1 max-w-prose text-xs text-gray-600">Runs the stale-run reaper inline when the recurring reaper itself may be starved.</p>
+          <h2 className="font-medium text-gray-900 dark:text-gray-100">Reap stale Runs now</h2>
+          <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">Runs the stale-run reaper inline when the recurring reaper itself may be starved.</p>
         </div>
         <button
-          className="shrink-0 rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-300"
+          className="shrink-0 rounded bg-red-600 dark:bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 dark:hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-300 dark:disabled:bg-red-900"
           disabled={mutation.isPending}
           onClick={() => mutation.mutate()}
           type="button"
@@ -148,7 +148,7 @@ function ReaperPanel() {
           {mutation.isPending ? "Running..." : "Reap now"}
         </button>
       </div>
-      {mutation.isError ? <p className="mt-2 text-xs text-red-700">Unable to run stale-run reaper.</p> : null}
+      {mutation.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">Unable to run stale-run reaper.</p> : null}
     </section>
   )
 }
@@ -164,12 +164,12 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
   })
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
-      <h2 className="font-medium text-gray-900">GitHub HTTP cache</h2>
-      <p className="mt-1 max-w-prose text-xs text-gray-600">Drops per-user GitHub ETag cache entries when conditional GET responses are stale.</p>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <h2 className="font-medium text-gray-900 dark:text-gray-100">GitHub HTTP cache</h2>
+      <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">Drops per-user GitHub ETag cache entries when conditional GET responses are stale.</p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
         <select
-          className="rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700"
+          className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-200"
           onChange={(event) => setUserId(event.target.value)}
           value={userId}
         >
@@ -179,7 +179,7 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
           ))}
         </select>
         <button
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+          className="rounded bg-blue-600 dark:bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
           disabled={mutation.isPending}
           onClick={() => mutation.mutate()}
           type="button"
@@ -188,21 +188,21 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
         </button>
       </div>
       <NoticeToast message={mutation.data?.message || null} onDismiss={() => mutation.reset()} />
-      {mutation.isError ? <p className="mt-2 text-xs text-red-700">Unable to clear GitHub cache.</p> : null}
+      {mutation.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">Unable to clear GitHub cache.</p> : null}
     </section>
   )
 }
 
 function ActionsTable({ actions }: { actions: ConsoleAction[] }) {
   return (
-    <section className="rounded border border-gray-200 bg-white">
-      <div className="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium uppercase text-gray-500">Recent admin actions</div>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Recent admin actions</div>
       {actions.length === 0 ? (
         <PanelMessage>No admin actions logged yet.</PanelMessage>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-2">When</th>
                 <th className="px-4 py-2">Operator</th>
@@ -210,13 +210,13 @@ function ActionsTable({ actions }: { actions: ConsoleAction[] }) {
                 <th className="px-4 py-2">Params</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {actions.map((action) => (
                 <tr key={action.id}>
-                  <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600">{formatDate(action.performed_at)}</td>
-                  <td className="px-4 py-2 text-xs text-gray-700">{action.user_email}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(action.performed_at)}</td>
+                  <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-200">{action.user_email}</td>
                   <td className="px-4 py-2 font-mono text-xs">{action.action}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{JSON.stringify(action.params).slice(0, 200)}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{JSON.stringify(action.params).slice(0, 200)}</td>
                 </tr>
               ))}
             </tbody>
@@ -234,7 +234,7 @@ function ConsoleError({ error }: { error: Error }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700" : "text-gray-600"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
 
 function formatDate(value: string) {

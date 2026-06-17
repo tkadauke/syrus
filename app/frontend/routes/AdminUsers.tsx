@@ -25,10 +25,10 @@ export function AdminUsersIndex() {
 
   return (
     <main aria-label="Admin users" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-4">
+      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500">Admin</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900">Users</h1>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Users</h1>
         </div>
       </header>
 
@@ -58,8 +58,8 @@ export function AdminUsersIndex() {
             />
           }
         >
-          <section className="rounded border border-gray-200 bg-white">
-            <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600">{users.data.count} matching</div>
+          <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{users.data.count} matching</div>
             <UsersTable basePath={basePath} users={users.data.users} />
           </section>
         </AdminFiltersLayout>
@@ -83,9 +83,9 @@ export function AdminUserDetailRoute() {
 
   return (
     <main aria-label="Admin user detail" className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-4">
-        <Link className="text-sm text-blue-600 underline hover:no-underline" to={basePath}>Users</Link>
-        <h1 className="mt-2 text-2xl font-semibold text-gray-900">{user.data?.display_name || `User #${id}`}</h1>
+      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>Users</Link>
+        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{user.data?.display_name || `User #${id}`}</h1>
       </header>
 
       {user.isPending ? <PanelMessage>Loading user...</PanelMessage> : null}
@@ -100,8 +100,8 @@ function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: stri
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">User</th>
             <th className="px-4 py-2">GitHub</th>
@@ -113,12 +113,12 @@ function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: stri
             <th className="px-4 py-2">GH rate</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {users.map((user) => (
-            <tr className="hover:bg-gray-50" key={user.id}>
+            <tr className="hover:bg-gray-50 dark:hover:bg-gray-800" key={user.id}>
               <td className="px-4 py-2">
-                <Link className="text-blue-600 underline hover:no-underline" to={`${basePath}/${user.id}`}>{user.display_name}</Link>
-                {user.display_name !== user.email_address ? <div className="text-xs text-gray-500">{user.email_address}</div> : null}
+                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={`${basePath}/${user.id}`}>{user.display_name}</Link>
+                {user.display_name !== user.email_address ? <div className="text-xs text-gray-500 dark:text-gray-400">{user.email_address}</div> : null}
               </td>
               <td className="px-4 py-2">{user.github_handle ? `@${user.github_handle}` : "-"}</td>
               <td className="px-4 py-2">{user.admin ? "yes" : "-"}</td>
@@ -155,10 +155,10 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
         </InfoPanel>
       </section>
 
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold uppercase text-gray-500">Scheduling</h2>
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Scheduling</h2>
         <div className="mt-3 flex items-center gap-4">
-          <span className="text-sm text-gray-700">Status: <strong>{user.scheduling_paused ? "paused" : "active"}</strong></span>
+          <span className="text-sm text-gray-700 dark:text-gray-200">Status: <strong>{user.scheduling_paused ? "paused" : "active"}</strong></span>
           <SchedulingButton user={user} />
         </div>
       </section>
@@ -181,7 +181,7 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
 
   return (
     <button
-      className="rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+      className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:bg-gray-400"
       disabled={mutation.isPending}
       onClick={() => mutation.mutate()}
       type="button"
@@ -193,8 +193,8 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
 
 function InfoPanel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
-      <h2 className="text-sm font-semibold uppercase text-gray-500">{title}</h2>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{title}</h2>
       <dl className="mt-3 space-y-2 text-sm">{children}</dl>
     </section>
   )
@@ -203,22 +203,22 @@ function InfoPanel({ title, children }: { title: string; children: ReactNode }) 
 function Info({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-gray-600">{label}</dt>
-      <dd className="text-right text-gray-900">{value}</dd>
+      <dt className="text-gray-600 dark:text-gray-300">{label}</dt>
+      <dd className="text-right text-gray-900 dark:text-gray-100">{value}</dd>
     </div>
   )
 }
 
 function RecentTable({ title, rows }: { title: string; rows: string[][] }) {
   return (
-    <section className="rounded border border-gray-200 bg-white">
-      <div className="border-b border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700">{title}</div>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200">{title}</div>
       {rows.length === 0 ? (
         <PanelMessage>No rows yet.</PanelMessage>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <tbody className="divide-y divide-gray-100">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {rows.map((row) => (
                 <tr key={row.join("-")}>{row.map((cell) => <td className="px-4 py-2" key={cell}>{cell}</td>)}</tr>
               ))}
@@ -237,7 +237,7 @@ function UsersError({ error }: { error: Error }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700" : "text-gray-600"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
 
 function tokenSummary(user: AdminUserRow) {
