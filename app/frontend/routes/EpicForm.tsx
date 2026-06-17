@@ -57,7 +57,7 @@ function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: Ep
   return (
     <>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">{mode === "new" ? "New Epic" : "Edit Epic"}</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{mode === "new" ? "New Epic" : "Edit Epic"}</h1>
         {mode === "edit" && payload.epic.epic_path ? <Link className="text-sm text-blue-600 underline hover:no-underline" to={withRoutePrefix(payload.epic.epic_path, prefix)}>Back to Epic</Link> : null}
       </header>
 
@@ -114,7 +114,7 @@ function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: Ep
           >
             {save.isPending ? "Saving..." : mode === "new" ? "Create Epic" : "Save Epic"}
           </button>
-          <Link className="text-sm text-gray-600 hover:text-gray-900" to={withRoutePrefix(mode === "new" ? payload.dashboard_epics_path : payload.epic.epic_path || payload.dashboard_epics_path, prefix)}>Cancel</Link>
+          <Link className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(mode === "new" ? payload.dashboard_epics_path : payload.epic.epic_path || payload.dashboard_epics_path, prefix)}>Cancel</Link>
         </div>
       </form>
     </>
@@ -143,7 +143,7 @@ function inputFromPayload(payload: EpicFormPayload): EpicInput {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
       <div className="mt-2">{children}</div>
     </label>
@@ -152,14 +152,14 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
+    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function inputClass() {
-  return "block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
+  return "block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
 }
 
 function errorMessage(error: Error, fallback: string) {

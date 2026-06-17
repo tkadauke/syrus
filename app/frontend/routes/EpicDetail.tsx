@@ -18,6 +18,7 @@ import {
 import { Markdown } from "../lib/Markdown"
 
 let mermaidInitialized = false
+let mermaidInitializedTheme: "base" | "dark" | null = null
 let mermaidRenderSequence = 0
 
 type EpicCommand =
@@ -72,14 +73,14 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
     <>
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="break-words text-2xl font-bold text-gray-900">
+          <h1 className="break-words text-2xl font-bold text-gray-900 dark:text-gray-100">
             <span className="font-mono">{payload.epic.display_number}</span>
-            <span className="px-2 text-gray-400">·</span>
+            <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             {payload.epic.title}
           </h1>
           <StatePill state={payload.epic.state} />
         </div>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           <Link className="font-mono hover:underline" to={withRoutePrefix(payload.epic.repository.repository_path, prefix)}>{payload.epic.repository.slug}</Link>
           <span> · {payload.epic.jobs_count} {payload.epic.jobs_count === 1 ? "Job" : "Jobs"}</span>
           <span> · {ownerLabel(payload.epic)}</span>
@@ -127,13 +128,13 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+          <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">
             {payload.summary.done_jobs_count}/{payload.summary.total_jobs_count} done
           </span>
-          <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+          <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
             {payload.summary.dependency_edge_count} {payload.summary.dependency_edge_count === 1 ? "dep" : "deps"}
           </span>
-          {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Blocked</span> : null}
+          {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">Blocked</span> : null}
         </div>
       </header>
 
@@ -143,9 +144,9 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
       <DependencyGraph graph={payload.graph} />
 
       {payload.epic.description.trim() ? (
-        <section className="rounded border border-gray-200 bg-white p-4">
-          <h2 className="font-semibold text-gray-900">Description</h2>
-          <Markdown className="chat-prose mt-2 text-sm text-gray-700" text={payload.epic.description} />
+        <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Description</h2>
+          <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
         </section>
       ) : null}
 
@@ -155,18 +156,18 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
 }
 
 function DependencyGraph({ graph }: { graph: EpicGraph }) {
-  if (graph.empty) return <p className="text-sm text-gray-500">No external dependencies</p>
+  if (graph.empty) return <p className="text-sm text-gray-500 dark:text-gray-400">No external dependencies</p>
 
   return (
-    <details className="group rounded border border-gray-200 bg-white text-sm" open={graph.initially_open}>
-      <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+    <details className="group rounded border border-gray-200 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" open={graph.initially_open}>
+      <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
         <span className="flex items-center gap-2">
-          <span className="text-gray-400 transition-transform group-open:rotate-90">▶</span>
+          <span className="text-gray-400 transition-transform group-open:rotate-90 dark:text-gray-500">▶</span>
           <span className="font-medium">Dependency graph</span>
-          <span className="text-gray-500">({graph.epic_dependency_count} {graph.epic_dependency_count === 1 ? "epic dep" : "epic deps"}, {graph.job_blocker_count} {graph.job_blocker_count === 1 ? "job blocker" : "job blockers"})</span>
+          <span className="text-gray-500 dark:text-gray-400">({graph.epic_dependency_count} {graph.epic_dependency_count === 1 ? "epic dep" : "epic deps"}, {graph.job_blocker_count} {graph.job_blocker_count === 1 ? "job blocker" : "job blockers"})</span>
         </span>
       </summary>
-      <div className="border-t border-gray-100 p-3">
+      <div className="border-t border-gray-100 p-3 dark:border-gray-800">
         <MermaidGraph definition={graph.definition} />
       </div>
     </details>
@@ -185,9 +186,11 @@ function MermaidGraph({ definition }: { definition: string }) {
     void import("mermaid")
       .then(async (module) => {
         const mermaid = module.default
-        if (!mermaidInitialized) {
-          mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "base" })
+        const theme = document.documentElement.classList.contains("dark") ? "dark" : "base"
+        if (!mermaidInitialized || mermaidInitializedTheme !== theme) {
+          mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme })
           mermaidInitialized = true
+          mermaidInitializedTheme = theme
         }
 
         return mermaid.render(`epic-dependency-graph-${++mermaidRenderSequence}`, definition)
@@ -205,29 +208,29 @@ function MermaidGraph({ definition }: { definition: string }) {
   }, [definition])
 
   return (
-    <div className="overflow-x-auto rounded bg-gray-50 p-3">
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
-      {!error && !svg ? <p className="text-sm text-gray-500">Rendering dependency graph...</p> : null}
-      {svg ? <div className="min-w-[28rem] text-center text-gray-700" dangerouslySetInnerHTML={{ __html: svg }} /> : null}
+    <div className="overflow-x-auto rounded bg-gray-50 p-3 dark:bg-gray-950">
+      {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      {!error && !svg ? <p className="text-sm text-gray-500 dark:text-gray-400">Rendering dependency graph...</p> : null}
+      {svg ? <div className="min-w-[28rem] text-center text-gray-700 dark:text-gray-200" dangerouslySetInnerHTML={{ __html: svg }} /> : null}
     </div>
   )
 }
 
 function JobsSection({ jobs, prefix }: { jobs: EpicDetailJob[]; prefix: string }) {
   return (
-    <section className="rounded border border-gray-200 bg-white">
-      <div className="border-b border-gray-200 px-4 py-3">
-        <h2 className="font-semibold text-gray-900">Jobs</h2>
+    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
       </div>
       {jobs.length > 0 ? (
-        <ul className="divide-y divide-gray-100 text-sm">
+        <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
           {jobs.map((job) => (
             <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={job.id}>
               <div className="min-w-0">
                 {job.title ? (
                   <>
-                    <span className="font-medium text-gray-600">{job.label}</span>
-                    <Link className="ml-1 text-gray-700 hover:underline" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
+                    <span className="font-medium text-gray-600 dark:text-gray-400">{job.label}</span>
+                    <Link className="ml-1 text-gray-700 hover:underline dark:text-gray-200" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
                   </>
                 ) : (
                   <Link className="font-medium text-blue-600 underline hover:no-underline" to={withRoutePrefix(job.path, prefix)}>{job.label}</Link>
@@ -238,7 +241,7 @@ function JobsSection({ jobs, prefix }: { jobs: EpicDetailJob[]; prefix: string }
           ))}
         </ul>
       ) : (
-        <p className="px-4 py-6 text-sm text-gray-400">No Jobs in this Epic.</p>
+        <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">No Jobs in this Epic.</p>
       )}
     </section>
   )
@@ -257,43 +260,43 @@ function withRoutePrefix(path: string, prefix: string) {
 
 function StatePill({ state }: { state: string }) {
   const styles: Record<string, string> = {
-    backlog: "bg-gray-100 text-gray-700",
-    ready: "bg-sky-100 text-sky-700",
-    in_progress: "bg-blue-100 text-blue-700",
-    done: "bg-green-100 text-green-700",
-    archived: "bg-gray-200 text-gray-800",
-    queued: "bg-gray-100 text-gray-700",
-    running: "bg-blue-100 text-blue-700",
-    succeeded: "bg-green-100 text-green-700",
-    failed: "bg-red-100 text-red-700",
-    cancelled: "bg-amber-100 text-amber-700",
-    open: "bg-emerald-100 text-emerald-700",
-    triaging: "bg-sky-100 text-sky-700",
-    blocked_by_epic: "bg-amber-100 text-amber-700",
-    implemented: "bg-cyan-100 text-cyan-700",
-    approved: "bg-green-100 text-green-700",
-    landing: "bg-teal-100 text-teal-700",
-    merged: "bg-emerald-100 text-emerald-700",
-    landing_failed: "bg-red-100 text-red-700",
-    closed: "bg-gray-200 text-gray-800",
-    preempted: "bg-violet-100 text-violet-700",
-    pending: "bg-gray-100 text-gray-700"
+    backlog: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200",
+    ready: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-200",
+    in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200",
+    done: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200",
+    archived: "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100",
+    queued: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200",
+    running: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200",
+    succeeded: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200",
+    failed: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-200",
+    cancelled: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200",
+    open: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
+    triaging: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-200",
+    blocked_by_epic: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200",
+    implemented: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-200",
+    approved: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200",
+    landing: "bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-200",
+    merged: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
+    landing_failed: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-200",
+    closed: "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100",
+    preempted: "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-200",
+    pending: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
   }
 
-  return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 text-gray-700"}`}>{humanize(state)}</span>
+  return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{humanize(state)}</span>
 }
 
 function PanelMessage({ children, tone = "success" }: { children: ReactNode; tone?: "success" | "error" | "muted" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    muted: "border-gray-200 bg-white text-gray-600",
-    success: "border-green-200 bg-green-50 text-green-700"
+    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
+    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300",
+    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/70 dark:bg-green-950/40 dark:text-green-200"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function secondaryButton() {
-  return "rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300"
+  return "rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
 }
 
 function humanize(value: string) {

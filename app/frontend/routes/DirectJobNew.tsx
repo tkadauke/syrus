@@ -33,8 +33,8 @@ export function DirectJobNewRoute() {
   return (
     <main aria-label="New direct job" className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900">New direct job</h1>
-        <p className="mt-1 text-sm text-gray-600">Run the agent on a repository with a free-form prompt and optional context.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">New direct job</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Run the agent on a repository with a free-form prompt and optional context.</p>
       </header>
 
       {form.isPending ? <PanelMessage>Loading direct job form...</PanelMessage> : null}
@@ -125,8 +125,8 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to create direct job.")}</PanelMessage> : null}
 
-      <section className="space-y-4 rounded border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-gray-900">Target</h2>
+      <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Target</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Repository">
             <select
@@ -163,25 +163,25 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
 
       {payload.prompt_templates.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-900">Templates</h2>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Templates</h2>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {payload.prompt_templates.map((template) => (
               <button
-                className="rounded border border-gray-200 bg-white px-3 py-2.5 text-left hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="rounded border border-gray-200 bg-white px-3 py-2.5 text-left hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-blue-700 dark:hover:bg-blue-950/40"
                 key={template.id}
                 onClick={() => applyTemplate(template)}
                 type="button"
               >
-                <span className="block text-sm font-medium text-gray-900">{template.name}</span>
-                <span className="mt-0.5 block text-xs leading-snug text-gray-500">{template.description}</span>
+                <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{template.name}</span>
+                <span className="mt-0.5 block text-xs leading-snug text-gray-500 dark:text-gray-400">{template.description}</span>
               </button>
             ))}
           </div>
         </section>
       ) : null}
 
-      <section className="space-y-4 rounded border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-gray-900">Prompt</h2>
+      <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Prompt</h2>
         <Field label="Title">
           <input
             className={inputClass()}
@@ -220,14 +220,14 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         </Field>
       </section>
 
-      <section className="space-y-4 rounded border border-gray-200 bg-white p-4">
+      <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">Attachments</h2>
-          <p className="mt-1 text-xs text-gray-500">Optional files and Google Doc links are passed to the agent as Job context.</p>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Attachments</h2>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional files and Google Doc links are passed to the agent as Job context.</p>
         </div>
 
         <div
-          className="cursor-pointer rounded border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 transition-colors hover:border-blue-300 hover:bg-blue-50"
+          className="cursor-pointer rounded border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-700 dark:hover:bg-blue-950/40"
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(event) => event.preventDefault()}
           onDrop={dropFiles}
@@ -240,7 +240,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           role="button"
           tabIndex={0}
         >
-          <div className="font-medium text-gray-700">Drop files here</div>
+          <div className="font-medium text-gray-700 dark:text-gray-300">Drop files here</div>
           <div className="mt-1 text-xs">PNG, JPG, GIF, WebP, PDF, text, or Markdown. 20 MB max.</div>
         </div>
         <input
@@ -253,13 +253,13 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         />
         <div className="flex flex-wrap items-center gap-3">
           <button
-            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             onClick={() => fileInputRef.current?.click()}
             type="button"
           >
             Choose files
           </button>
-          {files.length > 0 ? <span className="text-sm text-gray-600">{files.map((file) => file.name).join(", ")}</span> : null}
+          {files.length > 0 ? <span className="text-sm text-gray-600 dark:text-gray-400">{files.map((file) => file.name).join(", ")}</span> : null}
         </div>
 
         <Field label="Google Doc URL">
@@ -274,10 +274,10 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         </Field>
       </section>
 
-      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
         <input
           checked={values.createMore}
-          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950"
           name="create_more"
           onChange={(event) => setValues({ ...values, createMore: event.target.checked })}
           type="checkbox"
@@ -293,7 +293,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         >
           {save.isPending ? "Creating..." : "Create job"}
         </button>
-        <Link className="text-sm text-gray-600 underline hover:no-underline" to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}>Cancel</Link>
+        <Link className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}>Cancel</Link>
       </div>
     </form>
   )
@@ -324,7 +324,7 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
       <div className="mt-1">{children}</div>
     </label>
@@ -333,15 +333,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-green-200 bg-green-50 text-green-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
+    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/70 dark:bg-green-950/40 dark:text-green-200",
+    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function inputClass() {
-  return "block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
+  return "block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
 }
 
 function errorMessage(error: Error, fallback: string) {

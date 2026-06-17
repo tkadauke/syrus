@@ -134,18 +134,18 @@ function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { 
       <header className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="break-words text-3xl font-semibold text-gray-900">{title}</h1>
+            <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="mt-1 break-words text-sm text-gray-600">
+              <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
                 <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
-                <span className="px-2 text-gray-300">/</span>
+                <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
                 <JobSourceLink payload={payload} />
               </p>
               <StatusPill state={payload.job.summary_state} />
               {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
               {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500">
+            <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
               <CopyableJobSlug slug={jobSlug(payload.job.id)} />
               <span>· {payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")}</span>
               {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
@@ -292,7 +292,7 @@ function HeaderActionsMenu({ actions, command, onRetryFeedback }: { actions: Hea
         More
       </button>
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg" role="menu">
+        <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
           {actions.map((action) => (
             <button
               className={menuButtonClass(action.tone)}
@@ -334,15 +334,15 @@ function RetryFeedbackDialog({ command, path, onClose }: { command: ReturnType<t
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-gray-900/40 p-4" role="presentation">
-      <section aria-labelledby="retry-feedback-title" className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl" role="dialog" aria-modal="true">
+      <section aria-labelledby="retry-feedback-title" className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-900" role="dialog" aria-modal="true">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-900" id="retry-feedback-title">Retry with feedback</h2>
-            <p className="mt-1 text-sm text-gray-500">This feedback will be added to the retry prompt.</p>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="retry-feedback-title">Retry with feedback</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">This feedback will be added to the retry prompt.</p>
           </div>
           <button
             aria-label="Close retry with feedback"
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             disabled={command.isPending}
             onClick={onClose}
             type="button"
@@ -351,12 +351,12 @@ function RetryFeedbackDialog({ command, path, onClose }: { command: ReturnType<t
           </button>
         </div>
         <form className="mt-4 space-y-3" onSubmit={submit}>
-          <label className="block text-sm font-medium text-gray-700" htmlFor="retry-feedback-text">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="retry-feedback-text">
             Feedback
           </label>
           <textarea
             autoFocus
-            className="min-h-36 w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             id="retry-feedback-text"
             onChange={(event) => setFeedback(event.target.value)}
             required
@@ -406,13 +406,13 @@ function CopyableJobSlug({ slug }: { slug: string }) {
   return (
     <button
       aria-label={`Copy ${slug} to clipboard`}
-      className="group inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="group inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
       onClick={copySlug}
       title={copied ? "Copied" : `Copy ${slug}`}
       type="button"
     >
       <span>{slug}</span>
-      <CopyIcon className={`h-3.5 w-3.5 ${copied ? "text-green-600" : "text-gray-400 group-hover:text-gray-600"}`} />
+      <CopyIcon className={`h-3.5 w-3.5 ${copied ? "text-green-600 dark:text-green-300" : "text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300"}`} />
     </button>
   )
 }
@@ -435,16 +435,16 @@ function TagsPanel({ payload, command }: { payload: JobDetailPayload; command: R
   }
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
+    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold text-gray-900">Tags</h2>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Tags</h2>
           {payload.tags.length > 0 ? payload.tags.map((tag) => (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700" key={tag.id}>
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
               {tag.name}
               <button
                 aria-label={`Remove ${tag.name}`}
-                className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-600"
+                className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300"
                 disabled={command.isPending}
                 onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_tags_path}/${tag.id}` })}
                 title={`Remove ${tag.name}`}
@@ -453,10 +453,10 @@ function TagsPanel({ payload, command }: { payload: JobDetailPayload; command: R
                 <CloseIcon className="h-3 w-3" />
               </button>
             </span>
-          )) : <span className="text-sm text-gray-400">No tags yet.</span>}
+          )) : <span className="text-sm text-gray-400 dark:text-gray-500">No tags yet.</span>}
         </div>
         <form className="flex items-center gap-2" onSubmit={submit}>
-          <input className="w-40 rounded border border-gray-300 px-2 py-1.5 text-sm" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder="Add tag" required value={tagName} />
+          <input className="w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder="Add tag" required value={tagName} />
           <datalist id="job-tag-options">
             {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
           </datalist>
@@ -476,10 +476,10 @@ function TabNav({ active, workflowsCount, attachmentsCount, onSelect }: { active
   ]
 
   return (
-    <div className="flex overflow-x-auto border-b border-gray-200">
+    <div className="flex overflow-x-auto border-b border-gray-200 dark:border-gray-700">
       {tabs.map((tab) => (
         <button
-          className={`shrink-0 border-b-2 px-4 py-2 text-sm font-medium ${active === tab.id ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-800"}`}
+          className={`shrink-0 border-b-2 px-4 py-2 text-sm font-medium ${active === tab.id ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-300" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
           key={tab.id}
           onClick={() => onSelect(tab.id)}
           type="button"
@@ -517,7 +517,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
       <RetryStatePanel payload={payload} />
       {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} prefix={prefix} /> : null}
 
-      <section className="grid gap-4 rounded border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 rounded border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4 dark:border-gray-700 dark:bg-gray-900">
         <KeyValue label="Owner"><JobOwnerLabel payload={payload} prefix={prefix} /></KeyValue>
         <KeyValue label="Priority"><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
         <KeyValue label="Validity"><span className="capitalize">{payload.job.validity}</span></KeyValue>
@@ -525,7 +525,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
         <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name || "-"}</code></KeyValue>
         <KeyValue label="Stack base"><StackBaseForm command={command} payload={payload} /></KeyValue>
         <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue>
-        <KeyValue label="Cost">{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400">({payload.job.billed_runs_count} billed)</span></KeyValue>
+        <KeyValue label="Cost">{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} billed)</span></KeyValue>
         <KeyValue label="Started">{formatDate(payload.job.started_at)}</KeyValue>
         <KeyValue label="Closed">{payload.job.finished_at ? `${formatDate(payload.job.finished_at)} (${payload.job.closure_reason || "unspecified"})` : "still open"}</KeyValue>
       </section>
@@ -535,13 +535,13 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
       <DependenciesPanel command={command} payload={payload} prefix={prefix} />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-gray-900">Issue</h2>
-          {payload.job.issue_body ? <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-600">{payload.job.issue_body}</pre> : <p className="mt-2 text-sm text-gray-400">No issue body.</p>}
+        <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Issue</h2>
+          {payload.job.issue_body ? <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-600 dark:text-gray-300">{payload.job.issue_body}</pre> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No issue body.</p>}
         </section>
-        <section className="rounded border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-gray-900">Agent summary</h2>
-          {payload.summary ? <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{payload.summary.text}</p> : <p className="mt-2 text-sm text-gray-400">No summary yet.</p>}
+        <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent summary</h2>
+          {payload.summary ? <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{payload.summary.text}</p> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No summary yet.</p>}
         </section>
       </div>
 
@@ -564,7 +564,7 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
   if (!retry || (retry.state_label === "No failure" && !retry.classification)) return null
 
   return (
-    <section className={`rounded border px-4 py-3 text-sm ${retry.auto_retry_exhausted ? "border-red-200 bg-red-50 text-red-800" : retry.provider_circuit_open ? "border-amber-200 bg-amber-50 text-amber-900" : "border-gray-200 bg-white text-gray-700"}`}>
+    <section className={`rounded border px-4 py-3 text-sm ${retry.auto_retry_exhausted ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200" : retry.provider_circuit_open ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200" : "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold">{retry.state_label}</span>
         <SmallPill>{retry.classification_label}</SmallPill>
@@ -583,21 +583,21 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
 
 function JobOwnerLabel({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
   const owner = payload.job.claimed_by_user
-  if (!owner) return <span className="text-gray-400">Unclaimed</span>
+  if (!owner) return <span className="text-gray-400 dark:text-gray-500">Unclaimed</span>
 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       <Link className="font-medium text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
         {payload.job.claimed_by_current_user ? "You" : owner.display_name}
       </Link>
-      {payload.job.claimed_at ? <span className="text-xs text-gray-400">{formatDate(payload.job.claimed_at)}</span> : null}
+      {payload.job.claimed_at ? <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(payload.job.claimed_at)}</span> : null}
     </span>
   )
 }
 
 function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   return (
-    <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <span className="font-medium">Waiting on {payload.unsatisfied_dependencies.length} {plural(payload.unsatisfied_dependencies.length, "dependency")}.</span>
@@ -630,7 +630,7 @@ function StackBaseForm({ payload, command }: { payload: JobDetailPayload; comman
       event.preventDefault()
       command.mutate({ method: "patch", path: payload.paths.app_stack_base_path, body: { stack_base: stackBase } })
     }}>
-      <select className="rounded border border-gray-300 bg-white px-2 py-1 text-xs" onChange={(event) => setStackBase(event.target.value)} value={stackBase}>
+      <select className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setStackBase(event.target.value)} value={stackBase}>
         <option value="auto">auto</option>
         <option value="main">main</option>
       </select>
@@ -640,13 +640,13 @@ function StackBaseForm({ payload, command }: { payload: JobDetailPayload; comman
 }
 
 function PullRequestSummary({ payload }: { payload: JobDetailPayload }) {
-  if (!payload.job.pr_number && !payload.job.external_pr_number) return <span className="text-gray-400">-</span>
+  if (!payload.job.pr_number && !payload.job.external_pr_number) return <span className="text-gray-400 dark:text-gray-500">-</span>
 
   return (
     <div className="space-y-1">
       {payload.job.pr_number ? <a className="text-blue-600 hover:underline" href={payload.job.pr_url || "#"} rel="noopener" target="_blank">Syrus PR #{payload.job.pr_number}</a> : null}
       {payload.job.external_pr_number ? <a className="block text-violet-700 hover:underline" href={payload.job.external_pr_url || "#"} rel="noopener" target="_blank">External PR #{payload.job.external_pr_number}</a> : null}
-      <div><MergeablePill value={payload.job.pr_mergeable} /> {payload.job.pr_mergeable_checked_at ? <span className="text-xs text-gray-400">checked {formatDate(payload.job.pr_mergeable_checked_at)}</span> : null}</div>
+      <div><MergeablePill value={payload.job.pr_mergeable} /> {payload.job.pr_mergeable_checked_at ? <span className="text-xs text-gray-400 dark:text-gray-500">checked {formatDate(payload.job.pr_mergeable_checked_at)}</span> : null}</div>
     </div>
   )
 }
@@ -661,22 +661,22 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
 
   return (
     <section className="grid gap-4 lg:grid-cols-2">
-      <div className="rounded border border-gray-200 bg-white p-4 text-sm">
-        <h2 className="font-semibold text-gray-900">Dependencies</h2>
+      <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Dependencies</h2>
         {payload.dependencies.length > 0 ? (
-          <ul className="mt-2 divide-y divide-gray-100">
+          <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependencies.map((dependency) => (
               <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
-                <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400">({dependency.source})</span></span>
+                <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
                 {dependency.manual ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_dependencies_path}/${dependency.id}`, confirm: "Remove this dependency?" })} type="button">Remove</button> : null}
               </li>
             ))}
           </ul>
-        ) : <p className="mt-2 text-gray-400">No dependencies.</p>}
-        <form className="mt-3 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3" onSubmit={submit}>
-          <label className="min-w-0 flex-1 text-xs font-medium uppercase text-gray-500">
+        ) : <p className="mt-2 text-gray-400 dark:text-gray-500">No dependencies.</p>}
+        <form className="mt-3 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800" onSubmit={submit}>
+          <label className="min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
             Dependency
-            <select className="mt-1 w-full min-w-64 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700" onChange={(event) => setTarget(event.target.value)} required value={target}>
+            <select className="mt-1 w-full min-w-64 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setTarget(event.target.value)} required value={target}>
               <option value="">Select a Job or issue</option>
               {payload.dependency_target_options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
@@ -684,10 +684,10 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
           <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
         </form>
       </div>
-      <div className="rounded border border-gray-200 bg-white p-4 text-sm">
-        <h2 className="font-semibold text-gray-900">{payload.dependents.length} other {plural(payload.dependents.length, "Job")} depend on this one</h2>
+      <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{payload.dependents.length} other {plural(payload.dependents.length, "Job")} depend on this one</h2>
         {payload.dependents.length > 0 ? (
-          <ul className="mt-2 divide-y divide-gray-100">
+          <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependents.map((dependent) => (
               <li className="flex flex-wrap items-center gap-2 py-2" key={dependent.id}>
                 <Link className="text-blue-600 hover:underline" to={withRoutePrefix(dependent.job.job_path, prefix)}>{dependent.job.repository_slug} {jobSlug(dependent.job.id)}</Link>
@@ -695,7 +695,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
               </li>
             ))}
           </ul>
-        ) : <p className="mt-2 text-gray-400">No dependent Jobs.</p>}
+        ) : <p className="mt-2 text-gray-400 dark:text-gray-500">No dependent Jobs.</p>}
       </div>
     </section>
   )
@@ -712,30 +712,30 @@ function TimelinePanel({ canView, jobId, prefix }: { canView: boolean; jobId: nu
   if (!canView) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
+    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900">Timeline</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Timeline</h2>
         <button
           aria-expanded={expanded}
-          className="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
           onClick={() => setExpanded((value) => !value)}
           type="button"
         >
           {expanded ? "Hide timeline" : "Show timeline"}
         </button>
       </div>
-      {expanded && timeline.isPending ? <p className="mt-2 text-sm text-gray-400">Loading timeline...</p> : null}
+      {expanded && timeline.isPending ? <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">Loading timeline...</p> : null}
       {expanded && timeline.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), "Unable to load timeline.")}</p> : null}
       {expanded && timeline.data && timeline.data.events.length > 0 ? (
         <ol className="mt-3 space-y-3">
           {timeline.data.events.map((event, index) => (
-            <li className="border-l border-gray-200 pl-3 text-sm" key={`${event.at}-${event.title}-${index}`}>
-              <div className="font-medium text-gray-900">
+            <li className="border-l border-gray-200 pl-3 text-sm dark:border-gray-700" key={`${event.at}-${event.title}-${index}`}>
+              <div className="font-medium text-gray-900 dark:text-gray-100">
                 {event.workflow_path ? (
                   <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
                 ) : event.title}
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
                 {formatDate(event.at)} · {event.source}
                 {event.ref_label ? (
                   <>
@@ -746,7 +746,7 @@ function TimelinePanel({ canView, jobId, prefix }: { canView: boolean; jobId: nu
                   </>
                 ) : null}
               </div>
-              {event.detail ? <div className="mt-1 text-gray-600">{event.detail}</div> : null}
+              {event.detail ? <div className="mt-1 text-gray-600 dark:text-gray-300">{event.detail}</div> : null}
             </li>
           ))}
         </ol>
@@ -759,8 +759,8 @@ function AttachmentPreview({ attachments }: { attachments: JobAttachment[] }) {
   if (attachments.length === 0) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
-      <h2 className="text-sm font-semibold text-gray-900">Attachments</h2>
+    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Attachments</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {attachments.slice(0, 6).map((attachment) => <AttachmentCard attachment={attachment} key={attachment.id} />)}
       </div>
@@ -785,7 +785,7 @@ function WorkflowsPagination({ payload, prefix }: { payload: JobDetailPayload; p
   if (pagination.total_pages <= 1) return null
 
   return (
-    <nav aria-label="Workflow pagination" className="flex items-center justify-between text-sm text-gray-600">
+    <nav aria-label="Workflow pagination" className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
       <span>Showing {pagination.first_item}-{pagination.last_item} of {pagination.total_workflows}</span>
       <div className="flex gap-2">
         {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>Previous</Link> : <span className={disabledPaginationClass()}>Previous</span>}
@@ -799,13 +799,13 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
   const stepItems = workflowStepItems(workflow.steps)
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4" id={`workflow-${workflow.id}`}>
+    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" id={`workflow-${workflow.id}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             <Link className="hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflow.slug || workflowSlug(workflow.id)}</Link>
           </h2>
-          <p className="text-xs text-gray-500">{workflow.trigger_kind} · {workflow.agent_provider || "default agent"} · created {formatDate(workflow.created_at)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{workflow.trigger_kind} · {workflow.agent_provider || "default agent"} · created {formatDate(workflow.created_at)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
@@ -813,7 +813,7 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
           {workflow.state === "failed" && !workflow.cleaned_up_at ? <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">Push commits</CommandButton> : null}
         </div>
       </div>
-      <div className="mt-4 overflow-hidden rounded border border-gray-200">
+      <div className="mt-4 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
         {stepItems.map((item, index) => item.type === "loop" ? (
           <LoopGroup command={command} item={item} key={item.loopId} payload={payload} />
         ) : (
@@ -829,27 +829,27 @@ function LoopGroup({ item, payload, command }: { item: LoopStepItem; payload: Jo
   const status = loopDisplayStatus(item)
 
   return (
-    <section className="border-b border-gray-200 last:border-b-0">
+    <section className="border-b border-gray-200 last:border-b-0 dark:border-gray-700">
       <button
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 bg-violet-50 px-3 py-2 text-left hover:bg-violet-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="flex w-full items-center justify-between gap-3 bg-violet-50 px-3 py-2 text-left hover:bg-violet-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-violet-950/30 dark:hover:bg-violet-950/50"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="font-medium text-gray-900">{loopDisplayName(item)}</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">{loopDisplayName(item)}</span>
           <SmallPill>{item.iterations.length} {plural(item.iterations.length, "iteration")}</SmallPill>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {status ? <StatusPill state={status} /> : null}
-          <span aria-hidden="true" className="text-gray-400">{open ? "−" : "+"}</span>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
         </span>
       </button>
       {open ? (
-        <div className="space-y-3 border-t border-violet-100 bg-white p-3">
+        <div className="space-y-3 border-t border-violet-100 bg-white p-3 dark:border-violet-900/60 dark:bg-gray-950">
           {item.iterations.map((iteration) => (
-            <section className="overflow-hidden rounded border border-gray-200" key={iteration.iteration}>
-              <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-500">
+            <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={iteration.iteration}>
+              <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
                 Iteration {iteration.iteration}
               </div>
               {iteration.items.map((stepItem, index) => (
@@ -876,27 +876,27 @@ function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepIt
   const summaries = gradeSummaries(item)
 
   return (
-    <div className="border-b border-gray-200 bg-white last:border-b-0">
+    <div className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
       <button
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 bg-violet-50/50 px-3 py-2 text-left hover:bg-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="flex w-full items-center justify-between gap-3 bg-violet-50/50 px-3 py-2 text-left hover:bg-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-violet-950/20 dark:hover:bg-violet-950/40"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400">{numberLabel}.</span>
-          <span className="truncate text-sm font-medium text-gray-900">Grade</span>
+          <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{numberLabel}.</span>
+          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">Grade</span>
           {item.graders.length > 0 ? <SmallPill>{item.graders.length} {plural(item.graders.length, "check")}</SmallPill> : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {status ? <StatusPill state={status} /> : null}
-          <span aria-hidden="true" className="text-gray-400">{open ? "−" : "+"}</span>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
         </span>
       </button>
       {open ? (
-        <div className="border-t border-violet-100 bg-violet-50/20 p-3">
-          <div className="overflow-hidden rounded border border-violet-100 bg-white">
+        <div className="border-t border-violet-100 bg-violet-50/20 p-3 dark:border-violet-900/60 dark:bg-violet-950/10">
+          <div className="overflow-hidden rounded border border-violet-100 bg-white dark:border-gray-700 dark:bg-gray-900">
             {phases.map((phase, index) => (
               <StepCard
                 command={command}
@@ -954,7 +954,7 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
     <div className="mt-2 space-y-2 text-xs">
       <SmallPill>{required === false ? "optional" : "required"}</SmallPill>
       {description ? (
-        <p className="text-gray-700">
+        <p className="text-gray-700 dark:text-gray-300">
           {shownDescription}
           {isLong ? (
             <button
@@ -967,12 +967,12 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
           ) : null}
         </p>
       ) : (
-        <p className="italic text-gray-400">No description.</p>
+        <p className="italic text-gray-400 dark:text-gray-500">No description.</p>
       )}
       {command ? (
         <div>
-          <div className="mb-1 font-medium uppercase tracking-wide text-gray-400">Command</div>
-          <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] text-gray-700">{command}</pre>
+          <div className="mb-1 font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Command</div>
+          <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] text-gray-700 dark:bg-gray-950 dark:text-gray-300">{command}</pre>
         </div>
       ) : null}
     </div>
@@ -987,25 +987,25 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
   const prepareFailure = prepareFailureDetails(step)
 
   return (
-    <div className="border-b border-gray-200 bg-white last:border-b-0">
+    <div className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
       <button
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-gray-800"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400">{numberLabel}.</span>
-          <span className="truncate text-sm font-medium text-gray-900">{displayName || step.display_name}</span>
+          <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{numberLabel}.</span>
+          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{displayName || step.display_name}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {displayStatus ? <StatusPill state={displayStatus} /> : null}
-          <span aria-hidden="true" className="text-gray-400">{open ? "−" : "+"}</span>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
         </span>
       </button>
       {open ? (
-        <div className="border-t border-gray-100 bg-gray-50 p-3">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>{metadataLabel || step.kind}</span>
             {step.loop_id ? <span>iteration {step.iteration ?? 1}</span> : null}
             {activeRun && step.state !== activeRun.state ? <SmallPill>step {step.state.replaceAll("_", " ")}</SmallPill> : null}
@@ -1017,13 +1017,13 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
           {step.details && !prepareFailure ? (
             step.kind === "grader"
               ? <GraderDetails details={objectDetails(step.details)} />
-              : <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600">{stringify(step.details)}</pre>
+              : <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">{stringify(step.details)}</pre>
           ) : null}
           {runs.length > 0 ? (
             <div className="mt-3 space-y-2">
               {runs.map((run) => <RunRow active={activeRun?.id === run.id} command={command} key={run.id} payload={payload} run={run} />)}
             </div>
-          ) : <p className="mt-2 text-xs text-gray-400">No runs for this step.</p>}
+          ) : <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">No runs for this step.</p>}
         </div>
       ) : null}
     </div>
@@ -1034,7 +1034,7 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
   const status = prepareFailureStatus(failure)
 
   return (
-    <section className="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+    <section className="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
       <div className="font-semibold">Setup failed before the agent started</div>
       <dl className="mt-2 grid gap-x-4 gap-y-1 md:grid-cols-[max-content_1fr]">
         <dt className="font-medium">Command</dt>
@@ -1045,7 +1045,7 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
         <dd>{status}</dd>
       </dl>
       {failure.output_tail ? (
-        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-[11px] text-amber-950 whitespace-pre-wrap">{failure.output_tail}</pre>
+        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-[11px] text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">{failure.output_tail}</pre>
       ) : null}
     </section>
   )
@@ -1086,21 +1086,21 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
   }
 
   return (
-    <div className={`rounded border bg-white p-3 text-sm ${active ? "border-blue-300 ring-1 ring-blue-100" : "border-gray-200"}`}>
+    <div className={`rounded border bg-white p-3 text-sm dark:bg-gray-900 ${active ? "border-blue-300 ring-1 ring-blue-100 dark:border-blue-700 dark:ring-blue-900/70" : "border-gray-200 dark:border-gray-700"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-gray-900">Run #{run.id}</span>
+            <span className="font-medium text-gray-900 dark:text-gray-100">Run #{run.id}</span>
             <StatusPill state={run.state} />
             {run.rate_limited ? <SmallPill>rate limited</SmallPill> : null}
           </div>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {run.agent_provider || "agent"} · {run.agent_turns ?? 0} {plural(run.agent_turns ?? 0, "turn")} · {run.job_log_count} log {plural(run.job_log_count, "line")} · {formatCurrency(run.cost_usd || 0)}
           </p>
-          {run.agent_summary ? <p className="mt-2 whitespace-pre-wrap text-gray-700">{run.agent_summary}</p> : null}
-          {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500">Health: {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
-          {run.failure_classification ? <p className="mt-1 text-xs text-gray-600">Failure: {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? "retryable" : "manual review"}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
-          {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-amber-700">Diagnostic captured {formatDate(run.run_diagnostic.created_at)}{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
+          {run.agent_summary ? <p className="mt-2 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{run.agent_summary}</p> : null}
+          {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Health: {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
+          {run.failure_classification ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">Failure: {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? "retryable" : "manual review"}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
+          {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Diagnostic captured {formatDate(run.run_diagnostic.created_at)}{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           {run.job_log_count > 0 ? (
@@ -1123,9 +1123,9 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
           ) : null}
         </div>
       </div>
-      {artifacts.isError ? <p className="mt-3 text-xs text-red-700">{errorMessage(artifacts.error, "Unable to load run artifacts.")}</p> : null}
+      {artifacts.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(artifacts.error, "Unable to load run artifacts.")}</p> : null}
       {artifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView} /> : null}
-      {gradeLog.isError ? <p className="mt-3 text-xs text-red-700">{errorMessage(gradeLog.error, "Grade log failed.")}</p> : null}
+      {gradeLog.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(gradeLog.error, "Grade log failed.")}</p> : null}
       {gradeLogOpen && gradeLog.data ? (
         <RunGradeLogPanel onClose={() => setGradeLogOpen(false)} payload={gradeLog.data} />
       ) : null}
@@ -1140,7 +1140,7 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
         <ArtifactPanelHeader onClose={onClose}>Agent diff</ArtifactPanelHeader>
         {payload.agent_diff ? (
           <AgentDiff diff={payload.agent_diff} />
-        ) : <p className="p-3 text-sm text-gray-400">No diff captured for this run.</p>}
+        ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">No diff captured for this run.</p>}
       </section>
     )
   }
@@ -1148,7 +1148,7 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
   return (
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>Transcript</ArtifactPanelHeader>
-      {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400">No transcript rows captured for this run.</p>}
+      {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">No transcript rows captured for this run.</p>}
     </section>
   )
 }
@@ -1157,20 +1157,20 @@ function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<ty
   return (
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{payload.name || `Run #${payload.run_id}`} grade log</ArtifactPanelHeader>
-      <pre className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none" data-testid="run-grade-log-stream">{payload.contents}</pre>
+      <pre className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950 dark:text-gray-200" data-testid="run-grade-log-stream">{payload.contents}</pre>
     </section>
   )
 }
 
 function artifactPanelClass() {
-  return "mt-3 rounded border border-gray-200 bg-gray-50 max-md:fixed max-md:inset-0 max-md:z-50 max-md:mt-0 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:rounded-none max-md:border-0 max-md:bg-white"
+  return "mt-3 rounded border border-gray-200 bg-gray-50 max-md:fixed max-md:inset-0 max-md:z-50 max-md:mt-0 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:rounded-none max-md:border-0 max-md:bg-white dark:border-gray-700 dark:bg-gray-950 max-md:dark:bg-gray-950"
 }
 
 function ArtifactPanelHeader({ children, onClose }: { children: ReactNode; onClose: () => void }) {
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 py-2">
-      <h4 className="text-xs font-semibold uppercase text-gray-500">{children}</h4>
-      <button aria-label="Close artifact viewer" className="hidden rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 max-md:block" onClick={onClose} type="button">
+    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+      <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{children}</h4>
+      <button aria-label="Close artifact viewer" className="hidden rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 max-md:block dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
         <CloseIcon className="h-5 w-5" />
       </button>
     </div>
@@ -1190,7 +1190,7 @@ function AgentDiff({ diff }: { diff: string }) {
   const lines = parseUnifiedDiff(diff)
 
   return (
-    <div className="max-h-[32rem] overflow-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none" data-testid="agent-diff-viewer">
+    <div className="max-h-[32rem] overflow-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950" data-testid="agent-diff-viewer">
       <table className="min-w-full border-separate border-spacing-0">
         <tbody>
           {lines.map((line, index) => (
@@ -1198,7 +1198,7 @@ function AgentDiff({ diff }: { diff: string }) {
               <td className={diffGutterClass(line.kind)}>{line.oldLine ?? ""}</td>
               <td className={diffGutterClass(line.kind)}>{line.newLine ?? ""}</td>
               <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
-              <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900">{line.code || " "}</td>
+              <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200">{line.code || " "}</td>
             </tr>
           ))}
         </tbody>
@@ -1250,22 +1250,22 @@ function diffLine(kind: DiffLineKind, code: string, oldLine: number | null = nul
 
 function diffLineClass(kind: DiffLineKind) {
   switch (kind) {
-    case "add": return "bg-green-50"
-    case "delete": return "bg-red-50"
-    case "hunk": return "bg-blue-50 text-blue-800"
-    case "file": return "bg-gray-100 font-semibold"
-    case "meta": return "bg-gray-50 text-gray-500"
-    default: return "bg-white"
+    case "add": return "bg-green-50 dark:bg-green-950/40"
+    case "delete": return "bg-red-50 dark:bg-red-950/40"
+    case "hunk": return "bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200"
+    case "file": return "bg-gray-100 font-semibold dark:bg-gray-800 dark:text-gray-100"
+    case "meta": return "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400"
+    default: return "bg-white dark:bg-gray-950"
   }
 }
 
 function diffGutterClass(kind: DiffLineKind) {
   const base = "w-12 select-none border-r px-2 py-0.5 text-right text-gray-400"
   switch (kind) {
-    case "add": return `${base} border-green-200 bg-green-100 text-green-700`
-    case "delete": return `${base} border-red-200 bg-red-100 text-red-700`
-    case "hunk": return `${base} border-blue-200 bg-blue-100 text-blue-700`
-    default: return `${base} border-gray-200 bg-gray-50`
+    case "add": return `${base} border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/60 dark:text-green-300`
+    case "delete": return `${base} border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300`
+    case "hunk": return `${base} border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/60 dark:text-blue-300`
+    default: return `${base} border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-500`
   }
 }
 
@@ -1294,10 +1294,10 @@ function RunTranscriptLogs({ logs }: { logs: Awaited<ReturnType<typeof fetchJobR
   }, [logSignature])
 
   return (
-    <ol className="max-h-[32rem] overflow-auto divide-y divide-gray-200 max-md:min-h-0 max-md:flex-1 max-md:max-h-none" data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
+    <ol className="max-h-[32rem] overflow-auto divide-y divide-gray-200 max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:divide-gray-800" data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
       {displayLogs.map((log) => (
-        <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)]" key={log.id}>
-          <span className="text-gray-400">{transcriptLogKindLabel(log.kind) || `#${log.sequence}`}</span>
+        <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)] dark:text-gray-200" key={log.id}>
+          <span className="text-gray-400 dark:text-gray-500">{transcriptLogKindLabel(log.kind) || `#${log.sequence}`}</span>
           <pre className="whitespace-pre-wrap break-words">{log.chunk}</pre>
         </li>
       ))}
@@ -1403,16 +1403,16 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
 
   return (
     <section className="space-y-4">
-      <form className="rounded border border-gray-200 bg-white p-4" onSubmit={submit}>
-        <h2 className="text-sm font-semibold text-gray-900">Add attachment</h2>
+      <form className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Add attachment</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-          <label className="text-sm font-medium text-gray-700">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Files
             <input className="mt-1 block w-full text-sm" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} type="file" />
           </label>
-          <label className="text-sm font-medium text-gray-700">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Google Doc URL
-            <input className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." type="url" value={googleDocUrl} />
+            <input className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." type="url" value={googleDocUrl} />
           </label>
           <button className={buttonClass("primary")} disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">Add</button>
         </div>
@@ -1424,7 +1424,7 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
           {payload.attachments.map((attachment) => (
             <div className="relative" key={attachment.id}>
               <AttachmentCard attachment={attachment} />
-              <button className="absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50" disabled={remove.isPending} onClick={() => remove.mutate(attachment.app_delete_path)} type="button">Remove</button>
+              <button className="absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40" disabled={remove.isPending} onClick={() => remove.mutate(attachment.app_delete_path)} type="button">Remove</button>
             </div>
           ))}
         </div>
@@ -1437,9 +1437,9 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
 function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
   const title = attachment.title || attachment.filename || attachment.google_doc_url || `Attachment #${attachment.id}`
   return (
-    <article className="rounded border border-gray-200 bg-white p-3 text-sm">
-      <div className="font-medium text-gray-900">{attachment.file_path ? <a className="hover:underline" href={attachment.file_path}>{title}</a> : title}</div>
-      <div className="mt-1 text-xs text-gray-500">
+    <article className="rounded border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900">
+      <div className="font-medium text-gray-900 dark:text-gray-100">{attachment.file_path ? <a className="hover:underline" href={attachment.file_path}>{title}</a> : title}</div>
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {attachment.google_doc_url ? <a className="text-blue-600 hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">Google Doc</a> : attachment.content_type || attachment.attachment_type}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
       </div>
@@ -1491,16 +1491,16 @@ function SourceBrowser({ payload, onSelectPath, onSelectRef }: { payload: JobSou
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="text-sm text-gray-600">
+        <label className="text-sm text-gray-600 dark:text-gray-300">
           Viewing
-          <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm" onChange={(event) => onSelectRef(event.target.value)} value={payload.selected_ref}>
+          <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectRef(event.target.value)} value={payload.selected_ref}>
             {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
         {payload.tree_truncated ? <span className="text-xs text-amber-700">Tree truncated by GitHub.</span> : null}
       </div>
-      <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r">
+      <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
+        <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
           {tree.length > 0 ? tree.map((node) => (
             <SourceTreeRow
               expandedPaths={expandedPaths}
@@ -1510,21 +1510,21 @@ function SourceBrowser({ payload, onSelectPath, onSelectRef }: { payload: JobSou
               onToggleDirectory={toggleDirectory}
               selectedPath={payload.selected_path}
             />
-          )) : <p className="p-4 text-sm text-gray-400">No files found.</p>}
+          )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">No files found.</p>}
           {payload.tree_items.length > visibleItems.length ? <p className="p-3 text-xs text-amber-700">Showing first {visibleItems.length.toLocaleString()} files.</p> : null}
         </div>
         <div className="min-w-0 overflow-auto">
           {payload.file_error ? <p className="p-4 text-sm text-red-700">{payload.file_error}</p> : null}
           {payload.file ? (
             <>
-              <div className="sticky top-0 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600">
+              <div className="sticky top-0 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
                 <span className="min-w-0 flex-1 truncate">{payload.file.path}</span>
                 <span>{payload.file.language}</span>
                 <span>{formatBytes(payload.file.size)}</span>
               </div>
-              <pre className="m-0 overflow-x-auto p-4 text-sm leading-relaxed"><code>{payload.file.content}</code></pre>
+              <pre className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100"><code>{payload.file.content}</code></pre>
             </>
-          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400">Select a file to view its contents.</div>}
+          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">Select a file to view its contents.</div>}
         </div>
       </div>
     </section>
@@ -1592,7 +1592,7 @@ function SourceTreeRow({
     <>
       {node.file ? (
         <button
-          className={`block w-full truncate py-1.5 pr-3 text-left font-mono text-xs hover:bg-blue-50 ${selectedPath === node.path ? "bg-blue-100 text-blue-700" : "text-gray-700"}`}
+          className={`block w-full truncate py-1.5 pr-3 text-left font-mono text-xs hover:bg-blue-50 dark:hover:bg-blue-950/40 ${selectedPath === node.path ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200" : "text-gray-700 dark:text-gray-300"}`}
           key={node.path}
           onClick={() => onSelectPath(node.path)}
           style={{ paddingLeft: `${0.75 + node.path.split("/").length * 0.75}rem` }}
@@ -1605,13 +1605,13 @@ function SourceTreeRow({
         <button
           aria-expanded={expandedPaths.has(node.path)}
           aria-label={node.name}
-          className="block w-full truncate py-1.5 pr-3 text-left font-mono text-xs font-semibold text-gray-700 hover:bg-blue-50"
+          className="block w-full truncate py-1.5 pr-3 text-left font-mono text-xs font-semibold text-gray-700 hover:bg-blue-50 dark:text-gray-300 dark:hover:bg-blue-950/40"
           onClick={() => onToggleDirectory(node.path)}
           style={{ paddingLeft: `${0.75 + Math.max(node.path.split("/").length - 1, 0) * 0.75}rem` }}
           title={node.path}
           type="button"
         >
-          <span className="mr-1 inline-block w-3 text-gray-400">{expandedPaths.has(node.path) ? "-" : "+"}</span>
+          <span className="mr-1 inline-block w-3 text-gray-400 dark:text-gray-500">{expandedPaths.has(node.path) ? "-" : "+"}</span>
           {node.name}
         </button>
       )}
@@ -1656,8 +1656,8 @@ function withRoutePrefix(path: string, prefix: string) {
 function KeyValue({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <div className="text-xs font-medium uppercase text-gray-500">{label}</div>
-      <div className="mt-1 text-gray-800">{children}</div>
+      <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="mt-1 text-gray-800 dark:text-gray-200">{children}</div>
     </div>
   )
 }
@@ -1669,14 +1669,14 @@ function MergeablePill({ value }: { value: boolean | null }) {
 }
 
 function SmallPill({ children }: { children: ReactNode }) {
-  return <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{children}</span>
+  return <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{children}</span>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-green-200 bg-green-50 text-green-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
+    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/70 dark:bg-green-950/40 dark:text-green-200",
+    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
@@ -1684,30 +1684,30 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
 function buttonClass(tone: ButtonTone) {
   const base = "inline-flex items-center rounded px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
   const tones = {
-    primary: "bg-blue-600 text-white hover:bg-blue-500",
-    secondary: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
-    success: "bg-emerald-600 text-white hover:bg-emerald-500",
-    danger: "bg-amber-600 text-white hover:bg-amber-500"
+    primary: "bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400",
+    secondary: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800",
+    success: "bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400",
+    danger: "bg-amber-600 text-white hover:bg-amber-500 dark:bg-amber-500 dark:text-gray-950 dark:hover:bg-amber-400"
   }
   return `${base} ${tones[tone]}`
 }
 
 function menuButtonClass(tone: ButtonTone) {
   const tones = {
-    primary: "text-blue-700 hover:bg-blue-50",
-    secondary: "text-gray-700 hover:bg-gray-50",
-    success: "text-emerald-700 hover:bg-emerald-50",
-    danger: "text-amber-700 hover:bg-amber-50"
+    primary: "text-blue-700 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-950/40",
+    secondary: "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
+    success: "text-emerald-700 hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950/40",
+    danger: "text-amber-700 hover:bg-amber-50 dark:text-amber-200 dark:hover:bg-amber-950/40"
   }
   return `block w-full px-4 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone]}`
 }
 
 function paginationLinkClass() {
-  return "rounded border border-gray-300 px-3 py-1 hover:bg-gray-50"
+  return "rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
 }
 
 function disabledPaginationClass() {
-  return "rounded border border-gray-200 px-3 py-1 text-gray-300"
+  return "rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600"
 }
 
 function jobSourceLabel(payload: JobDetailPayload) {
@@ -2007,18 +2007,18 @@ function ActiveRunBanner({ run }: { run: JobRun }) {
 
   if (queued) {
     return (
-      <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
         <span className="font-semibold">Run #{run.id} is waiting for a worker{elapsed ? ` · queued ${elapsed}` : ""}</span>
-        <span className="mt-1 block text-amber-700">
+        <span className="mt-1 block text-amber-700 dark:text-amber-300">
           The run-worker pool is busy — this run starts as soon as a slot frees up, it is not stuck. Check the{" "}
-          <Link className="underline hover:text-amber-900" to={withRoutePrefix("/admin/queue/pending", prefix)}>pending queue</Link> for the backlog.
+          <Link className="underline hover:text-amber-900 dark:hover:text-amber-100" to={withRoutePrefix("/admin/queue/pending", prefix)}>pending queue</Link> for the backlog.
         </span>
       </div>
     )
   }
 
   return (
-    <div className="mt-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+    <div className="mt-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900/70 dark:bg-blue-950/40 dark:text-blue-200">
       <span className="font-semibold">Run #{run.id} is running{elapsed ? ` · ${elapsed}` : ""}</span>
       <span> (since {formatDate(run.started_at)})</span>
     </div>

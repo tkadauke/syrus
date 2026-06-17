@@ -23,6 +23,13 @@ const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
   }
 })))
 
+const mermaidMock = vi.hoisted(() => ({
+  initialize: vi.fn(),
+  render: vi.fn(async (_id: string, definition: string) => ({
+    svg: `<svg role="img" aria-label="Dependency graph"><text>${definition}</text></svg>`
+  }))
+}))
+
 vi.mock("@rails/actioncable", () => ({
   createConsumer: () => ({
     subscriptions: {
@@ -70,12 +77,7 @@ vi.mock("html2canvas-pro", () => ({
 }))
 
 vi.mock("mermaid", () => ({
-  default: {
-    initialize: vi.fn(),
-    render: vi.fn(async (_id: string, definition: string) => ({
-      svg: `<svg role="img" aria-label="Dependency graph"><text>${definition}</text></svg>`
-    }))
-  }
+  default: mermaidMock
 }))
 
 let restoreClipboardMock: (() => void) | null = null
@@ -89,6 +91,9 @@ describe("App", () => {
     excalidrawMock.lastInitialData = null
     excalidrawMock.updateScene.mockClear()
     html2canvasMock.mockClear()
+    mermaidMock.initialize.mockClear()
+    mermaidMock.render.mockClear()
+    document.documentElement.classList.remove("dark")
   })
 
   afterEach(() => {
@@ -4469,7 +4474,9 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "New direct job" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "New direct job" })).toHaveClass("dark:text-gray-100")
     expect(await screen.findByDisplayValue("acme/widgets")).toBeInTheDocument()
+    expect(screen.getByText("Target").closest("section")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
     expect(screen.getByLabelText("Create More")).toBeChecked()
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
     fireEvent.click(screen.getByRole("button", { name: /Configure Syrus build dependencies/ }))
@@ -5287,6 +5294,8 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Edit Epic" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Edit Epic" })).toHaveClass("dark:text-gray-100")
+    expect(screen.getByLabelText("Title")).toHaveClass("dark:bg-gray-950", "dark:text-gray-100")
     expect(await screen.findByRole("link", { name: "Back to Epic" })).toHaveAttribute("href", "/app-shell/epics/7")
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/app-shell/epics/7")
   })
@@ -5326,6 +5335,7 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Epic" })).toBeInTheDocument()
     expect(await screen.findByText("EPIC-7")).toBeInTheDocument()
     expect(screen.getByText("Raise the forum")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /EPIC-7/ })).toHaveClass("dark:text-gray-100")
     expect(screen.queryByRole("link", { name: "Back to Epics" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/epics/7/edit")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
@@ -5334,6 +5344,7 @@ describe("App", () => {
     expect(screen.getByText("columns")).toBeInTheDocument()
     expect(screen.getByText("(1 epic dep, 0 job blockers)")).toBeInTheDocument()
     expect(await screen.findByRole("img", { name: "Dependency graph" })).toBeInTheDocument()
+    expect(screen.getByText("Dependency graph").closest("details")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
     expect(document.querySelector("[data-controller='mermaid-graph']")).toBeNull()
     expect(screen.getByText("Survey forum")).toBeInTheDocument()
     expect(screen.getByText("1/1 done")).toBeInTheDocument()
@@ -5358,6 +5369,24 @@ describe("App", () => {
       "Edit",
       "Archive"
     ])
+  })
+
+  it("initializes the Epic dependency graph with Mermaid dark theme when dark mode is active", async () => {
+    document.documentElement.classList.add("dark")
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(epicDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/epics/7"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("img", { name: "Dependency graph" })).toBeInTheDocument()
+    expect(mermaidMock.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: "dark" }))
   })
 
   it("claims and unclaims an Epic from the detail controls", async () => {
@@ -5559,7 +5588,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Job" })).toBeInTheDocument()
-    expect(await screen.findByRole("heading", { level: 1, name: "Repair aqueduct" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { level: 1, name: "Repair aqueduct" })).toHaveClass("dark:text-gray-100")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("target", "_blank")
@@ -5599,6 +5628,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Workflows (1)" }))
     expect(await screen.findByText("WF-5")).toBeInTheDocument()
+    expect(screen.getByText("WF-5").closest("section")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
     fireEvent.click(screen.getByRole("button", { name: /Grade/i }))
     fireEvent.click(screen.getByRole("button", { name: /tests/i }))
     expect(screen.getByText("Run #9")).toBeInTheDocument()
@@ -5613,6 +5643,7 @@ describe("App", () => {
     })
     expect(await screen.findByText("digging trench")).toBeInTheDocument()
     expect(screen.getByText("Agent")).toBeInTheDocument()
+    expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("dark:divide-gray-800")
     expect(screen.getByText("Tool")).toBeInTheDocument()
     expect(screen.queryByText("assistant_text")).not.toBeInTheDocument()
     expect(screen.queryByText("tool_call")).not.toBeInTheDocument()
