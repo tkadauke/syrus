@@ -753,8 +753,9 @@ Several layers, each catching different failure modes:
 
 ## UI surface (what shows up where)
 
-- **`/`** — dashboard: per-user job table, status pills,
-  manual-poll button, search filters.
+- **`/`** and **`/dashboard/*`** — dashboard: Epic, Job, and Workflow
+  list/Kanban views with ownership scopes, smart folders, status pills,
+  bulk actions, search filters, and landing controls.
 - **`/repositories`** — registry: add/remove, archive, toggle
   polling, per-repo trigger label, prepare/trust-rebase settings,
   agent provider, manual poll, scheduled tasks.
@@ -787,6 +788,17 @@ Several layers, each catching different failure modes:
 Realtime updates use `AppUserChannel` app events consumed by React.
 Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
 between web and worker.
+
+The dashboard JSON is assembled by `App::DashboardPayload` for the
+active subject (`epic`, `job`, or `workflow`). Reads are intentionally
+side-effect-light: the payload ensures only that subject's built-in
+`SmartFolder` rows exist, applies ownership/smart-folder filters, and
+returns current preferences without persisting navigation choices.
+Preference writes go through `PATCH /api/v1/app/dashboard/preferences`
+for sort, visible columns, and Kanban lanes. Job rows carry their latest
+Workflow snapshot through correlated subqueries on `workflows` so the
+dashboard can show recent Workflow state without joining every Workflow
+row into the paginated Job query.
 
 The standalone Go CLI (`cli/`) shares the app API rather than a separate
 backend. `syrus login` stores the instance URL and API token in
