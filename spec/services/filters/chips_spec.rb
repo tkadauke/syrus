@@ -161,6 +161,12 @@ RSpec.describe "Filters::Chips" do
       failed = Factories.job_record(repository: repo, issue_number: 11, state: "failed")
       implemented = Factories.job_record(repository: repo, issue_number: 12, state: "implemented")
       invalid = Factories.job_record(repository: repo, issue_number: 13, state: "triaging", validity: "duplicate")
+      landing_failed = Factories.job_record(
+        repository: repo,
+        issue_number: 18,
+        state: "approved",
+        landing_failure_reason: "auto_merge: required grader failed"
+      )
       unread_feedback = Factories.job_record(
         repository: repo,
         issue_number: 14,
@@ -182,6 +188,7 @@ RSpec.describe "Filters::Chips" do
         failed,
         implemented,
         invalid,
+        landing_failed,
         unread_feedback
       )
     end
@@ -202,12 +209,56 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
-    it "just_failed: returns jobs in :failed state" do
+    it "just_failed: returns failed jobs and open jobs with landing failures" do
       failed = Factories.job(repository: repo, issue_number: 1)
       failed.update!(state: "failed")
+      landing_failed = Factories.job_record(
+        repository: repo,
+        issue_number: 3,
+        state: "implemented",
+        landing_failure_reason: "auto_merge: required grader failed"
+      )
+      merge_train_failed = Factories.job_record(
+        repository: repo,
+        issue_number: 4,
+        state: "approved",
+        landing_failure_reason: "merge_train failed"
+      )
+      Factories.job_record(
+        repository: repo,
+        issue_number: 5,
+        state: "closed",
+        landing_failure_reason: "old landing failure"
+      )
       Factories.job(repository: repo, issue_number: 2)
 
-      expect(run(field: "attention", op: "is", value: "just_failed")).to contain_exactly(failed)
+      expect(run(field: "attention", op: "is", value: "just_failed")).to contain_exactly(
+        failed,
+        landing_failed,
+        merge_train_failed
+      )
+    end
+
+    it "has_landing_failure: returns open jobs with a landing failure reason" do
+      landing_failed = Factories.job_record(
+        repository: repo,
+        issue_number: 41,
+        state: "approved",
+        landing_failure_reason: "auto_merge: required grader failed"
+      )
+      closed_landing_failure = Factories.job_record(
+        repository: repo,
+        issue_number: 42,
+        state: "closed",
+        landing_failure_reason: "old landing failure"
+      )
+      healthy = Factories.job_record(repository: repo, issue_number: 43, state: "approved")
+
+      expect(run(field: "has_landing_failure", op: "is_true", value: nil)).to contain_exactly(landing_failed)
+      expect(run(field: "has_landing_failure", op: "is_false", value: nil)).to contain_exactly(
+        closed_landing_failure,
+        healthy
+      )
     end
 
     it "merged_this_week: returns recently-merged closed threads" do

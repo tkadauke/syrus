@@ -538,6 +538,14 @@ RSpec.describe "App API dashboard commands", type: :request do
     it "returns smart folder counts and hides empty when-present built-ins" do
       pinned = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Pinned aqueduct", state: "queued", owner_user: user)
       Factories.job_pin(user: user, job: pinned)
+      Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        issue_number: 2,
+        issue_title: "Failed landing",
+        state: "implemented",
+        landing_failure_reason: "auto_merge: required grader failed"
+      )
       SmartFolder.create!(
         user: user,
         subject_type: "job",
@@ -556,6 +564,12 @@ RSpec.describe "App API dashboard commands", type: :request do
         "count" => 1
       )
       expect(folders_by_name.fetch("Queued")).to include(
+        "kind" => "builtin",
+        "visibility" => "when_present",
+        "count" => 1
+      )
+      expect(folders_by_name.fetch("Inbox")).to include("count" => 1)
+      expect(folders_by_name.fetch("Just failed")).to include(
         "kind" => "builtin",
         "visibility" => "when_present",
         "count" => 1

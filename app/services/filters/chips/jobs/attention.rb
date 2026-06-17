@@ -65,13 +65,19 @@ module Filters
                   chip_node("state", "is_none_of", %w[triaging queued running landing])
                 ),
                 chip_node("state", "is", "failed"),
+                chip_node("has_landing_failure", "is_true", nil),
                 chip_node("validity", "is_one_of", %w[duplicate already_implemented]),
                 chip_node("state", "is", "implemented")
               )
             )
           },
           "awaiting_approval"  => -> { chip_node("state", "is", "implemented") },
-          "just_failed"        => -> { chip_node("state", "is", "failed") },
+          "just_failed"        => -> {
+            or_node(
+              chip_node("state", "is", "failed"),
+              chip_node("has_landing_failure", "is_true", nil)
+            )
+          },
           "stale"              => -> {
             and_node(
               chip_node("state", "is", "open"),
@@ -169,6 +175,7 @@ module Filters
           open = scope.open_threads
           open.where(id: actionable_unread_feedback_ids)
               .or(open.where(state: "failed"))
+              .or(open.where.not(landing_failure_reason: nil))
               .or(open.where(id: needs_review_ids))
               .or(open.where(id: awaiting_approval_ids))
         end
@@ -182,7 +189,7 @@ module Filters
           # to Job.state = :failed (Workflow#fail's after-callback),
           # so we can read the Job state directly instead of joining
           # workflows.
-          scope.where(state: "failed")
+          scope.where(state: "failed").or(scope.open_threads.where.not(landing_failure_reason: nil))
         end
 
         def apply_stale

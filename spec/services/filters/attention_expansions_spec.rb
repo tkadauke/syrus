@@ -62,7 +62,19 @@ RSpec.describe Filters::Chips::Jobs::Attention do
           { "field" => "state", "op" => "is_none_of", "value" => %w[triaging queued running landing] }
         ]
       )
+      expect(branches).to include("field" => "has_landing_failure", "op" => "is_true", "value" => nil)
       expect(fields).not_to include("triaging_reason")
+    end
+
+    it "expands just_failed as failed state or landing failure" do
+      just_failed = described_class.expansion_for("just_failed")
+
+      expect(just_failed).to eq(
+        "or" => [
+          { "field" => "state", "op" => "is", "value" => "failed" },
+          { "field" => "has_landing_failure", "op" => "is_true", "value" => nil }
+        ]
+      )
     end
 
     it "returns nil for unknown values" do
