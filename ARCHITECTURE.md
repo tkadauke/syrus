@@ -25,6 +25,7 @@ domain concepts. File paths are repo-relative.
 - [End-to-end GitHub workflow](#end-to-end-github-workflow)
 - [Services](#services)
 - [MCP sidecar](#mcp-sidecar)
+- [Chat sidecar and workspaces](#chat-sidecar-and-workspaces)
 - [Failure recovery](#failure-recovery)
 - [UI surface](#ui-surface)
 - [Deployment topology](#deployment-topology)
@@ -631,9 +632,11 @@ Core (the agent loop):
 | Service | Purpose |
 |---|---|
 | `WorkflowWorkspace` | Fresh per-Workflow clone at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`. Default root `~/.syrus` (override with `SYRUS_DATA_ROOT`). Clones never live inside `Rails.root` — protects the operator's checkout from agent chdir mishaps. |
+| `ChatWorkspace` | Persistent per-chat workspace under `$SYRUS_DATA_ROOT/chat-workspaces/<chat_session_id>/`. Repositories are cloned lazily for inspection and fast-forwarded between turns; implementation still belongs to Workflow workspaces. |
 | `AgentProviders::*` | Provider abstraction for Claude and Codex. Selects credentials, prepares provider home/session state, wires MCP, invokes the provider-specific runner, captures transcript/session metadata, and returns a normalized result. |
 | `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
 | `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, and `submit_test_plan`. See [MCP sidecar](#mcp-sidecar). |
+| `SyrusChatMcp::Sidecar` | MCP server for chat turns. Exposes repository/job/PR inspection, proposal, scheduling, bookmark, note, and whiteboard tools scoped to the active `ChatSession`. See [Chat sidecar and workspaces](#chat-sidecar-and-workspaces). |
 | `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 
 Git and GitHub:
@@ -708,6 +711,44 @@ and hands stdio to `SyrusMcp::Sidecar`. For Claude, the MCP config key
 must match the binary basename (`syrus-mcp-sidecar`) so resumed sessions
 keep the same tool prefix. SIGTERM is trapped to drain cleanly.
 
+## Chat sidecar and workspaces
+
+Top-level chat is separate from Workflow execution. A `ChatTurnJob`
+runs on the dedicated `chat` queue, serialized per `ChatSession`, and
+invokes Claude in a persistent `ChatWorkspace`. That workspace lives at
+`$SYRUS_DATA_ROOT/chat-workspaces/<chat_session_id>/`, survives across
+turns, and is pruned after idle retention by
+`WorkflowWorkspacePruneJob`. Repository attachments are cloned lazily
+under `repositories/<owner>/<name>` with depth 50 and fast-forwarded to
+the repository default branch on reuse. Chat agents are configured with
+write/edit tools disabled; they inspect code, maintain notes and
+whiteboard state, and propose or queue work rather than editing a
+repository checkout directly.
+
+Each chat turn writes a temporary MCP config for `bin/syrus-chat-sidecar`
+with `SYRUS_CHAT_SESSION_ID` in the environment and `alwaysLoad: true`.
+`SyrusChatMcp::Sidecar` boots Rails over stdio and scopes every tool to
+that chat session. Its tools cover:
+
+- Repository context: attach repositories, read repo metadata and notes,
+  list/read attached documents, list Jobs/issues/PRs, and read Job,
+  Epic, or PR details.
+- Operator actions: propose GitHub issues, Syrus Jobs, Epics, or an
+  Epic with child Jobs; delete proposals; schedule recurring work; and
+  retry, rebase, or cancel Jobs visible to the session.
+- Collaboration state: set bookmarks and mutate the chat whiteboard
+  through scene/drawing tools.
+
+`ChatTurnJob` persists assistant text, tool calls, tool results, and MCP
+health events as `ChatMessage` rows, updates cumulative token/cost
+fields on the `ChatSession`, and retains the provider session for
+resumed turns. If a user sends another message while the turn is busy,
+the controller stores a `ChatQueuedMessage`; when the active turn
+finishes, `ChatTurnJob` atomically delivers the next queued message and
+enqueues the following turn. Ctrl+C from the CLI and the UI Stop control
+both set `stop_requested_at`, which the running Claude invocation polls
+and records as a cancelled chat turn.
+
 ## Failure recovery
 
 Several layers, each catching different failure modes:
@@ -770,8 +811,9 @@ Several layers, each catching different failure modes:
 - **`/cron_templates`** — reusable schedule templates and links to apply
   them to repositories.
 - **`/direct_jobs/new`** — operator-created free-form Jobs.
-- **`/chats`** — repository-scoped chat sessions, proposals, and
-  queued follow-up messages.
+- **`/chats`** — repository-scoped chat sessions, proposal review,
+  attached repository/document context, bookmarks, whiteboard state, MCP
+  health, and queued follow-up messages.
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
   repository, trigger kind, provider, trend, and top Runs.
 - **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause, and
@@ -808,8 +850,8 @@ when it can detect one, and enters an interactive REPL. `syrus chat
 CHAT_ID MESSAGE` sends a single streaming turn. Both chat paths post to
 `/api/v1/app/chats/:id/message` with `Accept: text/event-stream`, render
 assistant chunks as server-sent events arrive, expose proposed Jobs/Epics
-for inline confirm/reject, and translate Ctrl+C into the chat stop API
-instead of abandoning the Rails-side turn.
+for inline confirm/reject, surface queued-message state, and translate
+Ctrl+C into the chat stop API instead of abandoning the Rails-side turn.
 
 The same binary also covers operator workflows from a terminal:
 `syrus status`, `syrus inbox`, `syrus checkout`, `syrus test-plan`, and
