@@ -69,6 +69,7 @@ RSpec.describe "User signup", type: :request do
 
       expect(response).to be_successful
       expect(response.body).to include('<html class="dark">')
+      expect(response.body).to include('<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">')
     end
 
     it "renders an empty html class for light-theme users" do
@@ -79,6 +80,7 @@ RSpec.describe "User signup", type: :request do
 
       expect(response).to be_successful
       expect(response.body).to include('<html class="">')
+      expect(response.body).to include('<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">')
     end
   end
 

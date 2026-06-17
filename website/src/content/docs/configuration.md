@@ -102,6 +102,7 @@ Each user owns their own credentials and agent preferences.
 | Claude credential | Encrypted long-lived Claude OAuth token from `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN` |
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag |
+| Theme | Light or dark app chrome, toggled from the account area and persisted per user |
 | Scheduling paused | Skips scheduled task firing for that user |
 | Admin API token | Admin-only bearer token for `/api/v1/admin/*` diagnostics, including Jobs, Runs, queue/processes, and chat transcripts; shown once on rotation |
 

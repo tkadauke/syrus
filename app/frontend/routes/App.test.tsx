@@ -84,6 +84,7 @@ describe("App", () => {
   beforeEach(() => {
     document.getElementById("syrus-bootstrap-data")?.remove()
     window.localStorage.clear()
+    document.documentElement.classList.remove("dark")
     excalidrawMock.throwOnRender = false
     excalidrawMock.addFiles.mockClear()
     excalidrawMock.lastInitialData = null
@@ -111,7 +112,8 @@ describe("App", () => {
             scheduling_paused: false,
             landing_paused: false,
             agent_provider: "claude",
-            agent_max_turns: 200
+            agent_max_turns: 200,
+            theme: "light"
           },
           team_user_count: 1,
           app: {
@@ -576,6 +578,56 @@ describe("App", () => {
       expect(fetchSpy).not.toHaveBeenCalled()
     } finally {
       randomSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("toggles and persists the app shell theme", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        theme: "dark"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ theme: "light" }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const accountNav = await screen.findByRole("navigation", { name: "Account" })
+      expect(document.documentElement).toHaveClass("dark")
+
+      fireEvent.click(within(accountNav).getByRole("button", { name: "Switch to light mode" }))
+
+      expect(document.documentElement).not.toHaveClass("dark")
+      expect(within(accountNav).getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument()
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/theme",
+          expect.objectContaining({
+            method: "PATCH",
+            credentials: "same-origin",
+            headers: expect.objectContaining({
+              Accept: "application/json",
+              "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({ theme: "light" })
+          })
+        )
+      })
+    } finally {
       script.remove()
     }
   })
@@ -8145,7 +8197,8 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
       scheduling_paused: false,
       landing_paused: false,
       agent_provider: "claude",
-      agent_max_turns: 200
+      agent_max_turns: 200,
+      theme: "light"
     },
     team_user_count: 1,
     app: {

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { patchJson } from "../api/client"
 import { BugReportButton } from "../components/BugReportButton"
 import { NoticeToast } from "../components/NoticeToast"
 import { useAppEvents } from "../lib/useAppEvents"
@@ -407,18 +408,18 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
   ] : []
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="border-b border-gray-200 bg-white">
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
+      <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
         <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-3 px-6 py-3">
           <div className="flex min-w-0 items-center gap-5">
-            <Link className="text-lg font-semibold text-gray-900" to={defaultChatPath}>Syrus</Link>
+            <Link className="text-lg font-semibold text-gray-900 dark:text-white" to={defaultChatPath}>Syrus</Link>
             <nav aria-label="Primary" className="flex flex-nowrap gap-1 text-sm">
               {navItems.map((item) => (
                 <Link className={`${item.desktopOnly ? "hidden sm:inline-flex" : ""} ${navLinkClass(item.active)}`} key={item.label} to={item.to}>{item.label}</Link>
               ))}
             </nav>
           </div>
-          <div className="flex shrink-0 items-center justify-end gap-2 text-xs text-gray-500">
+          <div className="flex shrink-0 items-center justify-end gap-2 text-xs text-gray-500 dark:text-gray-400">
             {user ? (
               <>
                 <AccountNavigation csrfToken={data?.csrf_token} prefix={prefix} showTeamProfile={(data?.team_user_count || 0) > 1} user={user} />
@@ -440,8 +441,8 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
 }
 
 function RevisionLink({ app }: { app: BootstrapPayload["app"] }) {
-  const className = "hidden font-mono hover:text-blue-600 hover:underline sm:inline"
-  if (!app.revision_url) return <span className="hidden font-mono sm:inline">{app.revision}</span>
+  const className = "hidden font-mono hover:text-blue-600 hover:underline dark:hover:text-blue-300 sm:inline"
+  if (!app.revision_url) return <span className="hidden font-mono dark:text-gray-400 sm:inline">{app.revision}</span>
 
   return (
     <a className={className} href={app.revision_url}>
@@ -452,8 +453,8 @@ function RevisionLink({ app }: { app: BootstrapPayload["app"] }) {
 
 function PubliliusSyrusFooter({ quote }: { quote: string }) {
   return (
-    <footer className="mx-auto hidden max-w-[96rem] px-6 py-8 text-center text-xs text-gray-500 lg:block">
-      <a className="hover:text-blue-600 hover:underline" href={PUBLILIUS_SYRUS_WIKIPEDIA_URL} rel="noopener" target="_blank">
+    <footer className="mx-auto hidden max-w-[96rem] px-6 py-8 text-center text-xs text-gray-500 dark:text-gray-400 lg:block">
+      <a className="hover:text-blue-600 hover:underline dark:hover:text-blue-300" href={PUBLILIUS_SYRUS_WIKIPEDIA_URL} rel="noopener" target="_blank">
         {quote}
       </a>
     </footer>
@@ -462,19 +463,47 @@ function PubliliusSyrusFooter({ quote }: { quote: string }) {
 
 function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfToken?: string; prefix: string; showTeamProfile: boolean; user: NonNullable<BootstrapPayload["current_user"]> }) {
   const [open, setOpen] = useState(false)
+  const [theme, setTheme] = useState(user.theme)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+
+  useEffect(() => {
+    setTheme(user.theme)
+    document.documentElement.classList.toggle("dark", user.theme === "dark")
+  }, [user.theme])
+
+  function toggleTheme() {
+    const nextTheme = theme === "dark" ? "light" : "dark"
+    document.documentElement.classList.toggle("dark", nextTheme === "dark")
+    setTheme(nextTheme)
+    void patchJson<{ theme: "light" | "dark" }>("/api/v1/app/theme", { theme: nextTheme }).then((payload) => {
+      document.documentElement.classList.toggle("dark", payload.theme === "dark")
+      setTheme(payload.theme)
+    }).catch(() => {
+      document.documentElement.classList.toggle("dark", theme === "dark")
+      setTheme(theme)
+    })
+  }
 
   return (
     <nav aria-label="Account" className="flex items-center gap-2">
       {user.admin ? <Link className={accountLinkClass()} to={`${prefix}/admin`}>admin</Link> : null}
-      <Link aria-label="Account settings" className="inline-flex h-8 w-8 items-center justify-center text-gray-700 hover:text-blue-600 sm:hidden" to={`${prefix}/settings`}>
+      <button
+        aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+        onClick={toggleTheme}
+        title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        type="button"
+      >
+        {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+      </button>
+      <Link aria-label="Account settings" className="inline-flex h-8 w-8 items-center justify-center text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-300 sm:hidden" to={`${prefix}/settings`}>
         <UserIcon />
       </Link>
       <div className="relative hidden sm:block" ref={menuRef}>
         <button
           aria-expanded={open}
           aria-haspopup="menu"
-          className="flex max-w-[18rem] items-center gap-2 truncate text-gray-700 hover:text-blue-600"
+          className="flex max-w-[18rem] items-center gap-2 truncate text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-300"
           onClick={() => setOpen((current) => !current)}
           type="button"
         >
@@ -482,16 +511,16 @@ function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfT
           <ChevronDownIcon />
         </button>
         {open ? (
-          <div className="absolute right-0 z-30 mt-2 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg">
-            <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50" to={`${prefix}/profiles/${user.id}`}>Profile</Link>
-            <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50" to={`${prefix}/settings`}>Settings</Link>
-            {showTeamProfile ? <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50" to={`${prefix}/profiles/${user.id}`}>My profile</Link> : null}
-            {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50" to={`${prefix}/admin`}>Admin</Link> : null}
-            <div className="my-1 border-t border-gray-100" />
+          <div className="absolute right-0 z-30 mt-2 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950">
+            <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/profiles/${user.id}`}>Profile</Link>
+            <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/settings`}>Settings</Link>
+            {showTeamProfile ? <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/profiles/${user.id}`}>My profile</Link> : null}
+            {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" to={`${prefix}/admin`}>Admin</Link> : null}
+            <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
             <form action="/session" method="post">
               {csrfToken ? <input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
               <input name="_method" type="hidden" value="delete" />
-              <button className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50" type="submit">Sign out</button>
+              <button className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" type="submit">Sign out</button>
             </form>
           </div>
         ) : null}
@@ -512,6 +541,22 @@ function ChevronDownIcon() {
   return (
     <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
       <path clipRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" fillRule="evenodd" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path d="M21 14.25A8.25 8.25 0 0 1 9.75 3a8.25 8.25 0 1 0 11.25 11.25Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
+    </svg>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path d="M12 4.75V3m0 18v-1.75M4.75 12H3m18 0h-1.75M6.87 6.87 5.64 5.64m12.72 12.72-1.23-1.23m0-10.26 1.23-1.23M5.64 18.36l1.23-1.23M15.25 12a3.25 3.25 0 1 1-6.5 0 3.25 3.25 0 0 1 6.5 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
     </svg>
   )
 }
@@ -593,7 +638,7 @@ function AdminNavigation({ normalizedPath, prefix }: { normalizedPath: string; p
   ]
 
   return (
-    <div className="border-b border-gray-200 bg-white">
+    <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <nav aria-label="Admin navigation" className="mx-auto flex max-w-[96rem] flex-wrap items-center gap-2 px-6 py-2 text-xs">
         {items.map((item) => {
           const className = adminNavLinkClass(item.active(normalizedPath))
@@ -613,7 +658,7 @@ function SettingsNavigation({ normalizedPath, prefix }: { normalizedPath: string
   ]
 
   return (
-    <div className="border-b border-gray-200 bg-white">
+    <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <nav aria-label="Settings navigation" className="mx-auto flex max-w-[96rem] flex-wrap items-center gap-2 px-6 py-2 text-xs">
         {items.map((item) => {
           const className = adminNavLinkClass(item.active(normalizedPath))
@@ -725,11 +770,11 @@ function BootstrapShell({ initialBootstrap }: { initialBootstrap: BootstrapPaylo
 }
 
 function navLinkClass(active: boolean) {
-  return `rounded px-1 py-1.5 font-medium sm:px-2.5 ${active ? "text-blue-700 sm:bg-blue-50" : "text-gray-700 hover:bg-gray-100"}`
+  return `rounded px-1 py-1.5 font-medium sm:px-2.5 ${active ? "text-blue-700 dark:text-blue-300 sm:bg-blue-50 dark:sm:bg-blue-900/30" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
 }
 
 function accountLinkClass() {
-  return "rounded bg-blue-100 px-2.5 py-1 font-medium text-blue-700 hover:bg-blue-200"
+  return "rounded bg-blue-100 px-2.5 py-1 font-medium text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900"
 }
 
 function landingPrimaryButtonClass() {
@@ -741,7 +786,7 @@ function landingSecondaryButtonClass() {
 }
 
 function adminNavLinkClass(active: boolean) {
-  return `rounded px-2.5 py-1.5 font-medium ${active ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"}`
+  return `rounded px-2.5 py-1.5 font-medium ${active ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"}`
 }
 
 function withRoutePrefix(path: string, prefix: string) {

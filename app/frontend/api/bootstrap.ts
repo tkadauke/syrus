@@ -14,6 +14,7 @@ export type BootstrapPayload = {
     landing_paused: boolean
     agent_provider: "claude" | "codex"
     agent_max_turns: number
+    theme: "light" | "dark"
   } | null
   team_user_count: number
   app: {

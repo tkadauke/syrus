@@ -106,6 +106,7 @@ Each user owns their own credentials and defaults:
 - Codex credential.
 - Default agent provider.
 - Max-turn setting.
+- Light or dark app theme.
 - Scheduling pause setting.
 - Admin API token, for admins.
 
