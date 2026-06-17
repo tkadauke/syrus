@@ -155,7 +155,7 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
       {whiteboardFullscreen || !isDesktop ? null : (
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className={`break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400" : "text-gray-900"}`}>{title}</h1>
+            <h1 className={`break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>{title}</h1>
           </div>
         </header>
       )}
@@ -164,7 +164,7 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
       {whiteboardFullscreen ? null : <PendingActions payload={payload} queryKey={queryKey} onNotice={setNotice} />}
 
       {!payload.chat_available ? (
-        <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900">
+        <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
           <div className="font-semibold">Claude credentials are required.</div>
           <p className="mt-1">Chat uses Claude. Add a Claude OAuth token in <Link className="underline hover:no-underline" to={withRoutePrefix(payload.paths.credentials_path, prefix)}>Credentials</Link> to enable chat.</p>
         </section>
@@ -199,20 +199,20 @@ function PendingActions({ payload, queryKey, onNotice }: { payload: ChatPayload;
   if (payload.pending_actions.length === 0) return null
 
   return (
-    <section className="space-y-3 rounded border border-amber-200 bg-amber-50 p-4">
-      <h2 className="text-sm font-semibold text-amber-900">Pending actions</h2>
+    <section className="space-y-3 rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/60">
+      <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Pending actions</h2>
       {payload.pending_actions.map((pendingAction) => (
         <PendingActionRow action={pendingAction} disabled={action.isPending} key={pendingAction.id} onCancel={() => action.mutate({ kind: "cancel", path: pendingAction.app_cancel_path })} onConfirm={() => action.mutate({ kind: "confirm", path: pendingAction.app_confirm_path })} />
       ))}
-      {action.isError ? <div className="text-xs text-red-700">{errorMessage(action.error, "Pending action failed.")}</div> : null}
+      {action.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div> : null}
     </section>
   )
 }
 
 function PendingActionRow({ action, disabled, onCancel, onConfirm }: { action: ChatPendingAction; disabled: boolean; onCancel: () => void; onConfirm: () => void }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-white px-3 py-2 text-sm">
-      <div className="font-medium text-gray-900">{action.label}</div>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-800 dark:bg-gray-950">
+      <div className="font-medium text-gray-900 dark:text-gray-100">{action.label}</div>
       <div className="flex gap-2">
         <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">Confirm</button>
         <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">Cancel</button>
@@ -359,7 +359,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
 
   if (displayedItems.length === 0) {
     return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 overflow-y-auto p-4 text-sm text-gray-500" data-testid="chat-message-stream">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div>{payload.chat.repository ? "Start a chat with this repository." : "Attach a repository to start chatting."}</div>
         {agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
       </div>
@@ -369,8 +369,8 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
   return (
     <div className="relative h-full min-h-0">
       <div className="h-full min-h-0 space-y-4 overflow-y-auto p-3 pt-12 sm:p-4 sm:pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
-        {loadOlder.isPending ? <div className="text-center text-xs text-gray-400">Loading older messages...</div> : null}
-        {loadOlder.isError ? <div className="text-center text-xs text-red-700">{errorMessage(loadOlder.error, "Unable to load older messages.")}</div> : null}
+        {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">Loading older messages...</div> : null}
+        {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, "Unable to load older messages.")}</div> : null}
         {hiddenSystemMessageCount > 0 ? (
           <SystemMessagesToggle count={hiddenSystemMessageCount} expanded={showSystemMessages} onToggle={() => setShowSystemMessages((value) => !value)} />
         ) : null}
@@ -383,7 +383,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
       </div>
       {newMessageCount > 0 ? (
         <button
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-gray-800"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-950 dark:hover:bg-gray-200"
           onClick={scrollToBottom}
           type="button"
         >
@@ -397,7 +397,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
 function SystemMessagesToggle({ count, expanded, onToggle }: { count: number; expanded: boolean; onToggle: () => void }) {
   return (
     <div className="flex justify-center">
-      <button className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50" onClick={onToggle} type="button">
+      <button className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={onToggle} type="button">
         {expanded ? "Hide system messages" : `Show ${count} hidden system ${count === 1 ? "message" : "messages"}`}
       </button>
     </div>
@@ -438,11 +438,11 @@ function AgentActivityIndicator({ running }: { running: boolean }) {
 
   return (
     <div aria-label={phrase.english} aria-live="polite" className="flex justify-start" role="status">
-      <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm">
+      <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {[0, 1, 2].map((index) => (
             <span
-              className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500"
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 dark:bg-blue-300"
               key={index}
               style={{ animationDelay: `${index * 140}ms` }}
             />
@@ -460,7 +460,7 @@ function ChatMessage({ item, payload, prefix, queryKey, onNotice }: { item: Extr
       <article className="group/message relative flex justify-end pt-6" id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
         <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />
-        <Markdown className="chat-prose chat-prose-invert max-w-[min(42rem,85%)] rounded bg-blue-600 px-4 py-2 text-white" text={item.text} />
+        <Markdown className="chat-prose chat-prose-invert max-w-[min(42rem,85%)] rounded bg-blue-600 px-4 py-2 text-white dark:bg-blue-500" text={item.text} />
       </article>
     )
   }
@@ -471,8 +471,8 @@ function ChatMessage({ item, payload, prefix, queryKey, onNotice }: { item: Extr
         <span className="absolute -top-4" id={`message-${item.id}`} />
         <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />
         {item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : (
-          <div className="max-w-3xl rounded border border-gray-200 bg-white px-4 py-3">
-            <Markdown className="chat-prose text-gray-800" text={item.text} />
+          <div className="max-w-3xl rounded border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+            <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} />
           </div>
         )}
       </article>
@@ -553,16 +553,16 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
 
   return (
     <div className={`absolute right-0 top-0 z-10 ${open ? "block" : "hidden group-hover/message:block"}`} ref={menuRef}>
-      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50" onClick={() => setOpen((value) => !value)} type="button">
+      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => setOpen((value) => !value)} type="button">
         Bookmark
       </button>
       {open ? (
-        <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg" onSubmit={submit}>
-          <label className="block text-xs font-medium text-gray-600">
+        <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
             Label
-            <input className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
+            <input className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
           </label>
-          {bookmark.isError ? <div className="text-xs text-red-700">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
+          {bookmark.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
           <div className="flex justify-end gap-2">
             <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => setOpen(false)} type="button">Cancel</button>
             <button className={primaryButton()} disabled={bookmark.isPending} type="submit">Save</button>
@@ -577,17 +577,17 @@ function ToolGroup({ item }: { item: ChatToolGroupItem }) {
   const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
   return (
     <details className="group/tool">
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900">
-        <span className="text-gray-400 group-open/tool:rotate-90">▸</span>
-        <span className="font-mono font-medium text-gray-900">{item.tool}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-gray-600">{details}</span>
-        {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{item.calls.length}</span> : null}
+      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+        <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
+        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{item.tool}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
+        {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
       </summary>
-      <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs">
+      <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
           <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
-            {call.result_summary ? <div className="mt-1 font-mono text-gray-500">{call.result_summary}</div> : null}
+            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
+            {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
             {call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={item.tool} /> : null}
           </div>
         ))}
@@ -598,7 +598,7 @@ function ToolGroup({ item }: { item: ChatToolGroupItem }) {
 
 function HighlightedToolResult({ code, detail, error, tool }: { code: string; detail: string; error: boolean; tool: string }) {
   const language = inferToolResultLanguage(tool, detail)
-  const className = `mt-1 whitespace-pre-wrap break-words font-mono text-gray-600 ${error ? "text-red-600" : ""}`
+  const className = `mt-1 whitespace-pre-wrap break-words font-mono text-gray-600 dark:text-gray-400 ${error ? "text-red-600 dark:text-red-300" : ""}`
 
   if (!language || error) return <pre className={className}>{code}</pre>
 
@@ -608,28 +608,28 @@ function HighlightedToolResult({ code, detail, error, tool }: { code: string; de
 function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallback: string }) {
   const name = tool?.name || "tool"
   return (
-    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50">
-      <summary className="flex cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2">
-        <span className="text-gray-400">▸</span>
-        <span className="font-mono font-medium text-gray-900">{name}</span>
-        {tool?.proposal_id ? <span className="text-gray-600">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
+    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900">
+      <summary className="flex cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100">
+        <span className="text-gray-400 dark:text-gray-500">▸</span>
+        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
+        {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
       </summary>
-      <pre className="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words">{JSON.stringify(tool?.payload || fallback, null, 2)}</pre>
+      <pre className="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words dark:text-gray-300">{JSON.stringify(tool?.payload || fallback, null, 2)}</pre>
     </details>
   )
 }
 
 function SystemMessage({ item }: { item: ChatSystemMessage }) {
   const colors = {
-    success: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    warning: "border-amber-200 bg-amber-50 text-amber-900",
-    error: "border-red-200 bg-red-50 text-red-900",
-    neutral: "border-gray-200 bg-gray-50 text-gray-600"
+    success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
+    warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100",
+    error: "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100",
+    neutral: "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
   return (
     <div className="flex justify-center">
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${colors[item.tone]}`}>
-        <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide">{item.label}</span>
+        <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
         <span className="min-w-0 break-words">{item.body}</span>
       </div>
     </div>
@@ -653,26 +653,26 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
   if (proposal.materialized_label && proposal.materialized_path) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">Confirmed proposal</span>
-        <Link className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 hover:bg-blue-100" to={withRoutePrefix(proposal.materialized_path, prefix)}>{proposal.materialized_label}</Link>
+        <span className="text-sm text-gray-500 dark:text-gray-400">Confirmed proposal</span>
+        <Link className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200 dark:hover:bg-blue-900" to={withRoutePrefix(proposal.materialized_path, prefix)}>{proposal.materialized_label}</Link>
       </div>
     )
   }
 
   return (
-    <article className={`max-w-4xl rounded border bg-white px-4 py-3 ${proposal.resolved ? "border-gray-200 opacity-70 grayscale" : "border-blue-200"}`}>
+    <article className={`max-w-4xl rounded border bg-white px-4 py-3 dark:bg-gray-900 ${proposal.resolved ? "border-gray-200 opacity-70 grayscale dark:border-gray-700" : "border-blue-200 dark:border-blue-800"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-900">{proposal.title}</h3>
-            <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
-            <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{proposal.state_label}</span>
-            {proposal.epic_bundle ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{proposal.active_children_count || 0} child Jobs</span> : null}
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
+            <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
+            <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
+            {proposal.epic_bundle ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{proposal.active_children_count || 0} child Jobs</span> : null}
           </div>
-          <p className="mt-1 font-mono text-xs text-gray-500">{proposal.slug}</p>
+          <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{proposal.slug}</p>
         </div>
       </div>
-      <Markdown className="chat-prose mt-3 text-sm text-gray-800" text={proposal.body} />
+      <Markdown className="chat-prose mt-3 text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
       {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} /> : <ProposalMeta proposal={proposal} />}
       {proposal.proposed ? (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -685,14 +685,14 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
             {proposal.epic_bundle ? "Confirm Epic and Jobs" : "Confirm"}
           </button>
           <button
-            className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300"
+            className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
             disabled={proposalAction.isPending}
             onClick={() => proposalAction.mutate({ action: "reject", path: proposal.app_reject_path })}
             type="button"
           >
             Reject
           </button>
-          {proposalAction.isError ? <div className="basis-full text-xs text-red-700">{errorMessage(proposalAction.error, "Proposal command failed.")}</div> : null}
+          {proposalAction.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(proposalAction.error, "Proposal command failed.")}</div> : null}
         </div>
       ) : null}
     </article>
@@ -701,13 +701,13 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
 
 function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   return (
-    <dl className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2">
-      <div><dt className="font-medium text-gray-500">Attached scope</dt><dd>{proposal.scoped_repository_slug || "No repository attached"}</dd></div>
+    <dl className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2 dark:text-gray-300">
+      <div><dt className="font-medium text-gray-500 dark:text-gray-400">Attached scope</dt><dd>{proposal.scoped_repository_slug || "No repository attached"}</dd></div>
       <div>
-        <dt className="font-medium text-gray-500">Dependencies</dt>
+        <dt className="font-medium text-gray-500 dark:text-gray-400">Dependencies</dt>
         <dd>{proposal.dependencies.length > 0 ? <PillList values={proposal.dependencies} /> : "None"}</dd>
       </div>
-      {proposal.target_epic_label ? <div><dt className="font-medium text-gray-500">Target Epic</dt><dd>{proposal.target_epic_label}</dd></div> : null}
+      {proposal.target_epic_label ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">Target Epic</dt><dd>{proposal.target_epic_label}</dd></div> : null}
     </dl>
   )
 }
@@ -715,22 +715,22 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
 function ProposalChildren({ children, mutation }: { children: ChatProposalChild[]; mutation: UseMutationResult<ChatPayload, Error, { action: "confirm" | "reject"; path: string }> }) {
   if (children.length === 0) return null
   return (
-    <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200">
+    <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
       {children.map((child) => (
         <details className="group" key={child.id}>
-          <summary className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50">
-            <span className="text-gray-400 group-open:rotate-90">▸</span>
-            <span className="min-w-0 flex-1 truncate font-medium text-gray-900">{child.title}</span>
-            {child.dependencies.length > 0 ? <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600">depends on {child.dependencies.join(", ")}</span> : null}
-            <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{child.state_label}</span>
+          <summary className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
+            <span className="text-gray-400 group-open:rotate-90 dark:text-gray-500">▸</span>
+            <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
+            {child.dependencies.length > 0 ? <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">depends on {child.dependencies.join(", ")}</span> : null}
+            <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
           </summary>
-          <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>
-            <Markdown className="chat-prose mt-2 text-sm text-gray-800" text={child.body} />
+          <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>
+            <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
             {child.proposed ? (
               <div className="mt-3">
                 <button
-                  className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300"
+                  className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
                   disabled={mutation.isPending}
                   onClick={() => mutation.mutate({ action: "reject", path: child.app_reject_path })}
                   type="button"
@@ -800,12 +800,12 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
   }, [])
 
   return (
-    <form className="rounded border border-gray-200 bg-white p-3" onSubmit={submit}>
-      {send.isError ? <div className="mb-2 text-sm text-red-700">{errorMessage(send.error, "Message failed.")}</div> : null}
+    <form className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+      {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
       {payload.queued_messages.length > 0 ? <QueuedMessages messages={payload.queued_messages} queryKey={queryKey} /> : null}
       <div className="flex items-end gap-3">
         <textarea
-          className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5"
+          className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
           disabled={send.isPending}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -824,8 +824,8 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
 
 function QueuedMessages({ messages, queryKey }: { messages: ChatQueuedMessage[]; queryKey: ChatQueryKey }) {
   return (
-    <div className="mb-3 space-y-2 border-b border-gray-100 pb-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Queued messages</div>
+    <div className="mb-3 space-y-2 border-b border-gray-100 pb-3 dark:border-gray-800">
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Queued messages</div>
       {messages.map((message, index) => <QueuedMessageRow key={message.id} message={message} position={index + 1} queryKey={queryKey} />)}
     </div>
   )
@@ -854,31 +854,31 @@ function QueuedMessageRow({ message, position, queryKey }: { message: ChatQueued
 
   if (editing) {
     return (
-      <div className="rounded border border-blue-200 bg-blue-50 p-2">
-        {update.isError ? <div className="mb-2 text-xs text-red-700">{errorMessage(update.error, "Queued message could not be updated.")}</div> : null}
+      <div className="rounded border border-blue-200 bg-blue-50 p-2 dark:border-blue-800 dark:bg-blue-950">
+        {update.isError ? <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, "Queued message could not be updated.")}</div> : null}
         <textarea
           aria-label={`Edit queued message ${position}`}
-          className="min-h-16 w-full resize-y rounded border border-blue-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-blue-500"
+          className="min-h-16 w-full resize-y rounded border border-blue-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-blue-500 dark:border-blue-800 dark:bg-gray-950 dark:text-gray-100"
           onChange={(event) => setDraft(event.target.value)}
           value={draft}
         />
         <div className="mt-2 flex justify-end gap-2">
-          <button className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" disabled={update.isPending} onClick={() => setEditing(false)} type="button">Cancel</button>
-          <button className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} type="button">Save</button>
+          <button className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" disabled={update.isPending} onClick={() => setEditing(false)} type="button">Cancel</button>
+          <button className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700" disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} type="button">Save</button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex items-start gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5">
-      <span className="mt-0.5 shrink-0 text-xs font-medium text-gray-500">{position}</span>
-      <button className="min-w-0 flex-1 text-left text-sm text-gray-700 hover:text-blue-700" onClick={() => setEditing(true)} type="button">
+    <div className="flex items-start gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-800">
+      <span className="mt-0.5 shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">{position}</span>
+      <button className="min-w-0 flex-1 text-left text-sm text-gray-700 hover:text-blue-700 dark:text-gray-200 dark:hover:text-blue-300" onClick={() => setEditing(true)} type="button">
         <span className="line-clamp-2 whitespace-pre-wrap break-words">{message.text}</span>
       </button>
       <button
         aria-label={`Delete queued message ${position}`}
-        className="rounded p-1 text-gray-400 hover:bg-white hover:text-red-600 disabled:text-gray-300"
+        className="rounded p-1 text-gray-400 hover:bg-white hover:text-red-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300 dark:disabled:text-gray-700"
         disabled={remove.isPending}
         onClick={() => remove.mutate()}
         type="button"
@@ -960,7 +960,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button className="rounded border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+    <button className="rounded border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
       {payload.chat.stop_requested_at || stop.isPending ? "Stopping..." : "Stop"}
     </button>
   )
@@ -1042,8 +1042,8 @@ function ChatWorkspace({
 
   if (!isDesktop && !expanded) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col bg-white">
-        <nav aria-label="Chat mobile tabs" className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium">
+      <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
+        <nav aria-label="Chat mobile tabs" className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium dark:border-gray-700">
           {(["chat", "whiteboard", "context", "chats"] as MobileChatTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}
@@ -1086,7 +1086,7 @@ function ChatWorkspace({
       {expanded ? null : (
         <button
           aria-label="Resize chat workspace"
-          className="hidden cursor-col-resize rounded bg-transparent transition hover:bg-blue-100 focus:bg-blue-100 focus:outline-none lg:block"
+          className="hidden cursor-col-resize rounded bg-transparent transition hover:bg-blue-100 focus:bg-blue-100 focus:outline-none lg:block dark:hover:bg-blue-950 dark:focus:bg-blue-950"
           onMouseDown={beginResize}
           type="button"
         />
@@ -1109,7 +1109,7 @@ function ChatWorkspace({
 function ChatColumn({ bookmarkTarget, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
@@ -1142,9 +1142,9 @@ function ChatWorkspacePanel({
   onBookmarkSelect: (messageId: number) => void
 }) {
   return (
-    <aside aria-label="Chat workspace" className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white ${fullscreen ? "" : "h-full w-full"}`}>
+    <aside aria-label="Chat workspace" className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
-        <nav aria-label="Chat workspace tabs" className="flex border-b border-gray-200 px-3 pt-3 text-sm font-medium">
+        <nav aria-label="Chat workspace tabs" className="flex border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
           {(["whiteboard", "context", "chats"] as WorkspaceTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeTab === tab)}
@@ -1189,8 +1189,8 @@ class WhiteboardBoundary extends Component<{ children: ReactNode }, WhiteboardBo
     if (this.state.failed) {
       return (
         <section>
-          <div className="mb-2 text-xs font-semibold uppercase text-gray-500">Whiteboard</div>
-          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Whiteboard</div>
+          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
             Whiteboard unavailable.
           </div>
         </section>
@@ -1342,11 +1342,11 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
   return (
     <section className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold uppercase text-gray-500">Whiteboard</div>
+        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Whiteboard</div>
         <div className="flex items-center gap-2">
           <button
             aria-pressed={fullscreen}
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             onClick={onToggleFullscreen}
             type="button"
           >
@@ -1354,7 +1354,7 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
           </button>
         </div>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-gray-50">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
         {Excalidraw ? (
           <Excalidraw
             excalidrawAPI={(api) => {
@@ -1368,17 +1368,17 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
             onChange={(nextElements, nextAppState, nextFiles) => handleChange(nextElements as readonly ChatWhiteboardElement[], nextAppState, nextFiles)}
           />
         ) : (
-          <div className="flex h-full items-center justify-center p-4 text-sm text-gray-500">
+          <div className="flex h-full items-center justify-center p-4 text-sm text-gray-500 dark:text-gray-400">
             {loadError || "Loading canvas..."}
           </div>
         )}
         {scene.elements.length === 0 ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-gray-400">
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-gray-400 dark:text-gray-500">
             Empty canvas. Start sketching, or ask the agent to draw something.
           </div>
         ) : null}
       </div>
-      <div className="mt-1 text-xs text-gray-500">
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {saveError || `${scene.elements.length} canvas ${scene.elements.length === 1 ? "element" : "elements"}`}
       </div>
     </section>
@@ -1472,13 +1472,13 @@ function ChatNavigator({ payload, prefix, onBookmarkSelect }: { payload: ChatPay
     <div className="space-y-5">
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-gray-900">Chats</h2>
-          <Link className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700" to={withRoutePrefix(payload.paths.new_chat_path, prefix)}>New chat</Link>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Chats</h2>
+          <Link className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-950 dark:hover:bg-gray-200" to={withRoutePrefix(payload.paths.new_chat_path, prefix)}>New chat</Link>
         </div>
-        <label className="block text-xs font-medium text-gray-600">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
           Search chats
           <input
-            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm"
+            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Title, repo, or id"
             type="search"
@@ -1489,17 +1489,17 @@ function ChatNavigator({ payload, prefix, onBookmarkSelect }: { payload: ChatPay
           <nav aria-label="Recent chats" className="space-y-1">
             {recentChats.map((chat) => (
               <Link
-                className={`block rounded border px-2 py-1.5 text-xs ${chat.current ? "border-blue-200 bg-blue-50 text-blue-800" : "border-gray-200 bg-gray-50 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"}`}
+                className={`block rounded border px-2 py-1.5 text-xs ${chat.current ? "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" : "border-gray-200 bg-gray-50 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"}`}
                 key={chat.id}
                 to={withRoutePrefix(chat.chat_path, prefix)}
               >
-                <span className={`block truncate font-medium ${chat.title_pending ? "animate-pulse text-gray-400" : ""}`}>{chatDisplayTitle(chat)}</span>
-                <span className="mt-0.5 block truncate font-mono text-[0.7rem] text-gray-500">{chat.repository?.slug || `Chat #${chat.id}`}</span>
+                <span className={`block truncate font-medium ${chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : ""}`}>{chatDisplayTitle(chat)}</span>
+                <span className="mt-0.5 block truncate font-mono text-[0.7rem] text-gray-500 dark:text-gray-400">{chat.repository?.slug || `Chat #${chat.id}`}</span>
               </Link>
             ))}
           </nav>
         ) : (
-          <div className="text-xs text-gray-400">No matching chats.</div>
+          <div className="text-xs text-gray-400 dark:text-gray-500">No matching chats.</div>
         )}
       </section>
       <ChatBookmarks payload={payload} onBookmarkSelect={onBookmarkSelect} />
@@ -1510,7 +1510,7 @@ function ChatNavigator({ payload, prefix, onBookmarkSelect }: { payload: ChatPay
 function ChatBookmarks({ payload, onBookmarkSelect }: { payload: ChatPayload; onBookmarkSelect: (messageId: number) => void }) {
   return (
     <section>
-      <div className="mb-2 text-xs font-semibold uppercase text-gray-500">Bookmarks in this chat</div>
+      <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Bookmarks in this chat</div>
       {payload.bookmarks.length > 0 ? (
         <nav aria-label="Chat bookmarks" className="space-y-1">
           {payload.bookmarks.map((bookmark) => {
@@ -1518,7 +1518,7 @@ function ChatBookmarks({ payload, onBookmarkSelect }: { payload: ChatPayload; on
 
             return (
               <a
-                className="block rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                className="block rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"
                 href={`#message-${anchorMessageId}`}
                 key={bookmark.id}
                 onClick={(event) => {
@@ -1533,7 +1533,7 @@ function ChatBookmarks({ payload, onBookmarkSelect }: { payload: ChatPayload; on
             )
           })}
         </nav>
-      ) : <div className="text-xs text-gray-400">No bookmarks yet.</div>}
+      ) : <div className="text-xs text-gray-400 dark:text-gray-500">No bookmarks yet.</div>}
     </section>
   )
 }
@@ -1542,8 +1542,8 @@ function Attachments({ payload, prefix, queryKey, onNotice }: { payload: ChatPay
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900">Attachments</h2>
-        <a className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700" href="#add-attachment">Add attachment</a>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Attachments</h2>
+        <a className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-950 dark:hover:bg-gray-200" href="#add-attachment">Add attachment</a>
       </div>
       <div className="space-y-4">
         <AttachmentGroup label="Repos" rows={payload.attachment_groups.repositories} queryKey={queryKey} onNotice={onNotice} />
@@ -1552,17 +1552,17 @@ function Attachments({ payload, prefix, queryKey, onNotice }: { payload: ChatPay
         <AttachmentGroup label="Documents" rows={payload.attachment_groups.documents} queryKey={queryKey} onNotice={onNotice} />
       </div>
       <section>
-        <div className="mb-2 text-xs font-semibold uppercase text-gray-500">In-scope documents</div>
+        <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">In-scope documents</div>
         {payload.documents_in_scope.length > 0 ? (
           <div className="space-y-1">
             {payload.documents_in_scope.map((document) => (
-              <div className="rounded border border-gray-200 px-2 py-1.5 text-xs" key={document.id}>
-                <div className="font-medium text-gray-800">{document.title}</div>
-                <div className="font-mono text-[0.7rem] text-gray-500">{document.repository_slug}</div>
+              <div className="rounded border border-gray-200 px-2 py-1.5 text-xs dark:border-gray-700" key={document.id}>
+                <div className="font-medium text-gray-800 dark:text-gray-100">{document.title}</div>
+                <div className="font-mono text-[0.7rem] text-gray-500 dark:text-gray-400">{document.repository_slug}</div>
               </div>
             ))}
           </div>
-        ) : <div className="text-xs text-gray-400">No documents in scope.</div>}
+        ) : <div className="text-xs text-gray-400 dark:text-gray-500">No documents in scope.</div>}
       </section>
       <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
     </>
@@ -1582,12 +1582,12 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
 
   return (
     <section>
-      <div className="mb-2 text-xs font-semibold uppercase text-gray-500">{label}</div>
+      <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</div>
       {rows.length > 0 ? (
         <div className="space-y-1">
           {rows.map((row) => (
             <button
-              className="block w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-left text-xs text-gray-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:text-gray-300"
+              className="block w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-left text-xs text-gray-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:text-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-red-800 dark:hover:bg-red-950 dark:hover:text-red-300 dark:disabled:text-gray-600"
               disabled={detach.isPending}
               key={row.id}
               onClick={() => detach.mutate(row.app_detach_path)}
@@ -1598,8 +1598,8 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
             </button>
           ))}
         </div>
-      ) : <div className="text-xs text-gray-400">None</div>}
-      {detach.isError ? <div className="mt-1 text-xs text-red-700">{errorMessage(detach.error, "Detach failed.")}</div> : null}
+      ) : <div className="text-xs text-gray-400 dark:text-gray-500">None</div>}
+      {detach.isError ? <div className="mt-1 text-xs text-red-700 dark:text-red-300">{errorMessage(detach.error, "Detach failed.")}</div> : null}
     </section>
   )
 }
@@ -1634,28 +1634,28 @@ function AddAttachment({ payload, prefix, queryKey, onNotice }: { payload: ChatP
   }
 
   return (
-    <div className="rounded border border-gray-200 bg-gray-50 p-3" id="add-attachment">
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">Add attachment</h3>
+    <div className="rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800" id="add-attachment">
+      <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Add attachment</h3>
       <form className="space-y-3" onSubmit={submit}>
-        <label className="block text-xs font-medium text-gray-600">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
           Type
-          <select className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm" name="attachment_type" onChange={(event) => setType(event.target.value)} value={type}>
+          <select className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" name="attachment_type" onChange={(event) => setType(event.target.value)} value={type}>
             <option value="Repository">Repo</option>
             <option value="Epic">Epic</option>
             <option value="Job">Job</option>
             <option value="Document">Document</option>
           </select>
         </label>
-        <label className="block text-xs font-medium text-gray-600">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
           Search
-          <input className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm" name="attachment_query" onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or id" type="search" value={query} />
+          <input className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500" name="attachment_query" onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or id" type="search" value={query} />
         </label>
         <button className={secondaryButton()} type="submit">Search</button>
       </form>
       <div className="mt-3 space-y-1">
         {payload.attachment_results.length > 0 ? payload.attachment_results.map((record) => (
           <button
-            className="block w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-left text-xs text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:text-gray-300"
+            className="block w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-left text-xs text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200 dark:disabled:text-gray-600"
             disabled={add.isPending}
             key={`${record.type}-${record.id}`}
             onClick={() => add.mutate(record)}
@@ -1663,8 +1663,8 @@ function AddAttachment({ payload, prefix, queryKey, onNotice }: { payload: ChatP
           >
             {record.label}
           </button>
-        )) : <div className="text-xs text-gray-500">No matches.</div>}
-        {add.isError ? <div className="text-xs text-red-700">{errorMessage(add.error, "Attachment failed.")}</div> : null}
+        )) : <div className="text-xs text-gray-500 dark:text-gray-400">No matches.</div>}
+        {add.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(add.error, "Attachment failed.")}</div> : null}
       </div>
     </div>
   )
@@ -1672,35 +1672,35 @@ function AddAttachment({ payload, prefix, queryKey, onNotice }: { payload: ChatP
 
 function UsageOverlay({ payload }: { payload: ChatPayload }) {
   return (
-    <p className="pointer-events-none absolute left-0 right-0 top-0 border-b border-gray-100 bg-white/95 px-4 py-1.5 text-xs text-gray-500">
+    <p className="pointer-events-none absolute left-0 right-0 top-0 border-b border-gray-100 bg-white/95 px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950/95 dark:text-gray-400">
       Tokens: {formatThousands(payload.chat.cumulative_input_tokens)}k in / {formatThousands(payload.chat.cumulative_output_tokens)}k out · {formatCurrency(payload.chat.cumulative_cost_usd)}
     </p>
   )
 }
 
 function PillList({ values }: { values: string[] }) {
-  return <div className="flex flex-wrap gap-1">{values.map((value) => <span className="rounded bg-gray-100 px-2 py-0.5 font-mono" key={value}>{value}</span>)}</div>
+  return <div className="flex flex-wrap gap-1">{values.map((value) => <span className="rounded bg-gray-100 px-2 py-0.5 font-mono dark:bg-gray-800" key={value}>{value}</span>)}</div>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-green-200 bg-green-50 text-green-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
+    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
+    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function primaryButton() {
-  return "rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-300"
+  return "rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-300 dark:bg-blue-500 dark:hover:bg-blue-400 dark:disabled:bg-gray-700 dark:disabled:text-gray-400"
 }
 
 function secondaryButton() {
-  return "rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-300"
+  return "rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
 }
 
 function workspaceTabClass(active: boolean) {
-  return `border-b-2 px-3 py-2 ${active ? "border-blue-600 text-blue-700" : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900"}`
+  return `border-b-2 px-3 py-2 ${active ? "border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-300" : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"}`
 }
 
 function workspaceTabLabel(tab: WorkspaceTab) {
@@ -2095,7 +2095,7 @@ function highlightLine(line: string, language: ToolResultLanguage, keyPrefix: st
   const source = match?.[2] || line
   const nodes: ReactNode[] = []
 
-  if (prefix) nodes.push(<span className="text-gray-400" key={`${keyPrefix}-number`}>{prefix}</span>)
+  if (prefix) nodes.push(<span className="text-gray-400 dark:text-gray-500" key={`${keyPrefix}-number`}>{prefix}</span>)
 
   nodes.push(...highlightSourceLine(source, language, keyPrefix))
   return nodes
@@ -2136,35 +2136,35 @@ function highlightLexedLine(line: string, options: { keyPrefix: string; commentM
   while (index < line.length) {
     const commentMarker = options.commentMarkers.find((marker) => line.startsWith(marker, index))
     if (commentMarker) {
-      push(line.slice(index), "text-gray-400 italic")
+      push(line.slice(index), "text-gray-400 italic dark:text-gray-500")
       break
     }
 
     const char = line[index]
     if (char === "\"" || char === "'" || char === "`") {
       const end = stringEndIndex(line, index, char)
-      push(line.slice(index, end), "text-emerald-700")
+      push(line.slice(index, end), "text-emerald-700 dark:text-emerald-300")
       index = end
       continue
     }
 
     const number = line.slice(index).match(/^\b\d+(?:\.\d+)?\b/)
     if (number) {
-      push(number[0], "text-amber-700")
+      push(number[0], "text-amber-700 dark:text-amber-300")
       index += number[0].length
       continue
     }
 
     const variable = line.slice(index).match(/^[@$][A-Za-z_]\w*/)
     if (variable) {
-      push(variable[0], "text-rose-700")
+      push(variable[0], "text-rose-700 dark:text-rose-300")
       index += variable[0].length
       continue
     }
 
     const symbol = line.slice(index).match(/^:[A-Za-z_]\w*[!?=]?/)
     if (symbol) {
-      push(symbol[0], "text-violet-700")
+      push(symbol[0], "text-violet-700 dark:text-violet-300")
       index += symbol[0].length
       continue
     }
@@ -2173,9 +2173,9 @@ function highlightLexedLine(line: string, options: { keyPrefix: string; commentM
     if (word) {
       const value = word[0]
       if (options.keywords.has(value)) {
-        push(value, "font-semibold text-blue-700")
+        push(value, "font-semibold text-blue-700 dark:text-blue-300")
       } else if (/^[A-Z]/.test(value)) {
-        push(value, "text-cyan-700")
+        push(value, "text-cyan-700 dark:text-cyan-300")
       } else {
         push(value)
       }
@@ -2196,7 +2196,7 @@ function highlightHtmlLine(line: string, keyPrefix: string) {
 
   line.split(/(<\/?[A-Za-z][^>]*>)/g).forEach((segment) => {
     if (!segment) return
-    nodes.push(segment.startsWith("<") ? <span className="text-blue-700" key={`${keyPrefix}-${part++}`}>{segment}</span> : segment)
+    nodes.push(segment.startsWith("<") ? <span className="text-blue-700 dark:text-blue-300" key={`${keyPrefix}-${part++}`}>{segment}</span> : segment)
   })
 
   return nodes

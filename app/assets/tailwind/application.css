@@ -91,6 +91,30 @@
 }
 .chat-prose th { background: #f3f4f6; font-weight: 600; }
 
+.dark .chat-prose:not(.chat-prose-invert) a { color: #93c5fd; }
+.dark .chat-prose:not(.chat-prose-invert) code {
+  background: rgba(255,255,255,0.1);
+  color: #e5e7eb;
+}
+.dark .chat-prose:not(.chat-prose-invert) pre {
+  background: #020617;
+  color: #e2e8f0;
+}
+.dark .chat-prose:not(.chat-prose-invert) pre code {
+  background: transparent;
+  color: inherit;
+}
+.dark .chat-prose:not(.chat-prose-invert) blockquote {
+  border-left-color: #475569;
+  color: #cbd5e1;
+}
+.dark .chat-prose:not(.chat-prose-invert) hr { border-top-color: #334155; }
+.dark .chat-prose:not(.chat-prose-invert) th,
+.dark .chat-prose:not(.chat-prose-invert) td {
+  border-color: #475569;
+}
+.dark .chat-prose:not(.chat-prose-invert) th { background: #1f2937; }
+
 /* User bubble: dark background → swap link + code colors. */
 .chat-prose-invert a { color: #bfdbfe; }
 .chat-prose-invert code { background: rgba(255,255,255,0.15); }
