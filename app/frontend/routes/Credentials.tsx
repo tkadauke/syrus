@@ -28,8 +28,8 @@ export function CredentialsRoute() {
   return (
     <main aria-label="My credentials" className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900">My credentials</h1>
-        <p className="mt-1 text-sm text-gray-600">Encrypted credentials and account settings for Syrus runs.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">My credentials</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Encrypted credentials and account settings for Syrus runs.</p>
       </header>
 
       {credentials.isPending ? <PanelMessage>Loading credentials...</PanelMessage> : null}
@@ -65,12 +65,12 @@ function CredentialsView({ payload }: { payload: CredentialsPayload }) {
 
 function GithubCredentialGuide() {
   return (
-    <section className="rounded border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
+    <section className="rounded border border-blue-100 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/40 p-4 text-sm text-blue-950 dark:text-blue-100">
       <h2 className="font-medium">GitHub access</h2>
       <p className="mt-1">
         A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.
       </p>
-      <p className="mt-1 text-xs text-blue-800">
+      <p className="mt-1 text-xs text-blue-800 dark:text-blue-200">
         Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.
       </p>
     </section>
@@ -132,7 +132,7 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
   const testingCredential = test.variables
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-5">
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <form className="space-y-5" onSubmit={submit}>
         {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
         {clear.isError ? <PanelMessage tone="error">{errorMessage(clear.error, "Unable to clear credential.")}</PanelMessage> : null}
@@ -254,7 +254,7 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
           onTest={() => test.mutate("github_token")}
           value={values.github_token}
         />
-        <p className="-mt-3 text-xs text-gray-500">
+        <p className="-mt-3 text-xs text-gray-500 dark:text-gray-400">
           Syrus uses a GitHub App installation when one is active for a repository owner. Repositories without an active installation use this PAT as the fallback credential.
         </p>
 
@@ -279,8 +279,8 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
             type="checkbox"
           />
           <span>
-            <span className="block font-medium text-gray-700">Pause scheduling</span>
-            <span className="mt-1 block text-xs text-gray-500">Prevents your scheduled tasks from firing automatically.</span>
+            <span className="block font-medium text-gray-700 dark:text-gray-300">Pause scheduling</span>
+            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Prevents your scheduled tasks from firing automatically.</span>
           </span>
         </label>
 
@@ -288,10 +288,10 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
           <select className={inputClass()} onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
             {payload.options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <p className="mt-1 text-xs text-gray-500">{selectedAutoApprove?.preview}</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{selectedAutoApprove?.preview}</p>
         </Field>
 
-        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" disabled={save.isPending} type="submit">
+        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
           {save.isPending ? "Saving..." : "Save"}
         </button>
       </form>
@@ -301,9 +301,9 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
 
 function ClaudeTokenHelp() {
   return (
-    <p className="mt-2 text-xs leading-5 text-gray-500">
-      Run <code className="font-mono text-gray-700">claude setup-token</code> on a machine with a browser, then paste the long-lived token it prints. Syrus stores this value and passes it as <code className="font-mono text-gray-700">CLAUDE_CODE_OAUTH_TOKEN</code> for Claude runs. Do not paste the short-lived token from Claude Code's local credential store. See the{" "}
-      <a className="font-medium text-blue-700 underline hover:text-blue-600" href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token" rel="noreferrer" target="_blank">
+    <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+      Run <code className="font-mono text-gray-700 dark:text-gray-300">claude setup-token</code> on a machine with a browser, then paste the long-lived token it prints. Syrus stores this value and passes it as <code className="font-mono text-gray-700 dark:text-gray-300">CLAUDE_CODE_OAUTH_TOKEN</code> for Claude runs. Do not paste the short-lived token from Claude Code's local credential store. See the{" "}
+      <a className="font-medium text-blue-700 dark:text-blue-300 underline hover:text-blue-600 dark:hover:text-blue-400" href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token" rel="noreferrer" target="_blank">
         Anthropic authentication docs
       </a>
       .
@@ -343,11 +343,11 @@ function SecretField({
       <StatusLine set={set} />
       <div className="mt-2 flex gap-2">
         <input aria-label={label} autoComplete="off" className={inputClass()} name={name} onChange={(event) => onChange(event.target.value)} type="password" value={value} />
-        <button className="rounded border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 disabled:text-gray-300" disabled={!set || unsaved || testPending} onClick={onTest} type="button">
+        <button className="rounded border border-gray-300 dark:border-gray-600 px-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600" disabled={!set || unsaved || testPending} onClick={onTest} type="button">
           {testPending ? "Testing..." : "Test"}
         </button>
         {set ? (
-          <button className="rounded border border-gray-300 px-3 text-sm text-red-700 hover:bg-red-50 disabled:text-red-300" disabled={clearPending} onClick={onClear} type="button">
+          <button className="rounded border border-gray-300 dark:border-gray-600 px-3 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
             Clear
           </button>
         ) : null}
@@ -389,11 +389,11 @@ function SecretTextArea({
       <div className="mt-2 space-y-2">
         <textarea aria-label={label} className={`${inputClass()} font-mono text-xs`} name={name} onChange={(event) => onChange(event.target.value)} rows={6} value={value} />
         <div className="flex gap-2">
-          <button className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:text-gray-300" disabled={!set || unsaved || testPending} onClick={onTest} type="button">
+          <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600" disabled={!set || unsaved || testPending} onClick={onTest} type="button">
             {testPending ? "Testing..." : "Test"}
           </button>
           {set ? (
-            <button className="rounded border border-gray-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:text-red-300" disabled={clearPending} onClick={onClear} type="button">
+            <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
               Clear
             </button>
           ) : null}
@@ -425,19 +425,19 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
   })
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-5">
-      <h2 className="text-base font-semibold text-gray-900">API token</h2>
-      <p className="mt-1 text-xs text-gray-500">Admin token for `/api/v1/admin/*` automation. Plaintext is shown once after rotation.</p>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">API token</h2>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Admin token for `/api/v1/admin/*` automation. Plaintext is shown once after rotation.</p>
 
       {newToken ? (
-        <div className="mt-3 rounded border border-emerald-200 bg-emerald-50 p-3">
-          <div className="text-xs font-medium uppercase text-emerald-700">New token</div>
+        <div className="mt-3 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3">
+          <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">New token</div>
           <code className="mt-1 block break-all font-mono text-sm">{newToken}</code>
         </div>
       ) : payload.credential_status.api_token ? (
-        <p className="mt-3 text-xs text-gray-500">A token is set.</p>
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">A token is set.</p>
       ) : (
-        <p className="mt-3 text-xs text-amber-600">No token issued yet.</p>
+        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">No token issued yet.</p>
       )}
 
       {rotate.isError ? <PanelMessage tone="error">{errorMessage(rotate.error, "Unable to rotate API token.")}</PanelMessage> : null}
@@ -445,7 +445,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
 
       <div className="mt-3 flex gap-2">
         <button
-          className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300 disabled:bg-gray-100"
+          className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:bg-gray-100 dark:disabled:bg-gray-800"
           disabled={rotate.isPending}
           onClick={() => {
             if (!payload.credential_status.api_token || window.confirm("Rotate the API token? Existing scripts using the old token will stop working immediately.")) {
@@ -458,7 +458,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
         </button>
         {payload.credential_status.api_token ? (
           <button
-            className="rounded bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:text-red-300"
+            className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:text-red-300 dark:disabled:text-red-500"
             disabled={revoke.isPending}
             onClick={() => {
               if (window.confirm("Revoke the API token? All API calls using it will start returning 401.")) revoke.mutate()
@@ -475,7 +475,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
       <div className="mt-2">{children}</div>
     </label>
@@ -484,15 +484,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function StatusLine({ set }: { set: boolean }) {
   return set ? (
-    <p className="mt-1 text-xs text-gray-500">Currently set. Submit a new value to replace.</p>
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Currently set. Submit a new value to replace.</p>
   ) : (
-    <p className="mt-1 text-xs text-amber-600">Not set.</p>
+    <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">Not set.</p>
   )
 }
 
 function CredentialTestLine({ result, unsaved }: { result?: CredentialTestResult; unsaved: boolean }) {
   if (unsaved) {
-    return <p className="mt-2 text-xs text-amber-600">Save changes before testing this credential.</p>
+    return <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">Save changes before testing this credential.</p>
   }
 
   if (!result) return null
@@ -500,7 +500,7 @@ function CredentialTestLine({ result, unsaved }: { result?: CredentialTestResult
   const scopes = result.details.scopes || []
   const suffix = scopes.length > 0 ? ` Scopes: ${scopes.join(", ")}.` : ""
   return (
-    <p className={`mt-2 text-xs ${result.ok ? "text-emerald-700" : "text-red-700"}`}>
+    <p className={`mt-2 text-xs ${result.ok ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"}`}>
       <span aria-hidden="true">{result.ok ? "✅" : "❌"}</span> {result.message}{suffix}
     </p>
   )
@@ -508,11 +508,11 @@ function CredentialTestLine({ result, unsaved }: { result?: CredentialTestResult
 
 function GithubRateLimit({ payload }: { payload: CredentialsPayload }) {
   if (!payload.github_rate_limit) {
-    return <p className="text-xs text-gray-400">GitHub quota not yet recorded.</p>
+    return <p className="text-xs text-gray-400 dark:text-gray-500">GitHub quota not yet recorded.</p>
   }
 
   return (
-    <p className="text-xs text-gray-500">
+    <p className="text-xs text-gray-500 dark:text-gray-400">
       GitHub API quota: <strong>{payload.github_rate_limit.remaining}</strong> / {payload.github_rate_limit.limit} remaining ({payload.github_rate_limit.resource} bucket).
     </p>
   )
@@ -524,15 +524,15 @@ function CredentialsError({ error }: { error: Error }) {
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-green-200 bg-green-50 text-green-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
+    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
+    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function inputClass() {
-  return "block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
+  return "block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-blue-600"
 }
 
 function inputFromPayload(payload: CredentialsPayload): CredentialsInput {

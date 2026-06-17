@@ -63,15 +63,15 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
   return (
     <>
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold text-gray-900">Repositories</h1>
-        <Link className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.new_repository_path, prefix)}>Add</Link>
+        <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">Repositories</h1>
+        <Link className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={withRoutePrefix(payload.new_repository_path, prefix)}>Add</Link>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Repository command failed.")}</PanelMessage> : null}
 
       {payload.active_repositories.length > 0 ? (
-        <section className="overflow-hidden rounded border border-gray-200 bg-white">
+        <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <RepositoryTable
             disabled={command.isPending}
             onAction={runAction}
@@ -92,8 +92,8 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
 
       {payload.archived_repositories.length > 0 ? (
         <section className="space-y-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500">Archived ({payload.archived_repositories.length})</h2>
-          <div className="overflow-hidden rounded border border-gray-200 bg-white opacity-75">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Archived ({payload.archived_repositories.length})</h2>
+          <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 opacity-75">
             <ArchivedRepositories
               disabled={command.isPending}
               onUnarchive={(repository) => runAction({ id: repository.id, kind: "unarchive" })}
@@ -118,8 +118,8 @@ function RepositoryTable({
   prefix: string
 }) {
   return (
-    <table className="min-w-full divide-y divide-gray-200">
-      <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+      <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
         <tr>
           <th className="px-4 py-2">Working repository</th>
           <th className="hidden px-4 py-2 sm:table-cell">Polling</th>
@@ -127,27 +127,27 @@ function RepositoryTable({
           <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-100 text-sm">
+      <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
         {repositories.map((repository) => (
           <tr key={repository.id}>
             <td className="px-4 py-3">
               <div className="font-mono">
-                <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
+                <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
               </div>
               {repository.upstream_slug ? (
-                <div className="mt-0.5 text-xs text-gray-500">
+                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   upstream <span className="font-mono">{repository.upstream_slug}</span>
                   {repository.upstream_default_branch ? <span className="font-mono">:{repository.upstream_default_branch}</span> : null}
                 </div>
               ) : null}
-              <div className="mt-0.5 text-xs text-gray-500">
+              <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 Syrus owner {repository.owner_user.email_address}
               </div>
-              <div className="mt-0.5 text-xs text-gray-500">
+              <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 <span className="font-mono">{repository.default_branch}</span>
-                <span className="mx-1 text-gray-300">·</span>
-                label <code className="rounded bg-gray-100 px-1">{repository.trigger_label}</code>
-                <span className="mx-1 text-gray-300">·</span>
+                <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
+                label <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{repository.trigger_label}</code>
+                <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
                 agent {repository.agent_provider_label}
               </div>
             </td>
@@ -160,16 +160,16 @@ function RepositoryTable({
             <td className="px-4 py-3 text-right">
               <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end sm:gap-3">
                 <button
-                  className="text-blue-600 underline hover:no-underline disabled:text-gray-300"
+                  className="text-blue-600 dark:text-blue-400 underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
                   disabled={disabled}
                   onClick={() => onAction({ id: repository.id, kind: "poll" })}
                   type="button"
                 >
                   Poll now
                 </button>
-                <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(repository.edit_repository_path, prefix)}>Edit</Link>
+                <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(repository.edit_repository_path, prefix)}>Edit</Link>
                 <button
-                  className="text-amber-700 underline hover:no-underline disabled:text-gray-300"
+                  className="text-amber-700 dark:text-amber-300 underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
                   disabled={disabled}
                   onClick={() => onAction({ id: repository.id, kind: "archive" }, repository)}
                   type="button"
@@ -195,17 +195,17 @@ function ArchivedRepositories({
   onUnarchive: (repository: RepositoryRow) => void
 }) {
   return (
-    <table className="min-w-full divide-y divide-gray-200">
-      <tbody className="divide-y divide-gray-100 text-sm">
+    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+      <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
         {repositories.map((repository) => (
           <tr key={repository.id}>
-            <td className="px-4 py-3 text-gray-500">
+            <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
               <div className="font-mono">{repository.slug}</div>
-              <div className="mt-0.5 text-xs text-gray-400">archived {formatDate(repository.archived_at)}</div>
+              <div className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">archived {formatDate(repository.archived_at)}</div>
             </td>
             <td className="px-4 py-3 text-right">
               <button
-                className="text-blue-600 underline hover:no-underline disabled:text-gray-300"
+                className="text-blue-600 dark:text-blue-400 underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
                 disabled={disabled}
                 onClick={() => onUnarchive(repository)}
                 type="button"
@@ -222,18 +222,18 @@ function ArchivedRepositories({
 
 function PollingPill({ enabled }: { enabled: boolean }) {
   if (enabled) {
-    return <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">enabled</span>
+    return <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">enabled</span>
   }
-  return <span className="inline-block rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">paused</span>
+  return <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">paused</span>
 }
 
 function LastPoll({ repository }: { repository: RepositoryRow }) {
   if (repository.last_poll_status === "failed") {
     return (
       <div>
-        <span className="font-medium text-red-600">failed</span>
-        <span className="ml-1 text-xs text-gray-500">{formatDate(repository.last_poll_started_at)}</span>
-        {repository.last_poll_error ? <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-red-500" title={repository.last_poll_error}>{repository.last_poll_error}</div> : null}
+        <span className="font-medium text-red-600 dark:text-red-300">failed</span>
+        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{formatDate(repository.last_poll_started_at)}</span>
+        {repository.last_poll_error ? <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-red-500 dark:text-red-300" title={repository.last_poll_error}>{repository.last_poll_error}</div> : null}
       </div>
     )
   }
@@ -241,20 +241,20 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
   if (repository.last_poll_status === "ok") {
     return (
       <div>
-        <span className="text-green-700">ok</span>
-        <span className="ml-1 text-xs text-gray-500">{formatDate(repository.last_poll_started_at)}</span>
+        <span className="text-green-700 dark:text-green-300">ok</span>
+        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{formatDate(repository.last_poll_started_at)}</span>
       </div>
     )
   }
 
-  return <span className="text-gray-400">-</span>
+  return <span className="text-gray-400 dark:text-gray-500">-</span>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-green-200 bg-green-50 text-green-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
+    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
+    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }

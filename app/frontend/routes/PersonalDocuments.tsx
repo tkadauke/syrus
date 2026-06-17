@@ -22,8 +22,8 @@ export function PersonalDocumentsRoute() {
   return (
     <main aria-label="Personal documents" className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900">Personal documents</h1>
-        <p className="mt-1 text-sm text-gray-600">Account-scoped context available to your Syrus runs.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Personal documents</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Account-scoped context available to your Syrus runs.</p>
       </header>
 
       {documents.isPending ? <PanelMessage>Loading personal documents...</PanelMessage> : null}
@@ -72,23 +72,23 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   }
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-5">
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Documents</h2>
-          <p className="mt-1 text-xs text-gray-500">Attach files or Google Docs that should follow your account.</p>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Documents</h2>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Attach files or Google Docs that should follow your account.</p>
         </div>
-        <span className="text-xs text-gray-500">{payload.documents.length}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">{payload.documents.length}</span>
       </div>
 
-      <div className="mt-4 divide-y divide-gray-200 rounded border border-gray-200">
+      <div className="mt-4 divide-y divide-gray-200 dark:divide-gray-700 rounded border border-gray-200 dark:border-gray-700">
         {payload.documents.length === 0 ? (
-          <p className="p-4 text-sm text-gray-500">No personal documents yet.</p>
+          <p className="p-4 text-sm text-gray-500 dark:text-gray-400">No personal documents yet.</p>
         ) : payload.documents.map((document) => (
           <div className="flex items-center justify-between gap-3 p-3" key={document.id}>
             <DocumentSummary document={document} />
             <button
-              className="text-xs font-medium text-red-600 hover:text-red-700 disabled:text-red-300"
+              className="text-xs font-medium text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300 disabled:text-red-300 dark:disabled:text-red-500"
               disabled={destroy.isPending}
               onClick={() => {
                 if (window.confirm("Delete this document?")) destroy.mutate(document)
@@ -106,7 +106,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
         {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete document.")}</PanelMessage> : null}
         <Field label="Upload files">
           <input
-            className="block w-full text-sm text-gray-700"
+            className="block w-full text-sm text-gray-700 dark:text-gray-300"
             multiple
             onChange={(event) => setFiles(Array.from(event.currentTarget.files || []))}
             type="file"
@@ -127,23 +127,23 @@ function DocumentSummary({ document }: { document: PersonalDocument }) {
   if (document.kind === "google_doc" && document.google_doc_url) {
     return (
       <div className="min-w-0">
-        <a className="block truncate text-sm font-medium text-blue-700 hover:underline" href={document.google_doc_url} rel="noopener" target="_blank">{document.google_doc_url}</a>
-        <div className="mt-1 text-xs text-gray-500">Google Doc</div>
+        <a className="block truncate text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline" href={document.google_doc_url} rel="noopener" target="_blank">{document.google_doc_url}</a>
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Google Doc</div>
       </div>
     )
   }
 
   return (
     <div className="min-w-0">
-      <div className="truncate text-sm font-medium text-gray-900">{document.filename || "File"}</div>
-      <div className="mt-1 text-xs text-gray-500">{document.content_type || "unknown"} · {formatBytes(document.byte_size)}</div>
+      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{document.filename || "File"}</div>
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{document.content_type || "unknown"} · {formatBytes(document.byte_size)}</div>
     </div>
   )
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
       <div className="mt-2">{children}</div>
     </label>
@@ -156,15 +156,15 @@ function DocumentsError({ error }: { error: Error }) {
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-green-200 bg-green-50 text-green-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
+    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
+    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function inputClass() {
-  return "block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
+  return "block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-blue-600"
 }
 
 function formatBytes(value: number | null) {

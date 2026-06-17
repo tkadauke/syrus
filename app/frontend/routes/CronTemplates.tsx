@@ -37,10 +37,10 @@ export function CronTemplatesIndex() {
     <main aria-label="Cron templates" className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Cron templates</h1>
-          <p className="mt-1 max-w-2xl text-sm text-gray-600">Reusable recurring-task blueprints. Apply one to a repository to create a scheduled task with the template settings pre-filled.</p>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Cron templates</h1>
+          <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">Reusable recurring-task blueprints. Apply one to a repository to create a scheduled task with the template settings pre-filled.</p>
         </div>
-        <Link className="self-start rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500" to={`${basePath}/new`}>New</Link>
+        <Link className="self-start rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={`${basePath}/new`}>New</Link>
       </header>
 
       {templates.isPending ? <PanelMessage>Loading templates...</PanelMessage> : null}
@@ -94,8 +94,8 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
   return (
     <main aria-label={mode === "new" ? "New cron template" : "Edit cron template"} className="mx-auto max-w-3xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900">{mode === "new" ? "New cron template" : "Edit template"}</h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{mode === "new" ? "New cron template" : "Edit template"}</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
           {mode === "new" ? "Define a reusable recurring-task blueprint." : "Changes here do not propagate to existing scheduled tasks that were applied from this template."}
         </p>
       </header>
@@ -118,18 +118,18 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
 function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[]; basePath: string }) {
   if (templates.length === 0) {
     return (
-      <section className="rounded border border-gray-200 bg-white p-8 text-center">
-        <p className="text-gray-600">No templates yet.</p>
-        <p className="mt-2 text-sm text-gray-500">Create a template to define a reusable recurring-task blueprint, then apply it to any of your repositories.</p>
-        <Link className="mt-4 inline-block rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500" to={`${basePath}/new`}>Create your first template</Link>
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-8 text-center">
+        <p className="text-gray-600 dark:text-gray-400">No templates yet.</p>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Create a template to define a reusable recurring-task blueprint, then apply it to any of your repositories.</p>
+        <Link className="mt-4 inline-block rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={`${basePath}/new`}>Create your first template</Link>
       </section>
     )
   }
 
   return (
-    <section className="overflow-hidden rounded border border-gray-200 bg-white">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+    <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">Name</th>
             <th className="px-4 py-2">Schedule</th>
@@ -139,18 +139,18 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
             <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 text-sm">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
           {templates.map((template) => (
             <tr key={template.id}>
               <td className="px-4 py-3 font-medium">
-                <Link className="text-blue-600 underline hover:no-underline" to={`${basePath}/${template.id}`}>{template.name}</Link>
-                {template.description ? <p className="mt-0.5 text-xs font-normal text-gray-500">{template.description}</p> : null}
+                <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${basePath}/${template.id}`}>{template.name}</Link>
+                {template.description ? <p className="mt-0.5 text-xs font-normal text-gray-500 dark:text-gray-400">{template.description}</p> : null}
               </td>
               <td className="px-4 py-3 font-mono text-xs">{template.cron_expression}</td>
               <td className="px-4 py-3 text-xs">{template.pr_pileup_policy}</td>
-              <td className="px-4 py-3 text-xs text-gray-600">{template.applied_tasks_count} {template.applied_tasks_count === 1 ? "repo" : "repos"}</td>
+              <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{template.applied_tasks_count} {template.applied_tasks_count === 1 ? "repo" : "repos"}</td>
               <td className="px-4 py-3"><StatusPill enabled={template.enabled} /></td>
-              <td className="px-4 py-3 text-right"><Link className="text-blue-600 underline hover:no-underline" to={`${basePath}/${template.id}`}>Open</Link></td>
+              <td className="px-4 py-3 text-right"><Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${basePath}/${template.id}`}>Open</Link></td>
             </tr>
           ))}
         </tbody>
@@ -175,15 +175,15 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-gray-900">{payload.template.name}</h1>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.template.name}</h1>
             <StatusPill enabled={payload.template.enabled} />
           </div>
-          {payload.template.description ? <p className="mt-1 text-sm text-gray-600">{payload.template.description}</p> : null}
+          {payload.template.description ? <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{payload.template.description}</p> : null}
         </div>
         <div className="flex items-center gap-2">
-          <Link className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50" to={`${basePath}/${payload.template.id}/edit`}>Edit</Link>
+          <Link className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800" to={`${basePath}/${payload.template.id}/edit`}>Edit</Link>
           <button
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+            className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
             disabled={destroy.isPending}
             onClick={() => {
               if (window.confirm("Delete this template? Existing scheduled tasks created from it will remain.")) {
@@ -199,21 +199,21 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
 
       {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete template.")}</PanelMessage> : null}
 
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">Schedule</h2>
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Schedule</h2>
         <dl className="grid grid-cols-2 gap-y-2 text-sm">
-          <dt className="text-gray-500">Cron expression</dt>
+          <dt className="text-gray-500 dark:text-gray-400">Cron expression</dt>
           <dd className="font-mono">{payload.template.cron_expression}</dd>
-          <dt className="text-gray-500">Semantics</dt>
+          <dt className="text-gray-500 dark:text-gray-400">Semantics</dt>
           <dd>Minute ignored; fires by UTC hour window.</dd>
-          <dt className="text-gray-500">PR pileup policy</dt>
+          <dt className="text-gray-500 dark:text-gray-400">PR pileup policy</dt>
           <dd>{payload.template.pr_pileup_policy}</dd>
         </dl>
       </section>
 
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">Prompt</h2>
-        <pre className="whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-3 font-mono text-xs">{payload.template.prompt}</pre>
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Prompt</h2>
+        <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">{payload.template.prompt}</pre>
       </section>
 
       <AppliedTasks prefix={prefix} tasks={payload.applied_tasks} />
@@ -267,7 +267,7 @@ function CronTemplateForm({
       </Field>
       <Field label="Cron expression">
         <input className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, cron_expression: event.target.value })} placeholder="0 9 * * 1" type="text" value={values.cron_expression} />
-        <p className="mt-1 text-xs text-gray-500">{cronHelpText}</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{cronHelpText}</p>
       </Field>
       <Field label="PR pileup policy">
         <select className={inputClass()} onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
@@ -279,13 +279,13 @@ function CronTemplateForm({
       </Field>
       <label className="flex items-center gap-2">
         <input checked={values.enabled} className="rounded border-gray-400" onChange={(event) => setValues({ ...values, enabled: event.target.checked })} type="checkbox" />
-        <span className="text-sm font-medium text-gray-700">Enabled</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enabled</span>
       </label>
       <div className="flex items-center gap-3">
-        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" disabled={save.isPending} type="submit">
+        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
           {save.isPending ? "Saving..." : mode === "new" ? "Create template" : "Save"}
         </button>
-        <Link className="text-sm text-gray-600 hover:text-gray-900" to={mode === "new" ? basePath : `${basePath}/${id}`}>Cancel</Link>
+        <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={mode === "new" ? basePath : `${basePath}/${id}`}>Cancel</Link>
       </div>
     </form>
   )
@@ -293,13 +293,13 @@ function CronTemplateForm({
 
 function AppliedTasks({ tasks, prefix }: { tasks: Awaited<ReturnType<typeof fetchCronTemplate>>["applied_tasks"]; prefix: string }) {
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
-      <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">Applied to repositories</h2>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Applied to repositories</h2>
       {tasks.length === 0 ? (
-        <p className="text-sm text-gray-600">Not applied to any repositories yet.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Not applied to any repositories yet.</p>
       ) : (
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="text-left text-xs font-medium uppercase text-gray-500">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-2 py-2">Repository</th>
               <th className="px-2 py-2">Task</th>
@@ -307,13 +307,13 @@ function AppliedTasks({ tasks, prefix }: { tasks: Awaited<ReturnType<typeof fetc
               <th className="px-2 py-2">Last fired</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
             {tasks.map((task) => (
               <tr key={task.id}>
-                <td className="px-2 py-2 font-mono text-xs"><Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(task.repository_path, prefix)}>{task.repository_slug}</Link></td>
-                <td className="px-2 py-2"><Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(task.scheduled_task_path, prefix)}>{task.name}</Link></td>
+                <td className="px-2 py-2 font-mono text-xs"><Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(task.repository_path, prefix)}>{task.repository_slug}</Link></td>
+                <td className="px-2 py-2"><Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(task.scheduled_task_path, prefix)}>{task.name}</Link></td>
                 <td className="px-2 py-2"><StatePill state={task.state} /></td>
-                <td className="px-2 py-2 text-xs text-gray-500">{task.last_fired_at ? new Date(task.last_fired_at).toLocaleString() : "never"}</td>
+                <td className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">{task.last_fired_at ? new Date(task.last_fired_at).toLocaleString() : "never"}</td>
               </tr>
             ))}
           </tbody>
@@ -327,11 +327,11 @@ function RepositoryApplyLinks({ repositories, prefix }: { repositories: Awaited<
   if (repositories.length === 0) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
-      <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">Apply to a repository</h2>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Apply to a repository</h2>
       <div className="flex flex-wrap gap-2">
         {repositories.map((repository) => (
-          <Link className="inline-block rounded border border-gray-300 px-2.5 py-1 font-mono text-xs hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700" to={withRoutePrefix(repository.new_scheduled_task_path, prefix)} key={repository.id}>{repository.slug}</Link>
+          <Link className="inline-block rounded border border-gray-300 dark:border-gray-600 px-2.5 py-1 font-mono text-xs hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300" to={withRoutePrefix(repository.new_scheduled_task_path, prefix)} key={repository.id}>{repository.slug}</Link>
         ))}
       </div>
     </section>
@@ -340,7 +340,7 @@ function RepositoryApplyLinks({ repositories, prefix }: { repositories: Awaited<
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
       <div className="mt-2">{children}</div>
     </label>
@@ -349,20 +349,20 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function StatusPill({ enabled }: { enabled: boolean }) {
   return enabled ? (
-    <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">enabled</span>
+    <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">enabled</span>
   ) : (
-    <span className="inline-block rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">disabled</span>
+    <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">disabled</span>
   )
 }
 
 function StatePill({ state }: { state: string }) {
   const styles: Record<string, string> = {
-    scheduled: "bg-green-100 text-green-700",
-    paused: "bg-gray-100 text-gray-600",
-    auto_paused: "bg-red-100 text-red-700",
-    fired: "bg-blue-100 text-blue-700"
+    scheduled: "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300",
+    paused: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
+    auto_paused: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300",
+    fired: "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
   }
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 text-gray-700"}`}>{state}</span>
+  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}>{state}</span>
 }
 
 function CronTemplatesError({ error }: { error: Error }) {
@@ -370,11 +370,11 @@ function CronTemplatesError({ error }: { error: Error }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700" : "text-gray-600"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-400"}`}>{children}</div>
 }
 
 function inputClass() {
-  return "block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
+  return "block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-blue-600"
 }
 
 function routeBase(pathname: string) {

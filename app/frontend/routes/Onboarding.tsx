@@ -21,7 +21,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   if (!user || !setup) {
     return (
       <main aria-label="Onboarding" className="mx-auto max-w-5xl p-6">
-        <p className="text-sm text-gray-600">Loading setup status...</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Loading setup status...</p>
       </main>
     )
   }
@@ -33,23 +33,23 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
 
   return (
     <main aria-label="Onboarding" className="mx-auto max-w-5xl space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-5">
-        <p className="text-xs font-medium uppercase text-gray-500">First-run setup</p>
+      <header className="border-b border-gray-200 dark:border-gray-700 pb-5">
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">First-run setup</p>
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Set up Syrus</h1>
-            <p className="mt-2 max-w-2xl text-sm text-gray-600">
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Set up Syrus</h1>
+            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
               Work through the shortest path to a successful first run.
             </p>
           </div>
-          <div className="text-sm text-gray-600">
-            <span className="font-medium text-gray-900">{completedCount}</span> of <span>{steps.length}</span> complete
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="font-medium text-gray-900 dark:text-gray-100">{completedCount}</span> of <span>{steps.length}</span> complete
           </div>
         </div>
       </header>
 
-      <section className="rounded border border-gray-200 bg-white">
-        <ol className="divide-y divide-gray-200">
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <ol className="divide-y divide-gray-200 dark:divide-gray-700">
           {steps.map((step) => {
             const current = activeStep?.key === step.key
             return (
@@ -57,12 +57,12 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                 <div className="flex min-w-0 items-start gap-3">
                   <span className={statusMarkerClass(step.complete, current)}>{step.complete ? "OK" : current ? ">" : ""}</span>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-medium text-gray-900">{step.title}</h2>
-                    <p className="mt-1 text-sm text-gray-600">{step.detail}</p>
+                    <h2 className="text-sm font-medium text-gray-900 dark:text-gray-100">{step.title}</h2>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{step.detail}</p>
                   </div>
                 </div>
                 {step.complete ? (
-                  <span className="self-start rounded bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 sm:self-center">Complete</span>
+                  <span className="self-start rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300 sm:self-center">Complete</span>
                 ) : (
                   <Link className={primaryCtaClass(current)} to={withRoutePrefix(step.ctaPath, prefix)}>
                     {step.ctaLabel}
@@ -75,9 +75,9 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       </section>
 
       {complete ? (
-        <section className="rounded border border-green-200 bg-green-50 p-4">
-          <h2 className="text-sm font-medium text-green-900">Ready for normal operations</h2>
-          <p className="mt-1 text-sm text-green-800">Syrus has completed at least one successful job.</p>
+        <section className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-4">
+          <h2 className="text-sm font-medium text-green-900 dark:text-green-100">Ready for normal operations</h2>
+          <p className="mt-1 text-sm text-green-800 dark:text-green-200">Syrus has completed at least one successful job.</p>
           <Link className="mt-3 inline-flex rounded bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800" to={withRoutePrefix("/dashboard/jobs?view=list", prefix)}>
             Open dashboard
           </Link>
@@ -148,12 +148,12 @@ function statusMarkerClass(complete: boolean, current: boolean) {
   if (complete) return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600 text-xs font-semibold text-white"
   if (current) return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-lg leading-none text-white"
 
-  return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white"
+  return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
 }
 
 function primaryCtaClass(current: boolean) {
   const base = "inline-flex shrink-0 justify-center rounded px-3 py-2 text-sm font-medium"
-  return current ? `${base} bg-blue-600 text-white hover:bg-blue-700` : `${base} border border-gray-300 text-gray-700 hover:bg-gray-50`
+  return current ? `${base} bg-blue-600 text-white hover:bg-blue-700` : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
 }
 
 function withRoutePrefix(path: string, prefix: string) {

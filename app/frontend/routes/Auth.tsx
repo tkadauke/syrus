@@ -61,7 +61,7 @@ export function SignInRoute() {
           <button className={primaryButtonClass()} disabled={submit.isPending} type="submit">
             {submit.isPending ? "Signing in..." : "Sign in"}
           </button>
-          <Link className="text-sm text-gray-700 underline hover:no-underline" to={`${prefix}/passwords/new`}>Forgot password?</Link>
+          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/passwords/new`}>Forgot password?</Link>
         </div>
       </form>
     </AuthShell>
@@ -161,7 +161,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
         <button className={primaryButtonClass()} disabled={submit.isPending} type="submit">
           {submit.isPending ? "Creating..." : "Create account"}
         </button>
-        <Link className="text-sm text-gray-700 underline hover:no-underline" to={`${prefix}/session/new`}>Already have an account? Sign in</Link>
+        <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/session/new`}>Already have an account? Sign in</Link>
       </div>
     </form>
   )
@@ -206,7 +206,7 @@ export function PasswordRequestRoute() {
           <button className={primaryButtonClass()} disabled={submit.isPending} type="submit">
             {submit.isPending ? "Sending..." : "Email reset instructions"}
           </button>
-          <Link className="text-sm text-gray-700 underline hover:no-underline" to={`${prefix}/session/new`}>Back to sign in</Link>
+          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/session/new`}>Back to sign in</Link>
         </div>
       </form>
     </AuthShell>
@@ -270,11 +270,11 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle?: st
   return (
     <main aria-label={title} className="mx-auto max-w-xl space-y-6 p-6">
       <header>
-        <Link className="text-sm font-medium text-blue-700 underline hover:no-underline" to="/">Syrus overview</Link>
-        <h1 className="text-3xl font-semibold text-gray-900">{title}</h1>
-        {subtitle ? <p className="mt-2 text-sm leading-6 text-gray-600">{subtitle}</p> : null}
+        <Link className="text-sm font-medium text-blue-700 dark:text-blue-300 underline hover:no-underline" to="/">Syrus overview</Link>
+        <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+        {subtitle ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">{subtitle}</p> : null}
       </header>
-      <section className="rounded border border-gray-200 bg-white p-5">
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
         {children}
       </section>
     </main>
@@ -283,7 +283,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle?: st
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
       <div className="mt-2">{children}</div>
     </label>
@@ -292,20 +292,20 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-green-200 bg-green-50 text-green-700",
-    muted: "border-gray-200 bg-gray-50 text-gray-600"
+    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
+    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
+    muted: "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
   }
 
   return <div className={`rounded border p-3 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function inputClass() {
-  return "block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
+  return "block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-blue-600"
 }
 
 function primaryButtonClass() {
-  return "rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+  return "rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
 }
 
 function routePrefix(pathname: string) {

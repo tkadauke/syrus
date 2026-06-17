@@ -45,8 +45,8 @@ export function ScheduledTasksIndex() {
   return (
     <main aria-label="Scheduled tasks" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900">Scheduled tasks</h1>
-        <p className="mt-1 max-w-2xl text-sm text-gray-600">Recurring and one-shot agent prompts attached to repositories.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Scheduled tasks</h1>
+        <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">Recurring and one-shot agent prompts attached to repositories.</p>
       </header>
 
       {tasks.isPending ? <PanelMessage>Loading scheduled tasks...</PanelMessage> : null}
@@ -110,9 +110,9 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   return (
     <main aria-label={mode === "new" ? "New scheduled task" : "Edit scheduled task"} className="mx-auto max-w-3xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900">{mode === "new" ? "New scheduled task" : "Edit scheduled task"}</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{mode === "new" ? "New scheduled task" : "Edit scheduled task"}</h1>
         {repository ? (
-          <p className="mt-1 font-mono text-sm text-gray-600">{repository.slug}</p>
+          <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">{repository.slug}</p>
         ) : null}
       </header>
 
@@ -135,16 +135,16 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
 
 function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string; tasks: ScheduledTaskRow[]; empty: string; basePath: string; prefix: string }) {
   return (
-    <section className="rounded border border-gray-200 bg-white">
-      <div className="border-b border-gray-200 px-4 py-3">
-        <h2 className="text-sm font-semibold uppercase text-gray-500">{title}</h2>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+        <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{title}</h2>
       </div>
       {tasks.length === 0 ? (
-        <p className="p-4 text-sm text-gray-500">{empty}</p>
+        <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-2">Task</th>
                 <th className="px-4 py-2">Repository</th>
@@ -154,20 +154,20 @@ function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string;
                 <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
               {tasks.map((task) => (
                 <tr key={task.id}>
                   <td className="px-4 py-3 font-medium">
-                    <Link className="text-blue-600 underline hover:no-underline" to={`${basePath}/${task.id}`}>{task.name}</Link>
+                    <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${basePath}/${task.id}`}>{task.name}</Link>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(task.repository.repository_path, prefix)}>{task.repository.slug}</Link>
+                    <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(task.repository.repository_path, prefix)}>{task.repository.slug}</Link>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">{task.schedule_label || "none"}</td>
                   <td className="px-4 py-3"><StatePill state={task.state} /></td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{formatDate(task.last_fired_at) || "never"}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{formatDate(task.last_fired_at) || "never"}</td>
                   <td className="px-4 py-3 text-right">
-                    <Link className="text-blue-600 underline hover:no-underline" to={`${basePath}/${task.id}`}>Open</Link>
+                    <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${basePath}/${task.id}`}>Open</Link>
                   </td>
                 </tr>
               ))}
@@ -209,11 +209,11 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold text-gray-900">{payload.task.name}</h1>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.task.name}</h1>
             <StatePill state={payload.task.state} />
           </div>
-          <p className="mt-1 font-mono text-sm text-gray-600">
-            <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(payload.task.repository.repository_path, prefix)}>{payload.task.repository.slug}</Link>
+          <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">
+            <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(payload.task.repository.repository_path, prefix)}>{payload.task.repository.slug}</Link>
           </p>
         </div>
         <TaskActions archive={archive} basePath={basePath} command={command} task={payload.task} />
@@ -223,27 +223,27 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Unable to update scheduled task.")}</PanelMessage> : null}
       {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, "Unable to archive scheduled task.")}</PanelMessage> : null}
 
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">Schedule</h2>
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Schedule</h2>
         <dl className="grid gap-y-2 text-sm sm:grid-cols-2">
-          <dt className="text-gray-500">Kind</dt>
+          <dt className="text-gray-500 dark:text-gray-400">Kind</dt>
           <dd>{payload.task.kind}</dd>
-          <dt className="text-gray-500">Cron expression</dt>
+          <dt className="text-gray-500 dark:text-gray-400">Cron expression</dt>
           <dd className="font-mono">{payload.task.cron_expression || "none"}</dd>
-          <dt className="text-gray-500">Fire at</dt>
+          <dt className="text-gray-500 dark:text-gray-400">Fire at</dt>
           <dd>{formatDate(payload.task.fire_at) || "none"}</dd>
-          <dt className="text-gray-500">Next fire</dt>
+          <dt className="text-gray-500 dark:text-gray-400">Next fire</dt>
           <dd>{formatDate(payload.task.next_fire_at) || "none"}</dd>
-          <dt className="text-gray-500">PR pileup policy</dt>
+          <dt className="text-gray-500 dark:text-gray-400">PR pileup policy</dt>
           <dd>{payload.task.pr_pileup_policy}</dd>
-          <dt className="text-gray-500">Auto-approval</dt>
+          <dt className="text-gray-500 dark:text-gray-400">Auto-approval</dt>
           <dd>{payload.task.auto_approve_preview}</dd>
         </dl>
       </section>
 
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">Prompt</h2>
-        <pre className="whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-3 font-mono text-xs">{payload.task.prompt}</pre>
+      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Prompt</h2>
+        <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">{payload.task.prompt}</pre>
       </section>
 
       <RecentJobs jobs={payload.recent_jobs} prefix={prefix} />
@@ -276,7 +276,7 @@ function TaskActions({
       ) : null}
       {task.editable ? (
         <button
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
           disabled={archive.isPending}
           onClick={() => {
             if (window.confirm("Archive this scheduled task?")) archive.mutate()
@@ -292,13 +292,13 @@ function TaskActions({
 
 function RecentJobs({ jobs, prefix }: { jobs: ScheduledTaskDetailPayload["recent_jobs"]; prefix: string }) {
   return (
-    <section className="rounded border border-gray-200 bg-white p-4">
-      <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">Recent jobs</h2>
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Recent jobs</h2>
       {jobs.length === 0 ? (
-        <p className="text-sm text-gray-600">No jobs yet.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">No jobs yet.</p>
       ) : (
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="text-left text-xs font-medium uppercase text-gray-500">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-2 py-2">Job</th>
               <th className="px-2 py-2">State</th>
@@ -306,13 +306,13 @@ function RecentJobs({ jobs, prefix }: { jobs: ScheduledTaskDetailPayload["recent
               <th className="px-2 py-2">Created</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
             {jobs.map((job) => (
               <tr key={job.id}>
-                <td className="px-2 py-2"><Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(job.job_path, prefix)}>#{job.id}</Link></td>
+                <td className="px-2 py-2"><Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(job.job_path, prefix)}>#{job.id}</Link></td>
                 <td className="px-2 py-2">{job.closure_reason || job.state}</td>
                 <td className="px-2 py-2">{job.pr_number || job.external_pr_number || "none"}</td>
-                <td className="px-2 py-2 text-xs text-gray-500">{formatDate(job.created_at)}</td>
+                <td className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">{formatDate(job.created_at)}</td>
               </tr>
             ))}
           </tbody>
@@ -382,7 +382,7 @@ function ScheduledTaskForm({
       ) : (
         <Field label="Cron expression">
           <input className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, cron_expression: event.target.value })} placeholder="0 9 * * 1" type="text" value={values.cron_expression} />
-          <p className="mt-1 text-xs text-gray-500">{cronHelpText}</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{cronHelpText}</p>
         </Field>
       )}
       <Field label="PR pileup policy">
@@ -394,16 +394,16 @@ function ScheduledTaskForm({
         <select className={inputClass()} onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
           {options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <p className="mt-1 text-xs text-gray-500">{autoApproval?.preview}</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{autoApproval?.preview}</p>
       </Field>
       <Field label="Prompt">
         <textarea className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
       </Field>
       <div className="flex items-center gap-3">
-        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" disabled={save.isPending} type="submit">
+        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
           {save.isPending ? "Saving..." : mode === "new" ? "Create task" : "Save"}
         </button>
-        <Link className="text-sm text-gray-600 hover:text-gray-900" to={mode === "new" ? basePath : `${basePath}/${id}`}>Cancel</Link>
+        <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={mode === "new" ? basePath : `${basePath}/${id}`}>Cancel</Link>
       </div>
     </form>
   )
@@ -411,7 +411,7 @@ function ScheduledTaskForm({
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
       <div className="mt-2">{children}</div>
     </label>
@@ -420,12 +420,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function StatePill({ state }: { state: string }) {
   const styles: Record<string, string> = {
-    scheduled: "bg-green-100 text-green-700",
-    paused: "bg-gray-100 text-gray-600",
-    auto_paused: "bg-red-100 text-red-700",
-    fired: "bg-blue-100 text-blue-700"
+    scheduled: "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300",
+    paused: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
+    auto_paused: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300",
+    fired: "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
   }
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 text-gray-700"}`}>{state}</span>
+  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}>{state}</span>
 }
 
 function ScheduledTasksError({ error }: { error: Error }) {
@@ -434,19 +434,19 @@ function ScheduledTasksError({ error }: { error: Error }) {
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-green-200 bg-green-50 text-green-700",
-    muted: "border-gray-200 bg-white text-gray-600"
+    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
+    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
+    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function inputClass() {
-  return "block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
+  return "block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-blue-600"
 }
 
 function secondaryButton() {
-  return "rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300"
+  return "rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-300 dark:disabled:text-gray-600"
 }
 
 function tasksBase(pathname: string) {

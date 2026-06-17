@@ -32,15 +32,15 @@ export function SmartFolders() {
 
   return (
     <main aria-label="Smart folders" className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="flex flex-col gap-3 border-b border-gray-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-3 border-b border-gray-200 dark:border-gray-700 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Smart folders</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Smart folders</h1>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             Rename, reorder, or delete saved {smartFolders.data?.subject_label.toLowerCase() || "job"} filters.
           </p>
         </div>
         {smartFolders.data ? (
-          <Link className="text-sm text-blue-600 underline hover:no-underline" to={withRoutePrefix(smartFolders.data.dashboard_path, prefix)}>Back to dashboard</Link>
+          <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(smartFolders.data.dashboard_path, prefix)}>Back to dashboard</Link>
         ) : null}
       </header>
 
@@ -62,7 +62,7 @@ function SubjectTabs({ activeSubject }: { activeSubject: string }) {
     <nav aria-label="Smart folder subjects" className="flex flex-wrap gap-2">
       {subjects.map(([subject, label]) => (
         <Link
-          className={`rounded border px-3 py-1.5 text-sm ${activeSubject === subject ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${activeSubject === subject ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-950" : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}
           key={subject}
           to={`${prefix}/smart_folders?subject_type=${subject}`}
         >
@@ -75,12 +75,12 @@ function SubjectTabs({ activeSubject }: { activeSubject: string }) {
 
 function SmartFoldersTable({ payload, querySearch, onNotice }: { payload: SmartFoldersPayload; querySearch: string; onNotice: (message: string | null) => void }) {
   return (
-    <section className="overflow-hidden rounded border border-gray-200 bg-white">
+    <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       {payload.smart_folders.length === 0 ? (
         <PanelMessage>No saved smart folders yet.</PanelMessage>
       ) : (
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Position</th>
@@ -88,7 +88,7 @@ function SmartFoldersTable({ payload, querySearch, onNotice }: { payload: SmartF
               <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
             {payload.smart_folders.map((folder) => (
               <SmartFolderTableRow folder={folder} key={folder.id} onNotice={onNotice} querySearch={querySearch} />
             ))}
@@ -130,7 +130,7 @@ function SmartFolderTableRow({ folder, querySearch, onNotice }: { folder: SmartF
         <form className="contents" onSubmit={submit}>
           <input
             aria-label={`Name for ${folder.name}`}
-            className="w-full max-w-xs rounded border border-gray-300 px-2 py-1.5 text-sm"
+            className="w-full max-w-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100"
             onChange={(event) => setName(event.target.value)}
             required
             type="text"
@@ -141,19 +141,19 @@ function SmartFolderTableRow({ folder, querySearch, onNotice }: { folder: SmartF
       <td className="px-4 py-3">
         <input
           aria-label={`Position for ${folder.name}`}
-          className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm"
+          className="w-24 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100"
           onChange={(event) => setPosition(Number(event.target.value))}
           type="number"
           value={position}
         />
       </td>
-      <td className="max-w-xl px-4 py-3 font-mono text-xs text-gray-600">
+      <td className="max-w-xl px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">
         <pre className="whitespace-pre-wrap break-words">{JSON.stringify(folder.filter)}</pre>
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex justify-end gap-2">
           <button
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
             disabled={update.isPending}
             onClick={() => {
               onNotice(null)
@@ -164,7 +164,7 @@ function SmartFolderTableRow({ folder, querySearch, onNotice }: { folder: SmartF
             {update.isPending ? "Saving..." : "Save"}
           </button>
           <button
-            className="text-sm text-red-600 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300"
+            className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
             disabled={destroy.isPending}
             onClick={() => {
               if (window.confirm(`Delete ${folder.name}?`)) {
@@ -177,8 +177,8 @@ function SmartFolderTableRow({ folder, querySearch, onNotice }: { folder: SmartF
             {destroy.isPending ? "Deleting..." : "Delete"}
           </button>
         </div>
-        {update.isError ? <p className="mt-2 text-xs text-red-700" role="alert">{errorMessage(update.error, "Unable to update smart folder.")}</p> : null}
-        {destroy.isError ? <p className="mt-2 text-xs text-red-700" role="alert">{errorMessage(destroy.error, "Unable to delete smart folder.")}</p> : null}
+        {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, "Unable to update smart folder.")}</p> : null}
+        {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete smart folder.")}</p> : null}
       </td>
     </tr>
   )
@@ -189,7 +189,7 @@ function SmartFoldersError({ error }: { error: Error }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700" : "text-gray-600"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-400"}`}>{children}</div>
 }
 
 function subjectFromSearch(search: string) {

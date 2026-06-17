@@ -12,7 +12,7 @@ export function RepositoryTabs({ active, prefix, repositoryId }: { active: Repos
   ] satisfies Array<{ key: RepositoryTabKey; label: string; to: string }>
 
   return (
-    <nav className="flex flex-wrap border-b border-gray-200" aria-label="Repository tabs">
+    <nav className="flex flex-wrap border-b border-gray-200 dark:border-gray-700" aria-label="Repository tabs">
       {tabs.map((tab) => (
         <Link className={navClass(active === tab.key)} key={tab.key} to={tab.to}>{tab.label}</Link>
       ))}
@@ -21,5 +21,5 @@ export function RepositoryTabs({ active, prefix, repositoryId }: { active: Repos
 }
 
 function navClass(active: boolean) {
-  return `border-b-2 px-4 py-2 text-sm font-medium ${active ? "border-blue-600 text-blue-600" : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900"}`
+  return `border-b-2 px-4 py-2 text-sm font-medium ${active ? "border-blue-600 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-gray-100"}`
 }

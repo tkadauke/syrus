@@ -113,7 +113,7 @@ export function BugReportButton({ context }: { context: string }) {
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <button
         aria-label="Report a bug"
-        className="fixed bottom-4 left-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+        className="fixed bottom-4 left-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950 disabled:cursor-wait disabled:opacity-60"
         disabled={capturing}
         onClick={() => void openDialog()}
         title="Report a bug"
@@ -123,13 +123,13 @@ export function BugReportButton({ context }: { context: string }) {
       </button>
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <section aria-labelledby="bug-report-title" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-xl" role="dialog">
+          <section aria-labelledby="bug-report-title" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl" role="dialog">
             <form className="space-y-5 p-5 sm:p-6" onKeyDown={submitOnShortcut} onSubmit={submit}>
               <div className="flex items-start justify-between gap-4">
-                <h2 className="text-lg font-semibold text-gray-900" id="bug-report-title">Report a bug</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="bug-report-title">Report a bug</h2>
                 <button
                   aria-label="Close"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950"
                   onClick={closeDialog}
                   type="button"
                 >
@@ -137,10 +137,10 @@ export function BugReportButton({ context }: { context: string }) {
                 </button>
               </div>
 
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Title
                 <input
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onChange={(event) => setTitle(event.target.value)}
                   required
                   type="text"
@@ -148,10 +148,10 @@ export function BugReportButton({ context }: { context: string }) {
                 />
               </label>
 
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Description
                 <textarea
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onChange={(event) => setDescription(event.target.value)}
                   rows={5}
                   value={description}
@@ -159,9 +159,9 @@ export function BugReportButton({ context }: { context: string }) {
               </label>
 
               <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-gray-700">Screenshot</legend>
+                <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">Screenshot</legend>
                 {captureError ? (
-                  <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{captureError}</p>
+                  <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">{captureError}</p>
                 ) : null}
                 <div className="grid gap-3 sm:grid-cols-3">
                   <ScreenshotOption
@@ -188,16 +188,16 @@ export function BugReportButton({ context }: { context: string }) {
               </fieldset>
 
               {bugReport.isError ? (
-                <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
                   {errorMessage(bugReport.error, "Bug report could not be queued.")}
                 </p>
               ) : null}
 
-              <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
-                <button className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" onClick={closeDialog} type="button">
+              <div className="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-4">
+                <button className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={closeDialog} type="button">
                   Cancel
                 </button>
-                <button className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-blue-300" disabled={bugReport.isPending} type="submit">
+                <button className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={bugReport.isPending} type="submit">
                   {bugReport.isPending ? "Creating..." : "Create Job"}
                 </button>
               </div>
@@ -222,10 +222,10 @@ function ScreenshotOption({
   onChange: (choice: ScreenshotChoice) => void
   selected: boolean
 }) {
-  const borderClass = selected ? "border-blue-600 ring-2 ring-blue-600" : "border-gray-200 hover:border-gray-300"
+  const borderClass = selected ? "border-blue-600 dark:border-blue-400 ring-2 ring-blue-600 dark:ring-blue-400" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"
 
   return (
-    <label className={`flex cursor-pointer flex-col rounded-lg border bg-white p-2 ${borderClass}`}>
+    <label className={`flex cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass}`}>
       <input
         aria-label={label}
         checked={selected}
@@ -235,13 +235,13 @@ function ScreenshotOption({
         type="radio"
       />
       {choice === "none" ? (
-        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 bg-gray-50 text-sm font-semibold text-gray-500">None</span>
+        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-500 dark:text-gray-400">None</span>
       ) : capture?.previewUrl ? (
-        <img alt="" className="aspect-video w-full rounded border border-gray-100 object-cover" src={capture.previewUrl} />
+        <img alt="" className="aspect-video w-full rounded border border-gray-100 dark:border-gray-800 object-cover" src={capture.previewUrl} />
       ) : (
-        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 bg-gray-50 text-sm font-semibold text-gray-400">Unavailable</span>
+        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-400 dark:text-gray-500">Unavailable</span>
       )}
-      <span className="mt-2 text-sm font-semibold text-gray-900">{label}</span>
+      <span className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{label}</span>
     </label>
   )
 }
