@@ -141,6 +141,23 @@ RSpec.describe User do
     end
   end
 
+  describe "theme" do
+    it "defaults to light" do
+      expect(User.create!(attrs).theme).to eq("light")
+    end
+
+    it "accepts dark" do
+      user = User.create!(attrs.merge(theme: "dark"))
+      expect(user.theme).to eq("dark")
+    end
+
+    it "rejects unknown themes" do
+      user = User.new(attrs.merge(theme: "system"))
+      expect(user).not_to be_valid
+      expect(user.errors[:theme]).to be_present
+    end
+  end
+
   describe "auto_approve_mode" do
     it "defaults to never" do
       expect(User.create!(attrs).auto_approve_mode).to eq("never")

@@ -57,6 +57,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       name: "Operator",
       scheduling_paused: true,
       landing_paused: true,
+      theme: "dark",
       agent_provider: "codex",
       agent_max_turns: 123
     )
@@ -76,6 +77,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "admin" => true,
       "scheduling_paused" => true,
       "landing_paused" => true,
+      "theme" => "dark",
       "agent_provider" => "codex",
       "agent_max_turns" => 123
     )

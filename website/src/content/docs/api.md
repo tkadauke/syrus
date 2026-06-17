@@ -87,3 +87,15 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
     }
   }'
 ```
+
+## Update Theme Preference
+
+`PATCH /api/v1/app/theme` updates the authenticated user's app theme.
+Valid values are `light` and `dark`.
+
+```bash
+curl -X PATCH https://syrus.example.com/api/v1/app/theme \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "theme": "dark" }'
+```

@@ -38,6 +38,7 @@ per-user/private:
   - app/controllers/api/v1/app/setup_controller.rb
   - app/controllers/api/v1/app/smart_folders_controller.rb
   - app/controllers/api/v1/app/tags_controller.rb
+  - app/controllers/api/v1/app/theme_controller.rb
   - app/controllers/application_controller.rb
   - app/controllers/spa_controller.rb
   - app/views/spa/show.html.erb
@@ -111,6 +112,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness, completion state, credentials, credential checks, repositories, onboarding state, first-run progress, and provider configuration are computed for the signed-in user so onboarding reflects that user's state. |
 | `app/controllers/api/v1/app/smart_folders_controller.rb` | per-user/private | User-defined smart folders are owned by `Current.user`; built-ins are returned through `SmartFolder.for_user`. |
 | `app/controllers/api/v1/app/tags_controller.rb` | per-user/private | Tags are created, updated, deleted, and listed through `Current.user.tags`. |
+| `app/controllers/api/v1/app/theme_controller.rb` | per-user/private | Updates only `Current.user.theme` for the signed-in operator. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile browsing excludes private credential data while using the current user for viewer-sensitive profile payloads. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the signed-in user's credentials, repositories, and first-run progress. |

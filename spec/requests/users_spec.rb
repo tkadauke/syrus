@@ -60,6 +60,28 @@ RSpec.describe "User signup", type: :request do
     end
   end
 
+  describe "SPA layout theme class" do
+    it "renders the dark class before JavaScript for dark-theme users" do
+      user = Factories.user(theme: "dark")
+      sign_in_as(user)
+
+      get dashboard_path
+
+      expect(response).to be_successful
+      expect(response.body).to include('<html class="dark">')
+    end
+
+    it "renders an empty html class for light-theme users" do
+      user = Factories.user(theme: "light")
+      sign_in_as(user)
+
+      get dashboard_path
+
+      expect(response).to be_successful
+      expect(response.body).to include('<html class="">')
+    end
+  end
+
   describe "via valid invitation" do
     let(:admin) { Factories.user }
     let!(:invitation) { Invitation.create!(invited_by: admin, email_address: "guest@example.com") }

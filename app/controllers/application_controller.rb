@@ -4,7 +4,7 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   before_action :compute_system_alerts
-  helper_method :default_chat_path
+  helper_method :current_user, :default_chat_path
 
   private
 
@@ -19,6 +19,10 @@ class ApplicationController < ActionController::Base
   def require_admin
     return if Current.user&.admin?
     redirect_to root_path, alert: "Admin access required."
+  end
+
+  def current_user
+    Current.user
   end
 
   def default_chat_path

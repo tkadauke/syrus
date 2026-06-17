@@ -42,6 +42,7 @@ module AppApi
         admin: user.admin?,
         scheduling_paused: user.scheduling_paused,
         landing_paused: user.landing_paused,
+        theme: user.theme,
         agent_provider: user.agent_provider,
         agent_max_turns: user.agent_max_turns
       }

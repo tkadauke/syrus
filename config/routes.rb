@@ -18,6 +18,7 @@ Rails.application.routes.draw do
       namespace :app do
         get "bootstrap", to: "bootstrap#show"
         get "setup", to: "setup#show"
+        patch "theme", to: "theme#update"
         get "auth/status", to: "auth#status"
         get "auth/signup", to: "auth#signup"
         post "auth/session", to: "auth#create_session"
