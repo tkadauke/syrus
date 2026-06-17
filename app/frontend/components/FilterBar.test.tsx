@@ -82,6 +82,29 @@ describe("FilterBar", () => {
     })
   })
 
+  it("renders dark-mode classes on chips, menus, and editors", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    const chip = screen.getByRole("button", { name: "State is Open" }).closest("span")
+    expect(chip).toHaveClass("dark:border-gray-700", "dark:bg-gray-800")
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    expect(screen.getByPlaceholderText("Search filters...").parentElement).toHaveClass("dark:border-gray-700", "dark:bg-gray-900")
+
+    fireEvent.pointerDown(document.body)
+    fireEvent.click(screen.getByRole("button", { name: "State is Open" }))
+    expect(screen.getByRole("dialog", { name: "State filter settings" })).toHaveClass("dark:border-gray-700", "dark:bg-gray-900")
+  })
+
   it("uses a custom link builder for filter and clear navigation", async () => {
     const buildLink = vi.fn((path: string, search: string, updates: Record<string, string | number | null | undefined>) => {
       const params = new URLSearchParams(search)

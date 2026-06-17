@@ -23,7 +23,7 @@ export function DashboardRoute() {
     placeholderData: (previousData) => previousData
   })
 
-  if (dashboard.isPending) return <main aria-label="Dashboard" className="p-6 text-sm text-gray-600">Loading...</main>
+  if (dashboard.isPending) return <main aria-label="Dashboard" className="p-6 text-sm text-gray-600 dark:text-gray-300">Loading...</main>
   if (dashboard.isError) return <DashboardError error={dashboard.error} />
 
   return <DashboardView pathname={location.pathname} search={location.search} payload={dashboard.data} />
@@ -45,7 +45,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   return (
     <main aria-label="Dashboard" className="mx-auto max-w-[96rem] space-y-5 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold text-gray-900">Dashboard</h1>
+        <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">Dashboard</h1>
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
       <ReadinessPanel prefix={prefix} readiness={readiness} />
@@ -75,26 +75,26 @@ function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: Non
   if (failingChecks.length === 0) return null
 
   return (
-    <section aria-label="System readiness" className="rounded border border-amber-200 bg-amber-50 p-4">
+    <section aria-label="System readiness" className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-amber-950">System readiness needs attention</h2>
-          <p className="mt-1 text-sm text-amber-900">Syrus may not be able to pick up or run work until these checks pass.</p>
+          <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">System readiness needs attention</h2>
+          <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">Syrus may not be able to pick up or run work until these checks pass.</p>
         </div>
-        <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100" to={`${prefix}/settings`}>
+        <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900" to={`${prefix}/settings`}>
           Open settings
         </Link>
       </div>
       <div className="mt-3 grid gap-2 lg:grid-cols-2">
         {failingChecks.map((check) => (
-          <div className="rounded border border-amber-200 bg-white p-3" key={check.key}>
+          <div className="rounded border border-amber-200 bg-white p-3 dark:border-amber-900 dark:bg-gray-950" key={check.key}>
             <div className="flex items-center gap-2">
               <TonePill tone={check.status === "error" ? "red" : "amber"}>{check.status}</TonePill>
-              <h3 className="text-sm font-semibold text-gray-900">{check.label}</h3>
-              {check.optional ? <span className="text-xs text-gray-500">optional</span> : null}
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{check.label}</h3>
+              {check.optional ? <span className="text-xs text-gray-500 dark:text-gray-400">optional</span> : null}
             </div>
-            <p className="mt-2 text-sm text-gray-700">{check.message}</p>
-            {check.remediation ? <p className="mt-1 text-sm text-gray-600">{check.remediation}</p> : null}
+            <p className="mt-2 text-sm text-gray-700 dark:text-gray-200">{check.message}</p>
+            {check.remediation ? <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{check.remediation}</p> : null}
           </div>
         ))}
       </div>
@@ -122,17 +122,17 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
     <div className="space-y-3">
       <div aria-label="Dashboard controls" className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
-          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm" payload={payload} prefix={prefix} />
+          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" payload={payload} prefix={prefix} />
         </div>
         <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={false} />
       </div>
-      <details className="group rounded border border-gray-200 bg-white">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700">
+      <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
           <span>Folders and filters</span>
-          <span className="text-gray-400 group-open:hidden">Show</span>
-          <span className="hidden text-gray-400 group-open:inline">Hide</span>
+          <span className="text-gray-400 group-open:hidden dark:text-gray-500">Show</span>
+          <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">Hide</span>
         </summary>
-        <div className="space-y-4 border-t border-gray-200 p-4">
+        <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
           <OwnershipControls pathname={pathname} search={search} payload={payload} />
           <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
           <SmartFolderNav payload={payload} prefix={prefix} search={search} />
@@ -157,10 +157,10 @@ function OwnershipControls({ payload, pathname, search }: { payload: DashboardPa
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <nav aria-label="Dashboard ownership scope" className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm">
+      <nav aria-label="Dashboard ownership scope" className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
         {payload.controls.ownership_scopes.map((scope) => (
           <Link
-            className={`px-3 py-1.5 font-medium ${payload.ownership.scope === scope.value ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+            className={`px-3 py-1.5 font-medium ${payload.ownership.scope === scope.value ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
             key={scope.value}
             to={scopeLink(scope.value)}
           >
@@ -173,7 +173,7 @@ function OwnershipControls({ payload, pathname, search }: { payload: DashboardPa
       ) : null}
       {payload.ownership.scope === "user" ? (
         <select
-          className="h-9 rounded border border-gray-300 bg-white px-2 text-sm text-gray-700"
+          className="h-9 rounded border border-gray-300 bg-white px-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           id="dashboard-owner-filter"
           onChange={(event) => navigate(dashboardLinkFromSearch(pathname, search, { ownership_scope: "user", owner_id: event.target.value, page: null }))}
           value={payload.ownership.owner_id ?? ""}
@@ -231,7 +231,7 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   )
 }
 
-function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm" }: { payload: DashboardPayload; prefix: string; className?: string }) {
+function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" }: { payload: DashboardPayload; prefix: string; className?: string }) {
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
     { key: "epic", label: "Epics", path: "/dashboard/epics" },
     { key: "job", label: "Jobs", path: "/dashboard/jobs" },
@@ -242,7 +242,7 @@ function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-
     <nav aria-label="Dashboard subjects" className={className}>
       {subjects.map((subject) => (
         <Link
-          className={`px-3 py-1.5 font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600" : "text-gray-700 hover:bg-gray-50"}`}
+          className={`px-3 py-1.5 font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           key={subject.key}
           to={dashboardLink(`${prefix}${subject.path}`, { view: payload.view })}
         >
@@ -289,7 +289,7 @@ function SmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload
 
   return (
     <aside aria-label="Dashboard smart folders panel" className="space-y-2">
-      <h2 className="text-xs font-semibold uppercase text-gray-500">Smart folders</h2>
+      <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Smart folders</h2>
       <nav aria-label="Dashboard smart folders" className="space-y-1">
         <Link className={folderClass(payload.active_smart_folder_id == null)} to={dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view })}>
           All {subjectLabel(payload.subject, 2)}
@@ -297,7 +297,7 @@ function SmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload
         {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
         {moreFolders.length > 0 ? (
           <details className="space-y-1" open={moreFolders.some((folder) => folder.active) || undefined}>
-            <summary className="cursor-pointer rounded px-2 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100">More</summary>
+            <summary className="cursor-pointer rounded px-2 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">More</summary>
             <div className="space-y-1 pl-2">
               {moreFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
             </div>
@@ -306,23 +306,23 @@ function SmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload
       </nav>
       <div className="space-y-1 pt-3">
         <div className="flex items-center justify-between gap-2 px-2">
-          <h3 className="text-xs font-semibold uppercase text-gray-500">Saved</h3>
-          <Link className="text-xs font-medium text-blue-700 hover:text-blue-900" to={withRoutePrefix(`/smart_folders?subject_type=${payload.subject}`, prefix)}>Manage</Link>
+          <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Saved</h3>
+          <Link className="text-xs font-medium text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-200" to={withRoutePrefix(`/smart_folders?subject_type=${payload.subject}`, prefix)}>Manage</Link>
         </div>
         {savedFolders.length > 0 ? (
           <nav aria-label="Saved smart folders" className="space-y-1">
             {savedFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
           </nav>
         ) : (
-          <p className="px-2 py-1.5 text-sm text-gray-400">No saved folders</p>
+          <p className="px-2 py-1.5 text-sm text-gray-400 dark:text-gray-500">No saved folders</p>
         )}
       </div>
       {canSaveFilter ? (
         <form className="space-y-2 px-2 pt-3" onSubmit={saveFolder}>
-          <label className="block text-xs font-medium uppercase text-gray-500" htmlFor="dashboard-smart-folder-name">
+          <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="dashboard-smart-folder-name">
             Folder name
             <input
-              className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700"
+              className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
               disabled={createFolder.isPending}
               id="dashboard-smart-folder-name"
               maxLength={120}
@@ -332,16 +332,16 @@ function SmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload
               value={folderName}
             />
           </label>
-          <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300" disabled={createFolder.isPending} type="submit">
+          <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
             Save folder
           </button>
-          {createFolder.isError ? <p className="text-xs text-red-700" role="alert">{errorMessage(createFolder.error, "Unable to save smart folder.")}</p> : null}
+          {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(createFolder.error, "Unable to save smart folder.")}</p> : null}
         </form>
       ) : null}
       {payload.landing_queue.visible ? (
-        <div className="space-y-2 rounded border border-gray-200 bg-white p-2">
+        <div className="space-y-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
           <button
-            className="w-full rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-300"
+            className="w-full rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
             disabled={landingPause.isPending}
             onClick={() => landingPause.mutate()}
             type="button"
@@ -349,7 +349,7 @@ function SmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload
             {payload.landing_queue.paused ? "Resume landing" : "Pause landing"}
           </button>
           <NoticeToast message={landingPause.isSuccess ? landingPause.data.message : null} onDismiss={() => landingPause.reset()} />
-          {landingPause.isError ? <p className="text-xs text-red-700" role="alert">{errorMessage(landingPause.error, "Unable to update landing queue.")}</p> : null}
+          {landingPause.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(landingPause.error, "Unable to update landing queue.")}</p> : null}
         </div>
       ) : null}
     </aside>
@@ -360,7 +360,7 @@ function SmartFolderLink({ folder, prefix }: { folder: DashboardSmartFolder; pre
   return (
     <Link aria-label={`${folder.name} ${folder.count}`} className={folderClass(folder.active)} to={withRoutePrefix(folder.path, prefix)}>
       <span className="truncate">{folder.name}</span>
-      <span className={`ml-auto inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${folder.active ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{folder.count}</span>
+      <span className={`ml-auto inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${folder.active ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{folder.count}</span>
     </Link>
   )
 }
@@ -402,10 +402,10 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
   return (
     <div className="shrink-0">
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <nav aria-label="Dashboard view" className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm">
+        <nav aria-label="Dashboard view" className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
           {payload.controls.views.map((view) => (
             <Link
-              className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+              className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
               key={view}
               to={dashboardLinkFromSearch(pathname, search, { view, page: null })}
             >
@@ -420,18 +420,18 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
               aria-controls="dashboard-columns-menu"
               aria-expanded={columnsOpen}
               aria-haspopup="menu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              className="inline-flex h-9 w-9 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
               onClick={() => setColumnsOpen((open) => !open)}
               type="button"
             >
               <ColumnsIcon />
             </button>
             {columnsOpen ? (
-              <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg" id="dashboard-columns-menu" role="menu">
+              <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-columns-menu" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500">Visible columns</legend>
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Visible columns</legend>
                   {payload.controls.columns.optional.map((column) => (
-                    <label className="flex items-center gap-2 text-sm text-gray-700" key={column.key}>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
                       <input
                         checked={payload.preferences.visible_columns.includes(column.key)}
                         disabled={updatePreferences.isPending}
@@ -453,18 +453,18 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
               aria-controls="dashboard-kanban-lanes-menu"
               aria-expanded={lanesOpen}
               aria-haspopup="menu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              className="inline-flex h-9 w-9 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
               onClick={() => setLanesOpen((open) => !open)}
               type="button"
             >
               <ColumnsIcon />
             </button>
             {lanesOpen ? (
-              <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg" id="dashboard-kanban-lanes-menu" role="menu">
+              <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-kanban-lanes-menu" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500">Kanban lanes</legend>
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Kanban lanes</legend>
                   {payload.controls.kanban_lanes.map((lane) => (
-                    <label className="flex items-center gap-2 text-sm text-gray-700" key={lane.key}>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={lane.key}>
                       <input
                         checked={payload.preferences.kanban_lanes.includes(lane.key)}
                         disabled={updatePreferences.isPending}
@@ -480,7 +480,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
           </div>
         ) : null}
       </div>
-      {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700" role="alert">{errorMessage(updatePreferences.error, "Unable to update dashboard preferences.")}</p> : null}
+      {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, "Unable to update dashboard preferences.")}</p> : null}
     </div>
   )
 }
@@ -558,7 +558,7 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
       )
     }
 
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500">No {subjectLabel(payload.subject, 2)} match this view.</div>
+    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">No {subjectLabel(payload.subject, 2)} match this view.</div>
   }
 
   const columns = dashboardVisibleColumns(payload)
@@ -590,7 +590,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   }, [payload.lanes])
 
   if (payload.lanes.length === 0) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500">No kanban lanes are configured.</div>
+    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">No kanban lanes are configured.</div>
   }
 
   if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
@@ -647,7 +647,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{errorMessage(moveEpic.error, "Unable to move Epic.")}</div> : null}
+      {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{errorMessage(moveEpic.error, "Unable to move Epic.")}</div> : null}
       <div className="select-none overflow-x-auto pb-2">
         <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${payload.lanes.length}, minmax(14rem, 1fr))` }}>
           {optimisticLanes.map((lane) => (
@@ -731,16 +731,16 @@ function KanbanLane({
   return (
     <section
       aria-label={`${lane.title} lane`}
-      className={`min-h-64 rounded border bg-gray-50 ${draggingOver ? "border-blue-400 ring-2 ring-blue-100" : "border-gray-200"}`}
+      className={`min-h-64 rounded border bg-gray-50 dark:bg-gray-950 ${draggingOver ? "border-blue-400 ring-2 ring-blue-100 dark:border-blue-500 dark:ring-blue-900" : "border-gray-200 dark:border-gray-700"}`}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
-        <h3 className="text-sm font-semibold text-gray-900">{lane.title}</h3>
-        <span className="rounded bg-white px-2 py-0.5 text-xs text-gray-500 ring-1 ring-gray-200">{lane.count}</span>
+      <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{lane.title}</h3>
+        <span className="rounded bg-white px-2 py-0.5 text-xs text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">{lane.count}</span>
       </header>
       <div className="space-y-2 p-2">
-        {lane.items.length === 0 ? <p className="px-1 py-2 text-sm text-gray-400">No {subjectLabel(subject, 2)}</p> : null}
+        {lane.items.length === 0 ? <p className="px-1 py-2 text-sm text-gray-400 dark:text-gray-500">No {subjectLabel(subject, 2)}</p> : null}
         {visibleItems.map((item) => (
           <KanbanCard
             item={item}
@@ -753,7 +753,7 @@ function KanbanLane({
         {hiddenCount > 0 ? (
           <button
             aria-label={`Load more ${lane.title}`}
-            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             onClick={() => setVisibleCount((count) => count + KANBAN_CARDS_PER_PAGE)}
             type="button"
           >
@@ -768,13 +768,13 @@ function KanbanLane({
 function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardItem; onDragEnd: () => void; onDragStart: (epic: DashboardEpicItem, event: DragEvent<HTMLElement>) => void; prefix: string }) {
   if (item.type === "job") {
     return (
-      <article className="rounded border border-gray-200 bg-white p-3 shadow-sm">
-        <Link className="text-sm font-medium text-blue-600 hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}>{item.title}</Link>
-        <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
+      <article className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}>{item.title}</Link>
+        <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
-          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline" prefix={prefix} repository={item.repository} />
+          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
           <OwnerBadge badge={item.owner_badge} />
-          {item.pr_number ? <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink> : null}
+          {item.pr_number ? <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink> : null}
         </div>
       </article>
     )
@@ -783,10 +783,10 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
   if (item.type === "workflow") {
     const slug = workflowLabel(item)
     return (
-      <article className="rounded border border-gray-200 bg-white p-3 shadow-sm">
-        <Link className="text-sm font-medium text-blue-600 hover:underline" to={withRoutePrefix(item.path, prefix)}>{slug}</Link>
-        <Link className="mt-1 block text-sm text-blue-600 hover:underline" to={withRoutePrefix(item.job.path, prefix)}>{item.job.title}</Link>
-        <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
+      <article className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.path, prefix)}>{slug}</Link>
+        <Link className="mt-1 block text-sm text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.job.path, prefix)}>{item.job.title}</Link>
+        <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.state} triggerAriaPrefix="Workflow trigger" triggerKind={item.trigger_kind} />
           <OwnerBadge badge={item.job.owner_badge} />
         </div>
@@ -797,17 +797,17 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
   return (
     <article
       aria-label={`${item.display_number} ${item.title}`}
-      className="cursor-grab rounded border border-gray-200 bg-white p-3 shadow-sm active:cursor-grabbing"
+      className="cursor-grab rounded border border-gray-200 bg-white p-3 shadow-sm active:cursor-grabbing dark:border-gray-700 dark:bg-gray-900"
       draggable
       onDragEnd={onDragEnd}
       onDragStart={(event) => onDragStart(item, event)}
     >
-      <Link className="text-sm font-medium text-blue-600 hover:underline" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
-      <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500">
+      <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+      <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
         <NeutralStatePill state={item.state} />
         <OwnerBadge badge={item.owner_badge} />
         <EpicProgressPill epic={item} />
-        <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline" prefix={prefix} repository={item.repository} />
+        <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
       </div>
     </article>
   )
@@ -931,11 +931,11 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
       <div>
-        <span className="font-medium text-gray-900">{selectedIds.length} selected</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{selectedIds.length} selected</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-        {action.isError ? <span className="ml-3 text-red-700" role="alert">{errorMessage(action.error, "Bulk action failed.")}</span> : null}
+        {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, "Bulk action failed.")}</span> : null}
       </div>
       <div className="flex flex-wrap gap-2">
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">Retry</button>
@@ -991,9 +991,9 @@ function JobsTable({
   if (!isDesktop) return <MobileJobsList groupByEpic={groupByEpic} items={items} onToggleOne={onToggleOne} prefix={prefix} selectedIds={selectedIds} />
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+    <div className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
             {columns.map((column) => (
               <th aria-sort={columnAriaSort("job", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column}>
@@ -1002,9 +1002,9 @@ function JobsTable({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {items.map((job, index) => (
-            <tr className={startsNewEpicGroup(items, index, groupByEpic) ? "border-t-4 border-gray-300" : undefined} key={job.id}>
+            <tr className={startsNewEpicGroup(items, index, groupByEpic) ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined} key={job.id}>
               {columns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
             </tr>
           ))}
@@ -1016,8 +1016,8 @@ function JobsTable({
 
 function MobileJobsList({ items, selectedIds, onToggleOne, prefix, groupByEpic }: { items: DashboardJobItem[]; selectedIds: Set<number>; onToggleOne: (id: number) => void; prefix: string; groupByEpic: boolean }) {
   return (
-    <div className="rounded border border-gray-200 bg-white">
-      <div className="divide-y divide-gray-100">
+    <div className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
         {items.map((job, index) => <MobileJobRow job={job} key={job.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} topSeparator={startsNewEpicGroup(items, index, groupByEpic)} />)}
       </div>
     </div>
@@ -1028,20 +1028,20 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
   const approvalLabel = job.approved_at ? "Approved" : "Not approved"
 
   return (
-    <article aria-label={job.title} className={`grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3${topSeparator ? " border-t-4 border-gray-300" : ""}`}>
+    <article aria-label={job.title} className={`grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3${topSeparator ? " border-t-4 border-gray-300 dark:border-gray-600" : ""}`}>
       <input aria-label={`Select ${job.title}`} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} type="checkbox" />
-      <div className="min-w-0 text-gray-700">
+      <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
-          {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500">{formatCurrency(job.total_cost_usd, 2)}</span>}
+          {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatCurrency(job.total_cost_usd, 2)}</span>}
           <RepositorySlugLink prefix={prefix} repository={job.repository} />
           <OwnerBadge badge={job.owner_badge} />
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
-          {job.kind !== "issue" ? <span className="text-xs text-gray-500">{humanizeOption(job.kind)}</span> : null}
+          <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
+          {job.kind !== "issue" ? <span className="text-xs text-gray-500 dark:text-gray-400">{humanizeOption(job.kind)}</span> : null}
         </div>
-        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           <DashboardOwnerLabel job={job} prefix={prefix} quiet />
@@ -1052,7 +1052,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         </div>
         {job.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
-            {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500" key={tag.id}>{tag.name}</span>)}
+            {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
           </div>
         ) : null}
       </div>
@@ -1067,12 +1067,12 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
-        <Link className="font-medium text-blue-600 hover:underline" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
-        <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500">
+        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
+        <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
           <OwnerBadge badge={job.owner_badge} />
-          {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5" key={tag.id}>{tag.name}</span>)}
+          {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
           <RetryStateInline job={job} />
         </div>
       </td>
@@ -1086,25 +1086,25 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     )
   }
   if (column === "landing_queue_position") {
-    return <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-600">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</td>
+    return <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</td>
   }
   if (column === "repository") {
-    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline" prefix={prefix} repository={job.repository} /></td>
+    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={job.repository} /></td>
   }
   if (column === "owner") return <td className="px-4 py-3"><DashboardOwnerLabel job={job} prefix={prefix} /></td>
   if (column === "latest") return <LatestWorkflowCell job={job} />
-  if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700">{job.workflows_count}</td>
+  if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{job.workflows_count}</td>
 
-  return <td className="px-4 py-3 text-gray-500">{formatDate(jobDateValue(job, column))}</td>
+  return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(jobDateValue(job, column))}</td>
 }
 
 function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJobItem; prefix: string; quiet?: boolean }) {
   const owner = job.claimed_by_user
-  if (!owner) return quiet ? null : <span className="text-xs text-gray-400">Unclaimed</span>
+  if (!owner) return quiet ? null : <span className="text-xs text-gray-400 dark:text-gray-500">Unclaimed</span>
   if (job.claimed_by_current_user) return quiet ? null : <span className="sr-only">Claimed by you</span>
 
   return (
-    <Link className="text-xs font-medium text-gray-600 hover:text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+    <Link className="text-xs font-medium text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" to={withRoutePrefix(owner.profile_path, prefix)}>
       {owner.display_name}
     </Link>
   )
@@ -1133,7 +1133,7 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
   if (job.epic) {
     return (
       <span>
-        <Link className="text-gray-500 hover:text-blue-700 hover:underline" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
+        <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
         <span>/JOB-{job.id}</span>
       </span>
     )
@@ -1184,13 +1184,13 @@ function RetryStateInline({ job }: { job: DashboardJobItem }) {
   return <TonePill title={details} tone={tone}>{retry.state_label}</TonePill>
 }
 
-function ExternalMetadataLink({ children, className = "text-gray-500 hover:text-blue-700 hover:underline", href }: { children: ReactNode; className?: string; href: string | null }) {
+function ExternalMetadataLink({ children, className = "text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300", href }: { children: ReactNode; className?: string; href: string | null }) {
   if (!href) return <span className={className}>{children}</span>
 
   return <a className={className} href={href} rel="noopener noreferrer" target="_blank">{children}</a>
 }
 
-function RepositorySlugLink({ className = "font-mono text-xs text-gray-500 hover:text-blue-700 hover:underline", prefix, repository }: { className?: string; prefix: string; repository: DashboardRepository }) {
+function RepositorySlugLink({ className = "font-mono text-xs text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300", prefix, repository }: { className?: string; prefix: string; repository: DashboardRepository }) {
   return <Link className={className} to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
 }
 
@@ -1229,9 +1229,9 @@ function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpi
     <div className="space-y-3">
       <BulkEpicActions selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
       {isDesktop ? (
-        <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+        <div className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
               <tr>
                 {columns.map((column) => (
                   <th aria-sort={columnAriaSort("epic", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column}>
@@ -1240,7 +1240,7 @@ function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpi
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {items.map((epic) => (
                 <tr key={epic.id}>
                   {columns.map((column) => <EpicCell column={column} epic={epic} key={column} onToggleOne={toggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />)}
@@ -1279,11 +1279,11 @@ function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onCl
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
       <div>
-        <span className="font-medium text-gray-900">{selectedIds.length} selected</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{selectedIds.length} selected</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-        {action.isError ? <span className="ml-3 text-red-700" role="alert">{errorMessage(action.error, "Bulk action failed.")}</span> : null}
+        {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, "Bulk action failed.")}</span> : null}
       </div>
       <div className="flex flex-wrap gap-2">
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("start")} type="button">Move to In Progress</button>
@@ -1294,8 +1294,8 @@ function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onCl
 
 function MobileEpicsList({ items, selectedIds, onToggleOne, prefix }: { items: DashboardEpicItem[]; selectedIds: Set<number>; onToggleOne: (id: number) => void; prefix: string }) {
   return (
-    <div className="rounded border border-gray-200 bg-white">
-      <div className="divide-y divide-gray-100">
+    <div className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
         {items.map((epic) => <MobileEpicRow epic={epic} key={epic.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />)}
       </div>
     </div>
@@ -1304,7 +1304,7 @@ function MobileEpicsList({ items, selectedIds, onToggleOne, prefix }: { items: D
 
 function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
   return (
-    <article aria-label={`${epic.display_number} ${epic.title}`} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700">
+    <article aria-label={`${epic.display_number} ${epic.title}`} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 dark:text-gray-200">
       <input aria-label={`Select ${epic.title}`} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} type="checkbox" />
       <div className="min-w-0">
         <div className="mb-1">
@@ -1312,11 +1312,11 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
           <EpicProgressPill epic={epic} />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500">{epic.display_number}</span>
-          <Link aria-label={`${epic.display_number} ${epic.title}`} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
+          <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{epic.display_number}</span>
+          <Link aria-label={`${epic.display_number} ${epic.title}`} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
         </div>
-        {compactText(epic.description) ? <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500">{compactText(epic.description)}</p> : null}
-        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
+        {compactText(epic.description) ? <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500 dark:text-gray-400">{compactText(epic.description)}</p> : null}
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <RepositorySlugLink prefix={prefix} repository={epic.repository} />
           <OwnerBadge badge={epic.owner_badge} />
         </div>
@@ -1332,8 +1332,8 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
   if (column === "epic") {
     return (
       <td className="max-w-md px-4 py-3">
-        <Link className="font-medium text-blue-600 hover:underline" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
-        <div className="mt-1 font-mono text-xs text-gray-500">{epic.display_number}</div>
+        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
+        <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{epic.display_number}</div>
       </td>
     )
   }
@@ -1347,13 +1347,13 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
       </td>
     )
   }
-  if (column === "owner") return <td className="px-4 py-3 text-xs text-gray-600"><OwnerBadge badge={epic.owner_badge} /></td>
+  if (column === "owner") return <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300"><OwnerBadge badge={epic.owner_badge} /></td>
   if (column === "repository") {
-    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline" prefix={prefix} repository={epic.repository} /></td>
+    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={epic.repository} /></td>
   }
-  if (column === "updated") return <td className="px-4 py-3 text-gray-500">{formatDate(epic.updated_at)}</td>
+  if (column === "updated") return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(epic.updated_at)}</td>
 
-  return <td className="px-4 py-3 text-gray-500">{formatDate(epicDateValue(epic, column))}</td>
+  return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(epicDateValue(epic, column))}</td>
 }
 
 function WorkflowsTable({ items, columns, prefix, sortState }: { items: DashboardWorkflowItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
@@ -1362,14 +1362,14 @@ function WorkflowsTable({ items, columns, prefix, sortState }: { items: Dashboar
   if (!isDesktop) return <MobileWorkflowsList items={items} prefix={prefix} />
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+    <div className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
             {columns.map((column) => <th aria-sort={columnAriaSort("workflow", column, sortState)} className="px-4 py-2" key={column}><SortableColumnHeader column={column} sortState={sortState} subject="workflow" /></th>)}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {items.map((workflow) => (
             <tr key={workflow.id}>
               {columns.map((column) => <WorkflowCell column={column} key={column} prefix={prefix} workflow={workflow} />)}
@@ -1384,13 +1384,13 @@ function WorkflowsTable({ items, columns, prefix, sortState }: { items: Dashboar
 function EpicProgressPill({ epic }: { epic: DashboardEpicItem }) {
   if (epic.state !== "in_progress") return null
 
-  return <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700">{epic.landed_jobs_count}/{epic.jobs_count} done</span>
+  return <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 dark:bg-gray-800 dark:text-gray-200">{epic.landed_jobs_count}/{epic.jobs_count} done</span>
 }
 
 function MobileWorkflowsList({ items, prefix }: { items: DashboardWorkflowItem[]; prefix: string }) {
   return (
-    <div className="rounded border border-gray-200 bg-white">
-      <div className="divide-y divide-gray-100">
+    <div className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
         {items.map((workflow) => <MobileWorkflowRow key={workflow.id} prefix={prefix} workflow={workflow} />)}
       </div>
     </div>
@@ -1403,17 +1403,17 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
   const slug = workflowLabel(workflow)
 
   return (
-    <Link aria-label={`${slug} ${workflow.job.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={withRoutePrefix(workflow.path, prefix)}>
+    <Link aria-label={`${slug} ${workflow.job.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white" to={withRoutePrefix(workflow.path, prefix)}>
       <div className="pt-1">
         <StatusPill state={workflow.state} />
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500">{slug}</span>
-          <span className="text-sm font-semibold leading-snug text-blue-600 underline">{workflow.job.title}</span>
+          <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{slug}</span>
+          <span className="text-sm font-semibold leading-snug text-blue-600 underline dark:text-blue-300">{workflow.job.title}</span>
         </div>
-        <div className="mt-1 font-mono text-xs text-gray-500">{workflow.job.repository.slug}</div>
-        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+        <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{workflow.job.repository.slug}</div>
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <span>{workflow.trigger_kind}</span>
           <span>{workflow.agent_provider}</span>
           <OwnerBadge badge={workflow.job.owner_badge} />
@@ -1436,13 +1436,13 @@ function SortableColumnHeader({ subject, column, sortState }: { subject: Dashboa
   return (
     <button
       aria-label={`Sort by ${label} ${sortDirectionLabel(nextDirection).toLowerCase()}`}
-      className={`inline-flex items-center gap-1 text-left font-semibold uppercase ${active ? "text-gray-900" : "text-gray-500 hover:text-gray-900"}`}
+      className={`inline-flex items-center gap-1 text-left font-semibold uppercase ${active ? "text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"}`}
       disabled={sortState.pending}
       onClick={() => sortState.onSort(column)}
       type="button"
     >
       <span>{label}</span>
-      {active ? <span aria-hidden="true" className="text-[11px] leading-none text-gray-700">{sortState.direction === "asc" ? "↑" : "↓"}</span> : null}
+      {active ? <span aria-hidden="true" className="text-[11px] leading-none text-gray-700 dark:text-gray-300">{sortState.direction === "asc" ? "↑" : "↓"}</span> : null}
     </button>
   )
 }
@@ -1451,7 +1451,7 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   if (column === "workflow" || column === "title") {
     return (
       <td className="px-4 py-3 font-medium">
-        <Link className="text-blue-600 hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflowLabel(workflow)}</Link>
+        <Link className="text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(workflow.path, prefix)}>{workflowLabel(workflow)}</Link>
       </td>
     )
   }
@@ -1459,20 +1459,20 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   if (column === "job") {
     return (
       <td className="max-w-md px-4 py-3">
-        <Link className="font-medium text-blue-600 hover:underline" to={withRoutePrefix(workflow.job.path, prefix)}>{workflow.job.title}</Link>
-        <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500">
+        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(workflow.job.path, prefix)}>{workflow.job.title}</Link>
+        <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <RepositorySlugLink prefix={prefix} repository={workflow.job.repository} />
           <OwnerBadge badge={workflow.job.owner_badge} />
         </div>
       </td>
     )
   }
-  if (column === "trigger") return <td className="px-4 py-3 text-gray-700">{workflow.trigger_kind}</td>
-  if (column === "agent") return <td className="px-4 py-3 text-gray-700">{workflow.agent_provider}</td>
-  if (column === "started") return <td className="px-4 py-3 text-gray-500">{formatDate(workflow.started_at || workflow.created_at)}</td>
-  if (column === "finished") return <td className="px-4 py-3 text-gray-500">{formatDate(workflow.finished_at)}</td>
+  if (column === "trigger") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{workflow.trigger_kind}</td>
+  if (column === "agent") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{workflow.agent_provider}</td>
+  if (column === "started") return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(workflow.started_at || workflow.created_at)}</td>
+  if (column === "finished") return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(workflow.finished_at)}</td>
 
-  return <td className="px-4 py-3 text-gray-500">{formatDate(workflowDateValue(workflow, column))}</td>
+  return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(workflowDateValue(workflow, column))}</td>
 }
 
 function workflowLabel(workflow: Pick<DashboardWorkflowItem, "id" | "slug">) {
@@ -1486,18 +1486,18 @@ function Pagination({ payload, pathname, search }: { payload: DashboardPayload; 
   const lastItem = Math.min(payload.page * payload.per_page, payload.total)
 
   return (
-    <div className="flex items-center justify-between text-sm text-gray-600">
+    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
       <span>Showing {firstItem}-{lastItem} of {payload.total}</span>
       <div className="flex gap-2">
         {payload.page > 1 ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50" to={pageLink(pathname, search, payload.page - 1)}>Previous</Link>
+          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page - 1)}>Previous</Link>
         ) : (
-          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">Previous</span>
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Previous</span>
         )}
         {payload.page < payload.total_pages ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50" to={pageLink(pathname, search, payload.page + 1)}>Next</Link>
+          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page + 1)}>Next</Link>
         ) : (
-          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">Next</span>
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Next</span>
         )}
       </div>
     </div>
@@ -1505,7 +1505,7 @@ function Pagination({ payload, pathname, search }: { payload: DashboardPayload; 
 }
 
 function NeutralStatePill({ state }: { state: string }) {
-  return <span className="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 ring-1 ring-gray-200">{state.replace(/_/g, " ")}</span>
+  return <span className="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">{state.replace(/_/g, " ")}</span>
 }
 
 function OwnerBadge({ badge, fallback = null }: { badge: { label: string; kind: string } | null; fallback?: string | null }) {
@@ -1513,8 +1513,8 @@ function OwnerBadge({ badge, fallback = null }: { badge: { label: string; kind: 
 
   const label = badge?.label || fallback
   const className = badge?.kind === "claimable"
-    ? "rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700 ring-1 ring-amber-200"
-    : "rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 ring-1 ring-gray-200"
+    ? "rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800"
+    : "rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
 
   return <span className={className}>{label}</span>
 }
@@ -1534,7 +1534,7 @@ function pluralize(count: number, singular: string) {
 function DashboardError({ error }: { error: Error }) {
   return (
     <main aria-label="Dashboard" className="p-6">
-      <p className="text-sm text-red-700">{error instanceof ApiError ? error.message : "Unable to load dashboard."}</p>
+      <p className="text-sm text-red-700 dark:text-red-300">{error instanceof ApiError ? error.message : "Unable to load dashboard."}</p>
     </main>
   )
 }
@@ -1602,14 +1602,14 @@ function pageLink(pathname: string, search: string, page: number) {
 }
 
 function folderClass(active: boolean) {
-  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${active ? "bg-blue-50 font-medium text-blue-700" : "text-gray-700 hover:bg-gray-100"}`
+  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${active ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`
 }
 
 function bulkButtonClass(disabled: boolean, tone: "default" | "danger" = "default") {
-  if (disabled) return "rounded border border-gray-200 px-3 py-1 text-gray-300"
-  if (tone === "danger") return "rounded border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50"
+  if (disabled) return "rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600"
+  if (tone === "danger") return "rounded border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950"
 
-  return "rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-white"
+  return "rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
 }
 
 function epicTableColumns(columns: string[]) {
