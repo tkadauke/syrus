@@ -35,6 +35,8 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
 
     expect(response[:result][:isError]).to be_falsey
     expect(payload[:job]).to include(id: job.id, issue_number: 123, pr_number: 9, branch_name: "syrus/issue-123", agent_provider: "claude")
+    expect(payload[:workflow_count]).to eq(1)
+    expect(payload[:workflows_index]).to contain_exactly(a_hash_including(id: workflow.id, trigger_kind: "initial", summary: "Raised the aqueduct by one cubit.", run_count: 1))
     expect(payload[:latest_workflow]).to include(id: workflow.id, trigger_kind: "initial", summary: "Raised the aqueduct by one cubit.")
     expect(payload[:transcript]).to include(truncated: true)
     expect(payload[:transcript][:head]).to start_with("head-")
@@ -48,5 +50,21 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
 
     expect(response[:result][:isError]).to be(true)
     expect(response[:result][:content].first[:text]).to include("job not found")
+  end
+
+  it "returns all workflows in newest-first index order" do
+    job = Factories.job(repository: repository)
+    older = job.latest_workflow
+    older.update!(created_at: 2.hours.ago)
+    newer = Workflow.create!(job: job, trigger_kind: "pr_comment", created_at: 1.hour.ago)
+    step = newer.steps.create!(kind: "respond", position: 0)
+    step.runs.create!(job: job, trigger_kind: "pr_comment", state: "succeeded", agent_summary: "Addressed feedback.")
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(payload[:workflow_count]).to eq(2)
+    expect(payload[:workflows_index].map { |workflow| workflow[:id] }).to eq([ newer.id, older.id ])
+    expect(payload[:workflows_index].first).to include(summary: "Addressed feedback.", started_at: nil)
   end
 end

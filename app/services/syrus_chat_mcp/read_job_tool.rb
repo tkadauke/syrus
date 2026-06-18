@@ -23,8 +23,11 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
 
         workflow = job.latest_workflow
+        workflows_index = SyrusChatMcp::ListJobWorkflowsTool.workflow_index_for(job)
         SyrusChatMcp.success(
           job: job_payload(job),
+          workflow_count: workflows_index.size,
+          workflows_index: workflows_index,
           latest_workflow: workflow_payload(workflow),
           transcript: transcript_payload(workflow)
         )
