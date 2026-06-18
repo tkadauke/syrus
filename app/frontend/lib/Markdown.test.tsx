@@ -20,4 +20,15 @@ describe("Markdown", () => {
     expect(screen.getByText("friend").tagName).toBe("STRONG")
     expect(container.querySelector("script")).toBeNull()
   })
+
+  it("keeps ordered lists consecutive when items are separated by blank lines", () => {
+    const { container } = render(<Markdown text={"1. First\n\n1. Second\n\n1. Third"} />)
+
+    const lists = container.querySelectorAll("ol")
+    expect(lists).toHaveLength(1)
+    expect(lists[0].querySelectorAll("li")).toHaveLength(3)
+    expect(screen.getByText("First")).toBeInTheDocument()
+    expect(screen.getByText("Second")).toBeInTheDocument()
+    expect(screen.getByText("Third")).toBeInTheDocument()
+  })
 })

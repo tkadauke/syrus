@@ -67,11 +67,8 @@ function renderBlocks(text: string): ReactNode[] {
     }
 
     if (/^\s*[-*+]\s+/.test(line)) {
-      const items: string[] = []
-      while (index < lines.length && /^\s*[-*+]\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*[-*+]\s+/, ""))
-        index += 1
-      }
+      const { items, nextIndex } = collectListItems(lines, index, /^\s*[-*+]\s+/, /^\s*[-*+]\s+/)
+      index = nextIndex
       blocks.push(
         <ul key={`block-${key++}`}>
           {items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item)}</li>)}
@@ -81,11 +78,8 @@ function renderBlocks(text: string): ReactNode[] {
     }
 
     if (/^\s*\d+[.)]\s+/.test(line)) {
-      const items: string[] = []
-      while (index < lines.length && /^\s*\d+[.)]\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*\d+[.)]\s+/, ""))
-        index += 1
-      }
+      const { items, nextIndex } = collectListItems(lines, index, /^\s*\d+[.)]\s+/, /^\s*\d+[.)]\s+/)
+      index = nextIndex
       blocks.push(
         <ol key={`block-${key++}`}>
           {items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item)}</li>)}
@@ -103,6 +97,33 @@ function renderBlocks(text: string): ReactNode[] {
   }
 
   return blocks
+}
+
+function collectListItems(lines: string[], index: number, markerPattern: RegExp, markerReplacement: RegExp) {
+  const items: string[] = []
+
+  while (index < lines.length) {
+    const line = lines[index]
+    if (markerPattern.test(line)) {
+      items.push(line.replace(markerReplacement, ""))
+      index += 1
+      continue
+    }
+
+    if (line.trim() === "" && nextNonBlankLineMatches(lines, index + 1, markerPattern)) {
+      index += 1
+      continue
+    }
+
+    break
+  }
+
+  return { items, nextIndex: index }
+}
+
+function nextNonBlankLineMatches(lines: string[], index: number, pattern: RegExp) {
+  while (index < lines.length && lines[index].trim() === "") index += 1
+  return index < lines.length && pattern.test(lines[index])
 }
 
 function startsBlock(lines: string[], index: number) {
