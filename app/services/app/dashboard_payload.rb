@@ -374,8 +374,26 @@ module App
           SmartFolder.for_subject(subject)
                      .where("user_id IS NULL OR user_id = ?", user.id)
                      .find_by(id: id)
+        elsif default_inbox_smart_folder?
+          SmartFolder.find_builtin_by_attention("inbox")
         end
       end
+    end
+
+    def default_inbox_smart_folder?
+      subject == "job" &&
+        params[:view] == "list" &&
+        !param_key?(:smart_folder_id) &&
+        !filter_param_present?
+    end
+
+    def filter_param_present?
+      params[Filters::QueryParam::PARAM_NAME].present? ||
+        Jobs::Filter::LEGACY_URL_KEYS.any? { |key| params[key].present? }
+    end
+
+    def param_key?(key)
+      params.key?(key) || params.key?(key.to_s)
     end
 
     def jobs_result

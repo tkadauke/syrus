@@ -261,6 +261,13 @@ function SmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload
   const primaryFolders = builtinFolders.filter((folder) => folder.visibility !== "on_demand")
   const moreFolders = builtinFolders.filter((folder) => folder.visibility === "on_demand")
   const savedFolders = payload.smart_folders.filter((folder) => folder.kind === "user_defined")
+  const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view, smart_folder_id: payload.subject === "job" ? "all" : null })
+  const allJobsSelected = payload.subject === "job" && payload.active_smart_folder_id == null && new URLSearchParams(search).get("smart_folder_id") === "all"
+  const allJobsLink = (
+    <Link className={folderClass(payload.subject === "job" ? allJobsSelected : payload.active_smart_folder_id == null)} to={allPath}>
+      All {subjectLabel(payload.subject, 2)}
+    </Link>
+  )
   const appliedTree = filterTreeFromPayload(payload.filter)
   const canSaveFilter = topFilterChildren(appliedTree).length > 0 && payload.active_smart_folder_id == null
   const landingPause = useMutation({
@@ -291,14 +298,13 @@ function SmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload
     <aside aria-label="Dashboard smart folders panel" className="space-y-2">
       <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Smart folders</h2>
       <nav aria-label="Dashboard smart folders" className="space-y-1">
-        <Link className={folderClass(payload.active_smart_folder_id == null)} to={dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view })}>
-          All {subjectLabel(payload.subject, 2)}
-        </Link>
+        {payload.subject === "job" ? null : allJobsLink}
         {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
-        {moreFolders.length > 0 ? (
-          <details className="space-y-1" open={moreFolders.some((folder) => folder.active) || undefined}>
-            <summary className="cursor-pointer rounded px-2 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">More</summary>
+        {moreFolders.length > 0 || payload.subject === "job" ? (
+          <details className="space-y-1" open={allJobsSelected || moreFolders.some((folder) => folder.active) || undefined}>
+            <summary className="list-none cursor-pointer rounded px-2 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">More</summary>
             <div className="space-y-1 pl-2">
+              {payload.subject === "job" ? allJobsLink : null}
               {moreFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
             </div>
           </details>

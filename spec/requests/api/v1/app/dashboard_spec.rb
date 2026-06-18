@@ -590,6 +590,28 @@ RSpec.describe "App API dashboard commands", type: :request do
       )
     end
 
+    it "defaults the plain jobs list dashboard to Inbox and keeps All jobs addressable" do
+      inbox_job = Factories.job_record(repository: repo, owner_user: user, issue_number: 41, issue_title: "Ready for review", state: "implemented")
+      closed_job = Factories.job_record(repository: repo, owner_user: user, issue_number: 42, issue_title: "Already merged", state: "closed", closure_reason: "pr_merged", finished_at: 1.day.ago)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      inbox_folder = SmartFolder.find_builtin_by_attention("inbox")
+      expect(body["active_smart_folder_id"]).to eq(inbox_folder.id)
+      expect(body["filter"]).to eq(SmartFolder.attention_preset_filter("inbox"))
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ inbox_job.id ])
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["active_smart_folder_id"]).to be_nil
+      expect(body["filter"]).to eq("and" => [])
+      expect(body["items"].map { |item| item.fetch("id") }).to include(inbox_job.id, closed_job.id)
+    end
+
     it "keeps an active empty when-present smart folder visible" do
       SmartFolder.ensure_builtins!
       folder = SmartFolder.find_by!(user_id: nil, subject_type: "job", name: "Landing queue")
@@ -677,7 +699,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       billed = Factories.job(repository: repo, owner_user: user, issue_number: 2, issue_title: "Spend carefully")
       billed.initial_run.update!(cost_usd: 0.12)
 
-      get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
 
       body = parse_body
       expect(body["items"].find { |item| item.fetch("id") == unbilled.id }.fetch("total_cost_usd")).to be_nil
