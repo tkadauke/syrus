@@ -181,6 +181,7 @@ Syrus chooses the template from the trigger kind:
 | --- | --- |
 | `initial` | `Workflows::Initial` |
 | `pr_comment` | `Workflows::PrFeedback` |
+| `chat_feedback` | `Workflows::ChatFeedback` |
 | `ci_failure` | `Workflows::CiFailure` |
 | `rebase` | `Workflows::Rebase` |
 | `stack_rebase` | `Workflows::StackRebase` |

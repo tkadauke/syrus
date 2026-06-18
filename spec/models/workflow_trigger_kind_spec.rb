@@ -20,6 +20,8 @@ RSpec.describe Workflow::TriggerKind do
   it "gives newer workflow triggers deliberate product copy" do
     expect(described_class.label_for("auto_merge")).to eq("Auto-merge")
     expect(described_class.style_for("auto_merge")).to eq("bg-green-100 text-green-700")
+    expect(described_class.label_for("chat_feedback")).to eq("Chat feedback")
+    expect(described_class.style_for("chat_feedback")).to eq("bg-indigo-100 text-indigo-700")
     expect(described_class.label_for("local_dev")).to eq("Local dev")
     expect(described_class.style_for("local_dev")).to eq("bg-blue-100 text-blue-700")
   end

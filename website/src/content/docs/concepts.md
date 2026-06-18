@@ -47,6 +47,7 @@ Common trigger kinds are:
 | --- | --- |
 | `initial` | First attempt for a Job. Creates the branch and opens the PR. |
 | `pr_comment` | Follow-up after review or conversation feedback on the PR. |
+| `chat_feedback` | Follow-up from operator feedback submitted through Syrus Chat. |
 | `ci_failure` | Follow-up after failing checks on the PR head SHA. |
 | `rebase` | Maintenance attempt that rebases a controlled branch onto the base branch. |
 | `retry` | Operator asks Syrus to run the normal attempt again. |

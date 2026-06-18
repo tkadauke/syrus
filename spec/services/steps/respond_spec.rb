@@ -60,6 +60,29 @@ RSpec.describe Steps::Respond do
     expect(run.prompt).not_to include("quality graders flagged issues")
   end
 
+  it "builds chat feedback prompts from the chat_feedback markdown artifact" do
+    chat_workflow = Workflows::ChatFeedback.instantiate(
+      job: job,
+      artifacts: { "chat_feedback" => "Please make the job timeline easier to scan.\n\n- Keep links visible." }
+    )
+    chat_step = chat_workflow.steps.find_by(kind: "respond")
+    chat_run = chat_step.runs.create!(job: job, trigger_kind: chat_workflow.trigger_kind, agent_provider: chat_workflow.agent_provider)
+    chat_handler = described_class.new(chat_run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    allow(chat_handler).to receive(:workspace).and_return(fake_ws)
+    allow(chat_handler).to receive(:run_agent)
+    allow(chat_handler).to receive(:commit_agent_changes)
+    allow(chat_handler).to receive(:assert_branch_history_intact!)
+    allow(chat_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(chat_handler).to receive(:head_sha).and_return("abc789")
+
+    chat_handler.call
+
+    expect(chat_run.reload.prompt).to include("Please make the job timeline easier to scan.")
+    expect(chat_run.prompt).to include("Keep links visible.")
+    expect(chat_run.prompt).to include("Syrus Chat")
+  end
+
   it "includes Epic context in the feedback prompt" do
     epic = Factories.epic(
       user: user,

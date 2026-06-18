@@ -8,6 +8,7 @@ RSpec.describe Workflows do
     it "returns the right template class for each known trigger_kind" do
       expect(described_class.for(trigger_kind: "initial")).to    eq(Workflows::Initial)
       expect(described_class.for(trigger_kind: "pr_comment")).to eq(Workflows::PrFeedback)
+      expect(described_class.for(trigger_kind: "chat_feedback")).to eq(Workflows::ChatFeedback)
       expect(described_class.for(trigger_kind: "ci_failure")).to eq(Workflows::CiFailure)
       expect(described_class.for(trigger_kind: "rebase")).to     eq(Workflows::Rebase)
       expect(described_class.for(trigger_kind: "stack_rebase")).to eq(Workflows::StackRebase)
@@ -284,6 +285,29 @@ RSpec.describe Workflows do
 
     it "instantiates PrFeedback with respond → grader_fanout → grader_collect → summarize_amend → push" do
       wf = Workflows::PrFeedback.instantiate(job: job)
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect summarize_amend push ])
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond grader_fanout grader_collect ])
+      expect(wf.chain_template).to include(
+        {
+          "type" => "retry_until",
+          "max_iterations" => AppSetting.grade_max_iterations,
+          "repair" => %w[ respond ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => true
+        }
+      )
+    end
+
+    it "instantiates ChatFeedback with chat markdown artifacts and the PR feedback chain shape" do
+      wf = Workflows::ChatFeedback.instantiate(
+        job: job,
+        artifacts: { "chat_feedback" => "Please tighten the dashboard copy." },
+        agent_provider: "codex"
+      )
+
+      expect(wf.trigger_kind).to eq("chat_feedback")
+      expect(wf.agent_provider).to eq("codex")
+      expect(wf.artifact("chat_feedback")).to eq("Please tighten the dashboard copy.")
       expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect summarize_amend push ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond grader_fanout grader_collect ])
       expect(wf.chain_template).to include(

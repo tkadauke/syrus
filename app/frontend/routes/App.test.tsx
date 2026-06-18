@@ -1532,6 +1532,49 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
   }, 15000)
 
+  it("uses the indigo trigger badge for chat feedback workflows", async () => {
+    const restoreMedia = mockMediaQuery(true)
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            preferences: {
+              sort: { column: "created_at", direction: "desc" },
+              visible_columns: ["issue", "state", "latest"],
+              kanban_lanes: ["queued", "running", "succeeded"],
+              raw: {}
+            },
+            items: [
+              dashboardJobItem({
+                active_workflow_trigger_kind: "chat_feedback",
+                latest_workflow_trigger_kind: "chat_feedback"
+              })
+            ]
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const activeWorkflowTrigger = await screen.findByLabelText("Active workflow trigger: chat_feedback")
+      expect(activeWorkflowTrigger).toHaveClass("bg-indigo-100", "text-indigo-700", "ring-indigo-200")
+      expect(screen.getByRole("cell", { name: "Latest workflow: chat_feedback running" })).toBeInTheDocument()
+    } finally {
+      restoreMedia()
+    }
+  })
+
   it("leaves the latest workflow cell empty for dashboard jobs with no workflows", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)

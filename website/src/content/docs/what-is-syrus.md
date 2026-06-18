@@ -113,7 +113,7 @@ Syrus uses these terms everywhere:
 | --- | --- |
 | Epic | A repository-local group of related Jobs for larger goals that need sequencing. |
 | Job | The long-lived thread for one issue, scheduled task fire, or direct prompt. It owns the repository, source prompt, branch, PR number, priority, provider, dependencies, and final closure reason. |
-| Workflow | One attempt to move a Job forward. Trigger kinds include `initial`, `pr_comment`, `ci_failure`, `retry`, `manual`, and `rebase`. |
+| Workflow | One attempt to move a Job forward. Trigger kinds include `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `manual`, and `rebase`. |
 | Step | A stage inside a Workflow, such as `prepare`, `implement`, `summarize`, `pr_open`, `respond`, `auto_rebase`, or `force_push`. |
 | Run | One execution of a Step, with prompt, transcript, provider metadata, captured diff, head SHA, PR copy, and outcome. |
 

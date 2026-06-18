@@ -1152,11 +1152,21 @@ function WorkflowBadges({ state, triggerAriaPrefix, triggerKind }: { state: stri
 }
 
 function WorkflowTriggerPill({ ariaPrefix, triggerKind }: { ariaPrefix: string; triggerKind: string }) {
+  const className = workflowTriggerClassName(triggerKind)
+
   return (
-    <TonePill ariaLabel={`${ariaPrefix}: ${triggerKind}`} tone="gray">
-      {triggerKind.replaceAll("_", " ")}
-    </TonePill>
+    <span aria-label={`${ariaPrefix}: ${triggerKind}`} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${className}`} data-status-pill="true">
+      <span>{triggerKind.replaceAll("_", " ")}</span>
+    </span>
   )
+}
+
+function workflowTriggerClassName(triggerKind: string) {
+  if (triggerKind === "chat_feedback") {
+    return "bg-indigo-100 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-200 dark:ring-indigo-800"
+  }
+
+  return "bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700"
 }
 
 function IssueMetadata({ job }: { job: DashboardJobItem }) {

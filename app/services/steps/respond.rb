@@ -10,7 +10,7 @@ module Steps
   class Respond < Base
     def call
       perform_agentic_change_step(
-        log_message: "invoking agent for respond step (#{workflow.slug}, pr_comment)",
+        log_message: "invoking agent for respond step (#{workflow.slug}, #{workflow.trigger_kind})",
         commit_message: "Syrus respond step (will be rewritten by summarize_amend)"
       ) do
         run.update!(prompt: compose_prompt) if run.prompt.blank?
@@ -20,7 +20,7 @@ module Steps
     private
 
     def compose_prompt
-      comments = workflow.artifact("pr_comments") || []
+      comments = feedback_comments
       cutoff = parse_cutoff(workflow.artifact("feedback_cutoff"))
       issue = job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
 
@@ -41,6 +41,21 @@ module Steps
           iterations: workflow.artifacts.fetch("iterations", [])
         ).to_s
       ].join("\n\n")
+    end
+
+    def feedback_comments
+      return workflow.artifact("pr_comments") || [] unless workflow.trigger_kind == "chat_feedback"
+
+      feedback = workflow.artifact("chat_feedback").to_s
+      return [] if feedback.blank?
+
+      [
+        {
+          "author" => "Syrus Chat",
+          "body" => feedback,
+          "created_at" => workflow.created_at&.iso8601
+        }
+      ]
     end
 
     def parse_cutoff(raw)

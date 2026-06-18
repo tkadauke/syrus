@@ -9,6 +9,7 @@ class Workflow
     ENTRIES = [
       Entry.new(kind: "initial", template: "Initial", label: "Initial implementation", style: "bg-purple-100 text-purple-700"),
       Entry.new(kind: "pr_comment", template: "PrFeedback", label: "PR feedback", style: "bg-cyan-100 text-cyan-700"),
+      Entry.new(kind: "chat_feedback", template: "ChatFeedback", label: "Chat feedback", style: "bg-indigo-100 text-indigo-700"),
       Entry.new(kind: "ci_failure", template: "CiFailure", label: "CI failure", style: "bg-red-100 text-red-700"),
       Entry.new(kind: "rebase", template: "Rebase", label: "Rebase", style: "bg-teal-100 text-teal-700"),
       Entry.new(kind: "stack_rebase", template: "StackRebase", label: "Stack rebase", style: "bg-teal-100 text-teal-700"),
