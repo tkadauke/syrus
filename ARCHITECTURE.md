@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-16._
+_Last reviewed: 2026-06-17._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -251,9 +251,11 @@ them). `agent_provider` is the user's default for new Jobs; a
 Repository can override it and per-Job retry/direct actions can choose
 an explicitly configured provider. `agent_max_turns` is the per-user
 ceiling on Claude `--max-turns`; `0` means "no `--max-turns` flag" —
-the per-Run wall-clock timeout still applies. The first user to sign
-up is auto-promoted to admin (bootstrap convenience, not a core
-architectural concern).
+the per-Run wall-clock timeout still applies. `theme` is a per-user UI
+preference (`light` or `dark`) returned in the bootstrap payload and
+updated through `PATCH /api/v1/app/theme`. The first user to sign up is
+auto-promoted to admin (bootstrap convenience, not a core architectural
+concern).
 
 ### ScheduledTask
 
@@ -818,6 +820,10 @@ Several layers, each catching different failure modes:
   repository, trigger kind, provider, trend, and top Runs.
 - **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause, and
   default provider settings.
+- **Theme toggle** — rendered in the React app shell for authenticated
+  users. It optimistically flips the `dark` class on `<html>`, persists
+  `User#theme` through `/api/v1/app/theme`, and re-syncs from the
+  bootstrap/current-user payload.
 - **`/settings`** — admin console toggles (signups open, max job
   failures, merge-train enablement, etc.); redirects non-admins to
   credentials.
@@ -830,6 +836,10 @@ Several layers, each catching different failure modes:
 Realtime updates use `AppUserChannel` app events consumed by React.
 Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
 between web and worker.
+
+Tailwind runs in class-based dark mode (`darkMode: "class"`). The Rails
+SPA layout emits `<html class="dark">` for users whose persisted theme is
+dark, and React keeps that root class in sync after client-side toggles.
 
 The dashboard JSON is assembled by `App::DashboardPayload` for the
 active subject (`epic`, `job`, or `workflow`). Reads are intentionally
