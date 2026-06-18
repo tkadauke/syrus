@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-17._
+_Last reviewed: 2026-06-18._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -119,6 +119,7 @@ state.
 | `pr_number` | the Syrus-opened PR, if any |
 | `external_pr_number` | the *preempted* path — see below |
 | `pr_mergeable`, `pr_mergeable_checked_at` | latest from GitHub; updated by `PollMergeStateJob` |
+| `landing_failure_reason` | open landing failure explanation; set when auto-merge or merge-train landing cannot proceed and surfaced by dashboard attention filters |
 | `failure_count` | consecutive non-rebase Run failures; reset on reopen; threshold `AppSetting.max_job_failures` auto-closes the thread with reason `too_many_failures` |
 | `closure_reason` | string tag explaining why the thread closed (see table below) |
 | `last_seen_comment_at`, `last_feedback_addressed_at` | PR-feedback watermarks; the poller uses the later timestamp so handled feedback is not re-enqueued |
@@ -847,10 +848,14 @@ side-effect-light: the payload ensures only that subject's built-in
 `SmartFolder` rows exist, applies ownership/smart-folder filters, and
 returns current preferences without persisting navigation choices.
 Preference writes go through `PATCH /api/v1/app/dashboard/preferences`
-for sort, visible columns, and Kanban lanes. Job rows carry their latest
-Workflow snapshot through correlated subqueries on `workflows` so the
-dashboard can show recent Workflow state without joining every Workflow
-row into the paginated Job query.
+for sort, visible columns, and Kanban lanes. Job smart folders are
+backed by `attention` preset chips: Inbox includes actionable unread
+feedback, failed Jobs, open Jobs with `landing_failure_reason`, validity
+review, and approval-ready Jobs; Just failed includes both failed Jobs
+and open landing failures. Job rows carry their latest Workflow snapshot
+through correlated subqueries on `workflows` so the dashboard can show
+recent Workflow state without joining every Workflow row into the
+paginated Job query.
 
 The standalone Go CLI (`cli/`) shares the app API rather than a separate
 backend. `syrus login` stores the instance URL and API token in
