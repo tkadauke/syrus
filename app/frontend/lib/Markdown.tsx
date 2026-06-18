@@ -6,6 +6,10 @@ export function Markdown({ className, text }: { className?: string; text: string
   return <div className={className}>{renderBlocks(text)}</div>
 }
 
+export function PlainText({ className, text }: { className?: string; text: string }) {
+  return <div className={className}>{text}</div>
+}
+
 function renderBlocks(text: string): ReactNode[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n")
   const blocks: ReactNode[] = []

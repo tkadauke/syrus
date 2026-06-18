@@ -43,7 +43,7 @@ import {
   type ChatToolGroupItem
 } from "../api/chats"
 import { CloseIcon } from "../components/CloseIcon"
-import { Markdown } from "../lib/Markdown"
+import { Markdown, PlainText } from "../lib/Markdown"
 
 const WHITEBOARD_SAVE_DEBOUNCE_MS = 500
 const CHAT_ENTER_SUBMIT_MIN_WIDTH = 1024
@@ -460,7 +460,7 @@ function ChatMessage({ item, payload, prefix, queryKey, onNotice }: { item: Extr
       <article className="group/message relative flex justify-end pt-6" id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
         <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />
-        <Markdown className="chat-prose chat-prose-invert max-w-[min(42rem,85%)] rounded bg-blue-600 px-4 py-2 text-white dark:bg-blue-500" text={item.text} />
+        <PlainText className="max-w-[min(42rem,85%)] whitespace-pre-wrap break-words rounded bg-blue-600 px-4 py-2 text-sm leading-normal text-white dark:bg-blue-500" text={item.text} />
       </article>
     )
   }

@@ -6956,7 +6956,8 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Now inspect proposals")).toBeInTheDocument()
-    expect(screen.getByText("Now inspect proposals").closest(".chat-prose")).toHaveClass("chat-prose-invert", "dark:bg-blue-500")
+    expect(screen.getByText("Now inspect proposals").closest(".chat-prose")).toBeNull()
+    expect(screen.getByText("Now inspect proposals")).toHaveClass("whitespace-pre-wrap", "dark:bg-blue-500")
     expect(screen.queryByText("Message sent.")).not.toBeInTheDocument()
   })
 

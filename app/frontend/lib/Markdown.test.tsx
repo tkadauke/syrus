@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { Markdown } from "./Markdown"
+import { Markdown, PlainText } from "./Markdown"
 
 describe("Markdown", () => {
   it("renders common chat markdown as React elements", () => {
@@ -30,5 +30,16 @@ describe("Markdown", () => {
     expect(screen.getByText("First")).toBeInTheDocument()
     expect(screen.getByText("Second")).toBeInTheDocument()
     expect(screen.getByText("Third")).toBeInTheDocument()
+  })
+
+  it("renders plain text without applying markdown semantics", () => {
+    const text = "1. keep this literal\n**not bold** and `not code`\n- not a list item"
+    const { container } = render(<PlainText text={text} />)
+
+    expect(container.firstElementChild?.textContent).toBe(text)
+    expect(container.querySelector("ol")).toBeNull()
+    expect(container.querySelector("ul")).toBeNull()
+    expect(container.querySelector("strong")).toBeNull()
+    expect(container.querySelector("code")).toBeNull()
   })
 })

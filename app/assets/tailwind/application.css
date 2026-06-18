@@ -2,14 +2,13 @@
 @config "../../../config/tailwind.config.js";
 
 /*
- * Lightweight typography for markdown-rendered chat messages
- * (user + assistant). We don't ship @tailwindcss/typography in this
+ * Lightweight typography for markdown-rendered chat messages.
+ * We don't ship @tailwindcss/typography in this
  * standalone-binary setup, so a dedicated class with the handful of
  * tags Commonmarker actually emits is simpler than dragging in the
  * plugin. Legacy Rails surfaces still use the class; React chat has
  * its own Markdown renderer. The
- * `chat-prose-invert` variant flips colors for the user bubble's
- * dark background.
+ * `chat-prose-invert` variant flips colors for dark backgrounds.
  */
 .chat-prose {
   font-size: 0.875rem;
