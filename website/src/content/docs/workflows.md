@@ -46,6 +46,16 @@ changes on the existing branch, and graders can force another bounded
 response iteration before `summarize_amend` rewrites the follow-up commit
 message. A successful workflow pushes to the already-open PR.
 
+### ChatFeedback
+
+Trigger: operator feedback submitted from Syrus Chat on an implemented or
+approved Job. Steps:
+`prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> summarize_amend -> push`.
+The agent receives the agreed chat feedback as structured workflow input
+and commits follow-up changes on the existing branch. Submitting feedback
+on an approved Job unapproves it so the updated PR returns to review before
+landing.
+
 ### Rebase
 
 Trigger: polling finds a PR branch we control that GitHub reports as

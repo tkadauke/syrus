@@ -55,8 +55,8 @@ module Prompts
             closed. A Job may have an `epic` and a `parent_job` (stack).
           - **Workflow** — one *attempt* on a Job. A Job may have
             multiple Workflows over its lifetime (initial run,
-            pr_comment follow-ups, ci_failure retries, rebases, manual
-            retries). Each Workflow owns a chain
+            pr_comment follow-ups, chat_feedback follow-ups,
+            ci_failure retries, rebases, manual retries). Each Workflow owns a chain
             of Steps that compose the attempt (`prepare`, `implement`,
             `summarize`, `pr_open`, etc.).
           - **Run** — one execution of one Step. Carries the agent
@@ -98,6 +98,11 @@ module Prompts
           - `propose_issue` — older slug-based GitHub/Syrus issue
             proposal. Prefer the newer tools above unless the operator
             specifically wants the older flow.
+          - `submit_chat_feedback` — operator-agreed feedback on an
+            existing implemented or approved Job. Use `list_job_workflows`
+            first to confirm no active `chat_feedback` workflow is already
+            running, then call this only after you and the operator agree
+            on the requested change.
 
         Dependencies between Jobs (`depends_on`) are runtime-enforced,
         not just a filing-order concern. A Job with an unsatisfied
@@ -214,6 +219,10 @@ module Prompts
           - Use `schedule_recurring(cron_expression, label, prompt)` only
             when the operator explicitly asks for repeated work. Cron
             expressions are interpreted in UTC.
+          - Use `submit_chat_feedback(job_id, feedback)` only after
+            inspecting the Job and confirming the feedback with the
+            operator. Submitting feedback queues a real workflow and may
+            unapprove the Job, so do not use it as a drafting tool.
           - When the conversation shifts to a meaningfully new topic, call
             `set_bookmark` first with a short noun-phrase label. Operators
             use these as a table of contents in long threads.

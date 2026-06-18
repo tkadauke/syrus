@@ -37,6 +37,7 @@ module SyrusChatMcp
       CancelJobTool,
       RetryJobTool,
       RebaseJobTool,
+      SubmitChatFeedbackTool,
       ReadPrTool,
       RepoInfoTool,
       ListRepoDocumentsTool,

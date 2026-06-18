@@ -163,4 +163,23 @@ RSpec.describe Steps::Respond do
 
     expect(run.reload.prompt).to eq("pre-set prompt content")
   end
+
+  it "builds a chat feedback prompt from the workflow artifact" do
+    chat_workflow = Workflows::ChatFeedback.instantiate(job: job, artifacts: { "chat_feedback" => "Please simplify the UI copy." })
+    chat_step = chat_workflow.steps.find_by(kind: "respond")
+    chat_run = chat_step.runs.create!(job: job, trigger_kind: chat_workflow.trigger_kind)
+    chat_handler = described_class.new(chat_run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    allow(chat_handler).to receive(:workspace).and_return(fake_ws)
+    allow(chat_handler).to receive(:run_agent)
+    allow(chat_handler).to receive(:commit_agent_changes)
+    allow(chat_handler).to receive(:assert_branch_history_intact!)
+    allow(chat_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(chat_handler).to receive(:head_sha).and_return("abc789")
+
+    chat_handler.call
+
+    expect(chat_run.reload.prompt).to include("Operator feedback from Syrus Chat")
+    expect(chat_run.prompt).to include("Please simplify the UI copy.")
+  end
 end

@@ -8,6 +8,7 @@ RSpec.describe Workflows do
     it "returns the right template class for each known trigger_kind" do
       expect(described_class.for(trigger_kind: "initial")).to    eq(Workflows::Initial)
       expect(described_class.for(trigger_kind: "pr_comment")).to eq(Workflows::PrFeedback)
+      expect(described_class.for(trigger_kind: "chat_feedback")).to eq(Workflows::ChatFeedback)
       expect(described_class.for(trigger_kind: "ci_failure")).to eq(Workflows::CiFailure)
       expect(described_class.for(trigger_kind: "rebase")).to     eq(Workflows::Rebase)
       expect(described_class.for(trigger_kind: "stack_rebase")).to eq(Workflows::StackRebase)

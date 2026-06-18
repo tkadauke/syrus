@@ -26,6 +26,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::CancelJobTool,
         SyrusChatMcp::RetryJobTool,
         SyrusChatMcp::RebaseJobTool,
+        SyrusChatMcp::SubmitChatFeedbackTool,
         SyrusChatMcp::ReadPrTool,
         SyrusChatMcp::RepoInfoTool,
         SyrusChatMcp::ListRepoDocumentsTool,
@@ -95,6 +96,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         cancel_job
         retry_job
         rebase_job
+        submit_chat_feedback
         read_pr
         repo_info
         list_repo_documents

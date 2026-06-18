@@ -10,7 +10,7 @@ module Steps
   class Respond < Base
     def call
       perform_agentic_change_step(
-        log_message: "invoking agent for respond step (#{workflow.slug}, pr_comment)",
+        log_message: "invoking agent for respond step (#{workflow.slug}, #{workflow.trigger_kind})",
         commit_message: "Syrus respond step (will be rewritten by summarize_amend)"
       ) do
         run.update!(prompt: compose_prompt) if run.prompt.blank?
@@ -20,18 +20,7 @@ module Steps
     private
 
     def compose_prompt
-      comments = workflow.artifact("pr_comments") || []
-      cutoff = parse_cutoff(workflow.artifact("feedback_cutoff"))
-      issue = job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
-
-      prompt = Prompts::PrFeedback.new(
-        issue: issue,
-        comments: hydrate_comments(comments),
-        cutoff: cutoff,
-        prior_summaries: prior_pr_comment_summaries,
-        recent_commits: recent_branch_commits,
-        epic: job.epic
-      ).to_s
+      prompt = workflow.trigger_kind == "chat_feedback" ? compose_chat_feedback_prompt : compose_pr_feedback_prompt
 
       return prompt unless run.iteration > 1
 
@@ -41,6 +30,34 @@ module Steps
           iterations: workflow.artifacts.fetch("iterations", [])
         ).to_s
       ].join("\n\n")
+    end
+
+    def compose_pr_feedback_prompt
+      comments = workflow.artifact("pr_comments") || []
+      cutoff = parse_cutoff(workflow.artifact("feedback_cutoff"))
+
+      Prompts::PrFeedback.new(
+        issue: issue_for_prompt,
+        comments: hydrate_comments(comments),
+        cutoff: cutoff,
+        prior_summaries: prior_feedback_summaries(%w[pr_comment]),
+        recent_commits: recent_branch_commits,
+        epic: job.epic
+      ).to_s
+    end
+
+    def compose_chat_feedback_prompt
+      Prompts::ChatFeedback.new(
+        issue: issue_for_prompt,
+        feedback: workflow.artifact("chat_feedback").to_s,
+        prior_summaries: prior_feedback_summaries(%w[pr_comment chat_feedback]),
+        recent_commits: recent_branch_commits,
+        epic: job.epic
+      ).to_s
+    end
+
+    def issue_for_prompt
+      job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
     end
 
     def parse_cutoff(raw)
@@ -55,9 +72,9 @@ module Steps
     # current workflow is excluded — the summary it will produce is
     # not relevant to this Step's own prompt. Skips Workflows that
     # never reached summarize_amend (no agent_summary on any Run).
-    def prior_pr_comment_summaries
+    def prior_feedback_summaries(trigger_kinds)
       prior_workflows = job.workflows
-                           .where(trigger_kind: "pr_comment")
+                           .where(trigger_kind: trigger_kinds)
                            .where("id < ?", workflow.id)
                            .order(:created_at)
                            .to_a
