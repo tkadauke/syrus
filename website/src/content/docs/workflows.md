@@ -48,8 +48,8 @@ message. A successful workflow pushes to the already-open PR.
 
 ### ChatFeedback
 
-Trigger: operator feedback submitted from Syrus Chat on an implemented or
-approved Job. Steps:
+Trigger: operator-confirmed feedback proposed from Syrus Chat on an
+implemented or approved Job. Steps:
 `prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> summarize_amend -> push`.
 The agent receives the agreed chat feedback as structured workflow input
 and commits follow-up changes on the existing branch. Submitting feedback

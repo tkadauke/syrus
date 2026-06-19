@@ -5,6 +5,7 @@ class ChatPendingAction < ApplicationRecord
     cancel_job
     retry_job
     rebase_job
+    submit_chat_feedback
     reopen_epic_and_attach_job
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
@@ -121,6 +122,23 @@ class ChatPendingAction < ApplicationRecord
       workflow = RebaseWorkflowSelector.instantiate(job: job)
       StepDispatcher.start_workflow(workflow)
       nil
+    when "submit_chat_feedback"
+      job = action_job
+      unless job.implemented? || job.approved?
+        raise ArgumentError, "#{job.state} jobs are not actionable for chat feedback; the job must be implemented or approved."
+      end
+      if job.workflows.where(trigger_kind: "chat_feedback", state: %w[queued running]).exists?
+        raise ArgumentError, "a chat_feedback workflow is already queued or running for this job"
+      end
+
+      workflow = Workflows::ChatFeedback.instantiate(
+        job: job,
+        artifacts: { "chat_feedback" => payload.fetch("feedback").to_s },
+        agent_provider: job.agent_provider
+      )
+      StepDispatcher.start_workflow(workflow)
+      job.reload.unapprove! if job.may_unapprove?
+      workflow
     when "reopen_epic_and_attach_job"
       epic = repository.epics.where(user: user).find(payload.fetch("epic_id"))
       job = action_job
@@ -153,6 +171,9 @@ class ChatPendingAction < ApplicationRecord
       errors.add(:payload, "id is required") unless payload["id"].present?
     when "cancel_job", "retry_job", "rebase_job"
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
+    when "submit_chat_feedback"
+      errors.add(:payload, "job_id is required") unless payload["job_id"].present?
+      errors.add(:payload, "feedback is required") if payload["feedback"].to_s.strip.blank?
     when "reopen_epic_and_attach_job"
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
       errors.add(:payload, "epic_id is required") unless payload["epic_id"].present?

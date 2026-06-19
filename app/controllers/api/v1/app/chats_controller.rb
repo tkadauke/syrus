@@ -717,6 +717,8 @@ module Api
             "Retry #{::App::Presentation.job_slug(payload['job_id'])}"
           when "rebase_job"
             "Rebase #{::App::Presentation.job_slug(payload['job_id'])}"
+          when "submit_chat_feedback"
+            "Submit feedback on #{::App::Presentation.job_slug(payload['job_id'])}"
           when "reopen_epic_and_attach_job"
             "Reopen Epic ##{payload['epic_id']} and attach #{::App::Presentation.job_slug(payload['job_id'])}"
           else
@@ -727,6 +729,12 @@ module Api
         def pending_action_confirmed_notice(action)
           record = action.result
           case record
+          when Workflow
+            if record.trigger_kind == "chat_feedback"
+              "Feedback submitted. Workflow ##{record.id} has been queued."
+            else
+              "Pending action confirmed."
+            end
           when ScheduledTask
             "Scheduled task created: #{record.name}."
           else
