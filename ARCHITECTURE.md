@@ -848,14 +848,25 @@ side-effect-light: the payload ensures only that subject's built-in
 `SmartFolder` rows exist, applies ownership/smart-folder filters, and
 returns current preferences without persisting navigation choices.
 Preference writes go through `PATCH /api/v1/app/dashboard/preferences`
-for sort, visible columns, and Kanban lanes. Job smart folders are
-backed by `attention` preset chips: Inbox includes actionable unread
-feedback, failed Jobs, open Jobs with `landing_failure_reason`, validity
-review, and approval-ready Jobs; Just failed includes both failed Jobs
-and open landing failures. Job rows carry their latest Workflow snapshot
-through correlated subqueries on `workflows` so the dashboard can show
-recent Workflow state without joining every Workflow row into the
-paginated Job query.
+for sort, visible columns, and Kanban lanes. Job list mode defaults to
+the Inbox smart folder when no smart-folder id or filter is present;
+operators can still request the unfiltered list with
+`smart_folder_id=all`. Job smart folders are backed by `attention`
+preset chips: Inbox includes actionable unread feedback, failed Jobs,
+open Jobs with `landing_failure_reason`, validity review, and
+approval-ready Jobs; Just failed includes both failed Jobs and open
+landing failures. Job rows carry their latest Workflow snapshot through
+correlated subqueries on `workflows` so the dashboard can show recent
+Workflow state without joining every Workflow row into the paginated Job
+query.
+
+Chat rendering deliberately treats authors differently. Assistant,
+system, proposal, and tool-facing content use the local `Markdown`
+renderer so transcripts preserve lists, code blocks, tables, and inline
+formatting. User-authored chat messages use `PlainText` with preserved
+whitespace and word wrapping, so the UI displays exactly what the user
+typed instead of interpreting numbered answers, bullets, or code-like
+phrases as Markdown.
 
 The standalone Go CLI (`cli/`) shares the app API rather than a separate
 backend. `syrus login` stores the instance URL and API token in
