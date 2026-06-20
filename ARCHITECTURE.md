@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-18._
+_Last reviewed: 2026-06-19._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -20,7 +20,7 @@ domain concepts. File paths are repo-relative.
 - [Domain model](#domain-model) — Job, Workflow, Step, Run, JobLog,
   Repository, User, ScheduledTask, CronTemplate
 - [Recurring schedule](#recurring-schedule)
-- [Per-poller flow](#per-poller-flow) — issue ingest, PR feedback, rebase, scheduled tasks, reaping
+- [Per-poller flow](#per-poller-flow) — issue ingest, PR/chat feedback, rebase, scheduled tasks, reaping
 - [Per-Workflow pipeline](#per-workflow-pipeline) — materialized step chains and Run execution
 - [End-to-end GitHub workflow](#end-to-end-github-workflow)
 - [Services](#services)
@@ -209,6 +209,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 |---|---|---|
 | `initial` | `Job` create (issue Jobs auto-spawn the first Workflow after triage; cron Jobs do it via `PollScheduledTasksJob`) | makes the branch + opens the PR |
 | `pr_comment` | `PollPullRequestJob` finds new review comments since `last_seen_comment_at` | reuses the same branch |
+| `chat_feedback` | operator confirms feedback proposed from Syrus Chat | reuses the same branch; prompt source is the confirmed chat feedback artifact |
 | `ci_failure` | `PollPullRequestJob` finds failing checks on the head SHA | reuses the same branch; gated on `last_ci_handled_sha` |
 | `rebase` | `PollMergeStateJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; pushes with an explicit `--force-with-lease` lease |
 | `stack_rebase` | dependent PR stack needs to be rebased branch-by-branch | force-pushes each updated branch and resumes landing |
@@ -402,7 +403,7 @@ non-closed state)` path backed by a partial unique index — a closed
 thread plus a new active thread for the same issue is allowed
 (retry-after-close).
 
-### PR feedback (`pr_comment`, `ci_failure`)
+### PR and chat feedback (`pr_comment`, `chat_feedback`, `ci_failure`)
 
 ```
 PollAllPullRequestsJob
@@ -418,6 +419,16 @@ PollAllPullRequestsJob
           StepDispatcher.start_workflow(...)
       → bump last_seen_comment_at / last_ci_handled_sha as watermarks
 ```
+
+Chat feedback is not poller-created. In a repository-scoped chat, the
+agent can call `submit_chat_feedback` only after discussing the requested
+change with the operator and checking that no `chat_feedback` Workflow is
+already active for the Job. The tool creates a `ChatPendingAction`; when
+the operator confirms it, `ChatPendingAction#apply!` instantiates
+`Workflows::ChatFeedback` with a `chat_feedback` artifact and starts the
+Workflow. The Job must be `implemented` or `approved`; confirming
+feedback on an approved Job unapproves it so the landing queue does not
+merge stale work.
 
 There is no author filter on the PR-comment path today: every Syrus
 deployment runs under a single operator's PAT, so any comment that
@@ -522,6 +533,7 @@ Current Workflow chains:
 |---|---|
 | `initial` | `prepare → retry_until(implement → grader_fanout → grader_collect) → summarize → test_plan → pr_open` |
 | `pr_comment` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
+| `chat_feedback` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
 | `ci_failure` | `prepare → analyze_and_fix → summarize_amend → push` |
 | `retry` / `replay` | same shape as `initial`, reusing the existing branch and PR if present |
 | `manual` / `resume` | `manual` |
@@ -541,6 +553,14 @@ landing repair, summarize, test_plan, and manual) invoke the Workflow's
 configured provider through `AgentProviders::*`. Non-agentic Steps run
 service code: graders, git push/force-push, PR opening, mergeability
 gates, merge API calls, and merge-train assembly/landing.
+
+`respond` is shared by `pr_comment` and `chat_feedback` Workflows. The
+PR-comment path composes `Prompts::PrFeedback` from GitHub comments,
+cutoffs, and prior summaries; the chat-feedback path composes
+`Prompts::ChatFeedback` from the confirmed `chat_feedback` artifact,
+prior feedback summaries, recent branch commits, and optional Epic
+context. Both commit to the existing branch and hand revision copy to
+`summarize_amend` before `push`.
 
 `RunJob#perform` is now the per-Step executor:
 
@@ -612,6 +632,9 @@ What happens to a single labeled issue, from label to merge:
    - `PollPullRequestJob` watches every 5 min for new review comments
      on this Job. New comment → `pr_comment` follow-up Run on the
      same branch.
+   - Syrus Chat can propose operator-agreed feedback on an implemented
+     or approved Job. Operator confirmation → `chat_feedback` follow-up
+     Run on the same branch.
    - `PollPullRequestJob` watches CI checks. Failing check on the
      head SHA → `ci_failure` follow-up Run on the same branch.
    - `PollMergeStateJob` watches mergeability. Unmergeable + we
@@ -640,7 +663,7 @@ Core (the agent loop):
 | `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
 | `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, and `submit_test_plan`. See [MCP sidecar](#mcp-sidecar). |
 | `SyrusChatMcp::Sidecar` | MCP server for chat turns. Exposes repository/job/PR inspection, proposal, scheduling, bookmark, note, and whiteboard tools scoped to the active `ChatSession`. See [Chat sidecar and workspaces](#chat-sidecar-and-workspaces). |
-| `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `ChatFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 
 Git and GitHub:
 
@@ -738,9 +761,17 @@ that chat session. Its tools cover:
   Epic, or PR details.
 - Operator actions: propose GitHub issues, Syrus Jobs, Epics, or an
   Epic with child Jobs; delete proposals; schedule recurring work; and
-  retry, rebase, or cancel Jobs visible to the session.
+  submit chat feedback, retry, rebase, or cancel Jobs visible to the
+  session.
 - Collaboration state: set bookmarks and mutate the chat whiteboard
   through scene/drawing tools.
+
+Most chat actions stop at a confirmation boundary. For
+`submit_chat_feedback`, the MCP tool creates a pending action after the
+agent and operator agree on feedback for an implemented or approved Job.
+Confirming it queues a `chat_feedback` Workflow and stores the feedback
+text in Workflow artifacts; rejecting or cancelling it leaves the Job
+untouched.
 
 `ChatTurnJob` persists assistant text, tool calls, tool results, and MCP
 health events as `ChatMessage` rows, updates cumulative token/cost
