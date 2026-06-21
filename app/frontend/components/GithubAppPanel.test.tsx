@@ -45,6 +45,8 @@ describe("GithubAppPanel", () => {
     renderPanel()
 
     const button = await screen.findByRole("button", { name: /Register GitHub App/ })
+    expect(screen.getByText("The GitHub App enables actions to appear as a bot natively on your repositories.")).toBeInTheDocument()
+    expect(screen.queryByText(/recommended credential/)).not.toBeInTheDocument()
     const form = button.closest("form") as HTMLFormElement
     expect(form).toHaveAttribute("action", "https://github.com/settings/apps/new?state=abc")
     expect(form).toHaveAttribute("method", "post")
@@ -59,6 +61,8 @@ describe("GithubAppPanel", () => {
     const install = await screen.findByRole("link", { name: /Install the Syrus App on GitHub/ })
     expect(install).toHaveAttribute("href", "https://github.com/apps/operator-syrus/installations/new")
     expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument()
+    expect(screen.queryByText(/install now or later/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Open Repositories later/)).not.toBeInTheDocument()
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
   })
 

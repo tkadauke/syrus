@@ -121,9 +121,10 @@ matching credential:
 Set **Max turns** to the cap you want for agent runs. The default is meant
 to prevent runaway loops while still allowing normal implementation work.
 
-Then configure GitHub access. For best results Syrus uses **both** a
-personal access token and a GitHub App, so the **Configure GitHub** step
-requires both — set up one at a time, the token first, then the App:
+Then configure GitHub access. To monitor and interact with GitHub, and to
+act as an independent contributor, Syrus requires both a Personal Access
+Token (PAT) and a custom GitHub App. The **Configure GitHub** step guides
+you through them one at a time, the token first, then the App:
 
 1. **Personal access token.** Syrus links straight to
    [github.com/settings/tokens](https://github.com/settings/tokens), tells you
@@ -138,13 +139,12 @@ requires both — set up one at a time, the token first, then the App:
    back). Then the modal shows an **Install** link: install the App on GitHub
    and choose which repositories it can access. Repositories with an active
    installation use App credentials — actions appear as a bot, with an
-   independent rate limit and auto-refreshing tokens. Installing is recommended
-   but optional (you can install later from a repository's page); until then
-   Syrus uses your personal access token, and the dashboard shows a "GitHub App
-   credentials exist, but no active installations are linked" readiness
-   warning.
+   independent rate limit and auto-refreshing tokens. Install the App on at
+   least one repository before adding that repository to Syrus; without an
+   installation, Syrus cannot operate on the repository.
 
-The GitHub step completes once the token and the App are registered.
+The GitHub step completes once the token and the App are registered, and
+repositories are ready once the App is installed for them.
 
 Syrus records the credential mode on repositories and Jobs so operators
 can tell whether a run used App credentials or PAT fallback.

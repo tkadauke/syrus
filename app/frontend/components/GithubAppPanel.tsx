@@ -65,10 +65,9 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
                 Install the Syrus App on GitHub <span aria-hidden="true">↗</span>
               </a>
             ) : (
-              <span className="text-gray-500 dark:text-gray-400">Open Repositories later to install the App on a specific repo.</span>
+              <span className="text-gray-500 dark:text-gray-400">Install the App from its GitHub settings before adding repositories to Syrus.</span>
             )}
           </li>
-          <li className="text-gray-500 dark:text-gray-400">You can install now or later — the GitHub step is already complete.</li>
         </ol>
         <div className="flex justify-end">
           <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" onClick={onClose} type="button">
@@ -82,8 +81,7 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
   return (
     <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
       <p className="text-gray-600 dark:text-gray-400">
-        The GitHub App is the recommended credential: actions appear as a bot, it has its own rate limit, and it
-        auto-refreshes (no token to rotate). GitHub creates the App from a manifest, then redirects back to Syrus.
+        The GitHub App enables actions to appear as a bot natively on your repositories.
       </p>
       <ol className="space-y-2">
         <li><span className="font-medium text-gray-900 dark:text-gray-100">1.</span> Create the App on GitHub (opens a new tab).</li>

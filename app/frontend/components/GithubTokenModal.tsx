@@ -52,10 +52,12 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="github-title">Connect GitHub</h2>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                For best results Syrus needs <span className="font-medium">both</span> a personal access token and the
-                GitHub App. We'll set them up one at a time.
-              </p>
+              {phase === "pat" ? (
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  To monitor and interact with GitHub, and to act as an independent contributor, Syrus requires both a
+                  Personal Access Token (PAT) and a custom GitHub App.
+                </p>
+              ) : null}
             </div>
             <button
               aria-label="Close"

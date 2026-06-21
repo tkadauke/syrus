@@ -107,7 +107,9 @@ describe("GithubTokenModal", () => {
   it("requires both steps: explains both are needed and starts on the token step", () => {
     renderModal()
 
-    expect(screen.getByText(/Syrus needs/)).toHaveTextContent(/both/)
+    expect(screen.getByText(/To monitor and interact with GitHub/)).toHaveTextContent(
+      "To monitor and interact with GitHub, and to act as an independent contributor, Syrus requires both a Personal Access Token (PAT) and a custom GitHub App."
+    )
     // Both steps are named in the stepper; the token step is active first.
     expect(screen.getByText("Personal access token")).toBeInTheDocument()
     expect(screen.getByText("GitHub App")).toBeInTheDocument()
@@ -140,6 +142,7 @@ describe("GithubTokenModal", () => {
 
     // Token already saved (github_token: true) → straight to the App step.
     expect(await screen.findByRole("button", { name: /Register GitHub App/ })).toBeInTheDocument()
+    expect(screen.queryByText(/To monitor and interact with GitHub/)).not.toBeInTheDocument()
     expect(screen.queryByPlaceholderText("ghp_…")).not.toBeInTheDocument()
   })
 })
