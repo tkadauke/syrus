@@ -15,6 +15,7 @@ export type BootstrapPayload = {
     agent_provider: "claude" | "codex"
     agent_max_turns: number
     theme: "light" | "dark"
+    layout_version: "v1" | "v2"
   } | null
   team_user_count: number
   app: {

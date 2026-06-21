@@ -453,6 +453,7 @@ describe("App", () => {
         expect.objectContaining({ credentials: "same-origin" })
       )
     } finally {
+      fetchSpy.mockRestore()
       script.remove()
     }
   })
@@ -646,6 +647,86 @@ describe("App", () => {
         )
       })
     } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("switches from the classic shell to the new UI without reloading", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ layout_version: "v2" }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const accountNav = await screen.findByRole("navigation", { name: "Account" })
+      fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
+      fireEvent.click(within(accountNav).getByRole("button", { name: "Switch to new UI" }))
+
+      await screen.findByRole("button", { name: "Switch to classic UI" })
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/layout_version",
+        expect.objectContaining({
+          method: "PATCH",
+          credentials: "same-origin",
+          body: JSON.stringify({ layout_version: "v2" })
+        })
+      )
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("switches from the new shell to the classic UI without reloading", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ layout_version: "v1" }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      fireEvent.click(await screen.findByRole("button", { name: "Switch to classic UI" }))
+
+      await screen.findByRole("navigation", { name: "Account" })
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/layout_version",
+        expect.objectContaining({
+          method: "PATCH",
+          credentials: "same-origin",
+          body: JSON.stringify({ layout_version: "v1" })
+        })
+      )
+    } finally {
+      fetchSpy.mockRestore()
       script.remove()
     }
   })
@@ -8374,7 +8455,8 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
       landing_paused: false,
       agent_provider: "claude",
       agent_max_turns: 200,
-      theme: "light"
+      theme: "light",
+      layout_version: "v1"
     },
     team_user_count: 1,
     app: {

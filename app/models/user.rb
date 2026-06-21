@@ -23,6 +23,7 @@ class User < ApplicationRecord
   AGENT_PROVIDERS = %w[ claude codex ].freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
   THEMES = %w[ light dark ].freeze
+  LAYOUT_VERSIONS = %w[ v1 v2 ].freeze
   CLEARABLE_CREDENTIALS = {
     "github_token" => "GitHub token",
     "claude_oauth_token" => "Claude OAuth token",
@@ -123,6 +124,7 @@ class User < ApplicationRecord
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
   validates :agent_provider, presence: true, inclusion: { in: AGENT_PROVIDERS }
   validates :theme, presence: true, inclusion: { in: THEMES }
+  validates :layout_version, presence: true, inclusion: { in: LAYOUT_VERSIONS }
   validates :first_name, :last_name, length: { maximum: 80 }
   validates :github_handle, length: { maximum: 100 }
   validates :profile_bio, length: { maximum: 1000 }

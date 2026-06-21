@@ -32,6 +32,7 @@ per-user/private:
   - app/controllers/api/v1/app/job_pins_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
+  - app/controllers/api/v1/app/layout_version_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
@@ -104,6 +105,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/job_run_commands_controller.rb` | per-user/private | Run commands target jobs found through `Current.user.jobs` and validate agent providers against the current user. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads expose public profile/work summaries through the current user's app session. |
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source use `Current.user.jobs`; timeline is separately admin-only because it exposes run history. |
+| `app/controllers/api/v1/app/layout_version_controller.rb` | per-user/private | Updates only `Current.user.layout_version` for the signed-in operator. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with current-user context | Team profiles include credential-safe user summaries visible to signed-in users; `Current.user` decides whether owner labels and current-user-specific details should be shown. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |
 | `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions use `Current.user.repositories` and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |

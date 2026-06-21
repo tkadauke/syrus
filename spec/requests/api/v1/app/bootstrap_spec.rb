@@ -78,6 +78,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "scheduling_paused" => true,
       "landing_paused" => true,
       "theme" => "dark",
+      "layout_version" => "v1",
       "agent_provider" => "codex",
       "agent_max_turns" => 123
     )
