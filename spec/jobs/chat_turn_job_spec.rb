@@ -33,7 +33,12 @@ RSpec.describe ChatTurnJob do
       "SYRUS_APP_HOST" => "syrus.example.test",
       "SYRUS_ALLOWED_HOSTS" => "syrus.example.test,syrus.internal.test",
       "SYRUS_ASSUME_SSL" => "true",
-      "SYRUS_FORCE_SSL" => "true"
+      "SYRUS_FORCE_SSL" => "true",
+      "SYRUS_SQLITE" => "1",
+      "SYRUS_DATA_ROOT" => "/home/rails/.syrus",
+      "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" => "primary",
+      "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" => "deterministic",
+      "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" => "salt"
     }
     saved = ENV.to_h.slice(*host_env.keys)
     host_env.each { |key, value| ENV[key] = value }

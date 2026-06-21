@@ -25,6 +25,33 @@ require "yaml"
 
 ROOT = File.expand_path("..", __dir__)
 
+# config/database.yml is rendered outside Rails here, but it uses Rails'
+# `present?` helper in its ERB. Keep this script standalone instead of
+# depending on the app bundle just to evaluate that predicate.
+class Object
+  def present?
+    true
+  end
+end
+
+class NilClass
+  def present?
+    false
+  end
+end
+
+class FalseClass
+  def present?
+    false
+  end
+end
+
+class String
+  def present?
+    !strip.empty?
+  end
+end
+
 # SolidQueue allocates a few non-worker threads per process for
 # heartbeat + shutdown supervision. The exact number isn't public
 # API; observed at 2. Bump headroom by another 1 so a single dead
