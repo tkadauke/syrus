@@ -1,3 +1,18 @@
-<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="256" cy="256" r="256" fill="red"/>
+<svg width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Syrus icon" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#f7ead5"/>
+  <circle cx="256" cy="256" r="216" fill="#f1dcc0" stroke="#c9704b" stroke-width="18"/>
+  <circle cx="256" cy="256" r="184" fill="none" stroke="#d9aa82" stroke-width="8" opacity=".72"/>
+
+  <g transform="rotate(-38 256 256)">
+    <path d="M234 116c0-12 10-22 22-22s22 10 22 22v244l-22 58-22-58V116Z" fill="#b94f34"/>
+    <path d="M256 94c12 0 22 10 22 22v42h-44v-42c0-12 10-22 22-22Z" fill="#dc8a58"/>
+    <path d="M244 142h24v218l-12 32-12-32V142Z" fill="#d87349"/>
+    <path d="M234 360h44l-22 58-22-58Z" fill="#7a3428"/>
+    <path d="M244 112h24" stroke="#f2c093" stroke-width="8" stroke-linecap="round"/>
+
+    <path d="M229 166c-43-28-83-28-122 0 30 7 54 21 72 40-29-6-55-1-78 15 39 8 75 26 108 54 8-32 14-68 20-109Z" fill="#c66040"/>
+    <path d="M283 166c43-28 83-28 122 0-30 7-54 21-72 40 29-6 55-1 78 15-39 8-75 26-108 54-8-32-14-68-20-109Z" fill="#c66040"/>
+    <path d="M120 171c35 5 68 22 98 51M392 171c-35 5-68 22-98 51" fill="none" stroke="#f0c49e" stroke-width="8" stroke-linecap="round"/>
+    <path d="M116 221c36 5 68 19 96 43M396 221c-36 5-68 19-96 43" fill="none" stroke="#8f3e30" stroke-width="6" stroke-linecap="round" opacity=".7"/>
+  </g>
 </svg>

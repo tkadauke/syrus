@@ -66,6 +66,32 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include("<title>Syrus</title>")
   end
 
+  it "advertises the branded favicon and PWA manifest assets" do
+    user = Factories.user
+    sign_in_as(user)
+
+    get app_shell_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('<link rel="icon" href="/icon.png" type="image/png">')
+    expect(response.body).to include('<link rel="icon" href="/icon.svg" type="image/svg+xml">')
+    expect(response.body).to include('<link rel="apple-touch-icon" href="/icon-192.png">')
+    expect(response.body).to include('<link rel="manifest" href="/manifest.json">')
+  end
+
+  it "serves PWA icon sizes from distinct branded assets" do
+    get pwa_manifest_path
+
+    expect(response).to have_http_status(:ok)
+    manifest = JSON.parse(response.body)
+    expect(manifest.fetch("icons")).to contain_exactly(
+      include("src" => "/icon-192.png", "type" => "image/png", "sizes" => "192x192"),
+      include("src" => "/icon-512.png", "type" => "image/png", "sizes" => "512x512", "purpose" => "maskable")
+    )
+    expect(manifest.fetch("theme_color")).to eq("#c9704b")
+    expect(manifest.fetch("background_color")).to eq("#f7ead5")
+  end
+
   it "serves nested React routes through the SPA shell" do
     user = Factories.user
     sign_in_as(user)
