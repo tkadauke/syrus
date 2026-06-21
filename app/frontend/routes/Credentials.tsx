@@ -8,10 +8,12 @@ import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
   clearCredential,
+  exchangeClaudeOauth,
   exchangeCodexOauth,
   fetchCredentials,
   revokeApiToken,
   rotateApiToken,
+  startClaudeOauth,
   startCodexOauth,
   testCredential,
   updateCredentials,
@@ -250,7 +252,14 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
         {claudeSelected ? (
           <SecretField
             clearPending={clear.isPending}
-            description={<ClaudeTokenHelp />}
+            description={
+              <ClaudeTokenHelp
+                onConnected={(result) => {
+                  setTestResults((current) => ({ ...current, claude_oauth_token: result }))
+                  onNotice(result.message || "Claude connected.")
+                }}
+              />
+            }
             label="Claude OAuth token"
             name="claude_oauth_token"
             onChange={(value) => setValues({ ...values, claude_oauth_token: value })}
@@ -369,15 +378,119 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
   )
 }
 
-function ClaudeTokenHelp() {
+function ClaudeTokenHelp({ onConnected }: { onConnected: (result: CredentialTestResult) => void }) {
   return (
-    <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
-      Run <code className="font-mono text-gray-700 dark:text-gray-300">claude setup-token</code> on a machine with a browser, then paste the long-lived token it prints. Syrus stores this value and passes it as <code className="font-mono text-gray-700 dark:text-gray-300">CLAUDE_CODE_OAUTH_TOKEN</code> for Claude runs. Do not paste the short-lived token from Claude Code's local credential store. See the{" "}
-      <a className="font-medium text-blue-700 dark:text-blue-300 underline hover:text-blue-600 dark:hover:text-blue-400" href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token" rel="noreferrer" target="_blank">
-        Anthropic authentication docs
-      </a>
-      .
-    </p>
+    <div className="mt-3 space-y-3">
+      <ClaudeOauthConnector onConnected={onConnected} />
+      <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+        You can also run <code className="font-mono text-gray-700 dark:text-gray-300">claude setup-token</code> and paste the long-lived token it prints. Syrus stores this value and passes it as <code className="font-mono text-gray-700 dark:text-gray-300">CLAUDE_CODE_OAUTH_TOKEN</code> for Claude runs. Do not paste the short-lived token from Claude Code's local credential store. See the{" "}
+        <a className="font-medium text-blue-700 dark:text-blue-300 underline hover:text-blue-600 dark:hover:text-blue-400" href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token" rel="noreferrer" target="_blank">
+          Anthropic authentication docs
+        </a>
+        .
+      </p>
+    </div>
+  )
+}
+
+function ClaudeOauthConnector({ onConnected }: { onConnected: (result: CredentialTestResult) => void }) {
+  const queryClient = useQueryClient()
+  const [authStarted, setAuthStarted] = useState(false)
+  const [popupBlocked, setPopupBlocked] = useState<string | null>(null)
+  const [code, setCode] = useState("")
+  const [starting, setStarting] = useState(false)
+  const [exchanging, setExchanging] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [connected, setConnected] = useState<string | null>(null)
+
+  async function authorize() {
+    setError(null)
+    setPopupBlocked(null)
+    setStarting(true)
+    try {
+      const { authorize_url } = await startClaudeOauth()
+      const tab = window.open(authorize_url, "_blank", "noopener,noreferrer")
+      if (!tab) setPopupBlocked(authorize_url)
+      setAuthStarted(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start Claude authorization.")
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  async function connect() {
+    if (code.trim().length === 0) {
+      setError("Paste the code from Claude first.")
+      return
+    }
+
+    setError(null)
+    setExchanging(true)
+    try {
+      const payload = await exchangeClaudeOauth(code.trim())
+      if (payload.credential_test.ok) {
+        await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+        await queryClient.invalidateQueries({ queryKey })
+        setCode("")
+        setConnected(payload.credential_test.message || "Claude connected.")
+        onConnected(payload.credential_test)
+      } else {
+        setError(payload.credential_test.message || "The token Claude returned did not work. Try again.")
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not exchange the code. Try authorizing again.")
+    } finally {
+      setExchanging(false)
+    }
+  }
+
+  return (
+    <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-3 text-xs text-gray-600 dark:text-gray-400">
+      <p>
+        Authorize with Claude, copy the code Claude shows, then paste it here to save a durable OAuth token for Syrus runs.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-blue-300 dark:disabled:bg-blue-900"
+          disabled={starting}
+          onClick={authorize}
+          type="button"
+        >
+          {starting ? "Opening..." : authStarted ? "Reopen Claude authorization" : "Authorize with Claude"}
+        </button>
+        <input
+          aria-label="Authorization code from Claude"
+          autoComplete="off"
+          className="min-w-0 flex-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 font-mono text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-blue-600 disabled:bg-gray-100 dark:disabled:bg-gray-800"
+          disabled={!authStarted}
+          onChange={(event) => setCode(event.target.value)}
+          placeholder="paste code here"
+          spellCheck={false}
+          type="text"
+          value={code}
+        />
+        <button
+          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600"
+          disabled={!authStarted || exchanging || code.trim().length === 0}
+          onClick={connect}
+          type="button"
+        >
+          {exchanging ? "Connecting..." : "Connect"}
+        </button>
+      </div>
+      {popupBlocked ? (
+        <p className="mt-2 text-amber-700 dark:text-amber-300">
+          Popup blocked.{" "}
+          <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
+            Open the authorization page
+          </a>{" "}
+          manually.
+        </p>
+      ) : null}
+      {connected ? <p className="mt-2 text-emerald-700 dark:text-emerald-300">{connected}</p> : null}
+      {error ? <p className="mt-2 text-red-700 dark:text-red-300">{error}</p> : null}
+    </div>
   )
 }
 

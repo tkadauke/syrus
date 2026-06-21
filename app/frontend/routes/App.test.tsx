@@ -4275,10 +4275,24 @@ describe("App", () => {
   })
 
   it("renders the credentials route and updates account settings", async () => {
+    const openSpy = vi.spyOn(window, "open").mockReturnValue({} as Window)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/credentials" && init?.method === "PATCH") {
         return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ name: "Ada Lovelace", message: "Credentials updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/credentials/claude_oauth_start" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ authorize_url: "https://claude.ai/oauth/authorize?state=abc" }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/credentials/claude_oauth_exchange" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          credential_test: {
+            credential: "claude_oauth_token",
+            ok: true,
+            message: "Claude OAuth token is valid.",
+            details: {}
+          }
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -4295,10 +4309,20 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
     expect(await screen.findByText("A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.")).toBeInTheDocument()
     expect(screen.getByText("Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.")).toBeInTheDocument()
+    expect(screen.getByText("Authorize with Claude, copy the code Claude shows, then paste it here to save a durable OAuth token for Syrus runs.")).toBeInTheDocument()
     expect(screen.getByText("claude setup-token")).toBeInTheDocument()
     expect(screen.getByText("CLAUDE_CODE_OAUTH_TOKEN")).toBeInTheDocument()
     expect(screen.getByText(/Do not paste the short-lived token from Claude Code's local credential store/)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Anthropic authentication docs" })).toHaveAttribute("href", "https://code.claude.com/docs/en/authentication#generate-a-long-lived-token")
+    expect(screen.getByLabelText("Authorization code from Claude")).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Authorize with Claude" }))
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith("https://claude.ai/oauth/authorize?state=abc", "_blank", expect.any(String)))
+    await waitFor(() => expect(screen.getByLabelText("Authorization code from Claude")).toBeEnabled())
+    fireEvent.change(screen.getByLabelText("Authorization code from Claude"), { target: { value: "auth-code#state" } })
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }))
+    await waitFor(() => expect(screen.getAllByText("Claude OAuth token is valid.").length).toBeGreaterThan(0))
+    const exchangeCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials/claude_oauth_exchange")
+    expect(JSON.parse(String(exchangeCall?.[1]?.body))).toEqual({ code: "auth-code#state" })
     expect(screen.queryByText("Personal documents")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Google Doc URL")).not.toBeInTheDocument()
     fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Lovelace" } })

@@ -110,8 +110,8 @@ Each user owns their own credentials and agent preferences.
 | --- | --- |
 | GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories |
 | Agent provider | Default provider for new Jobs: `claude` or `codex` |
-| Claude credential | Encrypted long-lived Claude OAuth token from `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN` |
-| Codex credential | Encrypted Codex API key or ChatGPT login tokens, depending on auth mode |
+| Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN` |
+| Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag |
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
 | Scheduling paused | Skips scheduled task firing for that user |
@@ -123,11 +123,14 @@ authenticated login plus token scopes. Claude and Codex tests run short CLI
 auth probes through the same credential paths used by Jobs, so expired or
 mis-shaped agent credentials surface before a downstream run fails.
 
-For Claude Code, generate the token with `claude setup-token` on a
-machine with a browser, then paste the long-lived token it prints into
-the credentials form. Do not copy the short-lived token from Claude
-Code's local credential store; Syrus does not run Claude Code's local
-refresh machinery. See Anthropic's
+For Claude Code, click **Authorize with Claude** in the credentials form,
+approve access in the Claude tab, then paste the short code Claude shows
+back into Syrus. Syrus exchanges that code for a long-lived token and
+tests it before storing it. You can also generate a token with
+`claude setup-token` on a machine with a browser and paste the
+long-lived token directly into the form. Do not copy the short-lived
+token from Claude Code's local credential store; Syrus does not run
+Claude Code's local refresh machinery. See Anthropic's
 [long-lived token documentation](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token).
 
 For Codex ChatGPT login, use **Authorize with ChatGPT** in **My

@@ -109,8 +109,9 @@ matching credential:
   new tab. Approve access, copy the short code Claude shows you, and paste it
   back into the modal — Syrus exchanges it for a long-lived token and tests it
   on the spot. No terminal needed; requires a Claude Pro, Max, Team, or
-  Enterprise plan. (You can also paste a `claude setup-token` value directly in
-  **My credentials**.)
+  Enterprise plan. The same authorization flow is available later in
+  **My credentials**, where you can also paste a `claude setup-token` value
+  directly.
 - **Codex** uses either a Codex API key or ChatGPT login. In ChatGPT
   login mode, **Authorize with ChatGPT** opens the OpenAI authorization
   page in a new tab; paste the returned code and Syrus stores the resulting
