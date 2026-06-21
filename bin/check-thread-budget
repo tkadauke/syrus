@@ -24,6 +24,32 @@ require "yaml"
 
 ROOT = File.expand_path("..", __dir__)
 
+# config/database.yml is shared with Rails and may use Rails-y predicates in
+# ERB. Keep this standalone grader self-contained instead of requiring Rails.
+class Object
+  def present?
+    respond_to?(:empty?) ? !empty? : true
+  end
+end
+
+class NilClass
+  def present?
+    false
+  end
+end
+
+class FalseClass
+  def present?
+    false
+  end
+end
+
+class String
+  def present?
+    !strip.empty?
+  end
+end
+
 # SolidQueue allocates a few non-worker threads per process for
 # heartbeat + shutdown supervision. The exact number isn't public
 # API; observed at 2. Bump headroom by another 1 so a single dead

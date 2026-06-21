@@ -178,9 +178,11 @@ run_docker() {
   port="$(grep -E '^SYRUS_PORT=' .env | cut -d= -f2)"
   echo
   info "Syrus is running at http://localhost:${port:-3000}"
-  info "  logs:  docker compose logs -f web worker   (or docker-compose ...)"
-  info "  stop:  docker compose down"
-  info "The first signup becomes the admin."
+  info "Next steps:"
+  info "  1. Open http://localhost:${port:-3000} and create the first admin account."
+  info "  2. Complete /onboarding: GitHub credentials, agent, first repository."
+  info "  3. Logs: docker compose logs -f web worker   Stop: docker compose down"
+  info "  4. Read README.md or website docs for next steps."
 }
 
 # ===========================================================================
