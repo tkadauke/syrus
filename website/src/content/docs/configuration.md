@@ -100,7 +100,7 @@ Each user owns their own credentials and agent preferences.
 | GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories |
 | Agent provider | Default provider for new Jobs: `claude` or `codex` |
 | Claude credential | Encrypted long-lived Claude OAuth token from `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN` |
-| Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode |
+| Codex credential | Encrypted Codex API key or ChatGPT login tokens, depending on auth mode |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag |
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
 | Scheduling paused | Skips scheduled task firing for that user |
@@ -118,6 +118,12 @@ the credentials form. Do not copy the short-lived token from Claude
 Code's local credential store; Syrus does not run Claude Code's local
 refresh machinery. See Anthropic's
 [long-lived token documentation](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token).
+
+For Codex ChatGPT login, use **Authorize with ChatGPT** in **My
+credentials**. Syrus opens OpenAI's authorization page, accepts the pasted
+code, exchanges it for Codex tokens, and stores those tokens encrypted as
+Codex auth JSON. The manual `auth.json` textarea remains available for
+operators who already have a local Codex credential file.
 
 Provider selection resolves from most specific to least specific:
 

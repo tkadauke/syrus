@@ -283,6 +283,57 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("error", "code")).to eq("oauth_not_started")
   end
 
+  it "starts the Codex OAuth flow using the CLI paste callback" do
+    sign_in_as(user)
+
+    post "/api/v1/app/credentials/codex_oauth_start"
+
+    expect(response).to have_http_status(:ok)
+    authorize_url = parse_body["authorize_url"]
+    expect(authorize_url).to start_with(CodexOauth::AUTHORIZE_URL)
+    params = Rack::Utils.parse_query(URI(authorize_url).query)
+    expect(params["redirect_uri"]).to eq(CodexOauth::PASTE_REDIRECT_URI)
+    expect(params["code_challenge_method"]).to eq("S256")
+    expect(params["scope"]).to eq(CodexOauth::SCOPE)
+  end
+
+  it "exchanges a pasted Codex code, saves auth.json, switches mode, and tests it" do
+    sign_in_as(user)
+    post "/api/v1/app/credentials/codex_oauth_start"
+    state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
+
+    stub_request(:post, CodexOauth::TOKEN_URL)
+      .to_return(
+        status: 200,
+        body: {
+          id_token: "id-token-new",
+          access_token: "access-token-new",
+          refresh_token: "refresh-token-new"
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+    probe = CredentialProbe::Result.new(credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {})
+    expect(CredentialProbe).to receive(:call).with(user: user, credential: "codex_auth_json").and_return(probe)
+
+    post "/api/v1/app/credentials/codex_oauth_exchange", params: { code: "auth-code##{state}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("credential_test", "ok")).to be true
+    expect(user.reload.codex_auth_mode).to eq("chatgpt_login")
+    saved = JSON.parse(user.codex_auth_json)
+    expect(saved["auth_mode"]).to eq("chatgpt")
+    expect(saved.dig("tokens", "access_token")).to eq("access-token-new")
+  end
+
+  it "rejects a Codex exchange that was never started" do
+    sign_in_as(user)
+
+    post "/api/v1/app/credentials/codex_oauth_exchange", params: { code: "x" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("oauth_not_started")
+  end
+
   it "uploads and deletes personal documents" do
     sign_in_as(user)
 

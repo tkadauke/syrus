@@ -7,9 +7,11 @@ import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
   clearCredential,
+  exchangeCodexOauth,
   fetchCredentials,
   revokeApiToken,
   rotateApiToken,
+  startCodexOauth,
   testCredential,
   updateCredentials,
   type CredentialTestResult,
@@ -81,6 +83,9 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
   const [testResults, setTestResults] = useState<Record<string, CredentialTestResult>>({})
+  const [codexOauthCode, setCodexOauthCode] = useState("")
+  const [codexOauthStarted, setCodexOauthStarted] = useState(false)
+  const [codexOauthPopupBlocked, setCodexOauthPopupBlocked] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => updateCredentials(values),
     onSuccess: (updated) => {
@@ -113,6 +118,27 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
       onNotice(updated.message || "Credential tested.")
     }
   })
+  const startCodex = useMutation({
+    mutationFn: startCodexOauth,
+    onSuccess: (started) => {
+      const tab = window.open(started.authorize_url, "_blank", "noopener,noreferrer")
+      setCodexOauthPopupBlocked(tab ? null : started.authorize_url)
+      setCodexOauthStarted(true)
+      onNotice(null)
+    }
+  })
+  const exchangeCodex = useMutation({
+    mutationFn: () => exchangeCodexOauth(codexOauthCode.trim()),
+    onSuccess: async (updated) => {
+      setTestResults((current) => ({
+        ...current,
+        [updated.credential_test.credential]: updated.credential_test
+      }))
+      await queryClient.invalidateQueries({ queryKey })
+      setCodexOauthCode("")
+      onNotice(updated.message || "ChatGPT authorization saved.")
+    }
+  })
 
   useEffect(() => {
     setValues(inputFromPayload(payload))
@@ -137,6 +163,8 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
         {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
         {clear.isError ? <PanelMessage tone="error">{errorMessage(clear.error, "Unable to clear credential.")}</PanelMessage> : null}
         {test.isError ? <PanelMessage tone="error">{errorMessage(test.error, "Unable to test credential.")}</PanelMessage> : null}
+        {startCodex.isError ? <PanelMessage tone="error">{errorMessage(startCodex.error, "Unable to start ChatGPT authorization.")}</PanelMessage> : null}
+        {exchangeCodex.isError ? <PanelMessage tone="error">{errorMessage(exchangeCodex.error, "Unable to exchange ChatGPT authorization code.")}</PanelMessage> : null}
 
         <Field label="Display name">
           <input className={inputClass()} onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
@@ -226,18 +254,23 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
         ) : null}
 
         {codexAuthJsonSelected ? (
-          <SecretTextArea
+          <CodexChatGptLogin
+            authCode={codexOauthCode}
+            authStarted={codexOauthStarted}
             clearPending={clear.isPending}
-            label="Codex ChatGPT auth.json"
-            name="codex_auth_json"
-            onChange={(value) => setValues({ ...values, codex_auth_json: value })}
+            exchangePending={exchangeCodex.isPending}
+            manualValue={values.codex_auth_json}
+            onAuthorize={() => startCodex.mutate()}
             onClear={() => clear.mutate("codex_auth_json")}
+            onExchange={() => exchangeCodex.mutate()}
+            onManualChange={(value) => setValues({ ...values, codex_auth_json: value })}
+            onTest={() => test.mutate("codex_auth_json")}
+            onCodeChange={setCodexOauthCode}
+            popupBlockedUrl={codexOauthPopupBlocked}
             set={payload.credential_status.codex_auth_json}
+            startPending={startCodex.isPending}
             testPending={test.isPending && testingCredential === "codex_auth_json"}
             testResult={testResults.codex_auth_json}
-            unsaved={values.codex_auth_json.trim().length > 0}
-            onTest={() => test.mutate("codex_auth_json")}
-            value={values.codex_auth_json}
           />
         ) : null}
 
@@ -308,6 +341,109 @@ function ClaudeTokenHelp() {
       </a>
       .
     </p>
+  )
+}
+
+function CodexChatGptLogin({
+  authCode,
+  authStarted,
+  manualValue,
+  set,
+  popupBlockedUrl,
+  startPending,
+  exchangePending,
+  clearPending,
+  testPending,
+  testResult,
+  onAuthorize,
+  onExchange,
+  onCodeChange,
+  onManualChange,
+  onClear,
+  onTest
+}: {
+  authCode: string
+  authStarted: boolean
+  manualValue: string
+  set: boolean
+  popupBlockedUrl: string | null
+  startPending: boolean
+  exchangePending: boolean
+  clearPending: boolean
+  testPending: boolean
+  testResult?: CredentialTestResult
+  onAuthorize: () => void
+  onExchange: () => void
+  onCodeChange: (value: string) => void
+  onManualChange: (value: string) => void
+  onClear: () => void
+  onTest: () => void
+}) {
+  const manualUnsaved = manualValue.trim().length > 0
+  const exchangeDisabled = exchangePending || authCode.trim().length === 0
+
+  return (
+    <div className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <div>Codex ChatGPT login</div>
+      <StatusLine set={set} />
+      <div className="mt-3 space-y-3 rounded border border-gray-200 dark:border-gray-700 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-2 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700"
+            disabled={startPending}
+            onClick={onAuthorize}
+            type="button"
+          >
+            {startPending ? "Opening..." : "Authorize with ChatGPT"}
+          </button>
+          {set ? (
+            <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
+              Clear
+            </button>
+          ) : null}
+          <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600" disabled={!set || manualUnsaved || testPending} onClick={onTest} type="button">
+            {testPending ? "Testing..." : "Test"}
+          </button>
+        </div>
+        {popupBlockedUrl ? (
+          <p className="text-xs text-amber-600 dark:text-amber-300">
+            Popup blocked.{" "}
+            <a className="font-medium underline" href={popupBlockedUrl} rel="noreferrer" target="_blank">
+              Open authorization
+            </a>
+            .
+          </p>
+        ) : null}
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <input
+            aria-label="ChatGPT authorization code"
+            autoComplete="off"
+            className={inputClass()}
+            onChange={(event) => onCodeChange(event.target.value)}
+            placeholder={authStarted ? "Paste the code from OpenAI" : "Authorize first, then paste the code"}
+            type="text"
+            value={authCode}
+          />
+          <button
+            className="rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600"
+            disabled={exchangeDisabled}
+            onClick={onExchange}
+            type="button"
+          >
+            {exchangePending ? "Connecting..." : "Connect"}
+          </button>
+        </div>
+        <CredentialTestLine result={testResult} unsaved={manualUnsaved} />
+      </div>
+
+      <details className="mt-3 rounded border border-gray-200 dark:border-gray-700 p-3">
+        <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">Paste auth.json manually</summary>
+        <div className="mt-3 space-y-2">
+          <textarea aria-label="Codex ChatGPT auth.json" className={`${inputClass()} font-mono text-xs`} name="codex_auth_json" onChange={(event) => onManualChange(event.target.value)} rows={6} value={manualValue} />
+          <p className="text-xs text-gray-500 dark:text-gray-400">Save after pasting a local Codex auth.json value.</p>
+        </div>
+      </details>
+    </div>
   )
 }
 

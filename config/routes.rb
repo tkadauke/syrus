@@ -38,6 +38,8 @@ Rails.application.routes.draw do
           post :test_claude_cli
           post :claude_oauth_start
           post :claude_oauth_exchange
+          post :codex_oauth_start
+          post :codex_oauth_exchange
           post :rotate_api_token
           delete :revoke_api_token
           resources :documents, only: %i[ index create destroy ], controller: "credentials/documents"

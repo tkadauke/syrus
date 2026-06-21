@@ -108,6 +108,38 @@ module Api
           render_error("oauth_exchange_failed", e.message, status: :unprocessable_content)
         end
 
+        def codex_oauth_start
+          flow = CodexOauth.begin(redirect_uri: CodexOauth::PASTE_REDIRECT_URI)
+          session[:codex_oauth] = {
+            "verifier" => flow.verifier,
+            "state" => flow.state,
+            "redirect_uri" => flow.redirect_uri
+          }
+          render json: { authorize_url: flow.authorize_url }
+        end
+
+        def codex_oauth_exchange
+          stash = session[:codex_oauth].to_h
+          if stash["verifier"].blank?
+            render_error("oauth_not_started", "Start the ChatGPT authorization first.", status: :unprocessable_content)
+            return
+          end
+
+          auth_json = CodexOauth.exchange(
+            code: params[:code].to_s,
+            verifier: stash["verifier"],
+            state: stash["state"],
+            redirect_uri: stash["redirect_uri"]
+          )
+          Current.user.update!(codex_auth_mode: "chatgpt_login", codex_auth_json: auth_json)
+          session.delete(:codex_oauth)
+
+          probe = CredentialProbe.call(user: Current.user, credential: "codex_auth_json")
+          render json: { credential_test: probe.as_json, message: probe.message }
+        rescue CodexOauth::Error => e
+          render_error("oauth_exchange_failed", e.message, status: :unprocessable_content)
+        end
+
         def rotate_api_token
           unless Current.user.admin?
             render_error("forbidden", "API token is admin-only.", status: :forbidden)

@@ -111,8 +111,11 @@ matching credential:
   on the spot. No terminal needed; requires a Claude Pro, Max, Team, or
   Enterprise plan. (You can also paste a `claude setup-token` value directly in
   **My credentials**.)
-- **Codex** uses either a Codex API key or ChatGPT `auth.json`,
-  depending on the selected Codex authentication mode.
+- **Codex** uses either a Codex API key or ChatGPT login. In ChatGPT
+  login mode, **Authorize with ChatGPT** opens the OpenAI authorization
+  page in a new tab; paste the returned code and Syrus stores the resulting
+  Codex auth JSON. You can still paste an existing local `auth.json`
+  manually from **My credentials**.
 
 Set **Max turns** to the cap you want for agent runs. The default is meant
 to prevent runaway loops while still allowing normal implementation work.

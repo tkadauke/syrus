@@ -4383,6 +4383,66 @@ describe("App", () => {
     expect(screen.getByText(/Scopes: repo, workflow/)).toBeInTheDocument()
   })
 
+  it("authorizes Codex ChatGPT login from the credentials route", async () => {
+    const openSpy = vi.spyOn(window, "open").mockReturnValue({} as Window)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/credentials/codex_oauth_start" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc" }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/credentials/codex_oauth_exchange" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          credential_test: {
+            credential: "codex_auth_json",
+            ok: true,
+            message: "Codex ChatGPT auth.json is valid.",
+            details: {}
+          },
+          message: "Codex ChatGPT auth.json is valid."
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ codexAuthJson: true })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/credentials/edit"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+    fireEvent.change(await screen.findByLabelText("Agent provider"), { target: { value: "codex" } })
+    fireEvent.change(await screen.findByLabelText("Codex authentication"), { target: { value: "chatgpt_login" } })
+    fireEvent.click(await screen.findByRole("button", { name: "Authorize with ChatGPT" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/credentials/codex_oauth_start",
+        expect.objectContaining({ method: "POST", credentials: "same-origin" })
+      )
+    })
+    expect(openSpy).toHaveBeenCalledWith("https://auth.openai.com/oauth/authorize?state=abc", "_blank", "noopener,noreferrer")
+
+    fireEvent.change(screen.getByLabelText("ChatGPT authorization code"), { target: { value: "code#abc" } })
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/credentials/codex_oauth_exchange",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({ code: "code#abc" })
+        })
+      )
+    })
+    expect((await screen.findAllByText("Codex ChatGPT auth.json is valid.")).length).toBeGreaterThan(0)
+    expect(screen.getByText("Paste auth.json manually")).toBeInTheDocument()
+  })
+
   it("renders /settings as the credentials route without admin links", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -8685,6 +8745,9 @@ function credentialsPayload(overrides: {
   apiToken?: boolean
   newApiToken?: string
   message?: string
+  agentProvider?: string
+  codexAuthMode?: string
+  codexAuthJson?: boolean
 } = {}) {
   return {
     user: {
@@ -8700,8 +8763,8 @@ function credentialsPayload(overrides: {
       display_name: overrides.name ?? "Operator",
       github_handle: "operator",
       admin: true,
-      agent_provider: "claude",
-      codex_auth_mode: "api_key",
+      agent_provider: overrides.agentProvider ?? "claude",
+      codex_auth_mode: overrides.codexAuthMode ?? "api_key",
       agent_max_turns: 200,
       scheduling_paused: false,
       auto_approve_mode: "never"
@@ -8710,7 +8773,7 @@ function credentialsPayload(overrides: {
       github_token: true,
       claude_oauth_token: true,
       codex_api_key: false,
-      codex_auth_json: false,
+      codex_auth_json: overrides.codexAuthJson ?? false,
       api_token: overrides.apiToken ?? false
     },
     github_rate_limit: {
