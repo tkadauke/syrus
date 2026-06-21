@@ -57,15 +57,16 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
     }
   }
 
-  async function connect() {
-    if (code.trim().length === 0) {
+  async function connect(codeOverride?: string) {
+    const codeToExchange = (codeOverride ?? code).trim()
+    if (codeToExchange.length === 0) {
       setError("Paste the code from Claude first.")
       return
     }
     setError(null)
     setExchanging(true)
     try {
-      const payload = await exchangeClaudeOauth(code.trim())
+      const payload = await exchangeClaudeOauth(codeToExchange)
       if (payload.credential_test.ok) {
         await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
         await queryClient.invalidateQueries({ queryKey: ["credentials"] })
@@ -79,6 +80,15 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
     } finally {
       setExchanging(false)
     }
+  }
+
+  function pasteAndConnect(event: React.ClipboardEvent<HTMLInputElement>) {
+    const pastedCode = event.clipboardData.getData("text").trim()
+    if (!authStarted || pastedCode.length === 0) return
+
+    event.preventDefault()
+    setCode(pastedCode)
+    setTimeout(() => connect(pastedCode), 0)
   }
 
   const ambientReady = preflight.status === "done" && preflight.result.ok
@@ -199,6 +209,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                       className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 px-3 py-2 font-mono text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       disabled={!authStarted}
                       onChange={(event) => setCode(event.target.value)}
+                      onPaste={pasteAndConnect}
                       placeholder="paste code here"
                       spellCheck={false}
                       type="text"
@@ -221,7 +232,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                 <button
                   className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                   disabled={!authStarted || exchanging || code.trim().length === 0}
-                  onClick={connect}
+                  onClick={() => connect()}
                   type="button"
                 >
                   {exchanging ? (

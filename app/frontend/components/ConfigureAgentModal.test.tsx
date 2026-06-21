@@ -88,6 +88,30 @@ describe("ConfigureAgentModal", () => {
     expect(JSON.parse(exchangeCall?.[1]?.body as string)).toEqual({ code: "the-code#state" })
   })
 
+  it("auto-exchanges the authorization code when pasted after authorization starts", async () => {
+    vi.spyOn(window, "open").mockReturnValue({} as Window)
+    const fetchSpy = mockRoutes({ exchange: () => jsonResponse({ credential_test: tokenValid }) })
+    const onSaved = vi.fn()
+    renderModal({ onSaved })
+
+    await waitFor(() => expect(screen.queryByText(/Checking for an existing Claude login/)).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: /Authorize with Claude/ }))
+    const input = await screen.findByPlaceholderText("paste code here")
+    await waitFor(() => expect(input).toBeEnabled())
+
+    fireEvent.paste(input, {
+      clipboardData: {
+        getData: () => "  pasted-code#state  "
+      }
+    })
+
+    await waitFor(() => expect(screen.getByText("Claude OAuth token is valid.")).toBeInTheDocument())
+    expect(onSaved).toHaveBeenCalledTimes(1)
+
+    const exchangeCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/claude_oauth_exchange"))
+    expect(JSON.parse(exchangeCall?.[1]?.body as string)).toEqual({ code: "pasted-code#state" })
+  })
+
   it("surfaces an exchange error and stays open", async () => {
     vi.spyOn(window, "open").mockReturnValue({} as Window)
     mockRoutes({ exchange: () => jsonResponse({ error: { message: "Code expired." } }, 422) })
