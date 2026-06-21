@@ -132,6 +132,12 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Stop requested.")
         end
 
+        def mark_read
+          find_chat_session.update!(last_read_at: Time.current)
+
+          head :no_content
+        end
+
         def enqueue_message
           chat_session = find_chat_session
           text = message_text
@@ -383,7 +389,8 @@ module Api
             .map do |chat_session|
             chat_json(chat_session).merge(
               current: chat_session.id == current_chat_session.id,
-              last_message_at: chat_session.last_message_at&.iso8601
+              last_message_at: chat_session.last_message_at&.iso8601,
+              unread: chat_unread?(chat_session)
             )
           end
         end
@@ -396,10 +403,16 @@ module Api
             .map do |chat_session|
             chat_json(chat_session).merge(
               last_message_at: chat_session.last_message_at&.iso8601,
+              unread: chat_unread?(chat_session),
               created_at: chat_session.created_at.iso8601,
               updated_at: chat_session.updated_at.iso8601
             )
           end
+        end
+
+        def chat_unread?(chat_session)
+          chat_session.last_message_at.present? &&
+            (chat_session.last_read_at.blank? || chat_session.last_message_at > chat_session.last_read_at)
         end
 
         def pending_actions_json(chat_session)

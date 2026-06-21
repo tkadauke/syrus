@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_21_203032) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_21_212615) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -207,6 +207,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_203032) do
     t.integer "cumulative_input_tokens", default: 0, null: false
     t.integer "cumulative_output_tokens", default: 0, null: false
     t.datetime "last_message_at"
+    t.datetime "last_read_at"
     t.boolean "onboarding", default: false, null: false
     t.datetime "stop_requested_at"
     t.string "title"

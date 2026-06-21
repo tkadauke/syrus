@@ -45,17 +45,20 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     sign_in_as(user)
     repository
     other_repo = Factories.repository(user: user, owner: "acme", name: "api")
+    read_at = 3.hours.ago
     current_chat = ChatSession.create!(
       user: user,
       repository: repository,
       title: "Planning open source release",
-      last_message_at: 2.hours.ago
+      last_message_at: 2.hours.ago,
+      last_read_at: read_at
     )
     older_chat = ChatSession.create!(
       user: user,
       repository: other_repo,
       title: "Auth refactor discussion",
-      last_message_at: 1.day.ago
+      last_message_at: 1.day.ago,
+      last_read_at: Time.current
     )
     ChatSession.create!(user: Factories.user, title: "Foreign chat", last_message_at: Time.current)
 
@@ -70,10 +73,24 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["chats"].map { |chat| chat["id"] }).to eq([ current_chat.id, older_chat.id ])
     expect(body["chats"].first).to include(
       "title" => "Planning open source release",
-      "repository" => include("id" => repository.id, "slug" => "acme/widgets")
+      "repository" => include("id" => repository.id, "slug" => "acme/widgets"),
+      "unread" => true
     )
+    expect(body["chats"].second).to include("unread" => false)
     expect(body["chats"].first["last_message_at"]).to be_present
     expect(body.to_s).not_to include("Foreign chat")
+  end
+
+  it "marks a chat read for the signed-in user" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current, last_read_at: nil)
+    foreign_chat = ChatSession.create!(user: Factories.user, last_message_at: Time.current, last_read_at: nil)
+
+    patch "/api/v1/app/chats/#{chat.id}/mark_read"
+
+    expect(response).to have_http_status(:no_content)
+    expect(chat.reload.last_read_at).to be_present
+    expect(foreign_chat.reload.last_read_at).to be_nil
   end
 
   it "creates a fresh chat with an optional repository attachment" do
@@ -419,7 +436,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       repository: repository,
       title: "Middle",
       created_at: 2.days.ago,
-      last_message_at: 1.day.ago
+      last_message_at: 1.day.ago,
+      last_read_at: Time.current
     )
     newest_chat = ChatSession.create!(
       user: user,
@@ -435,6 +453,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     body = parse_body
     expect(body["recent_chats"].map { |chat| chat.fetch("id") }).to eq([ newest_chat.id, middle_chat.id, current_chat.id ])
     expect(body["recent_chats"].map { |chat| chat.fetch("current") }).to eq([ false, false, true ])
+    expect(body["recent_chats"].map { |chat| chat.fetch("unread") }).to eq([ false, false, true ])
   end
 
   it "reports a running chat agent process in the app payload" do

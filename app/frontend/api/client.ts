@@ -38,6 +38,8 @@ export async function getJson<T>(path: string, options: { signal?: AbortSignal }
     })
   }
 
+  if (response.status === 204) return undefined as T
+
   return response.json() as Promise<T>
 }
 
@@ -82,6 +84,8 @@ export async function postForm<T>(path: string, body: FormData): Promise<T> {
     })
   }
 
+  if (response.status === 204) return undefined as T
+
   return response.json() as Promise<T>
 }
 
@@ -116,6 +120,8 @@ async function writeJson<T>(path: string, method: "POST" | "PATCH" | "DELETE", b
       code: payload.error?.code
     })
   }
+
+  if (response.status === 204) return undefined as T
 
   return response.json() as Promise<T>
 }

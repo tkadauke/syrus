@@ -886,6 +886,12 @@ describe("App", () => {
       if (url.endsWith("/api/v1/app/chats/onboarding") && (init as RequestInit)?.method === "POST") {
         return new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/5", chat: {} }), { status: 201, headers: { "Content-Type": "application/json" } })
       }
+      if (url.endsWith("/api/v1/app/chats/5/mark_read") && (init as RequestInit)?.method === "PATCH") {
+        return new Response(null, { status: 204 })
+      }
+      if (url.endsWith("/api/v1/app/chats/5")) {
+        return new Response(JSON.stringify(chatPayload({ id: 5, chatPath: "/chats/5" })), { status: 200, headers: { "Content-Type": "application/json" } })
+      }
       if (url.endsWith("/api/v1/app/bootstrap")) {
         return new Response(JSON.stringify(started), { status: 200, headers: { "Content-Type": "application/json" } })
       }
@@ -7065,6 +7071,7 @@ describe("App", () => {
   })
 
   it("renders a chat and sends a message from the app API", async () => {
+    const invalidateSpy = vi.spyOn(QueryClient.prototype, "invalidateQueries")
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
@@ -7082,6 +7089,9 @@ describe("App", () => {
           ],
           turnInFlight: true
         })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
       }
 
       return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -7158,6 +7168,12 @@ describe("App", () => {
     expect(screen.getByText("Now inspect proposals").closest(".chat-prose")).toBeNull()
     expect(screen.getByText("Now inspect proposals")).toHaveClass("whitespace-pre-wrap", "dark:bg-blue-500")
     expect(screen.queryByText("Message sent.")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/mark_read", expect.objectContaining({ method: "PATCH" }))
+    })
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["recent-chats"] })
+    })
   })
 
   it("renders chat tabs above the chat panel on mobile", async () => {
@@ -9890,6 +9906,8 @@ function jobSourcePayload(overrides: { withFile?: boolean } = {}) {
 }
 
 function chatPayload(overrides: {
+  id?: number
+  chatPath?: string
   message?: string
   messages?: Array<Record<string, unknown>>
   queuedMessages?: Array<Record<string, unknown>>
@@ -9900,10 +9918,10 @@ function chatPayload(overrides: {
   return {
     message: overrides.message,
     chat: {
-      id: 8,
+      id: overrides.id ?? 8,
       title: "Aqueduct planning",
       title_pending: false,
-      chat_path: "/chats/8",
+      chat_path: overrides.chatPath ?? "/chats/8",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
       stop_requested_at: null,
       cumulative_input_tokens: 12400,
@@ -9941,7 +9959,8 @@ function chatPayload(overrides: {
         cumulative_output_tokens: 3200,
         cumulative_cost_usd: 0.0123,
         current: true,
-        last_message_at: "2026-06-01T10:00:00Z"
+        last_message_at: "2026-06-01T10:00:00Z",
+        unread: false
       },
       {
         id: 4,
@@ -9954,7 +9973,8 @@ function chatPayload(overrides: {
         cumulative_output_tokens: 1000,
         cumulative_cost_usd: 0.001,
         current: false,
-        last_message_at: "2026-05-31T10:00:00Z"
+        last_message_at: "2026-05-31T10:00:00Z",
+        unread: true
       }
     ],
     pending_actions: [],

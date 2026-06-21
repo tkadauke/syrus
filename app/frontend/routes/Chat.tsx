@@ -20,6 +20,7 @@ import {
   fetchChat,
   fetchChatMessages,
   fetchChatWhiteboard,
+  markChatRead,
   patchChatWhiteboard,
   rejectChatProposal,
   sendChatMessage,
@@ -65,6 +66,7 @@ export function ChatRoute() {
   const params = useParams()
   const location = useLocation()
   const id = params.id || ""
+  const queryClient = useQueryClient()
   const queryKey = chatQueryKey(id, location.search)
   const prefix = routePrefix(location.pathname)
   const viewportStyle = useChatVisualViewportStyle()
@@ -73,6 +75,14 @@ export function ChatRoute() {
     queryFn: () => fetchChat(id, location.search),
     enabled: id.length > 0
   })
+
+  useEffect(() => {
+    if (!id) return
+
+    void markChatRead(id).then(() => {
+      void queryClient.invalidateQueries({ queryKey: ["recent-chats"] })
+    }).catch(() => undefined)
+  }, [id, queryClient])
 
   return (
     <main
