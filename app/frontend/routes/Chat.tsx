@@ -1675,7 +1675,7 @@ function AddAttachment({ payload, prefix, queryKey, onNotice }: { payload: ChatP
 function UsageOverlay({ payload }: { payload: ChatPayload }) {
   return (
     <p className="pointer-events-none absolute left-0 right-0 top-0 border-b border-gray-100 bg-white/95 px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950/95 dark:text-gray-400">
-      Tokens: {formatThousands(payload.chat.cumulative_input_tokens)}k in / {formatThousands(payload.chat.cumulative_output_tokens)}k out · {formatCurrency(payload.chat.cumulative_cost_usd)}
+      Tokens: {formatTokenCount(payload.chat.cumulative_input_tokens)} in / {formatTokenCount(payload.chat.cumulative_output_tokens)} out · {formatCurrency(payload.chat.cumulative_cost_usd)}
     </p>
   )
 }
@@ -1756,9 +1756,12 @@ function chatDisplayTitle(chat: Pick<ChatNavRecord, "id" | "title" | "title_pend
   return chat.title || chat.repository?.slug || `Chat #${chat.id}`
 }
 
-function formatThousands(value: number) {
+function formatTokenCount(value: number) {
+  if (value < 1000) return new Intl.NumberFormat("en-US").format(value)
+
   const thousands = value / 1000
-  return Number.isInteger(thousands) ? String(thousands) : thousands.toFixed(1).replace(/\.0$/, "")
+  const compact = Number.isInteger(thousands) ? String(thousands) : thousands.toFixed(1).replace(/\.0$/, "")
+  return `${compact}k`
 }
 
 function formatCurrency(value: number, digits = 4) {

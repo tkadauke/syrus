@@ -7131,6 +7131,26 @@ describe("App", () => {
     }
   })
 
+  it("renders low chat token totals without rounding them down to 0k", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload({
+        cumulativeInputTokens: 12,
+        cumulativeOutputTokens: 5,
+        cumulativeCostUsd: 0.004321
+      })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Tokens: 12 in / 5 out · $0.0043")).toBeInTheDocument()
+  })
+
   it("resizes the chat shell from the visual viewport when the mobile keyboard opens", async () => {
     const viewport = stubVisualViewport(720)
     vi.spyOn(window, "fetch").mockResolvedValue(
@@ -9811,6 +9831,9 @@ function chatPayload(overrides: {
   message?: string
   messages?: Array<Record<string, unknown>>
   queuedMessages?: Array<Record<string, unknown>>
+  cumulativeInputTokens?: number
+  cumulativeOutputTokens?: number
+  cumulativeCostUsd?: number
   turnInFlight?: boolean
   agentBusy?: boolean
   hasMoreOlder?: boolean
@@ -9824,9 +9847,9 @@ function chatPayload(overrides: {
       chat_path: "/chats/8",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
       stop_requested_at: null,
-      cumulative_input_tokens: 12400,
-      cumulative_output_tokens: 3200,
-      cumulative_cost_usd: 0.0123
+      cumulative_input_tokens: overrides.cumulativeInputTokens ?? 12400,
+      cumulative_output_tokens: overrides.cumulativeOutputTokens ?? 3200,
+      cumulative_cost_usd: overrides.cumulativeCostUsd ?? 0.0123
     },
     chat_available: true,
     turn_in_flight: overrides.turnInFlight ?? false,
