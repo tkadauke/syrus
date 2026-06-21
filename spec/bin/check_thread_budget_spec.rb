@@ -25,6 +25,17 @@ RSpec.describe "bin/check-thread-budget" do
     end
   end
 
+  it "renders Rails-style config ERB before checking queue thread budget" do
+    stdout, stderr, status = spawn_clean(
+      "HOME" => ENV.fetch("HOME"),
+      "PATH" => ENV.fetch("PATH")
+    )
+
+    expect(status).to be_success, "expected success, got #{status.exitstatus}: stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+    expect(stdout).to include("[check-thread-budget] ok")
+    expect(stderr).to be_empty
+  end
+
   it "renders Rails-style database.yml ERB outside Rails in a fresh process" do
     stdout, stderr, status = spawn_clean(
       "HOME" => ENV.fetch("HOME"),
