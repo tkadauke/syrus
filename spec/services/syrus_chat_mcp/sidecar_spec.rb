@@ -17,7 +17,12 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::ProposeEpicWithJobsTool,
         SyrusChatMcp::ListProposalsTool,
         SyrusChatMcp::DeleteProposalTool,
+        SyrusChatMcp::ListEpicsTool,
         SyrusChatMcp::ReadEpicTool,
+        SyrusChatMcp::StartEpicTool,
+        SyrusChatMcp::MoveEpicToBacklogTool,
+        SyrusChatMcp::ArchiveEpicTool,
+        SyrusChatMcp::UpdateEpicTool,
         SyrusChatMcp::ReadJobTool,
         SyrusChatMcp::ListJobWorkflowsTool,
         SyrusChatMcp::ReadWorkflowTool,
@@ -87,7 +92,12 @@ RSpec.describe SyrusChatMcp::Sidecar do
         propose_epic_with_jobs
         list_proposals
         delete_proposal
+        list_epics
         read_epic
+        start_epic
+        move_epic_to_backlog
+        archive_epic
+        update_epic
         read_job
         list_job_workflows
         read_workflow
