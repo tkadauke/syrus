@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-19._
+_Last reviewed: 2026-06-20._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -258,6 +258,19 @@ preference (`light` or `dark`) returned in the bootstrap payload and
 updated through `PATCH /api/v1/app/theme`. The first user to sign up is
 auto-promoted to admin (bootstrap convenience, not a core architectural
 concern).
+
+First-run setup is also user-scoped. `AppApi::SetupStatus` feeds the
+React `/onboarding` route and root/navigation guards; `App::SetupStatus`
+feeds older app payload surfaces that still expect setup summaries. The
+current onboarding contract is: admin/account access, GitHub credentials
+ready (PAT plus registered GitHub App), selected agent provider
+configured, at least one active repository, onboarding chat started, and
+then the first Epic landed. `User#first_run_setup_complete?` delegates to
+`first_epic_landed?`, so setup is not complete merely because a Job
+exists or a single PR succeeded; the first Epic has to reach `done`.
+`User#onboarding_chat` is the durable chat session that unlocks the rest
+of the app chrome and becomes the brand-link target until setup
+finishes.
 
 ### ScheduledTask
 
@@ -773,6 +786,16 @@ Confirming it queues a `chat_feedback` Workflow and stores the feedback
 text in Workflow artifacts; rejecting or cancelling it leaves the Job
 untouched.
 
+Onboarding chat uses the same chat substrate with an `onboarding: true`
+session and extra `Prompts::ChatOnboarding` guidance. The final setup
+step is intentionally chat-led: the agent proposes an Epic and child Jobs
+as normal `ChatProposal` rows, the operator confirms the proposal card,
+and materialization creates the Epic/Jobs without starting the Epic
+automatically. A confirmed Epic proposal whose materialized Epic is still
+`backlog` or `ready` renders a small **Start** action in chat; clicking it
+calls the Epic state API to move the Epic to `in_progress`, which is the
+point where its child Jobs become runnable.
+
 `ChatTurnJob` persists assistant text, tool calls, tool results, and MCP
 health events as `ChatMessage` rows, updates cumulative token/cost
 fields on the `ChatSession`, and retains the provider session for
@@ -828,6 +851,11 @@ Several layers, each catching different failure modes:
 
 ## UI surface (what shows up where)
 
+- **`/onboarding`** — first-run setup checklist. The route opens guided
+  modals for GitHub credentials (PAT first, then GitHub App
+  registration/installation), agent credentials, and the first repository,
+  then starts the onboarding chat that creates and lands the first Epic.
+  `/setup` is retired and redirects here.
 - **`/`** and **`/dashboard/*`** — dashboard: Epic, Job, and Workflow
   list/Kanban views with ownership scopes, smart folders, status pills,
   bulk actions, search filters, and landing controls.
@@ -864,6 +892,14 @@ Several layers, each catching different failure modes:
   kill controls.
 - **`/api/v1/admin/*`** — bearer-token admin API for overview, jobs,
   workflows, runs, queues, processes, and version/instance status.
+
+During first-run setup, React uses bootstrap setup payloads to gate app
+chrome. Before the onboarding chat starts, root/dashboard visits are
+redirected to `/onboarding`, the only top-level tab is **Setup**, and the
+brand link returns to onboarding. Starting the onboarding chat refreshes
+bootstrap in place, reveals the normal tabs, and points the brand link at
+that onboarding chat. Once the first Epic lands, setup is complete and
+the Setup tab disappears.
 
 Realtime updates use `AppUserChannel` app events consumed by React.
 Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
