@@ -675,7 +675,7 @@ describe("App", () => {
       fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
       fireEvent.click(within(accountNav).getByRole("button", { name: "Switch to new UI" }))
 
-      await screen.findByRole("button", { name: "Switch to classic UI" })
+      await screen.findByRole("button", { name: "operator@example.com" })
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/layout_version",
         expect.objectContaining({
@@ -714,7 +714,8 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      fireEvent.click(await screen.findByRole("button", { name: "Switch to classic UI" }))
+      fireEvent.click(await screen.findByRole("button", { name: "operator@example.com" }))
+      fireEvent.click(screen.getByRole("button", { name: "Switch to classic UI" }))
 
       await screen.findByRole("navigation", { name: "Account" })
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -725,6 +726,84 @@ describe("App", () => {
           body: JSON.stringify({ layout_version: "v1" })
         })
       )
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("renders the v2 sidebar navigation and account popup actions", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      },
+      team_user_count: 2
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/theme" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({ theme: "dark" }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/8", chat: chatPayload().chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
+      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(within(primaryNav).getByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
+      expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
+      expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
+      expect(within(primaryNav).getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app-shell/profiles")
+
+      fireEvent.click(screen.getByRole("button", { name: "operator@example.com" }))
+      expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profiles/1")
+      expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/settings")
+      expect(screen.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/app-shell/profiles/1")
+      expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
+      expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Switch to dark mode" }))
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/theme",
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ theme: "dark" })
+          })
+        )
+      })
+
+      fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/chats",
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({ repository_id: "", chat_message: { text: "" } })
+          })
+        )
+      })
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -884,7 +963,10 @@ describe("App", () => {
     vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
       const url = String(input)
       if (url.endsWith("/api/v1/app/chats/onboarding") && (init as RequestInit)?.method === "POST") {
-        return new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/5", chat: {} }), { status: 201, headers: { "Content-Type": "application/json" } })
+        return new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/5", chat: chatPayload().chat }), { status: 201, headers: { "Content-Type": "application/json" } })
+      }
+      if (url.endsWith("/api/v1/app/chats/5")) {
+        return new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
       }
       if (url.endsWith("/api/v1/app/bootstrap")) {
         return new Response(JSON.stringify(started), { status: 200, headers: { "Content-Type": "application/json" } })
