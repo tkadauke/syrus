@@ -23,6 +23,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::ReadWorkflowTool,
         SyrusChatMcp::ReadRunTranscriptTool,
         SyrusChatMcp::ListJobsTool,
+        SyrusChatMcp::SearchJobsTool,
         SyrusChatMcp::CancelJobTool,
         SyrusChatMcp::RetryJobTool,
         SyrusChatMcp::RebaseJobTool,
@@ -44,7 +45,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::DeleteElementTool,
         SyrusChatMcp::ClearCanvasTool,
         SyrusChatMcp::UpdateSceneTool,
-        SyrusChatMcp::ScheduleRecurringTool
+        SyrusChatMcp::ScheduleRecurringTool,
+        SyrusChatMcp::ReadQueueTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -93,6 +95,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         read_workflow
         read_run_transcript
         list_jobs
+        search_jobs
         cancel_job
         retry_job
         rebase_job
@@ -115,6 +118,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         clear_canvas
         update_scene
         schedule_recurring
+        read_queue
       ])
     end
   end

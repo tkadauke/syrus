@@ -34,6 +34,7 @@ module SyrusChatMcp
       ReadWorkflowTool,
       ReadRunTranscriptTool,
       ListJobsTool,
+      SearchJobsTool,
       CancelJobTool,
       RetryJobTool,
       RebaseJobTool,
@@ -55,7 +56,8 @@ module SyrusChatMcp
       DeleteElementTool,
       ClearCanvasTool,
       UpdateSceneTool,
-      ScheduleRecurringTool
+      ScheduleRecurringTool,
+      ReadQueueTool
     ].freeze
 
     def self.tool_names

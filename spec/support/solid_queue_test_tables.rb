@@ -25,6 +25,24 @@ module SolidQueueTestTables
       end
     end
 
+    unless connection.table_exists?(:solid_queue_blocked_executions)
+      connection.create_table :solid_queue_blocked_executions do |t|
+        t.string :concurrency_key, null: false
+        t.datetime :created_at, null: false
+        t.datetime :expires_at, null: false
+        t.bigint :job_id, null: false
+        t.integer :priority, default: 0, null: false
+        t.string :queue_name, null: false
+      end
+    end
+
+    unless connection.table_exists?(:solid_queue_pauses)
+      connection.create_table :solid_queue_pauses do |t|
+        t.datetime :created_at, null: false
+        t.string :queue_name, null: false
+      end
+    end
+
     unless connection.table_exists?(:solid_queue_processes)
       connection.create_table :solid_queue_processes do |t|
         t.datetime :created_at, null: false
@@ -83,9 +101,11 @@ module SolidQueueTestTables
     [
       SolidQueue::Job,
       SolidQueue::ClaimedExecution,
+      SolidQueue::BlockedExecution,
       SolidQueue::ReadyExecution,
       SolidQueue::FailedExecution,
       SolidQueue::Process,
+      SolidQueue::Pause,
       SolidQueue::RecurringTask,
       SolidQueue::RecurringExecution
     ].each(&:reset_column_information)
@@ -98,6 +118,8 @@ module SolidQueueTestTables
       solid_queue_recurring_tasks
       solid_queue_failed_executions
       solid_queue_ready_executions
+      solid_queue_pauses
+      solid_queue_blocked_executions
       solid_queue_claimed_executions
       solid_queue_jobs
       solid_queue_processes
@@ -114,6 +136,8 @@ module SolidQueueTestTables
       solid_queue_failed_executions
       solid_queue_ready_executions
       solid_queue_claimed_executions
+      solid_queue_pauses
+      solid_queue_blocked_executions
       solid_queue_processes
       solid_queue_jobs
     ].each do |table|
