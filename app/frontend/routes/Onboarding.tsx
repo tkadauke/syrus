@@ -58,7 +58,6 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   }
 
   const steps = checklistSteps(setup, user)
-  const completedCount = steps.filter((step) => step.complete).length
   const activeStep = steps.find((step) => !step.complete)
   const complete = !activeStep
 
@@ -66,17 +65,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
     <main aria-label="Onboarding" className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-5">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">First-run setup</p>
-        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Set up Syrus</h1>
-            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-              Work through the shortest path to a successful first run.
-            </p>
-          </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            <span className="font-medium text-gray-900 dark:text-gray-100">{completedCount}</span> of <span>{steps.length}</span> complete
-          </div>
-        </div>
+        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">Set up Syrus</h1>
       </header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -84,12 +73,12 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
           {steps.map((step) => {
             const current = activeStep?.key === step.key
             return (
-              <li className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between" key={step.key}>
-                <div className="flex min-w-0 items-start gap-3">
+              <li className={checklistItemClass(current)} key={step.key}>
+                <div className={checklistContentClass(current)}>
                   <span className={statusMarkerClass(step.complete, current)}>{step.complete ? "OK" : current ? ">" : ""}</span>
-                  <div className="min-w-0">
+                  <div className={current ? "min-w-0 text-center" : "min-w-0"}>
                     <h2 className="text-sm font-medium text-gray-900 dark:text-gray-100">{step.title}</h2>
-                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{step.detail}</p>
+                    {current ? <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">{step.detail}</p> : null}
                   </div>
                 </div>
                 {step.complete ? (
@@ -220,9 +209,21 @@ function statusMarkerClass(complete: boolean, current: boolean) {
   return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
 }
 
+function checklistItemClass(current: boolean) {
+  if (current) return "flex flex-col items-center gap-4 p-5 text-center sm:p-6"
+
+  return "flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
+}
+
+function checklistContentClass(current: boolean) {
+  if (current) return "flex min-w-0 flex-col items-center gap-3"
+
+  return "flex min-w-0 items-center gap-3"
+}
+
 function primaryCtaClass(current: boolean) {
   const base = "inline-flex shrink-0 justify-center rounded px-3 py-2 text-sm font-medium"
-  return current ? `${base} bg-blue-600 text-white hover:bg-blue-700` : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
+  return current ? `${base} min-w-48 bg-blue-600 text-white hover:bg-blue-700` : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
 }
 
 function withRoutePrefix(path: string, prefix: string) {
