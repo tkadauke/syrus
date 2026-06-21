@@ -44,7 +44,11 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::DeleteElementTool,
         SyrusChatMcp::ClearCanvasTool,
         SyrusChatMcp::UpdateSceneTool,
-        SyrusChatMcp::ScheduleRecurringTool
+        SyrusChatMcp::ScheduleRecurringTool,
+        SyrusChatMcp::ListScheduledTasksTool,
+        SyrusChatMcp::PauseScheduledTaskTool,
+        SyrusChatMcp::ResumeScheduledTaskTool,
+        SyrusChatMcp::DeleteScheduledTaskTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -115,6 +119,10 @@ RSpec.describe SyrusChatMcp::Sidecar do
         clear_canvas
         update_scene
         schedule_recurring
+        list_scheduled_tasks
+        pause_scheduled_task
+        resume_scheduled_task
+        delete_scheduled_task
       ])
     end
   end

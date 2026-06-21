@@ -55,7 +55,11 @@ module SyrusChatMcp
       DeleteElementTool,
       ClearCanvasTool,
       UpdateSceneTool,
-      ScheduleRecurringTool
+      ScheduleRecurringTool,
+      ListScheduledTasksTool,
+      PauseScheduledTaskTool,
+      ResumeScheduledTaskTool,
+      DeleteScheduledTaskTool
     ].freeze
 
     def self.tool_names
