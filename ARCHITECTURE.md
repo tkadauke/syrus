@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-20._
+_Last reviewed: 2026-06-21._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -557,9 +557,13 @@ Current Workflow chains:
 | `merge_train` | `merge_train_assemble → merge_train_build → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
 
 `prepare` reads `.syrus.yml` or auto-detects setup commands from
-lockfiles. It can be disabled per repository or skipped for one Job with
-the `syrus-skip-prepare` label; the skip is recorded in Workflow
-artifacts and logged on the first Run.
+lockfiles. Explicit `.syrus.yml` commands are operator intent and
+hard-fail the Step on error; auto-detected commands are guesses and
+soft-fail with a recorded `prepare_failure` artifact so the agent still
+runs and can fix setup from inside the repository. It can be disabled
+per repository or skipped for one Job with the `syrus-skip-prepare`
+label; the skip is recorded in Workflow artifacts and logged on the
+first Run.
 
 Agentic Steps (`implement`, `respond`, `analyze_and_fix`, rebase repair,
 landing repair, summarize, test_plan, and manual) invoke the Workflow's
@@ -961,7 +965,23 @@ Job's repository.
 
 ## Deployment topology
 
-- Two Kubernetes Deployments behind one Service: `syrus-web` (Puma)
+- Single-host Docker Compose is the low-friction distribution path for
+  new operators. `install.sh --docker` pulls the prebuilt
+  `ghcr.io/tkadauke/syrus-local` image, generates `.env` secrets on
+  first run, refuses to regenerate encryption keys over an existing data
+  volume, and starts web + worker containers backed by the local data
+  volume. `install.sh --bare-metal` remains the macOS source install
+  path. `bin/compose-up` is the source-build Compose helper for local
+  development.
+- `bin/publish-image` builds the distribution image, runs
+  `bin/test-docker` against the freshly built image, and pushes to GHCR
+  only after that integration gate passes. The Docker integration suite
+  brings up an isolated Compose project and verifies database setup
+  across the app/Solid databases, Active Storage on the local volume,
+  worker registration and job draining, bundled Ruby/Node/Python/Go
+  runtimes, and the MCP sidecar handshake.
+- The production topology is two Kubernetes Deployments behind one
+  Service: `syrus-web` (Puma)
   and `syrus-worker` (`bin/jobs`). The worker process supervises separate
   Solid Queue pools for `runs`, `merges`, `chat`, and `default` jobs.
   MySQL runs in its own pod.
@@ -978,8 +998,9 @@ Job's repository.
 - Two clusters: staging (default kubeconfig) and production
   (`~/.kube/config-production`). Diagnostic recipes are in `CLAUDE.md`
   under "Debugging staging / production via kubectl".
-- Image is built `linux/amd64` for the homelab NUC; see CLAUDE.md
-  "Deploy target" for the Colima/Rosetta build playbook.
+- Kubernetes deploys use `bin/deploy` to build and push the web and
+  worker images for the configured cluster architecture; see CLAUDE.md
+  "Deploy target" for platform-specific notes.
 
 ## What's intentionally not here
 
