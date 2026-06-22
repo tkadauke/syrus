@@ -50,5 +50,6 @@ RSpec.describe "bin/check-thread-budget" do
 
     expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
     expect(stdout).to include("[check-thread-budget] ok")
+    expect(stderr).not_to include("undefined method `present?'")
   end
 end
