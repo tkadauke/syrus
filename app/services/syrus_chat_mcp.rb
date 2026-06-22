@@ -64,11 +64,25 @@ module SyrusChatMcp
   end
 
   def self.materialized_payload(proposal)
+    return { kind: "rejected", reason: proposal.state } if proposal.rejected? || proposal.withdrawn?
+
     case proposal.materialized_record
     when Job
-      { type: "job", id: proposal.job.id }
+      {
+        kind: "job",
+        job_id: proposal.job.id,
+        job_title: proposal.job.issue_title,
+        job_state: proposal.job.state
+      }
     when Epic
-      { type: "epic", id: proposal.epic.id, number: proposal.epic.number }
+      {
+        kind: "epic",
+        epic_id: proposal.epic.id,
+        epic_title: proposal.epic.title,
+        child_jobs: proposal.child_proposals.confirmed.includes(:job).map do |child|
+          { job_id: child.job_id, title: child.job&.issue_title }
+        end
+      }
     end
   end
 

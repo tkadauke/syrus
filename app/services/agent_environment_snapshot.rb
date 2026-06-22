@@ -247,22 +247,23 @@ class AgentEnvironmentSnapshot
   end
 
   def recent_proposal_activity_line(proposal)
-    if proposal.confirmed?
-      return "- Job ##{proposal.job_id} \"#{proposal.title}\" confirmed (proposal slug: #{proposal.slug})" if proposal.job_id.present?
-      if proposal.epic_id.present?
-        jobs = proposal.child_proposals.select { |child| child.job_id.present? }.map { |child| proposal_child_job_label(child.job) }
-        suffix = jobs.any? ? " with jobs: #{jobs.join(', ')}" : ""
-        return "- Epic ##{proposal.epic_id} \"#{proposal.title}\" confirmed#{suffix} (proposal slug: #{proposal.slug})"
-      end
-      if proposal.github_issue_number.present?
-        return "- GitHub issue ##{proposal.github_issue_number} \"#{proposal.title}\" confirmed (proposal slug: #{proposal.slug})"
-      end
+    if proposal.confirmed? && proposal.github_issue_number.present?
+      return "- GitHub issue ##{proposal.github_issue_number} \"#{proposal.title}\" confirmed (proposal slug: #{proposal.slug})"
     end
 
-    "- Proposal \"#{proposal.title}\" was #{proposal.state} (proposal slug: #{proposal.slug})"
+    case proposal.materialized_record
+    when Epic
+      jobs = proposal.child_proposals.select { |child| child.job_id.present? }.map { |child| proposal_child_job_label(child.job) }
+      suffix = jobs.any? ? " with jobs: #{jobs.join(', ')}" : ""
+      "- Epic ##{proposal.epic.id} #{proposal.epic.title.inspect} confirmed#{suffix} (proposal slug: #{proposal.slug})"
+    when Job
+      "- Job ##{proposal.job.id} #{proposal.job.issue_title.inspect} confirmed (proposal slug: #{proposal.slug})"
+    else
+      "- Proposal #{proposal.title.inspect} was #{proposal.state} (proposal slug: #{proposal.slug})"
+    end
   end
 
   def proposal_child_job_label(job)
-    "##{job.id} \"#{job.issue_title}\""
+    "##{job.id} #{job.issue_title.inspect}"
   end
 end

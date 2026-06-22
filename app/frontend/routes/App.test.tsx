@@ -8392,7 +8392,16 @@ describe("App", () => {
           message: "Proposal confirmed and filed as JOB-88.",
           messages: [initialPayload.messages[0], {
             ...proposalMessage,
-            proposal: { ...proposalMessage.proposal, proposed: false, state: "confirmed", state_label: "Confirmed", materialized_label: "JOB-88", materialized_path: "/jobs/88" }
+            proposal: {
+              ...proposalMessage.proposal,
+              proposed: false,
+              resolved: true,
+              state: "confirmed",
+              state_label: "Confirmed",
+              materialized_label: "JOB-88",
+              materialized_path: "/jobs/88",
+              materialized: { kind: "job", job_id: 88, job_title: "Map auth", job_state: "open" }
+            }
           }]
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -8469,7 +8478,10 @@ describe("App", () => {
         expect.objectContaining({ method: "POST" })
       )
     })
-    expect(await screen.findByRole("link", { name: "JOB-88" })).toHaveAttribute("href", "/app-shell/jobs/88")
+    expect(await screen.findByRole("heading", { name: "Map auth" })).toBeInTheDocument()
+    expect(screen.getAllByText("Confirmed").length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByRole("link", { name: "#88" })).toHaveAttribute("href", "/app-shell/jobs/88")
+    expect(screen.getByText((_, element) => element?.textContent === '→ Job #88 "Map auth"')).toBeInTheDocument()
     const proposalNotice = await screen.findByRole("status")
     expect(proposalNotice).toHaveClass("fixed")
     expect(proposalNotice).toHaveTextContent("Proposal confirmed and filed as JOB-88.")
@@ -8513,6 +8525,15 @@ describe("App", () => {
         app_reject_path: "/api/v1/app/chats/8/proposals/5/reject",
         materialized_label: "EPIC-11",
         materialized_path: "/epics/11",
+        materialized: {
+          kind: "epic",
+          epic_id: 11,
+          epic_title: "Raise the forum",
+          child_jobs: [
+            { job_id: 154, title: "Add inspection tools" },
+            { job_id: 155, title: "Add trigger" }
+          ]
+        },
         active_children_count: 0,
         children: []
       }
@@ -8529,7 +8550,55 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("link", { name: "EPIC-11" })).toHaveAttribute("href", "/app-shell/epics/11")
+    expect(await screen.findByRole("link", { name: "#11" })).toHaveAttribute("href", "/app-shell/epics/11")
+    expect(screen.getByText((_, element) => element?.textContent === '→ Epic #11 "Raise the forum"')).toBeInTheDocument()
+    expect(screen.getByText((_, element) => element?.textContent === 'Jobs: #154 "Add inspection tools", #155 "Add trigger"')).toBeInTheDocument()
+  })
+
+  it("shows rejected proposal state on proposal cards", async () => {
+    const proposalMessage = {
+      type: "message",
+      id: 10,
+      role: "assistant",
+      text: "Proposal rejected.",
+      bookmarkable: true,
+      proposal: {
+        id: 5,
+        kind: "job",
+        kind_label: "Job",
+        state: "rejected",
+        state_label: "Rejected",
+        title: "Map auth",
+        slug: "map-auth",
+        body: "Map it.",
+        proposed: false,
+        resolved: true,
+        epic_bundle: false,
+        scoped_repository_slug: "acme/widgets",
+        dependencies: [],
+        target_epic_label: null,
+        app_confirm_path: "/api/v1/app/chats/8/proposals/5/confirm",
+        app_reject_path: "/api/v1/app/chats/8/proposals/5/reject",
+        materialized_label: null,
+        materialized_path: null,
+        materialized: { kind: "rejected", reason: "rejected" }
+      }
+    }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { name: "Map auth" })).toBeInTheDocument()
+    expect(screen.getAllByText("Rejected").length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Job #/)).not.toBeInTheDocument()
   })
 
   it("loads older chat messages when scrolling near the top", async () => {

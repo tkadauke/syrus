@@ -62,57 +62,59 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Agent environment snapshot:")).to be < out.index("Attached context:")
   end
 
-  it "includes recent confirmed proposal activity in the environment snapshot" do
+  it "includes recent proposal activity when proposals were resolved recently" do
     chat = ChatSession.create!(user: repo.user, repository: repo)
-    job = Factories.job_record(user: repo.user, repository: repo, issue_title: "Map auth")
-    epic = Factories.epic(user: repo.user, repository: repo, title: "Ship auth")
-    child_job = Factories.job_record(user: repo.user, repository: repo, epic: epic, issue_title: "Auth UI")
-    chat.proposals.create!(
-      slug: "auth-map",
-      title: "Map auth",
-      body: "Map it.",
-      state: "confirmed",
-      job: job
-    )
+    epic = Factories.epic(user: repo.user, repository: repo, title: "Chat-driven job feedback loop")
     epic_proposal = chat.proposals.create!(
-      slug: "ship-auth",
-      title: "Ship auth",
-      body: "Group it.",
+      repository: repo,
+      epic: epic,
       kind: "epic",
       state: "confirmed",
-      epic: epic
+      slug: "feedback-loop",
+      title: "Chat-driven job feedback loop",
+      body: "Bundle it."
     )
-    epic_proposal.child_proposals.create!(
-      chat_session: chat,
-      slug: "auth-ui",
-      title: "Auth UI",
-      body: "Render it.",
+    child_job = Factories.job_record(user: repo.user, repository: repo, issue_title: "Add trigger", state: "queued")
+    chat.proposals.create!(
+      repository: repo,
+      parent_proposal: epic_proposal,
+      job: child_job,
+      kind: "job",
       state: "confirmed",
-      job: child_job
+      slug: "add-trigger",
+      title: "Add trigger",
+      body: "Trigger it."
+    )
+    chat.proposals.create!(
+      repository: repo,
+      state: "rejected",
+      slug: "some-title",
+      title: "Some title",
+      body: "No."
     )
 
     out = described_class.new(repository: repo, chat_session: chat).to_s
 
     expect(out).to include("Recent proposal activity:")
-    expect(out).to include("- Job ##{job.id} \"Map auth\" confirmed (proposal slug: auth-map)")
-    expect(out).to include("- Epic ##{epic.id} \"Ship auth\" confirmed with jobs: ##{child_job.id} \"Auth UI\" (proposal slug: ship-auth)")
+    expect(out).to include(%(- Epic ##{epic.id} "Chat-driven job feedback loop" confirmed with jobs: ##{child_job.id} "Add trigger" (proposal slug: feedback-loop)))
+    expect(out).to include(%(- Job ##{child_job.id} "Add trigger" confirmed (proposal slug: add-trigger)))
+    expect(out).to include(%(- Proposal "Some title" was rejected (proposal slug: some-title)))
   end
 
-  it "omits recent proposal activity when there are no recent resolved proposals" do
+  it "omits recent proposal activity when no proposals were resolved recently" do
     chat = ChatSession.create!(user: repo.user, repository: repo)
     old = chat.proposals.create!(
-      slug: "old-auth",
-      title: "Old auth",
-      body: "Old work.",
+      repository: repo,
       state: "rejected",
-      rejected_at: 2.days.ago
+      slug: "old-title",
+      title: "Old title",
+      body: "No."
     )
-    old.update_columns(updated_at: 2.days.ago)
+    old.update_columns(updated_at: 25.hours.ago)
 
     out = described_class.new(repository: repo, chat_session: chat).to_s
 
     expect(out).not_to include("Recent proposal activity:")
-    expect(out).not_to include("old-auth")
   end
 
   it "renders compact repository context for a single-repository chat" do

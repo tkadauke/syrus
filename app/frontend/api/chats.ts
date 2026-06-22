@@ -59,11 +59,17 @@ export type ChatProposal = {
   app_reject_path: string
   materialized_label: string | null
   materialized_path: string | null
+  materialized?: ChatProposalMaterialized | null
   materialized_epic_state?: string | null
   materialized_epic_state_path?: string | null
   active_children_count?: number
   children?: ChatProposalChild[]
 }
+
+export type ChatProposalMaterialized =
+  | { kind: "job"; job_id: number; job_title: string | null; job_state: string | null }
+  | { kind: "epic"; epic_id: number; epic_title: string | null; child_jobs: Array<{ job_id: number | null; title: string | null }> }
+  | { kind: "rejected"; reason: string }
 
 export type ChatProposalChild = {
   id: number

@@ -365,7 +365,7 @@ module Api
         end
 
         def message_scope(chat_session)
-          chat_session.messages.includes(proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
+          chat_session.messages.includes(proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, :job, dependencies: [] ] ])
         end
 
         def messages_json(messages, repository:)

@@ -59,6 +59,7 @@ module App
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject",
         materialized_label: proposal.materialized_label,
         materialized_path: materialized_path(materialized),
+        materialized: materialized_json(proposal),
         # When the proposal became an Epic, expose its state + state-change path
         # so the chat can offer a "Start" (move to In Progress) action.
         materialized_epic_state: materialized_epic&.state,
@@ -96,6 +97,29 @@ module App
       case record
       when Job then job_path(record)
       when Epic then epic_path(record)
+      end
+    end
+
+    def materialized_json(proposal)
+      return { kind: "rejected", reason: proposal.state } if proposal.rejected? || proposal.withdrawn?
+
+      case proposal.materialized_record
+      when Job
+        {
+          kind: "job",
+          job_id: proposal.job.id,
+          job_title: proposal.job.issue_title,
+          job_state: proposal.job.state
+        }
+      when Epic
+        {
+          kind: "epic",
+          epic_id: proposal.epic.id,
+          epic_title: proposal.epic.title,
+          child_jobs: proposal.child_proposals.confirmed.includes(:job).map do |child|
+            { job_id: child.job_id, title: child.job&.issue_title }
+          end
+        }
       end
     end
   end

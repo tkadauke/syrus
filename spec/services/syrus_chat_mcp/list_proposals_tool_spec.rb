@@ -68,8 +68,63 @@ RSpec.describe SyrusChatMcp::ListProposalsTool do
         dependencies: %w[root],
         repository: repository.slug,
         target_epic: nil,
-        materialized: nil
+        materialized: {
+          kind: "rejected",
+          reason: "withdrawn"
+        }
       }
     ])
+  end
+
+  it "lists materialized details for confirmed job and epic proposals" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Add inspection tools", state: "open")
+    epic = Factories.epic(user: user, repository: repository, title: "Chat-driven job feedback loop")
+    child_job = Factories.job_record(user: user, repository: repository, issue_title: "Add trigger", state: "queued")
+    job_proposal = chat_session.proposals.create!(
+      repository: repository,
+      job: job,
+      kind: "job",
+      state: "confirmed",
+      slug: "inspection-tools",
+      title: "Add inspection tools",
+      body: "Inspect more."
+    )
+    epic_proposal = chat_session.proposals.create!(
+      repository: repository,
+      epic: epic,
+      kind: "epic",
+      state: "confirmed",
+      slug: "feedback-loop",
+      title: "Chat-driven job feedback loop",
+      body: "Bundle the work."
+    )
+    chat_session.proposals.create!(
+      repository: repository,
+      parent_proposal: epic_proposal,
+      job: child_job,
+      kind: "job",
+      state: "confirmed",
+      slug: "add-trigger",
+      title: "Add trigger",
+      body: "Trigger it."
+    )
+
+    response = jsonrpc("tools/call", params: { name: "list_proposals", arguments: {} })
+
+    proposals = response_payload(response).fetch(:proposals)
+    expect(proposals.find { |proposal| proposal[:id] == job_proposal.id }.fetch(:materialized)).to eq(
+      kind: "job",
+      job_id: job.id,
+      job_title: "Add inspection tools",
+      job_state: "open"
+    )
+    expect(proposals.find { |proposal| proposal[:id] == epic_proposal.id }.fetch(:materialized)).to eq(
+      kind: "epic",
+      epic_id: epic.id,
+      epic_title: "Chat-driven job feedback loop",
+      child_jobs: [
+        { job_id: child_job.id, title: "Add trigger" }
+      ]
+    )
   end
 end

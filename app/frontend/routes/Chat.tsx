@@ -663,16 +663,6 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
     }
   })
 
-  if (proposal.materialized_label && proposal.materialized_path) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500 dark:text-gray-400">Confirmed proposal</span>
-        <Link className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200 dark:hover:bg-blue-900" to={withRoutePrefix(proposal.materialized_path, prefix)}>{proposal.materialized_label}</Link>
-        <StartEpicButton proposal={proposal} onNotice={onNotice} />
-      </div>
-    )
-  }
-
   return (
     <article className={`max-w-4xl rounded border bg-white px-4 py-3 dark:bg-gray-900 ${proposal.resolved ? "border-gray-200 opacity-70 grayscale dark:border-gray-700" : "border-blue-200 dark:border-blue-800"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -688,6 +678,7 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       </div>
       <Markdown className="chat-prose mt-3 text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
       {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} /> : <ProposalMeta proposal={proposal} />}
+      <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
       {proposal.proposed ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <button
@@ -711,6 +702,77 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       ) : null}
     </article>
   )
+}
+
+function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatProposal; prefix: string; onNotice: (message: string | null) => void }) {
+  if (proposal.state === "confirmed") {
+    return (
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+        <span className="rounded bg-green-50 px-2 py-0.5 font-medium text-green-700 dark:bg-green-950 dark:text-green-200">Confirmed</span>
+        <ProposalMaterializedResult proposal={proposal} prefix={prefix} />
+        <StartEpicButton proposal={proposal} onNotice={onNotice} />
+      </div>
+    )
+  }
+
+  if (proposal.state === "rejected" || proposal.state === "withdrawn") {
+    const label = proposal.state === "withdrawn" ? "Withdrawn" : "Rejected"
+    return (
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+        <span className="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">{label}</span>
+      </div>
+    )
+  }
+
+  return null
+}
+
+function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatProposal; prefix: string }) {
+  const materialized = proposal.materialized
+  if (materialized?.kind === "job") {
+    return (
+      <span>
+        → Job <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>#{materialized.job_id}</ProposalResultLink>{materialized.job_title ? ` "${materialized.job_title}"` : ""}
+      </span>
+    )
+  }
+
+  if (materialized?.kind === "epic") {
+    const children = materialized.child_jobs.filter((job) => job.job_id)
+    return (
+      <>
+        <span>
+          → Epic <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>#{materialized.epic_id}</ProposalResultLink>{materialized.epic_title ? ` "${materialized.epic_title}"` : ""}
+        </span>
+        {children.length > 0 ? (
+          <span className="basis-full sm:basis-auto">
+            Jobs: {children.map((job, index) => (
+              <span key={`${job.job_id}-${index}`}>
+                {index > 0 ? ", " : ""}
+                #{job.job_id}{job.title ? ` "${job.title}"` : ""}
+              </span>
+            ))}
+          </span>
+        ) : null}
+      </>
+    )
+  }
+
+  if (proposal.materialized_label && proposal.materialized_path) {
+    return (
+      <span>
+        → <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>{proposal.materialized_label}</ProposalResultLink>
+      </span>
+    )
+  }
+
+  return null
+}
+
+function ProposalResultLink({ path, prefix, children }: { path: string | null; prefix: string; children: ReactNode }) {
+  if (!path) return <>{children}</>
+
+  return <Link className="font-medium text-blue-700 hover:underline dark:text-blue-300" to={withRoutePrefix(path, prefix)}>{children}</Link>
 }
 
 function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
