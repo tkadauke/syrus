@@ -69,7 +69,7 @@ module Prompts
     def render_check(check)
       summary = value(check, :summary).to_s.strip
       summary = "(no summary provided)" if summary.empty?
-      summary = "#{summary[0, MAX_SUMMARY_BYTES]}\n…[truncated]" if summary.bytesize > MAX_SUMMARY_BYTES
+      summary = truncate_summary(summary)
       context = structured_context(check)
 
       <<~BLOCK.strip
@@ -94,7 +94,7 @@ module Prompts
 
       if context.blank?
         fallback_summary = value(check, :summary).to_s
-        fallback_summary = "#{fallback_summary[0, MAX_SUMMARY_BYTES]}\n…[truncated]" if fallback_summary.bytesize > MAX_SUMMARY_BYTES
+        fallback_summary = truncate_summary(fallback_summary)
         context = {
           "failing_step" => value(check, :name),
           "parser" => "github_summary",
@@ -115,6 +115,12 @@ module Prompts
 
     def value(hash, key)
       hash[key] || hash[key.to_s]
+    end
+
+    def truncate_summary(summary)
+      return summary if summary.bytesize <= MAX_SUMMARY_BYTES
+
+      "#{summary.safe_byteslice(0, MAX_SUMMARY_BYTES)}\n…[truncated]"
     end
   end
 end

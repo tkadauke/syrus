@@ -58,9 +58,26 @@ RSpec.describe Prompts::CiFailure do
 
   it "truncates very long summaries" do
     big = "x" * (described_class::MAX_SUMMARY_BYTES + 5_000)
-    out = build(failed_checks: [ { name: "verbose", conclusion: "failure", html_url: "u", summary: big } ]).to_s
+    out = build(
+      failed_checks: [ { name: "verbose", conclusion: "failure", html_url: "u", summary: big } ]
+    ).to_s
     expect(out).to include("…[truncated]")
     expect(out.bytesize).to be < big.bytesize + 2_000
+  end
+
+  it "truncates multibyte summaries by bytes in both rendered and fallback context" do
+    big = "€" * (described_class::MAX_SUMMARY_BYTES + 10)
+
+    out = build(failed_checks: [ { name: "verbose", conclusion: "failure", html_url: "u", summary: big } ]).to_s
+
+    rendered_summary = out.match(/GitHub summary:\n(?<summary>.*?)\n\nStructured error context:/m)[:summary]
+    context = JSON.parse(out.match(/```json\n(?<json>.*?)\n```/m)[:json])
+
+    expect(rendered_summary).to be_valid_encoding
+    expect(rendered_summary.bytesize).to be <= described_class::MAX_SUMMARY_BYTES + "\n…[truncated]".bytesize
+    expect(context["error_summary"]).to be_valid_encoding
+    expect(context["error_summary"].bytesize).to be <= described_class::MAX_SUMMARY_BYTES + "\n…[truncated]".bytesize
+    expect(context["error_block"]).to eq(context["error_summary"])
   end
 
   it "caps the number of checks rendered" do
