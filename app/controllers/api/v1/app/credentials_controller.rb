@@ -115,7 +115,8 @@ module Api
             "state" => flow.state,
             "redirect_uri" => flow.redirect_uri
           }
-          render json: { authorize_url: flow.authorize_url }
+          listener_started = CodexOauth.start_callback_listener(user: Current.user)
+          render json: { authorize_url: flow.authorize_url, listener_started: listener_started }
         end
 
         def codex_oauth_exchange

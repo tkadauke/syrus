@@ -140,4 +140,42 @@ RSpec.describe CodexOauth do
       }.to raise_error(described_class::Error, /id_token/)
     end
   end
+
+  describe ".start_callback_listener" do
+    before do
+      server = TCPServer.new("localhost", 0)
+      port = server.addr[1]
+      server.close
+      stub_const("#{described_class}::CALLBACK_PORT", port)
+    end
+
+    it "accepts one localhost callback, responds with friendly HTML, and broadcasts the callback URL" do
+      user = Factories.user
+      allow(AppEvents).to receive(:broadcast)
+
+      expect(described_class.start_callback_listener(user: user, timeout: 2.seconds)).to be true
+
+      socket = TCPSocket.new("localhost", described_class::CALLBACK_PORT)
+      socket.write("GET /auth/callback?code=abc&state=session-state HTTP/1.1\r\nHost: localhost\r\n\r\n")
+      response = socket.read
+      socket.close
+
+      expect(response).to include("200 OK")
+      expect(response).to include("Authorization received")
+      expect(AppEvents).to have_received(:broadcast).with(
+        user: user,
+        type: "codex_oauth.callback",
+        resource: "credential",
+        payload: { "code" => "#{described_class::PASTE_REDIRECT_URI}?code=abc&state=session-state" }
+      )
+    end
+
+    it "returns false when the callback port is unavailable" do
+      allow(Rails.logger).to receive(:warn)
+      allow(TCPServer).to receive(:new).and_raise(Errno::EADDRINUSE)
+
+      expect(described_class.start_callback_listener(user: Factories.user, timeout: 1.second)).to be false
+      expect(Rails.logger).to have_received(:warn).with(/Codex OAuth localhost callback listener unavailable/)
+    end
+  end
 end

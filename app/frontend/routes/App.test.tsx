@@ -94,6 +94,7 @@ describe("App", () => {
     html2canvasMock.mockClear()
     mermaidMock.initialize.mockClear()
     mermaidMock.render.mockClear()
+    actionCable.createSubscription.mockClear()
     document.documentElement.classList.remove("dark")
   })
 
@@ -4388,7 +4389,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/credentials/codex_oauth_start" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc" }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/credentials/codex_oauth_exchange" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
@@ -4441,6 +4442,68 @@ describe("App", () => {
     })
     expect((await screen.findAllByText("Codex ChatGPT auth.json is valid.")).length).toBeGreaterThan(0)
     expect(screen.getByText("Paste auth.json manually")).toBeInTheDocument()
+  })
+
+  it("automatically exchanges Codex OAuth callbacks received over ActionCable", async () => {
+    const openSpy = vi.spyOn(window, "open").mockReturnValue({} as Window)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/credentials/codex_oauth_start" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/credentials/codex_oauth_exchange" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          credential_test: {
+            credential: "codex_auth_json",
+            ok: true,
+            message: "Codex ChatGPT auth.json is valid.",
+            details: {}
+          },
+          message: "Codex ChatGPT auth.json is valid."
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ codexAuthJson: true })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/credentials/edit"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+    fireEvent.change(await screen.findByLabelText("Agent provider"), { target: { value: "codex" } })
+    fireEvent.change(await screen.findByLabelText("Codex authentication"), { target: { value: "chatgpt_login" } })
+    fireEvent.click(await screen.findByRole("button", { name: "Authorize with ChatGPT" }))
+
+    await waitFor(() => {
+      expect(openSpy).toHaveBeenCalledWith("https://auth.openai.com/oauth/authorize?state=abc", "_blank", "noopener,noreferrer")
+      expect(actionCable.createSubscription.mock.calls.length).toBeGreaterThan(1)
+    })
+
+    const callbacks = (actionCable.createSubscription.mock.calls as unknown[][])
+      .map((call) => (call[1] as { received?: unknown } | undefined)?.received)
+      .filter((received): received is (data: unknown) => void => typeof received === "function")
+    callbacks.forEach((received) => received({
+      type: "codex_oauth.callback",
+      resource: "credential",
+      payload: { code: "http://localhost:1455/auth/callback?code=auto-code&state=abc" }
+    }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/credentials/codex_oauth_exchange",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({ code: "http://localhost:1455/auth/callback?code=auto-code&state=abc" })
+        })
+      )
+    })
+    expect((await screen.findAllByText("Codex ChatGPT auth.json is valid.")).length).toBeGreaterThan(0)
   })
 
   it("renders /settings as the credentials route without admin links", async () => {

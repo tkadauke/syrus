@@ -167,7 +167,7 @@ export function testClaudeCli() {
 }
 
 export type ClaudeOauthStart = { authorize_url: string }
-export type CodexOauthStart = { authorize_url: string }
+export type CodexOauthStart = { authorize_url: string; listener_started: boolean }
 
 // Begin the Claude subscription OAuth flow; returns the authorize URL the
 // modal opens. The provider shows a code to paste back.

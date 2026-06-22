@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { createConsumer } from "@rails/actioncable"
 import type { FormEvent, ReactNode } from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
@@ -85,6 +86,7 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
   const [testResults, setTestResults] = useState<Record<string, CredentialTestResult>>({})
   const [codexOauthCode, setCodexOauthCode] = useState("")
   const [codexOauthStarted, setCodexOauthStarted] = useState(false)
+  const [codexOauthAutoConnecting, setCodexOauthAutoConnecting] = useState(false)
   const [codexOauthPopupBlocked, setCodexOauthPopupBlocked] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => updateCredentials(values),
@@ -128,7 +130,7 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
     }
   })
   const exchangeCodex = useMutation({
-    mutationFn: () => exchangeCodexOauth(codexOauthCode.trim()),
+    mutationFn: (code?: string) => exchangeCodexOauth((code || codexOauthCode).trim()),
     onSuccess: async (updated) => {
       setTestResults((current) => ({
         ...current,
@@ -136,13 +138,47 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
       }))
       await queryClient.invalidateQueries({ queryKey })
       setCodexOauthCode("")
+      setCodexOauthAutoConnecting(false)
       onNotice(updated.message || "ChatGPT authorization saved.")
+    },
+    onError: () => {
+      setCodexOauthAutoConnecting(false)
     }
   })
+  const autoExchangeRef = useRef((code: string) => {
+    setCodexOauthCode(code)
+    setCodexOauthAutoConnecting(true)
+    onNotice(null)
+    exchangeCodex.mutate(code)
+  })
+  autoExchangeRef.current = (code: string) => {
+    setCodexOauthCode(code)
+    setCodexOauthAutoConnecting(true)
+    onNotice(null)
+    exchangeCodex.mutate(code)
+  }
 
   useEffect(() => {
     setValues(inputFromPayload(payload))
   }, [payload])
+
+  useEffect(() => {
+    if (!codexOauthStarted) return
+
+    const consumer = createConsumer()
+    const subscription = consumer.subscriptions.create(
+      { channel: "AppUserChannel" },
+      {
+        received(data: unknown) {
+          const event = data as { type?: string; payload?: { code?: string } }
+          const code = event.type === "codex_oauth.callback" ? event.payload?.code?.trim() : ""
+          if (code) autoExchangeRef.current(code)
+        }
+      }
+    )
+
+    return () => subscription.unsubscribe()
+  }, [codexOauthStarted])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -257,12 +293,13 @@ function CredentialsForm({ payload, onNotice }: { payload: CredentialsPayload; o
           <CodexChatGptLogin
             authCode={codexOauthCode}
             authStarted={codexOauthStarted}
+            autoConnecting={codexOauthAutoConnecting}
             clearPending={clear.isPending}
             exchangePending={exchangeCodex.isPending}
             manualValue={values.codex_auth_json}
             onAuthorize={() => startCodex.mutate()}
             onClear={() => clear.mutate("codex_auth_json")}
-            onExchange={() => exchangeCodex.mutate()}
+            onExchange={() => exchangeCodex.mutate(undefined)}
             onManualChange={(value) => setValues({ ...values, codex_auth_json: value })}
             onTest={() => test.mutate("codex_auth_json")}
             onCodeChange={setCodexOauthCode}
@@ -347,6 +384,7 @@ function ClaudeTokenHelp() {
 function CodexChatGptLogin({
   authCode,
   authStarted,
+  autoConnecting,
   manualValue,
   set,
   popupBlockedUrl,
@@ -364,6 +402,7 @@ function CodexChatGptLogin({
 }: {
   authCode: string
   authStarted: boolean
+  autoConnecting: boolean
   manualValue: string
   set: boolean
   popupBlockedUrl: string | null
@@ -414,13 +453,16 @@ function CodexChatGptLogin({
             .
           </p>
         ) : null}
+        {autoConnecting ? (
+          <p className="text-xs text-gray-500 dark:text-gray-400">Connecting...</p>
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <input
             aria-label="ChatGPT authorization code"
             autoComplete="off"
             className={inputClass()}
             onChange={(event) => onCodeChange(event.target.value)}
-            placeholder={authStarted ? "Paste the code from OpenAI" : "Authorize first, then paste the code"}
+            placeholder={authStarted ? "Copy the full redirect URL from your browser's address bar and paste it here." : "Authorize first, then paste the redirect URL"}
             type="text"
             value={authCode}
           />

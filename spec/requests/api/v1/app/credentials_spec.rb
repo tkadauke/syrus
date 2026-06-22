@@ -285,10 +285,12 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "starts the Codex OAuth flow using the CLI paste callback" do
     sign_in_as(user)
+    expect(CodexOauth).to receive(:start_callback_listener).with(user: user).and_return(true)
 
     post "/api/v1/app/credentials/codex_oauth_start"
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body["listener_started"]).to be true
     authorize_url = parse_body["authorize_url"]
     expect(authorize_url).to start_with(CodexOauth::AUTHORIZE_URL)
     params = Rack::Utils.parse_query(URI(authorize_url).query)
@@ -299,6 +301,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "exchanges a pasted Codex code, saves auth.json, switches mode, and tests it" do
     sign_in_as(user)
+    allow(CodexOauth).to receive(:start_callback_listener).and_return(true)
     post "/api/v1/app/credentials/codex_oauth_start"
     state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
 
