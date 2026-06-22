@@ -315,6 +315,14 @@ across web/worker processes.
   `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY`, and
   `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` instead of credentials;
   set all three together or boot fails.
+- **Single-host Docker distribution** — `install.sh --docker` pulls
+  `ghcr.io/tkadauke/syrus-local` and starts the Compose stack; `bin/compose-up`
+  builds the same stack locally. Keep `compose.env.example`, `.env.example`,
+  and bootstrap payload expectations in sync when adding required env. Never
+  regenerate `.env` over an existing `syrus_syrus-data` volume — those
+  Active Record encryption keys must match the persisted DB. Test image-level
+  changes with `bin/test-docker`; publish only through `bin/publish-image`,
+  which builds, runs that integration gate, then pushes.
 - **AASM events on Run** — call `start!`, `succeed!`, `fail!`, `cancel!`,
   always followed by `save!` (callbacks set timestamps but don't persist).
   See `Run` model.
