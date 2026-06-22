@@ -263,6 +263,11 @@ module Api
             ChatProposalFiler.new(user: Current.user, repository: proposal.effective_repository).file!([ proposal ])
           end
 
+          chat_session.messages.create!(
+            role: "system",
+            content: { "text" => proposal_confirmation_text(proposal.reload, result) }
+          )
+
           render json: chat_payload(chat_session.reload, message: proposal_confirmed_notice(proposal, result))
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
@@ -276,6 +281,10 @@ module Api
 
           if proposal.proposed?
             proposal.update!(state: "rejected", rejected_at: Time.current)
+            chat_session.messages.create!(
+              role: "system",
+              content: { "text" => proposal_rejection_text(proposal) }
+            )
             render json: chat_payload(chat_session.reload, message: "Proposal rejected.")
           else
             render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)
@@ -796,6 +805,32 @@ module Api
           else
             "Proposal confirmed."
           end
+        end
+
+        def proposal_confirmation_text(proposal, result)
+          if result.respond_to?(:epic) && result.epic
+            child_jobs = result.jobs.map { |job| proposal_job_label(job) }.join(", ")
+            return "Proposal confirmed. Epic ##{result.epic.id} \"#{result.epic.title}\" was created. Child jobs: #{child_jobs}."
+          end
+
+          job = result.jobs.first || proposal.job
+          return "Proposal confirmed. Job ##{job.id} \"#{job.issue_title}\" was created." if job
+
+          issue_number = result.github_issue_numbers[proposal.id] if result.respond_to?(:github_issue_numbers)
+          issue_number ||= proposal.github_issue_number
+          if issue_number
+            return "Proposal confirmed. GitHub issue ##{issue_number} \"#{proposal.title}\" was filed."
+          end
+
+          "Proposal confirmed."
+        end
+
+        def proposal_rejection_text(proposal)
+          "Proposal rejected. \"#{proposal.title}\" was discarded."
+        end
+
+        def proposal_job_label(job)
+          "##{job.id} \"#{job.issue_title}\""
         end
       end
     end

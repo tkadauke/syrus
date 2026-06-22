@@ -62,6 +62,59 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Agent environment snapshot:")).to be < out.index("Attached context:")
   end
 
+  it "includes recent confirmed proposal activity in the environment snapshot" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    job = Factories.job_record(user: repo.user, repository: repo, issue_title: "Map auth")
+    epic = Factories.epic(user: repo.user, repository: repo, title: "Ship auth")
+    child_job = Factories.job_record(user: repo.user, repository: repo, epic: epic, issue_title: "Auth UI")
+    chat.proposals.create!(
+      slug: "auth-map",
+      title: "Map auth",
+      body: "Map it.",
+      state: "confirmed",
+      job: job
+    )
+    epic_proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group it.",
+      kind: "epic",
+      state: "confirmed",
+      epic: epic
+    )
+    epic_proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-ui",
+      title: "Auth UI",
+      body: "Render it.",
+      state: "confirmed",
+      job: child_job
+    )
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("Recent proposal activity:")
+    expect(out).to include("- Job ##{job.id} \"Map auth\" confirmed (proposal slug: auth-map)")
+    expect(out).to include("- Epic ##{epic.id} \"Ship auth\" confirmed with jobs: ##{child_job.id} \"Auth UI\" (proposal slug: ship-auth)")
+  end
+
+  it "omits recent proposal activity when there are no recent resolved proposals" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    old = chat.proposals.create!(
+      slug: "old-auth",
+      title: "Old auth",
+      body: "Old work.",
+      state: "rejected",
+      rejected_at: 2.days.ago
+    )
+    old.update_columns(updated_at: 2.days.ago)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).not_to include("Recent proposal activity:")
+    expect(out).not_to include("old-auth")
+  end
+
   it "renders compact repository context for a single-repository chat" do
     chat = ChatSession.create!(user: repo.user, repository: repo)
 

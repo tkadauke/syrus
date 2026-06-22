@@ -80,6 +80,7 @@ class AgentEnvironmentSnapshot
 
     lines.concat(chat_repository_lines)
     lines.concat(chat_tool_lines)
+    lines.concat(recent_proposal_activity_lines)
     lines
   end
 
@@ -228,5 +229,40 @@ class AgentEnvironmentSnapshot
       lines << "  - #{label}: #{tools.join(', ')}"
     end
     lines
+  end
+
+  def recent_proposal_activity_lines
+    return [] unless chat_session
+
+    recent = chat_session.proposals
+      .includes(:job, :epic, child_proposals: :job)
+      .where(state: %w[confirmed rejected withdrawn])
+      .where(updated_at: 24.hours.ago..)
+      .order(updated_at: :desc)
+      .limit(10)
+      .to_a
+    return [] if recent.empty?
+
+    [ "- Recent proposal activity:" ] + recent.map { |proposal| "  #{recent_proposal_activity_line(proposal)}" }
+  end
+
+  def recent_proposal_activity_line(proposal)
+    if proposal.confirmed?
+      return "- Job ##{proposal.job_id} \"#{proposal.title}\" confirmed (proposal slug: #{proposal.slug})" if proposal.job_id.present?
+      if proposal.epic_id.present?
+        jobs = proposal.child_proposals.select { |child| child.job_id.present? }.map { |child| proposal_child_job_label(child.job) }
+        suffix = jobs.any? ? " with jobs: #{jobs.join(', ')}" : ""
+        return "- Epic ##{proposal.epic_id} \"#{proposal.title}\" confirmed#{suffix} (proposal slug: #{proposal.slug})"
+      end
+      if proposal.github_issue_number.present?
+        return "- GitHub issue ##{proposal.github_issue_number} \"#{proposal.title}\" confirmed (proposal slug: #{proposal.slug})"
+      end
+    end
+
+    "- Proposal \"#{proposal.title}\" was #{proposal.state} (proposal slug: #{proposal.slug})"
+  end
+
+  def proposal_child_job_label(job)
+    "##{job.id} \"#{job.issue_title}\""
   end
 end

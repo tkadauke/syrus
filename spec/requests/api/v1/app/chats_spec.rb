@@ -658,12 +658,61 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["message"]).to match(/\AProposal confirmed and filed as JOB-\d+\.\z/)
     expect(confirmed.reload).to be_confirmed
     expect(parse_body["messages"].first.dig("proposal", "materialized_label")).to eq("JOB-#{confirmed.job.id}")
+    confirmation_message = chat.messages.order(:created_at, :id).last
+    expect(confirmation_message).to have_attributes(role: "system", proposal_id: nil)
+    expect(confirmation_message.content).to eq(
+      "text" => "Proposal confirmed. Job ##{confirmed.job.id} \"Map auth\" was created."
+    )
 
     post "/api/v1/app/chats/#{chat.id}/proposals/#{rejected.id}/reject"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Proposal rejected.")
     expect(rejected.reload).to be_rejected
+    rejection_message = chat.messages.order(:created_at, :id).last
+    expect(rejection_message).to have_attributes(role: "system", proposal_id: nil)
+    expect(rejection_message.content).to eq(
+      "text" => "Proposal rejected. \"Clean up\" was discarded."
+    )
+  end
+
+  it "records confirmed Epic bundle details in a system chat message" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository
+    )
+    schema = proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-schema",
+      title: "Auth schema",
+      body: "Add tables.",
+      repository: repository
+    )
+    ui = proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-ui",
+      title: "Auth UI",
+      body: "Add screens.",
+      repository: repository
+    )
+
+    post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload).to be_confirmed
+    expect(schema.reload.job).to be_present
+    expect(ui.reload.job).to be_present
+    confirmation_message = chat.messages.order(:created_at, :id).last
+    expect(confirmation_message).to have_attributes(role: "system", proposal_id: nil)
+    expect(confirmation_message.content.fetch("text")).to eq(
+      "Proposal confirmed. Epic ##{proposal.epic.id} \"Ship auth\" was created. " \
+      "Child jobs: ##{schema.job.id} \"Auth schema\", ##{ui.job.id} \"Auth UI\"."
+    )
   end
 
   it "confirms and rejects pending actions through the app API" do

@@ -73,6 +73,9 @@ first prompt, with the repository name as the fallback.
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
+Confirmed and discarded proposal cards are also written back into the chat
+transcript so the next assistant turn can see the created Job, Epic, or
+GitHub issue identifiers without asking the operator to repeat them.
 
 After discussing changes with an operator, the chat agent can propose
 structured feedback on an implemented or approved Job. Operator confirmation
