@@ -96,6 +96,11 @@ messages instead of waiting for the turn to finish. Queued messages remain
 editable and deletable until Syrus promotes the next one into the transcript
 and starts the following turn.
 
+The chat composer recognizes leading slash commands. Typing `/` opens an
+autocomplete palette with system commands handled in the browser and skill
+commands that are sent through the normal chat message path for the agent to
+interpret.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
