@@ -50,6 +50,13 @@ import { CloseIcon } from "../components/CloseIcon"
 import { StartEpicButton } from "../components/StartEpicButton"
 import { Markdown, PlainText } from "../lib/Markdown"
 import { useLayoutVersion } from "../lib/layoutVersion"
+import {
+  filterSlashCommands,
+  findSlashCommand,
+  slashCommandQuery,
+  slashCommandSignature,
+  type SlashCommand
+} from "../lib/slashCommands"
 
 const WHITEBOARD_SAVE_DEBOUNCE_MS = 500
 const CHAT_ENTER_SUBMIT_MIN_WIDTH = 1024
@@ -808,14 +815,18 @@ function ProposalChildren({ children, mutation }: { children: ChatProposalChild[
   )
 }
 
-function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [text, setText] = useState("")
+  const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
   const queuedMessages = payload.queued_messages || []
+  const commandQuery = slashCommandQuery(text)
+  const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery), [commandQuery])
   const send = useMutation({
     mutationFn: () => agentActive
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), text)
@@ -826,11 +837,35 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
       onNotice(null)
     }
   })
+  const commandPaletteOpen = commandQuery != null && matchingCommands.length > 0 && !send.isPending
 
   function submitMessage() {
     if (send.isPending || text.trim().length === 0) return
+    const commandMatch = findSlashCommand(text)
+    if (commandMatch?.command.kind === "system") {
+      onNotice(null)
+      handleSystemSlashCommand(commandMatch.command)
+      return
+    }
+
     onNotice(null)
     send.mutate()
+  }
+
+  function handleSystemSlashCommand(command: SlashCommand) {
+    if (command.name === "/new") {
+      navigate(withRoutePrefix(payload.paths.new_chat_path, prefix))
+      return
+    }
+
+    if (command.name === "/clear") {
+      setText("")
+      onNotice("Draft cleared.")
+      return
+    }
+
+    onNotice(`${command.name} is handled in the app and is not connected yet.`)
+    setText("")
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -839,11 +874,48 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (commandPaletteOpen && (event.key === "Tab" || event.key === "Enter")) {
+      event.preventDefault()
+      completeSlashCommand(matchingCommands[activeCommandIndex] || matchingCommands[0])
+      return
+    }
+
+    if (commandPaletteOpen && event.key === "ArrowDown") {
+      event.preventDefault()
+      setActiveCommandIndex((current) => (current + 1) % matchingCommands.length)
+      return
+    }
+
+    if (commandPaletteOpen && event.key === "ArrowUp") {
+      event.preventDefault()
+      setActiveCommandIndex((current) => (current - 1 + matchingCommands.length) % matchingCommands.length)
+      return
+    }
+
+    if (commandPaletteOpen && event.key === "Escape") {
+      event.preventDefault()
+      setText("")
+      return
+    }
+
     if (!submitWithEnter || event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return
 
     event.preventDefault()
     submitMessage()
   }
+
+  function completeSlashCommand(command: SlashCommand) {
+    const leadingWhitespace = text.match(/^\s*/)?.[0] || ""
+    setText(`${leadingWhitespace}${command.name} `)
+  }
+
+  useEffect(() => {
+    setActiveCommandIndex(0)
+  }, [commandQuery])
+
+  useEffect(() => {
+    if (activeCommandIndex >= matchingCommands.length) setActiveCommandIndex(0)
+  }, [activeCommandIndex, matchingCommands.length])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -863,11 +935,22 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
   }, [])
 
   return (
-    <form className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+    <form className="relative rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
       {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
       {queuedMessages.length > 0 ? <QueuedMessages messages={queuedMessages} queryKey={queryKey} /> : null}
+      {commandPaletteOpen ? (
+        <SlashCommandPalette
+          activeIndex={activeCommandIndex}
+          commands={matchingCommands}
+          query={commandQuery}
+          onSelect={(command) => completeSlashCommand(command)}
+        />
+      ) : null}
       <div className="flex items-end gap-3">
         <textarea
+          aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+          aria-expanded={commandPaletteOpen}
+          aria-haspopup="listbox"
           className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
           disabled={send.isPending}
           onChange={(event) => setText(event.target.value)}
@@ -882,6 +965,60 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
         {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
       </div>
     </form>
+  )
+}
+
+function SlashCommandPalette({ activeIndex, commands, query, onSelect }: { activeIndex: number; commands: SlashCommand[]; query: string; onSelect: (command: SlashCommand) => void }) {
+  return (
+    <div
+      aria-label="Slash commands"
+      className="absolute bottom-full left-3 right-3 z-10 mb-2 overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+      id="chat-slash-command-palette"
+      role="listbox"
+    >
+      {commands.map((command, index) => {
+        const signature = slashCommandSignature(command)
+        const active = index === activeIndex
+
+        return (
+          <button
+            aria-selected={active}
+            className={`flex w-full items-start gap-3 px-3 py-2 text-left text-sm ${active ? "bg-blue-50 dark:bg-blue-950" : "hover:bg-gray-50 dark:hover:bg-gray-900"}`}
+            key={command.name}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onSelect(command)}
+            role="option"
+            type="button"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{highlightSlashCommand(command.name, query)}</span>
+                {signature.length > 0 ? <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{signature}</span> : null}
+              </span>
+              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{command.description}</span>
+            </span>
+            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase ${command.kind === "system" ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"}`}>{command.kind}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function highlightSlashCommand(name: string, query: string) {
+  if (query.length === 0) return name
+
+  const start = name.slice(1).toLowerCase().indexOf(query)
+  if (start < 0) return name
+
+  const from = start + 1
+  const to = from + query.length
+  return (
+    <>
+      {name.slice(0, from)}
+      <mark className="bg-yellow-200 px-0 dark:bg-yellow-700 dark:text-gray-950">{name.slice(from, to)}</mark>
+      {name.slice(to)}
+    </>
   )
 }
 
@@ -1165,7 +1302,7 @@ function ChatColumn({ payload, prefix, queryKey, onNotice }: { payload: ChatPayl
         <MessageStream payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
-      <Compose payload={payload} queryKey={queryKey} onNotice={onNotice} />
+      <Compose payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
     </section>
   )
 }

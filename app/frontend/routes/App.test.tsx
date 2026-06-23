@@ -8260,6 +8260,109 @@ describe("App", () => {
     }
   })
 
+  it("shows and completes slash command suggestions from the chat composer", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: "/ren" } })
+
+    const palette = await screen.findByRole("listbox", { name: "Slash commands" })
+    expect(within(palette).getByRole("option", { name: /\/rename/ })).toHaveTextContent("Rename the current chat.")
+    expect(within(palette).queryByRole("option", { name: /\/jobs/ })).toBeNull()
+
+    fireEvent.keyDown(input, { key: "Tab" })
+    expect(input.value).toBe("/rename ")
+  })
+
+  it("completes slash commands with Enter before submitting on desktop", async () => {
+    const restoreViewport = setViewportWidth(1280)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const input = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+      fireEvent.change(input, { target: { value: "/jo" } })
+      expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false)
+      expect(input.value).toBe("/jobs ")
+      expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+    } finally {
+      restoreViewport()
+    }
+  })
+
+  it("intercepts registered system slash commands before posting chat messages", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(input, { target: { value: "/rename Canal review" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    expect(await screen.findByText("/rename is handled in the app and is not connected yet.")).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+  })
+
+  it("sends registered skill slash commands through the normal chat message path", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(input, { target: { value: "/job 1092" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/message",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ chat_message: { text: "/job 1092" } })
+        })
+      )
+    })
+  })
+
   it("shows an animated chat agent activity indicator", async () => {
     vi.spyOn(Math, "random").mockReturnValue(0)
     vi.spyOn(window, "fetch").mockResolvedValue(

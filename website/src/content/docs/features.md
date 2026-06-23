@@ -106,6 +106,11 @@ operator decision before continuing. Syrus shows the question above the
 compose area, renders multiple-choice options as buttons when provided, and
 otherwise accepts a short free-form answer.
 
+The chat composer recognizes leading slash commands. Typing `/` opens an
+autocomplete palette with system commands handled in the browser and skill
+commands that are sent through the normal chat message path for the agent to
+interpret.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
