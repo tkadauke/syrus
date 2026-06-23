@@ -68,7 +68,9 @@ implemented Jobs, change Job priority, move Jobs into or out of Epics, drill
 through Job workflow and Run history progressively, search Jobs in the
 attached repository, inspect Solid Queue health, and create proposal cards
 for the operator to confirm. New chats use a short interpreted title from the
-first prompt, with the repository name as the fallback.
+first prompt, with the repository name as the fallback. The app sidebar groups
+recent chats by repository, and each repository group can be collapsed when the
+operator wants to hide those chats.
 
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,

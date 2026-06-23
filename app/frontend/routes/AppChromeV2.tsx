@@ -242,6 +242,7 @@ type ChatSection = {
 function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDrawer: () => void; prefix: string; userPresent: boolean }) {
   const location = useLocation()
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set())
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
   const activeChatId = activeChatIdFromPath(location.pathname)
   const chats = useQuery({
     queryKey: ["chats", "recent"],
@@ -263,6 +264,18 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
     })
   }
 
+  function toggleCollapsedSection(key: string) {
+    setCollapsedSections((current) => {
+      const next = new Set(current)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
   if (!userPresent) return <div aria-hidden="true" className="flex-1 overflow-y-auto" />
 
   return (
@@ -270,12 +283,23 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
       <nav aria-label="Recent chats" className="space-y-4">
         {sections.map((section) => {
           const expanded = expandedSections.has(section.key)
-          const visibleChats = expanded ? section.chats : section.chats.slice(0, 5)
-          const hiddenCount = section.chats.length - visibleChats.length
+          const collapsed = collapsedSections.has(section.key)
+          const visibleChats = collapsed ? [] : expanded ? section.chats : section.chats.slice(0, 5)
+          const hiddenCount = collapsed ? 0 : section.chats.length - visibleChats.length
 
           return (
             <section className="space-y-1" key={section.key}>
-              <h2 className="px-2 text-[0.68rem] font-semibold uppercase tracking-normal text-gray-500 dark:text-gray-400">{section.label}</h2>
+              <h2>
+                <button
+                  aria-expanded={!collapsed}
+                  className="flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left text-[0.68rem] font-semibold uppercase tracking-normal text-gray-500 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+                  onClick={() => toggleCollapsedSection(section.key)}
+                  type="button"
+                >
+                  <ChevronDownIcon className={collapsed ? "-rotate-90" : ""} />
+                  <span className="min-w-0 flex-1 truncate">{section.label}</span>
+                </button>
+              </h2>
               <div className="space-y-0.5">
                 {visibleChats.map((chat) => {
                   const active = chat.current || chat.id === activeChatId

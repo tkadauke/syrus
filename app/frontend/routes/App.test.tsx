@@ -980,9 +980,23 @@ describe("App", () => {
       expect(within(recentNav).getByText("New chat")).toHaveClass("font-semibold")
       expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-blue-50", "text-blue-700")
       expect(within(recentNav).queryByRole("link", { name: "Widgets hidden" })).not.toBeInTheDocument()
+      expect(within(recentNav).getByRole("button", { name: "acme/widgets" })).toHaveAttribute("aria-expanded", "true")
 
       fireEvent.click(within(recentNav).getByRole("button", { name: "Show more" }))
 
+      expect(within(recentNav).getByRole("link", { name: "Widgets hidden" })).toBeInTheDocument()
+
+      fireEvent.click(within(recentNav).getByRole("button", { name: "acme/widgets" }))
+
+      expect(within(recentNav).getByRole("button", { name: "acme/widgets" })).toHaveAttribute("aria-expanded", "false")
+      expect(within(recentNav).queryByRole("link", { name: "Widgets active" })).not.toBeInTheDocument()
+      expect(within(recentNav).queryByRole("link", { name: "Widgets hidden" })).not.toBeInTheDocument()
+      expect(within(recentNav).getByRole("link", { name: "Roads latest" })).toBeInTheDocument()
+
+      fireEvent.click(within(recentNav).getByRole("button", { name: "acme/widgets" }))
+
+      expect(within(recentNav).getByRole("button", { name: "acme/widgets" })).toHaveAttribute("aria-expanded", "true")
+      expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toBeInTheDocument()
       expect(within(recentNav).getByRole("link", { name: "Widgets hidden" })).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
