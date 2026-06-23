@@ -1366,7 +1366,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("target", "_blank")
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("target", "_blank")
-    expect(document.querySelectorAll("[data-status-pill='true']")).toHaveLength(6)
+    expect(document.querySelectorAll("[data-status-pill='true']")).toHaveLength(4)
     for (const label of screen.getAllByText("Retryable failure")) {
       expect(label.closest("[data-status-pill='true']")).toHaveClass("rounded-full", "ring-1")
     }
@@ -1386,10 +1386,9 @@ describe("App", () => {
     expect(screen.queryByText("0 selected")).not.toBeInTheDocument()
     expect(screen.queryByText(/Sorted by/)).not.toBeInTheDocument()
     expect(within(screen.getByRole("button", { name: "Sort by Issue ascending" })).getByText("↓")).toBeInTheDocument()
-    const activeWorkflowTrigger = screen.getByLabelText("Active workflow trigger: rebase")
-    expect(activeWorkflowTrigger).toHaveClass("rounded-full", "ring-1", "bg-gray-100")
-    const stateCell = activeWorkflowTrigger.closest("td")
-    expect(stateCell).toHaveTextContent(/rebase.*running/i)
+    const stateCell = screen.getByRole("cell", { name: "open" })
+    expect(stateCell).toBeInTheDocument()
+    expect(stateCell).not.toHaveTextContent(/rebase|running/i)
     const latestWorkflowCell = screen.getByRole("cell", { name: "Latest workflow: rebase running" })
     expect(latestWorkflowCell).toBeInTheDocument()
     const latestWorkflowTrigger = within(latestWorkflowCell).getByLabelText("Latest workflow trigger: rebase")
@@ -1641,9 +1640,9 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      const activeWorkflowTrigger = await screen.findByLabelText("Active workflow trigger: chat_feedback")
-      expect(activeWorkflowTrigger).toHaveClass("bg-indigo-100", "text-indigo-700", "ring-indigo-200")
-      expect(screen.getByRole("cell", { name: "Latest workflow: chat_feedback running" })).toBeInTheDocument()
+      const latestWorkflowCell = await screen.findByRole("cell", { name: "Latest workflow: chat_feedback running" })
+      const latestWorkflowTrigger = within(latestWorkflowCell).getByLabelText("Latest workflow trigger: chat_feedback")
+      expect(latestWorkflowTrigger).toHaveClass("bg-indigo-100", "text-indigo-700", "ring-indigo-200")
     } finally {
       restoreMedia()
     }

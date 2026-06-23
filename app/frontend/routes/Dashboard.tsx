@@ -1087,7 +1087,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "state") {
     return (
       <td className="px-4 py-3">
-        <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
+        <NeutralStatePill state={job.state} />
       </td>
     )
   }
