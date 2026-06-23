@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ReactNode, useEffect, useMemo, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createChat, fetchChats, type ChatNavRecord } from "../api/chats"
@@ -28,6 +28,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [creatingChat, setCreatingChat] = useState(false)
+  const [mobileBrandFloating, setMobileBrandFloating] = useState(false)
+  const mainRef = useRef<HTMLElement | null>(null)
 
   const navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }> = user ? [
     { label: "Dashboard", to: `${prefix}/dashboard/jobs?view=list`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
@@ -47,6 +49,15 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     })
   }
 
+  useEffect(() => {
+    setMobileBrandFloating((mainRef.current?.scrollTop || 0) > 8)
+  }, [location.pathname])
+
+  function handleMainScroll() {
+    const nextFloating = (mainRef.current?.scrollTop || 0) > 8
+    setMobileBrandFloating((current) => current === nextFloating ? current : nextFloating)
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="hidden w-[240px] shrink-0 lg:flex">
@@ -63,39 +74,16 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         />
       </aside>
 
-      <aside className="flex w-12 shrink-0 flex-col items-center border-r border-gray-200 bg-white py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+      {mobileBrandFloating && !drawerOpen ? (
         <button
           aria-label="Open sidebar"
-          className="inline-flex h-9 w-9 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+          className="fixed left-3 top-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded border border-gray-200 bg-white text-gray-900 shadow-lg hover:bg-gray-50 hover:text-blue-600 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-900 dark:hover:text-blue-300 lg:hidden"
           onClick={() => setDrawerOpen(true)}
           type="button"
         >
-          <MenuIcon />
+          <img alt="" aria-hidden="true" className="h-6 w-6 rounded" src="/icon.png" />
         </button>
-        <div className="mt-3 flex flex-col gap-1">
-          {navItems.map((item) => (
-            <Link
-              aria-label={item.label}
-              className={sidebarIconLinkClass(item.active)}
-              key={item.label}
-              to={item.to}
-            >
-              {item.icon}
-            </Link>
-          ))}
-        </div>
-        <div className="flex-1" />
-        {user ? (
-          <button
-            aria-label="Open settings"
-            className="inline-flex h-9 w-9 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"
-            onClick={() => setDrawerOpen(true)}
-            type="button"
-          >
-            <UserIcon />
-          </button>
-        ) : null}
-      </aside>
+      ) : null}
 
       {drawerOpen ? (
         <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
@@ -113,7 +101,15 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         </div>
       ) : null}
 
-      <main className="min-w-0 flex-1 overflow-auto">
+      <main className="min-w-0 flex-1 overflow-auto" onScroll={handleMainScroll} ref={mainRef}>
+        <button
+          aria-label="Open sidebar"
+          className="flex w-full items-center border-b border-gray-200 bg-white px-4 py-3 text-left text-lg font-semibold text-gray-900 hover:bg-gray-50 hover:text-blue-600 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-900 dark:hover:text-blue-300 lg:hidden"
+          onClick={() => setDrawerOpen(true)}
+          type="button"
+        >
+          <SyrusBrand />
+        </button>
         {showAdminSubnav ? (
           <div className="flex min-h-full min-w-0">
             <AdminSubnav normalizedPath={normalizedPath} prefix={prefix} />
@@ -531,10 +527,6 @@ function sidebarLinkClass(active: boolean) {
   return `inline-flex items-center gap-2 rounded px-2.5 py-2 font-medium ${active ? "text-blue-700 dark:text-blue-300 sm:bg-blue-50 dark:sm:bg-blue-900/30" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
 }
 
-function sidebarIconLinkClass(active: boolean) {
-  return `inline-flex h-9 w-9 items-center justify-center rounded ${active ? "text-blue-700 dark:text-blue-300 sm:bg-blue-50 dark:sm:bg-blue-900/30" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
-}
-
 function recentChatLinkClass(active: boolean) {
   return `flex min-w-0 items-start gap-2 rounded px-2 py-1.5 text-xs ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
 }
@@ -549,14 +541,6 @@ function popupLinkClass() {
 
 function popupButtonClass() {
   return "block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-200 dark:hover:bg-gray-800"
-}
-
-function MenuIcon() {
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
-      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
-  )
 }
 
 function PlusIcon() {

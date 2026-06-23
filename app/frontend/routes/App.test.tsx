@@ -818,6 +818,65 @@ describe("App", () => {
     }
   })
 
+  it("uses an anchored v2 mobile brand trigger that floats after scroll", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByRole("navigation", { name: "Primary" })
+      const anchoredTrigger = screen.getByRole("button", { name: "Open sidebar" })
+      expect(anchoredTrigger).toHaveClass("w-full")
+      expect(anchoredTrigger).not.toHaveClass("fixed")
+      expect(within(anchoredTrigger).getByText("Syrus")).toBeInTheDocument()
+      expect(anchoredTrigger.querySelector('img[alt=""][src="/icon.png"]')).not.toBeNull()
+      expect(screen.queryByRole("button", { name: "Open settings" })).not.toBeInTheDocument()
+
+      const scrollPane = document.querySelector("main.overflow-auto")
+      expect(scrollPane).toBeInstanceOf(HTMLElement)
+      Object.defineProperty(scrollPane, "scrollTop", { configurable: true, value: 24 })
+      fireEvent.scroll(scrollPane as HTMLElement)
+
+      const sidebarTriggers = screen.getAllByRole("button", { name: "Open sidebar" })
+      const floatingTrigger = sidebarTriggers.find((button) => button.classList.contains("fixed"))
+      expect(floatingTrigger).toBeDefined()
+      expect(floatingTrigger).toHaveClass("left-3", "top-3")
+      expect(floatingTrigger?.querySelector('img[alt=""][src="/icon.png"]')).not.toBeNull()
+
+      fireEvent.click(floatingTrigger as HTMLButtonElement)
+      const drawerPrimaryNav = screen.getAllByRole("navigation", { name: "Primary" }).at(-1) as HTMLElement | undefined
+      if (!(drawerPrimaryNav instanceof HTMLElement)) throw new Error("Expected drawer primary navigation to render")
+      expect(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(screen.getAllByRole("button", { name: "Close sidebar" }).length).toBeGreaterThan(0)
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("renders v2 admin subnavigation between the primary nav and admin content", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
