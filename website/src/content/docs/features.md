@@ -78,6 +78,9 @@ it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
 Proposal cards can also declare dependency edges up front, including Jobs
 blocked on existing Epics and Epics blocked on existing Jobs.
+Proposal cards show dependency status before the title: either dependency
+proposal links with confirmed or pending badges, or an explicit no-dependencies
+note.
 Confirmed and discarded proposal cards are also written back into the chat
 transcript so the next assistant turn can see the created Job, Epic, or
 GitHub issue identifiers without asking the operator to repeat them.

@@ -53,7 +53,9 @@ export type ChatProposal = {
   resolved: boolean
   epic_bundle: boolean
   scoped_repository_slug: string | null
-  dependencies: string[]
+  dependency_slugs?: string[]
+  dependencies: ChatProposalDependency[]
+  has_dependencies: boolean
   target_epic_label: string | null
   app_confirm_path: string
   app_reject_path: string
@@ -64,6 +66,15 @@ export type ChatProposal = {
   materialized_epic_state_path?: string | null
   active_children_count?: number
   children?: ChatProposalChild[]
+}
+
+export type ChatProposalDependency = {
+  slug: string
+  title: string
+  state: string
+  confirmed: boolean
+  anchor_message_id?: number | null
+  materialized_path?: string | null
 }
 
 export type ChatProposalMaterialized =

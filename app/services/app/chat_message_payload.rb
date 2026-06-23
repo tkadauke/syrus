@@ -39,7 +39,8 @@ module App
       materialized = proposal.materialized_record
       materialized_epic = materialized.is_a?(Epic) ? materialized : nil
       scoped_repository = proposal.effective_repository || @repository
-      dependencies = proposal.dependencies.order(:slug).map { |dependency| dependency.slug }
+      dependency_records = proposal.dependencies.order(:slug).to_a
+      dependency_slugs = dependency_records.map(&:slug)
       base = {
         id: proposal.id,
         kind: proposal.kind,
@@ -53,7 +54,9 @@ module App
         resolved: proposal.resolved?,
         epic_bundle: proposal.epic_bundle?,
         scoped_repository_slug: scoped_repository&.slug,
-        dependencies: dependencies,
+        dependency_slugs: dependency_slugs,
+        dependencies: dependency_records.map { |dependency| dependency_json(dependency) },
+        has_dependencies: dependency_records.any?,
         target_epic_label: proposal.target_epic&.display_number,
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject",
@@ -76,6 +79,17 @@ module App
       else
         base
       end
+    end
+
+    def dependency_json(proposal)
+      {
+        slug: proposal.slug,
+        title: proposal.title,
+        state: proposal.state,
+        confirmed: proposal.confirmed?,
+        anchor_message_id: proposal.messages.order(:id).last&.id,
+        materialized_path: materialized_path(proposal.materialized_record)
+      }
     end
 
     def child_proposal_json(proposal, chat_session:)

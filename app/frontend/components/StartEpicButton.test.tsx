@@ -8,7 +8,7 @@ function proposal(overrides: Partial<ChatProposal> = {}): ChatProposal {
   return {
     id: 1, kind: "epic", kind_label: "Epic", state: "confirmed", state_label: "Confirmed",
     title: "Onboarding", slug: "onboarding", body: "", proposed: false, resolved: true,
-    epic_bundle: true, scoped_repository_slug: "acme/widgets", dependencies: [], target_epic_label: null,
+    epic_bundle: true, scoped_repository_slug: "acme/widgets", dependency_slugs: [], dependencies: [], has_dependencies: false, target_epic_label: null,
     app_confirm_path: "", app_reject_path: "", materialized_label: "EPIC-1", materialized_path: "/epics/3",
     materialized_epic_state: "backlog", materialized_epic_state_path: "/api/v1/app/epics/3/state",
     ...overrides

@@ -63,4 +63,58 @@ RSpec.describe App::ChatMessagePayload do
       ]
     )
   end
+
+  it "returns dependency details for a proposal" do
+    dependency = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "confirmed",
+      slug: "chat-search-fts5",
+      title: "Chat full-text search via dedicated SQLite FTS5 database",
+      body: "Add search."
+    )
+    dependent = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "proposed",
+      slug: "chat-search-ui",
+      title: "Chat search UI",
+      body: "Expose search."
+    )
+    ChatProposalDependency.create!(proposal: dependent, depends_on: dependency)
+    dependency_message = chat.messages.create!(role: "assistant", proposal: dependency, content: { "text" => "Dependency proposed." })
+    message = chat.messages.create!(role: "assistant", proposal: dependent, content: { "text" => "Dependent proposed." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    expect(payload.fetch(:has_dependencies)).to be(true)
+    expect(payload.fetch(:dependency_slugs)).to eq([ "chat-search-fts5" ])
+    expect(payload.fetch(:dependencies)).to eq([
+      {
+        slug: "chat-search-fts5",
+        title: "Chat full-text search via dedicated SQLite FTS5 database",
+        state: "confirmed",
+        confirmed: true,
+        anchor_message_id: dependency_message.id,
+        materialized_path: nil
+      }
+    ])
+  end
+
+  it "returns empty dependency details when a proposal has no dependencies" do
+    proposal = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "proposed",
+      slug: "chat-search-ui",
+      title: "Chat search UI",
+      body: "Expose search."
+    )
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal created." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    expect(payload.fetch(:has_dependencies)).to be(false)
+    expect(payload.fetch(:dependencies)).to eq([])
+  end
 end

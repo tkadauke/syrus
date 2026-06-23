@@ -36,6 +36,7 @@ import {
   type ChatPayload,
   type ChatProposal,
   type ChatProposalChild,
+  type ChatProposalDependency,
   type ChatQueuedMessage,
   type ChatRenderItem,
   type ChatStructuredTool,
@@ -647,11 +648,12 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
             <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
             {proposal.epic_bundle ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{proposal.active_children_count || 0} child Jobs</span> : null}
           </div>
+          <ProposalDependencyStrip dependencies={proposal.dependencies} hasDependencies={proposal.has_dependencies} prefix={prefix} />
+          <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
           <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{proposal.slug}</p>
         </div>
       </div>
@@ -681,6 +683,36 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       ) : null}
     </article>
   )
+}
+
+function ProposalDependencyStrip({ dependencies, hasDependencies, prefix }: { dependencies: ChatProposalDependency[]; hasDependencies: boolean; prefix: string }) {
+  if (!hasDependencies) {
+    return <div className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400">No dependencies</div>
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+      <span className="font-medium text-gray-700 dark:text-gray-200">Depends on:</span>
+      {dependencies.map((dependency) => (
+        <ProposalDependencyLink dependency={dependency} key={dependency.slug} prefix={prefix} />
+      ))}
+    </div>
+  )
+}
+
+function ProposalDependencyLink({ dependency, prefix }: { dependency: ChatProposalDependency; prefix: string }) {
+  const label = `${dependency.title} ${dependency.confirmed ? "✓" : "⏳"}`
+  const className = "inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"
+
+  if (dependency.anchor_message_id) {
+    return <a className={className} href={`#message-${dependency.anchor_message_id}`}>{label}</a>
+  }
+
+  if (dependency.materialized_path) {
+    return <Link className={className} to={withRoutePrefix(dependency.materialized_path, prefix)}>{label}</Link>
+  }
+
+  return <span className={className}>{label}</span>
 }
 
 function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatProposal; prefix: string; onNotice: (message: string | null) => void }) {
@@ -760,7 +792,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
       <div><dt className="font-medium text-gray-500 dark:text-gray-400">Attached scope</dt><dd>{proposal.scoped_repository_slug || "No repository attached"}</dd></div>
       <div>
         <dt className="font-medium text-gray-500 dark:text-gray-400">Dependencies</dt>
-        <dd>{proposal.dependencies.length > 0 ? <PillList values={proposal.dependencies} /> : "None"}</dd>
+        <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : "None"}</dd>
       </div>
       {proposal.target_epic_label ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">Target Epic</dt><dd>{proposal.target_epic_label}</dd></div> : null}
     </dl>

@@ -8922,6 +8922,115 @@ describe("App", () => {
     })
   })
 
+  it("renders proposal dependency pills with confirmed and pending badges", async () => {
+    const proposalMessage = {
+      type: "message",
+      id: 10,
+      role: "assistant",
+      text: "Proposal proposed.",
+      bookmarkable: true,
+      proposal: {
+        id: 5,
+        kind: "syrus_issue",
+        kind_label: "Syrus issue",
+        state: "proposed",
+        state_label: "Proposed",
+        title: "Search cards",
+        slug: "search-cards",
+        body: "Show dependency status.",
+        proposed: true,
+        resolved: false,
+        epic_bundle: false,
+        scoped_repository_slug: "acme/widgets",
+        dependency_slugs: ["chat-search-fts5", "agent-memory"],
+        dependencies: [
+          {
+            slug: "chat-search-fts5",
+            title: "Chat FTS5 infrastructure",
+            state: "confirmed",
+            confirmed: true,
+            anchor_message_id: 9,
+            materialized_path: "/jobs/41"
+          },
+          {
+            slug: "agent-memory",
+            title: "Agent Memory System",
+            state: "proposed",
+            confirmed: false,
+            anchor_message_id: null,
+            materialized_path: null
+          }
+        ],
+        has_dependencies: true,
+        target_epic_label: null,
+        app_confirm_path: "/api/v1/app/chats/8/proposals/5/confirm",
+        app_reject_path: "/api/v1/app/chats/8/proposals/5/reject",
+        materialized_label: null,
+        materialized_path: null
+      }
+    }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Depends on:")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Chat FTS5 infrastructure ✓" })).toHaveAttribute("href", "#message-9")
+    expect(screen.getByText("Agent Memory System ⏳")).toBeInTheDocument()
+  })
+
+  it("renders a muted no-dependencies strip on proposal cards", async () => {
+    const proposalMessage = {
+      type: "message",
+      id: 10,
+      role: "assistant",
+      text: "Proposal proposed.",
+      bookmarkable: true,
+      proposal: {
+        id: 5,
+        kind: "job",
+        kind_label: "Job",
+        state: "proposed",
+        state_label: "Proposed",
+        title: "Map auth",
+        slug: "map-auth",
+        body: "Map it.",
+        proposed: true,
+        resolved: false,
+        epic_bundle: false,
+        scoped_repository_slug: "acme/widgets",
+        dependency_slugs: [],
+        dependencies: [],
+        has_dependencies: false,
+        target_epic_label: null,
+        app_confirm_path: "/api/v1/app/chats/8/proposals/5/confirm",
+        app_reject_path: "/api/v1/app/chats/8/proposals/5/reject",
+        materialized_label: null,
+        materialized_path: null
+      }
+    }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("No dependencies")).toHaveClass("text-gray-500")
+  })
+
   it("links confirmed Epic proposals to the Epic detail route", async () => {
     const proposalMessage = {
       type: "message",
