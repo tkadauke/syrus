@@ -886,6 +886,47 @@ describe("App", () => {
     }
   })
 
+  it("renders v2 settings routes with a left-hand settings navigation", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/settings"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
+      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+      const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
+      expect(settingsNav.closest("aside")).toHaveClass("lg:w-56", "lg:border-r")
+      expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+      expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveClass("bg-gray-900")
+      expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
+      expect(within(settingsNav).getByRole("link", { name: "Templates" })).toHaveAttribute("href", "/app-shell/cron_templates")
+      expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials", expect.objectContaining({ credentials: "same-origin" }))
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("groups recent chats in the v2 sidebar", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"

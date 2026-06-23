@@ -6,7 +6,7 @@ import { patchJson } from "../api/client"
 import { BugReportButton } from "../components/BugReportButton"
 import { NoticeToast } from "../components/NoticeToast"
 import { SyrusBrand } from "../components/SyrusBrand"
-import { LayoutVersionProvider } from "../lib/layoutVersion"
+import { LayoutVersionProvider, useLayoutVersion } from "../lib/layoutVersion"
 import { useAppEvents } from "../lib/useAppEvents"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { AdminConsole } from "./AdminConsole"
@@ -87,18 +87,18 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/github_app/confirm", element: <AdminGithubAppConfirm /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
-  { path: "/settings", element: <CredentialsRoute /> },
-  { path: "/credentials/edit", element: <CredentialsRoute /> },
+  { path: "/settings", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
+  { path: "/credentials/edit", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
   { path: "/profiles", element: <TeamDirectoryRoute /> },
   { path: "/profiles/:id", element: <TeamProfileRoute /> },
-  { path: "/documents", element: <PersonalDocumentsRoute /> },
+  { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
   { path: "/profiles/:id", element: <ProfileRoute /> },
   { path: "/smart_folders", element: <SmartFolders /> },
-  { path: "/tags", element: <Tags /> },
-  { path: "/cron_templates", element: <CronTemplatesIndex /> },
-  { path: "/cron_templates/new", element: <CronTemplateFormRoute mode="new" /> },
-  { path: "/cron_templates/:id", element: <CronTemplateDetailRoute /> },
-  { path: "/cron_templates/:id/edit", element: <CronTemplateFormRoute mode="edit" /> },
+  { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
+  { path: "/cron_templates", element: <SettingsSectionRoute><CronTemplatesIndex /></SettingsSectionRoute> },
+  { path: "/cron_templates/new", element: <SettingsSectionRoute><CronTemplateFormRoute mode="new" /></SettingsSectionRoute> },
+  { path: "/cron_templates/:id", element: <SettingsSectionRoute><CronTemplateDetailRoute /></SettingsSectionRoute> },
+  { path: "/cron_templates/:id/edit", element: <SettingsSectionRoute><CronTemplateFormRoute mode="edit" /></SettingsSectionRoute> },
   { path: "/scheduled_tasks", element: <ScheduledTasksIndex /> },
   { path: "/scheduled_tasks/:id", element: <ScheduledTaskDetailRoute /> },
   { path: "/scheduled_tasks/:id/edit", element: <ScheduledTaskFormRoute mode="edit" /> },
@@ -725,23 +725,51 @@ function AdminNavigation({ normalizedPath, prefix }: { normalizedPath: string; p
 }
 
 function SettingsNavigation({ normalizedPath, prefix }: { normalizedPath: string; prefix: string }) {
-  const items: Array<{ label: string; path: string; active: (path: string) => boolean }> = [
-    { label: "My credentials", path: "/credentials/edit", active: (path) => path === "/settings" || path === "/credentials/edit" },
-    { label: "Documents", path: "/documents", active: (path) => path === "/documents" },
-    { label: "Templates", path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
-    { label: "Tags", path: "/tags", active: (path) => path === "/tags" }
-  ]
-
   return (
     <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <nav aria-label="Settings navigation" className="mx-auto flex max-w-[96rem] flex-wrap items-center gap-2 px-6 py-2 text-xs">
-        {items.map((item) => {
+        {settingsNavigationItems().map((item) => {
           const className = adminNavLinkClass(item.active(normalizedPath))
           return <Link className={className} key={item.label} to={withRoutePrefix(item.path, prefix)}>{item.label}</Link>
         })}
       </nav>
     </div>
   )
+}
+
+function SettingsSectionRoute({ children }: { children: ReactNode }) {
+  const layoutVersion = useLayoutVersion()
+  const location = useLocation()
+  const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
+  const normalizedPath = normalizedAppPath(location.pathname)
+
+  if (layoutVersion !== "v2") return <>{children}</>
+
+  return (
+    <div className="flex min-h-full flex-col bg-gray-50 dark:bg-gray-900 lg:flex-row">
+      <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:w-56 lg:border-b-0 lg:border-r">
+        <nav aria-label="Settings navigation" className="flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4">
+          {settingsNavigationItems().map((item) => (
+            <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.label} to={withRoutePrefix(item.path, prefix)}>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+      </aside>
+      <div className="min-w-0 flex-1">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function settingsNavigationItems(): Array<{ label: string; path: string; active: (path: string) => boolean }> {
+  return [
+    { label: "My credentials", path: "/credentials/edit", active: (path) => path === "/settings" || path === "/credentials/edit" },
+    { label: "Documents", path: "/documents", active: (path) => path === "/documents" },
+    { label: "Templates", path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
+    { label: "Tags", path: "/tags", active: (path) => path === "/tags" }
+  ]
 }
 
 function showsAdminNavigation(pathname: string) {
@@ -865,6 +893,10 @@ function landingSecondaryButtonClass() {
 
 function adminNavLinkClass(active: boolean) {
   return `rounded px-2.5 py-1.5 font-medium ${active ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"}`
+}
+
+function settingsSideNavLinkClass(active: boolean) {
+  return `whitespace-nowrap rounded px-3 py-2 font-medium ${active ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"}`
 }
 
 function withRoutePrefix(path: string, prefix: string) {
