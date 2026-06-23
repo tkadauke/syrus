@@ -527,17 +527,39 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
+  const storedSortColumn = sortValue(payload.preferences.sort, "column")
+  const storedSortDirection = sortValue(payload.preferences.sort, "direction")
+  const queueSortOutsideLanding = payload.subject === "job" && storedSortColumn === "landing_queue_position" && !payload.landing_queue.visible
+  const effectiveSortColumn = queueSortOutsideLanding ? "created_at" : storedSortColumn
+  const effectiveSortDirection = queueSortOutsideLanding ? "desc" : storedSortDirection
+  const [queueSortResetRequested, setQueueSortResetRequested] = useState(false)
+
+  useEffect(() => {
+    if (!queueSortOutsideLanding) {
+      if (queueSortResetRequested) setQueueSortResetRequested(false)
+      return
+    }
+    if (queueSortResetRequested || updateSort.isPending) return
+
+    setQueueSortResetRequested(true)
+    updateSort.mutate({
+      subject: payload.subject,
+      sort_column: "created_at",
+      sort_direction: "desc"
+    })
+  }, [payload.subject, queueSortOutsideLanding, queueSortResetRequested, updateSort])
+
   const sortState: DashboardSortState = {
-    column: sortValue(payload.preferences.sort, "column") || payload.controls.sort_columns[0] || "title",
-    direction: sortValue(payload.preferences.sort, "direction") || "desc",
+    column: effectiveSortColumn || payload.controls.sort_columns[0] || "title",
+    direction: effectiveSortDirection || "desc",
     pending: updateSort.isPending,
     sortableColumns: payload.controls.sort_columns,
     onSort: (column) => {
       const sortColumn = sortableColumnFor(payload.subject, column)
       if (!sortColumn || !payload.controls.sort_columns.includes(sortColumn)) return
 
-      const currentColumn = sortValue(payload.preferences.sort, "column") || payload.controls.sort_columns[0] || "title"
-      const currentDirection = sortValue(payload.preferences.sort, "direction") || "desc"
+      const currentColumn = effectiveSortColumn || payload.controls.sort_columns[0] || "title"
+      const currentDirection = effectiveSortDirection || "desc"
       const nextDirection = currentColumn === sortColumn && currentDirection === "asc" ? "desc" : "asc"
       updateSort.mutate({
         subject: payload.subject,

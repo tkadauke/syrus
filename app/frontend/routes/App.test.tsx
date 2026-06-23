@@ -2484,6 +2484,89 @@ describe("App", () => {
     expect(await screen.findByText("Landing paused.")).toBeInTheDocument()
   })
 
+  it("resets queue sorting outside the landing queue folder", async () => {
+    const restoreMedia = mockMediaQuery(true)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard/preferences") {
+        expect(init?.method).toBe("PATCH")
+        return new Response(
+          JSON.stringify({ message: "Dashboard preferences updated.", dashboard_preferences: {} }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      }
+
+      return new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            active_smart_folder_id: 3,
+            preferences: {
+              ...dashboardPayload().preferences,
+              sort: { column: "landing_queue_position", direction: "asc" }
+            },
+            controls: {
+              ...dashboardPayload().controls,
+              sort_columns: ["title", "state", "repository", "landing_queue_position", "created_at", "started_at"]
+            },
+            smart_folders: [
+              {
+                id: 3,
+                name: "In progress",
+                kind: "builtin",
+                subject_type: "job",
+                visibility: "when_present",
+                count: 2,
+                active: true,
+                path: "/dashboard/jobs?view=list&smart_folder_id=3"
+              }
+            ],
+            landing_queue: {
+              visible: false,
+              paused: false,
+              toggle_path: "/api/v1/app/dashboard/landing_pause"
+            },
+            items: [
+              dashboardJobItem({ id: 1, title: "First job", epic: { id: 10, number: 10, display_number: "#10", path: "/epics/10" } }),
+              dashboardJobItem({ id: 2, title: "Second job", epic: { id: 11, number: 11, display_number: "#11", path: "/epics/11" } })
+            ]
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=3"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByText("First job")).toBeInTheDocument()
+      expect(screen.getByText("Second job").closest("tr")).not.toHaveClass("border-t-4")
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/dashboard/preferences",
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({
+              subject: "job",
+              sort_column: "created_at",
+              sort_direction: "desc"
+            })
+          })
+        )
+      })
+    } finally {
+      restoreMedia()
+    }
+  })
+
   it("points an empty first-run dashboard at the direct job action", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
