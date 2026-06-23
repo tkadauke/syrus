@@ -38,6 +38,8 @@ module SyrusChatMcp
       ListJobWorkflowsTool,
       ReadWorkflowTool,
       ReadRunTranscriptTool,
+      SearchChatsTool,
+      ReadChatMessagesTool,
       ListJobsTool,
       SearchJobsTool,
       ApproveJobTool,

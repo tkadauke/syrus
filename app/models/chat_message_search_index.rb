@@ -33,7 +33,7 @@ class ChatMessageSearchIndex < SearchRecord
       end
     end
 
-    def search(query, user_id:, limit: 20)
+    def search(query, user_id:, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 24)
       rows = connection.exec_query(
         <<~SQL.squish,
           SELECT
@@ -42,7 +42,7 @@ class ChatMessageSearchIndex < SearchRecord
             user_id,
             role,
             created_at,
-            snippet(chat_message_fts, 0, '<mark>', '</mark>', '...', 24) AS snippet,
+            snippet(chat_message_fts, 0, ?, ?, '...', ?) AS snippet,
             bm25(chat_message_fts) AS rank
           FROM chat_message_fts
           WHERE chat_message_fts MATCH ? AND user_id = ?
@@ -51,6 +51,9 @@ class ChatMessageSearchIndex < SearchRecord
         SQL
         "ChatMessageSearchIndex Search",
         [
+          bind(snippet_start.to_s),
+          bind(snippet_end.to_s),
+          bind(snippet_tokens.to_i),
           bind(query.to_s),
           bind(user_id),
           bind(limit.to_i)

@@ -104,6 +104,11 @@ module Prompts
             running, then call this only after you and the operator agree
             on the requested change.
 
+        Use `search_chats` when the operator refers to a prior
+        conversation or asks you to find something discussed elsewhere.
+        Use `read_chat_messages` to inspect the matching chat transcript
+        once search results identify the relevant session.
+
         Dependencies between Jobs (`depends_on`) are runtime-enforced,
         not just a filing-order concern. A Job with an unsatisfied
         `depends_on` stays blocked and its agent does not run until
