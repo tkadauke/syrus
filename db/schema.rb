@@ -124,6 +124,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_165047) do
     t.index ["chat_message_id"], name: "index_chat_bookmarks_on_chat_message_id"
   end
 
+  create_table "chat_memories", force: :cascade do |t|
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.binary "embedding"
+    t.string "kind", null: false
+    t.boolean "published", default: false, null: false
+    t.string "scope", null: false
+    t.bigint "scope_id"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["scope_id", "published", "scope"], name: "index_chat_memories_on_scope_id_and_published_and_scope"
+    t.index ["user_id", "scope", "scope_id"], name: "index_chat_memories_on_user_id_and_scope_and_scope_id"
+  end
+
   create_table "chat_messages", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.json "content", null: false
@@ -903,6 +917,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_165047) do
   add_foreign_key "chat_agent_questions", "chat_sessions"
   add_foreign_key "chat_attachments", "chat_sessions"
   add_foreign_key "chat_bookmarks", "chat_messages"
+  add_foreign_key "chat_memories", "users"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_pending_actions", "chat_sessions"
