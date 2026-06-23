@@ -1,9 +1,10 @@
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { createChat, fetchNewChat, type NewChatPayload } from "../api/chats"
+import { upsertRecentChatCache } from "../lib/chatRecentCache"
 
 export function ChatNewRoute() {
   const location = useLocation()
@@ -28,11 +29,16 @@ export function ChatNewRoute() {
 
 function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [repositoryId, setRepositoryId] = useState("")
   const [text, setText] = useState("")
   const save = useMutation({
     mutationFn: () => createChat({ repositoryId, text }),
-    onSuccess: (created) => navigate(withRoutePrefix(created.redirect_to, prefix))
+    onSuccess: (created) => {
+      upsertRecentChatCache(queryClient, created.chat)
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      navigate(withRoutePrefix(created.redirect_to, prefix))
+    }
   })
 
   function submit(event: FormEvent<HTMLFormElement>) {

@@ -145,6 +145,19 @@ describe("applyAppEvent", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+    queryClient.setQueryData(["chats", "recent"], {
+      chats: [
+        {
+          ...chatPayload([]).chat,
+          id: 9,
+          title: null,
+          title_pending: true,
+          last_message_at: "2026-05-30T12:00:00Z",
+          unread: false
+        }
+      ],
+      repositories: []
+    })
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
@@ -167,6 +180,9 @@ describe("applyAppEvent", () => {
     expect(updated?.chat.cumulative_input_tokens).toBe(1500)
     expect(updated?.chat.cumulative_output_tokens).toBe(250)
     expect(updated?.chat.cumulative_cost_usd).toBe(0.125)
+    const recent = queryClient.getQueryData<{ chats: Array<{ id: number; title: string | null; title_pending: boolean }> }>(["chats", "recent"])
+    expect(recent?.chats[0].title).toBe("Updated chat")
+    expect(recent?.chats[0].title_pending).toBe(false)
   })
 
   it("applies chat bookmark payloads directly to cached chat data", () => {

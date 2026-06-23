@@ -9171,6 +9171,7 @@ describe("App", () => {
   })
 
   it("creates a new chat and navigates within the React shell", async () => {
+    const invalidateSpy = vi.spyOn(QueryClient.prototype, "invalidateQueries")
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats" && init?.method === "POST") {
@@ -9205,6 +9206,7 @@ describe("App", () => {
       )
     })
     expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
   })
 })
 

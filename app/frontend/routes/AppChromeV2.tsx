@@ -7,6 +7,7 @@ import { patchJson } from "../api/client"
 import { BugReportButton } from "../components/BugReportButton"
 import { CloseIcon } from "../components/CloseIcon"
 import { SyrusBrand } from "../components/SyrusBrand"
+import { upsertRecentChatCache } from "../lib/chatRecentCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { chatQueryKey } from "./Chat"
 
@@ -43,6 +44,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   function startChat() {
     setCreatingChat(true)
     void createChat({ repositoryId: "", text: "" }).then((created) => {
+      upsertRecentChatCache(queryClient, created.chat)
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
       setDrawerOpen(false)
       navigate(withRoutePrefix(created.redirect_to, prefix))
     }).finally(() => {

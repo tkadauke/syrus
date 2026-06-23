@@ -1,5 +1,6 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
 import type { ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord } from "../api/chats"
+import { updateRecentChatHeaderCache } from "./chatRecentCache"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const DASHBOARD_INVALIDATION_RETRY_MS = 1_000
@@ -149,6 +150,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const header = chatHeaderPayload(event.payload)
   if (header) {
     let patched = false
+    updateRecentChatHeaderCache(queryClient, event.id, header.chat)
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {
