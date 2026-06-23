@@ -47,6 +47,13 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::RebaseJobTool,
         SyrusChatMcp::SubmitChatFeedbackTool,
         SyrusChatMcp::ReadPrTool,
+        SyrusChatMcp::WriteMemoryTool,
+        SyrusChatMcp::ReadMemoryTool,
+        SyrusChatMcp::SearchMemoriesTool,
+        SyrusChatMcp::ListMemoriesTool,
+        SyrusChatMcp::DeleteMemoryTool,
+        SyrusChatMcp::PublishMemoryTool,
+        SyrusChatMcp::UnpublishMemoryTool,
         SyrusChatMcp::RepoInfoTool,
         SyrusChatMcp::ListRepoDocumentsTool,
         SyrusChatMcp::ReadRepoDocumentTool,
@@ -141,6 +148,13 @@ RSpec.describe SyrusChatMcp::Sidecar do
         rebase_job
         submit_chat_feedback
         read_pr
+        write_memory
+        read_memory
+        search_memories
+        list_memories
+        delete_memory
+        publish_memory
+        unpublish_memory
         repo_info
         list_repo_documents
         read_repo_document
