@@ -24,6 +24,7 @@ import {
   type JobRun,
   type JobSourcePayload,
   type JobStep,
+  type JobTestPlan,
   type JobWorkflow
 } from "../api/jobs"
 
@@ -548,9 +549,29 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
         </section>
       </div>
 
+      <TestPlanPanel testPlan={payload.test_plan} />
+
       <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} />
       <AttachmentPreview attachments={payload.attachments} />
     </div>
+  )
+}
+
+export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
+  return (
+    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Test plan</h2>
+      {testPlan ? (
+        <>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
+            {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+          </ol>
+          {testPlan.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{testPlan.notes}</p> : null}
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No test plan yet.</p>
+      )}
+    </section>
   )
 }
 

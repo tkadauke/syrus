@@ -9750,6 +9750,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       text: "Moved the uphill water simulation.",
       finished_at: "2026-05-30T12:00:00Z"
     },
+    test_plan: null,
     landing_queue_entry: null,
     workflows: [
       {

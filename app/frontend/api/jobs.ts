@@ -149,6 +149,12 @@ export type JobSummary = {
   finished_at: string | null
 }
 
+export type JobTestPlan = {
+  workflow_id: number
+  steps: string[]
+  notes: string | null
+}
+
 export type JobLandingQueueEntry = {
   position: number
   blocked_reason: string | null
@@ -322,6 +328,7 @@ export type JobDetailPayload = {
   dependency_target_options: JobOption[]
   attachments: JobAttachment[]
   summary: JobSummary | null
+  test_plan: JobTestPlan | null
   landing_queue_entry: JobLandingQueueEntry | null
   workflows: JobWorkflow[]
   workflows_pagination: JobWorkflowsPagination

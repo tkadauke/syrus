@@ -31,6 +31,7 @@ module App
         dependency_target_options: dependency_target_options,
         attachments: @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) },
         summary: summary_json,
+        test_plan: test_plan_json,
         landing_queue_entry: landing_queue_entry_json,
         workflows: workflows_json,
         workflows_pagination: workflows_pagination_json,
@@ -249,6 +250,29 @@ module App
         run_id: run.id,
         text: run.agent_summary,
         finished_at: iso8601(run.finished_at)
+      }
+    end
+
+    def test_plan_json
+      entry = @job.workflows.to_a.filter_map do |workflow|
+        next unless workflow.artifacts.is_a?(Hash)
+
+        plan = workflow.artifacts["test_plan"]
+        next unless plan.is_a?(Hash) && plan.present?
+
+        steps = Array(plan["steps"]).map(&:to_s).map(&:strip).reject(&:empty?)
+        next if steps.empty?
+
+        [ workflow, plan, steps ]
+      end.max_by { |workflow, _plan, _steps| workflow.created_at }
+      return unless entry
+
+      workflow, plan, steps = entry
+
+      {
+        workflow_id: workflow.id,
+        steps: steps,
+        notes: plan["notes"].presence
       }
     end
 
