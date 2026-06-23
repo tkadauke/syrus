@@ -10,6 +10,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   addChatAttachment,
+  answerAgentQuestion,
   cancelPendingAction,
   confirmChatProposal,
   confirmPendingAction,
@@ -28,6 +29,7 @@ import {
   updateQueuedChatMessage,
   type ChatAttachmentResult,
   type ChatAttachmentRow,
+  type ChatAgentQuestion,
   type ChatsIndexPayload,
   type ChatMcpHealth,
   type ChatNavRecord,
@@ -808,6 +810,7 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
+  const queuedMessages = payload.queued_messages || []
   const send = useMutation({
     mutationFn: () => agentActive
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), text)
@@ -857,7 +860,7 @@ function Compose({ payload, queryKey, onNotice }: { payload: ChatPayload; queryK
   return (
     <form className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
       {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
-      {payload.queued_messages.length > 0 ? <QueuedMessages messages={payload.queued_messages} queryKey={queryKey} /> : null}
+      {queuedMessages.length > 0 ? <QueuedMessages messages={queuedMessages} queryKey={queryKey} /> : null}
       <div className="flex items-end gap-3">
         <textarea
           className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
@@ -1151,14 +1154,76 @@ function ChatWorkspace({
 }
 
 function ChatColumn({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const agentQuestions = payload.agent_questions || []
+
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
       <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
         <MessageStream payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
+      {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       <Compose payload={payload} queryKey={queryKey} onNotice={onNotice} />
     </section>
+  )
+}
+
+function AgentQuestions({ questions, queryKey, onNotice }: { questions: ChatAgentQuestion[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  return (
+    <section className="space-y-3 rounded border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/60">
+      {questions.map((question) => <AgentQuestionPrompt key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} />)}
+    </section>
+  )
+}
+
+function AgentQuestionPrompt({ question, queryKey, onNotice }: { question: ChatAgentQuestion; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const search = queryKey[2]
+  const [answer, setAnswer] = useState("")
+  const submit = useMutation({
+    mutationFn: (value: string) => answerAgentQuestion(appendSearch(question.app_answer_path, search), value),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      setAnswer("")
+      onNotice(updated.message || null)
+    }
+  })
+  const options = question.options?.filter((option) => option.trim().length > 0) || []
+
+  function submitText(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const value = answer.trim()
+    if (value.length === 0 || submit.isPending) return
+
+    submit.mutate(value)
+  }
+
+  return (
+    <div className="space-y-3 rounded border border-blue-200 bg-white p-3 text-sm dark:border-blue-800 dark:bg-gray-950">
+      <div className="font-medium text-gray-900 dark:text-gray-100">{question.question}</div>
+      {submit.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(submit.error, "Answer could not be submitted.")}</div> : null}
+      {options.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {options.map((option) => (
+            <button className={secondaryButton()} disabled={submit.isPending} key={option} onClick={() => submit.mutate(option)} type="button">
+              {option}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitText}>
+          <input
+            aria-label="Answer"
+            className="min-h-9 flex-1 rounded border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+            disabled={submit.isPending}
+            onChange={(event) => setAnswer(event.target.value)}
+            required
+            value={answer}
+          />
+          <button className={primaryButton()} disabled={submit.isPending || answer.trim().length === 0} type="submit">Submit</button>
+        </form>
+      )}
+    </div>
   )
 }
 

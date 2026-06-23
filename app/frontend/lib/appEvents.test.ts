@@ -229,6 +229,40 @@ describe("applyAppEvent", () => {
       { id: 4, label: "Opening revised", chat_message_id: 1, anchor_message_id: 1 }
     ])
   })
+
+  it("applies chat agent question payloads directly to cached chat data", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_agent_questions",
+        agent_questions: [
+          {
+            id: 7,
+            question: "Which path?",
+            options: ["Fast", "Careful"],
+            asked_at: "2026-05-30T12:00:00Z",
+            app_answer_path: "/api/v1/app/chats/9/agent_questions/7/answer"
+          }
+        ]
+      }
+    })
+
+    expect(invalidate).not.toHaveBeenCalled()
+    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(updated?.agent_questions).toEqual([
+      {
+        id: 7,
+        question: "Which path?",
+        options: ["Fast", "Careful"],
+        asked_at: "2026-05-30T12:00:00Z",
+        app_answer_path: "/api/v1/app/chats/9/agent_questions/7/answer"
+      }
+    ])
+  })
 })
 
 function event(resource: string, id: number | null) {
@@ -288,6 +322,7 @@ function chatPayload(messages: Array<ReturnType<typeof message>>) {
     bookmarks: [],
     recent_chats: [],
     pending_actions: [],
+    agent_questions: [],
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
     attachment_results: [],

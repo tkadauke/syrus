@@ -99,6 +99,11 @@ messages instead of waiting for the turn to finish. Queued messages remain
 editable and deletable until Syrus promotes the next one into the transcript
 and starts the following turn.
 
+The chat agent can also ask a blocking inline question when it needs an
+operator decision before continuing. Syrus shows the question above the
+compose area, renders multiple-choice options as buttons when provided, and
+otherwise accepts a short free-form answer.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and

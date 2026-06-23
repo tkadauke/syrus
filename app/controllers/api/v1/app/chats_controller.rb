@@ -188,6 +188,22 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Queued message deleted.")
         end
 
+        def answer_agent_question
+          chat_session = find_chat_session
+          question = chat_session.agent_questions.find(params[:agent_question_id])
+          answer = params[:answer].to_s.strip
+          if answer.blank?
+            render_error("validation_failed", "Answer cannot be blank.", status: :unprocessable_content)
+            return
+          end
+
+          if question.answer!(answer)
+            render json: chat_payload(chat_session.reload, message: "Answer submitted.")
+          else
+            render_error("validation_failed", "Question is no longer active.", status: :unprocessable_content)
+          end
+        end
+
         def add_attachment
           chat_session = find_chat_session
           attachable = attachable_from_params(chat_session)
@@ -324,6 +340,7 @@ module Api
             bookmarks: chat_session.bookmarks.includes(:chat_message).map { |bookmark| bookmark_json(bookmark) },
             recent_chats: recent_chats_json(chat_session),
             pending_actions: pending_actions_json(chat_session),
+            agent_questions: chat_session.agent_questions_payload,
             queued_messages: chat_session.queued_messages_payload,
             attachment_groups: attachment_groups_json(attachment_groups),
             documents_in_scope: chat_session.attached_documents_in_scope.includes(:attachable).order(:title, :id).map { |document| document_json(document) },

@@ -266,6 +266,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     ChatSession.create!(user: Factories.user, title: "Foreign chat", last_message_at: Time.current)
     message = chat.messages.create!(role: "assistant", content: { "text" => "Discuss **aqueducts**." })
     message.bookmarks.create!(label: "Aqueducts", kind: "topic")
+    question = chat.agent_questions.create!(question: "Which path?", options: [ "Fast", "Careful" ], asked_at: Time.current)
     chat.create_whiteboard!(
       scene_json: {
         "elements" => [ { "id" => "box-1", "type" => "rectangle" } ],
@@ -285,6 +286,12 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["turn_in_flight"]).to eq(false)
     expect(body["agent_busy"]).to eq(false)
     expect(body["bookmarks"]).to contain_exactly(include("label" => "Aqueducts", "chat_message_id" => message.id, "anchor_message_id" => message.id))
+    expect(body["agent_questions"]).to contain_exactly(include(
+      "id" => question.id,
+      "question" => "Which path?",
+      "options" => [ "Fast", "Careful" ],
+      "app_answer_path" => "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer"
+    ))
     expect(body["recent_chats"]).to include(
       include("id" => chat.id, "current" => true, "chat_path" => chat_path(chat), "repository" => include("slug" => "acme/widgets")),
       include("id" => older_chat.id, "current" => false, "title" => "Older chat")
@@ -312,6 +319,36 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body.dig("paths", "app_whiteboard_path")).to eq("/api/v1/app/chats/#{chat.id}/whiteboard")
     expect(body["queued_messages"]).to eq([])
     expect(body["paths"].keys).not_to include("chat_messages_path", "chat_attachments_path", "chat_whiteboard_path")
+  end
+
+  it "answers an active agent question" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    question = chat.agent_questions.create!(question: "Which branch?", options: [ "main", "release" ], asked_at: Time.current)
+
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answer: "release" }
+
+    expect(response).to have_http_status(:ok)
+    expect(question.reload.answer).to eq("release")
+    expect(question.answered_at).to be_present
+    expect(parse_body["agent_questions"]).to eq([])
+  end
+
+  it "rejects blank or inactive agent question answers" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    question = chat.agent_questions.create!(question: "Continue?", asked_at: Time.current)
+
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answer: " " }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(question.reload.answer).to be_nil
+
+    question.expire!
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answer: "yes" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(question.reload.answer).to be_nil
   end
 
   it "queues, edits, and deletes a message while a chat turn is active" do

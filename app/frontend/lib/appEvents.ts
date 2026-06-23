@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord } from "../api/chats"
+import type { ChatAgentQuestion, ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord } from "../api/chats"
 import { updateRecentChatHeaderCache } from "./chatRecentCache"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
@@ -182,6 +182,20 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return patched
   }
 
+  const agentQuestions = chatAgentQuestionsPayload(event.payload)
+  if (agentQuestions) {
+    let patched = false
+    queryClient.setQueriesData<ChatPayload>(
+      { queryKey: ["chats", String(event.id)] },
+      (current) => {
+        if (!current) return current
+        patched = true
+        return { ...current, agent_questions: agentQuestions.agent_questions }
+      }
+    )
+    return patched
+  }
+
   return false
 }
 
@@ -211,6 +225,11 @@ type ChatHeaderPayload = {
 type ChatBookmarkPayload = {
   action: "upsert_bookmark"
   bookmark: ChatBookmark
+}
+
+type ChatAgentQuestionsPayload = {
+  action: "update_agent_questions"
+  agent_questions: ChatAgentQuestion[]
 }
 
 function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null {
@@ -285,6 +304,19 @@ function chatBookmarkPayload(payload: unknown): ChatBookmarkPayload | null {
   }
 }
 
+function chatAgentQuestionsPayload(payload: unknown): ChatAgentQuestionsPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatAgentQuestionsPayload>
+  if (candidate.action !== "update_agent_questions") return null
+  if (!isChatAgentQuestions(candidate.agent_questions)) return null
+
+  return {
+    action: "update_agent_questions",
+    agent_questions: candidate.agent_questions
+  }
+}
+
 function isChatMessages(value: unknown): value is ChatMessageItem[] {
   return Array.isArray(value) && value.every((item) => {
     if (!item || typeof item !== "object") return false
@@ -319,6 +351,21 @@ function isChatBookmark(value: unknown): value is ChatBookmark {
     typeof candidate.chat_message_id === "number" &&
     (typeof candidate.anchor_message_id === "number" || candidate.anchor_message_id == null)
   )
+}
+
+function isChatAgentQuestions(value: unknown): value is ChatAgentQuestion[] {
+  return Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== "object") return false
+
+    const candidate = item as Partial<ChatAgentQuestion>
+    return (
+      typeof candidate.id === "number" &&
+      typeof candidate.question === "string" &&
+      (candidate.options === null || (Array.isArray(candidate.options) && candidate.options.every((option) => typeof option === "string"))) &&
+      (typeof candidate.asked_at === "string" || candidate.asked_at == null) &&
+      typeof candidate.app_answer_path === "string"
+    )
+  })
 }
 
 function replaceMessageTail(current: ChatMessageItem[], replaceFromId: number, nextMessages: ChatMessageItem[]) {

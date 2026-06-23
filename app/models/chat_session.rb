@@ -36,6 +36,7 @@ class ChatSession < ApplicationRecord
   has_many :messages, class_name: "ChatMessage", dependent: :destroy
   has_many :chat_queued_messages, class_name: "ChatQueuedMessage", dependent: :destroy
   has_many :queued_messages, -> { pending.order(:created_at, :id) }, class_name: "ChatQueuedMessage"
+  has_many :agent_questions, class_name: "ChatAgentQuestion", dependent: :destroy
   has_many :bookmarks,
            -> { order("chat_messages.created_at ASC", "chat_messages.id ASC", "chat_bookmarks.id ASC") },
            through: :messages,
@@ -153,6 +154,18 @@ class ChatSession < ApplicationRecord
         created_at: message.created_at&.iso8601,
         app_update_path: "/api/v1/app/chats/#{id}/queued_messages/#{message.id}",
         app_delete_path: "/api/v1/app/chats/#{id}/queued_messages/#{message.id}"
+      }
+    end
+  end
+
+  def agent_questions_payload
+    agent_questions.active.map do |question|
+      {
+        id: question.id,
+        question: question.question,
+        options: question.options,
+        asked_at: question.asked_at&.iso8601,
+        app_answer_path: "/api/v1/app/chats/#{id}/agent_questions/#{question.id}/answer"
       }
     end
   end

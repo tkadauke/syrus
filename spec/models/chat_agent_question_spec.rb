@@ -1,0 +1,32 @@
+require "rails_helper"
+
+RSpec.describe ChatAgentQuestion do
+  let(:user) { Factories.user }
+  let(:repository) { Factories.repository(user: user) }
+  let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+  it "answers an active question once" do
+    question = chat_session.agent_questions.create!(question: "Deploy now?", options: [ "Yes", "No" ], asked_at: Time.current)
+
+    expect(question.answer!("Yes")).to eq(true)
+    expect(question.reload.answer).to eq("Yes")
+    expect(question.answered_at).to be_present
+    expect(question.answer!("No")).to eq(false)
+    expect(question.reload.answer).to eq("Yes")
+  end
+
+  it "expires an unanswered question" do
+    question = chat_session.agent_questions.create!(question: "Need a fallback?", asked_at: Time.current)
+
+    expect(question.expire!).to eq(true)
+    expect(question.reload.expired_at).to be_present
+    expect(question.answer!("Fallback")).to eq(false)
+  end
+
+  it "validates options as non-empty strings" do
+    question = chat_session.agent_questions.build(question: "Pick one", options: [ "Yes", "" ], asked_at: Time.current)
+
+    expect(question).not_to be_valid
+    expect(question.errors[:options]).to include("must be an array of non-empty strings")
+  end
+end

@@ -116,6 +116,7 @@ Rails.application.routes.draw do
         post "chats/:id/queued_messages", to: "chats#enqueue_message", constraints: { id: /\d+/ }
         patch "chats/:id/queued_messages/:queued_message_id", to: "chats#update_queued_message", constraints: { id: /\d+/, queued_message_id: /\d+/ }
         delete "chats/:id/queued_messages/:queued_message_id", to: "chats#destroy_queued_message", constraints: { id: /\d+/, queued_message_id: /\d+/ }
+        post "chats/:id/agent_questions/:agent_question_id/answer", to: "chats#answer_agent_question", constraints: { id: /\d+/, agent_question_id: /\d+/ }
         post "chats/:id/stop", to: "chats#stop", constraints: { id: /\d+/ }
         post "chats/:id/bookmarks", to: "chats#create_bookmark", constraints: { id: /\d+/ }
         post "chats/:id/attachments", to: "chats#add_attachment", constraints: { id: /\d+/ }
