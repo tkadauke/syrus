@@ -70,7 +70,7 @@ grade:
       detonate live pods. If this fails, two files probably define
       the same constant with different superclasses — check umbrella
       files vs per-class siblings.
-    run: BUNDLE_PATH="$PWD/.syrus/deps/bundle" BUNDLE_APP_CONFIG="$PWD/.syrus/deps/bundle-config" bundle check || BUNDLE_PATH="$PWD/.syrus/deps/bundle" BUNDLE_APP_CONFIG="$PWD/.syrus/deps/bundle-config" bundle install --jobs 4 && BUNDLE_PATH="$PWD/.syrus/deps/bundle" BUNDLE_APP_CONFIG="$PWD/.syrus/deps/bundle-config" bin/check-eager-load
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
     timeout_minutes: 1
 
   - name: rspec
