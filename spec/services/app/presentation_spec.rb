@@ -66,6 +66,17 @@ RSpec.describe App::Presentation do
     end
   end
 
+  describe ".workflow_dashboard_state" do
+    it "labels cancelled auto-merge workflows as postponed" do
+      expect(described_class.workflow_dashboard_state("cancelled", "auto_merge")).to eq("postponed")
+    end
+
+    it "leaves ordinary workflow states unchanged" do
+      expect(described_class.workflow_dashboard_state("cancelled", "initial")).to eq("cancelled")
+      expect(described_class.workflow_dashboard_state("running", "auto_merge")).to eq("running")
+    end
+  end
+
   describe ".current_step_caption" do
     it "returns nil without a running workflow" do
       job = Factories.job_record

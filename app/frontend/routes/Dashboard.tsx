@@ -1121,16 +1121,14 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
     return <td className="px-4 py-3" />
   }
 
-  const displayState = dashboardJobWorkflowDisplayState(job.latest_workflow_state, job.latest_workflow_trigger_kind)
-
   if (!job.latest_workflow_trigger_kind) {
-    return <td className="px-4 py-3"><StatusPill state={displayState} /></td>
+    return <td className="px-4 py-3"><StatusPill state={job.latest_workflow_state} /></td>
   }
 
   return (
-    <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${displayState}`} className="px-4 py-3">
+    <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`} className="px-4 py-3">
       <div className="flex flex-col items-start gap-1.5">
-        <WorkflowBadges state={displayState} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
+        <WorkflowBadges state={job.latest_workflow_state} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
         <RetryStateInline job={job} />
       </div>
     </td>
@@ -1157,12 +1155,6 @@ function WorkflowBadges({ state, triggerAriaPrefix, triggerKind }: { state: stri
       <StatusPill state={state} />
     </span>
   )
-}
-
-function dashboardJobWorkflowDisplayState(state: string, triggerKind: string | null) {
-  if (triggerKind === "auto_merge" && state === "cancelled") return "Not ready"
-
-  return state
 }
 
 function WorkflowTriggerPill({ ariaPrefix, triggerKind }: { ariaPrefix: string; triggerKind: string }) {

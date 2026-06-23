@@ -1893,7 +1893,7 @@ describe("App", () => {
     }
   })
 
-  it("labels cancelled auto-merge attempts as not ready on dashboard jobs", async () => {
+  it("renders postponed auto-merge attempts from dashboard job state", async () => {
     const restoreMedia = mockMediaQuery(true)
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
@@ -1910,7 +1910,7 @@ describe("App", () => {
             items: [
               dashboardJobItem({
                 latest_workflow_trigger_kind: "auto_merge",
-                latest_workflow_state: "cancelled"
+                latest_workflow_state: "postponed"
               })
             ]
           })
@@ -1928,9 +1928,9 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      const latestCell = await screen.findByRole("cell", { name: "Latest workflow: auto_merge Not ready" })
+      const latestCell = await screen.findByRole("cell", { name: "Latest workflow: auto_merge postponed" })
       expect(within(latestCell).getByText("auto merge")).toBeInTheDocument()
-      expect(within(latestCell).getByText("Not ready")).toBeInTheDocument()
+      expect(within(latestCell).getByText("postponed")).toBeInTheDocument()
       expect(within(latestCell).queryByText("cancelled")).not.toBeInTheDocument()
     } finally {
       restoreMedia()

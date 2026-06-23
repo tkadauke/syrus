@@ -133,6 +133,30 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body.dig("paths", "new_job_path")).to eq(new_job_path)
     end
 
+    it "presents deferred auto-merge workflows as postponed dashboard state" do
+      job = Factories.job_record(repository: repo, owner_user: user, issue_number: 30, issue_title: "Land after GitHub settles")
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "cancelled")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all", scope: "mine" }
+
+      expect(response).to have_http_status(:ok)
+      job_item = parse_body.fetch("items").find { |item| item.fetch("id") == job.id }
+      expect(job_item).to include(
+        "latest_workflow_id" => workflow.id,
+        "latest_workflow_trigger_kind" => "auto_merge",
+        "latest_workflow_state" => "postponed"
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "workflow", view: "list", scope: "mine" }
+
+      expect(response).to have_http_status(:ok)
+      workflow_item = parse_body.fetch("items").find { |item| item.fetch("id") == workflow.id }
+      expect(workflow_item).to include(
+        "trigger_kind" => "auto_merge",
+        "state" => "postponed"
+      )
+    end
+
     it "does not persist dashboard navigation during a read" do
       original_preferences = user.dashboard_preferences
 

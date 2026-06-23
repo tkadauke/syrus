@@ -54,6 +54,12 @@ module App
       job.state
     end
 
+    def workflow_dashboard_state(state, trigger_kind)
+      return "postponed" if trigger_kind == "auto_merge" && state == "cancelled"
+
+      state
+    end
+
     def current_step_caption(job)
       workflow = job.workflows.where(state: "running").order(:created_at).last
       return nil unless workflow
