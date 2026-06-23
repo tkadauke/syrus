@@ -14,6 +14,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
         SyrusChatMcp::SetJobPriorityTool,
         SyrusChatMcp::AssignJobToEpicTool,
         SyrusChatMcp::RemoveJobFromEpicTool,
+        SyrusChatMcp::UpdateJobTool,
         SyrusChatMcp::CancelJobTool,
         SyrusChatMcp::RetryJobTool,
         SyrusChatMcp::RebaseJobTool
@@ -146,6 +147,52 @@ RSpec.describe "SyrusChatMcp job control tools" do
 
     expect(response.dig(:result, :isError)).to be true
     expect(response.dig(:result, :content, 0, :text)).to include("job must currently belong to an epic")
+  end
+
+  it "updates a job title only" do
+    job = Factories.job_record(repository: repository, issue_title: "Old title", issue_body: "Old description")
+
+    response = call_tool("update_job", job_id: job.id, title: "New title")
+
+    expect(payload(response)).to include(job_id: job.id, title: "New title", description: "Old description", state: "queued")
+    expect(job.reload).to have_attributes(issue_title: "New title", issue_body: "Old description")
+  end
+
+  it "updates a job description only" do
+    job = Factories.job_record(repository: repository, issue_title: "Old title", issue_body: "Old description")
+
+    response = call_tool("update_job", job_id: job.id, description: "New description")
+
+    expect(payload(response)).to include(job_id: job.id, title: "Old title", description: "New description", state: "queued")
+    expect(job.reload).to have_attributes(issue_title: "Old title", issue_body: "New description")
+  end
+
+  it "updates a job title and description" do
+    job = Factories.job_record(repository: repository, issue_title: "Old title", issue_body: "Old description")
+
+    response = call_tool("update_job", job_id: job.id, title: "New title", description: "New description")
+
+    expect(payload(response)).to include(job_id: job.id, title: "New title", description: "New description", state: "queued")
+    expect(job.reload).to have_attributes(issue_title: "New title", issue_body: "New description")
+  end
+
+  it "rejects updating a job without a title or description" do
+    job = Factories.job_record(repository: repository, issue_title: "Old title", issue_body: "Old description")
+
+    response = call_tool("update_job", job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("title or description is required")
+    expect(job.reload).to have_attributes(issue_title: "Old title", issue_body: "Old description")
+  end
+
+  it "rejects updating jobs outside the chat repository" do
+    other_job = Factories.job(repository: Factories.repository(user: user))
+
+    response = call_tool("update_job", job_id: other_job.id, title: "New title")
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("job not found in this repository")
   end
 
   it "creates a pending retry_job confirmation without executing it" do

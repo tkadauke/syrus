@@ -35,6 +35,7 @@ module SyrusChatMcp
       ArchiveEpicTool,
       UpdateEpicTool,
       ReadJobTool,
+      UpdateJobTool,
       ListJobWorkflowsTool,
       ReadWorkflowTool,
       ReadRunTranscriptTool,

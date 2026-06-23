@@ -24,6 +24,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::ArchiveEpicTool,
         SyrusChatMcp::UpdateEpicTool,
         SyrusChatMcp::ReadJobTool,
+        SyrusChatMcp::UpdateJobTool,
         SyrusChatMcp::ListJobWorkflowsTool,
         SyrusChatMcp::ReadWorkflowTool,
         SyrusChatMcp::ReadRunTranscriptTool,
@@ -110,6 +111,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         archive_epic
         update_epic
         read_job
+        update_job
         list_job_workflows
         read_workflow
         read_run_transcript
