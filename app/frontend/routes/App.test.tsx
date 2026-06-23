@@ -1893,6 +1893,50 @@ describe("App", () => {
     }
   })
 
+  it("labels cancelled auto-merge attempts as not ready on dashboard jobs", async () => {
+    const restoreMedia = mockMediaQuery(true)
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            preferences: {
+              sort: { column: "created_at", direction: "desc" },
+              visible_columns: ["issue", "state", "latest"],
+              kanban_lanes: ["queued", "running", "succeeded"],
+              raw: {}
+            },
+            items: [
+              dashboardJobItem({
+                latest_workflow_trigger_kind: "auto_merge",
+                latest_workflow_state: "cancelled"
+              })
+            ]
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const latestCell = await screen.findByRole("cell", { name: "Latest workflow: auto_merge Not ready" })
+      expect(within(latestCell).getByText("auto merge")).toBeInTheDocument()
+      expect(within(latestCell).getByText("Not ready")).toBeInTheDocument()
+      expect(within(latestCell).queryByText("cancelled")).not.toBeInTheDocument()
+    } finally {
+      restoreMedia()
+    }
+  })
+
   it("leaves the latest workflow cell empty for dashboard jobs with no workflows", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
