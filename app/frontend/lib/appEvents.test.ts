@@ -336,6 +336,8 @@ function chatPayload(messages: Array<ReturnType<typeof message>>) {
       repositories_path: "/repositories",
       app_messages_path: "/api/v1/app/chats/9/messages",
       app_message_path: "/api/v1/app/chats/9/message",
+      app_rename_path: "/api/v1/app/chats/9/rename",
+      app_clear_path: "/api/v1/app/chats/9/messages",
       app_stop_path: "/api/v1/app/chats/9/stop",
       app_bookmarks_path: "/api/v1/app/chats/9/bookmarks",
       app_attachments_path: "/api/v1/app/chats/9/attachments",

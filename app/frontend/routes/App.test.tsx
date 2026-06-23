@@ -8312,9 +8312,14 @@ describe("App", () => {
   })
 
   it("intercepts registered system slash commands before posting chat messages", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/rename" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ message: "Chat renamed." })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -8328,7 +8333,74 @@ describe("App", () => {
     fireEvent.change(input, { target: { value: "/rename Canal review" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
 
-    expect(await screen.findByText("/rename is handled in the app and is not connected yet.")).toBeInTheDocument()
+    expect(await screen.findByText("Chat renamed.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/rename", expect.objectContaining({ method: "PATCH" }))
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+  })
+
+  it("confirms clear before deleting chat history", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/messages" && init?.method === "DELETE") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ message: "Chat history cleared.", messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(input, { target: { value: "/clear" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    expect(await screen.findByText("Clear this chat's message history?")).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/messages", expect.objectContaining({ method: "DELETE" }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }))
+    expect(await screen.findByText("Chat history cleared.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/messages", expect.objectContaining({ method: "DELETE" }))
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+  })
+
+  it("handles panel and attachment system slash commands in the app", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/attachments" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ message: "acme/tools attached." })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(input, { target: { value: "/settings" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(await screen.findByRole("dialog", { name: "Chat settings" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close chat settings" }))
+
+    fireEvent.change(input, { target: { value: "/attach acme/tools" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(await screen.findByText("acme/tools attached.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/attachments", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ attachable_type: "Repository", repository_slug: "acme/tools" })
+    }))
+    expect(screen.getByRole("heading", { name: "Attachments" })).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
@@ -11057,6 +11129,8 @@ function chatPayload(overrides: {
       repositories_path: "/repositories",
       app_messages_path: "/api/v1/app/chats/8/messages",
       app_message_path: "/api/v1/app/chats/8/message",
+      app_rename_path: "/api/v1/app/chats/8/rename",
+      app_clear_path: "/api/v1/app/chats/8/messages",
       app_enqueue_message_path: "/api/v1/app/chats/8/queued_messages",
       app_rename_path: "/api/v1/app/chats/8/rename",
       app_stop_path: "/api/v1/app/chats/8/stop",

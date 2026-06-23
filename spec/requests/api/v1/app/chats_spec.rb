@@ -343,6 +343,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body.dig("whiteboard", "files", "file-1", "dataURL")).to eq("data:image/png;base64,abc")
     expect(body.dig("paths", "app_messages_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
     expect(body.dig("paths", "app_message_path")).to eq("/api/v1/app/chats/#{chat.id}/message")
+    expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
+    expect(body.dig("paths", "app_clear_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
     expect(body.dig("paths", "app_enqueue_message_path")).to eq("/api/v1/app/chats/#{chat.id}/queued_messages")
     expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
     expect(body.dig("paths", "app_attachments_path")).to eq("/api/v1/app/chats/#{chat.id}/attachments")
@@ -710,6 +712,52 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("acme/widgets detached.")
     expect(parse_body.dig("attachment_groups", "repositories")).to eq([])
+  end
+
+  it "attaches a repository by slug through the app API" do
+    sign_in_as(user)
+    repository
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/attachments", params: { attachable_type: "Repository", repository_slug: "acme/widgets" }
+    }.to change(ChatAttachment, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.attached_repositories).to contain_exactly(repository)
+    expect(parse_body["message"]).to eq("acme/widgets attached.")
+  end
+
+  it "renames a chat through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Old title", last_message_at: Time.current)
+
+    patch "/api/v1/app/chats/#{chat.id}/rename", params: { chat: { title: "Canal review" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.title).to eq("Canal review")
+    expect(parse_body["message"]).to eq("Chat renamed.")
+    expect(parse_body.dig("chat", "title")).to eq("Canal review")
+  end
+
+  it "clears chat messages and queued messages through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Keep title", last_message_at: Time.current, stop_requested_at: Time.current)
+    chat.messages.create!(role: "user", content: { "text" => "Start" })
+    chat.chat_queued_messages.create!(content: { "text" => "Next" })
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/messages"
+    }.to change(ChatMessage, :count).by(-1)
+      .and change(ChatQueuedMessage, :count).by(-1)
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.title).to eq("Keep title")
+    expect(chat.last_message_at).to be_nil
+    expect(chat.stop_requested_at).to be_nil
+    expect(parse_body["message"]).to eq("Chat history cleared.")
+    expect(parse_body["messages"]).to eq([])
+    expect(parse_body["queued_messages"]).to eq([])
   end
 
   it "does not attach another user's repository through the app API" do

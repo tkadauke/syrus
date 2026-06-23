@@ -20,10 +20,10 @@ export type SlashCommandMatch = {
 
 export const slashCommands = [
   { name: "/rename", kind: "system", args: [{ name: "title", required: true }], description: "Rename the current chat." },
-  { name: "/clear", kind: "system", args: [], description: "Clear the current compose draft." },
+  { name: "/clear", kind: "system", args: [], description: "Clear this chat's message history." },
   { name: "/new", kind: "system", args: [], description: "Start a new chat." },
   { name: "/bookmarks", kind: "system", args: [], description: "Show saved bookmarks in this chat." },
-  { name: "/attach", kind: "system", args: [{ name: "target", required: false }], description: "Open attachment controls." },
+  { name: "/attach", kind: "system", args: [{ name: "owner/repo", required: false }], description: "Attach a repository or open attachment controls." },
   { name: "/settings", kind: "system", args: [], description: "Open chat settings." },
   { name: "/jobs", kind: "skill", args: [{ name: "query", required: false }], description: "Ask the agent to inspect Jobs." },
   { name: "/job", kind: "skill", args: [{ name: "id", required: true }], description: "Ask the agent about one Job." },

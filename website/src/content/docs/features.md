@@ -109,7 +109,10 @@ otherwise accepts a short free-form answer.
 The chat composer recognizes leading slash commands. Typing `/` opens an
 autocomplete palette with system commands handled in the browser and skill
 commands that are sent through the normal chat message path for the agent to
-interpret.
+interpret. System commands can rename the current chat, clear chat history
+after an inline confirmation, start a fresh chat attached to the same
+repository, open bookmarks, attach another repository by `owner/repo`, and
+open chat settings without sending a message to the agent.
 
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when

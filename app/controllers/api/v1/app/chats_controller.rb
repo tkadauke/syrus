@@ -132,12 +132,6 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Stop requested.")
         end
 
-        def mark_read
-          find_chat_session.update!(last_read_at: Time.current)
-
-          head :no_content
-        end
-
         def rename
           chat_session = find_chat_session
           name = chat_name
@@ -154,6 +148,23 @@ module Api
           chat_session.update!(title: name)
 
           render json: chat_payload(chat_session.reload, message: "Chat renamed.")
+        end
+
+        def clear_messages
+          chat_session = find_chat_session
+          ApplicationRecord.transaction do
+            chat_session.messages.destroy_all
+            chat_session.chat_queued_messages.destroy_all
+            chat_session.update!(last_message_at: nil, stop_requested_at: nil)
+          end
+
+          render json: chat_payload(chat_session.reload, message: "Chat history cleared.")
+        end
+
+        def mark_read
+          find_chat_session.update!(last_read_at: Time.current)
+
+          head :no_content
         end
 
         def enqueue_message
@@ -375,6 +386,8 @@ module Api
               repositories_path: repositories_path,
               app_messages_path: "/api/v1/app/chats/#{chat_session.id}/messages",
               app_message_path: "/api/v1/app/chats/#{chat_session.id}/message",
+              app_rename_path: "/api/v1/app/chats/#{chat_session.id}/rename",
+              app_clear_path: "/api/v1/app/chats/#{chat_session.id}/messages",
               app_enqueue_message_path: "/api/v1/app/chats/#{chat_session.id}/queued_messages",
               app_rename_path: "/api/v1/app/chats/#{chat_session.id}/rename",
               app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
@@ -753,8 +766,16 @@ module Api
 
           id = params[:attachable_id].presence || params.dig(:chat_attachment, :attachable_id).presence
           return find_attachable_by_id(type, id) if id.present?
+          return repository_from_slug if type == "Repository" && params[:repository_slug].present?
 
           attachment_search_results(chat_session).first
+        end
+
+        def repository_from_slug
+          owner, name = params[:repository_slug].to_s.strip.split("/", 2)
+          return if owner.blank? || name.blank?
+
+          Current.user.repositories.active.find_by(owner: owner, name: name)
         end
 
         def normalized_attachable_type
