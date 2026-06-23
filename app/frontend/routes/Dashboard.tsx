@@ -44,15 +44,17 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
 
   return (
     <main aria-label="Dashboard" className="mx-auto max-w-[96rem] space-y-5 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">Dashboard</h1>
+      <header className="flex flex-wrap items-center gap-3">
+        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">Dashboard</h1>
+        {isDesktop ? <SubjectTabs payload={payload} prefix={prefix} /> : null}
+        {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
       <ReadinessPanel prefix={prefix} readiness={readiness} />
 
       {isDesktop ? (
         <>
-          <DesktopDashboardControls pathname={pathname} payload={payload} prefix={prefix} search={search} />
+          <DesktopDashboardControls pathname={pathname} payload={payload} search={search} />
           <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
             <SmartFolderNav payload={payload} prefix={prefix} search={search} />
             <DashboardContent pathname={pathname} payload={payload} prefix={prefix} search={search} />
@@ -102,17 +104,13 @@ function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: Non
   )
 }
 
-function DesktopDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
+function DesktopDashboardControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   return (
-    <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-center">
-      <SubjectTabs payload={payload} prefix={prefix} />
-      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="min-w-0 flex-1">
-          <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
-        </div>
-        <OwnershipControls pathname={pathname} search={search} payload={payload} />
-        <DashboardToolbar pathname={pathname} search={search} payload={payload} />
+    <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
+      <div className="min-w-0 flex-1">
+        <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
       </div>
+      <OwnershipControls pathname={pathname} search={search} payload={payload} />
     </div>
   )
 }
