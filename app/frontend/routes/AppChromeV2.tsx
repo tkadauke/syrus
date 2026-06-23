@@ -23,6 +23,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   })
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
+  const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [creatingChat, setCreatingChat] = useState(false)
 
@@ -111,9 +112,49 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       ) : null}
 
       <main className="min-w-0 flex-1 overflow-auto">
-        {children ?? <Outlet />}
+        {showAdminSubnav ? (
+          <div className="flex min-h-full min-w-0">
+            <AdminSubnav normalizedPath={normalizedPath} prefix={prefix} />
+            <div className="min-w-0 flex-1">
+              {children ?? <Outlet />}
+            </div>
+          </div>
+        ) : (
+          children ?? <Outlet />
+        )}
       </main>
     </div>
+  )
+}
+
+const adminNavItems = [
+  { label: "Overview", to: "/admin", paths: ["/admin"] },
+  { label: "Queue", to: "/admin/queue", paths: ["/admin/queue"] },
+  { label: "Stuck", to: "/admin/stuck", paths: ["/admin/stuck"] },
+  { label: "Processes", to: "/admin/processes", paths: ["/admin/processes"] },
+  { label: "Users", to: "/admin/users", paths: ["/admin/users"] },
+  { label: "Console", to: "/admin/console", paths: ["/admin/console"] },
+  { label: "Installations", to: "/admin/installations", paths: ["/admin/installations"] },
+  { label: "GitHub App", to: "/admin/github_app/register", paths: ["/admin/github_app"] },
+  { label: "Invitations", to: "/invitations", paths: ["/invitations"] },
+  { label: "Settings", to: "/settings/edit", paths: ["/settings/edit"] }
+]
+
+function AdminSubnav({ normalizedPath, prefix }: { normalizedPath: string; prefix: string }) {
+  return (
+    <aside className="w-40 shrink-0 border-r border-gray-200 bg-white px-3 py-4 dark:border-gray-800 dark:bg-gray-950 sm:w-52">
+      <nav aria-label="Admin" className="space-y-1">
+        {adminNavItems.map((item) => {
+          const active = item.paths.some((path) => adminNavItemActive(normalizedPath, path))
+
+          return (
+            <Link className={adminSubnavLinkClass(active)} key={item.label} to={withRoutePrefix(item.to, prefix)}>
+              {item.label}
+            </Link>
+          )
+        })}
+      </nav>
+    </aside>
   )
 }
 
@@ -378,6 +419,19 @@ function normalizedAppPath(pathname: string) {
   return pathname.replace(/^\/app-shell/, "") || "/"
 }
 
+function isAdminPath(pathname: string) {
+  return pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/invitations" ||
+    pathname === "/settings/edit"
+}
+
+function adminNavItemActive(pathname: string, navPath: string) {
+  if (navPath === "/admin") return pathname === navPath
+
+  return pathname === navPath || pathname.startsWith(`${navPath}/`)
+}
+
 function withRoutePrefix(path: string, prefix: string) {
   if (!prefix || path.startsWith(prefix)) return path
   if (!path.startsWith("/")) return path
@@ -462,6 +516,10 @@ function sidebarIconLinkClass(active: boolean) {
 
 function recentChatLinkClass(active: boolean) {
   return `flex min-w-0 items-start gap-2 rounded px-2 py-1.5 text-xs ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
+}
+
+function adminSubnavLinkClass(active: boolean) {
+  return `block rounded px-2.5 py-2 text-sm font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
 }
 
 function popupLinkClass() {

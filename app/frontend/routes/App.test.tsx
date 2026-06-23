@@ -815,6 +815,75 @@ describe("App", () => {
     }
   })
 
+  it("renders v2 admin subnavigation between the primary nav and admin content", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/admin/console") {
+        return Promise.resolve(new Response(
+          JSON.stringify({
+            settings: {
+              polling_paused: false,
+              runs_paused: false,
+              signups_open: true,
+              max_job_failures: 3,
+              grade_max_iterations: 2,
+              merge_train_enabled: false
+            },
+            users: [],
+            recent_admin_actions: []
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        ))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/admin/console"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("main", { name: "Admin console" })).toBeInTheDocument()
+      expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument()
+      const adminNav = screen.getByRole("navigation", { name: "Admin" })
+      expect(within(adminNav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/admin")
+      expect(within(adminNav).getByRole("link", { name: "Queue" })).toHaveAttribute("href", "/app-shell/admin/queue")
+      expect(within(adminNav).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")
+      expect(within(adminNav).getByRole("link", { name: "Invitations" })).toHaveAttribute("href", "/app-shell/invitations")
+      expect(within(adminNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/settings/edit")
+      expect(within(adminNav).getByRole("link", { name: "Overview" })).not.toHaveClass("bg-blue-50")
+      expect(within(adminNav).getByRole("link", { name: "Console" })).toHaveClass("bg-blue-50", "text-blue-700")
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/console",
+        expect.objectContaining({
+          credentials: "same-origin",
+          headers: { Accept: "application/json" }
+        })
+      )
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("groups recent chats in the v2 sidebar", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
