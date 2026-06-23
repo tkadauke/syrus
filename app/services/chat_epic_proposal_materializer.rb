@@ -117,6 +117,17 @@ class ChatEpicProposalMaterializer
         derived: false
       )
     end
+
+    proposal.epic_dependency_tokens.each do |token|
+      depends_on_epic = resolve_epic_dependency_token(proposal, token)
+      next unless depends_on_epic
+
+      EpicDependency.create!(
+        epic: epic,
+        depends_on_epic: depends_on_epic,
+        derived: false
+      )
+    end
   end
 
   def wire_job_epic_dependencies(job_proposals, job_by_proposal_id)
@@ -133,6 +144,14 @@ class ChatEpicProposalMaterializer
           created_by_user: user
         )
       end
+    end
+  end
+
+  def resolve_epic_dependency_token(proposal, token)
+    if token.to_s.match?(/\Aepic:\d+\z/)
+      user.epics.find_by(id: token.split(":", 2).last)
+    else
+      proposal.chat_session.proposals.confirmed.find_by(slug: token)&.epic
     end
   end
 end

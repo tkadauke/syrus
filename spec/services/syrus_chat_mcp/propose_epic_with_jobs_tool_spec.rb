@@ -87,6 +87,59 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(chat_session.proposals.count).to eq(0)
   end
 
+  it "stores Epic-level proposal dependencies" do
+    prerequisite = chat_session.proposals.create!(
+      repository: repository,
+      slug: "some-slug",
+      title: "Prerequisite",
+      body: "Do this first.",
+      kind: "epic"
+    )
+
+    response = call_tool(
+      epic: {
+        slug: "dependent",
+        title: "Dependent",
+        description: "Depends on another proposal.",
+        target_repo: repository.slug,
+        depends_on: [ "some-slug" ]
+      },
+      jobs: [
+        { slug: "child", target_repo: repository.slug, title: "Child", description: "Build it." }
+      ]
+    )
+
+    proposal = chat_session.proposals.find_by!(slug: "dependent")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.dependencies).to contain_exactly(prerequisite)
+    expect(proposal.epic_dependency_tokens).to eq([ "some-slug" ])
+    expect(response_payload(response)).to include(depends_on: [ "some-slug" ])
+  end
+
+  it "stores string-encoded confirmed Epic dependencies" do
+    prerequisite = Factories.epic(user: user, repository: repository)
+
+    response = call_tool(
+      epic: {
+        slug: "dependent",
+        title: "Dependent",
+        description: "Depends on a confirmed Epic.",
+        target_repo: repository.slug,
+        depends_on: [ "epic:#{prerequisite.id}" ]
+      },
+      jobs: [
+        { slug: "child", target_repo: repository.slug, title: "Child", description: "Build it." }
+      ]
+    )
+
+    proposal = chat_session.proposals.find_by!(slug: "dependent")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.dependencies).to be_empty
+    expect(proposal.epic_dependency_tokens).to eq([ "epic:#{prerequisite.id}" ])
+  end
+
   it "rejects unknown sibling dependencies without creating proposals" do
     response = call_tool(
       epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
@@ -97,6 +150,19 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
 
     expect(response[:result][:isError]).to be(true)
     expect(response[:result][:content].first[:text]).to match(/unknown sibling depends_on slug/)
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects unknown Epic-level proposal dependencies" do
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug, depends_on: [ "missing" ] },
+      jobs: [
+        { slug: "ui", target_repo: repository.slug, title: "UI", description: "Build it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/unknown depends_on slug/)
     expect(chat_session.proposals.count).to eq(0)
   end
 

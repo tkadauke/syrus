@@ -50,6 +50,50 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(result.epic.dependencies.map(&:depends_on_job)).to include(prerequisite_job)
   end
 
+  it "materializes Epic dependencies from proposal slug tokens" do
+    prerequisite = chat_session.proposals.create!(
+      slug: "some-slug",
+      title: "Prerequisite",
+      body: "Do this first.",
+      kind: "epic",
+      repository: repository,
+      epic: Factories.epic(user: user, repository: repository),
+      state: "confirmed",
+      filed_at: Time.current,
+      confirmed_at: Time.current
+    )
+    proposal = epic_proposal
+    proposal.update!(epic_depends_on_tokens: JSON.generate([ prerequisite.slug ]))
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.epic.reload.depends_on_epics).to contain_exactly(prerequisite.epic)
+  end
+
+  it "materializes Epic dependencies from string-encoded Epic ids" do
+    prerequisite = Factories.epic(user: user, repository: repository)
+    proposal = epic_proposal
+    proposal.update!(epic_depends_on_tokens: JSON.generate([ "epic:#{prerequisite.id}" ]))
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.epic.reload.depends_on_epics).to contain_exactly(prerequisite)
+  end
+
   it "excludes rejected child Jobs from materialization" do
     proposal = epic_proposal
     kept = proposal.child_proposals.create!(

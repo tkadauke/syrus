@@ -38,8 +38,9 @@ Syrus can mark an Epic ready when its dependencies are done and all child
 Jobs are confirmed, then mark it done when all child Jobs close through
 merged PR outcomes.
 
-Chats can propose Epics or propose an Epic with child Jobs. The operator
-confirms the proposal before Syrus creates the real records.
+Chats can propose Epics or propose an Epic with child Jobs, including
+Epic-level dependencies on existing Epics or other chat Epic proposals. The
+operator confirms the proposal before Syrus creates the real records.
 
 ## Schedules
 
@@ -63,8 +64,9 @@ auto-pause a task until an operator fixes and resumes it.
 Chats are operator conversations with repository context. A chat can
 attach repositories, Jobs, documents, notes, and whiteboard state. The chat
 agent can read selected repository context, propose Jobs, propose Epics,
-list and update Epics, move Epics through their kanban states, schedule
-recurring work, inspect existing Jobs or PRs, approve or unapprove
+list and update Epics, add or remove Epic dependencies, move Epics through
+their kanban states, schedule recurring work, inspect existing Jobs or PRs,
+approve or unapprove
 implemented Jobs, change Job priority, move Jobs into or out of Epics, drill
 through Job workflow and Run history progressively, search Jobs in the
 attached repository, inspect Solid Queue health, and create proposal cards

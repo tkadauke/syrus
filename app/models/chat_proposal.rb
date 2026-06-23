@@ -97,6 +97,12 @@ class ChatProposal < ApplicationRecord
     epic?
   end
 
+  def epic_dependency_tokens
+    JSON.parse(epic_depends_on_tokens.presence || "[]")
+  rescue JSON::ParserError
+    []
+  end
+
   def active_child_proposals
     child_proposals.where.not(state: "rejected")
   end

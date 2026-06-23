@@ -34,6 +34,8 @@ module SyrusChatMcp
       MoveEpicToBacklogTool,
       ArchiveEpicTool,
       UpdateEpicTool,
+      AddEpicDependencyTool,
+      RemoveEpicDependencyTool,
       ReadJobTool,
       UpdateJobTool,
       ListJobWorkflowsTool,

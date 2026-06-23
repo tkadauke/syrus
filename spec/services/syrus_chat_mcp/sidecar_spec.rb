@@ -23,6 +23,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::MoveEpicToBacklogTool,
         SyrusChatMcp::ArchiveEpicTool,
         SyrusChatMcp::UpdateEpicTool,
+        SyrusChatMcp::AddEpicDependencyTool,
+        SyrusChatMcp::RemoveEpicDependencyTool,
         SyrusChatMcp::ReadJobTool,
         SyrusChatMcp::UpdateJobTool,
         SyrusChatMcp::ListJobWorkflowsTool,
@@ -110,6 +112,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         move_epic_to_backlog
         archive_epic
         update_epic
+        add_epic_dependency
+        remove_epic_dependency
         read_job
         update_job
         list_job_workflows

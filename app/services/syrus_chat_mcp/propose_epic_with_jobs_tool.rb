@@ -20,7 +20,8 @@ module SyrusChatMcp
             title: { type: "string", description: "Epic title." },
             description: { type: "string", description: "Epic description." },
             target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
-            depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Epic depends on." }
+            depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Epic depends on." },
+            depends_on: { type: "array", items: { type: "string" }, description: "Proposal slugs or string-encoded Epic ids, for example epic:42, this Epic depends on." }
           },
           required: %w[slug title description]
         },
@@ -57,6 +58,8 @@ module SyrusChatMcp
         normalized_jobs = job_attrs.map { |job| normalize_job(job) }
         validation_error = validate_payload(user, normalized_epic, normalized_jobs)
         return SyrusChatMcp.invalid(validation_error) if validation_error
+        dependency_error = validate_epic_dependencies(chat_session, user, normalized_epic[:depends_on])
+        return SyrusChatMcp.invalid(dependency_error) if dependency_error
 
         epic_repository = repository_for(user, chat_session, normalized_epic[:target_repo])
         return SyrusChatMcp.invalid("unknown epic target_repo: #{normalized_epic[:target_repo]}") unless epic_repository
@@ -73,6 +76,7 @@ module SyrusChatMcp
         proposal = nil
         ApplicationRecord.transaction do
           proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic)
+          replace_epic_dependency_edges(proposal, chat_session, normalized_epic[:depends_on])
           child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs)
           replace_dependency_edges(child_by_slug, normalized_jobs)
           chat_session.messages.create!(
@@ -99,7 +103,8 @@ module SyrusChatMcp
           title: epic["title"].to_s.strip,
           description: epic["description"].to_s.strip,
           target_repo: epic["target_repo"].to_s.strip,
-          depends_on_job_ids: normalize_integer_list(epic["depends_on_job_ids"])
+          depends_on_job_ids: normalize_integer_list(epic["depends_on_job_ids"]),
+          depends_on: normalize_string_list(epic["depends_on"])
         }
       end
 
@@ -126,6 +131,7 @@ module SyrusChatMcp
         return "epic slug is required" if epic[:slug].empty?
         return "epic title is required" if epic[:title].empty?
         return "epic description is required" if epic[:description].empty?
+        return "epic cannot depend on itself" if epic[:depends_on].include?(epic[:slug])
 
         slugs = jobs.map { |job| job[:slug] }
         return "child job slugs must be unique" if slugs.uniq.length != slugs.length
@@ -173,6 +179,21 @@ module SyrusChatMcp
         dependencies_by_slug.keys.any? { |slug| visit.call(slug) }
       end
 
+      def validate_epic_dependencies(chat_session, user, depends_on)
+        depends_on.each do |token|
+          if token.match?(/\Aepic:\d+\z/)
+            epic_id = token.split(":", 2).last
+            return "unknown depends_on Epic id: #{epic_id}" unless user.epics.exists?(id: epic_id)
+          else
+            proposal = chat_session.proposals.find_by(slug: token)
+            return "unknown depends_on slug: #{token}" unless proposal
+            return "depends_on slug must reference an Epic proposal: #{token}" unless proposal.epic?
+          end
+        end
+
+        nil
+      end
+
       def repository_for(user, chat_session, slug)
         if slug.blank?
           repository = chat_session.repository
@@ -197,6 +218,7 @@ module SyrusChatMcp
           kind: "epic",
           labels: nil,
           depends_on_job_ids: epic[:depends_on_job_ids],
+          epic_depends_on_tokens: JSON.generate(epic[:depends_on]),
           state: "proposed",
           edited_at: proposal.persisted? ? Time.current : nil
         )
@@ -243,12 +265,23 @@ module SyrusChatMcp
         end
       end
 
+      def replace_epic_dependency_edges(proposal, chat_session, depends_on)
+        proposal.dependency_edges.destroy_all
+        depends_on.reject { |token| token.match?(/\Aepic:\d+\z/) }.each do |slug|
+          ChatProposalDependency.create!(
+            proposal: proposal,
+            depends_on: chat_session.proposals.find_by!(slug: slug)
+          )
+        end
+      end
+
       def payload_for(proposal)
         {
           id: proposal.id,
           slug: proposal.slug,
           state: proposal.state,
           kind: proposal.kind,
+          depends_on: proposal.epic_dependency_tokens,
           child_jobs: proposal.child_proposals.map do |child|
             {
               id: child.id,

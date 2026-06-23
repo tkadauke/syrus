@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_165047) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_182453) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -168,6 +168,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_165047) do
     t.json "depends_on_job_ids"
     t.datetime "discarded_at"
     t.datetime "edited_at"
+    t.text "epic_depends_on_tokens"
     t.integer "epic_id"
     t.datetime "filed_at"
     t.integer "github_issue_number"
