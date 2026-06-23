@@ -38,6 +38,11 @@ Syrus can mark an Epic ready when its dependencies are done and all child
 Jobs are confirmed, then mark it done when all child Jobs close through
 merged PR outcomes.
 
+The Epic detail page shows both sides of the dependency graph: Epics this
+Epic depends on, and Epics that depend on it. Operators can add an Epic
+dependency by ID or remove an existing dependency from that page; Syrus
+rejects changes that would create a cycle.
+
 Chats can propose Epics or propose an Epic with child Jobs, including
 Epic-level dependencies on existing Epics or other chat Epic proposals. The
 operator confirms the proposal before Syrus creates the real records.

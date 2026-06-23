@@ -132,6 +132,13 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "initially_open" => true
     )
     expect(body.dig("graph", "definition")).to include("flowchart LR", "Deliver marble")
+    expect(body["dependencies"]).to contain_exactly(include(
+      "epic_id" => blocker.id,
+      "title" => "Deliver marble",
+      "state" => "done",
+      "url" => epic_path(blocker)
+    ))
+    expect(body["dependents"]).to eq([])
     expect(body["jobs"]).to contain_exactly(include(
       "id" => job.id,
       "label" => "#12",
@@ -147,7 +154,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "app_archive_path" => "/api/v1/app/epics/#{epic.id}/archive",
       "app_claim_path" => "/api/v1/app/epics/#{epic.id}/claim",
       "app_unclaim_path" => "/api/v1/app/epics/#{epic.id}/unclaim",
-      "app_reassign_path" => "/api/v1/app/epics/#{epic.id}/reassign"
+      "app_reassign_path" => "/api/v1/app/epics/#{epic.id}/reassign",
+      "app_dependencies_path" => "/api/v1/app/epics/#{epic.id}/dependencies"
     )
   end
 
@@ -164,6 +172,62 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "blocked" => true,
       "blocked_reason" => "waiting for Job #8 to merge"
     )
+  end
+
+  it "creates an Epic dependency and returns the updated detail payload" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Chat search UI")
+    blocker = Factories.epic(user: user, repository: repository, title: "Chat FTS5 infrastructure", state: "in_progress")
+
+    expect {
+      post "/api/v1/app/epics/#{epic.id}/dependencies", params: { depends_on_epic_id: blocker.id }, as: :json
+    }.to change(EpicDependency, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Dependency added.")
+    expect(parse_body["dependencies"]).to contain_exactly(include(
+      "epic_id" => blocker.id,
+      "title" => "Chat FTS5 infrastructure",
+      "state" => "in_progress",
+      "url" => epic_path(blocker)
+    ))
+  end
+
+  it "rejects Epic dependencies that would create a cycle" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Chat search UI")
+    blocker = Factories.epic(user: user, repository: repository, title: "Chat FTS5 infrastructure")
+    EpicDependency.create!(epic: blocker, depends_on_epic: epic)
+
+    expect {
+      post "/api/v1/app/epics/#{epic.id}/dependencies", params: { depends_on_epic_id: blocker.id }, as: :json
+    }.not_to change(EpicDependency, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("would create a cycle")
+  end
+
+  it "removes an Epic dependency and treats double-delete as success" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Chat search UI")
+    blocker = Factories.epic(user: user, repository: repository, title: "Chat FTS5 infrastructure")
+    EpicDependency.create!(epic: epic, depends_on_epic: blocker)
+
+    expect {
+      delete "/api/v1/app/epics/#{epic.id}/dependencies/#{blocker.id}", as: :json
+    }.to change(EpicDependency, :count).by(-1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Dependency removed.")
+    expect(parse_body["dependencies"]).to eq([])
+
+    expect {
+      delete "/api/v1/app/epics/#{epic.id}/dependencies/#{blocker.id}", as: :json
+    }.not_to change(EpicDependency, :count)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["dependencies"]).to eq([])
   end
 
   it "claims and unclaims ready Epics through the app API" do

@@ -85,8 +85,23 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
       "title": "Documentation cleanup",
       "description": "Group the docs polish work."
     }
-  }'
+}'
 ```
+
+The app Epic detail API also supports dependency management for Epics owned
+by the authenticated user:
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/epics/456/dependencies \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "depends_on_epic_id": 123 }'
+```
+
+`POST /api/v1/app/epics/:id/dependencies` returns the refreshed Epic detail
+payload, including `dependencies` and `dependents`. It rejects cycles.
+`DELETE /api/v1/app/epics/:id/dependencies/:depends_on_epic_id` removes that
+edge and is idempotent.
 
 ## Update Theme Preference
 

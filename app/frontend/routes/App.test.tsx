@@ -6367,6 +6367,102 @@ describe("App", () => {
     ])
   })
 
+  it("renders and removes Epic dependencies from the detail page", async () => {
+    let currentPayload = epicDetailPayload({
+      dependencies: [{ epic_id: 6, title: "Deliver marble", state: "done", url: "/epics/6" }],
+      dependents: [{ epic_id: 8, title: "Polish search UI", state: "in_progress", url: "/epics/8" }]
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/epics/7/dependencies/6" && init?.method === "DELETE") {
+        currentPayload = epicDetailPayload({
+          message: "Dependency removed.",
+          dependencies: [],
+          dependents: [{ epic_id: 8, title: "Polish search UI", state: "in_progress", url: "/epics/8" }]
+        })
+        return Promise.resolve(new Response(JSON.stringify(currentPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(currentPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/epics/7"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { name: "Dependencies" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Deliver marble" })).toHaveAttribute("href", "/app-shell/epics/6")
+    expect(screen.getByText("Done")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Polish search UI" })).toHaveAttribute("href", "/app-shell/epics/8")
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove dependency on Deliver marble" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/epics/7/dependencies/6",
+        expect.objectContaining({ method: "DELETE", credentials: "same-origin" })
+      )
+    })
+    expect(await screen.findByText("Dependency removed.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Deliver marble" })).not.toBeInTheDocument())
+  })
+
+  it("adds Epic dependencies and reports cycle errors inline", async () => {
+    let currentPayload = epicDetailPayload({ dependencies: [], dependents: [] })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/epics/7/dependencies" && init?.method === "POST") {
+        if (init.body === JSON.stringify({ depends_on_epic_id: 7 })) {
+          return Promise.resolve(new Response(JSON.stringify({ error: { code: "validation_failed", message: "Depends on epic would create a cycle" } }), { status: 422, headers: { "Content-Type": "application/json" } }))
+        }
+        currentPayload = epicDetailPayload({
+          message: "Dependency added.",
+          dependencies: [{ epic_id: 9, title: "Index chat transcripts", state: "ready", url: "/epics/9" }],
+          dependents: []
+        })
+        return Promise.resolve(new Response(JSON.stringify(currentPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(currentPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/epics/7"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => expect(screen.getAllByText("None")).toHaveLength(2))
+
+    fireEvent.change(screen.getByLabelText("Add dependency"), { target: { value: "7" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Depends on epic would create a cycle")
+
+    fireEvent.change(screen.getByLabelText("Add dependency"), { target: { value: "9" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/epics/7/dependencies",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({ depends_on_epic_id: 9 })
+        })
+      )
+    })
+    expect(await screen.findByText("Dependency added.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Index chat transcripts" })).toHaveAttribute("href", "/app-shell/epics/9")
+    expect(screen.getByLabelText("Add dependency")).toHaveDisplayValue("")
+  })
+
   it("initializes the Epic dependency graph with Mermaid dark theme when dark mode is active", async () => {
     document.documentElement.classList.add("dark")
     vi.spyOn(window, "fetch").mockResolvedValue(
@@ -10391,6 +10487,8 @@ function epicDetailPayload(overrides: {
   state?: string
   stateTransitions?: Array<Record<string, unknown>>
   epic?: Record<string, unknown>
+  dependencies?: Array<Record<string, unknown>>
+  dependents?: Array<Record<string, unknown>>
   jobs?: Array<Record<string, unknown>>
 } = {}) {
   return {
@@ -10441,6 +10539,10 @@ function epicDetailPayload(overrides: {
       job_blocker_count: 0,
       initially_open: true
     },
+    dependencies: overrides.dependencies || [
+      { epic_id: 6, title: "Deliver marble", state: "done", url: "/epics/6" }
+    ],
+    dependents: overrides.dependents || [],
     jobs: overrides.jobs || [
       {
         id: 42,
@@ -10460,7 +10562,8 @@ function epicDetailPayload(overrides: {
       app_archive_path: "/api/v1/app/epics/7/archive",
       app_claim_path: "/api/v1/app/epics/7/claim",
       app_unclaim_path: "/api/v1/app/epics/7/unclaim",
-      app_reassign_path: "/api/v1/app/epics/7/reassign"
+      app_reassign_path: "/api/v1/app/epics/7/reassign",
+      app_dependencies_path: "/api/v1/app/epics/7/dependencies"
     }
   }
 }

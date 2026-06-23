@@ -136,6 +136,25 @@ module Api
           render_error("transition_not_allowed", "That Epic transition is not available.", status: :unprocessable_content)
         end
 
+        def add_dependency
+          epic = find_epic
+          depends_on_epic = Current.user.epics.find(params.require(:depends_on_epic_id))
+          dependency = epic.dependencies.build(depends_on_epic: depends_on_epic)
+
+          if dependency.save
+            render json: detail_payload(epic.reload, message: "Dependency added.")
+          else
+            render_error("validation_failed", dependency.errors.full_messages.to_sentence, status: :unprocessable_content)
+          end
+        end
+
+        def remove_dependency
+          epic = find_epic
+          epic.dependencies.where(depends_on_epic_id: params[:depends_on_epic_id]).destroy_all
+
+          render json: detail_payload(epic.reload, message: "Dependency removed.")
+        end
+
         private
 
         def compact_epic_json(epic)
@@ -185,6 +204,12 @@ module Api
               }
             end,
             graph: graph_json(graph),
+            dependencies: epic.dependencies.includes(depends_on_epic: :repository).order(:depends_on_epic_id).map do |dependency|
+              dependency_epic_json(dependency.depends_on_epic)
+            end,
+            dependents: epic.dependent_links.includes(epic: :repository).order(:epic_id).map do |dependency|
+              dependency_epic_json(dependency.epic)
+            end,
             jobs: jobs.map { |job| job_json(job) },
             paths: {
               dashboard_epics_path: dashboard_epics_path,
@@ -193,7 +218,8 @@ module Api
               app_archive_path: "/api/v1/app/epics/#{epic.id}/archive",
               app_claim_path: "/api/v1/app/epics/#{epic.id}/claim",
               app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim",
-              app_reassign_path: "/api/v1/app/epics/#{epic.id}/reassign"
+              app_reassign_path: "/api/v1/app/epics/#{epic.id}/reassign",
+              app_dependencies_path: "/api/v1/app/epics/#{epic.id}/dependencies"
             }
           }
         end
@@ -303,6 +329,15 @@ module Api
           {
             id: repository.id,
             slug: repository.slug
+          }
+        end
+
+        def dependency_epic_json(epic)
+          {
+            epic_id: epic.id,
+            title: epic.title.to_s,
+            state: epic.state,
+            url: epic_path(epic)
           }
         end
 

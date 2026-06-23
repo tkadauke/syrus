@@ -1,15 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Fragment, type ReactNode } from "react"
+import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
+import { Fragment, type FormEvent, type ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { CloseIcon } from "../components/CloseIcon"
 import {
+  addEpicDependency,
   archiveEpic,
   claimEpic,
   fetchEpicDetail,
+  removeEpicDependency,
   unclaimEpic,
   updateEpicState,
+  type EpicDependencyRecord,
   type EpicDetailJob,
   type EpicDetailPayload,
   type EpicGraph,
@@ -60,6 +64,18 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      setNotice(updated.message || null)
+    }
+  })
+  const dependencyCommand = useMutation({
+    mutationFn: (action: { kind: "add"; dependsOnEpicId: number } | { kind: "remove"; dependsOnEpicId: number }) => {
+      if (action.kind === "add") return addEpicDependency(payload.paths.app_dependencies_path, action.dependsOnEpicId)
+
+      return removeEpicDependency(payload.paths.app_dependencies_path, action.dependsOnEpicId)
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      queryClient.invalidateQueries({ queryKey })
       setNotice(updated.message || null)
     }
   })
@@ -142,6 +158,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Epic command failed.")}</PanelMessage> : null}
 
       <DependencyGraph graph={payload.graph} />
+      <DependenciesSection command={dependencyCommand} dependencies={payload.dependencies} dependents={payload.dependents} prefix={prefix} />
 
       {payload.epic.description.trim() ? (
         <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
@@ -152,6 +169,93 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
 
       <JobsSection jobs={payload.jobs} prefix={prefix} />
     </>
+  )
+}
+
+function DependenciesSection({
+  command,
+  dependencies,
+  dependents,
+  prefix
+}: {
+  command: UseMutationResult<EpicDetailPayload, Error, { kind: "add"; dependsOnEpicId: number } | { kind: "remove"; dependsOnEpicId: number }>
+  dependencies: EpicDependencyRecord[]
+  dependents: EpicDependencyRecord[]
+  prefix: string
+}) {
+  const [dependsOnEpicId, setDependsOnEpicId] = useState("")
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const parsedId = Number.parseInt(dependsOnEpicId, 10)
+    if (!Number.isFinite(parsedId)) return
+
+    command.mutate({ kind: "add", dependsOnEpicId: parsedId }, { onSuccess: () => setDependsOnEpicId("") })
+  }
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-2">
+      <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Dependencies</h2>
+        <h3 className="mt-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Depends on</h3>
+        {dependencies.length > 0 ? (
+          <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
+            {dependencies.map((dependency) => (
+              <li className="flex min-h-10 items-center justify-between gap-3 py-2" key={dependency.epic_id}>
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Link className="min-w-0 break-words text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(dependency.url, prefix)}>{dependency.title}</Link>
+                  <StatePill state={dependency.state} />
+                </span>
+                <button
+                  aria-label={`Remove dependency on ${dependency.title}`}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/70 dark:text-red-300 dark:hover:bg-red-950/40"
+                  disabled={command.isPending}
+                  onClick={() => command.mutate({ kind: "remove", dependsOnEpicId: dependency.epic_id })}
+                  title={`Remove dependency on ${dependency.title}`}
+                  type="button"
+                >
+                  <CloseIcon className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-gray-400 dark:text-gray-500">None</p>
+        )}
+        <form className="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800" onSubmit={submit}>
+          <label className="min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            Add dependency
+            <input
+              className="mt-1 w-full min-w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              inputMode="numeric"
+              min="1"
+              onChange={(event) => setDependsOnEpicId(event.target.value)}
+              placeholder="Epic ID"
+              required
+              type="number"
+              value={dependsOnEpicId}
+            />
+          </label>
+          <button className={secondaryButton()} disabled={command.isPending} type="submit">Add</button>
+        </form>
+        {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, "Unable to update dependencies.")}</p> : null}
+      </div>
+      <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Depended on by</h2>
+        {dependents.length > 0 ? (
+          <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
+            {dependents.map((dependent) => (
+              <li className="flex min-h-10 flex-wrap items-center gap-2 py-2" key={dependent.epic_id}>
+                <Link className="break-words text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(dependent.url, prefix)}>{dependent.title}</Link>
+                <StatePill state={dependent.state} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-gray-400 dark:text-gray-500">None</p>
+        )}
+      </div>
+    </section>
   )
 }
 

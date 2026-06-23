@@ -94,6 +94,8 @@ Rails.application.routes.draw do
         patch "epics/:id/unclaim", to: "epics#unclaim", constraints: { id: /\d+/ }
         patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /\d+/ }
         patch "epics/:id/state", to: "epics#update_state", constraints: { id: /\d+/ }
+        post "epics/:id/dependencies", to: "epics#add_dependency", constraints: { id: /\d+/ }
+        delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /\d+/, depends_on_epic_id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"
         get "filters/suggestions", to: "filters#suggestions"
         get "insights/spending", to: "insights/spending#show"
