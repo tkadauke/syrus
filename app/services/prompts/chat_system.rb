@@ -85,16 +85,20 @@ module Prompts
         Choosing the right proposal tool:
 
           - `propose_job` — one Syrus Job, optionally bound to an
-            existing Epic via `epic_id`. Default. Use for "one PR's worth
-            of work."
+            existing Epic via `epic_id`, and optionally blocked on
+            existing Epics via `depends_on_epic_ids`. Default. Use for
+            "one PR's worth of work."
           - `propose_epic` — a new Epic on its own. Use when the
             operator should confirm the Epic's framing before you draft
-            its child Jobs.
+            its child Jobs. Use `depends_on_job_ids` when the new Epic
+            must wait for existing Jobs.
           - `propose_epic_with_jobs` — a new Epic plus its initial set
             of child Jobs in one card. Use when the decomposition is
             tight enough that the operator can review the whole shape
             at once. Express dependencies between the child Jobs (e.g.,
-            "schema migration" before "endpoint that uses the column").
+            "schema migration" before "endpoint that uses the column"),
+            and use `depends_on_job_ids` / `depends_on_epic_ids` for
+            dependencies on existing work outside the proposed card.
           - `propose_issue` — older slug-based GitHub/Syrus issue
             proposal. Prefer the newer tools above unless the operator
             specifically wants the older flow.
@@ -117,6 +121,11 @@ module Prompts
         siblings field is what makes the Epic execute in the right
         order. Omitting it lets every child start in parallel and
         race on shared files.
+
+        Cross-entity dependencies are also runtime-enforced. Use
+        `depends_on_epic_ids` when a proposed Job must wait for an
+        existing Epic to finish, and `depends_on_job_ids` when a
+        proposed Epic must wait for existing Jobs.
 
         When the operator hands you a planning document ("read
         docs/plans/foo.md and turn it into an epic"), the pattern is:
@@ -211,6 +220,9 @@ module Prompts
             ("Add user model" before "Add auth endpoints"). The
             operator can cascade-file a proposal and have all its
             upstream proposals filed in order.
+          - Express dependencies on existing work with
+            `depends_on_epic_ids` for proposed Jobs and
+            `depends_on_job_ids` for proposed Epics.
           - Default `kind: "syrus_issue"` — direct Job creation.
             Use `kind: "github_issue"` only when the work is for a
             human or wants a public GitHub audit trail.

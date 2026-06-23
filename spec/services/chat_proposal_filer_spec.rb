@@ -40,6 +40,27 @@ RSpec.describe ChatProposalFiler do
       expect(leaf.job.dependencies.first.depends_on_job).to eq(middle.job)
     end
 
+    it "wires Job proposal dependencies on existing Epics" do
+      prerequisite = Factories.epic(user: user, repository: repository)
+      job_proposal = proposal(
+        slug: "job-after-epic",
+        title: "Job after Epic",
+        depends_on_epic_ids: [ prerequisite.id ]
+      )
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      }.to change(JobDependency, :count).by(1)
+
+      dependency = job_proposal.reload.job.dependencies.first
+      expect(dependency).to have_attributes(
+        depends_on_epic_id: prerequisite.id,
+        depends_on_job_id: nil,
+        source: "manual",
+        created_by_user: user
+      )
+    end
+
     it "dedupes shared upstream proposals for bulk filing" do
       root = proposal(slug: "root", title: "Root")
       left = proposal(slug: "left", title: "Left")
@@ -88,6 +109,27 @@ RSpec.describe ChatProposalFiler do
       expect(leaf.reload).to be_confirmed
       expect(root.epic).to have_attributes(title: "Root Epic", description: "Body for Root Epic")
       expect(leaf.epic.depends_on_epics).to contain_exactly(root.epic)
+    end
+
+    it "wires Epic proposal dependencies on existing Jobs" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+      epic_proposal = proposal(
+        slug: "epic-after-job",
+        title: "Epic after Job",
+        kind: "epic",
+        depends_on_job_ids: [ prerequisite.id ]
+      )
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ epic_proposal ])
+      }.to change(EpicDependency, :count).by(1)
+
+      dependency = epic_proposal.reload.epic.dependencies.first
+      expect(dependency).to have_attributes(
+        depends_on_job_id: prerequisite.id,
+        depends_on_epic_id: nil,
+        derived: false
+      )
     end
 
     it "rolls back proposal and Job changes when filing fails" do

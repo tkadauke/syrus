@@ -18,17 +18,19 @@ module SyrusChatMcp
         repo: { type: "string", description: "Repository id, name, or owner/name slug." },
         title: { type: "string", description: "Job title." },
         description: { type: "string", description: "Markdown Job description." },
+        depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
         depends_on: { type: "array", items: { type: "string" }, description: "Optional proposal slugs that must be confirmed first." }
       },
       required: %w[repo title description]
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [])
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [])
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
         description = description.to_s.strip
+        depends_on_epic_ids = normalize_integer_list(depends_on_epic_ids)
 
         return SyrusChatMcp.invalid("repo is required") if repo.to_s.strip.empty?
         return SyrusChatMcp.invalid("repository not found") unless repository
@@ -40,6 +42,8 @@ module SyrusChatMcp
 
         dependencies, unknown_slugs = dependency_proposals(chat_session, depends_on)
         return SyrusChatMcp.invalid("unknown depends_on slug(s): #{unknown_slugs.join(', ')}") if unknown_slugs.any?
+        unknown_epic_ids = unknown_epic_dependency_ids(chat_session, depends_on_epic_ids)
+        return SyrusChatMcp.invalid("unknown depends_on_epic_ids: #{unknown_epic_ids.join(', ')}") if unknown_epic_ids.any?
 
         proposal = nil
         ChatProposal.transaction do
@@ -49,7 +53,8 @@ module SyrusChatMcp
             slug: unique_slug(chat_session, title, prefix: "job"),
             title: title,
             body: description,
-            kind: "job"
+            kind: "job",
+            depends_on_epic_ids: depends_on_epic_ids
           )
           dependencies.each do |dependency|
             ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)

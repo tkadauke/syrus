@@ -16,18 +16,20 @@ module SyrusChatMcp
         title: { type: "string", description: "Epic title." },
         description: { type: "string", description: "Markdown Epic description." },
         attached_repos: { type: "array", items: { type: "string" }, description: "Optional repository slugs or ids. The first repo is used as the Epic repository." },
+        depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Job IDs this Epic depends on." },
         depends_on: { type: "array", items: { type: "string" }, description: "Optional proposal slugs that must be confirmed first." }
       },
       required: %w[title description]
     )
 
     class << self
-      def call(title:, description:, server_context:, attached_repos: [], depends_on: [])
+      def call(title:, description:, server_context:, attached_repos: [], depends_on: [], depends_on_job_ids: [])
         chat_session = server_context.fetch(:chat_session)
         title = title.to_s.strip
         description = description.to_s.strip
         repo_tokens = normalize_string_list(attached_repos)
         repository = repository_for(chat_session, repo_tokens.first)
+        depends_on_job_ids = normalize_integer_list(depends_on_job_ids)
 
         return SyrusChatMcp.invalid("title is required") if title.empty?
         return SyrusChatMcp.invalid("description is required") if description.empty?
@@ -35,6 +37,8 @@ module SyrusChatMcp
 
         dependencies, unknown_slugs = dependency_proposals(chat_session, depends_on)
         return SyrusChatMcp.invalid("unknown depends_on slug(s): #{unknown_slugs.join(', ')}") if unknown_slugs.any?
+        unknown_job_ids = unknown_job_dependency_ids(chat_session, depends_on_job_ids)
+        return SyrusChatMcp.invalid("unknown depends_on_job_ids: #{unknown_job_ids.join(', ')}") if unknown_job_ids.any?
 
         proposal = nil
         ChatProposal.transaction do
@@ -43,7 +47,8 @@ module SyrusChatMcp
             slug: unique_slug(chat_session, title, prefix: "epic"),
             title: title,
             body: description,
-            kind: "epic"
+            kind: "epic",
+            depends_on_job_ids: depends_on_job_ids
           )
           dependencies.each do |dependency|
             ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)

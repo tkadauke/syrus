@@ -51,6 +51,31 @@ RSpec.describe SyrusChatMcp::ProposeEpicTool do
     expect(chat_session.proposals.last.repository).to eq(other_repo)
   end
 
+  it "persists existing Job dependencies" do
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+
+    response = call_tool(
+      title: "Blocked Epic",
+      description: "Wait for the direct Job first.",
+      depends_on_job_ids: [ prerequisite.id ]
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Blocked Epic")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
+  end
+
+  it "rejects unknown Job dependency IDs" do
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user)
+    foreign_job = Factories.job_record(user: other_user, repository: other_repo)
+
+    response = call_tool(title: "Invalid", description: "Body.", depends_on_job_ids: [ foreign_job.id ])
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("unknown depends_on_job_ids")
+  end
+
   it "returns a tool error for unknown dependency slugs" do
     response = call_tool(title: "Leaf", description: "Body.", depends_on: %w[missing])
 

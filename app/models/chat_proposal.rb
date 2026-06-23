@@ -9,6 +9,8 @@ class ChatProposal < ApplicationRecord
 
   attribute :state, :string, default: "proposed"
 
+  after_initialize :default_cross_entity_dependencies
+
   belongs_to :chat_session
   belongs_to :repository, optional: true
   belongs_to :job, optional: true
@@ -180,6 +182,11 @@ class ChatProposal < ApplicationRecord
 
   def default_repository
     self.repository ||= chat_session&.repository
+  end
+
+  def default_cross_entity_dependencies
+    self.depends_on_epic_ids = [] if has_attribute?(:depends_on_epic_ids) && depends_on_epic_ids.nil?
+    self.depends_on_job_ids = [] if has_attribute?(:depends_on_job_ids) && depends_on_job_ids.nil?
   end
 
   def repository_belongs_to_chat_user

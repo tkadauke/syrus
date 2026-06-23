@@ -27,12 +27,16 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
   end
 
   it "creates one Epic proposal card with child Job rows and sibling dependencies" do
+    prerequisite_epic = Factories.epic(user: user, repository: repository)
+    prerequisite_job = Factories.job_record(user: user, repository: repository, issue_number: 7)
+
     response = call_tool(
       epic: {
         slug: "m3-proposals",
         title: "M3 proposals",
         description: "Make proposal review atomic.",
-        target_repo: repository.slug
+        target_repo: repository.slug,
+        depends_on_job_ids: [ prerequisite_job.id ]
       },
       jobs: [
         {
@@ -46,6 +50,7 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
           target_repo: repository.slug,
           title: "Render proposal card",
           description: "Show rows for child jobs.",
+          depends_on_epic_ids: [ prerequisite_epic.id ],
           depends_on: [ "schema" ]
         }
       ]
@@ -58,9 +63,28 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(response[:result][:isError]).to be_falsey
     expect(response_payload(response)).to include(slug: "m3-proposals", state: "proposed", kind: "epic")
     expect(proposal).to have_attributes(kind: "epic", repository: repository, title: "M3 proposals")
+    expect(proposal.depends_on_job_ids).to eq([ prerequisite_job.id ])
     expect(proposal.child_proposals).to contain_exactly(schema, ui)
+    expect(ui.depends_on_epic_ids).to eq([ prerequisite_epic.id ])
     expect(ui.dependencies).to contain_exactly(schema)
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
+  end
+
+  it "rejects unknown cross-entity dependencies without creating proposals" do
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user)
+    foreign_job = Factories.job_record(user: other_user, repository: other_repo)
+
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug, depends_on_job_ids: [ foreign_job.id ] },
+      jobs: [
+        { slug: "ui", target_repo: repository.slug, title: "UI", description: "Build it.", depends_on_epic_ids: [ 123_456 ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("unknown epic depends_on_job_ids")
+    expect(chat_session.proposals.count).to eq(0)
   end
 
   it "rejects unknown sibling dependencies without creating proposals" do

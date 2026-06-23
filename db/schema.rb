@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_161232) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_165047) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -164,6 +164,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_161232) do
     t.integer "child_position"
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
+    t.json "depends_on_epic_ids"
+    t.json "depends_on_job_ids"
     t.datetime "discarded_at"
     t.datetime "edited_at"
     t.integer "epic_id"

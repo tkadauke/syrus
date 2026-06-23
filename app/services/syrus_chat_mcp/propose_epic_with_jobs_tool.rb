@@ -19,7 +19,8 @@ module SyrusChatMcp
             slug: { type: "string", description: "Stable epic proposal slug unique within this chat session." },
             title: { type: "string", description: "Epic title." },
             description: { type: "string", description: "Epic description." },
-            target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." }
+            target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
+            depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Epic depends on." }
           },
           required: %w[slug title description]
         },
@@ -32,6 +33,7 @@ module SyrusChatMcp
               target_repo: { type: "string", description: "Repository slug owner/name." },
               title: { type: "string", description: "Child Job title." },
               description: { type: "string", description: "Child Job prompt/body." },
+              depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job depends on." },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs this child depends on." }
             },
             required: %w[slug target_repo title description]
@@ -53,7 +55,7 @@ module SyrusChatMcp
 
         normalized_epic = normalize_epic(epic_attrs)
         normalized_jobs = job_attrs.map { |job| normalize_job(job) }
-        validation_error = validate_payload(normalized_epic, normalized_jobs)
+        validation_error = validate_payload(user, normalized_epic, normalized_jobs)
         return SyrusChatMcp.invalid(validation_error) if validation_error
 
         epic_repository = repository_for(user, chat_session, normalized_epic[:target_repo])
@@ -96,7 +98,8 @@ module SyrusChatMcp
           slug: epic["slug"].to_s.strip,
           title: epic["title"].to_s.strip,
           description: epic["description"].to_s.strip,
-          target_repo: epic["target_repo"].to_s.strip
+          target_repo: epic["target_repo"].to_s.strip,
+          depends_on_job_ids: normalize_integer_list(epic["depends_on_job_ids"])
         }
       end
 
@@ -106,6 +109,7 @@ module SyrusChatMcp
           title: job["title"].to_s.strip,
           description: job["description"].to_s.strip,
           target_repo: job["target_repo"].to_s.strip,
+          depends_on_epic_ids: normalize_integer_list(job["depends_on_epic_ids"]),
           depends_on: normalize_string_list(job["depends_on"])
         }
       end
@@ -114,7 +118,11 @@ module SyrusChatMcp
         Array(value).map { |item| item.to_s.strip }.reject(&:empty?).uniq
       end
 
-      def validate_payload(epic, jobs)
+      def normalize_integer_list(value)
+        Array(value).filter_map { |item| Integer(item, exception: false) }.uniq
+      end
+
+      def validate_payload(user, epic, jobs)
         return "epic slug is required" if epic[:slug].empty?
         return "epic title is required" if epic[:title].empty?
         return "epic description is required" if epic[:description].empty?
@@ -133,6 +141,11 @@ module SyrusChatMcp
 
         unknown = jobs.flat_map { |job| job[:depends_on] }.uniq - slugs
         return "unknown sibling depends_on slug(s): #{unknown.join(', ')}" if unknown.any?
+        unknown_job_ids = epic[:depends_on_job_ids] - user.jobs.where(id: epic[:depends_on_job_ids]).pluck(:id)
+        return "unknown epic depends_on_job_ids: #{unknown_job_ids.join(', ')}" if unknown_job_ids.any?
+        unknown_epic_ids = jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq
+        unknown_epic_ids -= user.epics.where(id: unknown_epic_ids).pluck(:id)
+        return "unknown job depends_on_epic_ids: #{unknown_epic_ids.join(', ')}" if unknown_epic_ids.any?
         return "depends_on would create a cycle" if cyclic?(jobs)
 
         nil
@@ -183,6 +196,7 @@ module SyrusChatMcp
           body: epic[:description],
           kind: "epic",
           labels: nil,
+          depends_on_job_ids: epic[:depends_on_job_ids],
           state: "proposed",
           edited_at: proposal.persisted? ? Time.current : nil
         )
@@ -206,6 +220,7 @@ module SyrusChatMcp
             body: job[:description],
             kind: "syrus_issue",
             labels: nil,
+            depends_on_epic_ids: job[:depends_on_epic_ids],
             state: "proposed",
             edited_at: child.persisted? ? Time.current : nil
           )
@@ -240,6 +255,7 @@ module SyrusChatMcp
               slug: child.slug,
               state: child.state,
               target_repo: child.repository&.slug,
+              depends_on_epic_ids: child.depends_on_epic_ids,
               depends_on: child.dependencies.order(:slug).pluck(:slug)
             }
           end

@@ -66,6 +66,38 @@ RSpec.describe SyrusChatMcp::ProposeJobTool do
     expect(proposal.dependencies).to contain_exactly(root)
   end
 
+  it "persists existing Epic dependencies" do
+    prerequisite = Factories.epic(user: user, repository: repository)
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Wait for the Epic",
+      description: "Do this after the wider effort lands.",
+      depends_on_epic_ids: [ prerequisite.id ]
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Wait for the Epic")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.depends_on_epic_ids).to eq([ prerequisite.id ])
+  end
+
+  it "rejects unknown Epic dependency IDs" do
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user)
+    foreign_epic = Factories.epic(user: other_user, repository: other_repo)
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Wrong owner",
+      description: "This should not pass.",
+      depends_on_epic_ids: [ foreign_epic.id, 123_456 ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("unknown depends_on_epic_ids")
+    expect(chat_session.proposals.find_by(title: "Wrong owner")).to be_nil
+  end
+
   it "rejects an Epic from another repository" do
     other_repo = Factories.repository(user: user, owner: "acme", name: "scrolls")
     epic = Factories.epic(user: user, repository: other_repo)

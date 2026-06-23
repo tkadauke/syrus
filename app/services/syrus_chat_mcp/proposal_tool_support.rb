@@ -6,6 +6,10 @@ module SyrusChatMcp
       Array(value).map { |item| item.to_s.strip }.reject(&:empty?).uniq
     end
 
+    def normalize_integer_list(value)
+      Array(value).filter_map { |item| Integer(item, exception: false) }.uniq
+    end
+
     def repository_for(chat_session, repo)
       token = repo.to_s.strip
       if token.blank?
@@ -57,6 +61,16 @@ module SyrusChatMcp
       return [ nil, unknown_slugs ] if unknown_slugs.any?
 
       [ dependency_slugs.map { |slug| proposals_by_slug.fetch(slug) }, [] ]
+    end
+
+    def unknown_epic_dependency_ids(chat_session, epic_ids)
+      ids = normalize_integer_list(epic_ids)
+      ids - chat_session.user.epics.where(id: ids).pluck(:id)
+    end
+
+    def unknown_job_dependency_ids(chat_session, job_ids)
+      ids = normalize_integer_list(job_ids)
+      ids - chat_session.user.jobs.where(id: ids).pluck(:id)
     end
   end
 end
