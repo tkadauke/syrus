@@ -990,6 +990,60 @@ describe("App", () => {
     }
   })
 
+  it("clears an active chat unread marker after opening it", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    let recentChats = [
+      sidebarChat({
+        id: 10,
+        title: "Widgets active",
+        repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+        last_message_at: "2026-06-18T12:00:00Z",
+        unread: true
+      })
+    ]
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: recentChats, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/10") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ id: 10 })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/10/mark_read") {
+        recentChats = recentChats.map((chat) => chat.id === 10 ? { ...chat, unread: false } : chat)
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/10"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByText("Widgets active")
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/10/mark_read", expect.objectContaining({ method: "PATCH" })))
+      await waitFor(() => expect(screen.getByText("Widgets active")).toHaveClass("font-medium"))
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("renders the team directory route", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
@@ -7671,7 +7725,7 @@ describe("App", () => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/mark_read", expect.objectContaining({ method: "PATCH" }))
     })
     await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["recent-chats"] })
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
     })
   })
 

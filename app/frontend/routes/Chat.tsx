@@ -28,6 +28,7 @@ import {
   updateQueuedChatMessage,
   type ChatAttachmentResult,
   type ChatAttachmentRow,
+  type ChatsIndexPayload,
   type ChatMcpHealth,
   type ChatNavRecord,
   type ChatMessageItem,
@@ -82,7 +83,8 @@ export function ChatRoute() {
     if (!id) return
 
     void markChatRead(id).then(() => {
-      void queryClient.invalidateQueries({ queryKey: ["recent-chats"] })
+      markChatReadInCache(queryClient, id)
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
     }).catch(() => undefined)
   }, [id, queryClient])
 
@@ -135,6 +137,30 @@ type BookmarkTarget = {
 
 function chatQueryKey(id: string | number, search: string): ChatQueryKey {
   return ["chats", String(id), search] as const
+}
+
+function markChatReadInCache(queryClient: ReturnType<typeof useQueryClient>, chatId: string | number) {
+  const id = Number(chatId)
+  if (!Number.isFinite(id)) return
+
+  queryClient.setQueriesData<ChatPayload>(
+    { queryKey: ["chats", String(chatId)] },
+    (current) => current ? {
+      ...current,
+      recent_chats: markChatNavRecordRead(current.recent_chats, id)
+    } : current
+  )
+  queryClient.setQueryData<ChatsIndexPayload>(
+    ["chats", "recent"],
+    (current) => current ? {
+      ...current,
+      chats: markChatNavRecordRead(current.chats, id)
+    } : current
+  )
+}
+
+function markChatNavRecordRead<T extends ChatNavRecord>(chats: T[], chatId: number) {
+  return chats.map((chat) => chat.id === chatId ? { ...chat, unread: false } : chat)
 }
 
 function appendSearch(path: string, search: string) {
@@ -1563,16 +1589,22 @@ function ChatNavigator({ payload, prefix, onBookmarkSelect }: { payload: ChatPay
         </label>
         {recentChats.length > 0 ? (
           <nav aria-label="Recent chats" className="space-y-1">
-            {recentChats.map((chat) => (
-              <Link
-                className={`block rounded border px-2 py-1.5 text-xs ${chat.current ? "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" : "border-gray-200 bg-gray-50 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"}`}
-                key={chat.id}
-                to={withRoutePrefix(chat.chat_path, prefix)}
-              >
-                <span className={`block truncate font-medium ${chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : ""}`}>{chatDisplayTitle(chat)}</span>
-                <span className="mt-0.5 block truncate font-mono text-[0.7rem] text-gray-500 dark:text-gray-400">{chat.repository?.slug || `Chat #${chat.id}`}</span>
-              </Link>
-            ))}
+            {recentChats.map((chat) => {
+              const unread = chat.unread && !chat.current
+              return (
+                <Link
+                  className={`block rounded border px-2 py-1.5 text-xs ${chat.current ? "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" : "border-gray-200 bg-gray-50 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"}`}
+                  key={chat.id}
+                  to={withRoutePrefix(chat.chat_path, prefix)}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
+                    <span className={`block min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"} ${chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : ""}`}>{chatDisplayTitle(chat)}</span>
+                  </span>
+                  <span className="mt-0.5 block truncate font-mono text-[0.7rem] text-gray-500 dark:text-gray-400">{chat.repository?.slug || `Chat #${chat.id}`}</span>
+                </Link>
+              )
+            })}
           </nav>
         ) : (
           <div className="text-xs text-gray-400 dark:text-gray-500">No matching chats.</div>

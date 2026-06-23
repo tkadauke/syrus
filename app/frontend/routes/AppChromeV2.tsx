@@ -279,6 +279,7 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
               <div className="space-y-0.5">
                 {visibleChats.map((chat) => {
                   const active = chat.current || chat.id === activeChatId
+                  const unread = chat.unread && !active
                   return (
                     <Link
                       className={recentChatLinkClass(active)}
@@ -286,8 +287,8 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                       onClick={onCloseDrawer}
                       to={withRoutePrefix(chat.chat_path, prefix)}
                     >
-                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${chat.unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
-                      <span className={`min-w-0 flex-1 truncate ${chat.unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
+                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
+                      <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
                     </Link>
                   )
                 })}
