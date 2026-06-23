@@ -116,6 +116,7 @@ Each user owns their own credentials and agent preferences.
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
 | Scheduling paused | Skips scheduled task firing for that user |
 | Admin API token | Admin-only bearer token for `/api/v1/admin/*` diagnostics, including Jobs, Runs, queue/processes, and chat transcripts; shown once on rotation |
+| Memories | Persistent agent context owned by the user; repository-scoped memories can be published from the Memories settings panel |
 
 The credentials page includes a per-credential **Test** action after a
 secret is saved. GitHub PAT tests call GitHub as the user and report the

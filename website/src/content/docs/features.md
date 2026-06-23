@@ -61,7 +61,7 @@ auto-pause a task until an operator fixes and resumes it.
 ## Chats
 
 Chats are operator conversations with repository context. A chat can
-attach repositories, Jobs, documents, notes, and whiteboard state. The chat
+attach repositories, Jobs, documents, memories, and whiteboard state. The chat
 agent can read selected repository context, propose Jobs, propose Epics,
 list and update Epics, move Epics through their kanban states, schedule
 recurring work, inspect existing Jobs or PRs, approve or unapprove
@@ -110,6 +110,13 @@ Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
 retry the turn or inspect worker logs instead of chasing blind retries.
+
+Agents can persist structured memories such as user preferences, project
+facts, feedback, references, and decisions. Memories are private to their
+owner by default; repository-scoped memories can be published to make them
+visible to other operators attached to that repository. The **Memories**
+settings panel lists, filters, edits, publishes, unpublishes, and deletes
+memories, with admins able to manage memories across users.
 
 ## Direct Jobs
 

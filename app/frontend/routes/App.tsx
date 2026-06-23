@@ -31,6 +31,7 @@ import { DirectJobNewRoute } from "./DirectJobNew"
 import { EpicDetailRoute } from "./EpicDetail"
 import { EpicFormRoute } from "./EpicForm"
 import { JobDetailRoute } from "./JobDetail"
+import { MemoriesRoute } from "./Memories"
 import { OnboardingRoute } from "./Onboarding"
 import { PersonalDocumentsRoute } from "./PersonalDocuments"
 import { ProfileRoute } from "./Profile"
@@ -92,6 +93,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/profiles", element: <TeamDirectoryRoute /> },
   { path: "/profiles/:id", element: <TeamProfileRoute /> },
   { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
+  { path: "/memories", element: <SettingsSectionRoute><MemoriesRoute /></SettingsSectionRoute> },
   { path: "/profiles/:id", element: <ProfileRoute /> },
   { path: "/smart_folders", element: <SmartFolders /> },
   { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
@@ -767,6 +769,7 @@ function settingsNavigationItems(): Array<{ label: string; path: string; active:
   return [
     { label: "My credentials", path: "/credentials/edit", active: (path) => path === "/settings" || path === "/credentials/edit" },
     { label: "Documents", path: "/documents", active: (path) => path === "/documents" },
+    { label: "Memories", path: "/memories", active: (path) => path === "/memories" },
     { label: "Templates", path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
     { label: "Tags", path: "/tags", active: (path) => path === "/tags" }
   ]
@@ -783,6 +786,7 @@ function showsSettingsNavigation(pathname: string) {
   return pathname === "/settings" ||
     pathname === "/credentials/edit" ||
     pathname === "/documents" ||
+    pathname === "/memories" ||
     pathname === "/tags" ||
     pathname.startsWith("/cron_templates")
 }

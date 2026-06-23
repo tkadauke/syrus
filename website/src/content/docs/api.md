@@ -112,3 +112,16 @@ curl -X PATCH https://syrus.example.com/api/v1/app/theme \
   -H "Content-Type: application/json" \
   -d '{ "theme": "dark" }'
 ```
+
+## Manage Memories
+
+User-scoped clients can manage agent memories through the app API with any
+user API token. `GET /api/v1/app/memories` returns paginated memories visible
+to that user, including their own memories and repository-published memories
+from repositories attached to them. It accepts `scope`, `kind`, `q`, and
+`page` query parameters.
+
+Write endpoints are owner-only unless the authenticated user is an admin:
+`POST /api/v1/app/memories`, `PATCH /api/v1/app/memories/:id`,
+`DELETE /api/v1/app/memories/:id`, `POST /api/v1/app/memories/:id/publish`,
+and `DELETE /api/v1/app/memories/:id/publish`.

@@ -29,6 +29,12 @@ Rails.application.routes.draw do
         post "bug_reports", to: "bug_reports#create"
         post "filters/usage", to: "filters#usage"
         resources :tags, only: %i[ index create update destroy ]
+        resources :memories, only: %i[ index create update destroy ] do
+          member do
+            post :publish
+            delete :publish, action: :unpublish
+          end
+        end
         resources :profiles, only: %i[ index show ]
         resources :smart_folders, only: %i[ index create update destroy ]
         resources :cron_templates, only: %i[ index show create update destroy ]

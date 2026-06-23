@@ -15,6 +15,7 @@ class User < ApplicationRecord
   has_many :smart_folders, dependent: :destroy
   has_many :tags, dependent: :destroy
   has_many :chat_sessions
+  has_many :chat_memories, dependent: :destroy
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy
   has_many :cron_templates, dependent: :destroy
