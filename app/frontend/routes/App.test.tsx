@@ -8332,7 +8332,7 @@ describe("App", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
-  it("sends registered skill slash commands through the normal chat message path", async () => {
+  it("sends registered skill slash commands as generated prompts through the normal chat message path", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
@@ -8359,7 +8359,7 @@ describe("App", () => {
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ chat_message: { text: "/job 1092" } })
+          body: JSON.stringify({ chat_message: { text: 'Call the `read_job` MCP tool for Job id "1092". Summarize the Job state, PR or issue identifiers, priority, latest workflow state, and any latest workflow summary.' } })
         })
       )
     })

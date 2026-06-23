@@ -828,9 +828,9 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
   const commandQuery = slashCommandQuery(text)
   const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery), [commandQuery])
   const send = useMutation({
-    mutationFn: () => agentActive
-      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), text)
-      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), text),
+    mutationFn: (messageText: string) => agentActive
+      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText)
+      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setText("")
@@ -849,7 +849,7 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
     }
 
     onNotice(null)
-    send.mutate()
+    send.mutate(commandMatch?.command.toPrompt ? commandMatch.command.toPrompt(commandMatch.argsText) : text)
   }
 
   function handleSystemSlashCommand(command: SlashCommand) {

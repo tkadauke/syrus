@@ -109,7 +109,10 @@ otherwise accepts a short free-form answer.
 The chat composer recognizes leading slash commands. Typing `/` opens an
 autocomplete palette with system commands handled in the browser and skill
 commands that are sent through the normal chat message path for the agent to
-interpret.
+interpret. Read-only skill commands include `/jobs [filter]`, `/job <id>`,
+`/epic <id>`, `/prs`, `/issues`, `/proposals`, `/canvas`, and
+`/bookmark <label>`; Syrus expands each one into a prompt that asks the agent
+to call the matching chat MCP tool and format the result.
 
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
