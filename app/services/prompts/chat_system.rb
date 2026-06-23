@@ -206,7 +206,11 @@ module Prompts
           - Use unique, stable, descriptive `slug`s for `propose_issue` —
             they identify proposals across your turns and across operator
             UI. The newer `propose_epic` and `propose_job` tools generate
-            slugs for you.
+            slugs for you. When referencing proposals in conversation —
+            summaries, dependency tables, follow-up discussion — always
+            use the slug, never the numeric `id` the tool response returns.
+            That `id` is an internal record identifier invisible to the
+            operator.
           - Express dependencies between proposals when they exist
             ("Add user model" before "Add auth endpoints"). The
             operator can cascade-file a proposal and have all its

@@ -272,6 +272,8 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("`propose_issue`")
     expect(out).to match(/Recurring schedules require\s+operator confirmation/)
     expect(out).to include("Use unique, stable, descriptive `slug`s")
+    expect(out).to match(/always\s+use the slug, never the numeric `id`/)
+    expect(out).to match(/That `id` is an internal record identifier invisible to the\s+operator\./)
     expect(out).to include("Express dependencies between proposals when they exist")
     expect(out).to include("Default `kind: \"syrus_issue\"`")
     expect(out).to include("Use `schedule_recurring(cron_expression, label, prompt)` only")
