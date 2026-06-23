@@ -63,4 +63,46 @@ RSpec.describe App::ChatMessagePayload do
       ]
     )
   end
+
+  it "includes inline pending action details with a job resource" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Inject memories into chat system prompt", state: "implemented")
+    action = chat.pending_actions.create!(
+      action: "cancel_job",
+      requested_by: "agent",
+      payload: { "job_id" => job.id }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Cancel it?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload).to eq(
+      id: action.id,
+      action: "cancel_job",
+      state: "pending",
+      label: "Cancel JOB-#{job.id}",
+      app_confirm_path: "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm",
+      app_reject_path: "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/reject",
+      resource_title: "Inject memories into chat system prompt",
+      resource_url: "/jobs/#{job.id}"
+    )
+  end
+
+  it "omits pending action resource fields when the referenced job is gone" do
+    action = chat.pending_actions.create!(
+      action: "cancel_job",
+      requested_by: "agent",
+      payload: { "job_id" => 999_999 }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Cancel it?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload).to include(
+      id: action.id,
+      action: "cancel_job",
+      label: "Cancel JOB-999999"
+    )
+    expect(payload).not_to have_key(:resource_title)
+    expect(payload).not_to have_key(:resource_url)
+  end
 end

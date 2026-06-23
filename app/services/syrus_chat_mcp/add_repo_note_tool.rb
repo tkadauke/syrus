@@ -2,6 +2,8 @@ require "mcp"
 
 module SyrusChatMcp
   class AddRepoNoteTool < MCP::Tool
+    extend ProposalToolSupport
+
     tool_name "add_repo_note"
 
     description <<~DESC
@@ -22,7 +24,9 @@ module SyrusChatMcp
         body = body.to_s.strip
         return SyrusChatMcp.invalid("body is required") if body.empty?
 
-        pending_action = chat_session.pending_actions.create!(
+        pending_action = create_pending_action_for_current_message!(
+          server_context,
+          chat_session,
           action: "add_repo_note",
           payload: { "body" => body },
           requested_by: "agent"

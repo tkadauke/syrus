@@ -101,6 +101,18 @@ export type ChatMessageItem = {
   text: string
   bookmarkable: boolean
   proposal?: ChatProposal | null
+  pending_action?: ChatPendingActionInline | null
+}
+
+export type ChatPendingActionInline = {
+  id: number
+  action: string | null
+  state: string
+  label: string
+  resource_title?: string
+  resource_url?: string
+  app_confirm_path: string
+  app_reject_path: string
 }
 
 export type ChatRenderMessageItem = ChatMessageItem & {

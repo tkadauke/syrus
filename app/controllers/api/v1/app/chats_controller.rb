@@ -401,7 +401,7 @@ module Api
         end
 
         def message_scope(chat_session)
-          chat_session.messages.includes(proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, :job, dependencies: [] ] ])
+          chat_session.messages.includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, :job, dependencies: [] ] ])
         end
 
         def messages_json(messages, repository:)
@@ -686,7 +686,7 @@ module Api
 
           loop do
             messages = chat_session.messages
-              .includes(proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
+              .includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
               .where("id > ?", last_seen_id)
               .order(:id)
               .to_a

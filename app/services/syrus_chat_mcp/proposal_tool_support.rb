@@ -54,6 +54,21 @@ module SyrusChatMcp
       )
     end
 
+    def attach_pending_action_to_current_message!(server_context, pending_action)
+      if (msg = server_context[:current_message])
+        msg.update_columns(pending_action_id: pending_action.id)
+      end
+    end
+
+    def create_pending_action_for_current_message!(server_context, chat_session, **attributes)
+      pending_action = nil
+      ApplicationRecord.transaction do
+        pending_action = chat_session.pending_actions.create!(**attributes)
+        attach_pending_action_to_current_message!(server_context, pending_action)
+      end
+      pending_action
+    end
+
     def dependency_proposals(chat_session, depends_on)
       dependency_slugs = normalize_string_list(depends_on)
       proposals_by_slug = chat_session.proposals.index_by(&:slug)

@@ -146,6 +146,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_015924) do
     t.integer "chat_session_id", null: false
     t.json "content", null: false
     t.datetime "created_at", null: false
+    t.bigint "pending_action_id"
     t.integer "proposal_id"
     t.string "role", null: false
     t.string "tool_name"
@@ -153,6 +154,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_015924) do
     t.datetime "updated_at", null: false
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id"], name: "index_chat_messages_on_chat_session_id"
+    t.index ["pending_action_id"], name: "index_chat_messages_on_pending_action_id"
     t.index ["proposal_id"], name: "index_chat_messages_on_proposal_id"
   end
 
@@ -923,6 +925,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_015924) do
   add_foreign_key "chat_bookmarks", "chat_messages"
   add_foreign_key "chat_memories", "users"
   add_foreign_key "chat_memories", "users", column: "deleted_by_user_id"
+  add_foreign_key "chat_messages", "chat_pending_actions", column: "pending_action_id"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_pending_actions", "chat_sessions"

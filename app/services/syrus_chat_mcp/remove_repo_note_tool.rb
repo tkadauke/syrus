@@ -2,6 +2,8 @@ require "mcp"
 
 module SyrusChatMcp
   class RemoveRepoNoteTool < MCP::Tool
+    extend ProposalToolSupport
+
     tool_name "remove_repo_note"
 
     description <<~DESC
@@ -25,7 +27,9 @@ module SyrusChatMcp
         note = chat_session.repository.repository_notes.active.find_by(id: note_id)
         return SyrusChatMcp.invalid("unknown active repository note id: #{id}") unless note
 
-        pending_action = chat_session.pending_actions.create!(
+        pending_action = create_pending_action_for_current_message!(
+          server_context,
+          chat_session,
           action: "remove_repo_note",
           payload: { "id" => note.id },
           requested_by: "agent"

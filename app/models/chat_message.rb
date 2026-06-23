@@ -4,6 +4,7 @@ class ChatMessage < ApplicationRecord
 
   belongs_to :chat_session
   belongs_to :proposal, class_name: "ChatProposal", optional: true
+  belongs_to :pending_action, class_name: "ChatPendingAction", optional: true
 
   has_many :bookmarks, class_name: "ChatBookmark", dependent: :destroy, inverse_of: :chat_message
 
@@ -26,7 +27,7 @@ class ChatMessage < ApplicationRecord
   def broadcast_app_event
     chat = chat_session
     tail = chat.messages
-               .includes(proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
+               .includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
                .order(created_at: :desc, id: :desc)
                .limit(SPA_EVENT_TAIL_SIZE)
                .to_a

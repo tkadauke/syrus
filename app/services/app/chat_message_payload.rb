@@ -29,8 +29,40 @@ module App
       }
 
       payload[:proposal] = proposal_json(message.proposal, chat_session: message.chat_session) if message.proposal_id.present?
+      payload[:pending_action] = pending_action_json(message.pending_action, chat_session: message.chat_session) if message.pending_action_id.present?
 
       payload
+    end
+
+    def pending_action_json(action, chat_session:)
+      return nil unless action
+
+      payload = action.payload || {}
+      base = {
+        id: action.id,
+        action: action.action.presence || action.action_type,
+        state: action.state,
+        label: pending_action_label(action),
+        app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
+        app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject"
+      }
+
+      case action.action.presence || action.action_type
+      when "cancel_job", "retry_job", "rebase_job", "submit_chat_feedback"
+        if (job = action.repository.jobs.find_by(id: payload["job_id"]))
+          base.merge(resource_title: job.issue_title, resource_url: job_path(job))
+        else
+          base
+        end
+      when "reopen_epic_and_attach_job"
+        if (epic = action.repository.epics.find_by(id: payload["epic_id"]))
+          base.merge(resource_title: epic.title, resource_url: epic_path(epic))
+        else
+          base
+        end
+      else
+        base
+      end
     end
 
     def proposal_json(proposal, chat_session:)
@@ -97,6 +129,28 @@ module App
       case record
       when Job then job_path(record)
       when Epic then epic_path(record)
+      end
+    end
+
+    def pending_action_label(action)
+      payload = action.payload || {}
+      case action.action
+      when "add_repo_note"
+        "Pin repository note"
+      when "remove_repo_note"
+        "Remove repository note ##{payload['id']}"
+      when "cancel_job"
+        "Cancel #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "retry_job"
+        "Retry #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "rebase_job"
+        "Rebase #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "submit_chat_feedback"
+        "Submit feedback on #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "reopen_epic_and_attach_job"
+        "Reopen Epic ##{payload['epic_id']} and attach #{::App::Presentation.job_slug(payload['job_id'])}"
+      else
+        payload["label"].presence || action.action_type.to_s.humanize
       end
     end
 
