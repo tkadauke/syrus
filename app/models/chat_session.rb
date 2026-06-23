@@ -171,6 +171,7 @@ class ChatSession < ApplicationRecord
         chat: {
           title: title,
           title_pending: title_pending?,
+          pinned_context: pinned_context,
           stop_requested_at: stop_requested_at&.iso8601,
           cumulative_input_tokens: cumulative_input_tokens.to_i,
           cumulative_output_tokens: cumulative_output_tokens.to_i,
@@ -199,6 +200,7 @@ class ChatSession < ApplicationRecord
 
   def header_previously_changed?
     saved_change_to_title? ||
+      saved_change_to_pinned_context? ||
       saved_change_to_cumulative_input_tokens? ||
       saved_change_to_cumulative_output_tokens? ||
       saved_change_to_cumulative_cost_usd?

@@ -211,6 +211,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_165047) do
     t.datetime "last_message_at"
     t.datetime "last_read_at"
     t.boolean "onboarding", default: false, null: false
+    t.text "pinned_context"
     t.datetime "stop_requested_at"
     t.string "title"
     t.datetime "updated_at", null: false

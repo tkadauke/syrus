@@ -10,6 +10,7 @@ export type ChatRecord = {
   id: number
   title: string | null
   title_pending: boolean
+  pinned_context: string | null
   chat_path: string
   repository: ChatRepository | null
   stop_requested_at: string | null

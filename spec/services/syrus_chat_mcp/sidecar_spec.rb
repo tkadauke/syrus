@@ -13,6 +13,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::ProposeIssueTool,
         SyrusChatMcp::ProposeEpicTool,
         SyrusChatMcp::ProposeJobTool,
+        SyrusChatMcp::UpdatePinnedContextTool,
+        SyrusChatMcp::RemovePinnedContextTool,
         SyrusChatMcp::SetBookmarkTool,
         SyrusChatMcp::ProposeEpicWithJobsTool,
         SyrusChatMcp::ListProposalsTool,
@@ -102,6 +104,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         propose_issue
         propose_epic
         propose_job
+        update_pinned_context
+        remove_pinned_context
         set_bookmark
         propose_epic_with_jobs
         list_proposals

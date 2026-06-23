@@ -253,6 +253,7 @@ RSpec.describe ChatSession do
           chat: {
             title: "Updated chat",
             title_pending: false,
+            pinned_context: nil,
             stop_requested_at: stopped_at.iso8601,
             cumulative_input_tokens: 1500,
             cumulative_output_tokens: 250,

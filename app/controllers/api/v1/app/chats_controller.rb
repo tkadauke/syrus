@@ -744,6 +744,7 @@ module Api
             id: chat_session.id,
             title: chat_session.title,
             title_pending: chat_session.title_pending?,
+            pinned_context: chat_session.pinned_context,
             chat_path: chat_path(chat_session),
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,

@@ -335,11 +335,19 @@ module Prompts
     end
 
     def pinned_context
-      return "  - (none)" unless @repository
+      lines = []
+      session_context = @chat_session&.pinned_context.to_s.strip
+      lines << "  - #{clip(session_context.squish, 2.kilobytes)}" if session_context.present?
 
+      if @repository
+        lines.concat(repository_note_context_lines)
+      end
+
+      lines.presence&.join("\n") || "  - (none)"
+    end
+
+    def repository_note_context_lines
       notes = @repository.repository_notes.active.order(:created_at, :id)
-      return "  - (none)" if notes.empty?
-
       remaining = 2.kilobytes
       notes.map do |note|
         body = note.body.to_s.squish
@@ -349,7 +357,7 @@ module Prompts
         remaining -= clipped.length
         suffix = clipped.length < body.length ? "..." : ""
         "  - #{clipped}#{suffix}"
-      end.compact.join("\n")
+      end.compact
     end
 
     def environment_snapshot
