@@ -27,6 +27,14 @@ module Prompts
         Pinned context:
         #{pinned_context}
 
+        Memory guidance:
+
+          - Write chat memories for facts that emerged conversationally
+            and have not yet been reviewed for promotion into the repo.
+          - Propose a CLAUDE.md edit when the fact is a durable team
+            convention, workflow rule, or repository instruction that
+            should guide every future agent.
+
         #{environment_snapshot}
 
         #{attached_context}
@@ -343,6 +351,8 @@ module Prompts
         lines.concat(repository_note_context_lines)
       end
 
+      lines.concat(chat_memory_context_lines)
+
       lines.presence&.join("\n") || "  - (none)"
     end
 
@@ -353,9 +363,29 @@ module Prompts
         body = note.body.to_s.squish
         next if body.empty? || remaining <= 0
 
-        clipped = body.first(remaining)
-        remaining -= clipped.length
-        suffix = clipped.length < body.length ? "..." : ""
+        clipped = body.safe_byteslice(0, remaining)
+        remaining -= clipped.bytesize
+        suffix = clipped.bytesize < body.bytesize ? "..." : ""
+        "  - #{clipped}#{suffix}"
+      end.compact
+    end
+
+    def chat_memory_context_lines
+      return [] unless @chat_session
+
+      repo_ids = attached_repositories.map(&:id)
+      memories = ChatMemory.visible_to(@chat_session.user, repo_ids)
+                           .order(:scope, :kind, :created_at)
+
+      remaining = 2.kilobytes
+      memories.map do |memory|
+        label = "[#{memory.kind}#{memory.scope == "repository" ? "/#{memory.scope_id}" : ""}#{memory.published? ? "/shared" : ""}]"
+        line = "#{label} #{memory.content.squish}"
+        next if remaining <= 0
+
+        clipped = line.safe_byteslice(0, remaining)
+        remaining -= clipped.bytesize
+        suffix = clipped.bytesize < line.bytesize ? "..." : ""
         "  - #{clipped}#{suffix}"
       end.compact
     end

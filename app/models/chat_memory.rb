@@ -17,32 +17,20 @@ class ChatMemory < ApplicationRecord
   scope :repository_scope, ->(repo_or_id) { where(scope: "repository", scope_id: repository_id_for(repo_or_id)) }
   scope :published, -> { where(published: true) }
   scope :for_user, ->(user) { where(user: user) }
-  scope :visible_to, ->(user, repository) {
+  scope :visible_to, ->(user, repositories) {
     user_id = user.respond_to?(:id) ? user.id : user
-    repository_id = repository_id_for(repository)
+    repository_ids = Array(repositories).map { |repository| repository_id_for(repository) }.compact
+    own_global = where(user_id: user_id, scope: "global", scope_id: nil)
 
-    where(
-      <<~SQL.squish,
-        (
-          chat_memories.user_id = :user_id
-          AND (
-            (chat_memories.scope = :global_scope AND chat_memories.scope_id IS NULL)
-            OR (chat_memories.scope = :repository_scope AND chat_memories.scope_id = :repository_id)
-          )
-        )
-        OR (
-          chat_memories.user_id != :user_id
-          AND chat_memories.scope = :repository_scope
-          AND chat_memories.scope_id = :repository_id
-          AND chat_memories.published = :published
-        )
-      SQL
-      user_id: user_id,
-      repository_id: repository_id,
-      global_scope: "global",
-      repository_scope: "repository",
-      published: true
-    )
+    if repository_ids.empty?
+      own_global
+    else
+      own_repository = where(user_id: user_id, scope: "repository", scope_id: repository_ids)
+      shared_repository = where.not(user_id: user_id)
+                               .where(scope: "repository", scope_id: repository_ids, published: true)
+
+      own_global.or(own_repository).or(shared_repository)
+    end
   }
 
   def self.repository_id_for(repo_or_id)

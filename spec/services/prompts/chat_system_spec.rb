@@ -38,15 +38,19 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Recommend; don't decide.")
   end
 
-  it "renders active repository notes near the top" do
-    repo.repository_notes.create!(body: "Use the App credential path for this repo.", author: "operator")
-    repo.repository_notes.create!(body: "Removed context.", author: "agent", removed_at: Time.current)
+  it "renders own global memories near the top" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    ChatMemory.create!(
+      user: repo.user,
+      kind: "user_pref",
+      scope: "global",
+      content: "Prefers concise planning notes."
+    )
 
-    out = described_class.new(repository: repo).to_s
+    out = described_class.new(repository: repo, chat_session: chat).to_s
 
     expect(out).to include("Pinned context:")
-    expect(out).to include("- Use the App credential path for this repo.")
-    expect(out).not_to include("Removed context.")
+    expect(out).to include("- [user_pref] Prefers concise planning notes.")
     expect(out.index("Pinned context:")).to be < out.index("Your environment:")
   end
 
@@ -61,6 +65,74 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo, chat_session: chat).to_s
 
     expect(out).to include("Pinned context:\n  - Keep the migration compatible with MySQL.\n  - Prefer the App credential path for this repo.")
+  end
+
+  it "explains when to write memories instead of proposing CLAUDE.md edits" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("Memory guidance:")
+    expect(out).to include("Write chat memories for facts that emerged conversationally")
+    expect(out).to include("Propose a CLAUDE.md edit when the fact is a durable team")
+  end
+
+  it "renders own repository memories for attached repositories" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    attached_repo = Factories.repository(user: repo.user, owner: "Acme", name: "Forum")
+    unattached_repo = Factories.repository(user: repo.user, owner: "Acme", name: "Backlog")
+    chat.chat_attachments.create!(attachable: attached_repo)
+    ChatMemory.create!(
+      user: repo.user,
+      kind: "project_fact",
+      scope: "repository",
+      scope_id: attached_repo.id,
+      content: "Forum deploys from trunk."
+    )
+    ChatMemory.create!(
+      user: repo.user,
+      kind: "project_fact",
+      scope: "repository",
+      scope_id: unattached_repo.id,
+      content: "Backlog has a private deploy rule."
+    )
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("- [project_fact/#{attached_repo.id}] Forum deploys from trunk.")
+    expect(out).not_to include("Backlog has a private deploy rule.")
+  end
+
+  it "renders published repository memories from other users" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    other_user = Factories.user
+    ChatMemory.create!(
+      user: other_user,
+      kind: "reference",
+      scope: "repository",
+      scope_id: repo.id,
+      content: "Shared staging runbook is in the team drive.",
+      published: true
+    )
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("- [reference/#{repo.id}/shared] Shared staging runbook is in the team drive.")
+  end
+
+  it "omits unpublished repository memories from other users" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    other_user = Factories.user
+    ChatMemory.create!(
+      user: other_user,
+      kind: "decision",
+      scope: "repository",
+      scope_id: repo.id,
+      content: "Private unreconciled rollout note."
+    )
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("Pinned context:\n  - (none)")
+    expect(out).not_to include("Private unreconciled rollout note.")
   end
 
   it "includes a compact environment snapshot with chat tool availability" do
@@ -231,17 +303,25 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Attached context:")).to be < out.index("What Syrus is")
   end
 
-  it "caps rendered repository note body text" do
-    repo.repository_notes.create!(body: "x" * 2_100, author: "operator")
+  it "caps rendered memory text by byte budget" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    ChatMemory.create!(
+      user: repo.user,
+      kind: "project_fact",
+      scope: "repository",
+      scope_id: repo.id,
+      content: "é" * 2_000
+    )
 
-    out = described_class.new(repository: repo).to_s
+    out = described_class.new(repository: repo, chat_session: chat).to_s
 
     # Match the pinned-context bullet list — runs of "  - …" lines
     # ending at the first blank line. Anchoring on the next section
     # header is brittle: the prompt has multiple sections, and any
     # one of them could land first.
     pinned = out[/Pinned context:\n(?<body>(?:  - .*\n)+)/, :body].rstrip
-    expect(pinned.length).to be <= 2.kilobytes + 10
+    clipped = pinned.delete_prefix("  - ").delete_suffix("...")
+    expect(clipped.bytesize).to be <= 2.kilobytes
     expect(pinned).to end_with("...")
   end
 

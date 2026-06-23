@@ -101,5 +101,54 @@ RSpec.describe ChatMemory do
       expect(visible).to include(own_global, own_repo, published_other)
       expect(visible).not_to include(unpublished_other, other_repo_memory)
     end
+
+    it "accepts multiple repository ids" do
+      another_repo = Factories.repository(user: owner)
+      own_global = described_class.create!(
+        user: owner,
+        kind: "user_pref",
+        scope: "global",
+        content: "Use concise responses."
+      )
+      own_first_repo = described_class.create!(
+        user: owner,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repo.id,
+        content: "First repo."
+      )
+      own_second_repo = described_class.create!(
+        user: owner,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: another_repo.id,
+        content: "Second repo."
+      )
+
+      visible = described_class.visible_to(owner, [ repo.id, another_repo.id ])
+
+      expect(visible).to include(own_global, own_first_repo, own_second_repo)
+    end
+
+    it "returns own global memories without repository ids" do
+      own_global = described_class.create!(
+        user: owner,
+        kind: "user_pref",
+        scope: "global",
+        content: "Use concise responses."
+      )
+      own_repo = described_class.create!(
+        user: owner,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repo.id,
+        content: "This repo uses Rails."
+      )
+
+      visible = described_class.visible_to(owner, [])
+
+      expect(visible).to include(own_global)
+      expect(visible).not_to include(own_repo)
+    end
   end
 end
