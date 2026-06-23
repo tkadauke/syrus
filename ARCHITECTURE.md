@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-21._
+_Last reviewed: 2026-06-23._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -689,7 +689,7 @@ Git and GitHub:
 | `GitRunner` | Subprocess wrapper around `git` that streams stdout/stderr into `JobLog` and redacts `https://x-access-token:TOKEN@github.com/...` URLs from error messages. |
 | `GithubClient` | One Octokit client per user. Wraps `issues_with_label`, `pull_request`, `pull_request_comments`, `pull_request_reviews`, `combined_status_for_ref`, etc. Surfaces `Octokit::TooManyRequests` to callers (logged then re-raised). |
 | `PullRequestOpener` | Octokit `create_pull_request` with retry on transient failures. |
-| `LandingQueueProcessor` | Moves approved Jobs/Epics into `auto_merge` or `merge_train` Workflows and applies landing state transitions. |
+| `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows, and applies landing state transitions. |
 | `LandingValidationCache` | Records prior green landing checks; optionally lets clean rebases carry validation forward for repositories that trust it. |
 | `ClosedPullRequestResolution` / `BranchPatchPresence` | Classifies closed Syrus PRs as merged, no-change, or closed-with-unique-patches. The patch-presence check clones the base branch under `$SYRUS_DATA_ROOT/closed-pr-checks`, fetches the Syrus branch, and uses `git cherry` to detect whether any patch remains unique to the PR branch. |
 
@@ -727,6 +727,14 @@ single integration branch from approved child PRs by fetching each
 member branch with repository credentials (private repos included),
 validates it, merges one integration PR, and comments on/closes member
 PRs as an all-or-nothing unit.
+
+The landing queue is ordered by landing units, not only individual Jobs.
+Epic children share one unit so the dashboard queue keeps the sibling
+Jobs contiguous and the visible positions match the order Syrus uses
+when dispatching merge-trains. Dependencies and `parent_job` edges are
+still honored: the processor topologically orders units against
+cross-unit prerequisites, then orders Jobs inside each unit by the same
+dependency rules before landing or assembling the integration branch.
 
 ## MCP sidecar
 
