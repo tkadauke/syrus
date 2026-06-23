@@ -59,6 +59,32 @@ RSpec.describe LandingQueueProcessor do
     expect(entries.map(&:position)).to eq([ 1, 2 ])
   end
 
+  it "groups Epic jobs together in landing queue positions" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    epic_child = queue_job(issue_number: 2, approved_at: 3.minutes.ago, epic: epic)
+    loose = queue_job(issue_number: 3, approved_at: 2.minutes.ago)
+    epic_parent = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
+    epic_child.update!(parent_job: epic_parent)
+
+    entries = described_class.entries(Job.where(id: [ epic_child.id, loose.id, epic_parent.id ]))
+
+    expect(entries.map(&:job_id)).to eq([ epic_parent.id, epic_child.id, loose.id ])
+    expect(entries.map(&:position)).to eq([ 1, 2, 3 ])
+  end
+
+  it "keeps cross-unit dependencies ahead of grouped Epic jobs" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    epic_ready = queue_job(issue_number: 1, approved_at: 4.minutes.ago, epic: epic)
+    prerequisite = queue_job(issue_number: 2, approved_at: 3.minutes.ago)
+    epic_dependent = queue_job(issue_number: 3, approved_at: 2.minutes.ago, epic: epic)
+    JobDependency.create!(job: epic_dependent, depends_on_job: prerequisite, source: "manual")
+
+    entries = described_class.entries(Job.where(id: [ epic_ready.id, prerequisite.id, epic_dependent.id ]))
+
+    expect(entries.map(&:job_id)).to eq([ prerequisite.id, epic_ready.id, epic_dependent.id ])
+    expect(entries.map(&:position)).to eq([ 1, 2, 3 ])
+  end
+
   it "keeps dependency-blocked Jobs approved and lands the next eligible Job" do
     prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 1, state: "queued", pr_number: 1)
     blocked = queue_job(issue_number: 2, approved_at: 2.minutes.ago)

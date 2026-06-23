@@ -105,6 +105,13 @@ into **Trust clean rebases** (`trust_clean_rebase_grade`) to carry a
 green result across a conflict-free rebase, trading a small
 logical-conflict risk for landing throughput.
 
+In the dashboard, the landing queue treats each Epic as one contiguous
+landing unit. The Epic's child Jobs stay grouped together, with their
+internal order still following parent and dependency relationships, so the
+displayed queue positions match the order Syrus uses when landing the
+individual Jobs. Epic merge-trains use the same dependency-aware child
+ordering when building the integration branch.
+
 ### MergeTrain (Epic merge-train)
 
 Trigger: an Epic whose every open child is approved, when the merge-train

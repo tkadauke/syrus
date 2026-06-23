@@ -297,6 +297,57 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(positions).to include(first.id => 1, second.id => 2)
     end
 
+    it "groups Epic jobs together when assigning landing queue positions" do
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress")
+      epic_child = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        epic: epic,
+        issue_number: 21,
+        issue_title: "Epic child",
+        state: "approved",
+        pr_number: 21,
+        approved_at: 3.hours.ago
+      )
+      loose = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        issue_number: 22,
+        issue_title: "Loose job",
+        state: "approved",
+        pr_number: 22,
+        approved_at: 2.hours.ago
+      )
+      epic_parent = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        epic: epic,
+        issue_number: 23,
+        issue_title: "Epic parent",
+        state: "approved",
+        pr_number: 23,
+        approved_at: 1.hour.ago
+      )
+      epic_child.update!(parent_job: epic_parent)
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Landing queue",
+        kind: "user_defined",
+        filter: SmartFolder.attention_preset_filter("landing_queue")
+      )
+
+      user.update_dashboard_sort!(subject: "job", column: "landing_queue_position", direction: "asc")
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ epic_parent.id, epic_child.id, loose.id ])
+      positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
+      expect(positions).to include(epic_parent.id => 1, epic_child.id => 2, loose.id => 3)
+    end
+
     it "sorts by landing queue position when the landing smart folder is active" do
       repo.update!(auto_merge_enabled: true)
       first = Factories.job_record(

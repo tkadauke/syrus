@@ -19,6 +19,7 @@ class LandingQueueProcessor
 
     def job_id = job.id
   end
+  LandingUnit = Struct.new(:key, :jobs, :position, keyword_init: true)
 
   def self.call = new.call
 
@@ -131,7 +132,69 @@ class LandingQueueProcessor
                          .order(Arel.sql("COALESCE(jobs.approved_at, jobs.updated_at) ASC"), :id)
                          .to_a
 
-    dependency_order(chronological)
+    epic_grouped_dependency_order(chronological)
+  end
+
+  def epic_grouped_dependency_order(jobs)
+    landing_units = landing_units_for(jobs)
+    ordered_landing_units(landing_units, jobs).flat_map do |unit|
+      dependency_order(unit.jobs)
+    end
+  end
+
+  def landing_units_for(jobs)
+    units_by_key = {}
+    jobs.each_with_index do |job, index|
+      key = landing_unit_key(job)
+      units_by_key[key] ||= LandingUnit.new(key: key, jobs: [], position: index)
+      units_by_key[key].jobs << job
+    end
+    units_by_key.values
+  end
+
+  def landing_unit_key(job)
+    job.epic_id.present? ? "epic:#{job.epic_id}" : "job:#{job.id}"
+  end
+
+  def ordered_landing_units(units, jobs)
+    by_job_id = jobs.index_by(&:id)
+    unit_by_key = units.index_by(&:key)
+    unit_key_by_job_id = units.each_with_object({}) do |unit, index|
+      unit.jobs.each { |job| index[job.id] = unit.key }
+    end
+    incoming = Hash.new { |hash, key| hash[key] = Set.new }
+    outgoing = Hash.new { |hash, key| hash[key] = Set.new }
+
+    units.each { |unit| incoming[unit.key] }
+    jobs.each do |job|
+      job_unit_key = unit_key_by_job_id.fetch(job.id)
+      landing_queue_prerequisite_ids(job).each do |prerequisite_id|
+        prerequisite = by_job_id[prerequisite_id]
+        next unless prerequisite
+
+        prerequisite_unit_key = unit_key_by_job_id.fetch(prerequisite.id)
+        next if prerequisite_unit_key == job_unit_key
+
+        outgoing[prerequisite_unit_key] << job_unit_key
+        incoming[job_unit_key] << prerequisite_unit_key
+      end
+    end
+
+    ready = units.select { |unit| incoming[unit.key].empty? }.sort_by(&:position)
+    ordered = []
+
+    until ready.empty?
+      unit = ready.shift
+      ordered << unit
+
+      outgoing[unit.key].sort_by { |key| unit_by_key.fetch(key).position }.each do |dependent_key|
+        incoming[dependent_key].delete(unit.key)
+        ready << unit_by_key.fetch(dependent_key) if incoming[dependent_key].empty?
+      end
+      ready.sort_by!(&:position)
+    end
+
+    ordered + units.reject { |unit| ordered.include?(unit) }
   end
 
   def dependency_order(jobs)
