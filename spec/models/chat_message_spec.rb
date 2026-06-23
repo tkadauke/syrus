@@ -1,8 +1,14 @@
 require "rails_helper"
 
 RSpec.describe ChatMessage do
+  include ActiveJob::TestHelper
+
   let(:repo) { Factories.repository }
   let(:session) { ChatSession.create!(repository: repo, user: repo.user) }
+
+  before do
+    clear_enqueued_jobs
+  end
 
   it "creates with valid attributes" do
     message = described_class.create!(
@@ -103,6 +109,24 @@ RSpec.describe ChatMessage do
       end
 
       described_class.create!(chat_session: session, role: "assistant", content: { "text" => "Hello from React." })
+    end
+  end
+
+  describe "after_create_commit :enqueue_search_index" do
+    it "enqueues search indexing for user content" do
+      allow(AppEvents).to receive(:broadcast)
+
+      expect {
+        described_class.create!(chat_session: session, role: "user", content: { "text" => "Find me." })
+      }.to have_enqueued_job(IndexChatMessageJob).with(kind_of(Integer)).on_queue("default")
+    end
+
+    it "does not enqueue search indexing for tool-only messages" do
+      allow(AppEvents).to receive(:broadcast)
+
+      expect {
+        described_class.create!(chat_session: session, role: "tool_use", content: { "name" => "inspect_repo" })
+      }.not_to have_enqueued_job(IndexChatMessageJob)
     end
   end
 end

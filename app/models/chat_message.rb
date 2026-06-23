@@ -8,6 +8,7 @@ class ChatMessage < ApplicationRecord
   has_many :bookmarks, class_name: "ChatBookmark", dependent: :destroy, inverse_of: :chat_message
 
   after_create_commit :broadcast_app_event
+  after_create_commit :enqueue_search_index
 
   validates :role, presence: true, inclusion: { in: ROLES }
   validate :content_is_present
@@ -47,5 +48,9 @@ class ChatMessage < ApplicationRecord
         queued_messages: chat.queued_messages_payload
       }
     )
+  end
+
+  def enqueue_search_index
+    IndexChatMessageJob.perform_later(id) if ChatMessageSearchIndex.indexable?(self)
   end
 end
