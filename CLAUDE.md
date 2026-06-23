@@ -156,7 +156,8 @@ Key steps:
   promotes artifacts directly — saving a full agent turn.
 - **`test_plan`** — Short agentic step in the initial Workflow after
   `summarize`. It asks the agent to call `submit_test_plan` with concise
-  reviewer-facing checks; `pr_open` appends them as a Testing section.
+  reviewer-facing checks; `pr_open` appends them as a Test Plan section
+  headed by a copy-pasteable `syrus checkout JOB-<id>` command.
 - **`pr_open`** / **`push`** —
   Non-agentic: run service code (`PullRequestOpener`, `git push`, etc.).
 

@@ -40,7 +40,7 @@ RSpec.describe Steps::PrOpen do
     expect(body).not_to include("Run took")
   end
 
-  it "appends a Testing section when the workflow has a test_plan artifact" do
+  it "appends a Test Plan section with a checkout command when the workflow has a test_plan artifact" do
     workflow.set_artifact!("test_plan", {
       steps: [ "Run bin/rspec spec/services/steps/pr_open_spec.rb", "Open /jobs/42 and inspect the PR body." ],
       notes: "Exercise the artifact-backed PR copy path."
@@ -48,7 +48,13 @@ RSpec.describe Steps::PrOpen do
 
     body = composed_body_for(provider: "codex", turns: 1)
 
-    expect(body).to include("## Testing")
+    expect(body).to include(<<~MARKDOWN.strip)
+      ## Test Plan
+
+      ```sh
+      syrus checkout JOB-#{job.id}
+      ```
+    MARKDOWN
     expect(body).to include("- Run bin/rspec spec/services/steps/pr_open_spec.rb")
     expect(body).to include("- Open /jobs/42 and inspect the PR body.")
     expect(body).to include("Exercise the artifact-backed PR copy path.")

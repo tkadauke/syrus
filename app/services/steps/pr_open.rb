@@ -152,7 +152,14 @@ module Steps
       notes = (test_plan["notes"] || test_plan[:notes]).to_s.strip
       return if steps.empty? && notes.blank?
 
-      lines = [ "## Testing" ]
+      lines = [
+        "## Test Plan",
+        "",
+        "```sh",
+        "syrus checkout JOB-#{job.id}",
+        "```",
+        ""
+      ]
       steps.each { |step| lines << "- #{step}" }
       if notes.present?
         lines << ""

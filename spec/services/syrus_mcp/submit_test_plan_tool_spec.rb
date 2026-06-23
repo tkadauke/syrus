@@ -9,24 +9,24 @@ RSpec.describe SyrusMcp::SubmitTestPlanTool do
 
   it "accepts a run_id-only sidecar context" do
     described_class.call(
-      steps: [ "Open /jobs/1 and verify the Testing section." ],
+      steps: [ "Open /jobs/1 and verify the Test Plan section." ],
       server_context: { run_id: run.id }
     )
 
     expect(run.workflow.reload.artifact("test_plan")).to include(
-      "steps" => [ "Open /jobs/1 and verify the Testing section." ],
+      "steps" => [ "Open /jobs/1 and verify the Test Plan section." ],
       "notes" => nil
     )
   end
 
   it "persists steps and notes on the workflow artifact" do
     call(
-      steps: [ "Run bin/rspec", "Open the PR and inspect ## Testing." ],
+      steps: [ "Run bin/rspec", "Open the PR and inspect ## Test Plan." ],
       notes: "Covers the new MCP handoff."
     )
 
     expect(run.workflow.reload.artifact("test_plan")).to eq(
-      "steps" => [ "Run bin/rspec", "Open the PR and inspect ## Testing." ],
+      "steps" => [ "Run bin/rspec", "Open the PR and inspect ## Test Plan." ],
       "notes" => "Covers the new MCP handoff."
     )
   end

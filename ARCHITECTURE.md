@@ -742,8 +742,8 @@ agent at it over stdio. Today's tool surface:
   paths.
 - `submit_test_plan(steps:, notes:)` — records reviewer-facing manual
   test steps on Workflow artifacts and appends an audit `JobLog` line.
-  `pr_open` reads this artifact and adds a Testing section to initial
-  PR bodies.
+  `pr_open` reads this artifact and adds a Test Plan section to initial
+  PR bodies, headed by a copy-pasteable `syrus checkout JOB-<id>` command.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
 ActiveRecord calls scoped to the active Run. No network, no auth

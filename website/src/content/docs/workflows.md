@@ -30,7 +30,7 @@ The agent makes and commits the change during `implement`, graders run from
 the repository's `grade:` configuration, and failed required graders feed
 the next bounded repair iteration. `summarize` collects PR copy via MCP and
 amends the commit message. `test_plan` stores reviewer-facing checks, which
-`pr_open` appends as a `Testing` section before pushing the branch and
+`pr_open` appends as a `Test Plan` section before pushing the branch and
 opening the pull request. For GitHub issue Jobs, the implement prompt includes the
 original issue title and body plus subsequent issue comments in
 chronological order, so clarifications added before the Run starts are part

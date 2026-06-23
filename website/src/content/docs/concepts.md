@@ -156,8 +156,9 @@ signals are:
 `submit_summary` is the core PR-copy path: the PR opener reads the
 structured title and body first, then falls back to generated or
 templated copy only if the agent did not provide them. `submit_test_plan`
-adds a structured `Testing` section to Initial PR bodies when the plan is
-available.
+adds a structured `Test Plan` section to Initial PR bodies when the plan is
+available. The section starts with a copy-pasteable
+`syrus checkout JOB-<id>` command.
 
 ## The Shape Of A Normal Issue
 
