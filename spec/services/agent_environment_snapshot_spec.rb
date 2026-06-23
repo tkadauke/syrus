@@ -54,7 +54,7 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include("never use Write, Edit, or Bash to create, modify, delete, rename, move, format, or generate files there")
       expect(snapshot).to include("only your own non-repository chat memory directory may be written")
       expect(snapshot).to include('checkout=not cloned; call `attach_repository("rome/forums")`')
-      expect(snapshot).to include("live Syrus state: list_jobs, read_job, read_pr")
+      expect(snapshot).to include("live Syrus state: list_chats, list_jobs, read_job, read_pr")
       expect(snapshot).to include("whiteboard: read_scene, draw_shape")
     end
   end
