@@ -818,6 +818,70 @@ describe("App", () => {
     }
   })
 
+  it("resizes the v2 desktop sidebar and stores the selected width", async () => {
+    window.localStorage.setItem("syrus.sidebar.width", "300")
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const resizeHandle = await screen.findByRole("separator", { name: "Resize sidebar" })
+      const sidebar = resizeHandle.closest("aside")
+      expect(sidebar).toBeInstanceOf(HTMLElement)
+      expect(sidebar).toHaveStyle({ width: "300px" })
+      expect(resizeHandle).toHaveAttribute("aria-valuemin", "208")
+      expect(resizeHandle).toHaveAttribute("aria-valuemax", "420")
+      expect(resizeHandle).toHaveAttribute("aria-valuenow", "300")
+
+      fireEvent.mouseDown(resizeHandle, { clientX: 300 })
+      await waitFor(() => expect(document.body).toHaveClass("cursor-col-resize"))
+      fireEvent.mouseMove(window, { clientX: 390 })
+      await waitFor(() => {
+        expect(sidebar).toHaveStyle({ width: "390px" })
+        expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("390")
+      })
+
+      fireEvent.mouseMove(window, { clientX: 900 })
+      await waitFor(() => {
+        expect(sidebar).toHaveStyle({ width: "420px" })
+        expect(resizeHandle).toHaveAttribute("aria-valuenow", "420")
+        expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("420")
+      })
+      fireEvent.mouseUp(window)
+      await waitFor(() => expect(document.body).not.toHaveClass("cursor-col-resize"))
+
+      fireEvent.keyDown(resizeHandle, { key: "Home" })
+      expect(sidebar).toHaveStyle({ width: "208px" })
+      expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("208")
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("uses an anchored v2 mobile brand trigger that floats after scroll", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
@@ -871,6 +935,7 @@ describe("App", () => {
       if (!(drawerPrimaryNav instanceof HTMLElement)) throw new Error("Expected drawer primary navigation to render")
       expect(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
       expect(screen.getAllByRole("button", { name: "Close sidebar" }).length).toBeGreaterThan(0)
+      expect(screen.getAllByRole("separator", { name: "Resize sidebar" })).toHaveLength(1)
     } finally {
       fetchSpy.mockRestore()
       script.remove()

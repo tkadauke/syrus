@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createChat, fetchChats, type ChatNavRecord } from "../api/chats"
@@ -8,6 +8,11 @@ import { BugReportButton } from "../components/BugReportButton"
 import { CloseIcon } from "../components/CloseIcon"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+
+const SIDEBAR_WIDTH_KEY = "syrus.sidebar.width"
+const SIDEBAR_DEFAULT_WIDTH = 240
+const SIDEBAR_MIN_WIDTH = 208
+const SIDEBAR_MAX_WIDTH = 420
 
 export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNode; initialBootstrap: BootstrapPayload | null }) {
   const location = useLocation()
@@ -29,6 +34,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [creatingChat, setCreatingChat] = useState(false)
   const [mobileBrandFloating, setMobileBrandFloating] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
+  const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
   const mainRef = useRef<HTMLElement | null>(null)
 
   const navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }> = user ? [
@@ -53,6 +60,57 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     setMobileBrandFloating((mainRef.current?.scrollTop || 0) > 8)
   }, [location.pathname])
 
+  useEffect(() => {
+    if (!sidebarResize) return
+
+    const resize = sidebarResize
+
+    function handleMouseMove(event: globalThis.MouseEvent) {
+      updateSidebarWidth(resize.startWidth + event.clientX - resize.startX)
+    }
+
+    function handleMouseUp() {
+      setSidebarResize(null)
+    }
+
+    document.body.classList.add("select-none", "cursor-col-resize")
+    window.addEventListener("mousemove", handleMouseMove)
+    window.addEventListener("mouseup", handleMouseUp)
+
+    return () => {
+      document.body.classList.remove("select-none", "cursor-col-resize")
+      window.removeEventListener("mousemove", handleMouseMove)
+      window.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [sidebarResize])
+
+  function updateSidebarWidth(width: number) {
+    const nextWidth = clampSidebarWidth(width)
+    setSidebarWidth(nextWidth)
+    storeSidebarWidth(nextWidth)
+  }
+
+  function startSidebarResize(event: MouseEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setSidebarResize({ startX: event.clientX, startWidth: sidebarWidth })
+  }
+
+  function resizeSidebarWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault()
+      updateSidebarWidth(sidebarWidth - 16)
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault()
+      updateSidebarWidth(sidebarWidth + 16)
+    } else if (event.key === "Home") {
+      event.preventDefault()
+      updateSidebarWidth(SIDEBAR_MIN_WIDTH)
+    } else if (event.key === "End") {
+      event.preventDefault()
+      updateSidebarWidth(SIDEBAR_MAX_WIDTH)
+    }
+  }
+
   function handleMainScroll() {
     const nextFloating = (mainRef.current?.scrollTop || 0) > 8
     setMobileBrandFloating((current) => current === nextFloating ? current : nextFloating)
@@ -60,7 +118,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
-      <aside className="hidden w-[240px] shrink-0 lg:flex">
+      <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }}>
         <SidebarContent
           bootstrapData={data}
           creatingChat={creatingChat}
@@ -71,6 +129,18 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           prefix={prefix}
           showTeamProfile={(data?.team_user_count || 0) > 1}
           user={user}
+        />
+        <div
+          aria-label="Resize sidebar"
+          aria-orientation="vertical"
+          aria-valuemax={SIDEBAR_MAX_WIDTH}
+          aria-valuemin={SIDEBAR_MIN_WIDTH}
+          aria-valuenow={sidebarWidth}
+          className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-blue-500/30 focus-visible:bg-blue-500/40"
+          onKeyDown={resizeSidebarWithKeyboard}
+          onMouseDown={startSidebarResize}
+          role="separator"
+          tabIndex={0}
         />
       </aside>
 
@@ -546,6 +616,27 @@ function timestampValue(value?: string | null) {
 function sidebarChatTitle(chat: Pick<ChatNavRecord, "title" | "title_pending">) {
   if (chat.title_pending) return "New chat"
   return chat.title?.trim() || "New chat"
+}
+
+function storedSidebarWidth() {
+  try {
+    return clampSidebarWidth(Number.parseInt(window.localStorage.getItem(SIDEBAR_WIDTH_KEY) || "", 10) || SIDEBAR_DEFAULT_WIDTH)
+  } catch (_error) {
+    return SIDEBAR_DEFAULT_WIDTH
+  }
+}
+
+function storeSidebarWidth(width: number) {
+  try {
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width))
+  } catch (_error) {
+    // Local storage can be unavailable in hardened browser modes; the
+    // sidebar still resizes for the current session.
+  }
+}
+
+function clampSidebarWidth(width: number) {
+  return Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH)
 }
 
 function sidebarLinkClass(active: boolean) {
