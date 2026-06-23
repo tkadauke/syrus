@@ -5,6 +5,7 @@ import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../
 import { patchJson } from "../api/client"
 import { BugReportButton } from "../components/BugReportButton"
 import { NoticeToast } from "../components/NoticeToast"
+import { LayoutVersionProvider } from "../lib/layoutVersion"
 import { useAppEvents } from "../lib/useAppEvents"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { AdminConsole } from "./AdminConsole"
@@ -142,14 +143,16 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     </Routes>
   )
 
-  if (layoutVersion === "v2") {
-    return <AppChromeV2 initialBootstrap={initialBootstrap}>{routes}</AppChromeV2>
-  }
-
   return (
-    <AppChrome initialBootstrap={initialBootstrap}>
-      {routes}
-    </AppChrome>
+    <LayoutVersionProvider value={layoutVersion}>
+      {layoutVersion === "v2" ? (
+        <AppChromeV2 initialBootstrap={initialBootstrap}>{routes}</AppChromeV2>
+      ) : (
+        <AppChrome initialBootstrap={initialBootstrap}>
+          {routes}
+        </AppChrome>
+      )}
+    </LayoutVersionProvider>
   )
 }
 

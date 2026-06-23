@@ -383,7 +383,8 @@ module Api
             .map do |chat_session|
             chat_json(chat_session).merge(
               current: chat_session.id == current_chat_session.id,
-              last_message_at: chat_session.last_message_at&.iso8601
+              last_message_at: chat_session.last_message_at&.iso8601,
+              unread: false
             )
           end
         end
@@ -397,7 +398,8 @@ module Api
             chat_json(chat_session).merge(
               last_message_at: chat_session.last_message_at&.iso8601,
               created_at: chat_session.created_at.iso8601,
-              updated_at: chat_session.updated_at.iso8601
+              updated_at: chat_session.updated_at.iso8601,
+              unread: false
             )
           end
         end

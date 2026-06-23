@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ReactNode, useEffect, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createChat } from "../api/chats"
+import { createChat, fetchChats, type ChatNavRecord } from "../api/chats"
 import { patchJson } from "../api/client"
 import { CloseIcon } from "../components/CloseIcon"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
@@ -168,7 +168,7 @@ function SidebarContent({
           ))}
         </nav>
       </div>
-      <div aria-hidden="true" className="flex-1 overflow-y-auto" />
+      <RecentChatsSidebar onCloseDrawer={onCloseDrawer} prefix={prefix} userPresent={Boolean(user)} />
       <div className="border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
           <SettingsPopup
@@ -180,6 +180,82 @@ function SidebarContent({
           />
         ) : null}
       </div>
+    </div>
+  )
+}
+
+type ChatSection = {
+  key: string
+  label: string
+  chats: ChatNavRecord[]
+}
+
+function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDrawer: () => void; prefix: string; userPresent: boolean }) {
+  const location = useLocation()
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set())
+  const activeChatId = activeChatIdFromPath(location.pathname)
+  const chats = useQuery({
+    queryKey: ["chats", "recent"],
+    queryFn: fetchChats,
+    enabled: userPresent,
+    staleTime: 30_000
+  })
+  const sections = useMemo(() => groupedRecentChats(chats.data?.chats || []), [chats.data?.chats])
+
+  function toggleSection(key: string) {
+    setExpandedSections((current) => {
+      const next = new Set(current)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  if (!userPresent) return <div aria-hidden="true" className="flex-1 overflow-y-auto" />
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+      <nav aria-label="Recent chats" className="space-y-4">
+        {sections.map((section) => {
+          const expanded = expandedSections.has(section.key)
+          const visibleChats = expanded ? section.chats : section.chats.slice(0, 5)
+          const hiddenCount = section.chats.length - visibleChats.length
+
+          return (
+            <section className="space-y-1" key={section.key}>
+              <h2 className="px-2 text-[0.68rem] font-semibold uppercase tracking-normal text-gray-500 dark:text-gray-400">{section.label}</h2>
+              <div className="space-y-0.5">
+                {visibleChats.map((chat) => {
+                  const active = chat.current || chat.id === activeChatId
+                  return (
+                    <Link
+                      className={recentChatLinkClass(active)}
+                      key={chat.id}
+                      onClick={onCloseDrawer}
+                      to={withRoutePrefix(chat.chat_path, prefix)}
+                    >
+                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${chat.unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
+                      <span className={`min-w-0 flex-1 truncate ${chat.unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+              {hiddenCount > 0 ? (
+                <button
+                  className="ml-6 rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+                  onClick={() => toggleSection(section.key)}
+                  type="button"
+                >
+                  Show more
+                </button>
+              ) : null}
+            </section>
+          )
+        })}
+      </nav>
     </div>
   )
 }
@@ -303,12 +379,83 @@ function withRoutePrefix(path: string, prefix: string) {
   return `${prefix}${path}`
 }
 
+function activeChatIdFromPath(pathname: string) {
+  const match = normalizedAppPath(pathname).match(/^\/chats\/(\d+)(?:\/|$)/)
+  return match ? Number(match[1]) : null
+}
+
+function groupedRecentChats(chats: ChatNavRecord[]) {
+  const topChats = [...chats]
+    .sort(compareChatsByRecentActivity)
+    .slice(0, 20)
+
+  const generalChats = topChats.filter((chat) => !chat.repository)
+  const repositoryGroups = new Map<number, { label: string; chats: ChatNavRecord[] }>()
+
+  topChats.forEach((chat) => {
+    if (!chat.repository) return
+
+    const group = repositoryGroups.get(chat.repository.id) || { label: chat.repository.slug, chats: [] }
+    group.chats.push(chat)
+    repositoryGroups.set(chat.repository.id, group)
+  })
+
+  const sections: ChatSection[] = []
+  if (generalChats.length > 0) {
+    sections.push({ key: "general", label: "General", chats: generalChats.sort(compareChatsByLastMessage) })
+  }
+
+  Array.from(repositoryGroups.entries())
+    .map(([id, group]) => ({
+      key: `repository-${id}`,
+      label: group.label,
+      chats: group.chats.sort(compareChatsByLastMessage),
+      activeAt: Math.max(...group.chats.map(chatActivityTime))
+    }))
+    .sort((left, right) => right.activeAt - left.activeAt)
+    .forEach((group) => sections.push({ key: group.key, label: group.label, chats: group.chats }))
+
+  return sections
+}
+
+function compareChatsByRecentActivity(left: ChatNavRecord, right: ChatNavRecord) {
+  return chatActivityTime(right) - chatActivityTime(left)
+}
+
+function compareChatsByLastMessage(left: ChatNavRecord, right: ChatNavRecord) {
+  return chatLastMessageTime(right) - chatLastMessageTime(left) || chatActivityTime(right) - chatActivityTime(left) || right.id - left.id
+}
+
+function chatLastMessageTime(chat: ChatNavRecord) {
+  return timestampValue(chat.last_message_at)
+}
+
+function chatActivityTime(chat: ChatNavRecord) {
+  return timestampValue(chat.last_message_at || chat.updated_at || chat.created_at)
+}
+
+function timestampValue(value?: string | null) {
+  if (!value) return 0
+
+  const timestamp = Date.parse(value)
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+function sidebarChatTitle(chat: Pick<ChatNavRecord, "title" | "title_pending">) {
+  if (chat.title_pending) return "New chat"
+  return chat.title?.trim() || "New chat"
+}
+
 function sidebarLinkClass(active: boolean) {
   return `inline-flex items-center gap-2 rounded px-2.5 py-2 font-medium ${active ? "text-blue-700 dark:text-blue-300 sm:bg-blue-50 dark:sm:bg-blue-900/30" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
 }
 
 function sidebarIconLinkClass(active: boolean) {
   return `inline-flex h-9 w-9 items-center justify-center rounded ${active ? "text-blue-700 dark:text-blue-300 sm:bg-blue-50 dark:sm:bg-blue-900/30" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
+}
+
+function recentChatLinkClass(active: boolean) {
+  return `flex min-w-0 items-start gap-2 rounded px-2 py-1.5 text-xs ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
 }
 
 function popupLinkClass() {
