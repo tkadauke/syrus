@@ -18,10 +18,13 @@ class ChatPendingAction < ApplicationRecord
   belongs_to :repository
   belongs_to :user
   belongs_to :result, polymorphic: true, optional: true
+  has_one :message, class_name: "ChatMessage", foreign_key: :pending_action_id, dependent: :nullify, inverse_of: :pending_action
 
   enum :state, STATES.index_with(&:itself), validate: true
 
   before_validation :derive_owner_from_chat_session
+  after_create_commit :broadcast_pending_action_created
+  after_update_commit :broadcast_pending_action_state_updated, if: :broadcastable_state_change?
 
   validates :action, inclusion: { in: ACTIONS }, allow_nil: true
   validates :action_type, inclusion: { in: ACTION_TYPES }, allow_nil: true
@@ -196,5 +199,32 @@ class ChatPendingAction < ApplicationRecord
 
   def action_job
     chat_session.repository.jobs.find(payload.fetch("job_id"))
+  end
+
+  def broadcastable_state_change?
+    saved_change_to_state? && state.in?(%w[confirmed rejected cancelled])
+  end
+
+  def broadcast_pending_action_created
+    broadcast_pending_action_updated
+  end
+
+  def broadcast_pending_action_state_updated
+    broadcast_pending_action_updated
+  end
+
+  def broadcast_pending_action_updated
+    AppEvents.broadcast(
+      user: chat_session.user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session_id,
+      changed: [ "pending_action" ],
+      payload: {
+        action: "pending_action_updated",
+        pending_action_id: id,
+        chat_message_id: message&.id
+      }
+    )
   end
 end

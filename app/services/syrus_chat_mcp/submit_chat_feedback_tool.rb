@@ -2,6 +2,8 @@ require "mcp"
 
 module SyrusChatMcp
   class SubmitChatFeedbackTool < MCP::Tool
+    extend ProposalToolSupport
+
     tool_name "submit_chat_feedback"
 
     description <<~DESC
@@ -33,7 +35,9 @@ module SyrusChatMcp
           return SyrusChatMcp.invalid("a chat_feedback workflow is already queued or running for this job")
         end
 
-        pending_action = chat_session.pending_actions.create!(
+        pending_action = create_pending_action_for_current_message!(
+          server_context,
+          chat_session,
           action: "submit_chat_feedback",
           payload: { "job_id" => job.id, "feedback" => feedback },
           requested_by: "agent"

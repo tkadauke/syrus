@@ -52,6 +52,51 @@ RSpec.describe ChatPendingAction do
     expect(repository.repository_notes).to be_empty
   end
 
+  it "broadcasts a pending_action_updated event after creation" do
+    expected_user = user
+    expect(AppEvents).to receive(:broadcast) do |user:, type:, resource:, id:, changed:, payload:|
+      expect(user).to eq(expected_user)
+      expect(type).to eq("updated")
+      expect(resource).to eq("chat")
+      expect(id).to eq(chat_session.id)
+      expect(changed).to eq([ "pending_action" ])
+      expect(payload).to include(
+        action: "pending_action_updated",
+        chat_message_id: nil
+      )
+      expect(payload[:pending_action_id]).to be_a(Integer)
+    end
+
+    chat_session.pending_actions.create!(
+      action: "add_repo_note",
+      payload: { "body" => "Default branch is trunk." }
+    )
+  end
+
+  it "broadcasts pending_action_updated events after terminal state changes" do
+    allow(AppEvents).to receive(:broadcast)
+    action = chat_session.pending_actions.create!(
+      action: "add_repo_note",
+      payload: { "body" => "Default branch is trunk." }
+    )
+    message = chat_session.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Confirm?" })
+
+    expect(AppEvents).to receive(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "pending_action" ],
+      payload: {
+        action: "pending_action_updated",
+        pending_action_id: action.id,
+        chat_message_id: message.id
+      }
+    )
+
+    action.reject!
+  end
+
   it "validates job-control payloads include a job_id" do
     %w[cancel_job retry_job rebase_job reopen_epic_and_attach_job].each do |action_name|
       action = chat_session.pending_actions.build(action: action_name, payload: {})
@@ -132,6 +177,29 @@ RSpec.describe ChatPendingAction do
 
     expect(action.confirm!).to be false
     expect(job.reload).to be_open
+  end
+
+  it "broadcasts pending_action_updated after confirmation" do
+    allow(AppEvents).to receive(:broadcast)
+    action = chat_session.pending_actions.create!(
+      action: "add_repo_note",
+      payload: { "body" => "Default branch is trunk." }
+    )
+
+    expect(AppEvents).to receive(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "pending_action" ],
+      payload: {
+        action: "pending_action_updated",
+        pending_action_id: action.id,
+        chat_message_id: nil
+      }
+    )
+
+    action.confirm!
   end
 
   def pending_action(**payload)

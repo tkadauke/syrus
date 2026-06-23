@@ -2,6 +2,8 @@ require "mcp"
 
 module SyrusChatMcp
   class RebaseJobTool < MCP::Tool
+    extend ProposalToolSupport
+
     tool_name "rebase_job"
 
     description <<~DESC
@@ -25,7 +27,9 @@ module SyrusChatMcp
         job = chat_session.repository.jobs.find_by(id: job_id)
         return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
 
-        pending_action = chat_session.pending_actions.create!(
+        pending_action = create_pending_action_for_current_message!(
+          server_context,
+          chat_session,
           action: "rebase_job",
           payload: { "job_id" => job.id },
           requested_by: "agent"

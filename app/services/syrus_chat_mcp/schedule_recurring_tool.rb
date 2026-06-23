@@ -2,6 +2,8 @@ require "mcp"
 
 module SyrusChatMcp
   class ScheduleRecurringTool < MCP::Tool
+    extend ProposalToolSupport
+
     tool_name "schedule_recurring"
 
     description <<~DESC
@@ -41,8 +43,9 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid(preview.errors.full_messages.to_sentence) unless preview.valid?
 
         next_fire_at = preview.next_fire_at(from: Time.current)
-        action = ChatPendingAction.create!(
-          chat_session: chat_session,
+        action = create_pending_action_for_current_message!(
+          server_context,
+          chat_session,
           user: chat_session.user,
           repository: chat_session.repository,
           action_type: "schedule_recurring",
