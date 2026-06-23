@@ -164,6 +164,7 @@ module Api
 
         def detail_payload(epic, message: nil)
           jobs = epic.jobs.includes(:repository, :dependencies, :dependent_links).order(:id).to_a
+          blocked_dependency = epic.dependencies.includes(:depends_on_epic, :depends_on_job).find { |dependency| !dependency.dependency_succeeded? }
           graph = EpicDependencyGraphRenderer.new(epic).render
 
           {
@@ -173,7 +174,8 @@ module Api
               done_jobs_count: done_jobs_count(jobs),
               total_jobs_count: jobs.size,
               dependency_edge_count: epic.dependencies.size + epic.dependent_links.size,
-              blocked: epic.dependencies.any? { |dependency| !dependency.depends_on_epic.done? }
+              blocked: blocked_dependency.present?,
+              blocked_reason: epic_blocked_reason(blocked_dependency)
             },
             state_transitions: ::App::Presentation.epic_state_transition_options(epic).map do |label, target_state|
               {
@@ -194,6 +196,17 @@ module Api
               app_reassign_path: "/api/v1/app/epics/#{epic.id}/reassign"
             }
           }
+        end
+
+        def epic_blocked_reason(dependency)
+          return nil unless dependency
+
+          if dependency.depends_on_job_id.present?
+            job = dependency.depends_on_job
+            return "waiting for Job ##{job.issue_number || job.id} to merge"
+          end
+
+          "waiting for Epic ##{dependency.depends_on_epic.number} to complete"
         end
 
         def saved_payload(epic, message:)

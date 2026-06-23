@@ -134,7 +134,7 @@ class Epic < ApplicationRecord
   end
 
   def releases_jobs_for_execution?
-    @releasing_jobs_for_execution || in_progress? || done?
+    @releasing_jobs_for_execution || ((in_progress? || done?) && dependencies_done?)
   end
 
   def in_progress!
@@ -278,7 +278,7 @@ class Epic < ApplicationRecord
   end
 
   def dependencies_done?
-    depends_on_epics.all?(&:done?)
+    dependencies.all?(&:dependency_succeeded?)
   end
 
   def child_jobs_confirmed?

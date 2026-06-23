@@ -116,7 +116,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "done_jobs_count" => 1,
       "total_jobs_count" => 1,
       "dependency_edge_count" => 1,
-      "blocked" => false
+      "blocked" => false,
+      "blocked_reason" => nil
     )
     expect(body["state_transitions"]).to contain_exactly(
       include("label" => "Move to backlog", "target_state" => "backlog"),
@@ -147,6 +148,21 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "app_claim_path" => "/api/v1/app/epics/#{epic.id}/claim",
       "app_unclaim_path" => "/api/v1/app/epics/#{epic.id}/unclaim",
       "app_reassign_path" => "/api/v1/app/epics/#{epic.id}/reassign"
+    )
+  end
+
+  it "surfaces Job dependency blocked reasons on the Epic detail payload" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, state: "ready")
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 8, state: "queued")
+    EpicDependency.create!(epic: epic, depends_on_job: prerequisite)
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["summary"]).to include(
+      "blocked" => true,
+      "blocked_reason" => "waiting for Job #8 to merge"
     )
   end
 

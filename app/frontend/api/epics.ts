@@ -79,6 +79,7 @@ export type EpicDetailSummary = {
   total_jobs_count: number
   dependency_edge_count: number
   blocked: boolean
+  blocked_reason: string | null
 }
 
 export type EpicStateTransition = {

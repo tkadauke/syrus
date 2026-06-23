@@ -291,8 +291,10 @@ module Filters
 
         def blocked_dependency_ids
           successful = Job.closed_threads.where(closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS)
+          done_epics = Epic.where(state: "done")
           JobDependency.pending
                        .or(JobDependency.resolved.where.not(depends_on_job_id: successful.select(:id)))
+                       .or(JobDependency.where.not(depends_on_epic_id: nil).where.not(depends_on_epic_id: done_epics.select(:id)))
                        .select(:job_id)
         end
       end

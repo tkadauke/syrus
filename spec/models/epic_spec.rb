@@ -148,6 +148,19 @@ RSpec.describe Epic do
     expect(epic.may_auto_ready?).to be false
   end
 
+  it "does not release child Jobs for execution while an upstream Job dependency is unsatisfied" do
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 8, state: "queued")
+    epic = described_class.create!(user: user, repository: repository, title: "Dependent", state: "in_progress")
+    EpicDependency.create!(epic: epic, depends_on_job: prerequisite)
+
+    expect(epic.reload).not_to be_releases_jobs_for_execution
+
+    prerequisite.update!(closure_reason: "pr_merged")
+    prerequisite.close!
+
+    expect(epic.reload).to be_releases_jobs_for_execution
+  end
+
   describe "#all_jobs_approved?" do
     it "is true when every non-closed child Job is approved" do
       epic = described_class.create!(user: user, repository: repository, title: "Landing train")

@@ -3,6 +3,7 @@ require "set"
 class JobDependency < ApplicationRecord
   belongs_to :job
   belongs_to :depends_on_job, class_name: "Job", optional: true
+  belongs_to :depends_on_epic, class_name: "Epic", optional: true
   belongs_to :created_by_user, class_name: "User", optional: true
 
   enum :source, { parsed: "parsed", manual: "manual" }, validate: true
@@ -12,13 +13,13 @@ class JobDependency < ApplicationRecord
   validate :no_cycle
   validate :pending_fields_consistent
 
-  after_save_commit :materialize_derived_epic_dependency, if: :resolved?
+  after_save_commit :materialize_derived_epic_dependency, if: :depends_on_job_id?
 
   scope :resolved, -> { where.not(depends_on_job_id: nil) }
-  scope :pending, -> { where(depends_on_job_id: nil) }
+  scope :pending, -> { where(depends_on_job_id: nil, depends_on_epic_id: nil) }
 
   def pending?
-    depends_on_job_id.nil?
+    depends_on_job_id.nil? && depends_on_epic_id.nil?
   end
 
   def resolved?
@@ -31,6 +32,7 @@ class JobDependency < ApplicationRecord
   end
 
   def dependency_succeeded?
+    return depends_on_epic.done? if depends_on_epic_id.present?
     return resolved_dependency_succeeded? if resolved?
 
     referenced_epic&.done? == true
@@ -79,15 +81,18 @@ class JobDependency < ApplicationRecord
   end
 
   def exactly_one_target
-    if depends_on_job_id.blank? && unresolved_number.blank?
-      errors.add(:base, "must reference a Job or carry an unresolved reference")
-    elsif depends_on_job_id.present? && unresolved_number.present?
-      errors.add(:base, "can't be both resolved and pending")
-    end
+    target_count = [
+      depends_on_job_id.present?,
+      depends_on_epic_id.present?,
+      unresolved_reference_present?
+    ].count(true)
+
+    errors.add(:base, "must reference a Job, an Epic, or carry an unresolved reference") if target_count.zero?
+    errors.add(:base, "must reference exactly one dependency target") if target_count > 1
   end
 
   def pending_fields_consistent
-    return if depends_on_job_id.present?
+    return unless unresolved_reference_present?
 
     if unresolved_owner.blank? || unresolved_repo.blank? || unresolved_number.blank?
       errors.add(:base, "pending rows need owner, repo, and number")
@@ -95,12 +100,14 @@ class JobDependency < ApplicationRecord
   end
 
   def no_self_reference
+    return if depends_on_epic_id.present?
     return if job_id.blank? || depends_on_job_id.blank?
 
     errors.add(:depends_on_job, "can't be the same Job") if job_id == depends_on_job_id
   end
 
   def no_cycle
+    return if depends_on_epic_id.present?
     return if job_id.blank? || depends_on_job_id.blank?
     return if job_id == depends_on_job_id
 
@@ -128,5 +135,9 @@ class JobDependency < ApplicationRecord
       depends_on_epic: upstream_epic,
       derived: true
     )
+  end
+
+  def unresolved_reference_present?
+    unresolved_owner.present? || unresolved_repo.present? || unresolved_number.present?
   end
 end

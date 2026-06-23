@@ -134,7 +134,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
           <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
             {payload.summary.dependency_edge_count} {payload.summary.dependency_edge_count === 1 ? "dep" : "deps"}
           </span>
-          {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">Blocked</span> : null}
+          {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason || "Blocked"}</span> : null}
         </div>
       </header>
 

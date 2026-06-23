@@ -123,6 +123,41 @@ RSpec.describe JobDependency do
     end
   end
 
+  describe "explicit Epic targets" do
+    it "accepts depends_on_epic as a single target" do
+      job = issue_job(1)
+      epic = Factories.epic(user: user, repository: repository)
+
+      dependency = described_class.new(job: job, depends_on_epic: epic, source: "manual")
+
+      expect(dependency).to be_valid
+      expect(dependency).not_to be_pending
+    end
+
+    it "rejects rows with multiple targets set" do
+      job = issue_job(1)
+      target = issue_job(2)
+      epic = Factories.epic(user: user, repository: repository)
+
+      dependency = described_class.new(job: job, depends_on_job: target, depends_on_epic: epic, source: "manual")
+
+      expect(dependency).not_to be_valid
+      expect(dependency.errors[:base]).to include("must reference exactly one dependency target")
+    end
+
+    it "checks dependency success from the target Epic state" do
+      job = issue_job(1)
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
+      dependency = described_class.create!(job: job, depends_on_epic: epic, source: "manual")
+
+      expect(dependency).not_to be_dependency_succeeded
+
+      epic.override_state!("done")
+
+      expect(dependency.reload).to be_dependency_succeeded
+    end
+  end
+
   describe "#dependency_succeeded?" do
     it "treats an approved dependency in the same Epic as satisfied" do
       epic = Factories.epic(user: user, repository: repository)

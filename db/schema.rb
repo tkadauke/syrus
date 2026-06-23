@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_21_212615) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_161232) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -277,11 +277,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_212615) do
 
   create_table "epic_dependencies", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.integer "depends_on_epic_id", null: false
+    t.integer "depends_on_epic_id"
+    t.integer "depends_on_job_id"
     t.boolean "derived", default: false, null: false
     t.integer "epic_id", null: false
     t.datetime "updated_at", null: false
     t.index ["depends_on_epic_id"], name: "index_epic_dependencies_on_depends_on_epic_id"
+    t.index ["depends_on_job_id"], name: "index_epic_dependencies_on_depends_on_job_id"
     t.index ["epic_id", "depends_on_epic_id", "derived"], name: "index_epic_deps_on_epic_and_depends_on_and_derived", unique: true
     t.index ["epic_id"], name: "index_epic_dependencies_on_epic_id"
   end
@@ -375,6 +377,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_212615) do
   create_table "job_dependencies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "created_by_user_id"
+    t.integer "depends_on_epic_id"
     t.integer "depends_on_job_id"
     t.integer "job_id", null: false
     t.string "source", null: false
@@ -383,6 +386,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_212615) do
     t.string "unresolved_repo"
     t.datetime "updated_at", null: false
     t.index ["created_by_user_id"], name: "index_job_dependencies_on_created_by_user_id"
+    t.index ["depends_on_epic_id"], name: "index_job_dependencies_on_depends_on_epic_id"
     t.index ["depends_on_job_id"], name: "index_job_dependencies_on_depends_on_job_id"
     t.index ["job_id", "depends_on_job_id"], name: "index_job_dependencies_on_job_id_and_depends_on_job_id", unique: true
     t.index ["job_id", "unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unique_unresolved_per_job", unique: true, where: "depends_on_job_id IS NULL"
@@ -902,6 +906,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_212615) do
   add_foreign_key "documents", "users"
   add_foreign_key "epic_dependencies", "epics"
   add_foreign_key "epic_dependencies", "epics", column: "depends_on_epic_id"
+  add_foreign_key "epic_dependencies", "jobs", column: "depends_on_job_id"
   add_foreign_key "epics", "repositories"
   add_foreign_key "epics", "users"
   add_foreign_key "epics", "users", column: "owner_id"
@@ -909,6 +914,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_212615) do
   add_foreign_key "filter_usages", "users"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
+  add_foreign_key "job_dependencies", "epics", column: "depends_on_epic_id"
   add_foreign_key "job_dependencies", "jobs"
   add_foreign_key "job_dependencies", "jobs", column: "depends_on_job_id"
   add_foreign_key "job_dependencies", "users", column: "created_by_user_id"

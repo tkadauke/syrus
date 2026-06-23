@@ -78,7 +78,7 @@ class LandingQueueProcessor
 
     dispatch_merge_trains!(occupied_repo_ids, landed_workflows) if AppSetting.merge_train_enabled?
 
-    entries(Job.approved.includes(:user, :repository, :epic, :parent_job, dependencies: :depends_on_job)).each do |entry|
+    entries(Job.approved.includes(:user, :repository, :epic, :parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])).each do |entry|
       next if occupied_repo_ids.include?(entry.job.repository_id)
       next unless entry.eligible?
 
@@ -128,7 +128,7 @@ class LandingQueueProcessor
 
   def ordered_queue(scope)
     chronological = scope.where(state: %w[ approved landing ])
-                         .includes(:user, :repository, :epic, :parent_job, dependencies: :depends_on_job)
+                         .includes(:user, :repository, :epic, :parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
                          .order(Arel.sql("COALESCE(jobs.approved_at, jobs.updated_at) ASC"), :id)
                          .to_a
 
@@ -249,7 +249,7 @@ class LandingQueueProcessor
 
     Job.queued
        .where(epic_id: epic_ids)
-       .includes(:repository, :workflows, dependencies: :depends_on_job)
+       .includes(:repository, :workflows, dependencies: [ :depends_on_job, :depends_on_epic ])
        .find_each(&:start_pending_workflows_if_dependencies_satisfied!)
   end
 
@@ -316,6 +316,10 @@ class LandingQueueProcessor
 
     dependency = job.dependencies_overridden_at.present? ? nil : unmerged_dependency(job)
     if dependency
+      if dependency.depends_on_epic_id.present?
+        return blocked("waiting for Epic ##{dependency.depends_on_epic.number} to complete", dependency.depends_on_epic)
+      end
+
       waiting = dependency.pending? ? dependency.unresolved_slug : dependency.depends_on_job
       return blocked("waiting for #{dependency_label(waiting)} to merge", waiting)
     end
@@ -348,8 +352,8 @@ class LandingQueueProcessor
   end
 
   def unmerged_dependency(job)
-    job.dependencies.includes(:depends_on_job).find do |dependency|
-      dependency.pending? || !merged?(dependency.depends_on_job)
+    job.dependencies.includes(:depends_on_job, :depends_on_epic).find do |dependency|
+      dependency.pending? || !dependency.dependency_succeeded?
     end
   end
 

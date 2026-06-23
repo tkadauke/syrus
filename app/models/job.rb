@@ -501,13 +501,13 @@ class Job < ApplicationRecord
     return false if epic.present? && !epic.releases_jobs_for_execution?
     return true if dependencies_overridden_at.present?
 
-    dependencies.includes(:depends_on_job).all? do |dependency|
+    dependencies.includes(:depends_on_job, :depends_on_epic).all? do |dependency|
       dependency.dependency_succeeded?
     end
   end
 
   def unsatisfied_dependencies
-    dependencies.includes(depends_on_job: :repository).reject do |dependency|
+    dependencies.includes(:depends_on_epic, depends_on_job: :repository).reject do |dependency|
       dependency.dependency_succeeded?
     end
   end

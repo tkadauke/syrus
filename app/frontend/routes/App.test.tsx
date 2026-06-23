@@ -10342,7 +10342,8 @@ function epicDetailPayload(overrides: {
       done_jobs_count: 1,
       total_jobs_count: 1,
       dependency_edge_count: 1,
-      blocked: false
+      blocked: false,
+      blocked_reason: null
     },
     state_transitions: overrides.stateTransitions || [
       { label: "Move to backlog", target_state: "backlog", confirm: null },

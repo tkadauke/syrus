@@ -99,6 +99,16 @@ RSpec.describe LandingQueueProcessor do
     expect(entry.blocked_reason).to include("waiting for #1 to merge")
   end
 
+  it "explains when an approved Job is waiting for an Epic dependency" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    blocked = queue_job(issue_number: 2, approved_at: 2.minutes.ago)
+    JobDependency.create!(job: blocked, depends_on_epic: epic, source: "manual")
+
+    entry = described_class.entries(Job.where(id: blocked.id)).first
+
+    expect(entry.blocked_reason).to eq("waiting for Epic ##{epic.number} to complete")
+  end
+
   it "does not process paused users but resumes when unpaused" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     user.update!(landing_paused: true)

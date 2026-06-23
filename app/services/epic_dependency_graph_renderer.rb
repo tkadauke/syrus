@@ -88,6 +88,13 @@ class EpicDependencyGraphRenderer
       )
     end
 
+    epic_job_dependencies.each do |dependency|
+      edges << Edge.new(
+        from: epic_node_id(epic),
+        to: job_node_id(dependency.depends_on_job)
+      )
+    end
+
     edges.uniq { |edge| [ edge.from, edge.to ] }
   end
 
@@ -104,6 +111,16 @@ class EpicDependencyGraphRenderer
     @epic_dependencies ||= EpicDependency
       .includes(:epic, :depends_on_epic)
       .where("epic_id = :id OR depends_on_epic_id = :id", id: epic.id)
+      .where.not(depends_on_epic_id: nil)
+      .order(:id)
+      .to_a
+  end
+
+  def epic_job_dependencies
+    @epic_job_dependencies ||= EpicDependency
+      .includes(depends_on_job: [ :repository, :epic ])
+      .where(epic_id: epic.id)
+      .where.not(depends_on_job_id: nil)
       .order(:id)
       .to_a
   end
@@ -126,7 +143,7 @@ class EpicDependencyGraphRenderer
   end
 
   def external_blocker_jobs
-    @external_blocker_jobs ||= external_job_dependencies
+    @external_blocker_jobs ||= (external_job_dependencies + epic_job_dependencies)
       .filter_map(&:depends_on_job)
       .uniq(&:id)
       .sort_by(&:id)
