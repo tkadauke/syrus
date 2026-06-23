@@ -4893,10 +4893,12 @@ describe("App", () => {
       )
     })
     expect(await screen.findByRole("main", { name: "Scheduled task detail" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/scheduled_tasks/12",
-      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
-    )
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/scheduled_tasks/12",
+        expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+      )
+    })
   })
 
   it("renders the repository scheduled tasks route and disables a task", async () => {
