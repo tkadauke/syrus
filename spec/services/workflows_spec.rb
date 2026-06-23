@@ -49,6 +49,16 @@ RSpec.describe Workflows do
       )
     end
 
+    it "creates the workflow + chain for Retry with test_plan before pr_open" do
+      wf = Workflows::Retry.instantiate(job: job)
+
+      expect(wf).to be_persisted
+      expect(wf.trigger_kind).to eq("retry")
+      expect(wf.steps.pluck(:kind, :position)).to eq([
+        [ "prepare", 0 ], [ "implement", 1 ], [ "grader_fanout", 2 ], [ "grader_collect", 3 ], [ "summarize", 4 ], [ "test_plan", 5 ], [ "pr_open", 6 ]
+      ])
+    end
+
     it "omits prepare from Initial when the Job has opted out" do
       job.update!(skip_prepare: true)
 

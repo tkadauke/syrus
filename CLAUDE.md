@@ -86,7 +86,7 @@ Current chains:
 initial:     prepare → retry_until(implement → graders) → summarize → test_plan → pr_open
 pr_comment:  prepare → retry_until(respond → graders) → summarize_amend → push
 ci_failure:  prepare → analyze_and_fix → summarize_amend → push
-retry:       prepare → retry_until(implement → graders) → summarize → pr_open
+retry:       prepare → retry_until(implement → graders) → summarize → test_plan → pr_open
 resume:      manual
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
