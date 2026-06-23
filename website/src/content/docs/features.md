@@ -109,7 +109,9 @@ otherwise accepts a short free-form answer.
 The chat composer recognizes leading slash commands. Typing `/` opens an
 autocomplete palette with system commands handled in the browser and skill
 commands that are sent through the normal chat message path for the agent to
-interpret.
+interpret. Mutating skill commands such as `/cancel`, `/retry`, `/feedback`,
+`/discard`, and `/clear-canvas` show an inline confirmation in the composer
+before Syrus sends the command to the agent.
 
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when

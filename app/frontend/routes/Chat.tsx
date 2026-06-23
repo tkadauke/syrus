@@ -143,6 +143,10 @@ type ChatQueryKey = readonly ["chats", string, string]
 export function chatQueryKey(id: string | number, search: string): ChatQueryKey {
   return ["chats", String(id), search] as const
 }
+type PendingSlashCommandConfirmation = {
+  commandName: SlashCommand["name"]
+  text: string
+}
 
 function markChatReadInCache(queryClient: ReturnType<typeof useQueryClient>, chatId: string | number) {
   const id = Number(chatId)
@@ -819,6 +823,7 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [text, setText] = useState("")
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingSlashCommandConfirmation | null>(null)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const submitWithEnter = useSubmitChatWithEnter()
@@ -828,28 +833,37 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
   const commandQuery = slashCommandQuery(text)
   const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery), [commandQuery])
   const send = useMutation({
-    mutationFn: () => agentActive
-      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), text)
-      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), text),
+    mutationFn: (messageText: string) => agentActive
+      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText)
+      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setText("")
+      setPendingConfirmation(null)
       onNotice(null)
     }
   })
-  const commandPaletteOpen = commandQuery != null && matchingCommands.length > 0 && !send.isPending
+  const commandPaletteOpen = commandQuery != null && matchingCommands.length > 0 && !send.isPending && pendingConfirmation == null
 
   function submitMessage() {
     if (send.isPending || text.trim().length === 0) return
     const commandMatch = findSlashCommand(text)
     if (commandMatch?.command.kind === "system") {
       onNotice(null)
+      setPendingConfirmation(null)
       handleSystemSlashCommand(commandMatch.command)
       return
     }
 
+    if (commandMatch?.command.requiresConfirmation) {
+      onNotice(null)
+      setPendingConfirmation({ commandName: commandMatch.command.name, text: text.trim() })
+      return
+    }
+
     onNotice(null)
-    send.mutate()
+    setPendingConfirmation(null)
+    send.mutate(text)
   }
 
   function handleSystemSlashCommand(command: SlashCommand) {
@@ -866,6 +880,18 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
 
     onNotice(`${command.name} is handled in the app and is not connected yet.`)
     setText("")
+  }
+
+  function confirmPendingSlashCommand() {
+    if (!pendingConfirmation || send.isPending) return
+
+    onNotice(null)
+    send.mutate(pendingConfirmation.text)
+  }
+
+  function cancelPendingSlashCommand() {
+    setPendingConfirmation(null)
+    textareaRef.current?.focus()
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -907,6 +933,14 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
   function completeSlashCommand(command: SlashCommand) {
     const leadingWhitespace = text.match(/^\s*/)?.[0] || ""
     setText(`${leadingWhitespace}${command.name} `)
+    setPendingConfirmation(null)
+  }
+
+  function updateText(nextText: string) {
+    setText(nextText)
+    if (pendingConfirmation && nextText.trim() !== pendingConfirmation.text) {
+      setPendingConfirmation(null)
+    }
   }
 
   useEffect(() => {
@@ -938,6 +972,15 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
     <form className="relative rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
       {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
       {queuedMessages.length > 0 ? <QueuedMessages messages={queuedMessages} queryKey={queryKey} /> : null}
+      {pendingConfirmation ? (
+        <SlashCommandConfirmation
+          commandName={pendingConfirmation.commandName}
+          disabled={send.isPending}
+          text={pendingConfirmation.text}
+          onCancel={cancelPendingSlashCommand}
+          onConfirm={confirmPendingSlashCommand}
+        />
+      ) : null}
       {commandPaletteOpen ? (
         <SlashCommandPalette
           activeIndex={activeCommandIndex}
@@ -953,7 +996,7 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
           aria-haspopup="listbox"
           className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
           disabled={send.isPending}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => updateText(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Attach a repository to start chatting..."}
           ref={textareaRef}
@@ -961,10 +1004,27 @@ function Compose({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload
           rows={1}
           value={text}
         />
-        <button className={primaryButton()} disabled={send.isPending || text.trim().length === 0} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
+        <button className={primaryButton()} disabled={send.isPending || text.trim().length === 0 || pendingConfirmation != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
         {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
       </div>
     </form>
+  )
+}
+
+function SlashCommandConfirmation({ commandName, disabled, text, onCancel, onConfirm }: { commandName: SlashCommand["name"]; disabled: boolean; text: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Confirm {commandName}</div>
+          <div className="mt-1 break-words font-mono text-sm text-gray-900 dark:text-gray-100">{text}</div>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">Cancel</button>
+          <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">Confirm</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
