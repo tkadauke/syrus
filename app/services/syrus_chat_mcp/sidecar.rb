@@ -107,8 +107,25 @@ module SyrusChatMcp
       ReadQueueTool
     ].freeze
 
-    def self.tool_names
-      TOOLS.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
+    ADMIN_TOOLS = [
+      AdminOverviewTool,
+      AdminStuckJobsTool,
+      AdminQueueDetailTool,
+      AdminListProcessesTool,
+      AdminListRunsTool,
+      AdminListUsersTool,
+      AdminVersionTool
+    ].freeze
+
+    def self.tool_names(chat_session = nil)
+      tools = chat_session ? tools_for(chat_session) : TOOLS
+      tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
+    end
+
+    def self.tools_for(chat_session)
+      tools = TOOLS.dup
+      tools += ADMIN_TOOLS if chat_session.user.admin?
+      tools
     end
 
     def initialize(session_id: ENV["SYRUS_CHAT_SESSION_ID"], current_message_id: ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"])
@@ -125,7 +142,7 @@ module SyrusChatMcp
     def run
       server = MCP::Server.new(
         name: "syrus-chat-sidecar",
-        tools: TOOLS,
+        tools: self.class.tools_for(@chat_session),
         server_context: { chat_session: @chat_session, current_message: @current_message }.compact
       )
       transport = MCP::Server::Transports::StdioTransport.new(server)

@@ -157,7 +157,7 @@ class ChatTurnJob < ApplicationJob
   end
 
   def mcp_tool_names_for(name)
-    return SyrusChatMcp::Sidecar.tool_names if name == "syrus-chat-sidecar"
+    return SyrusChatMcp::Sidecar.tool_names(@chat) if name == "syrus-chat-sidecar"
 
     []
   end

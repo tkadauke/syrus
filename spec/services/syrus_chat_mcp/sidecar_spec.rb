@@ -1,6 +1,7 @@
 require "rails_helper"
 
 RSpec.describe SyrusChatMcp::Sidecar do
+  let!(:bootstrap_admin) { Factories.user(admin: true) }
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -8,77 +9,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
   def server_for(chat_session)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: [
-        SyrusChatMcp::AttachRepositoryTool,
-        SyrusChatMcp::ProposeIssueTool,
-        SyrusChatMcp::ProposeEpicTool,
-        SyrusChatMcp::ProposeJobTool,
-        SyrusChatMcp::RenameChatTool,
-        SyrusChatMcp::UpdatePinnedContextTool,
-        SyrusChatMcp::RemovePinnedContextTool,
-        SyrusChatMcp::AskUserQuestionTool,
-        SyrusChatMcp::SetBookmarkTool,
-        SyrusChatMcp::ProposeEpicWithJobsTool,
-        SyrusChatMcp::ListChatsTool,
-        SyrusChatMcp::ListProposalsTool,
-        SyrusChatMcp::DeleteProposalTool,
-        SyrusChatMcp::ListEpicsTool,
-        SyrusChatMcp::ReadEpicTool,
-        SyrusChatMcp::StartEpicTool,
-        SyrusChatMcp::MoveEpicToBacklogTool,
-        SyrusChatMcp::ArchiveEpicTool,
-        SyrusChatMcp::UpdateEpicTool,
-        SyrusChatMcp::AddEpicDependencyTool,
-        SyrusChatMcp::RemoveEpicDependencyTool,
-        SyrusChatMcp::ReadJobTool,
-        SyrusChatMcp::UpdateJobTool,
-        SyrusChatMcp::ListJobWorkflowsTool,
-        SyrusChatMcp::ReadWorkflowTool,
-        SyrusChatMcp::ReadRunTranscriptTool,
-        SyrusChatMcp::SearchChatsTool,
-        SyrusChatMcp::ReadChatMessagesTool,
-        SyrusChatMcp::ListJobsTool,
-        SyrusChatMcp::SearchJobsTool,
-        SyrusChatMcp::ApproveJobTool,
-        SyrusChatMcp::UnapproveJobTool,
-        SyrusChatMcp::SetJobPriorityTool,
-        SyrusChatMcp::AssignJobToEpicTool,
-        SyrusChatMcp::RemoveJobFromEpicTool,
-        SyrusChatMcp::CancelJobTool,
-        SyrusChatMcp::RetryJobTool,
-        SyrusChatMcp::RebaseJobTool,
-        SyrusChatMcp::SubmitChatFeedbackTool,
-        SyrusChatMcp::ReadPrTool,
-        SyrusChatMcp::WriteMemoryTool,
-        SyrusChatMcp::ReadMemoryTool,
-        SyrusChatMcp::SearchMemoriesTool,
-        SyrusChatMcp::ListMemoriesTool,
-        SyrusChatMcp::DeleteMemoryTool,
-        SyrusChatMcp::PublishMemoryTool,
-        SyrusChatMcp::UnpublishMemoryTool,
-        SyrusChatMcp::RepoInfoTool,
-        SyrusChatMcp::ListRepoDocumentsTool,
-        SyrusChatMcp::ReadRepoDocumentTool,
-        SyrusChatMcp::ReadSceneTool,
-        SyrusChatMcp::DrawShapeTool,
-        SyrusChatMcp::DrawTextTool,
-        SyrusChatMcp::DrawLineTool,
-        SyrusChatMcp::DrawArrowTool,
-        SyrusChatMcp::DrawFreedrawTool,
-        SyrusChatMcp::DrawFrameTool,
-        SyrusChatMcp::DrawEmbedTool,
-        SyrusChatMcp::DrawImageTool,
-        SyrusChatMcp::MoveElementTool,
-        SyrusChatMcp::DeleteElementTool,
-        SyrusChatMcp::ClearCanvasTool,
-        SyrusChatMcp::UpdateSceneTool,
-        SyrusChatMcp::ScheduleRecurringTool,
-        SyrusChatMcp::ListScheduledTasksTool,
-        SyrusChatMcp::PauseScheduledTaskTool,
-        SyrusChatMcp::ResumeScheduledTaskTool,
-        SyrusChatMcp::DeleteScheduledTaskTool,
-        SyrusChatMcp::ReadQueueTool
-      ],
+      tools: described_class.tools_for(chat_session),
       server_context: { chat_session: chat_session }
     )
   end
@@ -190,6 +121,44 @@ RSpec.describe SyrusChatMcp::Sidecar do
         delete_scheduled_task
         read_queue
       ])
+    end
+
+    it "does not advertise admin tools to non-admin users" do
+      server = server_for(chat_session)
+      _ = jsonrpc(server, "initialize", id: 0)
+
+      response = jsonrpc(server, "tools/list", id: 1)
+
+      tool_names = response[:result][:tools].map { |tool| tool[:name] }
+      expect(tool_names).not_to include(
+        "admin_overview",
+        "admin_stuck_jobs",
+        "admin_queue_detail",
+        "admin_list_processes",
+        "admin_list_runs",
+        "admin_list_users",
+        "admin_version"
+      )
+    end
+
+    it "advertises admin tools to admin users" do
+      admin = Factories.user(admin: true)
+      admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin))
+      server = server_for(admin_session)
+      _ = jsonrpc(server, "initialize", id: 0)
+
+      response = jsonrpc(server, "tools/list", id: 1)
+
+      tool_names = response[:result][:tools].map { |tool| tool[:name] }
+      expect(tool_names).to include(
+        "admin_overview",
+        "admin_stuck_jobs",
+        "admin_queue_detail",
+        "admin_list_processes",
+        "admin_list_runs",
+        "admin_list_users",
+        "admin_version"
+      )
     end
   end
 
