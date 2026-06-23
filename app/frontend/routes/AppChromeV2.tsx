@@ -4,8 +4,10 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createChat, fetchChats, type ChatNavRecord } from "../api/chats"
 import { patchJson } from "../api/client"
+import { dashboardApiSearch, fetchDashboard } from "../api/dashboard"
 import { BugReportButton } from "../components/BugReportButton"
 import { CloseIcon } from "../components/CloseIcon"
+import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 
@@ -216,6 +218,7 @@ function SidebarContent({
           ))}
         </nav>
       </div>
+      <SidebarDashboardFolders prefix={prefix} />
       <RecentChatsSidebar onCloseDrawer={onCloseDrawer} prefix={prefix} userPresent={Boolean(user)} />
       <div className="border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
@@ -229,6 +232,26 @@ function SidebarContent({
           />
         ) : null}
       </div>
+    </div>
+  )
+}
+
+function SidebarDashboardFolders({ prefix }: { prefix: string }) {
+  const location = useLocation()
+  const isDashboard = location.pathname.includes("/dashboard")
+  const search = dashboardApiSearch(location.pathname, location.search)
+  const dashboard = useQuery({
+    queryKey: ["dashboard", search],
+    queryFn: ({ signal }) => fetchDashboard(search, { signal }),
+    enabled: isDashboard,
+    placeholderData: (previousData) => previousData
+  })
+
+  if (!isDashboard || !dashboard.data) return null
+
+  return (
+    <div className="px-3 pb-3">
+      <DashboardSmartFolderNav payload={dashboard.data} prefix={prefix} search={location.search} />
     </div>
   )
 }

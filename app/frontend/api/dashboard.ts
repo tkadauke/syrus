@@ -354,6 +354,23 @@ export function fetchDashboard(search = "", options: { signal?: AbortSignal } = 
   return getJson<DashboardPayload>(`/api/v1/app/dashboard${search}`, options)
 }
 
+export function dashboardApiSearch(pathname: string, search: string) {
+  const params = new URLSearchParams(search)
+  const subject = dashboardSubjectFromPath(pathname)
+  if (subject) params.set("subject", subject)
+
+  const next = params.toString()
+  return next ? `?${next}` : ""
+}
+
+function dashboardSubjectFromPath(pathname: string): DashboardSubject | null {
+  if (pathname.endsWith("/dashboard/jobs")) return "job"
+  if (pathname.endsWith("/dashboard/workflows")) return "workflow"
+  if (pathname.endsWith("/dashboard/epics")) return "epic"
+
+  return null
+}
+
 export function updateDashboardPreferences(input: DashboardPreferencesInput) {
   return patchJson<DashboardPreferencesPayload>("/api/v1/app/dashboard/preferences", input)
 }

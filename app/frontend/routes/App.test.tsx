@@ -1756,7 +1756,6 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveClass("bg-blue-600", "text-white")
     expect(screen.getByRole("link", { name: "New Job" })).toHaveAttribute("href", "/app-shell/jobs/new")
     expect(screen.getByRole("link", { name: "New Job" })).toHaveClass("bg-green-600", "text-white")
-    expect(screen.getByRole("link", { name: "My work 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=7")
     expect(screen.queryByText("0 selected")).not.toBeInTheDocument()
     expect(screen.queryByText(/Sorted by/)).not.toBeInTheDocument()
     expect(within(screen.getByRole("button", { name: "Sort by Issue ascending" })).getByText("↓")).toBeInTheDocument()
@@ -1862,37 +1861,6 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Has parent is true" }))
     expect(await screen.findByRole("dialog", { name: "Has parent filter settings" })).toBeInTheDocument()
     expect(screen.queryByText("No value needed")).not.toBeInTheDocument()
-
-    const smartFoldersPanel = await screen.findByRole("complementary", { name: "Dashboard smart folders panel" })
-    const folderNameInput = within(smartFoldersPanel).getByLabelText("Folder name")
-    expect(within(smartFoldersPanel).getByRole("heading", { name: "Saved" }).compareDocumentPosition(folderNameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    fireEvent.change(folderNameInput, { target: { value: "Open work" } })
-    fireEvent.click(within(smartFoldersPanel).getByRole("button", { name: "Save folder" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/smart_folders",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "same-origin",
-          headers: expect.objectContaining({
-            Accept: "application/json",
-            "Content-Type": "application/json"
-          }),
-          body: JSON.stringify({
-            filter: JSON.stringify(latestFilterTree),
-            subject_type: "job",
-            smart_folder: { name: "Open work" }
-          })
-        })
-      )
-    })
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/dashboard?smart_folder_id=11&subject=job",
-        expect.objectContaining({ credentials: "same-origin" })
-      )
-    })
 
     expect(screen.queryByLabelText("Sort column")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Direction")).not.toBeInTheDocument()
@@ -2527,8 +2495,21 @@ describe("App", () => {
   })
 
   it("toggles landing queue pause from the React dashboard", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/dashboard/landing_pause" && init?.method === "POST") {
         return Promise.resolve(
           new Response(
@@ -2584,33 +2565,37 @@ describe("App", () => {
       )
     })
 
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    fireEvent.click(await screen.findByRole("button", { name: "Pause landing" }))
-    expect(screen.getByRole("columnheader", { name: "Queue" })).toBeInTheDocument()
-    expect(screen.getByRole("cell", { name: "#3" })).toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/dashboard/landing_pause",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "same-origin",
-          headers: expect.objectContaining({
-            Accept: "application/json",
-            "Content-Type": "application/json"
-          }),
-          body: JSON.stringify({})
-        })
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
       )
-    })
-    expect(await screen.findByText("Landing paused.")).toBeInTheDocument()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Pause landing" }))
+      expect(screen.getByRole("columnheader", { name: "Queue" })).toBeInTheDocument()
+      expect(screen.getByRole("cell", { name: "#3" })).toBeInTheDocument()
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/dashboard/landing_pause",
+          expect.objectContaining({
+            method: "POST",
+            credentials: "same-origin",
+            headers: expect.objectContaining({
+              Accept: "application/json",
+              "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({})
+          })
+        )
+      })
+      expect(await screen.findByText("Landing paused.")).toBeInTheDocument()
+    } finally {
+      script.remove()
+    }
   })
 
   it("resets queue sorting outside the landing queue folder", async () => {
@@ -2761,8 +2746,21 @@ describe("App", () => {
   })
 
   it("renders dashboard smart folder visibility groups and badges", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/dashboard?view=list&smart_folder_id=3&subject=job") {
         return Promise.resolve(
           new Response(
@@ -2824,26 +2822,124 @@ describe("App", () => {
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
     })
 
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=3"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=3"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
 
-    expect(await screen.findByRole("link", { name: "Inbox 3" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=1")
-    const moreGroup = screen.getByText("More").closest("details")
-    expect(moreGroup).not.toBeNull()
-    expect(within(moreGroup!).getByRole("link", { name: "All jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=all")
-    expect(within(moreGroup!).getByRole("link", { name: "Stale 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=2")
-    expect(within(moreGroup!).getByRole("link", { name: "Merged this week 0" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=3")
-    expect(screen.getAllByRole("link", { name: "All jobs" })).toHaveLength(1)
-    expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Saved review 2" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=4")
-    expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/app-shell/smart_folders?subject_type=job")
-    expect(screen.queryByLabelText("Folder name")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+      const foldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+      expect(within(foldersPanel).getByRole("link", { name: "Inbox 3" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=1")
+      const moreGroup = within(foldersPanel).getByText("More").closest("details")
+      expect(moreGroup).not.toBeNull()
+      expect(within(moreGroup!).getByRole("link", { name: "All jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=all")
+      expect(within(moreGroup!).getByRole("link", { name: "Stale 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=2")
+      expect(within(moreGroup!).getByRole("link", { name: "Merged this week 0" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=3")
+      expect(within(foldersPanel).getAllByRole("link", { name: "All jobs" })).toHaveLength(1)
+      expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
+      expect(within(foldersPanel).getByRole("link", { name: "Saved review 2" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=4")
+      expect(within(foldersPanel).getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/app-shell/smart_folders?subject_type=job")
+      expect(within(foldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
+      expect(within(foldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+    } finally {
+      script.remove()
+    }
+  })
+
+  it("saves an applied dashboard filter from the v2 sidebar folders", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const appliedFilter = { and: [{ field: "state", op: "is", value: "open" }] }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/smart_folders" && init?.method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              message: "Smart folder saved.",
+              redirect_to: "/dashboard/jobs?smart_folder_id=11",
+              smart_folder: { id: 11, name: "Open work", position: 1, filter: appliedFilter }
+            }),
+            { status: 201, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+      if (path === "/api/v1/app/dashboard?view=list&subject=job" || path === "/api/v1/app/dashboard?smart_folder_id=11&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                filter: appliedFilter,
+                items: [dashboardJobItem()]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+      expect(within(smartFoldersPanel).queryByRole("heading", { name: "Smart folders" })).not.toBeInTheDocument()
+      const folderNameInput = within(smartFoldersPanel).getByLabelText("Folder name")
+      expect(within(smartFoldersPanel).getByRole("heading", { name: "Saved" }).compareDocumentPosition(folderNameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      fireEvent.change(folderNameInput, { target: { value: "Open work" } })
+      fireEvent.click(within(smartFoldersPanel).getByRole("button", { name: "Save folder" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/smart_folders",
+          expect.objectContaining({
+            method: "POST",
+            credentials: "same-origin",
+            headers: expect.objectContaining({
+              Accept: "application/json",
+              "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({
+              filter: JSON.stringify(appliedFilter),
+              subject_type: "job",
+              smart_folder: { name: "Open work" }
+            })
+          })
+        )
+      })
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/dashboard?smart_folder_id=11&subject=job",
+          expect.objectContaining({ credentials: "same-origin" })
+        )
+      })
+    } finally {
+      script.remove()
+    }
   })
 
   it("renders app-shell dashboard kanban lanes from the app dashboard API", async () => {

@@ -259,7 +259,8 @@ child Jobs merge); the **Setup** tab then drops off the navigation.
 After that, the dashboard becomes the normal working surface for Jobs,
 PRs, retries, schedules, direct Jobs, and operational follow-up. The Jobs
 list opens to the Inbox smart folder by default so actionable work is
-first; use More -> All jobs when you need the unfiltered Job list.
+first; in the dashboard sidebar, use More -> All jobs when you need the
+unfiltered Job list.
 
 If no Job appears, start with
 [the poller troubleshooting checklist](/docs/troubleshooting#the-poller-never-picks-up-my-issue).
