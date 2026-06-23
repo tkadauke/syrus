@@ -535,6 +535,7 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("main", { name: "Onboarding" })).toBeInTheDocument()
+      expectSyrusBrandLink("/app-shell/onboarding")
       expect(screen.getByRole("link", { name: "Setup" })).toHaveAttribute("href", "/app-shell/onboarding")
       // Before the onboarding chat starts, the other top-level tabs are hidden.
       expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument()
@@ -572,7 +573,7 @@ describe("App", () => {
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
       expect(primaryNav).toBeInTheDocument()
       const accountNav = screen.getByRole("navigation", { name: "Account" })
-      expect(screen.getByRole("link", { name: "Syrus" })).toHaveAttribute("href", "/app-shell/chats/9")
+      expectSyrusBrandLink("/app-shell/chats/9")
       expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveClass("hidden", "sm:inline-flex")
       expect(within(primaryNav).queryByRole("link", { name: "Jobs" })).toBeNull()
@@ -774,6 +775,7 @@ describe("App", () => {
       )
 
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
+      expectSyrusBrandLink("/app-shell")
       expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
       expect(within(primaryNav).getByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
       expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
@@ -10489,6 +10491,12 @@ function setScrollMetrics(element: HTMLElement, metrics: { scrollHeight: number;
   Object.defineProperty(element, "scrollHeight", { configurable: true, value: metrics.scrollHeight })
   Object.defineProperty(element, "clientHeight", { configurable: true, value: metrics.clientHeight })
   Object.defineProperty(element, "scrollTop", { configurable: true, writable: true, value: metrics.scrollTop })
+}
+
+function expectSyrusBrandLink(href: string) {
+  const brandLink = screen.getByRole("link", { name: "Syrus" })
+  expect(brandLink).toHaveAttribute("href", href)
+  expect(brandLink.querySelector('img[alt=""][src="/icon.png"]')).not.toBeNull()
 }
 
 function stubChatStreamSize(metrics: { scrollHeight: number; clientHeight: number }) {

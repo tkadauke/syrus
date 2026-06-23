@@ -5,6 +5,7 @@ import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createChat, fetchChats, type ChatNavRecord } from "../api/chats"
 import { patchJson } from "../api/client"
 import { CloseIcon } from "../components/CloseIcon"
+import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 
 export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNode; initialBootstrap: BootstrapPayload | null }) {
@@ -142,7 +143,7 @@ function SidebarContent({
     <div className="flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <div className="border-b border-gray-200 px-4 py-4 dark:border-gray-800">
         <div className="flex items-center justify-between gap-3">
-          <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}>Syrus</Link>
+          <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}><SyrusBrand /></Link>
           <button
             aria-label="Close sidebar"
             className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300 lg:hidden"

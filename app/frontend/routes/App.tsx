@@ -5,6 +5,7 @@ import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../
 import { patchJson } from "../api/client"
 import { BugReportButton } from "../components/BugReportButton"
 import { NoticeToast } from "../components/NoticeToast"
+import { SyrusBrand } from "../components/SyrusBrand"
 import { LayoutVersionProvider } from "../lib/layoutVersion"
 import { useAppEvents } from "../lib/useAppEvents"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
@@ -465,7 +466,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
       <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
         <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-3 px-6 py-3">
           <div className="flex min-w-0 items-center gap-5">
-            <Link className="text-lg font-semibold text-gray-900 dark:text-white" to={brandTo}>Syrus</Link>
+            <Link className="text-lg font-semibold text-gray-900 dark:text-white" to={brandTo}><SyrusBrand /></Link>
             <nav aria-label="Primary" className="flex flex-nowrap gap-1 text-sm">
               {navItems.map((item) => (
                 <Link className={`${item.desktopOnly ? "hidden sm:inline-flex" : ""} ${navLinkClass(item.active)}`} key={item.label} to={item.to}>{item.label}</Link>
