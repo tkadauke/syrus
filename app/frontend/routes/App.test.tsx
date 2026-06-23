@@ -917,7 +917,7 @@ describe("App", () => {
       const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
       expect(settingsNav.closest("aside")).toHaveClass("lg:w-56", "lg:border-r")
       expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
-      expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveClass("bg-gray-900")
+      expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveClass("bg-blue-50", "text-blue-700")
       expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
       expect(within(settingsNav).getByRole("link", { name: "Templates" })).toHaveAttribute("href", "/app-shell/cron_templates")
       expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
