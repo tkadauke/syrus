@@ -1038,6 +1038,10 @@ describe("App", () => {
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveClass("text-gray-700")
       expect(within(recentNav).getByText("New chat")).toHaveClass("font-semibold")
       expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-blue-50", "text-blue-700")
+      fireEvent.click(within(recentNav).getByRole("button", { name: "Chat bookmarks" }))
+      expect(within(recentNav).getByRole("link", { name: "Aqueducts" })).toHaveAttribute("href", "#message-9")
+      fireEvent.click(within(recentNav).getByRole("link", { name: "Aqueducts" }))
+      expect(within(recentNav).queryByRole("link", { name: "Aqueducts" })).not.toBeInTheDocument()
       expect(within(recentNav).queryByRole("link", { name: "Widgets hidden" })).not.toBeInTheDocument()
       expect(within(recentNav).getByRole("button", { name: "acme/widgets" })).toHaveAttribute("aria-expanded", "true")
 
@@ -7809,17 +7813,10 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "acme/widgets" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "acme/widgets" })).toHaveClass("dark:bg-gray-800", "dark:text-gray-300")
     expect(screen.getByRole("heading", { name: "Add attachment" }).parentElement).toHaveClass("dark:bg-gray-800", "dark:border-gray-700")
-    fireEvent.click(screen.getByRole("button", { name: "Chats" }))
-    expect(screen.getByRole("navigation", { name: "Recent chats" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Road survey/ })).toHaveAttribute("href", "/app-shell/chats/4")
-    expect(screen.getByRole("link", { name: /Road survey/ })).toHaveClass("dark:bg-gray-800", "dark:text-gray-300")
-    expect(screen.getByText("Bookmarks in this chat")).toBeInTheDocument()
-    expect(screen.getByText("Aqueducts")).toBeInTheDocument()
-    fireEvent.change(screen.getByPlaceholderText("Title, repo, or id"), { target: { value: "roads" } })
-    expect(screen.queryByRole("link", { name: /Aqueduct planning/ })).not.toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Road survey/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Recent chats" })).not.toBeInTheDocument()
     expect(screen.getByText("12.4k in", { exact: false })).toBeInTheDocument()
-    expect(screen.getAllByRole("link", { name: "New chat" }).map((link) => link.getAttribute("href"))).toContain("/app-shell/chats/new")
+    expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("dark:bg-gray-950", "dark:text-gray-100")
     fireEvent.change(screen.getByPlaceholderText("Ask about this repository..."), { target: { value: "Now inspect proposals" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
@@ -7871,7 +7868,7 @@ describe("App", () => {
       expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-blue-600")
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
       expect(within(mobileTabs).getByRole("button", { name: "Context" })).toBeInTheDocument()
-      expect(within(mobileTabs).getByRole("button", { name: "Chats" })).toBeInTheDocument()
+      expect(within(mobileTabs).queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()
       expect(screen.queryByRole("navigation", { name: "Chat workspace tabs" })).not.toBeInTheDocument()
       expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "p-3")
       expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("text-base", "sm:text-sm")
@@ -7886,9 +7883,6 @@ describe("App", () => {
       expect(within(mobileTabs).getByRole("button", { name: "Context" })).toHaveClass("border-blue-600")
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.getByText("Launch notes")).toBeInTheDocument()
-
-      fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chats" }))
-      expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/new")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
       expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
@@ -8813,8 +8807,6 @@ describe("App", () => {
         })
       )
     })
-    fireEvent.click(screen.getByRole("button", { name: "Chats" }))
-    expect(await screen.findByRole("link", { name: "Aqueduct marker" })).toHaveAttribute("href", "#message-9")
     expect(screen.queryByText("Bookmarked Aqueduct marker.")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Context" }))
@@ -9061,15 +9053,39 @@ describe("App", () => {
     }
   })
 
-  it("loads and scrolls to chat bookmarks", async () => {
+  it("renders active chat bookmarks from the v2 sidebar cache", async () => {
     const scrollIntoView = vi.fn()
     Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView })
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
     const initialPayload = chatPayload({ hasMoreOlder: true })
     initialPayload.bookmarks = [
       { id: 7, label: "Earlier aqueduct note", chat_message_id: 4, anchor_message_id: 5 }
     ]
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const recentChats = [
+      sidebarChat({
+        id: 8,
+        title: "Aqueduct planning",
+        repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+        last_message_at: "2026-06-18T12:00:00Z"
+      })
+    ]
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: recentChats, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
       if (path === "/api/v1/app/chats/8/messages?before=9") {
         return Promise.resolve(new Response(JSON.stringify({
           has_more_older: false,
@@ -9088,30 +9104,30 @@ describe("App", () => {
       return Promise.resolve(new Response(JSON.stringify(initialPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
 
-    fireEvent.click(await screen.findByRole("button", { name: "Chats" }))
-    const bookmark = await screen.findByRole("link", { name: "Earlier aqueduct note" })
-    expect(bookmark).toHaveAttribute("href", "#message-5")
-    fireEvent.click(bookmark)
-
-    expect(await screen.findByText("aqueduct")).toBeInTheDocument()
-    await waitFor(() => {
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" })
-    })
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/chats/8/messages?before=9",
-      expect.objectContaining({
-        credentials: "same-origin",
-        headers: { Accept: "application/json" }
-      })
-    )
+      expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+      fireEvent.click(await screen.findByRole("button", { name: "Chat bookmarks" }))
+      const bookmark = await screen.findByRole("link", { name: "Earlier aqueduct note" })
+      expect(bookmark).toHaveAttribute("href", "#message-5")
+      fireEvent.click(bookmark)
+      expect(screen.queryByRole("link", { name: "Earlier aqueduct note" })).not.toBeInTheDocument()
+      expect(scrollIntoView).not.toHaveBeenCalled()
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/messages?before=9",
+        expect.anything()
+      )
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
   })
 
   it("renders the new chat route and posts to the app API", async () => {

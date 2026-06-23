@@ -2,12 +2,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createChat, fetchChats, type ChatNavRecord } from "../api/chats"
+import { createChat, fetchChats, type ChatNavRecord, type ChatPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { BugReportButton } from "../components/BugReportButton"
 import { CloseIcon } from "../components/CloseIcon"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { chatQueryKey } from "./Chat"
 
 export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNode; initialBootstrap: BootstrapPayload | null }) {
   const location = useLocation()
@@ -301,15 +302,17 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                   const active = chat.current || chat.id === activeChatId
                   const unread = chat.unread && !active
                   return (
-                    <Link
-                      className={recentChatLinkClass(active)}
-                      key={chat.id}
-                      onClick={onCloseDrawer}
-                      to={withRoutePrefix(chat.chat_path, prefix)}
-                    >
-                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
-                      <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
-                    </Link>
+                    <div className="relative flex min-w-0 items-center" key={chat.id}>
+                      <Link
+                        className={`${recentChatLinkClass(active)} ${active ? "pr-9" : ""}`}
+                        onClick={onCloseDrawer}
+                        to={withRoutePrefix(chat.chat_path, prefix)}
+                      >
+                        <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
+                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
+                      </Link>
+                      {active ? <ActiveChatBookmarksMenu chatId={activeChatId} search={location.search} /> : null}
+                    </div>
                   )
                 })}
               </div>
@@ -326,6 +329,50 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
           )
         })}
       </nav>
+    </div>
+  )
+}
+
+function ActiveChatBookmarksMenu({ chatId, search }: { chatId: number | null; search: string }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+  const chatData = open && chatId
+    ? queryClient.getQueryData<ChatPayload>(chatQueryKey(String(chatId), search))
+    : undefined
+  const bookmarks = chatData?.bookmarks ?? []
+
+  return (
+    <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={menuRef}>
+      <button
+        aria-expanded={open}
+        aria-label="Chat bookmarks"
+        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-blue-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-blue-900 dark:hover:text-blue-200"
+        onClick={() => setOpen((value) => !value)}
+        type="button"
+      >
+        ...
+      </button>
+      {open ? (
+        <div className="absolute bottom-full right-0 z-20 mb-1 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950">
+          {bookmarks.length > 0 ? bookmarks.map((bookmark) => {
+            const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
+
+            return (
+              <a
+                className="block truncate px-3 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200"
+                href={`#message-${anchorMessageId}`}
+                key={bookmark.id}
+                onClick={() => setOpen(false)}
+              >
+                {bookmark.label}
+              </a>
+            )
+          }) : (
+            <div className="px-3 py-2 text-gray-400 dark:text-gray-500">No bookmarks yet</div>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -553,7 +600,7 @@ function sidebarLinkClass(active: boolean) {
 }
 
 function recentChatLinkClass(active: boolean) {
-  return `flex min-w-0 items-start gap-2 rounded px-2 py-1.5 text-xs ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
+  return `flex min-w-0 w-full items-start gap-2 rounded px-2 py-1.5 text-xs ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
 }
 
 function adminSubnavLinkClass(active: boolean) {
