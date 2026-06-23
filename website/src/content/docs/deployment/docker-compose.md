@@ -70,9 +70,14 @@ bin/compose-up                       # restart / pick up changes
 - **setup** — a one-shot container that runs `db:prepare` and makes the data
   volume writable by the `rails` user, then exits. `web` and `worker` wait
   for it.
-- **syrus-data volume** — `/home/rails/.syrus`, holding both the **SQLite
+- **syrus-data volume** — `/home/rails/.syrus`, holding the primary **SQLite
   databases** (`db/production*.sqlite3`) and the **clone cache / workflow
-  workspaces**. Persisted across restarts; losing it wipes everything.
+  workspaces**.
+- **syrus-search volume** — `/home/rails/.syrus-search`, holding the dedicated
+  SQLite FTS5 search database at `search.sqlite3`.
+
+Both volumes are persisted across restarts; losing them wipes the local
+installation state.
 
 There is no MySQL container and no master key — local mode runs the
 production environment against SQLite (`SYRUS_SQLITE=1`) and provides the
@@ -109,6 +114,8 @@ layer via `EXTRA_APT_PACKAGES`.
 and fills the secrets. Notable values:
 
 - `SYRUS_SQLITE=1`, `SYRUS_DATA_ROOT=/home/rails/.syrus` — SQLite local mode.
+- `SEARCH_DATABASE_PATH=/home/rails/.syrus-search/search.sqlite3` — dedicated
+  chat full-text search database.
 - `SYRUS_APP_HOST=localhost:3000`, `SYRUS_ASSUME_SSL=false`,
   `SYRUS_FORCE_SSL=false` — plain HTTP locally.
 - `SYRUS_PORT=3000` — host port mapped to the container.
@@ -118,16 +125,17 @@ and fills the secrets. Notable values:
 
 ## Persist and back up
 
-Everything lives in the `syrus-data` named volume. Back it up by copying the
-SQLite files out:
+Application data lives in the `syrus-data` and `syrus-search` named volumes.
+Back it up by copying the SQLite files out:
 
 ```bash
 docker compose cp web:/home/rails/.syrus/db ./syrus-db-backup
+docker compose cp worker:/home/rails/.syrus-search ./syrus-search-backup
 ```
 
-A filesystem snapshot or `tar` of the volume works too. Because the DB and
-the clone cache share one volume, backing it up keeps DB state and running
-workspaces in agreement.
+A filesystem snapshot or `tar` of the volumes works too. Because database
+state and clone/workspace state are split across volumes, snapshot them
+together when preserving active runs.
 
 ## TLS
 

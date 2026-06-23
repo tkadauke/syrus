@@ -48,7 +48,7 @@ default_branch=$(resolve_default_branch) || {
 # filtered with grep — git's literal pathspec doesn't auto-glob
 # `*.rb`, so listing the directory and matching server-side is
 # both simpler and more portable.
-new_migrations=$(git diff --name-only --diff-filter=A "${default_branch}...HEAD" -- db/migrate/ 2>/dev/null | grep -E '\.rb$' || true)
+new_migrations=$(git diff --name-only --diff-filter=A "${default_branch}...HEAD" 2>/dev/null | grep -E '^db/(migrate|[^/]+_migrate)/.*\.rb$' || true)
 
 if [ -z "$new_migrations" ]; then
   echo "[migration-collisions] no new migrations on this branch — nothing to check"
@@ -80,7 +80,8 @@ if [ -n "$intra" ]; then
 fi
 
 # 2. Collisions with existing migrations on the default branch.
-existing_ts=$(git ls-tree -r --name-only "$default_branch" -- db/migrate/ 2>/dev/null | grep -E '\.rb$' | extract_timestamps | sort -u)
+existing_migrations=$(git ls-tree -r --name-only "$default_branch" 2>/dev/null | grep -E '^db/(migrate|[^/]+_migrate)/.*\.rb$' || true)
+existing_ts=$(echo "$existing_migrations" | extract_timestamps | sort -u)
 collisions=$(comm -12 <(echo "$unique_new_ts") <(echo "$existing_ts"))
 
 if [ -n "$collisions" ]; then
@@ -88,7 +89,7 @@ if [ -n "$collisions" ]; then
   while IFS= read -r ts; do
     [ -z "$ts" ] && continue
     new_file=$(echo "$new_migrations" | grep "/${ts}_" || true)
-    existing_file=$(git ls-tree -r --name-only "$default_branch" -- db/migrate/ | grep "/${ts}_" || true)
+    existing_file=$(echo "$existing_migrations" | grep "/${ts}_" || true)
     echo "  $ts"
     echo "    new on this branch: $new_file"
     echo "    already on ${default_branch}: $existing_file"

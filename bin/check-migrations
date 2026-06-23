@@ -25,7 +25,10 @@
 require "pathname"
 
 ROOT = Pathname.new(File.expand_path("..", __dir__))
-MIGRATION_GLOB = ROOT.join("db/migrate/*.rb")
+MIGRATION_GLOBS = [
+  ROOT.join("db/migrate/*.rb"),
+  ROOT.join("db/*_migrate/*.rb")
+].freeze
 
 # Lint only migrations changed on this branch vs the merge base
 # with origin/main (or `--all` to scan every migration). Legacy
@@ -34,7 +37,7 @@ MIGRATION_GLOB = ROOT.join("db/migrate/*.rb")
 # every new workflow's grade.
 def migration_paths
   if ARGV.include?("--all")
-    Pathname.glob(MIGRATION_GLOB).sort
+    MIGRATION_GLOBS.flat_map { |glob| Pathname.glob(glob) }.uniq.sort
   else
     diff_paths
   end
@@ -42,10 +45,15 @@ end
 
 def diff_paths
   base = resolve_default_branch
-  return Pathname.glob(MIGRATION_GLOB).sort if base.nil?
+  return MIGRATION_GLOBS.flat_map { |glob| Pathname.glob(glob) }.uniq.sort if base.nil?
 
-  diff = `git diff --name-only --diff-filter=AM #{base}...HEAD -- db/migrate 2>/dev/null`
-  diff.lines.map(&:strip).reject(&:empty?).map { |rel| ROOT.join(rel) }.select(&:exist?).sort
+  diff = `git diff --name-only --diff-filter=AM #{base}...HEAD 2>/dev/null`
+  diff.lines
+      .map(&:strip)
+      .select { |rel| rel.match?(%r{\Adb/(?:migrate|[^/]+_migrate)/.*\.rb\z}) }
+      .map { |rel| ROOT.join(rel) }
+      .select(&:exist?)
+      .sort
 end
 
 def resolve_default_branch

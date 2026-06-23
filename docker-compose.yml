@@ -14,6 +14,8 @@ x-app: &app
   volumes:
     # Clone cache + the SQLite databases live here, persisted across restarts.
     - syrus-data:/home/rails/.syrus
+  environment:
+    SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
   restart: unless-stopped
 
 services:
@@ -30,8 +32,12 @@ services:
     command:
       - |
         mkdir -p "$$SYRUS_DATA_ROOT/db"
+        mkdir -p "$$(dirname "$$SEARCH_DATABASE_PATH")"
         bin/rails db:prepare
-        chown -R 1000:1000 "$$SYRUS_DATA_ROOT"
+        chown -R 1000:1000 "$$SYRUS_DATA_ROOT" "$$(dirname "$$SEARCH_DATABASE_PATH")"
+    volumes:
+      - syrus-data:/home/rails/.syrus
+      - syrus-search:/home/rails/.syrus-search
     restart: "no"
 
   web:
@@ -39,6 +45,9 @@ services:
     depends_on:
       setup:
         condition: service_completed_successfully
+    volumes:
+      - syrus-data:/home/rails/.syrus
+      - syrus-search:/home/rails/.syrus-search:ro
     ports:
       - "${SYRUS_PORT:-3000}:80"
 
@@ -47,7 +56,11 @@ services:
     depends_on:
       setup:
         condition: service_completed_successfully
+    volumes:
+      - syrus-data:/home/rails/.syrus
+      - syrus-search:/home/rails/.syrus-search
     command: ["./bin/jobs"]
 
 volumes:
   syrus-data:
+  syrus-search:

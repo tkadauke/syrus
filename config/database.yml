@@ -26,13 +26,25 @@ development:
     <<: *default
     database: storage/development_cable.sqlite3
     migrations_paths: db/cable_migrate
+  search:
+    <<: *default
+    database: <%= ENV.fetch("SEARCH_DATABASE_PATH", File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3")) %>
+    migrations_paths: db/search_migrate
+    schema_dump: false
 
 # Warning: The database defined as "test" will be erased and
 # re-generated from your development database when you run "rake".
 # Do not set this db to the same as development or production.
 test:
-  <<: *default
-  database: storage/test.sqlite3
+  primary:
+    <<: *default
+    database: storage/test.sqlite3
+  search:
+    <<: *default
+    database: <%= ENV.fetch("SEARCH_DATABASE_PATH", "storage/test_search.sqlite3") %>
+    migrations_paths: db/search_migrate
+    schema_dump: false
+    database_tasks: false
 
 # Connection URLs / env-driven config can override these — see
 # https://guides.rubyonrails.org/configuring.html#configuring-a-database
@@ -58,6 +70,11 @@ production:
     <<: *primary_production_sqlite
     database: <%= data_root %>/db/production_cable.sqlite3
     migrations_paths: db/cable_migrate
+  search:
+    <<: *primary_production_sqlite
+    database: <%= ENV.fetch("SEARCH_DATABASE_PATH", File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3")) %>
+    migrations_paths: db/search_migrate
+    schema_dump: false
 <% else %>
 production:
   primary: &primary_production
@@ -91,4 +108,11 @@ production:
     <<: *primary_production
     database: syrus_production_cable
     migrations_paths: db/cable_migrate
+  search:
+    adapter: sqlite3
+    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+    timeout: 5000
+    database: <%= ENV.fetch("SEARCH_DATABASE_PATH", File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3")) %>
+    migrations_paths: db/search_migrate
+    schema_dump: false
 <% end %>

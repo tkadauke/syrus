@@ -40,7 +40,7 @@ Before deploying Syrus to Kubernetes, have these pieces already working:
 - An ingress controller such as Traefik, nginx ingress, or another
   controller standard for your cluster.
 - A default persistent storage class that supports the worker's
-  `$SYRUS_DATA_ROOT` PVC.
+  `$SYRUS_DATA_ROOT` PVC and the dedicated `syrus-search` PVC.
 - A MySQL strategy: managed MySQL, an operator-managed in-cluster MySQL,
   or a chart dependency with explicit backup/restore ownership.
 - A secret management pattern for Rails secrets, database credentials,
@@ -58,7 +58,8 @@ The chart should expose, at minimum, values for:
 - MySQL host, database, username, and password secret references.
 - `RAILS_MASTER_KEY`, `SECRET_KEY_BASE`, and Active Record Encryption
   secret references.
-- `$SYRUS_DATA_ROOT` PVC size, storage class, and retention policy.
+- `$SYRUS_DATA_ROOT` and `syrus-search` PVC size, storage class, access mode,
+  and retention policy.
 - Hostname, ingress class, TLS secret, and cert-manager issuer.
 - Worker resource requests and limits. Agent runs can be memory- and
   network-heavy compared with ordinary Rails requests.
@@ -102,20 +103,25 @@ for any non-local installation.
 
 ## Data and backups
 
-Back up two things:
+Back up three things:
 
 - **MySQL**: the source of truth for users, encrypted credentials,
   repositories, Jobs, Workflows, Runs, logs, and artifacts.
 - **`$SYRUS_DATA_ROOT` PVC**: bare clone cache, workflow workspaces, and
   files needed by active or recently completed Workflows.
+- **`syrus-search` PVC**: the dedicated SQLite FTS5 chat search database.
 
 For MySQL, use the backup mechanism that belongs to your MySQL strategy:
 managed snapshots, operator backups, or scheduled `mysqldump`. For the
 PVC, use your cluster storage snapshot mechanism or a volume backup tool
 such as Velero with CSI snapshots.
 
-The data-root PVC mount must be writable by the container's `rails` user
-(`1000:1000`). The published images create `/home/rails/.syrus` with that
+The data-root and search PVC mounts must be writable by the container's
+`rails` user (`1000:1000`) where writes happen. The worker mounts
+`syrus-search` read-write at `/home/rails/.syrus-search`; web pods mount the
+same PVC read-only and read the FTS index from
+`SEARCH_DATABASE_PATH=/home/rails/.syrus-search/search.sqlite3`. The published
+images create `/home/rails/.syrus` and `/home/rails/.syrus-search` with that
 ownership for first-mount volume initialization; custom mount paths or
 pre-provisioned volumes should set matching ownership before worker pods
 start.
