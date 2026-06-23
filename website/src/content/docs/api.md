@@ -88,6 +88,19 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
   }'
 ```
 
+## Rename a Chat
+
+`POST /api/v1/app/chats/:id/rename` renames one of the authenticated
+user's chat sessions. `name` is required and must be 60 characters or
+fewer.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/chats/123/rename \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Release planning" }'
+```
+
 ## Update Theme Preference
 
 `PATCH /api/v1/app/theme` updates the authenticated user's app theme.

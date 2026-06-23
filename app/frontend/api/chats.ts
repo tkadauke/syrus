@@ -232,6 +232,7 @@ export type ChatPayload = {
     app_messages_path: string
     app_message_path: string
     app_enqueue_message_path: string
+    app_rename_path: string
     app_stop_path: string
     app_bookmarks_path: string
     app_attachments_path: string

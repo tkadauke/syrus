@@ -24,6 +24,7 @@ module SyrusChatMcp
       ProposeIssueTool,
       ProposeEpicTool,
       ProposeJobTool,
+      RenameChatTool,
       SetBookmarkTool,
       ProposeEpicWithJobsTool,
       ListProposalsTool,

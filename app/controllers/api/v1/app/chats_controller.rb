@@ -138,6 +138,24 @@ module Api
           head :no_content
         end
 
+        def rename
+          chat_session = find_chat_session
+          name = chat_name
+          if name.blank?
+            render_error("validation_failed", "Name cannot be blank.", status: :unprocessable_content)
+            return
+          end
+
+          if name.length > ChatSession::TITLE_MAX_LENGTH
+            render_error("validation_failed", "Name must be #{ChatSession::TITLE_MAX_LENGTH} characters or fewer.", status: :unprocessable_content)
+            return
+          end
+
+          chat_session.update!(title: name)
+
+          render json: chat_payload(chat_session.reload, message: "Chat renamed.")
+        end
+
         def enqueue_message
           chat_session = find_chat_session
           text = message_text
@@ -341,6 +359,7 @@ module Api
               app_messages_path: "/api/v1/app/chats/#{chat_session.id}/messages",
               app_message_path: "/api/v1/app/chats/#{chat_session.id}/message",
               app_enqueue_message_path: "/api/v1/app/chats/#{chat_session.id}/queued_messages",
+              app_rename_path: "/api/v1/app/chats/#{chat_session.id}/rename",
               app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
               app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
               app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
@@ -620,6 +639,10 @@ module Api
 
         def message_text
           (params[:content].presence || params.dig(:chat_message, :text)).to_s.strip
+        end
+
+        def chat_name
+          (params[:name].presence || params.dig(:chat, :name).presence || params.dig(:chat, :title)).to_s.strip
         end
 
         def stream_request?

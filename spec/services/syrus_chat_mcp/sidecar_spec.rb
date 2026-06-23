@@ -13,6 +13,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         SyrusChatMcp::ProposeIssueTool,
         SyrusChatMcp::ProposeEpicTool,
         SyrusChatMcp::ProposeJobTool,
+        SyrusChatMcp::RenameChatTool,
         SyrusChatMcp::SetBookmarkTool,
         SyrusChatMcp::ProposeEpicWithJobsTool,
         SyrusChatMcp::ListProposalsTool,
@@ -99,6 +100,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         propose_issue
         propose_epic
         propose_job
+        rename_chat
         set_bookmark
         propose_epic_with_jobs
         list_proposals

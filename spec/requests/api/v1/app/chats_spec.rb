@@ -93,6 +93,35 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(foreign_chat.reload.last_read_at).to be_nil
   end
 
+  it "renames a chat for the signed-in user" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Old title", last_message_at: Time.current)
+
+    post "/api/v1/app/chats/#{chat.id}/rename", params: { name: "  Release planning  " }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.title).to eq("Release planning")
+    expect(parse_body["message"]).to eq("Chat renamed.")
+    expect(parse_body.dig("chat", "title")).to eq("Release planning")
+  end
+
+  it "rejects invalid chat rename names" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Old title", last_message_at: Time.current)
+
+    post "/api/v1/app/chats/#{chat.id}/rename", params: { name: " " }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Name cannot be blank.")
+    expect(chat.reload.title).to eq("Old title")
+
+    post "/api/v1/app/chats/#{chat.id}/rename", params: { name: "a" * (ChatSession::TITLE_MAX_LENGTH + 1) }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Name must be #{ChatSession::TITLE_MAX_LENGTH} characters or fewer.")
+    expect(chat.reload.title).to eq("Old title")
+  end
+
   it "creates a fresh chat with an optional repository attachment" do
     sign_in_as(user)
 
@@ -308,6 +337,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body.dig("paths", "app_messages_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
     expect(body.dig("paths", "app_message_path")).to eq("/api/v1/app/chats/#{chat.id}/message")
     expect(body.dig("paths", "app_enqueue_message_path")).to eq("/api/v1/app/chats/#{chat.id}/queued_messages")
+    expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
     expect(body.dig("paths", "app_attachments_path")).to eq("/api/v1/app/chats/#{chat.id}/attachments")
     expect(body.dig("paths", "app_whiteboard_path")).to eq("/api/v1/app/chats/#{chat.id}/whiteboard")
     expect(body["queued_messages"]).to eq([])
