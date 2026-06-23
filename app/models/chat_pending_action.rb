@@ -7,8 +7,29 @@ class ChatPendingAction < ApplicationRecord
     rebase_job
     submit_chat_feedback
     reopen_epic_and_attach_job
+    admin_kill_process
+    admin_reap_stale_runs
+    admin_pause_polling
+    admin_unpause_polling
+    admin_pause_runs
+    admin_unpause_runs
+    admin_clear_github_cache
+    admin_pause_user_scheduling
+    admin_unpause_user_scheduling
+    admin_retry_step
+    admin_cleanup_workspace
+    admin_refresh_installations
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
+  EMPTY_PAYLOAD_ACTIONS = %w[
+    admin_reap_stale_runs
+    admin_pause_polling
+    admin_unpause_polling
+    admin_pause_runs
+    admin_unpause_runs
+    admin_clear_github_cache
+    admin_refresh_installations
+  ].freeze
   STATES = %w[ pending confirmed rejected cancelled ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
 
@@ -26,7 +47,7 @@ class ChatPendingAction < ApplicationRecord
   validates :action, inclusion: { in: ACTIONS }, allow_nil: true
   validates :action_type, inclusion: { in: ACTION_TYPES }, allow_nil: true
   validates :requested_by, presence: true, inclusion: { in: REQUESTED_BY }, if: :note_action?
-  validates :payload, presence: true
+  validates :payload, presence: true, unless: :empty_payload_action?
   validate :known_action
   validate :payload_matches_action
   validate :repository_matches_chat_session
@@ -83,6 +104,10 @@ class ChatPendingAction < ApplicationRecord
 
   def action_key
     action.presence || action_type
+  end
+
+  def empty_payload_action?
+    EMPTY_PAYLOAD_ACTIONS.include?(action_key)
   end
 
   # Each branch returns an AR record to stash on `action.result`
@@ -147,6 +172,54 @@ class ChatPendingAction < ApplicationRecord
       job.update!(epic: epic, pending_epic_reference: {})
       job.advance_after_triage! if job.may_advance_after_triage?
       job
+    when "admin_kill_process"
+      process = SpawnedProcess.find(payload.fetch("process_id"))
+      process.request_kill!(user: user) if process.running?
+      nil
+    when "admin_reap_stale_runs"
+      ReapStaleRunsJob.perform_later
+      nil
+    when "admin_pause_polling"
+      Admin::Console::Payload.new(actor: user).pause_polling(source: "chat_mcp")
+      nil
+    when "admin_unpause_polling"
+      Admin::Console::Payload.new(actor: user).unpause_polling(source: "chat_mcp")
+      nil
+    when "admin_pause_runs"
+      Admin::Console::Payload.new(actor: user).pause_runs(source: "chat_mcp")
+      nil
+    when "admin_unpause_runs"
+      Admin::Console::Payload.new(actor: user).unpause_runs(source: "chat_mcp")
+      nil
+    when "admin_clear_github_cache"
+      Admin::Console::Payload.new(actor: user).clear_github_cache(user_id: nil, source: "chat_mcp")
+      nil
+    when "admin_pause_user_scheduling"
+      Admin::Users::Payload.new(params: {}, actor: user).pause_scheduling(payload.fetch("user_id"))
+      nil
+    when "admin_unpause_user_scheduling"
+      Admin::Users::Payload.new(params: {}, actor: user).unpause_scheduling(payload.fetch("user_id"))
+      nil
+    when "admin_retry_step"
+      workflow = Workflow.find(payload.fetch("workflow_id"))
+      step_slug = payload.fetch("step_slug").to_s
+      failed_step = RetryFailedStepEnqueuer.failed_step_for(workflow)
+      unless failed_step&.kind == step_slug
+        raise ArgumentError, "Step '#{step_slug}' is not the retryable failed step on #{workflow.slug}."
+      end
+
+      result = RetryFailedStepEnqueuer.call(workflow: workflow)
+      raise ArgumentError, result.error unless result.success?
+
+      result.run
+    when "admin_cleanup_workspace"
+      workflow = Workflow.find(payload.fetch("workflow_id"))
+      raise ArgumentError, "Workflow workspace is still in use by active steps or runs." unless workflow.cleanup_workspace!
+
+      nil
+    when "admin_refresh_installations"
+      SyncInstallationsJob.perform_later(user.id)
+      nil
     else
       ScheduledTask.create!(
         user: user,
@@ -177,6 +250,15 @@ class ChatPendingAction < ApplicationRecord
     when "reopen_epic_and_attach_job"
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
       errors.add(:payload, "epic_id is required") unless payload["epic_id"].present?
+    when "admin_kill_process"
+      errors.add(:payload, "process_id is required") unless payload["process_id"].present?
+    when "admin_pause_user_scheduling", "admin_unpause_user_scheduling"
+      errors.add(:payload, "user_id is required") unless payload["user_id"].present?
+    when "admin_retry_step"
+      errors.add(:payload, "workflow_id is required") unless payload["workflow_id"].present?
+      errors.add(:payload, "step_slug is required") if payload["step_slug"].to_s.strip.blank?
+    when "admin_cleanup_workspace"
+      errors.add(:payload, "workflow_id is required") unless payload["workflow_id"].present?
     when "schedule_recurring"
       errors.add(:payload, "cron_expression is required") if payload["cron_expression"].to_s.strip.blank?
       errors.add(:payload, "label is required") if payload["label"].to_s.strip.blank?

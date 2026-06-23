@@ -20,7 +20,19 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "admin_list_processes" => {},
     "admin_list_runs" => {},
     "admin_list_users" => {},
-    "admin_version" => {}
+    "admin_version" => {},
+    "admin_kill_process" => { process_id: 1 },
+    "admin_reap_stale_runs" => {},
+    "admin_pause_polling" => {},
+    "admin_unpause_polling" => {},
+    "admin_pause_runs" => {},
+    "admin_unpause_runs" => {},
+    "admin_clear_github_cache" => {},
+    "admin_pause_user_scheduling" => { user_id: 1 },
+    "admin_unpause_user_scheduling" => { user_id: 1 },
+    "admin_retry_step" => { workflow_id: 1, step_slug: "implement" },
+    "admin_cleanup_workspace" => { workflow_id: 1 },
+    "admin_refresh_installations" => {}
   }.freeze
 
   def server_for(chat_session)
@@ -53,6 +65,61 @@ RSpec.describe "SyrusChatMcp admin tools" do
       expect(response.dig(:result, :isError)).to be(true), name
       expect(error_text(response)).to eq("Unauthorized: Admin access required")
     end
+  end
+
+  it "creates pending confirmations for admin side-effect tools" do
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "codex exec",
+      hostname: "worker-a",
+      pid: 123,
+      started_at: 2.minutes.ago
+    )
+    target_user = Factories.user(email_address: "target@example.com")
+    workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+
+    cases = {
+      "admin_kill_process" => [ { process_id: process.id }, { "process_id" => process.id } ],
+      "admin_reap_stale_runs" => [ {}, {} ],
+      "admin_pause_polling" => [ {}, {} ],
+      "admin_unpause_polling" => [ {}, {} ],
+      "admin_pause_runs" => [ {}, {} ],
+      "admin_unpause_runs" => [ {}, {} ],
+      "admin_clear_github_cache" => [ {}, {} ],
+      "admin_pause_user_scheduling" => [ { user_id: target_user.id }, { "user_id" => target_user.id } ],
+      "admin_unpause_user_scheduling" => [ { user_id: target_user.id }, { "user_id" => target_user.id } ],
+      "admin_retry_step" => [ { workflow_id: workflow.id, step_slug: "implement" }, { "workflow_id" => workflow.id, "step_slug" => "implement" } ],
+      "admin_cleanup_workspace" => [ { workflow_id: workflow.id }, { "workflow_id" => workflow.id } ],
+      "admin_refresh_installations" => [ {}, {} ]
+    }
+
+    cases.each do |name, (arguments, expected_payload)|
+      response = call_tool(admin_session, name, arguments)
+      payload = payload_for(response)
+      action = ChatPendingAction.find(payload.fetch(:pending_confirmation_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey, name
+      expect(payload).to include(state: "pending", message: a_string_matching(/\?/))
+      expect(action).to have_attributes(
+        chat_session: admin_session,
+        user: admin,
+        repository: repository,
+        action: name,
+        payload: expected_payload,
+        requested_by: "agent"
+      )
+    end
+  end
+
+  it "rejects missing process and user targets gracefully" do
+    process_response = call_tool(admin_session, "admin_kill_process", { process_id: 999_999 })
+    user_response = call_tool(admin_session, "admin_pause_user_scheduling", { user_id: 999_999 })
+
+    expect(process_response.dig(:result, :isError)).to be(true)
+    expect(error_text(process_response)).to include("process not found: 999999")
+    expect(user_response.dig(:result, :isError)).to be(true)
+    expect(error_text(user_response)).to include("user not found: 999999")
+    expect(ChatPendingAction.where(action: %w[admin_kill_process admin_pause_user_scheduling])).to be_empty
   end
 
   it "returns the admin overview data shape" do

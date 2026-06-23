@@ -120,7 +120,19 @@ RSpec.describe SyrusChatMcp::Sidecar do
         "admin_list_processes",
         "admin_list_runs",
         "admin_list_users",
-        "admin_version"
+        "admin_version",
+        "admin_kill_process",
+        "admin_reap_stale_runs",
+        "admin_pause_polling",
+        "admin_unpause_polling",
+        "admin_pause_runs",
+        "admin_unpause_runs",
+        "admin_clear_github_cache",
+        "admin_pause_user_scheduling",
+        "admin_unpause_user_scheduling",
+        "admin_retry_step",
+        "admin_cleanup_workspace",
+        "admin_refresh_installations"
       )
     end
 
@@ -140,7 +152,19 @@ RSpec.describe SyrusChatMcp::Sidecar do
         "admin_list_processes",
         "admin_list_runs",
         "admin_list_users",
-        "admin_version"
+        "admin_version",
+        "admin_kill_process",
+        "admin_reap_stale_runs",
+        "admin_pause_polling",
+        "admin_unpause_polling",
+        "admin_pause_runs",
+        "admin_unpause_runs",
+        "admin_clear_github_cache",
+        "admin_pause_user_scheduling",
+        "admin_unpause_user_scheduling",
+        "admin_retry_step",
+        "admin_cleanup_workspace",
+        "admin_refresh_installations"
       )
     end
   end

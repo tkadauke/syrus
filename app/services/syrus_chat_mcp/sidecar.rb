@@ -89,7 +89,19 @@ module SyrusChatMcp
       AdminListProcessesTool,
       AdminListRunsTool,
       AdminListUsersTool,
-      AdminVersionTool
+      AdminVersionTool,
+      AdminKillProcessTool,
+      AdminReapStaleRunsTool,
+      AdminPausePollingTool,
+      AdminUnpausePollingTool,
+      AdminPauseRunsTool,
+      AdminUnpauseRunsTool,
+      AdminClearGithubCacheTool,
+      AdminPauseUserSchedulingTool,
+      AdminUnpauseUserSchedulingTool,
+      AdminRetryStepTool,
+      AdminCleanupWorkspaceTool,
+      AdminRefreshInstallationsTool
     ].freeze
 
     def self.tool_names(chat_session = nil)

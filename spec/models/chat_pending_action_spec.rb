@@ -190,6 +190,114 @@ RSpec.describe ChatPendingAction do
     expect(ScheduledTask.count).to eq(0)
   end
 
+  it "confirms admin kill process by requesting a process kill" do
+    admin = Factories.user(admin: true)
+    admin_repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: admin_repository)
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "codex exec",
+      hostname: "worker-a",
+      pid: 123,
+      started_at: 1.minute.ago
+    )
+    action = admin_session.pending_actions.create!(
+      action: "admin_kill_process",
+      payload: { "process_id" => process.id },
+      requested_by: "agent"
+    )
+
+    expect(action.confirm!).to be true
+    expect(process.reload.kill_requested_at).to be_present
+    expect(process.kill_requested_by_user).to eq(admin)
+  end
+
+  it "confirms admin pause and unpause flags" do
+    admin = Factories.user(admin: true)
+    admin_repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: admin_repository)
+
+    pause_polling = admin_session.pending_actions.create!(action: "admin_pause_polling", payload: {}, requested_by: "agent")
+    unpause_polling = admin_session.pending_actions.create!(action: "admin_unpause_polling", payload: {}, requested_by: "agent")
+    pause_runs = admin_session.pending_actions.create!(action: "admin_pause_runs", payload: {}, requested_by: "agent")
+    unpause_runs = admin_session.pending_actions.create!(action: "admin_unpause_runs", payload: {}, requested_by: "agent")
+
+    pause_polling.confirm!
+    expect(AppSetting.current.reload.polling_paused).to be true
+    unpause_polling.confirm!
+    expect(AppSetting.current.reload.polling_paused).to be false
+    pause_runs.confirm!
+    expect(AppSetting.current.reload.runs_paused).to be true
+    unpause_runs.confirm!
+    expect(AppSetting.current.reload.runs_paused).to be false
+  end
+
+  it "confirms admin cache clear, reaper, installation refresh, and user scheduling actions" do
+    admin = Factories.user(admin: true)
+    admin_repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: admin_repository)
+    target = Factories.user(scheduling_paused: false)
+
+    allow(Rails.cache).to receive(:delete_matched).and_return(3)
+    expect(ReapStaleRunsJob).to receive(:perform_later)
+    admin_session.pending_actions.create!(action: "admin_reap_stale_runs", payload: {}, requested_by: "agent").confirm!
+
+    admin_session.pending_actions.create!(action: "admin_clear_github_cache", payload: {}, requested_by: "agent").confirm!
+    expect(Rails.cache).to have_received(:delete_matched).with("github_etag/*")
+
+    admin_session.pending_actions.create!(
+      action: "admin_pause_user_scheduling",
+      payload: { "user_id" => target.id },
+      requested_by: "agent"
+    ).confirm!
+    expect(target.reload.scheduling_paused).to be true
+
+    admin_session.pending_actions.create!(
+      action: "admin_unpause_user_scheduling",
+      payload: { "user_id" => target.id },
+      requested_by: "agent"
+    ).confirm!
+    expect(target.reload.scheduling_paused).to be false
+
+    expect {
+      admin_session.pending_actions.create!(action: "admin_refresh_installations", payload: {}, requested_by: "agent").confirm!
+    }.to have_enqueued_job(SyncInstallationsJob).with(admin.id)
+  end
+
+  it "confirms admin retry step and cleanup workspace actions" do
+    admin = Factories.user(admin: true)
+    admin_repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: admin_repository)
+    job = Factories.job(user: admin, repository: admin_repository)
+    workflow = job.initial_run.step.workflow
+    step = workflow.steps.first
+
+    workflow.update_columns(state: "failed", finished_at: Time.current)
+    step.update_columns(state: "failed", finished_at: Time.current)
+
+    retry_action = admin_session.pending_actions.create!(
+      action: "admin_retry_step",
+      payload: { "workflow_id" => workflow.id, "step_slug" => step.kind },
+      requested_by: "agent"
+    )
+
+    expect {
+      retry_action.confirm!
+    }.to change { step.runs.count }.by(1)
+    expect(workflow.reload).to be_running
+    expect(step.reload).to be_queued
+    expect(retry_action.reload.result).to be_a(Run)
+
+    allow_any_instance_of(Workflow).to receive(:cleanup_workspace!).and_return(true)
+    cleanup_action = admin_session.pending_actions.create!(
+      action: "admin_cleanup_workspace",
+      payload: { "workflow_id" => workflow.id },
+      requested_by: "agent"
+    )
+
+    expect(cleanup_action.confirm!).to be true
+  end
+
   it "rejects mismatched repository and chat session" do
     other_repo = Factories.repository(user: user)
     action = described_class.new(
