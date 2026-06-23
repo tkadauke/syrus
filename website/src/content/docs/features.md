@@ -99,7 +99,9 @@ and starts the following turn.
 The chat composer recognizes leading slash commands. Typing `/` opens an
 autocomplete palette with system commands handled in the browser and skill
 commands that are sent through the normal chat message path for the agent to
-interpret.
+interpret. The `/propose` skill command starts a guided wizard: the agent asks
+for a Job title, description, and optional Epic, then creates a proposal card
+for operator confirmation.
 
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when

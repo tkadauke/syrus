@@ -10,6 +10,7 @@ export type SlashCommand = {
   kind: SlashCommandKind
   args: SlashCommandArg[]
   description: string
+  toPrompt?: (match: SlashCommandMatch) => string
 }
 
 export type SlashCommandMatch = {
@@ -38,7 +39,13 @@ export const slashCommands = [
   { name: "/retry", kind: "skill", args: [{ name: "target", required: false }], description: "Ask the agent to retry failed work." },
   { name: "/feedback", kind: "skill", args: [{ name: "message", required: true }], description: "Send feedback for the agent to address." },
   { name: "/clear-canvas", kind: "skill", args: [], description: "Ask the agent to clear the whiteboard." },
-  { name: "/propose", kind: "skill", args: [{ name: "request", required: true }], description: "Ask the agent to draft a proposal." }
+  {
+    name: "/propose",
+    kind: "skill",
+    args: [],
+    description: "Start a guided Job proposal wizard",
+    toPrompt: proposeWizardPrompt
+  }
 ] as const satisfies readonly SlashCommand[]
 
 export const slashCommandPattern = /^\s*(\/[a-z]+(?:-[a-z]+)*)\b/i
@@ -75,8 +82,31 @@ export function filterSlashCommands(query: string) {
     .map((item) => item.command)
 }
 
+export function slashCommandPrompt(text: string) {
+  const match = findSlashCommand(text)
+  if (!match || match.command.kind !== "skill" || !match.command.toPrompt) return text
+
+  return match.command.toPrompt(match)
+}
+
 function commandMatchRank(commandName: string, query: string) {
   if (commandName === query) return 0
   if (commandName.startsWith(query)) return 1
   return 2
+}
+
+function proposeWizardPrompt(match: SlashCommandMatch) {
+  const initialContext = match.argsText.length > 0
+    ? `\n\nThe operator included this initial context after the command:\n${match.argsText}`
+    : ""
+
+  return `Start the guided Job proposal wizard.
+
+Guide the operator through a natural back-and-forth conversation to draft one Job proposal. Ask for one missing detail at a time, in this order:
+
+1. Job title
+2. Job description
+3. Optional Epic to attach it to; make it clear they can skip this
+
+After you have enough information, call the propose_job tool to emit exactly one Job proposal card. Do not create a Job directly, and do not ask the operator to fill out a form.${initialContext}`
 }

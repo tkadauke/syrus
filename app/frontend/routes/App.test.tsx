@@ -8081,6 +8081,45 @@ describe("App", () => {
     })
   })
 
+  it("sends /propose as a guided proposal wizard prompt", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(input, { target: { value: "/propose" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/message",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("Start the guided Job proposal wizard.")
+        })
+      )
+    })
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/chats/8/message",
+      expect.objectContaining({
+        body: expect.stringContaining("call the propose_job tool")
+      })
+    )
+  })
+
   it("shows an animated chat agent activity indicator", async () => {
     vi.spyOn(Math, "random").mockReturnValue(0)
     vi.spyOn(window, "fetch").mockResolvedValue(
