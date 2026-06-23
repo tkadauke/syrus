@@ -9,57 +9,25 @@ import (
 	"testing"
 )
 
-func TestPlanFetchesAdminJobAndPrintsNewestCompletedPlan(t *testing.T) {
+func TestPlanFetchesAppJobAndPrintsPlan(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	var stdout bytes.Buffer
 	var requestedURL string
 	var requestedToken string
 	payload := `{
-		"id": 456,
-		"issue_title": "Add user avatar upload",
-		"workflows": [
-			{
-				"id": 1,
-				"state": "succeeded",
-				"finished_at": "2026-06-10T10:00:00Z",
-				"created_at": "2026-06-10T09:00:00Z",
-				"artifacts": {
-					"test_plan": {
-						"steps": ["Old step"],
-						"notes": "Old notes."
-					}
-				}
-			},
-			{
-				"id": 2,
-				"state": "running",
-				"finished_at": null,
-				"created_at": "2026-06-11T09:00:00Z",
-				"artifacts": {
-					"test_plan": {
-						"steps": ["Ignore running workflow"],
-						"notes": null
-					}
-				}
-			},
-			{
-				"id": 3,
-				"state": "succeeded",
-				"finished_at": "2026-06-11T10:00:00Z",
-				"created_at": "2026-06-11T09:00:00Z",
-				"artifacts": {
-					"test_plan": {
-						"steps": [
-							"Navigate to /settings/profile",
-							"Click \"Upload avatar\" and select a PNG under 2 MB",
-							"Verify the avatar appears in the nav bar immediately"
-						],
-						"notes": "Avatar storage uses ActiveStorage."
-					}
-				}
-			}
-		]
+		"job": {
+			"id": 456,
+			"issue_title": "Add user avatar upload"
+		},
+		"test_plan": {
+			"steps": [
+				"Navigate to /settings/profile",
+				"Click \"Upload avatar\" and select a PNG under 2 MB",
+				"Verify the avatar appears in the nav bar immediately"
+			],
+			"notes": "Avatar storage uses ActiveStorage."
+		}
 	}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -78,7 +46,7 @@ func TestPlanFetchesAdminJobAndPrintsNewestCompletedPlan(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if requestedURL != "/api/v1/admin/jobs/456" {
+	if requestedURL != "/api/v1/app/jobs/456" {
 		t.Fatalf("unexpected request URL: %s", requestedURL)
 	}
 	if requestedToken != "Bearer secret-token" {
@@ -98,17 +66,16 @@ Notes: Avatar storage uses ActiveStorage.
 	}
 }
 
-func TestPlanPrintsPendingMessageWhenNoCompletedWorkflowHasPlan(t *testing.T) {
+func TestPlanPrintsPendingMessageWhenNoTestPlanAvailable(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	var stdout bytes.Buffer
 	payload := `{
-		"id": 456,
-		"issue_title": "Add user avatar upload",
-		"workflows": [
-			{"id": 1, "state": "running", "artifacts": {"test_plan": {"steps": ["Run smoke test"]}}},
-			{"id": 2, "state": "succeeded", "artifacts": {}}
-		]
+		"job": {
+			"id": 456,
+			"issue_title": "Add user avatar upload"
+		},
+		"test_plan": null
 	}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -138,22 +105,14 @@ func TestPlanDefaultsToCurrentSyrusJobBranch(t *testing.T) {
 	var stdout bytes.Buffer
 	var requestedURL string
 	payload := `{
-		"id": 456,
-		"issue_title": "Add user avatar upload",
-		"workflows": [
-			{
-				"id": 3,
-				"state": "succeeded",
-				"finished_at": "2026-06-11T10:00:00Z",
-				"created_at": "2026-06-11T09:00:00Z",
-				"artifacts": {
-					"test_plan": {
-						"steps": ["Run the default branch smoke test"],
-						"notes": null
-					}
-				}
-			}
-		]
+		"job": {
+			"id": 456,
+			"issue_title": "Add user avatar upload"
+		},
+		"test_plan": {
+			"steps": ["Run the default branch smoke test"],
+			"notes": ""
+		}
 	}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -185,7 +144,7 @@ func TestPlanDefaultsToCurrentSyrusJobBranch(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if requestedURL != "/api/v1/admin/jobs/456" {
+	if requestedURL != "/api/v1/app/jobs/456" {
 		t.Fatalf("unexpected request URL: %s", requestedURL)
 	}
 	if !strings.Contains(stdout.String(), "Test plan for JOB-456") {
