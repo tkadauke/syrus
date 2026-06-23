@@ -355,6 +355,10 @@ export function confirmPendingAction(path: string) {
   return postJson<ChatPayload>(path)
 }
 
+export function rejectPendingAction(path: string) {
+  return postJson<ChatPayload>(path)
+}
+
 export function cancelPendingAction(path: string) {
   return deleteJson<ChatPayload>(path)
 }

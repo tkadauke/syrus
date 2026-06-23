@@ -10,7 +10,6 @@ import { NoticeToast } from "../components/NoticeToast"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   addChatAttachment,
-  cancelPendingAction,
   confirmChatProposal,
   confirmPendingAction,
   createChatBookmark,
@@ -23,6 +22,7 @@ import {
   markChatRead,
   patchChatWhiteboard,
   rejectChatProposal,
+  rejectPendingAction,
   sendChatMessage,
   stopChat,
   updateQueuedChatMessage,
@@ -32,7 +32,7 @@ import {
   type ChatMcpHealth,
   type ChatNavRecord,
   type ChatMessageItem,
-  type ChatPendingAction,
+  type ChatPendingActionInline,
   type ChatPayload,
   type ChatProposal,
   type ChatProposalChild,
@@ -130,6 +130,10 @@ function visualViewportHeight() {
 }
 
 type ChatQueryKey = readonly ["chats", string, string]
+type BookmarkTarget = {
+  messageId: number
+  requestId: number
+}
 
 export function chatQueryKey(id: string | number, search: string): ChatQueryKey {
   return ["chats", String(id), search] as const
@@ -196,7 +200,6 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
       )}
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {whiteboardFullscreen ? null : <PendingActions payload={payload} queryKey={queryKey} onNotice={setNotice} />}
 
       {!payload.chat_available ? (
         <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
@@ -217,55 +220,18 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
   )
 }
 
-function PendingActions({ payload, queryKey, onNotice }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
-  const queryClient = useQueryClient()
-  const search = queryKey[2]
-  const action = useMutation({
-    mutationFn: (input: { kind: "confirm" | "cancel"; path: string }) => {
-      const path = appendSearch(input.path, search)
-      return input.kind === "confirm" ? confirmPendingAction(path) : cancelPendingAction(path)
-    },
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || null)
-    }
-  })
-
-  if (payload.pending_actions.length === 0) return null
-
-  return (
-    <section className="space-y-3 rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/60">
-      <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Pending actions</h2>
-      {payload.pending_actions.map((pendingAction) => (
-        <PendingActionRow action={pendingAction} disabled={action.isPending} key={pendingAction.id} onCancel={() => action.mutate({ kind: "cancel", path: pendingAction.app_cancel_path })} onConfirm={() => action.mutate({ kind: "confirm", path: pendingAction.app_confirm_path })} />
-      ))}
-      {action.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div> : null}
-    </section>
-  )
-}
-
-function PendingActionRow({ action, disabled, onCancel, onConfirm }: { action: ChatPendingAction; disabled: boolean; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-800 dark:bg-gray-950">
-      <div className="font-medium text-gray-900 dark:text-gray-100">{action.label}</div>
-      <div className="flex gap-2">
-        <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">Confirm</button>
-        <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">Cancel</button>
-      </div>
-    </div>
-  )
-}
-
-function MessageStream({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const streamRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const streamChatIdRef = useRef(payload.chat.id)
   const maxPayloadMessageIdRef = useRef(maxMessageId(payload.messages))
+  const bookmarkLoadBeforeRef = useRef<number | null>(null)
   const preserveScrollAfterOlderLoadRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null)
   const [newMessageCount, setNewMessageCount] = useState(0)
   const [olderMessages, setOlderMessages] = useState<ChatMessageItem[]>([])
   const [showSystemMessages, setShowSystemMessages] = useState(false)
   const [hasMoreOlder, setHasMoreOlder] = useState(payload.has_more_older)
+  const [activeBookmarkTarget, setActiveBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const displayedMessages = mergeChatMessages(olderMessages, payload.messages)
   const displayedItems = renderChatMessages(displayedMessages)
   const hiddenSystemMessageCount = displayedItems.filter(isLowPrioritySystemMessage).length
@@ -358,6 +324,37 @@ function MessageStream({ payload, prefix, queryKey, onNotice }: { payload: ChatP
 
     requestOlderMessages({ preserveScroll: false })
   }, [requestOlderMessages, visibleItemsSignature])
+
+  useEffect(() => {
+    if (!bookmarkTarget) return
+
+    bookmarkLoadBeforeRef.current = null
+    setActiveBookmarkTarget(bookmarkTarget)
+  }, [bookmarkTarget?.messageId, bookmarkTarget?.requestId])
+
+  useEffect(() => {
+    if (!activeBookmarkTarget) return
+
+    const stream = streamRef.current
+    if (!stream) return
+
+    const target = findChatMessageAnchor(stream, activeBookmarkTarget.messageId)
+    if (target) {
+      scrollChatMessageIntoView(target)
+      setActiveBookmarkTarget(null)
+      return
+    }
+
+    if (!hasMoreOlder || oldestId == null) {
+      setActiveBookmarkTarget(null)
+      return
+    }
+
+    if (loadOlder.isPending || bookmarkLoadBeforeRef.current === oldestId) return
+
+    bookmarkLoadBeforeRef.current = oldestId
+    loadOlder.mutate(oldestId)
+  }, [activeBookmarkTarget, hasMoreOlder, loadOlder.isPending, oldestId, visibleItemsSignature])
 
   if (displayedItems.length === 0) {
     return (
@@ -472,11 +469,13 @@ function ChatMessage({ item, payload, prefix, queryKey, onNotice }: { item: Extr
       <article className="group/message relative pt-6" id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
         <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />
-        {item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : (
+        <div className="space-y-3">
           <div className="max-w-3xl rounded border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
             <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} />
           </div>
-        )}
+          {item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
+          {!item.proposal && item.pending_action ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
+        </div>
       </article>
     )
   }
@@ -511,6 +510,16 @@ function messageStreamNeedsOlderMessages(element: HTMLElement) {
 function scrollMessageStreamToBottom(element: HTMLElement | null) {
   if (!element) return
   element.scrollTop = element.scrollHeight
+}
+
+function findChatMessageAnchor(stream: HTMLElement, messageId: number) {
+  return stream.querySelector<HTMLElement>(`#message-${messageId}`)
+}
+
+function scrollChatMessageIntoView(element: HTMLElement) {
+  if (typeof element.scrollIntoView === "function") {
+    element.scrollIntoView({ block: "start", behavior: "smooth" })
+  }
 }
 
 function countIncomingVisibleMessages(messages: ChatMessageItem[], previousMaxMessageId: number, showSystemMessages: boolean) {
@@ -680,6 +689,72 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
         </div>
       ) : null}
     </article>
+  )
+}
+
+function PendingActionCard({ pendingAction, queryKey, onNotice }: { pendingAction: ChatPendingActionInline; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const search = queryKey[2]
+  const action = useMutation({
+    mutationFn: (input: { action: "confirm" | "reject"; path: string }) => {
+      const path = appendSearch(input.path, search)
+      return input.action === "confirm" ? confirmPendingAction(path) : rejectPendingAction(path)
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || null)
+    }
+  })
+  const terminalLabel = pendingAction.state === "confirmed" ? "Confirmed" : pendingAction.state === "rejected" ? "Rejected" : null
+  const rejectLabel = pendingAction.action === "schedule_recurring" ? "Cancel" : "Reject"
+
+  return (
+    <article className={`max-w-4xl rounded border bg-white px-4 py-3 dark:bg-gray-900 ${terminalLabel ? "border-gray-200 opacity-70 grayscale dark:border-gray-700" : "border-amber-200 dark:border-amber-800"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <WarningIcon />
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{pendingAction.label}</h3>
+          </div>
+          {pendingAction.resource_title && pendingAction.resource_url ? (
+            <a className="mt-2 inline-block break-words text-sm font-medium text-blue-700 hover:underline dark:text-blue-300" href={pendingAction.resource_url}>{pendingAction.resource_title}</a>
+          ) : null}
+        </div>
+      </div>
+      {terminalLabel ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+          <span className={`rounded px-2 py-0.5 font-medium ${pendingAction.state === "confirmed" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{terminalLabel}</span>
+        </div>
+      ) : (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            className={primaryButton()}
+            disabled={action.isPending}
+            onClick={() => action.mutate({ action: "confirm", path: pendingAction.app_confirm_path })}
+            type="button"
+          >
+            Confirm
+          </button>
+          <button
+            className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+            disabled={action.isPending}
+            onClick={() => action.mutate({ action: "reject", path: pendingAction.app_reject_path })}
+            type="button"
+          >
+            {rejectLabel}
+          </button>
+          {action.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div> : null}
+        </div>
+      )}
+    </article>
+  )
+}
+
+function WarningIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-amber-500 dark:text-amber-300" fill="none" viewBox="0 0 24 24">
+      <path d="M12 9v4m0 4h.01M10.3 4.3 2.8 17.1A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.9L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
   )
 }
 
@@ -1021,7 +1096,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
   )
 }
 
-type WorkspaceTab = "whiteboard" | "context"
+type WorkspaceTab = "whiteboard" | "context" | "chats"
 type MobileChatTab = "chat" | WorkspaceTab
 
 function ChatWorkspace({
@@ -1042,6 +1117,8 @@ function ChatWorkspace({
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
+  const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
+  const bookmarkRequestIdRef = useRef(0)
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const expanded = activeTab === "whiteboard" && whiteboardFullscreen
 
@@ -1086,11 +1163,18 @@ function ChatWorkspace({
     selectTab(tab)
   }
 
+  function selectBookmark(messageId: number) {
+    onWhiteboardFullscreenChange(false)
+    setActiveMobileTab("chat")
+    bookmarkRequestIdRef.current += 1
+    setBookmarkTarget({ messageId, requestId: bookmarkRequestIdRef.current })
+  }
+
   if (!isDesktop && !expanded) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
         <nav aria-label="Chat mobile tabs" className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium dark:border-gray-700">
-          {(["chat", "whiteboard", "context"] as MobileChatTab[]).map((tab) => (
+          {(["chat", "whiteboard", "context", "chats"] as MobileChatTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}
               key={tab}
@@ -1103,7 +1187,7 @@ function ChatWorkspace({
         </nav>
         <div className="flex min-h-0 w-full flex-1">
           {activeMobileTab === "chat" ? (
-            <ChatColumn payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
+            <ChatColumn bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
           ) : (
             <ChatWorkspacePanel
               activeTab={activeTab}
@@ -1115,6 +1199,7 @@ function ChatWorkspace({
               prefix={prefix}
               queryKey={queryKey}
               onNotice={onNotice}
+              onBookmarkSelect={selectBookmark}
             />
           )}
         </div>
@@ -1127,7 +1212,7 @@ function ChatWorkspace({
       className={expanded ? "flex min-h-0 flex-1 flex-col" : "flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:gap-0"}
       style={expanded ? undefined : { gridTemplateColumns: `minmax(0,1fr) 0.5rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)` }}
     >
-      {expanded ? null : <ChatColumn payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />}
+      {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />}
       {expanded ? null : (
         <button
           aria-label="Resize chat workspace"
@@ -1145,16 +1230,17 @@ function ChatWorkspace({
         prefix={prefix}
         queryKey={queryKey}
         onNotice={onNotice}
+        onBookmarkSelect={selectBookmark}
       />
     </div>
   )
 }
 
-function ChatColumn({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function ChatColumn({ bookmarkTarget, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
       <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
-        <MessageStream payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
+        <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
       <Compose payload={payload} queryKey={queryKey} onNotice={onNotice} />
@@ -1171,7 +1257,8 @@ function ChatWorkspacePanel({
   payload,
   prefix,
   queryKey,
-  onNotice
+  onNotice,
+  onBookmarkSelect
 }: {
   activeTab: WorkspaceTab
   fullscreen: boolean
@@ -1182,12 +1269,13 @@ function ChatWorkspacePanel({
   prefix: string
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
+  onBookmarkSelect: (messageId: number) => void
 }) {
   return (
     <aside aria-label="Chat workspace" className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
         <nav aria-label="Chat workspace tabs" className="flex border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
-          {(["whiteboard", "context"] as WorkspaceTab[]).map((tab) => (
+          {(["whiteboard", "context", "chats"] as WorkspaceTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeTab === tab)}
               key={tab}
@@ -1206,6 +1294,7 @@ function ChatWorkspacePanel({
           </WhiteboardBoundary>
         ) : null}
         {activeTab === "context" ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
+        {activeTab === "chats" ? <ChatNavigator payload={payload} prefix={prefix} onBookmarkSelect={onBookmarkSelect} /> : null}
       </div>
     </aside>
   )
@@ -1494,6 +1583,97 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
 
+function ChatNavigator({ payload, prefix, onBookmarkSelect }: { payload: ChatPayload; prefix: string; onBookmarkSelect: (messageId: number) => void }) {
+  const [query, setQuery] = useState("")
+  const normalizedQuery = query.trim().toLowerCase()
+  const recentChats = useMemo(() => {
+    return (payload.recent_chats || []).filter((chat) => {
+      if (!normalizedQuery) return true
+
+      return [
+        chatDisplayTitle(chat),
+        chat.repository?.slug || "",
+        String(chat.id)
+      ].some((value) => value.toLowerCase().includes(normalizedQuery))
+    })
+  }, [normalizedQuery, payload.recent_chats])
+
+  return (
+    <div className="space-y-5">
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Chats</h2>
+          <Link className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-950 dark:hover:bg-gray-200" to={withRoutePrefix(payload.paths.new_chat_path, prefix)}>New chat</Link>
+        </div>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+          Search chats
+          <input
+            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Title, repo, or id"
+            type="search"
+            value={query}
+          />
+        </label>
+        {recentChats.length > 0 ? (
+          <nav aria-label="Recent chats" className="space-y-1">
+            {recentChats.map((chat) => {
+              const unread = chat.unread && !chat.current
+              return (
+                <Link
+                  className={`block rounded border px-2 py-1.5 text-xs ${chat.current ? "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" : "border-gray-200 bg-gray-50 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"}`}
+                  key={chat.id}
+                  to={withRoutePrefix(chat.chat_path, prefix)}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
+                    <span className={`block min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"} ${chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : ""}`}>{chatDisplayTitle(chat)}</span>
+                  </span>
+                  <span className="mt-0.5 block truncate font-mono text-[0.7rem] text-gray-500 dark:text-gray-400">{chat.repository?.slug || `Chat #${chat.id}`}</span>
+                </Link>
+              )
+            })}
+          </nav>
+        ) : (
+          <div className="text-xs text-gray-400 dark:text-gray-500">No matching chats.</div>
+        )}
+      </section>
+      <ChatBookmarks payload={payload} onBookmarkSelect={onBookmarkSelect} />
+    </div>
+  )
+}
+
+function ChatBookmarks({ payload, onBookmarkSelect }: { payload: ChatPayload; onBookmarkSelect: (messageId: number) => void }) {
+  return (
+    <section>
+      <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Bookmarks in this chat</div>
+      {payload.bookmarks.length > 0 ? (
+        <nav aria-label="Chat bookmarks" className="space-y-1">
+          {payload.bookmarks.map((bookmark) => {
+            const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
+
+            return (
+              <a
+                className="block rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"
+                href={`#message-${anchorMessageId}`}
+                key={bookmark.id}
+                onClick={(event) => {
+                  if (!isPlainAnchorClick(event)) return
+
+                  event.preventDefault()
+                  onBookmarkSelect(anchorMessageId)
+                }}
+              >
+                <span className="block truncate">{bookmark.label}</span>
+              </a>
+            )
+          })}
+        </nav>
+      ) : <div className="text-xs text-gray-400 dark:text-gray-500">No bookmarks yet.</div>}
+    </section>
+  )
+}
+
 function Attachments({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   return (
     <>
@@ -1661,7 +1841,9 @@ function workspaceTabClass(active: boolean) {
 
 function workspaceTabLabel(tab: WorkspaceTab) {
   if (tab === "whiteboard") return "Whiteboard"
-  return "Context"
+  if (tab === "context") return "Context"
+
+  return "Chats"
 }
 
 function mobileChatTabLabel(tab: MobileChatTab) {
@@ -1675,7 +1857,7 @@ function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab {
 function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    return value === "whiteboard" || value === "context" ? value : null
+    return value === "whiteboard" || value === "context" || value === "chats" ? value : null
   } catch (_error) {
     return null
   }
@@ -2218,6 +2400,10 @@ function withRoutePrefix(path: string, prefix: string) {
   if (!path.startsWith("/")) return path
 
   return `${prefix}${path}`
+}
+
+function isPlainAnchorClick(event: ReactMouseEvent<HTMLAnchorElement>) {
+  return event.button === 0 && !event.defaultPrevented && !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
 }
 
 function mergeChatMessages(...groups: ChatMessageItem[][]) {

@@ -8764,19 +8764,23 @@ describe("App", () => {
         materialized_path: null
       }
     }
+    const pendingActionMessage = {
+      ...chatPayload().messages[0],
+      pending_action: {
+        id: 7,
+        label: "Cancel JOB-44",
+        action: "cancel_job",
+        state: "pending",
+        resource_title: "Stop the aqueduct dig",
+        resource_url: "/jobs/44",
+        app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
+        app_reject_path: "/api/v1/app/chats/8/pending_actions/7/reject"
+      }
+    }
     const initialPayload = {
-      ...chatPayload({ messages: [...chatPayload().messages, proposalMessage] }),
+      ...chatPayload({ messages: [pendingActionMessage, proposalMessage] }),
       attachment_results: [{ type: "Repository", id: 4, label: "acme/tools" }],
-      pending_actions: [
-        {
-          id: 7,
-          label: "Cancel JOB-44",
-          action: "cancel_job",
-          action_type: null,
-          app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
-          app_cancel_path: "/api/v1/app/chats/8/pending_actions/7"
-        }
-      ]
+      pending_actions: []
     }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -8835,6 +8839,13 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({
           ...initialPayload,
           message: "Pending action confirmed.",
+          messages: [{
+            ...pendingActionMessage,
+            pending_action: {
+              ...pendingActionMessage.pending_action,
+              state: "confirmed"
+            }
+          }, proposalMessage],
           pending_actions: []
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -8917,6 +8928,110 @@ describe("App", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         `/api/v1/app/chats/8/pending_actions/7/confirm${search}`,
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    expect(await screen.findByText("Pending action confirmed.")).toBeInTheDocument()
+  })
+
+  it("renders pending action cards inline in chat messages", async () => {
+    const pendingMessage = {
+      type: "message",
+      id: 12,
+      role: "assistant",
+      tool_name: null,
+      content: { text: "This needs confirmation." },
+      text: "This needs confirmation.",
+      bookmarkable: true,
+      pending_action: {
+        id: 7,
+        label: "Cancel job",
+        action: "cancel_job",
+        state: "pending",
+        resource_title: "Refactor checkout flow",
+        resource_url: "/jobs/44",
+        app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
+        app_reject_path: "/api/v1/app/chats/8/pending_actions/7/reject"
+      }
+    }
+    const confirmedMessage = {
+      type: "message",
+      id: 13,
+      role: "assistant",
+      tool_name: null,
+      content: { text: "Already handled." },
+      text: "Already handled.",
+      bookmarkable: true,
+      pending_action: {
+        id: 8,
+        label: "Retry job",
+        action: "retry_job",
+        state: "confirmed",
+        resource_title: "Retry flaky build",
+        resource_url: "/jobs/45",
+        app_confirm_path: "/api/v1/app/chats/8/pending_actions/8/confirm",
+        app_reject_path: "/api/v1/app/chats/8/pending_actions/8/reject"
+      }
+    }
+    const rejectedMessage = {
+      type: "message",
+      id: 14,
+      role: "assistant",
+      tool_name: null,
+      content: { text: "No link action." },
+      text: "No link action.",
+      bookmarkable: true,
+      pending_action: {
+        id: 9,
+        label: "Submit feedback",
+        action: "submit_chat_feedback",
+        state: "rejected",
+        app_confirm_path: "/api/v1/app/chats/8/pending_actions/9/confirm",
+        app_reject_path: "/api/v1/app/chats/8/pending_actions/9/reject"
+      }
+    }
+    const payload = chatPayload({
+      messages: [pendingMessage, confirmedMessage, rejectedMessage]
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/pending_actions/7/reject" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ...payload,
+          messages: [{
+            ...pendingMessage,
+            pending_action: { ...pendingMessage.pending_action, state: "rejected" }
+          }, confirmedMessage, rejectedMessage]
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("This needs confirmation.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Cancel job" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Refactor checkout flow" })).toHaveAttribute("href", "/jobs/44")
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Retry job" })).toBeInTheDocument()
+    expect(screen.getAllByText("Confirmed").length).toBeGreaterThan(0)
+    expect(screen.getByRole("heading", { name: "Submit feedback" })).toBeInTheDocument()
+    expect(screen.getAllByText("Rejected").length).toBeGreaterThan(0)
+    expect(screen.queryByRole("link", { name: "Submit feedback" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/pending_actions/7/reject",
         expect.objectContaining({ method: "POST" })
       )
     })

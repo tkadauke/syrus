@@ -78,7 +78,10 @@ it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
 Proposal cards can also declare dependency edges up front, including Jobs
 blocked on existing Epics and Epics blocked on existing Jobs.
-Confirmed and discarded proposal cards are also written back into the chat
+Actions that need explicit approval, such as
+canceling or retrying work, also render as inline confirmation cards in the
+message stream so operators can review the target before confirming or
+rejecting them. Confirmed and discarded cards are written back into the chat
 transcript so the next assistant turn can see the created Job, Epic, or
 GitHub issue identifiers without asking the operator to repeat them.
 

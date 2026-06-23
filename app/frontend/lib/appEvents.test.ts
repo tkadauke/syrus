@@ -229,6 +229,39 @@ describe("applyAppEvent", () => {
       { id: 4, label: "Opening revised", chat_message_id: 1, anchor_message_id: 1 }
     ])
   })
+
+  it("invalidates cached chat data for pending action updates", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "assistant", "Confirm?")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "pending_action_updated",
+        pending_action_id: 7,
+        chat_message_id: 1
+      }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+  })
+
+  it("invalidates cached chat data for orphaned pending action updates", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "pending_action_updated",
+        pending_action_id: 7,
+        chat_message_id: null
+      }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+  })
 })
 
 function event(resource: string, id: number | null) {
