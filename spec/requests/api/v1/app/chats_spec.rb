@@ -672,26 +672,31 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect {
       post "/api/v1/app/chats/#{chat.id}/proposals/#{confirmed.id}/confirm"
     }.to change(Job, :count).by(1)
+      .and change { chat.messages.reload.where(role: "system").count }.by(1)
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to match(/\AProposal confirmed and filed as JOB-\d+\.\z/)
     expect(confirmed.reload).to be_confirmed
     expect(parse_body["messages"].first.dig("proposal", "materialized_label")).to eq("JOB-#{confirmed.job.id}")
-    confirmation_message = chat.messages.order(:created_at, :id).last
+    confirmation_message = chat.messages.where(role: "system").order(:created_at, :id).last
     expect(confirmation_message).to have_attributes(role: "system", proposal_id: nil)
+    expect(confirmation_message.proposal_id).to be_nil
     expect(confirmation_message.content).to eq(
-      "text" => "Proposal confirmed. Job ##{confirmed.job.id} \"Map auth\" was created."
+      "text" => %(Proposal confirmed. Job ##{confirmed.job.id} "Map auth" was created.)
     )
 
-    post "/api/v1/app/chats/#{chat.id}/proposals/#{rejected.id}/reject"
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{rejected.id}/reject"
+    }.to change { chat.messages.reload.where(role: "system").count }.by(1)
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Proposal rejected.")
     expect(rejected.reload).to be_rejected
-    rejection_message = chat.messages.order(:created_at, :id).last
+    rejection_message = chat.messages.where(role: "system").order(:created_at, :id).last
     expect(rejection_message).to have_attributes(role: "system", proposal_id: nil)
+    expect(rejection_message.proposal_id).to be_nil
     expect(rejection_message.content).to eq(
-      "text" => "Proposal rejected. \"Clean up\" was discarded."
+      "text" => %(Proposal rejected. "Clean up" was discarded.)
     )
   end
 
@@ -726,11 +731,11 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(proposal.reload).to be_confirmed
     expect(schema.reload.job).to be_present
     expect(ui.reload.job).to be_present
-    confirmation_message = chat.messages.order(:created_at, :id).last
+    confirmation_message = chat.messages.where(role: "system").order(:created_at, :id).last
     expect(confirmation_message).to have_attributes(role: "system", proposal_id: nil)
     expect(confirmation_message.content.fetch("text")).to eq(
       "Proposal confirmed. Epic ##{proposal.epic.id} \"Ship auth\" was created. " \
-      "Child jobs: ##{schema.job.id} \"Auth schema\", ##{ui.job.id} \"Auth UI\"."
+      "Child jobs: Job ##{schema.job.id} \"Auth schema\", Job ##{ui.job.id} \"Auth UI\"."
     )
   end
 

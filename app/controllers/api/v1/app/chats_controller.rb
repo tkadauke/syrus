@@ -822,28 +822,29 @@ module Api
 
         def proposal_confirmation_text(proposal, result)
           if result.respond_to?(:epic) && result.epic
-            child_jobs = result.jobs.map { |job| proposal_job_label(job) }.join(", ")
-            return "Proposal confirmed. Epic ##{result.epic.id} \"#{result.epic.title}\" was created. Child jobs: #{child_jobs}."
+            child_jobs = Array(result.jobs).map { |job| proposal_job_label(job) }.join(", ")
+            text = %(Proposal confirmed. Epic ##{result.epic.id} "#{result.epic.title}" was created.)
+            return child_jobs.present? ? "#{text} Child jobs: #{child_jobs}." : text
           end
 
-          job = result.jobs.first || proposal.job
-          return "Proposal confirmed. Job ##{job.id} \"#{job.issue_title}\" was created." if job
+          job = Array(result.respond_to?(:jobs) ? result.jobs : []).first || proposal.job
+          return "Proposal confirmed. #{proposal_job_label(job)} was created." if job
 
           issue_number = result.github_issue_numbers[proposal.id] if result.respond_to?(:github_issue_numbers)
           issue_number ||= proposal.github_issue_number
           if issue_number
-            return "Proposal confirmed. GitHub issue ##{issue_number} \"#{proposal.title}\" was filed."
+            return %(Proposal confirmed. GitHub issue ##{issue_number} "#{proposal.title}" was filed.)
           end
 
-          "Proposal confirmed."
+          %(Proposal confirmed. "#{proposal.title}" was filed.)
         end
 
         def proposal_rejection_text(proposal)
-          "Proposal rejected. \"#{proposal.title}\" was discarded."
+          %(Proposal rejected. "#{proposal.title}" was discarded.)
         end
 
         def proposal_job_label(job)
-          "##{job.id} \"#{job.issue_title}\""
+          %(Job ##{job.id} "#{job.issue_title}")
         end
       end
     end
