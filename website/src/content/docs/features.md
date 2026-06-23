@@ -111,6 +111,11 @@ available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
 retry the turn or inspect worker logs instead of chasing blind retries.
 
+Admin users also get read-only chat tools for operational diagnostics:
+overview, stuck Jobs, queue tabs, spawned processes, Runs, users, and
+running instance versions. Non-admin chats do not advertise those tools,
+and each admin tool repeats the admin check when it runs.
+
 ## Direct Jobs
 
 Direct Jobs are for work that should start from an operator prompt instead
