@@ -4,7 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createChat, fetchChats, type ChatNavRecord, type ChatPayload } from "../api/chats"
 import { patchJson } from "../api/client"
-import { dashboardApiSearch, fetchDashboard } from "../api/dashboard"
+import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { BugReportButton } from "../components/BugReportButton"
 import { CloseIcon } from "../components/CloseIcon"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -295,7 +295,7 @@ function SidebarContent({
             return (
               <div className="space-y-1" key={item.label}>
                 {link}
-                <SidebarDashboardFolders prefix={prefix} />
+                <SidebarDashboardNav onCloseDrawer={onCloseDrawer} prefix={prefix} />
               </div>
             )
           })}
@@ -318,7 +318,7 @@ function SidebarContent({
   )
 }
 
-function SidebarDashboardFolders({ prefix }: { prefix: string }) {
+function SidebarDashboardNav({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
   const location = useLocation()
   const isDashboard = location.pathname.includes("/dashboard")
   const search = dashboardApiSearch(location.pathname, location.search)
@@ -332,9 +332,33 @@ function SidebarDashboardFolders({ prefix }: { prefix: string }) {
   if (!isDashboard || !dashboard.data) return null
 
   return (
-    <div className="pl-7">
+    <div className="space-y-3 pl-7">
+      <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={dashboard.data} prefix={prefix} />
       <DashboardSmartFolderNav payload={dashboard.data} prefix={prefix} search={location.search} />
     </div>
+  )
+}
+
+function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseDrawer: () => void; payload: DashboardPayload; prefix: string }) {
+  const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
+    { key: "epic", label: "Epics", path: "/dashboard/epics" },
+    { key: "job", label: "Jobs", path: "/dashboard/jobs" },
+    { key: "workflow", label: "Workflows", path: "/dashboard/workflows" }
+  ]
+
+  return (
+    <nav aria-label="Dashboard sections" className="space-y-0.5">
+      {subjects.map((subject) => (
+        <Link
+          className={`block rounded px-2 py-1.5 text-xs font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-600 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`}
+          key={subject.key}
+          onClick={onCloseDrawer}
+          to={dashboardLink(`${prefix}${subject.path}`, { view: payload.view })}
+        >
+          {subject.label}
+        </Link>
+      ))}
+    </nav>
   )
 }
 
@@ -616,6 +640,16 @@ function withRoutePrefix(path: string, prefix: string) {
   if (!path.startsWith("/")) return path
 
   return `${prefix}${path}`
+}
+
+function dashboardLink(path: string, params: Record<string, string | number | null | undefined>) {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && String(value).length > 0) search.set(key, String(value))
+  }
+
+  const query = search.toString()
+  return query ? `${path}?${query}` : path
 }
 
 function activeChatIdFromPath(pathname: string) {
