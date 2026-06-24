@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent, KeyboardEvent } from "react"
-import { useEffect, useMemo, useState } from "react"
+import type { FormEvent } from "react"
+import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import {
@@ -15,6 +15,8 @@ import {
   type MemoryRow,
   type MemoryScope
 } from "../api/memories"
+import { CloseIcon } from "../components/CloseIcon"
+import { FilterBar } from "../components/FilterBar"
 import { NoticeToast } from "../components/NoticeToast"
 
 const kindLabels: Record<string, string> = {
@@ -58,145 +60,29 @@ export function MemoriesRoute() {
 }
 
 function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotice: (message: string | null) => void }) {
+  const location = useLocation()
+  const [creating, setCreating] = useState(false)
+
   return (
     <>
-      <CreateMemoryForm onNotice={onNotice} payload={payload} />
-      <MemoryFilters kinds={payload.kinds} scopes={payload.scopes} />
+      <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <FilterBar
+            filter={payload.filter}
+            filterSchema={payload.controls.filter_schema}
+            legacyFilterKeys={["scope", "kind", "published", "search", "repository_id"]}
+            pathname={location.pathname}
+            search={location.search}
+          />
+          <button className="shrink-0 rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500" onClick={() => setCreating(true)} type="button">
+            Create memory
+          </button>
+        </div>
+      </section>
       <MemoriesTable onNotice={onNotice} payload={payload} />
       <MemoryPagination pagination={payload.pagination} />
+      {creating ? <MemoryModal mode="create" onClose={() => setCreating(false)} onNotice={onNotice} payload={payload} /> : null}
     </>
-  )
-}
-
-function CreateMemoryForm({ payload, onNotice }: { payload: MemoriesPayload; onNotice: (message: string | null) => void }) {
-  const queryClient = useQueryClient()
-  const [kind, setKind] = useState<MemoryKind>(payload.kinds[0] || "user_pref")
-  const [scope, setScope] = useState<MemoryScope>("global")
-  const [scopeId, setScopeId] = useState("")
-  const [content, setContent] = useState("")
-  const create = useMutation({
-    mutationFn: () => createMemory({
-      kind,
-      scope,
-      scope_id: scope === "repository" ? Number(scopeId) : null,
-      content
-    }),
-    onSuccess: (nextPayload) => {
-      queryClient.invalidateQueries({ queryKey: ["memories"] })
-      setContent("")
-      onNotice(nextPayload.message || "Memory created.")
-    }
-  })
-
-  useEffect(() => {
-    if (scope === "repository" && !scopeId && payload.repositories.length > 0) {
-      setScopeId(String(payload.repositories[0].id))
-    }
-  }, [payload.repositories, scope, scopeId])
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    onNotice(null)
-    create.mutate()
-  }
-
-  return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Create memory</h2>
-      <form className="mt-3 grid gap-3 lg:grid-cols-[9rem_11rem_minmax(12rem,16rem)_minmax(0,1fr)_auto] lg:items-end" onSubmit={submit}>
-        <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="memory-kind">
-          Kind
-          <select id="memory-kind" className={fieldClass()} onChange={(event) => setKind(event.target.value as MemoryKind)} value={kind}>
-            {payload.kinds.map((option) => <option key={option} value={option}>{kindLabel(option)}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="memory-scope">
-          Scope
-          <select id="memory-scope" className={fieldClass()} onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
-            {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? "Global" : "Repository"}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="memory-repository">
-          Repository
-          <select
-            disabled={scope !== "repository" || payload.repositories.length === 0}
-            id="memory-repository"
-            className={fieldClass()}
-            onChange={(event) => setScopeId(event.target.value)}
-            required={scope === "repository"}
-            value={scopeId}
-          >
-            {payload.repositories.length === 0 ? <option value="">No repositories</option> : null}
-            {payload.repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.name}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="memory-content">
-          Content
-          <textarea
-            id="memory-content"
-            className={`${fieldClass()} min-h-10`}
-            maxLength={2000}
-            onChange={(event) => setContent(event.target.value)}
-            required
-            value={content}
-          />
-        </label>
-        <button className="rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" disabled={create.isPending} type="submit">
-          {create.isPending ? "Creating..." : "Create"}
-        </button>
-      </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, "Unable to create memory.")}</p> : null}
-    </section>
-  )
-}
-
-function MemoryFilters({ kinds, scopes }: { kinds: MemoryKind[]; scopes: MemoryScope[] }) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const params = useMemo(() => new URLSearchParams(location.search), [location.search])
-  const [q, setQ] = useState(params.get("q") || "")
-
-  useEffect(() => {
-    setQ(params.get("q") || "")
-  }, [params])
-
-  function setFilter(key: string, value: string) {
-    const next = new URLSearchParams(location.search)
-    if (value) next.set(key, value)
-    else next.delete(key)
-    next.delete("page")
-    navigate({ pathname: location.pathname, search: next.toString() ? `?${next.toString()}` : "" })
-  }
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setFilter("q", q.trim())
-  }
-
-  return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <form className="flex flex-wrap items-end gap-3" onSubmit={submit}>
-        <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="filter-scope">
-          Scope
-          <select id="filter-scope" className={fieldClass()} onChange={(event) => setFilter("scope", event.target.value)} value={params.get("scope") || ""}>
-            <option value="">All scopes</option>
-            {scopes.map((scope) => <option key={scope} value={scope}>{scope === "global" ? "Global" : "Repository"}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="filter-kind">
-          Kind
-          <select id="filter-kind" className={fieldClass()} onChange={(event) => setFilter("kind", event.target.value)} value={params.get("kind") || ""}>
-            <option value="">All kinds</option>
-            {kinds.map((kind) => <option key={kind} value={kind}>{kindLabel(kind)}</option>)}
-          </select>
-        </label>
-        <label className="block min-w-64 text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="filter-q">
-          Search
-          <input id="filter-q" className={fieldClass()} onChange={(event) => setQ(event.target.value)} type="search" value={q} />
-        </label>
-        <button className="rounded border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" type="submit">Search</button>
-      </form>
-    </section>
   )
 }
 
@@ -221,7 +107,7 @@ function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNoti
           {payload.memories.length === 0 ? (
             <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={showOwner ? 7 : 6}>No memories match these filters.</td></tr>
           ) : payload.memories.map((memory) => (
-            <MemoryRowView key={memory.id} memory={memory} onNotice={onNotice} showOwner={showOwner} />
+            <MemoryRowView key={memory.id} memory={memory} onNotice={onNotice} payload={payload} showOwner={showOwner} />
           ))}
         </tbody>
       </table>
@@ -229,20 +115,10 @@ function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNoti
   )
 }
 
-function MemoryRowView({ memory, showOwner, onNotice }: { memory: MemoryRow; showOwner: boolean; onNotice: (message: string | null) => void }) {
+function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: MemoryRow; payload: MemoriesPayload; showOwner: boolean; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
-  const [editing, setEditing] = useState(false)
-  const [content, setContent] = useState(memory.content)
-  const [kind, setKind] = useState<MemoryKind>(memory.kind)
   const [expanded, setExpanded] = useState(false)
-  const update = useMutation({
-    mutationFn: () => updateMemory(memory.paths.app_memory_path, { content, kind }),
-    onSuccess: (payload) => {
-      queryClient.invalidateQueries({ queryKey: ["memories"] })
-      onNotice(payload.message || "Memory updated.")
-      setEditing(false)
-    }
-  })
+  const [editing, setEditing] = useState(false)
   const publish = useMutation({
     mutationFn: () => memory.published ? unpublishMemory(memory.paths.app_publish_path) : publishMemory(memory.paths.app_publish_path),
     onSuccess: (payload) => {
@@ -258,72 +134,30 @@ function MemoryRowView({ memory, showOwner, onNotice }: { memory: MemoryRow; sho
     }
   })
 
-  function save() {
-    if (!memory.permissions.can_manage) return
-    if (update.isPending) return
-    const trimmed = content.trim()
-    if (trimmed && (trimmed !== memory.content || kind !== memory.kind)) update.mutate()
-    else setEditing(false)
-  }
-
-  function keyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault()
-      save()
-    } else if (event.key === "Escape") {
-      setContent(memory.content)
-      setKind(memory.kind)
-      setEditing(false)
-    }
-  }
-
   return (
     <tr className="align-top">
-      <td className="px-4 py-3">
-        {editing ? (
-          <select className={fieldClass()} onChange={(event) => setKind(event.target.value as MemoryKind)} value={kind}>
-            {Object.keys(kindLabels).map((option) => <option key={option} value={option}>{kindLabel(option)}</option>)}
-          </select>
-        ) : <KindBadge kind={memory.kind} />}
-      </td>
+      <td className="px-4 py-3"><KindBadge kind={memory.kind} /></td>
       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.scope === "global" ? "Global" : memory.repository_name || `Repository #${memory.scope_id}`}</td>
       {showOwner ? <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.owner.name}</td> : null}
-      <td className="max-w-2xl px-4 py-3">
-        {editing ? (
-          <>
-            <textarea
-              aria-label={`Content for memory ${memory.id}`}
-              className={`${fieldClass()} min-h-24`}
-              maxLength={2000}
-              onBlur={save}
-              onChange={(event) => setContent(event.target.value)}
-              onKeyDown={keyDown}
-              value={content}
-            />
-            {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, "Unable to update memory.")}</p> : null}
-          </>
-        ) : (
-          <button
-            className="block max-w-full text-left text-gray-800 hover:text-blue-700 disabled:hover:text-gray-800 dark:text-gray-200 dark:hover:text-blue-300"
-            disabled={!memory.permissions.can_manage}
-            onClick={() => memory.permissions.can_manage && setEditing(true)}
-            type="button"
-          >
-            <span className={expanded ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>{memory.content}</span>
-          </button>
-        )}
-        {!editing && memory.content.length > 160 ? (
-          <button className="mt-1 text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setExpanded(!expanded)} type="button">
+      <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
+        <span className={expanded ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>{memory.content}</span>
+        {memory.content.length > 160 ? (
+          <button className="mt-1 block text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setExpanded(!expanded)} type="button">
             {expanded ? "Collapse" : "Expand"}
           </button>
         ) : null}
       </td>
       <td className="px-4 py-3">
-        <span className={memory.published ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}>{memory.published ? "Published" : "Private"}</span>
+        <span className={memory.published ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}>{memory.published ? "Published" : "Unpublished"}</span>
       </td>
       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatDate(memory.created_at)}</td>
       <td className="px-4 py-3">
         <div className="flex justify-end gap-2">
+          {memory.permissions.can_manage ? (
+            <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={() => setEditing(true)} type="button">
+              Edit
+            </button>
+          ) : null}
           {memory.permissions.can_publish ? (
             <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" disabled={publish.isPending} onClick={() => publish.mutate()} type="button">
               {memory.published ? "Unpublish" : "Publish"}
@@ -347,8 +181,145 @@ function MemoryRowView({ memory, showOwner, onNotice }: { memory: MemoryRow; sho
         </div>
         {publish.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(publish.error, "Unable to change publish state.")}</p> : null}
         {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete memory.")}</p> : null}
+        {editing ? <MemoryModal memory={memory} mode="edit" onClose={() => setEditing(false)} onNotice={onNotice} payload={payload} /> : null}
       </td>
     </tr>
+  )
+}
+
+function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: MemoryRow; mode: "create" | "edit"; payload: MemoriesPayload; onClose: () => void; onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const [kind, setKind] = useState<MemoryKind>(memory?.kind || payload.kinds[0] || "user_pref")
+  const [scope, setScope] = useState<MemoryScope>(memory?.scope || "global")
+  const [scopeId, setScopeId] = useState(memory?.scope_id ? String(memory.scope_id) : "")
+  const [content, setContent] = useState(memory?.content || "")
+  const title = mode === "create" ? "Create memory" : "Edit memory"
+  const create = useMutation({
+    mutationFn: () => createMemory({
+      kind,
+      scope,
+      scope_id: scope === "repository" ? Number(scopeId) : null,
+      content
+    }),
+    onSuccess: (nextPayload) => {
+      queryClient.invalidateQueries({ queryKey: ["memories"] })
+      onNotice(nextPayload.message || "Memory created.")
+      onClose()
+    }
+  })
+  const update = useMutation({
+    mutationFn: () => updateMemory(memory?.paths.app_memory_path || "", { content, kind }),
+    onSuccess: (nextPayload) => {
+      queryClient.invalidateQueries({ queryKey: ["memories"] })
+      onNotice(nextPayload.message || "Memory updated.")
+      onClose()
+    }
+  })
+  const pending = create.isPending || update.isPending
+  const error = create.error || update.error
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
+    if (scope === "repository" && !scopeId && payload.repositories.length > 0) {
+      setScopeId(String(payload.repositories[0].id))
+    }
+  }, [payload.repositories, scope, scopeId])
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    onNotice(null)
+    if (mode === "create") create.mutate()
+    else update.mutate()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <section
+        aria-labelledby="memory-modal-title"
+        aria-modal="true"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-gray-900"
+        role="dialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <form className="space-y-5 p-5 sm:p-6" onSubmit={submit}>
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="memory-modal-title">{title}</h2>
+            <button
+              aria-label="Close"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              onClick={onClose}
+              type="button"
+            >
+              <CloseIcon className="h-7 w-7" />
+            </button>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className={labelClass()} htmlFor="memory-kind">
+              Kind
+              <select id="memory-kind" className={fieldClass()} onChange={(event) => setKind(event.target.value as MemoryKind)} value={kind}>
+                {payload.kinds.map((option) => <option key={option} value={option}>{kindLabel(option)}</option>)}
+              </select>
+            </label>
+            {mode === "create" ? (
+              <label className={labelClass()} htmlFor="memory-scope">
+                Scope
+                <select id="memory-scope" className={fieldClass()} onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
+                  {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? "Global" : "Repository"}</option>)}
+                </select>
+              </label>
+            ) : null}
+          </div>
+
+          {mode === "create" && scope === "repository" ? (
+            <label className={labelClass()} htmlFor="memory-repository">
+              Repository
+              <select
+                disabled={payload.repositories.length === 0}
+                id="memory-repository"
+                className={fieldClass()}
+                onChange={(event) => setScopeId(event.target.value)}
+                required
+                value={scopeId}
+              >
+                {payload.repositories.length === 0 ? <option value="">No repositories</option> : null}
+                {payload.repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.name}</option>)}
+              </select>
+            </label>
+          ) : null}
+
+          <label className={labelClass()} htmlFor="memory-content">
+            Content
+            <textarea
+              id="memory-content"
+              className={`${fieldClass()} min-h-40`}
+              maxLength={2000}
+              onChange={(event) => setContent(event.target.value)}
+              required
+              value={content}
+            />
+          </label>
+
+          {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, mode === "create" ? "Unable to create memory." : "Unable to update memory.")}</p> : null}
+
+          <div className="flex justify-end gap-2">
+            <button className="rounded border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={onClose} type="button">
+              Cancel
+            </button>
+            <button className="rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" disabled={pending} type="submit">
+              {pending ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   )
 }
 
@@ -391,6 +362,10 @@ function kindLabel(kind: string) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
+}
+
+function labelClass() {
+  return "block text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
 }
 
 function fieldClass() {

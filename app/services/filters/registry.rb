@@ -214,6 +214,19 @@ module Filters
         "stale"       => "Filters::Chips::SpawnedProcesses::Stale",
         "started_at"  => "Filters::Chips::SpawnedProcesses::StartedAt"
       }
+    ),
+    memory: Subject.new(
+      name: :memory,
+      model: ChatMemory,
+      chips: {
+        "content"       => "Filters::Chips::Memories::Content",
+        "scope"         => "Filters::Chips::Memories::Scope",
+        "kind"          => "Filters::Chips::Memories::Kind",
+        "repository_id" => "Filters::Chips::Memories::RepositoryId",
+        "published"     => "Filters::Chips::Memories::Published",
+        "created_at"    => "Filters::Chips::CreatedAt",
+        "updated_at"    => "Filters::Chips::UpdatedAt"
+      }
     )
   }.freeze
 

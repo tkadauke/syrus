@@ -81,6 +81,10 @@ module Api
             kinds: ChatMemory::KIND,
             scopes: ChatMemory::SCOPE,
             repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
+            filter: memory_filter.to_h,
+            controls: {
+              filter_schema: ::Filters::Schema.for(subject: :memory, user: Current.user)
+            },
             current_user: {
               id: Current.user.id,
               admin: Current.user.admin?
@@ -95,20 +99,11 @@ module Api
         end
 
         def filtered_memories
-          relation = visible_memories
-          relation = relation.where(scope: params[:scope]) if params[:scope].to_s.in?(ChatMemory::SCOPE)
-          relation = relation.where(kind: params[:kind]) if params[:kind].to_s.in?(ChatMemory::KIND)
+          memory_filter.apply(visible_memories)
+        end
 
-          query = params[:q].to_s.strip
-          if query.present?
-            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query.downcase)}%"
-            relation = relation.left_outer_joins(:repository).where(
-              "LOWER(chat_memories.content) LIKE :pattern OR LOWER(repositories.owner) LIKE :pattern OR LOWER(repositories.name) LIKE :pattern",
-              pattern: pattern
-            )
-          end
-
-          relation
+        def memory_filter
+          @memory_filter ||= ::Memories::Filter.from_params(params, user: Current.user)
         end
 
         def visible_memories

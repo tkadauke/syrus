@@ -1,4 +1,5 @@
 import { deleteJson, getJson, patchJson, postJson } from "./client"
+import type { FilterSchemaField } from "../components/FilterBar"
 
 export type MemoryKind = "user_pref" | "project_fact" | "feedback" | "reference" | "decision"
 export type MemoryScope = "global" | "repository"
@@ -37,6 +38,10 @@ export type MemoriesPayload = {
   kinds: MemoryKind[]
   scopes: MemoryScope[]
   repositories: MemoryRepository[]
+  filter: Record<string, unknown>
+  controls: {
+    filter_schema: FilterSchemaField[]
+  }
   current_user: {
     id: number
     admin: boolean

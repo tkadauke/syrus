@@ -9,6 +9,10 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
 
   def parse_body = JSON.parse(response.body)
 
+  def encoded_filter(tree)
+    Base64.urlsafe_encode64(JSON.generate(tree), padding: false)
+  end
+
   def memory_for(owner, **attrs)
     ChatMemory.create!({
       user: owner,
@@ -40,10 +44,12 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     ids = parse_body["memories"].map { |row| row["id"] }
     expect(ids).to contain_exactly(own_global.id, own_repo.id, published.id)
     expect(parse_body["repositories"]).to include("id" => repository.id, "name" => "acme/widgets")
+    expect(parse_body["filter"]).to eq("and" => [])
+    expect(parse_body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("content", "scope", "kind", "repository_id", "published")
     expect(parse_body["current_user"]).to include("id" => user.id, "admin" => false)
   end
 
-  it "filters by scope, kind, and search query" do
+  it "filters by legacy scope, kind, and search query params" do
     sign_in_as(user)
     matching = memory_for(user, kind: "reference", content: "Payments runbook lives in Drive.")
     memory_for(user, kind: "decision", content: "Use Redis later.")
@@ -53,6 +59,26 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["memories"].map { |row| row["id"] }).to eq([ matching.id ])
+  end
+
+  it "filters with the shared filter query parameter" do
+    sign_in_as(user)
+    published = memory_for(user, published: true, content: "Shared runbook.")
+    memory_for(user, published: false, content: "Private runbook.")
+
+    get "/api/v1/app/memories", params: {
+      q: encoded_filter({ and: [
+        { field: "published", op: "is_true" },
+        { field: "content", op: "contains", value: "runbook" }
+      ] })
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["memories"].map { |row| row["id"] }).to eq([ published.id ])
+    expect(parse_body["filter"]).to eq("and" => [
+      { "field" => "published", "op" => "is_true" },
+      { "field" => "content", "op" => "contains", "value" => "runbook" }
+    ])
   end
 
   it "paginates memories" do
