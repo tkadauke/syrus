@@ -7,6 +7,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   addChatAttachment,
@@ -35,7 +36,6 @@ import {
   type ChatAttachmentRow,
   type ChatAgentQuestion,
   type ChatCreatedPayload,
-  type ChatsIndexPayload,
   type ChatMcpHealth,
   type ChatNavRecord,
   type ChatMessageItem,
@@ -98,8 +98,7 @@ export function ChatRoute() {
     if (!id) return
 
     void markChatRead(id).then(() => {
-      markChatReadInCache(queryClient, id)
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      refreshRecentChats(queryClient)
     }).catch(() => undefined)
   }, [id, queryClient])
 
@@ -166,30 +165,6 @@ type ChatSystemAction =
   | { kind: "clear" }
   | { kind: "new" }
   | { kind: "attach"; slug: string }
-
-function markChatReadInCache(queryClient: ReturnType<typeof useQueryClient>, chatId: string | number) {
-  const id = Number(chatId)
-  if (!Number.isFinite(id)) return
-
-  queryClient.setQueriesData<ChatPayload>(
-    { queryKey: ["chats", String(chatId)] },
-    (current) => current ? {
-      ...current,
-      recent_chats: markChatNavRecordRead(current.recent_chats, id)
-    } : current
-  )
-  queryClient.setQueryData<ChatsIndexPayload>(
-    ["chats", "recent"],
-    (current) => current ? {
-      ...current,
-      chats: markChatNavRecordRead(current.chats, id)
-    } : current
-  )
-}
-
-function markChatNavRecordRead<T extends ChatNavRecord>(chats: T[], chatId: number) {
-  return chats.map((chat) => chat.id === chatId ? { ...chat, unread: false } : chat)
-}
 
 function appendSearch(path: string, search: string) {
   return search ? `${path}${search}` : path
@@ -913,11 +888,17 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
     },
     onSuccess: (updated, action) => {
       if (action.kind === "new") {
-        navigate(withRoutePrefix((updated as ChatCreatedPayload).redirect_to, prefix))
+        const created = updated as ChatCreatedPayload
+        updateRecentChatCache(queryClient, created.chat, { prepend: true })
+        refreshRecentChats(queryClient)
+        navigate(withRoutePrefix(created.redirect_to, prefix))
         return
       }
 
-      queryClient.setQueryData(queryKey, updated as ChatPayload)
+      const chatPayload = updated as ChatPayload
+      queryClient.setQueryData(queryKey, chatPayload)
+      updateRecentChatCache(queryClient, chatPayload.chat)
+      refreshRecentChats(queryClient)
       setText("")
       setClearConfirmationOpen(false)
       onNotice(updated.message || null)
@@ -1109,7 +1090,7 @@ function SlashCommandPalette({ activeIndex, commands, query, onSelect }: { activ
   return (
     <div
       aria-label="Slash commands"
-      className="absolute bottom-full left-3 right-3 z-10 mb-2 overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+      className="absolute bottom-full left-3 right-3 z-10 mb-2 max-h-[calc(var(--chat-visual-viewport-height,100dvh)-9rem)] overflow-y-auto rounded border border-gray-200 bg-white shadow-lg overscroll-contain dark:border-gray-700 dark:bg-gray-950"
       id="chat-slash-command-palette"
       role="listbox"
     >

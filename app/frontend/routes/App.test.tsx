@@ -8279,6 +8279,7 @@ describe("App", () => {
     fireEvent.change(input, { target: { value: "/ren" } })
 
     const palette = await screen.findByRole("listbox", { name: "Slash commands" })
+    expect(palette).toHaveClass("max-h-[calc(var(--chat-visual-viewport-height,100dvh)-9rem)]", "overflow-y-auto")
     expect(within(palette).getByRole("option", { name: /\/rename/ })).toHaveTextContent("Rename the current chat.")
     expect(within(palette).queryByRole("option", { name: /\/jobs/ })).toBeNull()
 
@@ -8336,6 +8337,82 @@ describe("App", () => {
     expect(await screen.findByText("Chat renamed.")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/rename", expect.objectContaining({ method: "PATCH" }))
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+  })
+
+  it("updates the v2 sidebar immediately after chat slash commands change chats", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const initialChat = sidebarChat({
+      id: 8,
+      title: "Aqueduct planning",
+      repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+      last_message_at: "2026-06-01T10:00:00Z"
+    })
+    const newSidebarChat = sidebarChat({
+      id: 9,
+      title: null,
+      title_pending: true,
+      repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+      last_message_at: null
+    })
+    let sidebarChats = [initialChat]
+    const renamedPayload = chatPayload({ message: "Chat renamed." })
+    renamedPayload.chat.title = "Canal review"
+    const newPayload = chatPayload({ id: 9, chatPath: "/chats/9" })
+    newPayload.chat.title_pending = true
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        if (init?.method === "POST") {
+          sidebarChats = [newSidebarChat, { ...initialChat, title: "Canal review" }]
+          return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/9", chat: newPayload.chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
+        }
+
+        return Promise.resolve(new Response(JSON.stringify({ chats: sidebarChats, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/rename" && init?.method === "PATCH") {
+        sidebarChats = [{ ...initialChat, title: "Canal review" }]
+        return Promise.resolve(new Response(JSON.stringify(renamedPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/9") {
+        return Promise.resolve(new Response(JSON.stringify(newPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
+      expect(await within(recentNav).findByRole("link", { name: "Aqueduct planning" })).toBeInTheDocument()
+
+      const input = await screen.findByPlaceholderText("Ask about this repository...")
+      fireEvent.change(input, { target: { value: "/rename Canal review" } })
+      fireEvent.click(screen.getByRole("button", { name: "Send" }))
+      expect(await within(recentNav).findByRole("link", { name: "Canal review" })).toBeInTheDocument()
+
+      fireEvent.change(input, { target: { value: "/new" } })
+      fireEvent.click(screen.getByRole("button", { name: "Send" }))
+      expect(await within(recentNav).findByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/9")
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
   })
 
   it("confirms clear before deleting chat history", async () => {
