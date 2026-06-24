@@ -818,6 +818,175 @@ describe("App", () => {
     }
   })
 
+  it("submits the v2 sidebar chat search field to the search route", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/filters/fk_options")) {
+        return Promise.resolve(new Response(JSON.stringify({ options: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/search?q=forum") {
+        return Promise.resolve(new Response(JSON.stringify(chatSearchPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/search"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      fireEvent.change(await screen.findByLabelText("Search chats"), { target: { value: "forum" } })
+      fireEvent.submit(screen.getByRole("search"))
+
+      expect(await screen.findByRole("main", { name: "Chat search" })).toBeInTheDocument()
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/chats/search?q=forum",
+          expect.objectContaining({ credentials: "same-origin" })
+        )
+      })
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("renders the v2 chat search empty state and all filter fields", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.includes("field=repository_id")) {
+        return Promise.resolve(new Response(JSON.stringify({ options: [{ value: "3", label: "acme/widgets" }] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.includes("field=epic_id")) {
+        return Promise.resolve(new Response(JSON.stringify({ options: [{ value: "5", label: "EPIC-5 Search" }] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.includes("field=job_id")) {
+        return Promise.resolve(new Response(JSON.stringify({ options: [{ value: "8", label: "JOB-8 Recent job" }] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/search"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByText("Search your chats or filter by repository, epic, or job.")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      expect(screen.getByRole("button", { name: "Search text" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Repository select" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Epic select" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Job select" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("renders v2 chat search result cards, expands matches, and follows message links", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/filters/fk_options")) {
+        return Promise.resolve(new Response(JSON.stringify({ options: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/search?q=needle") {
+        return Promise.resolve(new Response(JSON.stringify(chatSearchPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/search/messages?q=needle&chat_session_id=77") {
+        return Promise.resolve(new Response(JSON.stringify({
+          matches: [
+            chatSearchMatch({ message_id: 11, role: "assistant", snippet: "First <b>needle</b>", created_at: "2026-06-20T10:00:00Z" }),
+            chatSearchMatch({ message_id: 12, role: "user", snippet: "Second <b>needle</b>", created_at: "2026-06-20T10:01:00Z" }),
+            chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>", created_at: "2026-06-20T10:02:00Z" }),
+            chatSearchMatch({ message_id: 14, role: "tool_result", snippet: "Fourth <b>needle</b>", created_at: "2026-06-20T10:03:00Z" })
+          ]
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/77?message_id=12") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/search?q=needle"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("link", { name: "Forum planning" })).toHaveAttribute("href", "/chats/77")
+      expect(screen.getByText((_content, element) => element?.textContent === "Best needle ignored")).toBeInTheDocument()
+      expect(screen.getByText(/Jun/)).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "1 more match" }))
+      const secondMatch = await screen.findByText((_content, element) => element?.textContent === "Second needle")
+      fireEvent.click(secondMatch.closest("button") as HTMLButtonElement)
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/chats/77?message_id=12",
+          expect.objectContaining({ credentials: "same-origin" })
+        )
+      })
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("resizes the v2 desktop sidebar and stores the selected width", async () => {
     window.localStorage.setItem("syrus.sidebar.width", "300")
     const script = document.createElement("script")
@@ -12199,5 +12368,38 @@ function chatFormPayload() {
       }
     ],
     repositories_path: "/repositories"
+  }
+}
+
+function chatSearchPayload() {
+  return {
+    results: [
+      {
+        chat_session_id: 77,
+        chat_title: "Forum planning",
+        best_snippet: "Best <b>needle</b> <i>ignored</i>",
+        best_match_message_id: 11,
+        top_matches: [
+          chatSearchMatch({ message_id: 11, role: "assistant", snippet: "Best <b>needle</b> <i>ignored</i>", created_at: "2026-06-20T10:00:00Z" }),
+          chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>", created_at: "2026-06-20T10:02:00Z" }),
+          chatSearchMatch({ message_id: 14, role: "tool_result", snippet: "Fourth <b>needle</b>", created_at: "2026-06-20T10:03:00Z" })
+        ],
+        total_match_count: 4,
+        has_more_matches: true
+      }
+    ],
+    total: 1,
+    page: 1,
+    per_page: 20
+  }
+}
+
+function chatSearchMatch(overrides: Record<string, unknown> = {}) {
+  return {
+    message_id: 11,
+    role: "assistant",
+    snippet: "Best <b>needle</b>",
+    created_at: "2026-06-20T10:00:00Z",
+    ...overrides
   }
 }

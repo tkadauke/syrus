@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createChat, fetchChats, type ChatNavRecord, type ChatPayload } from "../api/chats"
@@ -269,7 +269,7 @@ function SidebarContent({
           </button>
         </div>
       </div>
-      <div className="sticky top-0 z-20 bg-white px-3 py-4 dark:bg-gray-950">
+      <div className="sticky top-0 z-20 space-y-3 bg-white px-3 py-4 dark:bg-gray-950">
         <button
           className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300"
           disabled={!user || creatingChat}
@@ -279,6 +279,7 @@ function SidebarContent({
           <PlusIcon />
           <span>{creatingChat ? "Creating..." : "New Chat"}</span>
         </button>
+        <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
       </div>
       <div className="px-3 pb-4">
         <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
@@ -315,6 +316,33 @@ function SidebarContent({
         ) : null}
       </div>
     </div>
+  )
+}
+
+function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
+  const navigate = useNavigate()
+  const [query, setQuery] = useState("")
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmedQuery = query.trim()
+    onCloseDrawer()
+    navigate(trimmedQuery ? `${prefix}/chats/search?q=${encodeURIComponent(trimmedQuery)}` : `${prefix}/chats/search`)
+  }
+
+  return (
+    <form className="relative" onSubmit={submitSearch} role="search">
+      <label className="sr-only" htmlFor="sidebar-chat-search">Search chats</label>
+      <SearchIcon />
+      <input
+        className="block h-9 w-full rounded border border-gray-200 bg-gray-50 py-1.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-blue-400 dark:focus:bg-gray-950 dark:focus:ring-blue-400"
+        id="sidebar-chat-search"
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Search chats..."
+        type="search"
+        value={query}
+      />
+    </form>
   )
 }
 
@@ -748,6 +776,14 @@ function PlusIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
       <path d="M12 5v14M5 12h14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.9" />
+    </svg>
+  )
+}
+
+function SearchIcon() {
+  return (
+    <svg aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24">
+      <path d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
     </svg>
   )
 }

@@ -280,6 +280,34 @@ export type ChatMessagesPayload = {
   messages: ChatMessageItem[]
 }
 
+export type ChatSearchMatch = {
+  message_id: number
+  role: "user" | "assistant" | "tool_use" | "tool_result" | "system" | string
+  snippet: string | null
+  created_at: string | null
+}
+
+export type ChatSearchResult = {
+  chat_session_id: number
+  chat_title: string
+  best_snippet: string | null
+  best_match_message_id: number | null
+  top_matches: ChatSearchMatch[]
+  total_match_count: number
+  has_more_matches: boolean
+}
+
+export type ChatSearchPayload = {
+  results: ChatSearchResult[]
+  total: number
+  page: number
+  per_page: number
+}
+
+export type ChatSearchMessagesPayload = {
+  matches: ChatSearchMatch[]
+}
+
 export function fetchChat(id: string, search = "") {
   return getJson<ChatPayload>(`/api/v1/app/chats/${id}${search}`)
 }
@@ -290,6 +318,14 @@ export function markChatRead(id: string | number) {
 
 export function fetchChats() {
   return getJson<ChatsIndexPayload>("/api/v1/app/chats")
+}
+
+export function fetchChatSearch(search = "", options: { signal?: AbortSignal } = {}) {
+  return getJson<ChatSearchPayload>(`/api/v1/app/chats/search${search}`, options)
+}
+
+export function fetchChatSearchMessages(search = "", options: { signal?: AbortSignal } = {}) {
+  return getJson<ChatSearchMessagesPayload>(`/api/v1/app/chats/search/messages${search}`, options)
 }
 
 export function fetchChatMessages(path: string, before: number) {

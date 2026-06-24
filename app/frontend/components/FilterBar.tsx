@@ -502,6 +502,7 @@ function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: F
         className={filterInputClass("mt-1 block w-56 rounded px-2 py-1.5")}
         id={`filter-value-${meta.field}`}
         onChange={(event) => onChange({ ...chip, value: event.target.value })}
+        placeholder={filterPlaceholder(meta)}
         type="text"
         value={String(chip.value ?? "")}
       />
@@ -978,6 +979,10 @@ function filterLabelClass() {
 
 function filterInputClass(extraClasses: string) {
   return `${extraClasses} border border-gray-300 bg-white text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100`
+}
+
+function filterPlaceholder(meta: FilterSchemaField) {
+  return typeof meta.expansions?.placeholder === "string" ? meta.expansions.placeholder : undefined
 }
 
 function clearFiltersLink(path: string, search: string, legacyFilterKeys: string[], buildLink: FilterLinkBuilder) {
