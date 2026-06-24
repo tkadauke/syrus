@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent, KeyboardEvent } from "react"
+import type { FocusEvent, FormEvent, KeyboardEvent } from "react"
 import { useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -129,6 +129,7 @@ function SmartFolderLink({ folder, onSelect, prefix }: { folder: DashboardSmartF
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(folder.name)
   const [deleteArmed, setDeleteArmed] = useState(false)
+  const [actionsVisible, setActionsVisible] = useState(false)
   const ignoreNextBlurRef = useRef(false)
   const popupRef = useDismissiblePopup<HTMLDivElement>(menuOpen, () => {
     setMenuOpen(false)
@@ -182,12 +183,28 @@ function SmartFolderLink({ folder, onSelect, prefix }: { folder: DashboardSmartF
     }
   }
 
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setActionsVisible(false)
+    }
+  }
+
   if (folder.kind === "user_defined") {
     const error = update.isError ? errorMessage(update.error, "Unable to rename smart folder.") : destroy.isError ? errorMessage(destroy.error, "Unable to delete smart folder.") : null
+    const showActions = actionsVisible || menuOpen
 
     return (
       <div className="space-y-1">
-        <div ref={popupRef} className={`relative flex min-w-0 items-center gap-1 rounded ${folder.active ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}>
+        <div
+          ref={popupRef}
+          className={`relative flex min-w-0 items-center gap-1 rounded ${folder.active ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+          onBlur={handleBlur}
+          onFocus={() => setActionsVisible(true)}
+          onMouseEnter={() => setActionsVisible(true)}
+          onMouseLeave={() => {
+            if (!menuOpen) setActionsVisible(false)
+          }}
+        >
           {renaming ? (
             <div className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-l px-2 py-1.5 text-sm">
               <input
@@ -207,29 +224,33 @@ function SmartFolderLink({ folder, onSelect, prefix }: { folder: DashboardSmartF
                 onKeyDown={handleRenameKeyDown}
                 value={name}
               />
-              <FolderCount folder={folder} />
             </div>
           ) : (
-            <Link aria-label={`${folder.name} ${folder.count}`} className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-l px-2 py-1.5 text-sm" onClick={onSelect} to={withRoutePrefix(folder.path, prefix)}>
+            <Link aria-label={`${folder.name} ${folder.count}`} className="flex min-w-0 flex-1 items-center rounded-l px-2 py-1.5 text-sm" onClick={onSelect} to={withRoutePrefix(folder.path, prefix)}>
               <span className="truncate">{folder.name}</span>
-              <FolderCount folder={folder} />
             </Link>
           )}
-          <button
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            aria-label={`Actions for ${folder.name}`}
-            className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-            onClick={(event) => {
-              event.stopPropagation()
-              setMenuOpen((open) => !open)
-              setDeleteArmed(false)
-              destroy.reset()
-            }}
-            type="button"
-          >
-            ...
-          </button>
+          <div className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center">
+            {showActions ? (
+              <button
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                aria-label={`Actions for ${folder.name}`}
+                className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setMenuOpen((open) => !open)
+                  setDeleteArmed(false)
+                  destroy.reset()
+                }}
+                type="button"
+              >
+                ...
+              </button>
+            ) : (
+              <FolderCount folder={folder} />
+            )}
+          </div>
           {menuOpen ? (
             <div className="absolute right-0 top-8 z-20 min-w-36 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
               <button className="block w-full px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800" onClick={startRename} role="menuitem" type="button">

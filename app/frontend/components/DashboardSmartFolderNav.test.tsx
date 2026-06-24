@@ -58,6 +58,10 @@ function folder(values: Partial<DashboardSmartFolder>): DashboardSmartFolder {
   }
 }
 
+function showFolderActions(name = "Saved work") {
+  fireEvent.mouseEnter(screen.getByRole("link", { name: `${name} 3` }).parentElement!)
+}
+
 describe("DashboardSmartFolderNav", () => {
   beforeEach(() => {
     vi.mocked(smartFoldersApi.updateSmartFolder).mockResolvedValue({} as never)
@@ -67,6 +71,7 @@ describe("DashboardSmartFolderNav", () => {
   it("renames a user-defined folder on Enter", async () => {
     renderNav([folder({})])
 
+    showFolderActions()
     fireEvent.click(screen.getByRole("button", { name: "Actions for Saved work" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }))
     fireEvent.change(screen.getByRole("textbox", { name: "Rename Saved work" }), { target: { value: "Renamed work" } })
@@ -80,6 +85,7 @@ describe("DashboardSmartFolderNav", () => {
   it("cancels rename on Escape", () => {
     renderNav([folder({})])
 
+    showFolderActions()
     fireEvent.click(screen.getByRole("button", { name: "Actions for Saved work" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }))
     fireEvent.change(screen.getByRole("textbox", { name: "Rename Saved work" }), { target: { value: "Renamed work" } })
@@ -93,6 +99,7 @@ describe("DashboardSmartFolderNav", () => {
   it("deletes a user-defined folder after two clicks", async () => {
     renderNav([folder({})])
 
+    showFolderActions()
     fireEvent.click(screen.getByRole("button", { name: "Actions for Saved work" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }))
 
