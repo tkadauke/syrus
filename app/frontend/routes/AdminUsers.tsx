@@ -16,6 +16,7 @@ import {
 
 export function AdminUsersIndex() {
   const location = useLocation()
+  const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)
   const basePath = location.pathname.startsWith("/app-shell") ? "/app-shell/admin/users" : "/admin/users"
   const users = useQuery({
@@ -53,8 +54,10 @@ export function AdminUsersIndex() {
               ariaLabel="Admin user smart folders"
               folders={users.data.smart_folders}
               heading="Smart folders"
+              onMutationSuccess={() => {
+                void queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
+              }}
               prefix={prefix}
-              subjectType="admin_user"
             />
           }
         >

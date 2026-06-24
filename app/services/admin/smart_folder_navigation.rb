@@ -32,6 +32,7 @@ module Admin
           kind: folder.kind,
           subject_type: folder.subject_type,
           visibility: folder.visibility.to_s,
+          position: folder.position,
           count: count,
           active: active_folder&.id == folder.id,
           path: folder_path(folder)

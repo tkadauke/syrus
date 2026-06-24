@@ -102,13 +102,15 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
       {queue.isPending ? <PanelMessage>Loading queue...</PanelMessage> : null}
       {queue.isError ? <QueueError error={queue.error} /> : null}
       {queue.isSuccess ? (
-        <QueueContent basePath={basePath} onNavigate={(path) => navigate(withRoutePrefix(path, prefix))} pathname={location.pathname} payload={queue.data} prefix={prefix} queryKey={queueQueryKey} search={location.search} tab={tab} />
+        <QueueContent basePath={basePath} onNavigate={(path) => navigate(withRoutePrefix(path, prefix))} onSmartFolderMutationSuccess={() => {
+          void queryClient.invalidateQueries({ queryKey: ["admin", "queue"] })
+        }} pathname={location.pathname} payload={queue.data} prefix={prefix} queryKey={queueQueryKey} search={location.search} tab={tab} />
       ) : null}
     </main>
   )
 }
 
-function QueueContent({ basePath, onNavigate, pathname, payload, prefix, queryKey, search, tab }: { basePath: string; onNavigate: (path: string) => void; pathname: string; payload: AdminQueuePayload; prefix: string; queryKey: unknown[]; search: string; tab: QueueTab }) {
+function QueueContent({ basePath, onNavigate, onSmartFolderMutationSuccess, pathname, payload, prefix, queryKey, search, tab }: { basePath: string; onNavigate: (path: string) => void; onSmartFolderMutationSuccess: () => void; pathname: string; payload: AdminQueuePayload; prefix: string; queryKey: unknown[]; search: string; tab: QueueTab }) {
   const smartFolders = "smart_folders" in payload ? payload.smart_folders : []
   const filterBar = isFilteredQueuePayload(payload) ? (
     <FilterBar
@@ -132,6 +134,7 @@ function QueueContent({ basePath, onNavigate, pathname, payload, prefix, queryKe
           folders={smartFolders}
           heading="Queues"
           onNavigate={onNavigate}
+          onMutationSuccess={onSmartFolderMutationSuccess}
           prefix={prefix}
           queryKey={queryKey}
           subjectType="admin_queue"

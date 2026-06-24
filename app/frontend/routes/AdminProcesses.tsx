@@ -15,6 +15,7 @@ import { workflowSlug } from "../lib/slugs"
 
 export function AdminProcessesIndex() {
   const location = useLocation()
+  const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)
   const basePath = location.pathname.startsWith("/app-shell") ? "/app-shell/admin/processes" : "/admin/processes"
   const processes = useQuery({
@@ -50,8 +51,10 @@ export function AdminProcessesIndex() {
               ariaLabel="Admin process smart folders"
               folders={processes.data.smart_folders}
               heading="Processes"
+              onMutationSuccess={() => {
+                void queryClient.invalidateQueries({ queryKey: ["admin", "processes"] })
+              }}
               prefix={prefix}
-              subjectType="spawned_process"
             />
           }
         >

@@ -52,6 +52,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("queue_name", "job_class")
     expect(body["smart_folders"].find { |folder| folder["name"] == "Runs" }).to include(
       "count" => 1,
+      "position" => SmartFolder.for_subject(:admin_queue).find_by!(name: "Runs").position,
       "path" => a_string_matching(%r{\A/admin/queue/active\?smart_folder_id=})
     )
   end
