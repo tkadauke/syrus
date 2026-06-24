@@ -185,6 +185,7 @@ describe("applyAppEvent", () => {
           title: "Updated chat",
           title_pending: false,
           pinned_context: "Keep the rollout plan in scope.",
+          repository: { id: 3, slug: "acme/widgets" },
           cumulative_input_tokens: 1500,
           cumulative_output_tokens: 250,
           cumulative_cost_usd: 0.125
@@ -197,12 +198,14 @@ describe("applyAppEvent", () => {
     expect(updated?.chat.title).toBe("Updated chat")
     expect(updated?.chat.title_pending).toBe(false)
     expect(updated?.chat.pinned_context).toBe("Keep the rollout plan in scope.")
+    expect(updated?.chat.repository).toEqual({ id: 3, slug: "acme/widgets" })
     expect(updated?.chat.cumulative_input_tokens).toBe(1500)
     expect(updated?.chat.cumulative_output_tokens).toBe(250)
     expect(updated?.chat.cumulative_cost_usd).toBe(0.125)
-    const recent = queryClient.getQueryData<{ chats: Array<{ id: number; title: string | null; title_pending: boolean }> }>(["chats", "recent"])
+    const recent = queryClient.getQueryData<{ chats: Array<{ id: number; title: string | null; title_pending: boolean; repository: { id: number; slug: string } | null }> }>(["chats", "recent"])
     expect(recent?.chats[0].title).toBe("Updated chat")
     expect(recent?.chats[0].title_pending).toBe(false)
+    expect(recent?.chats[0].repository).toEqual({ id: 3, slug: "acme/widgets" })
   })
 
   it("applies chat bookmark payloads directly to cached chat data", () => {

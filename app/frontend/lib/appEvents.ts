@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatAgentQuestion, ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord } from "../api/chats"
+import type { ChatAgentQuestion, ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import { updateRecentChatHeaderCache } from "./chatRecentCache"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
@@ -225,7 +225,7 @@ type ChatControlsPayload = {
 
 type ChatHeaderPayload = {
   action: "update_header"
-  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd">>
+  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd">>
 }
 
 type ChatBookmarkPayload = {
@@ -293,6 +293,7 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   if (typeof chat.title === "string" || chat.title === null) updates.title = chat.title
   if (typeof chat.title_pending === "boolean") updates.title_pending = chat.title_pending
   if (typeof chat.pinned_context === "string" || chat.pinned_context === null) updates.pinned_context = chat.pinned_context
+  if (isChatRepository(chat.repository) || chat.repository === null) updates.repository = chat.repository
   if (typeof chat.stop_requested_at === "string" || chat.stop_requested_at === null) updates.stop_requested_at = chat.stop_requested_at
   if (typeof chat.cumulative_input_tokens === "number") updates.cumulative_input_tokens = chat.cumulative_input_tokens
   if (typeof chat.cumulative_output_tokens === "number") updates.cumulative_output_tokens = chat.cumulative_output_tokens
@@ -367,6 +368,13 @@ function isChatQueuedMessages(value: unknown): value is ChatQueuedMessage[] {
       typeof candidate.app_delete_path === "string"
     )
   })
+}
+
+function isChatRepository(value: unknown): value is ChatRepository {
+  if (!value || typeof value !== "object") return false
+
+  const candidate = value as Partial<ChatRepository>
+  return typeof candidate.id === "number" && typeof candidate.slug === "string"
 }
 
 function isChatBookmark(value: unknown): value is ChatBookmark {

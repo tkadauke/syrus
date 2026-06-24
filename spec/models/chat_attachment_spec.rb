@@ -30,4 +30,48 @@ RSpec.describe ChatAttachment do
     expect(duplicate).not_to be_valid
     expect(duplicate.errors[:attachable_id]).to be_present
   end
+
+  it "broadcasts the updated chat header after attaching a repository" do
+    allow(AppEvents).to receive(:broadcast)
+
+    described_class.create!(chat_session: chat_session, attachable: repository)
+
+    expect(AppEvents).to have_received(:broadcast).with(
+      hash_including(
+        user: user,
+        resource: "chat",
+        id: chat_session.id,
+        changed: [ "header" ],
+        payload: hash_including(
+          action: "update_header",
+          chat: hash_including(
+            repository: {
+              id: repository.id,
+              slug: repository.slug
+            }
+          )
+        )
+      )
+    )
+  end
+
+  it "broadcasts the updated chat header after detaching a repository" do
+    attachment = described_class.create!(chat_session: chat_session, attachable: repository)
+    allow(AppEvents).to receive(:broadcast)
+
+    attachment.destroy!
+
+    expect(AppEvents).to have_received(:broadcast).with(
+      hash_including(
+        user: user,
+        resource: "chat",
+        id: chat_session.id,
+        changed: [ "header" ],
+        payload: hash_including(
+          action: "update_header",
+          chat: hash_including(repository: nil)
+        )
+      )
+    )
+  end
 end

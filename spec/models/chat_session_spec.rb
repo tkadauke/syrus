@@ -231,6 +231,12 @@ RSpec.describe ChatSession do
   end
 
   describe "React app events" do
+    it "does not broadcast a header update for the initial repository attachment" do
+      expect(AppEvents).not_to receive(:broadcast)
+
+      described_class.create!(repository: repo, user: repo.user)
+    end
+
     it "emits a header update payload for cached chat metadata" do
       stopped_at = Time.zone.parse("2026-05-30 12:00:00 UTC")
       session = described_class.create!(
@@ -254,6 +260,10 @@ RSpec.describe ChatSession do
             title: "Updated chat",
             title_pending: false,
             pinned_context: nil,
+            repository: {
+              id: repo.id,
+              slug: repo.slug
+            },
             stop_requested_at: stopped_at.iso8601,
             cumulative_input_tokens: 1500,
             cumulative_output_tokens: 250,

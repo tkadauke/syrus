@@ -1,8 +1,12 @@
 class ChatAttachment < ApplicationRecord
   ATTACHABLE_TYPES = %w[ Repository Epic Job Document ].freeze
 
+  attr_accessor :suppress_header_broadcast
+
   belongs_to :chat_session
   belongs_to :attachable, polymorphic: true
+
+  after_commit :broadcast_chat_session_header_update, on: [ :create, :destroy ]
 
   before_validation :set_attached_at
 
@@ -12,6 +16,12 @@ class ChatAttachment < ApplicationRecord
   validate :attachable_belongs_to_chat_user
 
   private
+
+  def broadcast_chat_session_header_update
+    return if suppress_header_broadcast
+
+    chat_session.reload.broadcast_app_header_update unless chat_session.destroyed?
+  end
 
   def set_attached_at
     self.attached_at ||= Time.current

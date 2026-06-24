@@ -170,9 +170,8 @@ class ChatSession < ApplicationRecord
     end
   end
 
-  private
-
   def broadcast_app_header_update
+    repository = self.repository
     AppEvents.broadcast(
       user: user,
       type: "updated",
@@ -185,6 +184,7 @@ class ChatSession < ApplicationRecord
           title: title,
           title_pending: title_pending?,
           pinned_context: pinned_context,
+          repository: repository ? { id: repository.id, slug: repository.slug } : nil,
           stop_requested_at: stop_requested_at&.iso8601,
           cumulative_input_tokens: cumulative_input_tokens.to_i,
           cumulative_output_tokens: cumulative_output_tokens.to_i,
@@ -211,6 +211,8 @@ class ChatSession < ApplicationRecord
     )
   end
 
+  private
+
   def header_previously_changed?
     saved_change_to_title? ||
       saved_change_to_pinned_context? ||
@@ -222,7 +224,7 @@ class ChatSession < ApplicationRecord
   def attach_initial_repository
     return unless @initial_repository
 
-    chat_attachments.create!(attachable: @initial_repository)
+    chat_attachments.create!(attachable: @initial_repository, suppress_header_broadcast: true)
   end
 
   def destroy_workspace
