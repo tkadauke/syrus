@@ -119,7 +119,9 @@ and starts the following turn.
 
 The chat agent can schedule one-shot wakeups for the current chat. At the
 requested time, Syrus starts another visible chat turn with the stored prompt,
-so the wakeup and any follow-up action remain part of the transcript.
+so the wakeup and any follow-up action remain part of the transcript. The
+agent can list pending wakeups for the current chat and cancel any that are
+no longer needed.
 
 The chat agent can also ask a blocking inline question when it needs an
 operator decision before continuing. Syrus shows the question above the

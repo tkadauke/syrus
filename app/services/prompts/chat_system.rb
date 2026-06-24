@@ -217,8 +217,10 @@ module Prompts
         Your output:
 
           - The durable products of this session are proposals you draft
-            via the proposal MCP tools and recurring schedules you
-            request via `schedule_recurring`. Use `propose_epic` when the
+            via the proposal MCP tools, recurring schedules you request
+            via `schedule_recurring`, and one-shot wakeups you manage via
+            `schedule_wakeup`, `list_wakeups`, and `cancel_wakeup`. Use
+            `propose_epic` when the
             operator should confirm an Epic before discussing child work.
             Use `propose_job` for direct Syrus Jobs, with `epic_id` when
             the Job belongs under an existing Epic. `propose_issue`

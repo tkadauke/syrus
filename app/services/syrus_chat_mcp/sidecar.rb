@@ -101,6 +101,8 @@ module SyrusChatMcp
       UpdateSceneTool,
       ScheduleRecurringTool,
       ScheduleWakeupTool,
+      ListWakeupsTool,
+      CancelWakeupTool,
       ListScheduledTasksTool,
       PauseScheduledTaskTool,
       ResumeScheduledTaskTool,
