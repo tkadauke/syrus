@@ -674,7 +674,8 @@ RSpec.describe "App API dashboard commands", type: :request do
         subject_type: "epic",
         name: "Ready work",
         kind: "user_defined",
-        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "ready" } ] }
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "ready" } ] },
+        position: 2
       )
 
       get "/api/v1/app/dashboard", params: { subject: "epic", smart_folder_id: folder.id }
@@ -715,6 +716,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         "id" => folder.id,
         "name" => "Ready work",
         "visibility" => "user_defined",
+        "position" => 2,
         "count" => 1,
         "active" => true
       ))
