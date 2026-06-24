@@ -221,6 +221,12 @@ export type CreateChatInput = {
   text: string
 }
 
+export type ChatMessageAttachmentInput = {
+  name: string
+  mimeType: string
+  dataUrl: string
+}
+
 export type ChatCreatedPayload = {
   message: string
   redirect_to: string
@@ -329,8 +335,8 @@ export function startOnboardingChat() {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats/onboarding")
 }
 
-export function sendChatMessage(path: string, text: string) {
-  return postJson<ChatPayload>(path, { chat_message: { text } })
+export function sendChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = []) {
+  return postJson<ChatPayload>(path, chatMessagePayload(text, attachments))
 }
 
 export function renameChat(path: string, title: string) {
@@ -341,8 +347,8 @@ export function clearChatHistory(path: string) {
   return deleteJson<ChatPayload>(path)
 }
 
-export function enqueueChatMessage(path: string, text: string) {
-  return postJson<ChatPayload>(path, { chat_message: { text } })
+export function enqueueChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = []) {
+  return postJson<ChatPayload>(path, chatMessagePayload(text, attachments))
 }
 
 export function updateQueuedChatMessage(path: string, text: string) {
@@ -355,6 +361,23 @@ export function deleteQueuedChatMessage(path: string) {
 
 export function stopChat(path: string) {
   return postJson<ChatPayload>(path)
+}
+
+function chatMessagePayload(text: string, attachments: ChatMessageAttachmentInput[]) {
+  const chatMessage: {
+    text: string
+    attachments?: Array<{ name: string; mime_type: string; data: string }>
+  } = { text }
+
+  if (attachments.length > 0) {
+    chatMessage.attachments = attachments.map((attachment) => ({
+      name: attachment.name,
+      mime_type: attachment.mimeType,
+      data: attachment.dataUrl.replace(/^data:[^;]+;base64,/, "")
+    }))
+  }
+
+  return { chat_message: chatMessage }
 }
 
 export function createChatBookmark(path: string, messageId: number, label: string) {

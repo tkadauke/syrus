@@ -8125,6 +8125,149 @@ describe("App", () => {
     })
   })
 
+  it("renders a chat attachment add button in the composer", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    const addAttachment = screen.getByRole("button", { name: "Add attachment" })
+    expect(addAttachment).toHaveTextContent("+")
+    expect(screen.getByLabelText("Chat attachments")).toHaveAttribute("accept", "image/*,application/pdf")
+  })
+
+  it("adds a selected chat attachment chip with a remove button", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    const file = new File(["chart"], "flow-chart.png", { type: "image/png" })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), { target: { files: [file] } })
+
+    expect(await screen.findByText("flow-chart.png")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Remove flow-chart.png" })).toBeInTheDocument()
+  })
+
+  it("removes a selected chat attachment chip", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    const file = new File(["pdf"], "brief.pdf", { type: "application/pdf" })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), { target: { files: [file] } })
+
+    expect(await screen.findByText("brief.pdf")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Remove brief.pdf" }))
+    expect(screen.queryByText("brief.pdf")).not.toBeInTheDocument()
+  })
+
+  it("sends chat message attachments in the JSON payload", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({
+          messages: [
+            ...chatPayload().messages,
+            {
+              type: "message",
+              id: 10,
+              role: "user",
+              text: "Review this diagram",
+              bookmarkable: true
+            }
+          ]
+        })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(screen.getByLabelText("Chat attachments"), { target: { files: [new File(["chart"], "flow-chart.png", { type: "image/png" })] } })
+    expect(await screen.findByText("flow-chart.png")).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: "Review this diagram" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/message",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            chat_message: {
+              text: "Review this diagram",
+              attachments: [
+                {
+                  name: "flow-chart.png",
+                  mime_type: "image/png",
+                  data: "Y2hhcnQ="
+                }
+              ]
+            }
+          })
+        })
+      )
+    })
+    await waitFor(() => expect(screen.queryByText("flow-chart.png")).not.toBeInTheDocument())
+  })
+
+  it("blocks chat attachment submission when a file is larger than 5 MB", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    const oversized = new File([new Uint8Array((5 * 1024 * 1024) + 1)], "too-large.png", { type: "image/png" })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), { target: { files: [oversized] } })
+    expect(await screen.findByText("Each attachment must be 5 MB or smaller.")).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: "Try sending this" } })
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled()
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+  })
+
   it("renders chat tabs above the chat panel on mobile", async () => {
     const restoreMedia = mockMediaQuery(false)
     vi.spyOn(window, "fetch").mockResolvedValue(

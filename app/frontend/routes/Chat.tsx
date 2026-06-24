@@ -36,6 +36,7 @@ import {
   type ChatAttachmentResult,
   type ChatAttachmentRow,
   type ChatAgentQuestion,
+  type ChatMessageAttachmentInput,
   type ChatCreatedPayload,
   type ChatMcpHealth,
   type ChatNavRecord,
@@ -79,9 +80,12 @@ const CHAT_WORKSPACE_TAB_KEY = "syrus.chat.workspace.tab"
 const CHAT_WORKSPACE_DEFAULT_WIDTH = 520
 const CHAT_WORKSPACE_MIN_WIDTH = 360
 const CHAT_WORKSPACE_MAX_WIDTH = 760
+const CHAT_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
+const CHAT_ATTACHMENT_TOTAL_MAX_BYTES = 20 * 1024 * 1024
 
 type ExcalidrawComponent = typeof import("@excalidraw/excalidraw")["Excalidraw"]
 type ExcalidrawApi = Pick<ExcalidrawImperativeAPI, "addFiles" | "updateScene">
+type ChatComposeAttachment = ChatMessageAttachmentInput & { size: number }
 
 export function ChatRoute() {
   const params = useParams()
@@ -997,10 +1001,13 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [text, setText] = useState("")
+  const [attachments, setAttachments] = useState<ChatComposeAttachment[]>([])
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingSlashCommandConfirmation | null>(null)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const [clearConfirmationOpen, setClearConfirmationOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
@@ -1009,11 +1016,13 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
   const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery), [commandQuery])
   const send = useMutation({
     mutationFn: (messageText: string) => agentActive
-      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText)
-      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText),
+      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText, attachments)
+      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText, attachments),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setText("")
+      setAttachments([])
+      setAttachmentError(null)
       setPendingConfirmation(null)
       onNotice(null)
     }
@@ -1052,6 +1061,11 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
 
   function submitMessage() {
     if (send.isPending || systemAction.isPending || text.trim().length === 0) return
+    const attachmentValidationError = attachmentValidationMessage(attachments)
+    if (attachmentValidationError) {
+      setAttachmentError(attachmentValidationError)
+      return
+    }
     const commandMatch = findSlashCommand(text)
     if (commandMatch?.command.kind === "system") {
       onNotice(null)
@@ -1136,6 +1150,50 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
     textareaRef.current?.focus()
   }
 
+  function attachmentValidationMessage(nextAttachments: ChatComposeAttachment[]) {
+    if (nextAttachments.some((attachment) => attachment.size > CHAT_ATTACHMENT_MAX_BYTES)) {
+      return "Each attachment must be 5 MB or smaller."
+    }
+
+    const totalBytes = nextAttachments.reduce((sum, attachment) => sum + attachment.size, 0)
+    if (totalBytes > CHAT_ATTACHMENT_TOTAL_MAX_BYTES) {
+      return "Attachments must total 20 MB or less."
+    }
+
+    return null
+  }
+
+  function handleAttachmentChange(files: FileList | null) {
+    const selectedFiles = Array.from(files || [])
+    if (fileInputRef.current) fileInputRef.current.value = ""
+    if (selectedFiles.length === 0) return
+
+    const nextAttachments = [
+      ...attachments,
+      ...selectedFiles.map((file) => ({
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        dataUrl: "",
+        size: file.size
+      }))
+    ]
+    const validationError = attachmentValidationMessage(nextAttachments)
+    if (validationError) {
+      setAttachmentError(validationError)
+      return
+    }
+
+    void Promise.all(selectedFiles.map(readAttachmentFile)).then((newAttachments) => {
+      setAttachments((current) => [...current, ...newAttachments])
+      setAttachmentError(null)
+    }).catch(() => setAttachmentError("Unable to read the selected attachment."))
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((current) => current.filter((_, attachmentIndex) => attachmentIndex !== index))
+    setAttachmentError(null)
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     submitMessage()
@@ -1214,6 +1272,7 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
     <form className="relative rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
       {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
       {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
+      {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
       {clearConfirmationOpen ? (
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
           <span>Clear this chat's message history?</span>
@@ -1241,7 +1300,43 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
           onSelect={(command) => completeSlashCommand(command)}
         />
       ) : null}
+      {attachments.length > 0 ? (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {attachments.map((attachment, index) => (
+            <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
+              {attachment.mimeType.startsWith("image/") ? (
+                <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
+              ) : (
+                <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
+              )}
+              <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
+              <button aria-label={`Remove ${attachment.name}`} className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
+                <CloseIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="flex items-end gap-3">
+        <input
+          accept="image/*,application/pdf"
+          aria-label="Chat attachments"
+          className="hidden"
+          disabled={send.isPending || systemAction.isPending}
+          multiple
+          onChange={(event) => handleAttachmentChange(event.target.files)}
+          ref={fileInputRef}
+          type="file"
+        />
+        <button
+          aria-label="Add attachment"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+          disabled={send.isPending || systemAction.isPending}
+          onClick={() => fileInputRef.current?.click()}
+          type="button"
+        >
+          +
+        </button>
         <textarea
           aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
           aria-expanded={commandPaletteOpen}
@@ -1259,11 +1354,27 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
           rows={1}
           value={text}
         />
-        <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || text.trim().length === 0 || pendingConfirmation != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
+        <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
         {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
       </div>
     </form>
   )
+}
+
+function readAttachmentFile(file: File): Promise<ChatComposeAttachment> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      resolve({
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        dataUrl: String(reader.result || ""),
+        size: file.size
+      })
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
 }
 
 function SlashCommandConfirmation({ commandName, disabled, text, onCancel, onConfirm }: { commandName: SlashCommand["name"]; disabled: boolean; text: string; onCancel: () => void; onConfirm: () => void }) {

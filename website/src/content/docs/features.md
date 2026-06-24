@@ -81,6 +81,8 @@ to confirm. New chats use a short interpreted title from the first prompt,
 with the repository name as the fallback. The app sidebar groups recent chats
 by repository, and each repository group can be collapsed when the operator
 wants to hide those chats.
+The chat composer accepts image and PDF attachments through the plus button
+and sends them with the next message.
 
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
