@@ -5,6 +5,15 @@ class ChatPendingAction < ApplicationRecord
     cancel_job
     retry_job
     rebase_job
+    reopen_job
+    fire_scheduled_task_now
+    create_repo_document
+    delete_repo_document
+    poll_job_feedback
+    check_job_mergeability
+    delegate_issue
+    pause_landing_queue
+    resume_landing_queue
     submit_chat_feedback
     reopen_epic_and_attach_job
     admin_kill_process
@@ -29,6 +38,8 @@ class ChatPendingAction < ApplicationRecord
     admin_unpause_runs
     admin_clear_github_cache
     admin_refresh_installations
+    pause_landing_queue
+    resume_landing_queue
   ].freeze
   STATES = %w[ queued pending confirmed rejected cancelled ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
@@ -177,6 +188,68 @@ class ChatPendingAction < ApplicationRecord
       workflow = RebaseWorkflowSelector.instantiate(job: job)
       StepDispatcher.start_workflow(workflow)
       nil
+    when "reopen_job"
+      job = action_user_job
+      raise ArgumentError, "Job isn't closed." unless job.may_reopen?
+
+      job.reopen!
+      job.save!
+      job
+    when "fire_scheduled_task_now"
+      task = action_scheduled_task
+      raise ArgumentError, "Task isn't fireable in its current state." if task.archived? || task.fired?
+
+      result = ScheduledTaskFire.new(task).call
+      result.fired? ? result.job : nil
+    when "create_repo_document"
+      repo = action_user_repository
+      document = repo.repository_documents.new(
+        user: user,
+        kind: "file",
+        title: payload.fetch("title").to_s
+      )
+      document.file.attach(
+        io: StringIO.new(payload.fetch("body").to_s),
+        filename: document_filename(document.title),
+        content_type: "text/markdown"
+      )
+      document.save!
+      document
+    when "delete_repo_document"
+      document = action_user_document
+      document.file.purge if document.file.attached?
+      document.destroy!
+      nil
+    when "poll_job_feedback"
+      job = action_user_job
+      unless job.open? && job.pr_number.present?
+        raise ArgumentError, "Can only check feedback on open Jobs that have a PR."
+      end
+
+      PollPullRequestJob.perform_later(job.id, manual: true)
+      nil
+    when "check_job_mergeability"
+      job = action_user_job
+      unless job.pr_number.present? || job.external_pr_number.present?
+        raise ArgumentError, "No PR on this Job to check."
+      end
+
+      PollRebaseJob.perform_later(job.id, bypass_cache: true)
+      nil
+    when "delegate_issue"
+      repo = action_user_repository
+      issue_number = Integer(payload.fetch("issue_number"), exception: false)
+      raise ArgumentError, "issue_number is required" unless issue_number&.positive?
+
+      GithubClient.for(repository: repo, user: user).add_label_to_issue(repo.slug, issue_number, repo.trigger_label)
+      nil
+    when "pause_landing_queue"
+      user.update!(landing_paused: true)
+      nil
+    when "resume_landing_queue"
+      user.update!(landing_paused: false)
+      LandingQueueProcessorJob.perform_later
+      nil
     when "submit_chat_feedback"
       job = action_job
       unless job.implemented? || job.approved?
@@ -195,7 +268,7 @@ class ChatPendingAction < ApplicationRecord
       job.reload.unapprove! if job.may_unapprove?
       workflow
     when "reopen_epic_and_attach_job"
-      epic = repository.epics.where(user: user).find(payload.fetch("epic_id"))
+      epic = self.repository.epics.where(user: user).find(payload.fetch("epic_id"))
       job = action_job
 
       epic.in_progress! if epic.done?
@@ -253,7 +326,7 @@ class ChatPendingAction < ApplicationRecord
     else
       ScheduledTask.create!(
         user: user,
-        repository: repository,
+        repository: self.repository,
         kind: "cron",
         name: payload.fetch("label"),
         cron_expression: payload.fetch("cron_expression"),
@@ -272,8 +345,19 @@ class ChatPendingAction < ApplicationRecord
       errors.add(:payload, "body is required") if payload["body"].to_s.strip.blank?
     when "remove_repo_note"
       errors.add(:payload, "id is required") unless payload["id"].present?
-    when "cancel_job", "retry_job", "rebase_job"
+    when "cancel_job", "retry_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability"
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
+    when "fire_scheduled_task_now"
+      errors.add(:payload, "scheduled_task_id is required") unless payload["scheduled_task_id"].present?
+    when "create_repo_document"
+      errors.add(:payload, "repository_id is required") unless payload["repository_id"].present?
+      errors.add(:payload, "title is required") if payload["title"].to_s.strip.blank?
+      errors.add(:payload, "body is required") if payload["body"].to_s.blank?
+    when "delete_repo_document"
+      errors.add(:payload, "document_id is required") unless payload["document_id"].present?
+    when "delegate_issue"
+      errors.add(:payload, "repository_id is required") unless payload["repository_id"].present?
+      errors.add(:payload, "issue_number is required") unless payload["issue_number"].present?
     when "submit_chat_feedback"
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
       errors.add(:payload, "feedback is required") if payload["feedback"].to_s.strip.blank?
@@ -312,6 +396,30 @@ class ChatPendingAction < ApplicationRecord
 
   def action_job
     chat_session.repository.jobs.find(payload.fetch("job_id"))
+  end
+
+  def action_user_job
+    user.jobs.find(payload.fetch("job_id"))
+  end
+
+  def action_scheduled_task
+    ScheduledTask.alive.where(user: user).find(payload.fetch("scheduled_task_id"))
+  end
+
+  def action_user_repository
+    user.repositories.active.find(payload.fetch("repository_id"))
+  end
+
+  def action_user_document
+    Document.where(
+      attachable_type: "Repository",
+      attachable_id: user.repositories.active.select(:id)
+    ).find(payload.fetch("document_id"))
+  end
+
+  def document_filename(title)
+    basename = title.to_s.parameterize.presence || "document"
+    "#{basename.first(80)}.md"
   end
 
   def broadcastable_state_change?

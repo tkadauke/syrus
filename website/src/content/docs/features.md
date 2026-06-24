@@ -75,7 +75,8 @@ approve or unapprove
 implemented Jobs, change Job priority, move Jobs into or out of Epics, drill
 through Job workflow and Run history progressively, search Jobs in the
 attached repository, read stored Job diffs, list and create the operator's
-tags, attach or remove tags on Jobs, search prior chat messages for the same user, read
+tags, attach or remove tags on Jobs, manage repository documents after
+confirmation, search prior chat messages for the same user, read
 paginated chat transcripts, inspect Solid Queue health, update the chat's
 pinned context for future turns, and create proposal cards for the operator
 to confirm. New chats use a short interpreted title from the first prompt,
@@ -89,9 +90,11 @@ GitHub issue, or scheduled task.
 Proposal cards can also declare dependency edges up front, including Jobs
 blocked on existing Epics and Epics blocked on existing Jobs.
 Actions that need explicit approval, such as
-canceling or retrying work, also render as inline confirmation cards in the
-message stream so operators can review the target before confirming or
-rejecting them.
+canceling, retrying, reopening, polling feedback, checking mergeability,
+delegating GitHub issues, firing scheduled tasks, changing repository
+documents, or pausing and resuming the landing queue, also render as inline
+confirmation cards in the message stream so operators can review the target
+before confirming or rejecting them.
 Proposal cards show dependency status before the title: either dependency
 proposal links with confirmed or pending badges, or an explicit no-dependencies
 note.

@@ -319,9 +319,9 @@ RSpec.describe ChatPendingAction do
   end
 
   it "does not create the ScheduledTask before confirmation" do
-    pending_action
-
-    expect(ScheduledTask.count).to eq(0)
+    expect {
+      pending_action
+    }.not_to change { ScheduledTask.count }
   end
 
   it "confirms admin kill process by requesting a process kill" do

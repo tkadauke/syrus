@@ -27,11 +27,14 @@ RSpec.describe SyrusChatMcp::ScheduleRecurringTool do
   end
 
   it "creates a pending confirmation instead of a ScheduledTask" do
-    response = call_tool(
-      cron_expression: "0 9 * * *",
-      label: "Daily review",
-      prompt: "Review the repository."
-    )
+    response = nil
+    expect {
+      response = call_tool(
+        cron_expression: "0 9 * * *",
+        label: "Daily review",
+        prompt: "Review the repository."
+      )
+    }.not_to change { ScheduledTask.count }
 
     expect(response[:result][:isError]).to be_falsey
     payload = response_payload(response)
@@ -48,7 +51,6 @@ RSpec.describe SyrusChatMcp::ScheduleRecurringTool do
       "label" => "Daily review",
       "prompt" => "Review the repository."
     )
-    expect(ScheduledTask.count).to eq(0)
   end
 
   it "describes the scheduled prompt as cron work rather than an ad hoc Job" do

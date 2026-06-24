@@ -48,9 +48,15 @@ module App
       }
 
       case action.action.presence || action.action_type
-      when "cancel_job", "retry_job", "rebase_job", "submit_chat_feedback"
-        if (job = action.repository.jobs.find_by(id: payload["job_id"]))
+      when "cancel_job", "retry_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability", "submit_chat_feedback"
+        if (job = action.user.jobs.find_by(id: payload["job_id"]))
           base.merge(resource_title: job.issue_title, resource_url: job_path(job))
+        else
+          base
+        end
+      when "create_repo_document", "delete_repo_document"
+        if (document = Document.find_by(id: payload["document_id"]))
+          base.merge(resource_title: document.title)
         else
           base
         end
@@ -159,6 +165,24 @@ module App
         "Retry #{::App::Presentation.job_slug(payload['job_id'])}"
       when "rebase_job"
         "Rebase #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "reopen_job"
+        "Reopen #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "fire_scheduled_task_now"
+        "Fire scheduled task ##{payload['scheduled_task_id']}"
+      when "create_repo_document"
+        "Create document #{payload['title'].to_s.inspect}"
+      when "delete_repo_document"
+        "Delete document #{payload['title'].to_s.presence || "##{payload['document_id']}"}"
+      when "poll_job_feedback"
+        "Poll PR feedback for #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "check_job_mergeability"
+        "Check mergeability for #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "delegate_issue"
+        "Delegate issue ##{payload['issue_number']}"
+      when "pause_landing_queue"
+        "Pause landing queue"
+      when "resume_landing_queue"
+        "Resume landing queue"
       when "submit_chat_feedback"
         "Submit feedback on #{::App::Presentation.job_slug(payload['job_id'])}"
       when "reopen_epic_and_attach_job"

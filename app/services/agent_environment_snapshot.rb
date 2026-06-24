@@ -5,8 +5,8 @@ class AgentEnvironmentSnapshot
   MAX_GRADER_LINES = 8
 
   CHAT_TOOL_GROUPS = {
-    "repository context" => %w[attach_repository repo_info read_repo_document list_repo_documents read_repo_notes add_repo_note remove_repo_note],
-    "live Syrus state" => %w[list_chats list_jobs read_job read_pr list_open_issues list_open_prs cancel_job retry_job rebase_job read_epic],
+    "repository context" => %w[attach_repository repo_info read_repo_document list_repo_documents create_repo_document delete_repo_document read_repo_notes add_repo_note remove_repo_note],
+    "live Syrus state" => %w[list_chats list_jobs read_job read_pr list_open_issues list_open_prs cancel_job retry_job rebase_job reopen_job poll_job_feedback check_job_mergeability delegate_issue pause_landing_queue resume_landing_queue read_epic],
     "proposals" => %w[propose_job propose_epic propose_epic_with_jobs propose_issue list_proposals delete_proposal set_bookmark schedule_recurring],
     "whiteboard" => %w[read_scene draw_shape draw_text draw_line draw_arrow draw_freedraw draw_frame draw_embed draw_image move_element delete_element clear_canvas update_scene]
   }.freeze
