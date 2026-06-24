@@ -54,17 +54,15 @@ module SyrusChatMcp
       )
     end
 
-    def attach_pending_action_to_current_message!(server_context, pending_action)
-      if (msg = server_context[:current_message])
-        msg.update_columns(pending_action_id: pending_action.id)
-      end
-    end
-
-    def create_pending_action_for_current_message!(server_context, chat_session, **attributes)
+    def create_pending_action_message!(chat_session, **attributes)
       pending_action = nil
       ApplicationRecord.transaction do
         pending_action = chat_session.pending_actions.create!(**attributes)
-        attach_pending_action_to_current_message!(server_context, pending_action)
+        chat_session.messages.create!(
+          role: "assistant",
+          pending_action: pending_action,
+          content: { "text" => "" }
+        )
       end
       pending_action
     end

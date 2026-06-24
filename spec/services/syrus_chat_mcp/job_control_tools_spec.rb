@@ -49,25 +49,26 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(job.reload).to be_open
   end
 
-  it "anchors a pending action to the current assistant message" do
+  it "creates a dedicated assistant message for a pending action" do
     job = Factories.job(repository: repository)
-    message = chat_session.messages.create!(role: "assistant", content: { "text" => "I can cancel that." })
 
     allow(AppEvents).to receive(:broadcast)
     expect(AppEvents).to receive(:broadcast) do |user:, payload:, **|
       expect(user).to eq(chat_session.user)
       expect(payload).to include(
-        action: "pending_action_updated",
-        chat_message_id: message.id
+        action: "pending_action_updated"
       )
+      expect(payload[:chat_message_id]).to be_a(Integer)
     end
 
     SyrusChatMcp::CancelJobTool.call(
       job_id: job.id,
-      server_context: { chat_session: chat_session, current_message: message }
+      server_context: { chat_session: chat_session }
     )
 
-    expect(message.reload.pending_action).to eq(chat_session.pending_actions.last)
+    message = chat_session.messages.last
+    expect(message).to have_attributes(role: "assistant", content: { "text" => "" })
+    expect(message.pending_action).to eq(chat_session.pending_actions.last)
   end
 
   it "approves an implemented job" do

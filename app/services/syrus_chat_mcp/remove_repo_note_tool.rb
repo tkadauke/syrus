@@ -27,8 +27,7 @@ module SyrusChatMcp
         note = chat_session.repository.repository_notes.active.find_by(id: note_id)
         return SyrusChatMcp.invalid("unknown active repository note id: #{id}") unless note
 
-        pending_action = create_pending_action_for_current_message!(
-          server_context,
+        pending_action = create_pending_action_message!(
           chat_session,
           action: "remove_repo_note",
           payload: { "id" => note.id },

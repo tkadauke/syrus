@@ -35,8 +35,7 @@ module SyrusChatMcp
           return SyrusChatMcp.invalid("a chat_feedback workflow is already queued or running for this job")
         end
 
-        pending_action = create_pending_action_for_current_message!(
-          server_context,
+        pending_action = create_pending_action_message!(
           chat_session,
           action: "submit_chat_feedback",
           payload: { "job_id" => job.id, "feedback" => feedback },

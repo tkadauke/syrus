@@ -94,14 +94,6 @@ RSpec.describe SyrusChatMcp::Sidecar do
     original.nil? ? ENV.delete("SYRUS_CHAT_SESSION_ID") : ENV["SYRUS_CHAT_SESSION_ID"] = original
   end
 
-  def with_current_message_env(value)
-    original = ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"]
-    value.nil? ? ENV.delete("SYRUS_CHAT_CURRENT_MESSAGE_ID") : ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"] = value
-    yield
-  ensure
-    original.nil? ? ENV.delete("SYRUS_CHAT_CURRENT_MESSAGE_ID") : ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"] = original
-  end
-
   describe "MCP handshake" do
     it "responds to initialize with the chat sidecar server name" do
       response = jsonrpc(server_for(chat_session), "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "test", version: "1" } })
@@ -201,15 +193,6 @@ RSpec.describe SyrusChatMcp::Sidecar do
       sidecar = described_class.new(session_id: chat_session.id)
 
       expect(sidecar.instance_variable_get(:@chat_session)).to eq(chat_session)
-    end
-
-    it "loads the current message from SYRUS_CHAT_CURRENT_MESSAGE_ID" do
-      message = chat_session.messages.create!(role: "assistant", content: { "text" => "Confirm?" })
-
-      with_current_message_env(message.id.to_s) do
-        sidecar = described_class.new(session_id: chat_session.id)
-        expect(sidecar.instance_variable_get(:@current_message)).to eq(message)
-      end
     end
 
     it "raises KeyError when no session id is available" do

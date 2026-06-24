@@ -24,8 +24,7 @@ module SyrusChatMcp
         body = body.to_s.strip
         return SyrusChatMcp.invalid("body is required") if body.empty?
 
-        pending_action = create_pending_action_for_current_message!(
-          server_context,
+        pending_action = create_pending_action_message!(
           chat_session,
           action: "add_repo_note",
           payload: { "body" => body },
