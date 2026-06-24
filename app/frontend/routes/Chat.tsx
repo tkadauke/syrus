@@ -245,19 +245,43 @@ function PendingActions({ payload, queryKey, onNotice }: { payload: ChatPayload;
 }
 
 function PendingActionRow({ action, disabled, onCancel, onConfirm }: { action: ChatPendingAction; disabled: boolean; onCancel: () => void; onConfirm: () => void }) {
-  const queued = action.state === "queued"
+  const isQueued = action.state === "queued"
+  const isPending = action.state === "pending"
+  const terminalLabel =
+    action.state === "confirmed" ? "Confirmed" :
+      action.state === "rejected" ? "Rejected" :
+        action.state === "cancelled" ? "Cancelled" :
+          null
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-800 dark:bg-gray-950">
+    <div className={`flex flex-wrap items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-sm dark:bg-gray-950 ${pendingActionRowClass(action.state)}`}>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {isQueued ? <WaitingIcon /> : null}
         <span className="font-medium text-gray-900 dark:text-gray-100">{action.label}</span>
-        {queued ? <span className="rounded border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-100">Waiting</span> : null}
+        {isQueued ? <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">Waiting...</span> : null}
+        {terminalLabel ? <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{terminalLabel}</span> : null}
       </div>
-      <div className="flex gap-2">
-        {queued ? null : <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">Confirm</button>}
-        <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">Cancel</button>
-      </div>
+      {isPending ? (
+        <div className="flex gap-2">
+          <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">Confirm</button>
+          <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">Cancel</button>
+        </div>
+      ) : null}
     </div>
+  )
+}
+
+function pendingActionRowClass(state: ChatPendingAction["state"]) {
+  if (state === "pending") return "border-amber-200 dark:border-amber-800"
+  return "border-gray-200 dark:border-gray-700"
+}
+
+function WaitingIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 flex-none text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 7v5l3 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
   )
 }
 
