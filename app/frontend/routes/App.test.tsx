@@ -1096,7 +1096,13 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("main", { name: "Chat" })).toHaveClass("h-full")
+      const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
+      const sidebarScrollPane = recentNav.closest(".overflow-y-auto")
+      expect(sidebarScrollPane).toBeInstanceOf(HTMLElement)
+      expect(sidebarScrollPane).toContainElement(primaryNav)
+      expect(recentNav.parentElement).not.toHaveClass("overflow-y-auto")
+      expect(screen.getByRole("button", { name: "New Chat" }).parentElement).toHaveClass("sticky", "top-0")
       const headers = within(recentNav).getAllByRole("heading").map((heading) => heading.textContent)
       expect(headers).toEqual(["General", "acme/roads", "acme/widgets"])
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/2")

@@ -255,7 +255,7 @@ function SidebarContent({
   user: BootstrapPayload["current_user"] | undefined
 }) {
   return (
-    <div className="flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+    <div className="h-full w-full overflow-y-auto border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <div className="border-b border-gray-200 px-4 py-4 dark:border-gray-800">
         <div className="flex items-center justify-between gap-3">
           <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}><SyrusBrand /></Link>
@@ -269,7 +269,7 @@ function SidebarContent({
           </button>
         </div>
       </div>
-      <div className="space-y-3 px-3 py-4">
+      <div className="sticky top-0 z-20 bg-white px-3 py-4 dark:bg-gray-950">
         <button
           className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300"
           disabled={!user || creatingChat}
@@ -279,6 +279,8 @@ function SidebarContent({
           <PlusIcon />
           <span>{creatingChat ? "Creating..." : "New Chat"}</span>
         </button>
+      </div>
+      <div className="px-3 pb-4">
         <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
           {navItems.map((item) => {
             const link = (
@@ -379,10 +381,10 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
     })
   }
 
-  if (!userPresent) return <div aria-hidden="true" className="flex-1 overflow-y-auto" />
+  if (!userPresent) return null
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+    <div className="px-3 pb-4">
       <nav aria-label="Recent chats" className="space-y-4">
         {sections.map((section) => {
           const expanded = expandedSections.has(section.key)
