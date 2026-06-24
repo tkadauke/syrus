@@ -6415,8 +6415,18 @@ describe("App", () => {
     let currentPayload = epicDetailPayload({ dependencies: [], dependents: [] })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path.startsWith("/api/v1/app/filters/fk_options")) {
+        const url = new URL(path, "http://syrus.test")
+        const query = url.searchParams.get("q")
+        const options = query === "Cycle"
+          ? [{ value: 10, label: "Cycle dependency" }]
+          : query === "Index"
+            ? [{ value: 9, label: "Index chat transcripts" }]
+            : []
+        return Promise.resolve(new Response(JSON.stringify({ options }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/epics/7/dependencies" && init?.method === "POST") {
-        if (init.body === JSON.stringify({ depends_on_epic_id: 7 })) {
+        if (init.body === JSON.stringify({ depends_on_epic_id: 10 })) {
           return Promise.resolve(new Response(JSON.stringify({ error: { code: "validation_failed", message: "Depends on epic would create a cycle" } }), { status: 422, headers: { "Content-Type": "application/json" } }))
         }
         currentPayload = epicDetailPayload({
@@ -6440,15 +6450,21 @@ describe("App", () => {
 
     await waitFor(() => expect(screen.getAllByText("None")).toHaveLength(2))
 
-    fireEvent.change(screen.getByLabelText("Add dependency"), { target: { value: "7" } })
+    fireEvent.change(screen.getByLabelText("Add dependency"), { target: { value: "Cycle" } })
+    fireEvent.click(await screen.findByRole("button", { name: "Cycle dependency" }))
     fireEvent.click(screen.getByRole("button", { name: "Add" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Depends on epic would create a cycle")
 
-    fireEvent.change(screen.getByLabelText("Add dependency"), { target: { value: "9" } })
+    fireEvent.change(screen.getByLabelText("Add dependency"), { target: { value: "Index" } })
+    fireEvent.click(await screen.findByRole("button", { name: "Index chat transcripts" }))
     fireEvent.click(screen.getByRole("button", { name: "Add" }))
 
     await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/filters/fk_options?field=epic_id&q=Index",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/epics/7/dependencies",
         expect.objectContaining({

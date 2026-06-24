@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
 import { Fragment, type FormEvent, type ReactNode } from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
@@ -11,12 +11,14 @@ import {
   claimEpic,
   fetchEpicDetail,
   removeEpicDependency,
+  searchEpicOptions,
   unclaimEpic,
   updateEpicState,
   type EpicDependencyRecord,
   type EpicDetailJob,
   type EpicDetailPayload,
   type EpicGraph,
+  type EpicSearchOption,
   type EpicStateTransition
 } from "../api/epics"
 import { Markdown } from "../lib/Markdown"
@@ -158,7 +160,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Epic command failed.")}</PanelMessage> : null}
 
       <DependencyGraph graph={payload.graph} />
-      <DependenciesSection command={dependencyCommand} dependencies={payload.dependencies} dependents={payload.dependents} prefix={prefix} />
+      <DependenciesSection command={dependencyCommand} currentEpicId={payload.epic.id} dependencies={payload.dependencies} dependents={payload.dependents} prefix={prefix} />
 
       {payload.epic.description.trim() ? (
         <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
@@ -174,23 +176,25 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
 
 function DependenciesSection({
   command,
+  currentEpicId,
   dependencies,
   dependents,
   prefix
 }: {
   command: UseMutationResult<EpicDetailPayload, Error, { kind: "add"; dependsOnEpicId: number } | { kind: "remove"; dependsOnEpicId: number }>
+  currentEpicId: number
   dependencies: EpicDependencyRecord[]
   dependents: EpicDependencyRecord[]
   prefix: string
 }) {
-  const [dependsOnEpicId, setDependsOnEpicId] = useState("")
+  const [selectedDependency, setSelectedDependency] = useState<EpicSearchOption | null>(null)
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const parsedId = Number.parseInt(dependsOnEpicId, 10)
+    const parsedId = Number.parseInt(String(selectedDependency?.value ?? ""), 10)
     if (!Number.isFinite(parsedId)) return
 
-    command.mutate({ kind: "add", dependsOnEpicId: parsedId }, { onSuccess: () => setDependsOnEpicId("") })
+    command.mutate({ kind: "add", dependsOnEpicId: parsedId }, { onSuccess: () => setSelectedDependency(null) })
   }
 
   return (
@@ -223,20 +227,13 @@ function DependenciesSection({
           <p className="mt-2 text-gray-400 dark:text-gray-500">None</p>
         )}
         <form className="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800" onSubmit={submit}>
-          <label className="min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            Add dependency
-            <input
-              className="mt-1 w-full min-w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-              inputMode="numeric"
-              min="1"
-              onChange={(event) => setDependsOnEpicId(event.target.value)}
-              placeholder="Epic ID"
-              required
-              type="number"
-              value={dependsOnEpicId}
-            />
-          </label>
-          <button className={secondaryButton()} disabled={command.isPending} type="submit">Add</button>
+          <EpicDependencyTypeahead
+            currentEpicId={currentEpicId}
+            excludedEpicIds={dependencies.map((dependency) => dependency.epic_id)}
+            onChange={setSelectedDependency}
+            selected={selectedDependency}
+          />
+          <button className={secondaryButton()} disabled={command.isPending || !selectedDependency} type="submit">Add</button>
         </form>
         {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, "Unable to update dependencies.")}</p> : null}
       </div>
@@ -256,6 +253,106 @@ function DependenciesSection({
         )}
       </div>
     </section>
+  )
+}
+
+function EpicDependencyTypeahead({
+  currentEpicId,
+  excludedEpicIds,
+  onChange,
+  selected
+}: {
+  currentEpicId: number
+  excludedEpicIds: number[]
+  onChange: (option: EpicSearchOption | null) => void
+  selected: EpicSearchOption | null
+}) {
+  const [query, setQuery] = useState(selected?.label || "")
+  const [options, setOptions] = useState<EpicSearchOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const previousSelectedLabel = useRef<string | null>(selected?.label || null)
+  const trimmedQuery = query.trim()
+  const excluded = new Set([currentEpicId, ...excludedEpicIds].map(String))
+
+  useEffect(() => {
+    if (selected) {
+      previousSelectedLabel.current = selected.label
+      setQuery(selected.label)
+      return
+    }
+
+    if (previousSelectedLabel.current && query === previousSelectedLabel.current) {
+      setQuery("")
+    }
+    previousSelectedLabel.current = null
+  }, [selected?.label])
+
+  useEffect(() => {
+    if (trimmedQuery.length < 2 || selected?.label === query) {
+      setOptions([])
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+    setLoading(true)
+
+    void searchEpicOptions(trimmedQuery, { signal: controller.signal }).then((loadedOptions) => {
+      if (!cancelled) setOptions(loadedOptions.filter((option) => !excluded.has(String(option.value))))
+    }).catch((error: unknown) => {
+      if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) setOptions([])
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [excludedEpicIds.join("\0"), currentEpicId, query, selected?.label, trimmedQuery])
+
+  function updateQuery(value: string) {
+    setQuery(value)
+    if (selected) onChange(null)
+  }
+
+  function choose(option: EpicSearchOption) {
+    onChange(option)
+    setQuery(option.label)
+    setOptions([])
+  }
+
+  return (
+    <label className="relative min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+      Add dependency
+      <input
+        aria-autocomplete="list"
+        className="mt-1 w-full min-w-64 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+        onChange={(event) => updateQuery(event.target.value)}
+        placeholder="Search Epics by name..."
+        type="search"
+        value={query}
+      />
+      {trimmedQuery.length >= 2 && selected?.label !== query ? (
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded border border-gray-200 bg-white py-1 normal-case shadow-lg dark:border-gray-700 dark:bg-gray-900">
+          {options.length > 0 ? (
+            options.map((option) => (
+              <button
+                className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                key={String(option.value)}
+                onClick={() => choose(option)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500">{loading ? "Searching..." : "No matches"}</div>
+          )}
+        </div>
+      ) : null}
+    </label>
   )
 }
 

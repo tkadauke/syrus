@@ -5,6 +5,11 @@ export type EpicRepositoryOption = {
   slug: string
 }
 
+export type EpicSearchOption = {
+  value: string | number
+  label: string
+}
+
 export type EpicFormRecord = {
   id: number | null
   title: string
@@ -146,6 +151,12 @@ export function fetchEditEpicForm(id: string) {
 
 export function fetchEpicDetail(id: string) {
   return getJson<EpicDetailPayload>(`/api/v1/app/epics/${id}`)
+}
+
+export function searchEpicOptions(query: string, options: { signal?: AbortSignal } = {}) {
+  const params = new URLSearchParams({ field: "epic_id", q: query })
+  return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options)
+    .then((payload) => payload.options || [])
 }
 
 export function createEpic(values: EpicInput) {
