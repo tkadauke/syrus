@@ -82,6 +82,8 @@ RSpec.describe ChatTurnJob do
     expect(received[:resume_session_id]).to be_nil
     expect(received[:max_turns]).to be_nil
     expect(received[:disallowed_tools]).to eq(%w[Write Edit MultiEdit NotebookEdit])
+    expect(received[:image_paths]).to eq([])
+    expect(received[:file_paths]).to eq([])
 
     expect(chat.messages.order(:created_at).pluck(:role)).to eq(
       [ "user", "assistant", "tool_use", "tool_result" ]
@@ -132,6 +134,66 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).to include("Make the water arrive")
     expect(received[:prompt]).to include("Job ##{child.id}: Seal the northern arch")
     expect(received[:prompt]).to include("Use `read_epic` with id #{epic.id}")
+  end
+
+  it "writes image attachments into the chat workspace and passes their paths to Claude" do
+    payload = "png-bytes"
+    image_message = chat.messages.create!(
+      role: "user",
+      content: {
+        text: "Inspect this image",
+        attachments: [
+          {
+            name: "capture.png",
+            mime_type: "image/png",
+            data: Base64.strict_encode64(payload)
+          }
+        ]
+      }
+    )
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, image_message.id)
+
+    expect(received[:image_paths].size).to eq(1)
+    image_path = Pathname(received[:image_paths].first)
+    expect(image_path.dirname).to eq(workspace_path.join("attachments"))
+    expect(image_path.extname).to eq(".png")
+    expect(File.binread(image_path)).to eq(payload)
+    expect(received[:file_paths]).to eq([])
+  end
+
+  it "adds a prompt note for PDF attachments when Claude does not support --file" do
+    allow(described_class).to receive(:claude_file_flag_supported?).and_return(false)
+    pdf_message = chat.messages.create!(
+      role: "user",
+      content: {
+        text: "Read this",
+        attachments: [
+          {
+            name: "brief.pdf",
+            mime_type: "application/pdf",
+            data: Base64.strict_encode64("%PDF")
+          }
+        ]
+      }
+    )
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, pdf_message.id)
+
+    expect(received[:image_paths]).to eq([])
+    expect(received[:file_paths]).to eq([])
+    expect(received[:prompt]).to include("[Attached PDF: brief.pdf]\nRead this")
+    expect(Dir[workspace_path.join("attachments", "*.pdf").to_s].size).to eq(1)
   end
 
   it "can run a top-level chat before any repository is attached" do

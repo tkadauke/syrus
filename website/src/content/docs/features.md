@@ -67,9 +67,10 @@ auto-pause a task until an operator fixes and resumes it.
 ## Chats
 
 Chats are operator conversations with repository context. A chat can
-attach repositories, Jobs, documents, memories, and whiteboard state. The chat
-agent can read selected repository context, propose Jobs, propose Epics,
-list and update Epics, add or remove Epic dependencies, move Epics through
+attach repositories, Jobs, documents, memories, whiteboard state, and
+message-level image or PDF files. The chat agent can read selected repository
+context, propose Jobs, propose Epics, list and update Epics, add or remove Epic
+dependencies, move Epics through
 their kanban states, schedule recurring work, inspect existing Jobs or PRs,
 approve or unapprove
 implemented Jobs, change Job priority, move Jobs into or out of Epics, drill

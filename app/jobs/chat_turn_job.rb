@@ -1,3 +1,7 @@
+require "base64"
+require "fileutils"
+require "open3"
+require "securerandom"
 require "tempfile"
 
 class ChatTurnJob < ApplicationJob
@@ -18,6 +22,15 @@ class ChatTurnJob < ApplicationJob
 
   class << self
     attr_accessor :agent_runner
+
+    def claude_file_flag_supported?
+      return @claude_file_flag_supported unless @claude_file_flag_supported.nil?
+
+      output, status = Open3.capture2e("claude", "--help")
+      @claude_file_flag_supported = status.success? && output.match?(/--file\b/)
+    rescue Errno::ENOENT
+      @claude_file_flag_supported = false
+    end
   end
 
   SIDECAR_ENV_FORWARD = AgentProviders::Base::SIDECAR_ENV_FORWARD
@@ -44,16 +57,19 @@ class ChatTurnJob < ApplicationJob
 
     workspace_path = ensure_workspace!
     parent_session_id = @chat.claude_session&.session_id
+    attachment_context = attachment_context_for(workspace_path)
 
     result = with_chat_mcp_config do |mcp_config|
       ClaudeInvocation.new(
         workspace_path,
-        prompt: prompt_for(parent_session_id),
+        prompt: prompt_for(parent_session_id, user_text: attachment_context.fetch(:user_text)),
         oauth_token: @chat.user.claude_oauth_token,
         log_sink: method(:record_agent_event),
         runner: self.class.agent_runner,
         max_turns: nil,
         mcp_config: mcp_config,
+        image_paths: attachment_context.fetch(:image_paths),
+        file_paths: attachment_context.fetch(:file_paths),
         resume_session_id: parent_session_id,
         disallowed_tools: DISALLOWED_CLAUDE_TOOLS,
         stop_requested: method(:stop_requested?),
@@ -83,12 +99,58 @@ class ChatTurnJob < ApplicationJob
     ChatWorkspace.ensure_root!(@chat)
   end
 
-  def prompt_for(parent_session_id)
-    user_text = @user_message.content["text"].to_s
+  def prompt_for(parent_session_id, user_text:)
     snapshot = AgentEnvironmentSnapshot.for_chat(repository: @chat.repository, chat_session: @chat)
     return [ snapshot, user_text ].join("\n\n---\n\n") if parent_session_id.present?
 
     [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, user_text ].join("\n\n")
+  end
+
+  def attachment_context_for(workspace_path)
+    user_text = @user_message.content["text"].to_s
+    image_paths = []
+    file_paths = []
+    pdf_notes = []
+    attachments = Array(@user_message.content["attachments"])
+    return { user_text: user_text, image_paths: image_paths, file_paths: file_paths } if attachments.empty?
+
+    attachments_dir = Pathname(workspace_path).join("attachments")
+    FileUtils.mkdir_p(attachments_dir)
+    file_flag_supported = nil
+
+    attachments.each do |attachment|
+      mime_type = attachment["mime_type"].to_s
+      path = attachments_dir.join("#{SecureRandom.uuid}#{ext_for(mime_type)}")
+      File.binwrite(path, Base64.decode64(attachment["data"].to_s))
+
+      if mime_type.start_with?("image/")
+        image_paths << path.to_s
+      elsif mime_type == "application/pdf"
+        file_flag_supported = self.class.claude_file_flag_supported? if file_flag_supported.nil?
+        if file_flag_supported
+          file_paths << path.to_s
+        else
+          pdf_notes << "[Attached PDF: #{attachment['name']}]\n"
+        end
+      end
+    end
+
+    {
+      user_text: "#{pdf_notes.join}#{user_text}",
+      image_paths: image_paths,
+      file_paths: file_paths
+    }
+  end
+
+  def ext_for(mime_type)
+    case mime_type
+    when "image/jpeg" then ".jpg"
+    when "image/png" then ".png"
+    when "image/gif" then ".gif"
+    when "image/webp" then ".webp"
+    when "application/pdf" then ".pdf"
+    else ""
+    end
   end
 
   def with_chat_mcp_config

@@ -23,6 +23,8 @@ RSpec.describe ClaudeInvocation do
       expect(received[:timeout]).to eq(60)
       expect(received[:max_turns]).to eq(7)
       expect(received[:mcp_config]).to be_nil
+      expect(received[:image_paths]).to eq([])
+      expect(received[:file_paths]).to eq([])
       expect(received[:disallowed_tools]).to eq([])
       expect(received[:stop_requested].call).to eq(false)
       expect(received[:process_started]).to respond_to(:call)
@@ -41,6 +43,22 @@ RSpec.describe ClaudeInvocation do
                           runner: runner, mcp_config: "/tmp/mcp.json").run
 
       expect(received[:mcp_config]).to eq("/tmp/mcp.json")
+    end
+
+    it "passes image and file paths through to the runner when set" do
+      received = {}
+      runner = ->(**kwargs) {
+        received.merge!(kwargs)
+        result_fixture
+      }
+
+      described_class.new("/tmp/wkt", prompt: "x", oauth_token: "x",
+                          runner: runner,
+                          image_paths: [ "/tmp/foo.png" ],
+                          file_paths: [ "/tmp/bar.pdf" ]).run
+
+      expect(received[:image_paths]).to eq([ "/tmp/foo.png" ])
+      expect(received[:file_paths]).to eq([ "/tmp/bar.pdf" ])
     end
   end
 
@@ -238,6 +256,32 @@ RSpec.describe ClaudeInvocation do
       expect(idx).not_to be_nil
       expect(cmd[idx + 1, 3]).to eq(%w[Write Edit MultiEdit])
       expect(cmd[idx + 4]).to start_with("--"), "arg after disallowed tool list must be another flag — got #{cmd[idx + 4].inspect}"
+    end
+
+    it "passes image and file flags before --output-format" do
+      invocation = described_class.new("/tmp", prompt: "P", oauth_token: "x",
+                                       image_paths: [ "/tmp/foo.png" ],
+                                       file_paths: [ "/tmp/bar.pdf" ])
+      cmd = []
+      allow(Open3).to receive(:popen2e) do |_env, *args, **_opts, &blk|
+        cmd.replace(args)
+        rd, wr = IO.pipe; wr.close
+        fake_wait = Struct.new(:value, :pid).new(Struct.new(:exitstatus).new(0), 0)
+        blk.call($stdin, rd, fake_wait)
+        rd.close
+      end
+
+      invocation.run
+
+      image_idx = cmd.index("--image")
+      file_idx = cmd.index("--file")
+      output_idx = cmd.index("--output-format")
+      expect(image_idx).not_to be_nil, "expected --image in cmd: #{cmd.inspect}"
+      expect(file_idx).not_to be_nil, "expected --file in cmd: #{cmd.inspect}"
+      expect(cmd[image_idx + 1]).to eq("/tmp/foo.png")
+      expect(cmd[file_idx + 1]).to eq("/tmp/bar.pdf")
+      expect(image_idx).to be < output_idx
+      expect(file_idx).to be < output_idx
     end
 
     it "omits --resume when resume_session_id is nil (default)" do

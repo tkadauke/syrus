@@ -7,6 +7,8 @@ class ClaudeInvocation
                  timeout: AgentInvocation::DEFAULT_TIMEOUT_SECONDS,
                  max_turns: AgentInvocation::DEFAULT_MAX_TURNS,
                  mcp_config: nil,
+                 image_paths: nil,
+                 file_paths: nil,
                  resume_session_id: nil,
                  disallowed_tools: nil,
                  stop_requested: -> { false },
@@ -19,6 +21,8 @@ class ClaudeInvocation
     @timeout = timeout
     @max_turns = max_turns
     @mcp_config = mcp_config
+    @image_paths = Array(image_paths).compact
+    @file_paths = Array(file_paths).compact
     @resume_session_id = resume_session_id
     @disallowed_tools = Array(disallowed_tools).compact
     @stop_requested = stop_requested
@@ -34,6 +38,8 @@ class ClaudeInvocation
       timeout: @timeout,
       max_turns: @max_turns,
       mcp_config: @mcp_config,
+      image_paths: @image_paths,
+      file_paths: @file_paths,
       resume_session_id: @resume_session_id,
       disallowed_tools: @disallowed_tools,
       stop_requested: @stop_requested,
@@ -53,7 +59,7 @@ class ClaudeInvocation
   # isolated per-job worktree, never against the operator's checkout. Same
   # trust posture as letting a human dev pair on a branch.
   def default_runner(workspace_path:, prompt:, oauth_token:, log_sink:, timeout:,
-                     max_turns:, mcp_config: nil, resume_session_id: nil,
+                     max_turns:, mcp_config: nil, image_paths: nil, file_paths: nil, resume_session_id: nil,
                      disallowed_tools: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { })
     env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path)
@@ -69,6 +75,8 @@ class ClaudeInvocation
     cmd += [ "--mcp-config", mcp_config ] if mcp_config
     cmd += [ "--resume", resume_session_id ] if resume_session_id
     cmd += [ "--disallowedTools", *Array(disallowed_tools) ] if disallowed_tools.present?
+    Array(image_paths).each { |path| cmd += [ "--image", path ] }
+    Array(file_paths).each { |path| cmd += [ "--file", path ] }
     cmd += [ "--output-format", "stream-json",
              "--verbose",
              "--dangerously-skip-permissions" ]
