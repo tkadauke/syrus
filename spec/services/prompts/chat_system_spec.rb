@@ -3,6 +3,10 @@ require "rails_helper"
 RSpec.describe Prompts::ChatSystem do
   let(:repo) { repository(owner: "acme", name: "widgets") }
 
+  def pinned_context_body(output)
+    output[/Pinned context:\n(?<body>(?:  - .*\n)+)/, :body].rstrip
+  end
+
   it "interpolates the repository slug into the role framing" do
     out = described_class.new(repository: repo).to_s
 
@@ -315,14 +319,68 @@ RSpec.describe Prompts::ChatSystem do
 
     out = described_class.new(repository: repo, chat_session: chat).to_s
 
-    # Match the pinned-context bullet list — runs of "  - …" lines
-    # ending at the first blank line. Anchoring on the next section
-    # header is brittle: the prompt has multiple sections, and any
-    # one of them could land first.
-    pinned = out[/Pinned context:\n(?<body>(?:  - .*\n)+)/, :body].rstrip
+    pinned = pinned_context_body(out)
     clipped = pinned.delete_prefix("  - ").delete_suffix("...")
     expect(clipped.bytesize).to be <= 2.kilobytes
     expect(pinned).to end_with("...")
+  end
+
+  it "reports how many visible memories were omitted after the byte budget is exhausted" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    4.times do |index|
+      ChatMemory.create!(
+        user: repo.user,
+        kind: "project_fact",
+        scope: "global",
+        content: "Memory #{index} #{"A" * 1_890}"
+      )
+    end
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(pinned_context_body(out)).to include("  - (2 more not shown — call list_memories to retrieve them)")
+  end
+
+  it "does not append an omitted-memory notice when all memories fit" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    ChatMemory.create!(
+      user: repo.user,
+      kind: "user_pref",
+      scope: "global",
+      content: "Prefers short answers."
+    )
+    ChatMemory.create!(
+      user: repo.user,
+      kind: "decision",
+      scope: "global",
+      content: "Use the current planning template."
+    )
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(pinned_context_body(out)).not_to include("more not shown")
+  end
+
+  it "does not append an omitted-memory notice when the final rendered memory is clipped" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    ChatMemory.create!(
+      user: repo.user,
+      kind: "project_fact",
+      scope: "global",
+      content: "A" * 1_900
+    )
+    ChatMemory.create!(
+      user: repo.user,
+      kind: "project_fact",
+      scope: "global",
+      content: "B" * 500
+    )
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+    pinned = pinned_context_body(out)
+
+    expect(pinned).to end_with("...")
+    expect(pinned).not_to include("more not shown")
   end
 
   it "captures the workspace expectations that should not regress" do
