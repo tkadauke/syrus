@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { createDashboardSmartFolder, toggleDashboardLandingPause, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject } from "../api/dashboard"
+import { updateSmartFolder } from "../api/smartFolders"
 import { filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren } from "./FilterBar"
 import { NoticeToast } from "./NoticeToast"
 
@@ -15,6 +16,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const primaryFolders = builtinFolders.filter((folder) => folder.visibility !== "on_demand")
   const moreFolders = builtinFolders.filter((folder) => folder.visibility === "on_demand")
   const savedFolders = payload.smart_folders.filter((folder) => folder.kind === "user_defined")
+  const activeFolder = savedFolders.find((folder) => folder.id === payload.active_smart_folder_id)
   const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view, smart_folder_id: payload.subject === "job" ? "all" : null })
   const allJobsSelected = payload.subject === "job" && payload.active_smart_folder_id == null && new URLSearchParams(search).get("smart_folder_id") === "all"
   const allJobsLink = (
@@ -23,7 +25,9 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
     </Link>
   )
   const appliedTree = filterTreeFromPayload(payload.filter)
+  const activeFolderTree = filterTreeFromPayload(activeFolder?.filter)
   const canSaveFilter = topFilterChildren(appliedTree).length > 0 && payload.active_smart_folder_id == null
+  const canUpdateFilter = activeFolder != null && JSON.stringify(appliedTree) !== JSON.stringify(activeFolderTree)
   const landingPause = useMutation({
     mutationFn: () => toggleDashboardLandingPause(payload.landing_queue.toggle_path),
     onSuccess: () => {
@@ -40,6 +44,20 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       setFolderName("")
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       navigate(withRoutePrefix(created.redirect_to, prefix))
+    }
+  })
+  const updateFolder = useMutation({
+    mutationFn: () => {
+      if (!activeFolder) throw new Error("No active smart folder selected.")
+
+      return updateSmartFolder(activeFolder.id, {
+        name: activeFolder.name,
+        position: activeFolder.position,
+        filter: appliedTree
+      })
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
 
@@ -96,6 +114,19 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
           </button>
           {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(createFolder.error, "Unable to save smart folder.")}</p> : null}
         </form>
+      ) : null}
+      {canUpdateFilter && activeFolder ? (
+        <div className="space-y-2 px-2 pt-3">
+          <button
+            className="w-full rounded border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 break-words hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-300 dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-950 dark:disabled:border-gray-700 dark:disabled:text-gray-600"
+            disabled={updateFolder.isPending}
+            onClick={() => updateFolder.mutate()}
+            type="button"
+          >
+            Update {activeFolder.name}
+          </button>
+          {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updateFolder.error, "Unable to update smart folder.")}</p> : null}
+        </div>
       ) : null}
       {payload.landing_queue.visible ? (
         <div className="space-y-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">

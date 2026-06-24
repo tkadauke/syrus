@@ -3172,6 +3172,247 @@ describe("App", () => {
     }
   })
 
+  it("shows an update action when the active saved dashboard folder filter differs", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/dashboard?view=list&smart_folder_id=7&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                active_smart_folder_id: 7,
+                filter: { and: [{ field: "state", op: "is", value: "closed" }] },
+                smart_folders: [
+                  {
+                    id: 7,
+                    name: "My work",
+                    kind: "user_defined",
+                    position: 2,
+                    subject_type: "job",
+                    visibility: "user_defined",
+                    count: 1,
+                    active: true,
+                    filter: { and: [{ field: "state", op: "is", value: "open" }] },
+                    path: "/dashboard/jobs?view=list&smart_folder_id=7"
+                  }
+                ],
+                items: [dashboardJobItem()]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+      expect(within(smartFoldersPanel).getByRole("button", { name: "Update My work" })).toBeInTheDocument()
+    } finally {
+      script.remove()
+    }
+  })
+
+  it("hides the update action when the active saved dashboard folder filter matches", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/dashboard?view=list&smart_folder_id=7&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                active_smart_folder_id: 7,
+                filter: { and: [{ field: "state", op: "is", value: "open" }] },
+                smart_folders: [
+                  {
+                    id: 7,
+                    name: "My work",
+                    kind: "user_defined",
+                    position: 2,
+                    subject_type: "job",
+                    visibility: "user_defined",
+                    count: 1,
+                    active: true,
+                    filter: { and: [{ field: "state", op: "is", value: "open" }] },
+                    path: "/dashboard/jobs?view=list&smart_folder_id=7"
+                  }
+                ],
+                items: [dashboardJobItem()]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Update My work" })).not.toBeInTheDocument()
+    } finally {
+      script.remove()
+    }
+  })
+
+  it("updates the active saved dashboard folder with the applied filter", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const appliedFilter = { and: [{ field: "state", op: "is", value: "closed" }] }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/smart_folders/7" && init?.method === "PATCH") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              subject_type: "job",
+              subject_label: "Job",
+              dashboard_path: "/dashboard/jobs",
+              smart_folders: [
+                {
+                  id: 7,
+                  name: "My work",
+                  position: 2,
+                  filter: appliedFilter
+                }
+              ],
+              message: "Smart folder updated."
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+      if (path === "/api/v1/app/dashboard?view=list&smart_folder_id=7&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                active_smart_folder_id: 7,
+                filter: appliedFilter,
+                smart_folders: [
+                  {
+                    id: 7,
+                    name: "My work",
+                    kind: "user_defined",
+                    position: 2,
+                    subject_type: "job",
+                    visibility: "user_defined",
+                    count: 1,
+                    active: true,
+                    filter: { and: [{ field: "state", op: "is", value: "open" }] },
+                    path: "/dashboard/jobs?view=list&smart_folder_id=7"
+                  }
+                ],
+                items: [dashboardJobItem()]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+      fireEvent.click(within(smartFoldersPanel).getByRole("button", { name: "Update My work" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/smart_folders/7",
+          expect.objectContaining({
+            method: "PATCH",
+            credentials: "same-origin",
+            headers: expect.objectContaining({
+              Accept: "application/json",
+              "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({
+              filter: JSON.stringify(appliedFilter),
+              smart_folder: {
+                name: "My work",
+                position: 2
+              }
+            })
+          })
+        )
+      })
+    } finally {
+      script.remove()
+    }
+  })
+
   it("renders app-shell dashboard kanban lanes from the app dashboard API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

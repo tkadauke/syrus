@@ -587,6 +587,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["smart_folders"]).to include(include(
         "id" => folder.id,
         "name" => "Ready work",
+        "position" => folder.position,
         "visibility" => "user_defined",
         "count" => 1,
         "active" => true,
