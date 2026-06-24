@@ -101,6 +101,27 @@ curl -X POST https://syrus.example.com/api/v1/app/chats/123/rename \
   -d '{ "name": "Release planning" }'
 ```
 
+## Search Chats
+
+`GET /api/v1/app/chats/search` searches the authenticated user's chats.
+Pass `q` for full-text search, or omit it for a filter-only listing. The
+optional `repository_id`, `epic_id`, and `job_id` filters limit results to
+chats with matching attachments. Results are paginated with `page` and return
+chat-level cards with up to three matching message snippets.
+
+```bash
+curl "https://syrus.example.com/api/v1/app/chats/search?q=deploy&epic_id=456" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+`GET /api/v1/app/chats/search/messages` expands all matching messages for
+one chat and query:
+
+```bash
+curl "https://syrus.example.com/api/v1/app/chats/search/messages?chat_session_id=123&q=deploy" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
 The app Epic detail API also supports dependency management for Epics owned
 by the authenticated user:
 

@@ -81,6 +81,133 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body.to_s).not_to include("Foreign chat")
   end
 
+  describe "chat search" do
+    before do
+      allow(AppEvents).to receive(:broadcast)
+      prepare_search_tables
+      sign_in_as(user)
+    end
+
+    it "returns FTS-ranked chat results scoped to the current user" do
+      weaker_chat = ChatSession.create!(user: user, repository: repository, title: "Weaker")
+      stronger_chat = ChatSession.create!(user: user, repository: repository, title: "Stronger")
+      other_user = Factories.user
+      other_chat = ChatSession.create!(
+        user: other_user,
+        repository: Factories.repository(user: other_user),
+        title: "Private"
+      )
+
+      create_indexed_message(weaker_chat, text: "needle deployment")
+      stronger = create_indexed_message(stronger_chat, text: "needle needle needle deployment")
+      create_indexed_message(other_chat, text: "needle needle needle private")
+
+      get "/api/v1/app/chats/search", params: { q: "needle" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["total"]).to eq(2)
+      expect(body["results"].map { |result| result["chat_session_id"] })
+        .to eq([ stronger_chat.id, weaker_chat.id ])
+      expect(body["results"].first).to include(
+        "chat_title" => "Stronger",
+        "best_match_message_id" => stronger.id,
+        "total_match_count" => 1,
+        "has_more_matches" => false
+      )
+      expect(body["results"].first["best_snippet"]).to include("<b>needle</b>")
+      expect(body["results"].first["top_matches"]).to contain_exactly(
+        include("message_id" => stronger.id, "role" => "assistant")
+      )
+    end
+
+    it "filters chats by attached epic without a text query" do
+      epic = Factories.epic(user: user, repository: repository, title: "Search UI")
+      matching = ChatSession.create!(
+        user: user,
+        repository: repository,
+        title: "Matching",
+        updated_at: 1.hour.ago
+      )
+      nonmatching = ChatSession.create!(
+        user: user,
+        repository: repository,
+        title: "Other",
+        updated_at: Time.current
+      )
+      matching.chat_attachments.create!(attachable: epic)
+
+      get "/api/v1/app/chats/search", params: { epic_id: epic.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["total"]).to eq(1)
+      expect(parse_body["results"]).to contain_exactly(
+        include("chat_session_id" => matching.id, "chat_title" => "Matching", "top_matches" => [])
+      )
+      expect(parse_body.to_s).not_to include(nonmatching.title)
+    end
+
+    it "intersects text search results with attached epic filters" do
+      epic = Factories.epic(user: user, repository: repository, title: "Search UI")
+      matching = ChatSession.create!(user: user, repository: repository, title: "Matching")
+      text_only = ChatSession.create!(user: user, repository: repository, title: "Text only")
+      epic_only = ChatSession.create!(user: user, repository: repository, title: "Epic only")
+      matching.chat_attachments.create!(attachable: epic)
+      epic_only.chat_attachments.create!(attachable: epic)
+      message = create_indexed_message(matching, text: "needle in attached chat")
+      create_indexed_message(text_only, text: "needle in detached chat")
+
+      get "/api/v1/app/chats/search", params: { q: "needle", epic_id: epic.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["total"]).to eq(1)
+      expect(parse_body["results"]).to contain_exactly(
+        include("chat_session_id" => matching.id, "best_match_message_id" => message.id)
+      )
+      expect(parse_body.to_s).not_to include(text_only.title)
+      expect(parse_body.to_s).not_to include(epic_only.title)
+    end
+
+    it "returns an empty result payload when nothing matches" do
+      get "/api/v1/app/chats/search", params: { q: "missing" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("results" => [], "total" => 0)
+    end
+
+    it "returns all matching messages for a chat and query" do
+      chat = ChatSession.create!(user: user, repository: repository, title: "Memory")
+      first = create_indexed_message(chat, text: "needle first", role: "user")
+      second = create_indexed_message(chat, text: "needle second", role: "assistant")
+
+      get "/api/v1/app/chats/search/messages", params: { chat_session_id: chat.id, q: "needle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["matches"].map { |match| match["message_id"] })
+        .to contain_exactly(first.id, second.id)
+      expect(parse_body["matches"]).to all(include("snippet", "role", "created_at"))
+    end
+
+    it "never returns another user's chats from search or expansion" do
+      other_user = Factories.user
+      other_chat = ChatSession.create!(
+        user: other_user,
+        repository: Factories.repository(user: other_user),
+        title: "Private"
+      )
+      create_indexed_message(other_chat, text: "needle private")
+
+      get "/api/v1/app/chats/search", params: { q: "needle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("results" => [], "total" => 0)
+
+      get "/api/v1/app/chats/search/messages", params: { chat_session_id: other_chat.id, q: "needle" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   it "marks a chat read for the signed-in user" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current, last_read_at: nil)
@@ -1014,5 +1141,34 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     }.not_to change(ChatSession, :count)
 
     expect(response).to have_http_status(:not_found)
+  end
+
+  def create_indexed_message(chat_session, text:, role: "assistant")
+    message = chat_session.messages.create!(role: role, content: { "text" => text })
+    ChatMessageSearchIndex.insert(message)
+    message
+  end
+
+  def prepare_search_tables
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_search_metadata")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(
+        content,
+        user_id UNINDEXED,
+        chat_session_id UNINDEXED,
+        chat_message_id UNINDEXED,
+        role UNINDEXED,
+        created_at UNINDEXED,
+        tokenize = 'porter unicode61'
+      )
+    SQL
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE TABLE chat_search_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    SQL
   end
 end

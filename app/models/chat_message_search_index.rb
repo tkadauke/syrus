@@ -33,7 +33,27 @@ class ChatMessageSearchIndex < SearchRecord
       end
     end
 
-    def search(query, user_id:, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 24)
+    def search(query, user_id:, chat_session_id: nil, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 24)
+      predicates = [ "chat_message_fts MATCH ?", "user_id = ?" ]
+      binds = [
+        bind(snippet_start.to_s),
+        bind(snippet_end.to_s),
+        bind(snippet_tokens.to_i),
+        bind(query.to_s),
+        bind(user_id)
+      ]
+
+      if chat_session_id.present?
+        predicates << "chat_session_id = ?"
+        binds << bind(chat_session_id)
+      end
+
+      limit_sql = ""
+      if limit.present?
+        limit_sql = "LIMIT ?"
+        binds << bind(limit.to_i)
+      end
+
       rows = connection.exec_query(
         <<~SQL.squish,
           SELECT
@@ -45,19 +65,12 @@ class ChatMessageSearchIndex < SearchRecord
             snippet(chat_message_fts, 0, ?, ?, '...', ?) AS snippet,
             bm25(chat_message_fts) AS rank
           FROM chat_message_fts
-          WHERE chat_message_fts MATCH ? AND user_id = ?
+          WHERE #{predicates.join(" AND ")}
           ORDER BY rank ASC, created_at DESC, chat_message_id DESC
-          LIMIT ?
+          #{limit_sql}
         SQL
         "ChatMessageSearchIndex Search",
-        [
-          bind(snippet_start.to_s),
-          bind(snippet_end.to_s),
-          bind(snippet_tokens.to_i),
-          bind(query.to_s),
-          bind(user_id),
-          bind(limit.to_i)
-        ]
+        binds
       )
 
       rows.map(&:symbolize_keys)

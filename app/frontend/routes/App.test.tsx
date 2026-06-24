@@ -10269,6 +10269,38 @@ describe("App", () => {
     }
   })
 
+  it("scrolls to a message_id deep link and clears it from the chat URL", async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView })
+    const initialPayload = chatPayload()
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(initialPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8?message_id=9"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8",
+        expect.objectContaining({ credentials: "same-origin" })
+      ))
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it("renders the new chat route and posts to the app API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

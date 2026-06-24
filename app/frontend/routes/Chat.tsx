@@ -1505,6 +1505,8 @@ function ChatWorkspace({
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const bookmarkRequestIdRef = useRef(0)
+  const handledMessageDeepLinkRef = useRef<string | null>(null)
+  const navigate = useNavigate()
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const expanded = activeTab === "whiteboard" && whiteboardFullscreen
 
@@ -1555,6 +1557,21 @@ function ChatWorkspace({
     bookmarkRequestIdRef.current += 1
     setBookmarkTarget({ messageId, requestId: bookmarkRequestIdRef.current })
   }
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(queryKey[2])
+    const messageId = Number.parseInt(searchParams.get("message_id") || "", 10)
+    if (!Number.isFinite(messageId) || messageId <= 0) return
+
+    const deepLinkKey = `${payload.chat.id}:${messageId}`
+    if (handledMessageDeepLinkRef.current === deepLinkKey) return
+
+    handledMessageDeepLinkRef.current = deepLinkKey
+    selectBookmark(messageId)
+    searchParams.delete("message_id")
+    const nextSearch = searchParams.toString()
+    navigate({ search: nextSearch ? `?${nextSearch}` : "" }, { replace: true })
+  }, [navigate, payload.chat.id, queryKey])
 
   const commandHandlers: ChatSystemCommandHandlers = {
     openBookmarks: () => {
