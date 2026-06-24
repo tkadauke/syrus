@@ -785,9 +785,9 @@ that chat session. Its tools cover:
   list/read attached documents, list Jobs/issues/PRs, and read Job,
   Epic, or PR details.
 - Operator actions: propose GitHub issues, Syrus Jobs, Epics, or an
-  Epic with child Jobs; delete proposals; schedule recurring work; and
-  submit chat feedback, retry, rebase, or cancel Jobs visible to the
-  session.
+  Epic with child Jobs; delete proposals; schedule recurring work;
+  update Job title/description copy; and submit chat feedback, retry,
+  rebase, or cancel Jobs visible to the session.
 - Collaboration state: set bookmarks and mutate the chat whiteboard
   through scene/drawing tools.
 
@@ -797,6 +797,11 @@ agent and operator agree on feedback for an implemented or approved Job.
 Confirming it queues a `chat_feedback` Workflow and stores the feedback
 text in Workflow artifacts; rejecting or cancelling it leaves the Job
 untouched.
+
+Small metadata edits that do not schedule work, such as `update_job`,
+apply immediately after repository-scoped authorization. The tool can
+change `issue_title`, `issue_body`, or both for a Job visible to the
+chat's repository, and returns the updated copy plus the Job state.
 
 Onboarding chat uses the same chat substrate with an `onboarding: true`
 session and extra `Prompts::ChatOnboarding` guidance. The final setup
