@@ -434,6 +434,46 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["queued_messages"]).to eq([])
   end
 
+  it "stores valid file attachments on a queued chat message" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    chat.messages.create!(role: "user", content: { "text" => "Start mapping" })
+    SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "worker-1",
+      started_at: Time.current
+    )
+    attachment = {
+      name: "brief.pdf",
+      mime_type: "application/pdf",
+      data: Base64.strict_encode64("%PDF-1.7"),
+      ignored: "drop me"
+    }
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/queued_messages", params: {
+        chat_message: {
+          text: "Inspect the brief",
+          attachments: [ attachment ]
+        }
+      }
+    }.to change(ChatQueuedMessage, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_queued_messages.last.content).to eq(
+      "text" => "Inspect the brief",
+      "attachments" => [
+        {
+          "name" => "brief.pdf",
+          "mime_type" => "application/pdf",
+          "data" => Base64.strict_encode64("%PDF-1.7")
+        }
+      ]
+    )
+  end
+
   it "sends a queued-message request immediately when the chat is idle" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -958,6 +998,76 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["message"]).to eq("Message sent.")
     expect(parse_body["turn_in_flight"]).to eq(true)
     expect(parse_body["agent_busy"]).to eq(false)
+  end
+
+  it "stores valid file attachments on a chat message" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+    attachment = {
+      name: "aqueduct.png",
+      mime_type: "image/png",
+      data: Base64.strict_encode64("image-bytes"),
+      ignored: "drop me"
+    }
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Inspect this image", attachments: [ attachment ] } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.messages.last.content).to eq(
+      "text" => "Inspect this image",
+      "attachments" => [
+        {
+          "name" => "aqueduct.png",
+          "mime_type" => "image/png",
+          "data" => Base64.strict_encode64("image-bytes")
+        }
+      ]
+    )
+  end
+
+  it "returns a validation error for disallowed chat message attachment MIME types" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/message", params: {
+        chat_message: {
+          text: "Inspect this file",
+          attachments: [ { name: "script.js", mime_type: "application/javascript", data: "alert(1)" } ]
+        }
+      }
+    }.not_to change(ChatMessage, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Attachment MIME type is not allowed.")
+  end
+
+  it "returns a validation error for oversized chat message attachment data" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+    stub_const("Api::V1::App::ChatsController::CHAT_ATTACHMENT_MAX_BASE64_BYTES", 4)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/message", params: {
+        chat_message: {
+          text: "Inspect this image",
+          attachments: [ { name: "large.png", mime_type: "image/png", data: "abcde" } ]
+        }
+      }
+    }.not_to change(ChatMessage, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Attachment data must be 7 MB or smaller.")
+  end
+
+  it "keeps ordinary chat message content unchanged when attachments are omitted" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Now inspect proposals" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.messages.last.content).to eq("text" => "Now inspect proposals")
   end
 
   it "streams a chat turn as server-sent events for CLI clients" do

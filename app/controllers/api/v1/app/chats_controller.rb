@@ -6,6 +6,14 @@ module Api
         CHAT_TURN_ENQUEUE_RETRY_DELAYS = [ 0.05, 0.2 ].freeze
         CHAT_STREAM_POLL_INTERVAL = 0.25.seconds
         CHAT_STREAM_TIMEOUT = 30.minutes
+        CHAT_ATTACHMENT_ALLOWED_MIME_TYPES = %w[
+          image/jpeg
+          image/png
+          image/gif
+          image/webp
+          application/pdf
+        ].freeze
+        CHAT_ATTACHMENT_MAX_BASE64_BYTES = 7.megabytes
 
         def index
           render json: {
@@ -98,6 +106,8 @@ module Api
             render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
             return
           end
+          content = message_content(text)
+          return if performed?
 
           user_message = nil
           ApplicationRecord.transaction do
@@ -105,7 +115,7 @@ module Api
               last_message_at: Time.current,
               title: chat_session.title.presence
             )
-            user_message = chat_session.messages.create!(role: "user", content: { "text" => text })
+            user_message = chat_session.messages.create!(role: "user", content: content)
           end
           if chat_session.title.blank? && (title_message = first_user_message(chat_session))
             enqueue_chat_title(chat_session, title_message)
@@ -174,8 +184,10 @@ module Api
             render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
             return
           end
+          content = message_content(text)
+          return if performed?
 
-          queued_message = chat_session.chat_queued_messages.create!(content: { "text" => text })
+          queued_message = chat_session.chat_queued_messages.create!(content: content)
           notice = "Message queued."
 
           unless chat_session.turn_in_flight? || chat_session.agent_busy?
@@ -670,6 +682,49 @@ module Api
 
         def message_text
           (params[:content].presence || params.dig(:chat_message, :text)).to_s.strip
+        end
+
+        def message_content(text)
+          content = { "text" => text }
+          attachments = params.dig(:chat_message, :attachments)
+          return content if attachments.blank?
+
+          sanitized = sanitized_attachments(attachments)
+          return if performed?
+
+          content["attachments"] = sanitized
+          content
+        end
+
+        def sanitized_attachments(attachments)
+          unless attachments.is_a?(Array)
+            render_error("validation_failed", "Attachments must be an array.", status: :unprocessable_content)
+            return
+          end
+
+          attachments.map do |attachment|
+            attributes = attachment.respond_to?(:to_unsafe_h) ? attachment.to_unsafe_h : attachment
+            unless attributes.respond_to?(:[])
+              render_error("validation_failed", "Attachments must be objects.", status: :unprocessable_content)
+              return
+            end
+
+            name = attributes["name"] || attributes[:name]
+            mime_type = (attributes["mime_type"] || attributes[:mime_type]).to_s
+            data = (attributes["data"] || attributes[:data]).to_s
+
+            unless CHAT_ATTACHMENT_ALLOWED_MIME_TYPES.include?(mime_type)
+              render_error("validation_failed", "Attachment MIME type is not allowed.", status: :unprocessable_content)
+              return
+            end
+
+            if data.bytesize > CHAT_ATTACHMENT_MAX_BASE64_BYTES
+              render_error("validation_failed", "Attachment data must be 7 MB or smaller.", status: :unprocessable_content)
+              return
+            end
+
+            { "name" => name.to_s, "mime_type" => mime_type, "data" => data }
+          end
         end
 
         def chat_name
