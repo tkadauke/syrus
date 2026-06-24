@@ -64,10 +64,20 @@ class ChatTurnJob < ApplicationJob
     capture_session!(result) if result
     @chat.record_turn_usage!(result) if result
     touch_chat!
-    @chat.broadcast_controls unless deliver_next_queued_message!
+    deliver_next_queued_message!
+  ensure
+    clear_stop_request_and_broadcast_controls!
   end
 
   private
+
+  def clear_stop_request_and_broadcast_controls!
+    return unless @chat
+
+    @chat.reload
+    @chat.update!(stop_requested_at: nil) if @chat.stop_requested_at?
+    @chat.broadcast_controls
+  end
 
   def ensure_workspace!
     ChatWorkspace.ensure_root!(@chat)

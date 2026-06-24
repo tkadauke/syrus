@@ -192,6 +192,54 @@ RSpec.describe ChatTurnJob do
     described_class.perform_now(chat.id, message.id)
   end
 
+  it "clears stop requests and broadcasts controls when the turn fails before the agent starts" do
+    message = user_message
+    allow(ChatWorkspace).to receive(:ensure_root!).with(chat) do
+      chat.update!(stop_requested_at: Time.current)
+      raise "workspace unavailable"
+    end
+
+    expect(AppEvents).to receive(:broadcast).with(
+      user: chat.user,
+      type: "updated",
+      resource: "chat",
+      id: chat.id,
+      changed: [ "controls" ],
+      payload: include(
+        action: "update_controls",
+        stop_requested_at: nil
+      )
+    )
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(chat.reload.stop_requested_at).to be_nil
+  end
+
+  it "clears mid-turn stop requests and broadcasts controls when the agent errors" do
+    message = user_message
+    ChatTurnJob.agent_runner = ->(**_) {
+      chat.update!(stop_requested_at: Time.current)
+      raise "agent failed"
+    }
+
+    expect(AppEvents).to receive(:broadcast).with(
+      user: chat.user,
+      type: "updated",
+      resource: "chat",
+      id: chat.id,
+      changed: [ "controls" ],
+      payload: include(
+        action: "update_controls",
+        stop_requested_at: nil
+      )
+    )
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(chat.reload.stop_requested_at).to be_nil
+  end
+
   it "promotes the next queued message after the agent turn finishes" do
     queued_message = chat.chat_queued_messages.create!(content: { "text" => "Follow up on aqueducts" })
     ChatTurnJob.agent_runner = ->(**_) {
