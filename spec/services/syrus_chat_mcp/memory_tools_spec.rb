@@ -106,6 +106,15 @@ RSpec.describe "SyrusChatMcp memory tools" do
     expect(payload(response).dig(:memory, :id)).to eq(memory.id)
   end
 
+  it "does not read deleted owned memories" do
+    memory = create_memory
+    memory.soft_delete_by!(user)
+
+    response = call_tool("read_memory", memory_id: memory.id)
+
+    expect(response.dig(:result, :isError)).to be true
+  end
+
   it "reads published memories from other users for attached repositories only" do
     other_user = Factories.user
     published = create_memory(user: other_user, published: true, content: "Shared deploy note.")
@@ -130,6 +139,8 @@ RSpec.describe "SyrusChatMcp memory tools" do
     global = create_memory(scope: "global", scope_id: nil, kind: "user_pref", content: "Use short answers.")
     repo_fact = create_memory(kind: "project_fact", content: "Rails app.")
     shared = create_memory(user: Factories.user, kind: "reference", content: "Shared runbook.", published: true)
+    deleted = create_memory(content: "Deleted memory.")
+    deleted.soft_delete_by!(user)
     create_memory(user: Factories.user, kind: "reference", content: "Private note.")
     create_memory(scope_id: Factories.repository(user: user).id, content: "Own unattached repo.")
 
@@ -137,6 +148,7 @@ RSpec.describe "SyrusChatMcp memory tools" do
     filtered_response = call_tool("list_memories", scope: "repository", kind: "reference")
 
     expect(payload(response)[:memories].map { |memory| memory[:id] }).to eq([ shared.id, repo_fact.id, global.id ])
+    expect(payload(response)[:memories].map { |memory| memory[:id] }).not_to include(deleted.id)
     expect(payload(filtered_response)[:memories].map { |memory| memory[:id] }).to eq([ shared.id ])
   end
 
@@ -148,6 +160,8 @@ RSpec.describe "SyrusChatMcp memory tools" do
     create_memory(content: "Completely different.")
     create_memory(user: Factories.user, content: "alpha private note.")
     shared = create_memory(user: Factories.user, scope_id: second_repo.id, content: "Shared ALPHA hint.", published: true)
+    deleted = create_memory(content: "alpha deleted note.")
+    deleted.soft_delete_by!(user)
 
     response = call_tool("search_memories", query: "alpha", limit: 500)
     ids = payload(response)[:memories].map { |memory| memory[:id] }
@@ -164,7 +178,9 @@ RSpec.describe "SyrusChatMcp memory tools" do
     other_response = call_tool("delete_memory", memory_id: other.id)
 
     expect(payload(response)).to include(id: owned.id, deleted: true)
-    expect(ChatMemory.exists?(owned.id)).to be false
+    expect(ChatMemory.exists?(owned.id)).to be true
+    expect(owned.reload).to have_attributes(deleted_by_user: user)
+    expect(owned.deleted_at).to be_present
     expect(other_response.dig(:result, :isError)).to be true
     expect(ChatMemory.exists?(other.id)).to be true
   end

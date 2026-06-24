@@ -6,7 +6,7 @@ module SyrusChatMcp
 
     tool_name "delete_memory"
 
-    description "Delete a memory owned by the current user."
+    description "Mark a memory owned by the current user as deleted."
 
     input_schema(
       properties: {
@@ -21,7 +21,7 @@ module SyrusChatMcp
         memory = owned_memory_for(chat_session, memory_id)
         return SyrusChatMcp.invalid("memory not found or not owned: #{memory_id}") unless memory
 
-        memory.destroy!
+        memory.soft_delete_by!(chat_session.user)
         SyrusChatMcp.success(id: memory.id, deleted: true)
       end
     end

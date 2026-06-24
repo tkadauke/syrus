@@ -11,6 +11,8 @@ module SyrusChatMcp
         scope_id: memory.scope_id,
         published: memory.published?,
         user_id: memory.user_id,
+        deleted_at: memory.deleted_at&.iso8601,
+        deleted_by_user_id: memory.deleted_by_user_id,
         created_at: memory.created_at.iso8601,
         updated_at: memory.updated_at.iso8601
       }
@@ -20,10 +22,10 @@ module SyrusChatMcp
       user_id = chat_session.user_id
       repository_ids = attached_repository_ids(chat_session)
 
-      own_global = ChatMemory.where(user_id: user_id, scope: "global", scope_id: nil)
+      own_global = ChatMemory.active.where(user_id: user_id, scope: "global", scope_id: nil)
       return own_global if repository_ids.empty?
 
-      ChatMemory.where(
+      ChatMemory.active.where(
         <<~SQL.squish,
           (
             chat_memories.user_id = :user_id
@@ -49,7 +51,7 @@ module SyrusChatMcp
       id = Integer(memory_id, exception: false)
       return unless id
 
-      memory = ChatMemory.find_by(id: id)
+      memory = ChatMemory.active.find_by(id: id)
       return unless memory
       return memory if memory.user_id == chat_session.user_id
       return memory if memory.repository? && memory.published? && attached_repository_ids(chat_session).include?(memory.scope_id)
@@ -59,7 +61,7 @@ module SyrusChatMcp
       id = Integer(memory_id, exception: false)
       return unless id
 
-      ChatMemory.where(user_id: chat_session.user_id).find_by(id: id)
+      ChatMemory.active.where(user_id: chat_session.user_id).find_by(id: id)
     end
 
     def owned_repository_for(chat_session, scope_id)
