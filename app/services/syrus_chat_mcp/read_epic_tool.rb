@@ -5,13 +5,13 @@ module SyrusChatMcp
     tool_name "read_epic"
 
     description <<~DESC
-      Read an Epic attached to this chat session, including its description,
+      Read an Epic visible to this chat session's user, including its description,
       dependencies, dependent Epics, and child Jobs.
     DESC
 
     input_schema(
       properties: {
-        id: { type: "integer", description: "Attached Epic id to inspect." }
+        id: { type: "integer", description: "Epic id to inspect." }
       },
       required: %w[id]
     )
@@ -19,7 +19,7 @@ module SyrusChatMcp
     class << self
       def call(id:, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        epic = chat_session.attached_epics
+        epic = chat_session.user.epics
                            .includes(
                              :repository,
                              depends_on_epics: :repository,
@@ -27,7 +27,7 @@ module SyrusChatMcp
                              jobs: [ :repository, { depends_on_jobs: :repository } ]
                            )
                            .find_by(id: id)
-        return SyrusChatMcp.invalid("epic not found in this chat session's attachments: #{id}") unless epic
+        return SyrusChatMcp.invalid("epic not found or not readable: #{id}") unless epic
 
         SyrusChatMcp.success(
           epic: epic_payload(epic),

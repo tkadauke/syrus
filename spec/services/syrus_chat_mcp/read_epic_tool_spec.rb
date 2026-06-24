@@ -22,7 +22,7 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
-  it "reads an attached Epic and its child Jobs" do
+  it "reads a readable Epic and its child Jobs without requiring a chat attachment" do
     epic = Factories.epic(
       user: user,
       repository: repository,
@@ -44,7 +44,6 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
       state: "queued"
     )
     JobDependency.create!(job: child, depends_on_job: upstream, source: "manual")
-    chat_session.chat_attachments.create!(attachable: epic)
 
     payload = tool_payload(call_tool(id: epic.id))
 
@@ -72,12 +71,14 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
     )
   end
 
-  it "rejects Epics that are not attached to the chat session" do
-    epic = Factories.epic(user: user, repository: repository)
+  it "rejects Epics that are not readable by the chat user" do
+    other_user = Factories.user
+    other_repository = Factories.repository(user: other_user, owner: "other", name: "roads")
+    epic = Factories.epic(user: other_user, repository: other_repository)
 
     response = call_tool(id: epic.id)
 
     expect(response.dig(:result, :isError)).to eq(true)
-    expect(response.dig(:result, :content, 0, :text)).to include("epic not found in this chat session's attachments")
+    expect(response.dig(:result, :content, 0, :text)).to include("epic not found or not readable")
   end
 end
