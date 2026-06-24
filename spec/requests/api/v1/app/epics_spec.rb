@@ -172,6 +172,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "blocked" => true,
       "blocked_reason" => "waiting for Job #8 to merge"
     )
+    expect(parse_body["dependencies"]).to eq([])
   end
 
   it "creates an Epic dependency and returns the updated detail payload" do

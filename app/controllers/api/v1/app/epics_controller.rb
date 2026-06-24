@@ -204,7 +204,7 @@ module Api
               }
             end,
             graph: graph_json(graph),
-            dependencies: epic.dependencies.includes(depends_on_epic: :repository).order(:depends_on_epic_id).map do |dependency|
+            dependencies: epic.dependencies.where.not(depends_on_epic_id: nil).includes(depends_on_epic: :repository).order(:depends_on_epic_id).map do |dependency|
               dependency_epic_json(dependency.depends_on_epic)
             end,
             dependents: epic.dependent_links.includes(epic: :repository).order(:epic_id).map do |dependency|
