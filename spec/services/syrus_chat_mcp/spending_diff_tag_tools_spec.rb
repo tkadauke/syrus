@@ -85,7 +85,7 @@ RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
     end
   end
 
-  it "returns stored job diff text and truncates at 50 KB" do
+  it "returns stored job diff text in paginated 50 KB chunks" do
     job = Factories.job(repository: repository)
     run = job.latest_workflow.runs.order(:id).last
     diff = ("diff --git a/file.txt b/file.txt\n+" + ("a" * 60.kilobytes) + "é")
@@ -97,9 +97,33 @@ RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
     expect(response.dig(:result, :isError)).to be_falsey
     expect(body[:job_id]).to eq(job.id)
     expect(body[:run_id]).to eq(run.id)
-    expect(body[:truncated]).to be(true)
+    expect(body).to include(
+      page: 1,
+      per_bytes: 50.kilobytes,
+      total_bytes: diff.bytesize,
+      total_pages: 2,
+      has_next_page: true,
+      next_page: 2
+    )
     expect(body[:diff].bytesize).to be <= 50.kilobytes
     expect(body[:diff]).to be_valid_encoding
+
+    second_page = payload(call_tool("get_job_diff", job_id: job.id, page: 2))
+
+    expect(second_page).to include(page: 2, total_pages: 2, has_next_page: false)
+    expect(second_page[:diff]).to be_valid_encoding
+    expect(second_page[:diff]).to include("a")
+  end
+
+  it "normalizes job diff pagination inputs" do
+    job = Factories.job(repository: repository)
+    run = job.latest_workflow.runs.order(:id).last
+    run.update!(agent_diff: "abcdef")
+
+    body = payload(call_tool("get_job_diff", job_id: job.id, page: 0, per_bytes: 100.kilobytes))
+
+    expect(body).to include(page: 1, per_bytes: 50.kilobytes, total_pages: 1)
+    expect(body[:diff]).to eq("abcdef")
   end
 
   it "returns a clear message when a job has no stored diff" do
@@ -108,7 +132,14 @@ RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
     response = call_tool("get_job_diff", job_id: job.id)
     body = payload(response)
 
-    expect(body).to include(job_id: job.id, diff: nil, message: "No stored diff is available for this Job yet.")
+    expect(body).to include(
+      job_id: job.id,
+      diff: nil,
+      total_bytes: 0,
+      total_pages: 0,
+      has_next_page: false,
+      message: "No stored diff is available for this Job yet."
+    )
   end
 
   it "rejects reading a diff for a job outside the chat repository" do
