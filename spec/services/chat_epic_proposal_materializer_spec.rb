@@ -48,6 +48,28 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(ui.reload.job.dependencies.first.depends_on_job).to eq(schema.reload.job)
     expect(ui.job.dependencies.map(&:depends_on_epic)).to include(prerequisite_epic)
     expect(result.epic.dependencies.map(&:depends_on_job)).to include(prerequisite_job)
+    expect(chat_session.reload.attached_epics).to contain_exactly(result.epic)
+    expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
+  end
+
+  it "does not duplicate attachments when confirmation is retried" do
+    proposal = epic_proposal
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
+    materializer = described_class.new(user: user)
+
+    materializer.file!(proposal)
+
+    expect {
+      expect {
+        materializer.file!(proposal.reload)
+      }.to raise_error(ArgumentError, /proposal is no longer proposed/)
+    }.not_to change(ChatAttachment, :count)
   end
 
   it "materializes Epic dependencies from proposal slug tokens" do

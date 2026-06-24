@@ -35,10 +35,12 @@ class ChatProposalFiler
         case materialized
         when Job
           proposal_attrs[:job] = materialized
+          attach_to_chat_session!(proposal, materialized)
           jobs << materialized
           job_by_proposal_id[proposal.id] = materialized
         when Epic
           proposal_attrs[:epic] = materialized
+          attach_to_chat_session!(proposal, materialized)
           epics << materialized
         when nil
           github_issue_numbers[proposal.id] = proposal.github_issue_number
@@ -136,6 +138,10 @@ class ChatProposalFiler
       description: proposal.body,
       state: "ready"
     )
+  end
+
+  def attach_to_chat_session!(proposal, attachable)
+    proposal.chat_session.chat_attachments.find_or_create_by!(attachable: attachable)
   end
 
   def file_github_issue(proposal)

@@ -13,6 +13,7 @@ class ChatEpicProposalMaterializer
     raise ArgumentError, "proposal must be an epic bundle" unless epic_proposal.epic?
     raise ArgumentError, "proposal is no longer proposed" unless epic_proposal.proposed?
 
+    @chat_session = epic_proposal.chat_session
     job_proposals = proposed_children_for(epic_proposal)
     ensure_active_repositories!([ epic_proposal ] + job_proposals)
     jobs = []
@@ -20,6 +21,7 @@ class ChatEpicProposalMaterializer
 
     ApplicationRecord.transaction do
       epic = create_epic_for(epic_proposal)
+      chat_session.chat_attachments.find_or_create_by!(attachable: epic)
       epic_proposal.update!(
         epic: epic,
         state: "confirmed",
@@ -30,6 +32,7 @@ class ChatEpicProposalMaterializer
       job_by_proposal_id = {}
       job_proposals.each do |proposal|
         job = create_job_for(proposal, epic)
+        chat_session.chat_attachments.find_or_create_by!(attachable: job)
         proposal.update!(
           job: job,
           state: "confirmed",
@@ -50,7 +53,7 @@ class ChatEpicProposalMaterializer
 
   private
 
-  attr_reader :user
+  attr_reader :user, :chat_session
 
   def ensure_active_repositories!(proposals)
     archived = proposals.map(&:effective_repository).compact.find(&:archived?)

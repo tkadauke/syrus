@@ -61,6 +61,25 @@ RSpec.describe ChatProposalFiler do
       )
     end
 
+    it "attaches created Jobs to the originating chat session" do
+      job_proposal = proposal(slug: "job-attachment", title: "Attached job")
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      expect(session.reload.attached_jobs).to contain_exactly(job_proposal.reload.job)
+    end
+
+    it "does not duplicate Job attachments when filing is retried after confirmation" do
+      job_proposal = proposal(slug: "job-retry", title: "Retry job")
+      filer = described_class.new(user: user, repository: repository)
+
+      filer.file!([ job_proposal ])
+
+      expect {
+        filer.file!([ job_proposal.reload ])
+      }.not_to change { session.reload.job_attachments.count }
+    end
+
     it "dedupes shared upstream proposals for bulk filing" do
       root = proposal(slug: "root", title: "Root")
       left = proposal(slug: "left", title: "Left")
@@ -109,6 +128,14 @@ RSpec.describe ChatProposalFiler do
       expect(leaf.reload).to be_confirmed
       expect(root.epic).to have_attributes(title: "Root Epic", description: "Body for Root Epic")
       expect(leaf.epic.depends_on_epics).to contain_exactly(root.epic)
+    end
+
+    it "attaches created Epics to the originating chat session" do
+      epic_proposal = proposal(slug: "epic-attachment", title: "Attached Epic", kind: "epic")
+
+      described_class.new(user: user, repository: repository).file!([ epic_proposal ])
+
+      expect(session.reload.attached_epics).to contain_exactly(epic_proposal.reload.epic)
     end
 
     it "wires Epic proposal dependencies on existing Jobs" do
