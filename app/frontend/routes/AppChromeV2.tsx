@@ -255,8 +255,8 @@ function SidebarContent({
   user: BootstrapPayload["current_user"] | undefined
 }) {
   return (
-    <div className="h-full w-full overflow-y-auto border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <div className="border-b border-gray-200 px-4 py-4 dark:border-gray-800">
+    <div className="flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+      <div className="shrink-0 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
         <div className="flex items-center justify-between gap-3">
           <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}><SyrusBrand /></Link>
           <button
@@ -269,40 +269,42 @@ function SidebarContent({
           </button>
         </div>
       </div>
-      <div className="sticky top-0 z-20 bg-white px-3 py-4 dark:bg-gray-950">
-        <button
-          className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300"
-          disabled={!user || creatingChat}
-          onClick={onStartChat}
-          type="button"
-        >
-          <PlusIcon />
-          <span>{creatingChat ? "Creating..." : "New Chat"}</span>
-        </button>
-      </div>
-      <div className="px-3 pb-4">
-        <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
-          {navItems.map((item) => {
-            const link = (
-              <Link className={sidebarLinkClass(item.active)} key={item.label} onClick={onCloseDrawer} to={item.to}>
-                {item.icon}
-                <span>{item.label}</span>
-              </Link>
-            )
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="sticky top-0 z-20 bg-white px-3 py-4 dark:bg-gray-950">
+          <button
+            className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300"
+            disabled={!user || creatingChat}
+            onClick={onStartChat}
+            type="button"
+          >
+            <PlusIcon />
+            <span>{creatingChat ? "Creating..." : "New Chat"}</span>
+          </button>
+        </div>
+        <div className="px-3 pb-4">
+          <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
+            {navItems.map((item) => {
+              const link = (
+                <Link className={sidebarLinkClass(item.active)} key={item.label} onClick={onCloseDrawer} to={item.to}>
+                  {item.icon}
+                  <span>{item.label}</span>
+                </Link>
+              )
 
-            if (item.label !== "Dashboard") return link
+              if (item.label !== "Dashboard") return link
 
-            return (
-              <div className="space-y-1" key={item.label}>
-                {link}
-                <SidebarDashboardNav onCloseDrawer={onCloseDrawer} prefix={prefix} />
-              </div>
-            )
-          })}
-        </nav>
+              return (
+                <div className="space-y-1" key={item.label}>
+                  {link}
+                  <SidebarDashboardNav onCloseDrawer={onCloseDrawer} prefix={prefix} />
+                </div>
+              )
+            })}
+          </nav>
+        </div>
+        <RecentChatsSidebar onCloseDrawer={onCloseDrawer} prefix={prefix} userPresent={Boolean(user)} />
       </div>
-      <RecentChatsSidebar onCloseDrawer={onCloseDrawer} prefix={prefix} userPresent={Boolean(user)} />
-      <div className="border-t border-gray-200 p-3 dark:border-gray-800">
+      <div className="shrink-0 border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
           <SettingsPopup
             bootstrapData={bootstrapData}
