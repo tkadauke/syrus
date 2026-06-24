@@ -8094,6 +8094,74 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "2 new messages" })).not.toBeInTheDocument()
   })
 
+  it("renders agent questions inline with stacked options and records the answer in the thread", async () => {
+    const initialPayload = chatPayload({
+      agentQuestions: [
+        {
+          id: 7,
+          question: "Which route should I take?",
+          options: ["Fast path", "Careful path"],
+          asked_at: "2026-06-23T10:00:00Z",
+          app_answer_path: "/api/v1/app/chats/8/agent_questions/7/answer"
+        }
+      ]
+    })
+    const answeredPayload = chatPayload({
+      messages: [
+        ...initialPayload.messages,
+        {
+          type: "message",
+          id: 10,
+          role: "user",
+          tool_name: null,
+          content: { text: "Careful path" },
+          text: "Careful path",
+          bookmarkable: true
+        }
+      ],
+      agentQuestions: [],
+      message: "Answer submitted."
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/agent_questions/7/answer" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(answeredPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(initialPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const stream = await screen.findByTestId("chat-message-stream")
+      const questions = within(stream).getByRole("region", { name: "Agent questions" })
+      expect(within(questions).getByText("Which route should I take?")).toBeInTheDocument()
+
+      const fastButton = within(questions).getByRole("button", { name: "Fast path" })
+      const carefulButton = within(questions).getByRole("button", { name: "Careful path" })
+      expect(fastButton.parentElement).toHaveClass("flex-col")
+      expect(fastButton).toHaveClass("flex", "w-full", "justify-start", "text-left")
+      expect(carefulButton).toHaveClass("flex", "w-full", "justify-start", "text-left")
+      expect(within(questions).getByLabelText("Custom answer")).toBeInTheDocument()
+      expect(within(questions).getByRole("button", { name: "Decline to answer" })).toBeInTheDocument()
+
+      fireEvent.click(carefulButton)
+
+      expect(await screen.findByText("Answer submitted.")).toBeInTheDocument()
+      expect(within(stream).getByText("Careful path")).toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "Agent questions" })).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it("sends chat messages with Enter on desktop", async () => {
     const restoreViewport = setViewportWidth(1280)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -10784,6 +10852,7 @@ function chatPayload(overrides: {
   message?: string
   messages?: Array<Record<string, unknown>>
   queuedMessages?: Array<Record<string, unknown>>
+  agentQuestions?: Array<Record<string, unknown>>
   cumulativeInputTokens?: number
   cumulativeOutputTokens?: number
   cumulativeCostUsd?: number
@@ -10854,6 +10923,7 @@ function chatPayload(overrides: {
       }
     ],
     pending_actions: [],
+    agent_questions: overrides.agentQuestions || [],
     attachment_groups: {
       repositories: [
         { id: 2, label: "acme/widgets", app_detach_path: "/api/v1/app/chats/8/attachments/2" }

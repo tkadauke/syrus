@@ -23,6 +23,17 @@ class ChatAgentQuestion < ApplicationRecord
     end
   end
 
+  def answer_and_record!(value)
+    with_lock do
+      return false unless active?
+
+      now = Time.current
+      chat_session.messages.create!(role: "user", content: { "text" => value.to_s })
+      chat_session.update!(last_message_at: now, title: chat_session.title.presence)
+      update!(answer: value.to_s, answered_at: now)
+    end
+  end
+
   def expire!
     with_lock do
       return false unless active?

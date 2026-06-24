@@ -331,7 +331,15 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:ok)
     expect(question.reload.answer).to eq("release")
     expect(question.answered_at).to be_present
+    expect(chat.messages.order(:created_at, :id).last).to have_attributes(
+      role: "user",
+      content: { "text" => "release" }
+    )
     expect(parse_body["agent_questions"]).to eq([])
+    expect(parse_body["messages"]).to include(include(
+      "role" => "user",
+      "text" => "release"
+    ))
   end
 
   it "rejects blank or inactive agent question answers" do

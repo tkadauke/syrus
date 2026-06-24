@@ -197,7 +197,7 @@ module Api
             return
           end
 
-          if question.answer!(answer)
+          if question.answer_and_record!(answer)
             render json: chat_payload(chat_session.reload, message: "Answer submitted.")
           else
             render_error("validation_failed", "Question is no longer active.", status: :unprocessable_content)

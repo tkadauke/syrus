@@ -15,6 +15,18 @@ RSpec.describe ChatAgentQuestion do
     expect(question.reload.answer).to eq("Yes")
   end
 
+  it "records an answer as a user chat message" do
+    question = chat_session.agent_questions.create!(question: "Deploy now?", options: [ "Yes", "No" ], asked_at: Time.current)
+
+    expect(question.answer_and_record!("No")).to eq(true)
+    expect(question.reload.answer).to eq("No")
+    expect(chat_session.messages.sole).to have_attributes(
+      role: "user",
+      content: { "text" => "No" }
+    )
+    expect(chat_session.reload.last_message_at).to be_present
+  end
+
   it "expires an unanswered question" do
     question = chat_session.agent_questions.create!(question: "Need a fallback?", asked_at: Time.current)
 

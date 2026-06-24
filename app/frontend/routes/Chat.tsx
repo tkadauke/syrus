@@ -270,6 +270,7 @@ function MessageStream({ payload, prefix, queryKey, onNotice }: { payload: ChatP
   const [hasMoreOlder, setHasMoreOlder] = useState(payload.has_more_older)
   const displayedMessages = mergeChatMessages(olderMessages, payload.messages)
   const displayedItems = renderChatMessages(displayedMessages)
+  const agentQuestions = payload.agent_questions || []
   const hiddenSystemMessageCount = displayedItems.filter(isLowPrioritySystemMessage).length
   const visibleItems = showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item))
   const agentActive = isAgentActive(payload)
@@ -363,9 +364,12 @@ function MessageStream({ payload, prefix, queryKey, onNotice }: { payload: ChatP
 
   if (displayedItems.length === 0) {
     return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
-        <div>{payload.chat.repository ? "Start a chat with this repository." : "Attach a repository to start chatting."}</div>
-        {agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
+          <div>{payload.chat.repository ? "Start a chat with this repository." : "Attach a repository to start chatting."}</div>
+          {agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+        </div>
+        {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       </div>
     )
   }
@@ -383,6 +387,7 @@ function MessageStream({ payload, prefix, queryKey, onNotice }: { payload: ChatP
         ) : (
           <ChatMessage item={item} key={renderItemKey(item)} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         ))}
+        {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
         {agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
       </div>
       {newMessageCount > 0 ? (
@@ -1154,15 +1159,12 @@ function ChatWorkspace({
 }
 
 function ChatColumn({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
-  const agentQuestions = payload.agent_questions || []
-
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
       <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
         <MessageStream payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
-      {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       <Compose payload={payload} queryKey={queryKey} onNotice={onNotice} />
     </section>
   )
@@ -1170,7 +1172,7 @@ function ChatColumn({ payload, prefix, queryKey, onNotice }: { payload: ChatPayl
 
 function AgentQuestions({ questions, queryKey, onNotice }: { questions: ChatAgentQuestion[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   return (
-    <section className="space-y-3 rounded border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/60">
+    <section aria-label="Agent questions" className="space-y-3 rounded border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/60">
       {questions.map((question) => <AgentQuestionPrompt key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} />)}
     </section>
   )
@@ -1198,31 +1200,39 @@ function AgentQuestionPrompt({ question, queryKey, onNotice }: { question: ChatA
     submit.mutate(value)
   }
 
+  function declineAnswer() {
+    if (submit.isPending) return
+
+    submit.mutate("I decline to answer.")
+  }
+
   return (
     <div className="space-y-3 rounded border border-blue-200 bg-white p-3 text-sm dark:border-blue-800 dark:bg-gray-950">
       <div className="font-medium text-gray-900 dark:text-gray-100">{question.question}</div>
       {submit.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(submit.error, "Answer could not be submitted.")}</div> : null}
       {options.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2">
           {options.map((option) => (
-            <button className={secondaryButton()} disabled={submit.isPending} key={option} onClick={() => submit.mutate(option)} type="button">
+            <button className={`${secondaryButton()} flex w-full justify-start text-left`} disabled={submit.isPending} key={option} onClick={() => submit.mutate(option)} type="button">
               {option}
             </button>
           ))}
         </div>
-      ) : (
-        <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitText}>
-          <input
-            aria-label="Answer"
-            className="min-h-9 flex-1 rounded border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
-            disabled={submit.isPending}
-            onChange={(event) => setAnswer(event.target.value)}
-            required
-            value={answer}
-          />
-          <button className={primaryButton()} disabled={submit.isPending || answer.trim().length === 0} type="submit">Submit</button>
-        </form>
-      )}
+      ) : null}
+      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitText}>
+        <input
+          aria-label="Custom answer"
+          className="min-h-9 flex-1 rounded border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+          disabled={submit.isPending}
+          onChange={(event) => setAnswer(event.target.value)}
+          placeholder="Custom response"
+          value={answer}
+        />
+        <button className={primaryButton()} disabled={submit.isPending || answer.trim().length === 0} type="submit">Submit</button>
+      </form>
+      <button className={`${secondaryButton()} flex w-full justify-start text-left`} disabled={submit.isPending} onClick={declineAnswer} type="button">
+        Decline to answer
+      </button>
     </div>
   )
 }
