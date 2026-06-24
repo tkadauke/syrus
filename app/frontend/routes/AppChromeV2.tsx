@@ -210,15 +210,25 @@ function SidebarContent({
           <span>{creatingChat ? "Creating..." : "New Chat"}</span>
         </button>
         <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
-          {navItems.map((item) => (
-            <Link className={sidebarLinkClass(item.active)} key={item.label} onClick={onCloseDrawer} to={item.to}>
-              {item.icon}
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const link = (
+              <Link className={sidebarLinkClass(item.active)} key={item.label} onClick={onCloseDrawer} to={item.to}>
+                {item.icon}
+                <span>{item.label}</span>
+              </Link>
+            )
+
+            if (item.label !== "Dashboard") return link
+
+            return (
+              <div className="space-y-1" key={item.label}>
+                {link}
+                <SidebarDashboardFolders prefix={prefix} />
+              </div>
+            )
+          })}
         </nav>
       </div>
-      <SidebarDashboardFolders prefix={prefix} />
       <RecentChatsSidebar onCloseDrawer={onCloseDrawer} prefix={prefix} userPresent={Boolean(user)} />
       <div className="border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
@@ -250,7 +260,7 @@ function SidebarDashboardFolders({ prefix }: { prefix: string }) {
   if (!isDashboard || !dashboard.data) return null
 
   return (
-    <div className="px-3 pb-3">
+    <div className="pl-7">
       <DashboardSmartFolderNav payload={dashboard.data} prefix={prefix} search={location.search} />
     </div>
   )

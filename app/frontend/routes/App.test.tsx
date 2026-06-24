@@ -2832,6 +2832,10 @@ describe("App", () => {
       )
 
       const foldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+      const primaryNav = screen.getByRole("navigation", { name: "Primary" })
+      const dashboardLink = within(primaryNav).getByRole("link", { name: "Dashboard" })
+      expect(primaryNav).toContainElement(foldersPanel)
+      expect(dashboardLink.parentElement).toContainElement(foldersPanel)
       expect(within(foldersPanel).getByRole("link", { name: "Inbox 3" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=1")
       const moreGroup = within(foldersPanel).getByText("More").closest("details")
       expect(moreGroup).not.toBeNull()
