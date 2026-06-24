@@ -12,7 +12,8 @@ import { StatusPill, TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
 import { workflowSlug } from "../lib/slugs"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { bulkDashboardEpics, bulkDashboardJobs, fetchDashboard, recordDashboardFilterUsage, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkEpicAction, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardRepository, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
+import { bulkDashboardEpics, bulkDashboardJobs, fetchDashboard, recordDashboardFilterUsage, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkEpicAction, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLane, type DashboardPayload, type DashboardRepository, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
+import type { LandingQueueBlockerJob } from "../api/jobs"
 
 const KANBAN_CARDS_PER_PAGE = 20
 
@@ -469,7 +470,7 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
   }
 
   const columns = dashboardVisibleColumns(payload)
-  if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={payload.items.filter((item): item is DashboardJobItem => item.type === "job")} prefix={prefix} sortState={sortState} />
+  if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={payload.items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} />
   if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={payload.items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
 
   return <EpicsTable columns={epicTableColumns(columns)} items={payload.items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
@@ -767,7 +768,7 @@ type DashboardSortState = {
   onSort: (column: string) => void
 }
 
-function JobsDashboardTable({ items, columns, prefix, sortState }: { items: DashboardJobItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
+function JobsDashboardTable({ items, columns, landingQueueEntries, prefix, sortState }: { items: DashboardJobItem[]; columns: string[]; landingQueueEntries: DashboardLandingQueueEntry[]; prefix: string; sortState: DashboardSortState }) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
@@ -804,6 +805,7 @@ function JobsDashboardTable({ items, columns, prefix, sortState }: { items: Dash
         allSelected={allSelected}
         columns={columns}
         items={items}
+        landingQueueEntries={landingQueueEntries}
         onToggleAll={toggleAll}
         onToggleOne={toggleOne}
         prefix={prefix}
@@ -874,6 +876,7 @@ export function startsNewEpicGroup(items: DashboardJobItem[], index: number, ena
 function JobsTable({
   items,
   columns,
+  landingQueueEntries,
   selectedIds,
   allSelected,
   onToggleAll,
@@ -883,6 +886,7 @@ function JobsTable({
 }: {
   items: DashboardJobItem[]
   columns: string[]
+  landingQueueEntries: DashboardLandingQueueEntry[]
   selectedIds: Set<number>
   allSelected: boolean
   onToggleAll: () => void
@@ -894,6 +898,25 @@ function JobsTable({
   // Only group by Epic when the rows are actually in queue order — in any
   // other sort the Epics aren't contiguous, so a separator would mislead.
   const groupByEpic = sortState.column === "landing_queue_position"
+  const landingQueueGroups = useMemo(() => groupByLandingQueueEntry(items, landingQueueEntries), [items, landingQueueEntries])
+  const [expandedBlockerGroups, setExpandedBlockerGroups] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    setExpandedBlockerGroups((current) => {
+      const visibleKeys = new Set(landingQueueGroups.map((group) => group.key))
+      const next = new Set(Array.from(current).filter((key) => visibleKeys.has(key)))
+      return next.size === current.size ? current : next
+    })
+  }, [landingQueueGroups])
+
+  function toggleBlockerGroup(key: string) {
+    setExpandedBlockerGroups((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   if (!isDesktop) return <MobileJobsList groupByEpic={groupByEpic} items={items} onToggleOne={onToggleOne} prefix={prefix} selectedIds={selectedIds} />
 
@@ -910,15 +933,225 @@ function JobsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {items.map((job, index) => (
-            <tr className={startsNewEpicGroup(items, index, groupByEpic) ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined} key={job.id}>
-              {columns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
-            </tr>
-          ))}
+          {groupByEpic ? (
+            landingQueueGroups.map((group, index) => (
+              <LandingQueueJobGroup
+                columns={columns}
+                expanded={expandedBlockerGroups.has(group.key)}
+                group={group}
+                key={group.key}
+                onToggleBlockers={toggleBlockerGroup}
+                onToggleOne={onToggleOne}
+                prefix={prefix}
+                selectedIds={selectedIds}
+                topSeparator={index > 0}
+              />
+            ))
+          ) : (
+            items.map((job, index) => (
+              <tr className={startsNewEpicGroup(items, index, groupByEpic) ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined} key={job.id}>
+                {columns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>
   )
+}
+
+type LandingQueueApprovedRow = {
+  kind: "approved"
+  id: number
+  job: DashboardJobItem
+}
+
+type LandingQueueBlockerRow = {
+  kind: "blocker"
+  id: number
+  job: LandingQueueBlockerJob
+  attribution: string | null
+}
+
+type LandingQueueDisplayRow = LandingQueueApprovedRow | LandingQueueBlockerRow
+
+type LandingQueueDisplayGroup = {
+  key: string
+  jobs: DashboardJobItem[]
+  blockerJobs: LandingQueueBlockerRow[]
+  rows: LandingQueueDisplayRow[]
+}
+
+function LandingQueueJobGroup({
+  columns,
+  expanded,
+  group,
+  onToggleBlockers,
+  onToggleOne,
+  prefix,
+  selectedIds,
+  topSeparator
+}: {
+  columns: string[]
+  expanded: boolean
+  group: LandingQueueDisplayGroup
+  onToggleBlockers: (key: string) => void
+  onToggleOne: (id: number) => void
+  prefix: string
+  selectedIds: Set<number>
+  topSeparator: boolean
+}) {
+  const blockerCount = group.blockerJobs.length
+  const rows = expanded ? group.rows : group.rows.filter((row) => row.kind === "approved")
+
+  return (
+    <>
+      {blockerCount > 0 ? (
+        <tr className={topSeparator ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined}>
+          <td className="bg-gray-50 px-4 py-2 dark:bg-gray-950/40" colSpan={columns.length}>
+            <button
+              aria-expanded={expanded}
+              className="inline-flex items-center gap-2 rounded px-1 py-0.5 text-xs font-semibold text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-300 dark:hover:text-gray-100"
+              onClick={() => onToggleBlockers(group.key)}
+              type="button"
+            >
+              <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
+              <span>{blockerCount} {pluralize(blockerCount, "blocker")}</span>
+            </button>
+          </td>
+        </tr>
+      ) : null}
+      {rows.map((row, index) => {
+        const separatorClass = blockerCount === 0 && topSeparator && index === 0 ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined
+        if (row.kind === "blocker") {
+          return (
+            <tr className={`bg-gray-50/70 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400${separatorClass ? ` ${separatorClass}` : ""}`} key={`blocker-${group.key}-${row.id}`}>
+              {columns.map((column) => <LandingQueueBlockerCell column={column} job={row.job} attribution={row.attribution} key={column} />)}
+            </tr>
+          )
+        }
+
+        return (
+          <tr className={separatorClass} key={row.job.id}>
+            {columns.map((column) => <JobCell column={column} job={row.job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />)}
+          </tr>
+        )
+      })}
+    </>
+  )
+}
+
+function LandingQueueBlockerCell({ job, column, attribution }: { job: LandingQueueBlockerJob; column: string; attribution: string | null }) {
+  if (column === "checkbox") return <td className="px-4 py-3 align-top" />
+  if (column === "landing_queue_position") return <td className="px-4 py-3" />
+  if (column === "issue" || column === "title") {
+    return (
+      <td className="max-w-md px-4 py-3">
+        <span className="font-medium text-gray-600 dark:text-gray-300">{job.title}</span>
+        <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <span>JOB-{job.id}</span>
+          {job.pr_number && job.pr_path ? <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink> : null}
+          {attribution ? <span className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400">{attribution}</span> : null}
+        </div>
+      </td>
+    )
+  }
+  if (column === "state") {
+    return (
+      <td className="px-4 py-3">
+        <NeutralStatePill state={job.state} />
+      </td>
+    )
+  }
+
+  return <td className="px-4 py-3 text-gray-400 dark:text-gray-500">-</td>
+}
+
+function groupByLandingQueueEntry(items: DashboardJobItem[], entries: DashboardLandingQueueEntry[]) {
+  const entriesByKey = new Map(entries.map((entry) => [entry.key, entry]))
+  const groups: LandingQueueDisplayGroup[] = []
+  const groupsByKey = new Map<string, LandingQueueDisplayGroup>()
+
+  items.forEach((job) => {
+    const key = job.landing_queue_entry_key || epicGroupKey(job)
+    let group = groupsByKey.get(key)
+    if (!group) {
+      group = { key, jobs: [], blockerJobs: [], rows: [] }
+      groupsByKey.set(key, group)
+      groups.push(group)
+    }
+    group.jobs.push(job)
+  })
+
+  groups.forEach((group) => {
+    const entry = entriesByKey.get(group.key)
+    group.blockerJobs = (entry?.blocker_jobs ?? []).map((job) => ({
+      kind: "blocker",
+      id: job.id,
+      job,
+      attribution: blockerAttribution(job, group.key)
+    }))
+    const approvedRows: LandingQueueApprovedRow[] = group.jobs.map((job) => ({ kind: "approved", id: job.id, job }))
+    group.rows = topologicalLandingQueueRows([ ...approvedRows, ...group.blockerJobs ], entry)
+  })
+
+  return groups
+}
+
+function topologicalLandingQueueRows(rows: LandingQueueDisplayRow[], entry?: DashboardLandingQueueEntry) {
+  if (!entry) return rows
+
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  const originalIndex = new Map(rows.map((row, index) => [row.id, index]))
+  const incoming = new Map<number, Set<number>>()
+  const outgoing = new Map<number, Set<number>>()
+
+  rows.forEach((row) => {
+    incoming.set(row.id, new Set())
+    outgoing.set(row.id, new Set())
+  })
+  entry.dependency_edges.forEach((edge) => {
+    if (!byId.has(edge.from_job_id) || !byId.has(edge.to_job_id)) return
+    outgoing.get(edge.from_job_id)?.add(edge.to_job_id)
+    incoming.get(edge.to_job_id)?.add(edge.from_job_id)
+  })
+
+  const ready = rows.filter((row) => incoming.get(row.id)?.size === 0)
+  sortLandingQueueRows(ready, originalIndex)
+  const ordered: LandingQueueDisplayRow[] = []
+
+  while (ready.length > 0) {
+    const row = ready.shift()
+    if (!row) break
+    ordered.push(row)
+
+    const dependents = Array.from(outgoing.get(row.id) ?? [])
+      .map((id) => byId.get(id))
+      .filter((dependent): dependent is LandingQueueDisplayRow => dependent != null)
+    sortLandingQueueRows(dependents, originalIndex)
+    dependents.forEach((dependent) => {
+      incoming.get(dependent.id)?.delete(row.id)
+      if (incoming.get(dependent.id)?.size === 0) {
+        ready.push(dependent)
+        sortLandingQueueRows(ready, originalIndex)
+      }
+    })
+  }
+
+  const orderedIds = new Set(ordered.map((row) => row.id))
+  return [ ...ordered, ...rows.filter((row) => !orderedIds.has(row.id)) ]
+}
+
+function sortLandingQueueRows(rows: LandingQueueDisplayRow[], originalIndex: Map<number, number>) {
+  rows.sort((left, right) => (originalIndex.get(left.id) ?? 0) - (originalIndex.get(right.id) ?? 0))
+}
+
+function blockerAttribution(job: LandingQueueBlockerJob, groupKey: string) {
+  if (job.epic_title) return `Epic: ${job.epic_title}`
+  if (job.epic_id != null) return `Epic #${job.epic_id}`
+  if (Object.prototype.hasOwnProperty.call(job, "epic_id") && job.epic_id == null) return "standalone"
+  if (groupKey.startsWith("job:") && groupKey !== `job:${job.id}`) return "standalone"
+  return null
 }
 
 function MobileJobsList({ items, selectedIds, onToggleOne, prefix, groupByEpic }: { items: DashboardJobItem[]; selectedIds: Set<number>; onToggleOne: (id: number) => void; prefix: string; groupByEpic: boolean }) {
