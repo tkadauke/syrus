@@ -347,10 +347,10 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
   ]
 
   return (
-    <nav aria-label="Dashboard sections" className="space-y-0.5">
+    <nav aria-label="Dashboard sections" className="inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900">
       {subjects.map((subject) => (
         <Link
-          className={`block rounded px-2 py-1.5 text-xs font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-600 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`}
+          className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           key={subject.key}
           onClick={onCloseDrawer}
           to={dashboardLink(`${prefix}${subject.path}`, { view: payload.view })}
