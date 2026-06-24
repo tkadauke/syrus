@@ -86,7 +86,9 @@ After discussing changes with an operator, the chat agent can propose
 structured feedback on an implemented or approved Job. Operator confirmation
 creates a `chat_feedback` Workflow, runs the agent on the existing PR branch,
 and unapproves approved Jobs so the follow-up change returns to review before
-landing.
+landing. If the Job is still queued or running, Syrus stores the feedback as
+a waiting pending action and promotes it for operator confirmation when the
+Job reaches review.
 
 Attached repository checkouts are read-only for the chat agent. It may read,
 search, list, and refresh checkouts for context, but code changes must be

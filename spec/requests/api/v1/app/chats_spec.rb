@@ -797,6 +797,29 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(workflow.artifact("chat_feedback")).to eq("Please tighten this implementation.")
   end
 
+  it "renders queued pending actions and lets the operator cancel them" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository, state: "running")
+    action = chat.pending_actions.create!(
+      action: "submit_chat_feedback",
+      state: "queued",
+      payload: { "job_id" => job.id, "feedback" => "Please tighten this implementation." }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include("id" => action.id, "state" => "queued", "label" => "Submit feedback on JOB-#{job.id}")
+    )
+
+    delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action cancelled.")
+    expect(action.reload).to be_cancelled
+  end
+
   it "appends a message through the app API and returns the refreshed payload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)

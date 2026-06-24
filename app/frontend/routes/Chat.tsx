@@ -245,11 +245,16 @@ function PendingActions({ payload, queryKey, onNotice }: { payload: ChatPayload;
 }
 
 function PendingActionRow({ action, disabled, onCancel, onConfirm }: { action: ChatPendingAction; disabled: boolean; onCancel: () => void; onConfirm: () => void }) {
+  const queued = action.state === "queued"
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-800 dark:bg-gray-950">
-      <div className="font-medium text-gray-900 dark:text-gray-100">{action.label}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="font-medium text-gray-900 dark:text-gray-100">{action.label}</span>
+        {queued ? <span className="rounded border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-100">Waiting</span> : null}
+      </div>
       <div className="flex gap-2">
-        <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">Confirm</button>
+        {queued ? null : <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">Confirm</button>}
         <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">Cancel</button>
       </div>
     </div>

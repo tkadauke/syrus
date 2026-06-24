@@ -240,7 +240,7 @@ module Api
         def destroy_pending_action
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)
-          rejection = pending_action.action_type != "schedule_recurring"
+          rejection = pending_action.action_type != "schedule_recurring" && !pending_action.queued?
           result = rejection ? pending_action.reject! : pending_action.cancel!(user: Current.user)
 
           if result
@@ -425,10 +425,11 @@ module Api
         end
 
         def pending_actions_json(chat_session)
-          chat_session.pending_actions.where(state: "pending").order(:created_at, :id).map do |action|
+          chat_session.pending_actions.where(state: %w[queued pending]).order(:created_at, :id).map do |action|
             {
               id: action.id,
               label: pending_action_label(action),
+              state: action.state,
               action: action.action,
               action_type: action.action_type,
               app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",

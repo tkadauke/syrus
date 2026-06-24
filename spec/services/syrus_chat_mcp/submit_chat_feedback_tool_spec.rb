@@ -78,6 +78,42 @@ RSpec.describe SyrusChatMcp::SubmitChatFeedbackTool do
     expect(job.workflows.where(trigger_kind: "chat_feedback")).to be_empty
   end
 
+  it "creates a queued pending action for a running job" do
+    job = Factories.job_record(repository: repository, state: "running")
+
+    response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")
+    body = payload(response)
+    pending_action = chat_session.pending_actions.find(body[:pending_confirmation_id])
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(status: "queued", state: "queued")
+    expect(body[:message]).to include("Feedback queued")
+    expect(pending_action).to be_queued
+    expect(pending_action).to have_attributes(action: "submit_chat_feedback", requested_by: "agent")
+    expect(pending_action.payload).to eq("job_id" => job.id, "feedback" => "Please tighten the retry explanation.")
+    expect(job.workflows.where(trigger_kind: "chat_feedback")).to be_empty
+  end
+
+  it "promotes queued feedback when the running job becomes implemented" do
+    job = Factories.job_record(repository: repository, state: "running")
+    response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    allow(AppEvents).to receive(:broadcast)
+
+    job.mark_implemented!
+
+    expect(pending_action.reload).to be_pending
+    expect(AppEvents).to have_received(:broadcast).with(
+      hash_including(
+        user: user,
+        resource: "chat",
+        id: chat_session.id,
+        changed: [ "pending_action_updated" ],
+        payload: hash_including(action: "pending_action_updated", pending_action_id: pending_action.id, state: "pending")
+      )
+    )
+  end
+
   it "rejects jobs outside the chat repository" do
     other_job = Factories.job_record(repository: Factories.repository(user: user), state: "implemented")
 

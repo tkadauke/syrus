@@ -54,7 +54,8 @@ implemented or approved Job. Steps:
 The agent receives the agreed chat feedback as structured workflow input
 and commits follow-up changes on the existing branch. Submitting feedback
 on an approved Job unapproves it so the updated PR returns to review before
-landing.
+landing. Feedback proposed while the Job is queued or running is held as a
+queued pending action and becomes confirmable once the Job is implemented.
 
 ### Rebase
 

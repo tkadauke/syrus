@@ -8771,6 +8771,7 @@ describe("App", () => {
         {
           id: 7,
           label: "Cancel JOB-44",
+          state: "pending",
           action: "cancel_job",
           action_type: null,
           app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",

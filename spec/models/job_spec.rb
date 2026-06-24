@@ -36,6 +36,60 @@ RSpec.describe Job do
     end
   end
 
+  describe "queued chat pending actions" do
+    it "promotes matching queued actions when the Job becomes implemented" do
+      repo = Factories.repository
+      chat = ChatSession.create!(user: repo.user, repository: repo)
+      job = Factories.job_record(user: repo.user, repository: repo, state: "running")
+      matching = chat.pending_actions.create!(
+        action: "submit_chat_feedback",
+        state: "queued",
+        payload: { "job_id" => job.id, "feedback" => "Please tighten this." }
+      )
+      other = chat.pending_actions.create!(
+        action: "submit_chat_feedback",
+        state: "queued",
+        payload: { "job_id" => Factories.job_record(user: repo.user, repository: repo, state: "running").id, "feedback" => "Leave this waiting." }
+      )
+      allow(AppEvents).to receive(:broadcast)
+
+      job.mark_implemented!
+
+      expect(matching.reload).to be_pending
+      expect(other.reload).to be_queued
+      expect(AppEvents).to have_received(:broadcast).with(
+        hash_including(
+          user: repo.user,
+          resource: "chat",
+          id: chat.id,
+          changed: [ "pending_action_updated" ],
+          payload: hash_including(action: "pending_action_updated", pending_action_id: matching.id, state: "pending")
+        )
+      )
+    end
+
+    it "cancels matching queued actions when the Job closes" do
+      repo = Factories.repository
+      chat = ChatSession.create!(user: repo.user, repository: repo)
+      job = Factories.job_record(user: repo.user, repository: repo, state: "running")
+      matching = chat.pending_actions.create!(
+        action: "submit_chat_feedback",
+        state: "queued",
+        payload: { "job_id" => job.id, "feedback" => "Please tighten this." }
+      )
+      other = chat.pending_actions.create!(
+        action: "submit_chat_feedback",
+        state: "queued",
+        payload: { "job_id" => Factories.job_record(user: repo.user, repository: repo, state: "running").id, "feedback" => "Leave this waiting." }
+      )
+
+      job.close!
+
+      expect(matching.reload).to be_cancelled
+      expect(other.reload).to be_queued
+    end
+  end
+
   describe ".with_latest_workflow_snapshot" do
     it "selects the newest workflow metadata without requiring a workflow row" do
       job_without_workflow = Factories.job_record(issue_number: 1, issue_title: "Survey the forum")

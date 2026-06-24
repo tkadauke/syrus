@@ -302,6 +302,8 @@ class Job < ApplicationRecord
 
   after_update_commit :rebase_stack_children_after_successful_parent_close, if: :saved_change_to_stack_parent_resolved_terminal?
   after_update_commit :start_dependent_jobs_after_implementation, if: :saved_change_to_implemented?
+  after_update_commit :promote_queued_chat_pending_actions, if: :saved_change_to_implemented?
+  after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
   after_update_commit :broadcast_app_job_updated
@@ -684,8 +686,20 @@ class Job < ApplicationRecord
     saved_change_to_state? && implemented?
   end
 
+  def saved_change_to_closed?
+    saved_change_to_state? && closed?
+  end
+
   def saved_change_to_approved?
     saved_change_to_state? && approved?
+  end
+
+  def promote_queued_chat_pending_actions
+    ChatPendingAction.promote_queued_for_job!(self)
+  end
+
+  def cancel_queued_chat_pending_actions
+    ChatPendingAction.cancel_queued_for_job!(self)
   end
 
   def start_dependent_jobs_after_implementation

@@ -52,6 +52,67 @@ RSpec.describe ChatPendingAction do
     expect(repository.repository_notes).to be_empty
   end
 
+  it "promotes a queued action to pending and broadcasts the chat update" do
+    job = direct_job(state: "running")
+    action = chat_session.pending_actions.create!(
+      action: "submit_chat_feedback",
+      state: "queued",
+      payload: { "job_id" => job.id, "feedback" => "Please tighten this." }
+    )
+
+    expect(AppEvents).to receive(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "pending_action_updated" ],
+      payload: {
+        action: "pending_action_updated",
+        pending_action_id: action.id,
+        state: "pending"
+      }
+    )
+
+    expect(action.promote!).to be true
+    expect(action.reload).to be_pending
+  end
+
+  it "cancels a queued action without requiring an operator user" do
+    job = direct_job(state: "running")
+    action = chat_session.pending_actions.create!(
+      action: "submit_chat_feedback",
+      state: "queued",
+      payload: { "job_id" => job.id, "feedback" => "Please tighten this." }
+    )
+
+    expect(action.cancel!).to be true
+    expect(action.reload).to be_cancelled
+  end
+
+  it "requires queued actions to be job scoped" do
+    action = chat_session.pending_actions.build(
+      action: "add_repo_note",
+      state: "queued",
+      payload: { "body" => "Default branch is trunk." }
+    )
+
+    expect(action).not_to be_valid
+    expect(action.errors[:payload]).to include("job_id is required")
+  end
+
+  it "keeps existing state enum values valid when adding queued" do
+    expect(described_class.states.keys).to eq(%w[queued pending confirmed rejected cancelled])
+    %w[pending confirmed rejected cancelled].each do |state|
+      action = chat_session.pending_actions.build(
+        action: "add_repo_note",
+        state: state,
+        payload: { "body" => "Default branch is trunk." }
+      )
+
+      expect(action).to be_valid
+    end
+  end
+
   it "validates job-control payloads include a job_id" do
     %w[cancel_job retry_job rebase_job reopen_epic_and_attach_job].each do |action_name|
       action = chat_session.pending_actions.build(action: action_name, payload: {})

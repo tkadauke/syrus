@@ -5,7 +5,7 @@ module SyrusChatMcp
     tool_name "submit_chat_feedback"
 
     description <<~DESC
-      Propose operator feedback on a job for confirmation before triggering a new agent workflow that will improve the implementation. Call this only after discussing the feedback with the operator and reaching agreement on what to change. The job must be in `implemented` or `approved` state. Confirmed feedback on an approved job will unapprove it. Use `list_job_workflows` first to confirm there is no active chat_feedback workflow already running.
+      Propose operator feedback on a job for confirmation before triggering a new agent workflow that will improve the implementation. Call this only after discussing the feedback with the operator and reaching agreement on what to change. Feedback for a running or queued job is queued until the job reaches an actionable state. Confirmed feedback on an approved job will unapprove it. Use `list_job_workflows` first to confirm there is no active chat_feedback workflow already running.
     DESC
 
     input_schema(
@@ -27,6 +27,23 @@ module SyrusChatMcp
 
         job = chat_session.repository.jobs.find_by(id: job_id)
         return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
+
+        if job.running? || job.queued?
+          pending_action = chat_session.pending_actions.create!(
+            action: "submit_chat_feedback",
+            state: "queued",
+            payload: { "job_id" => job.id, "feedback" => feedback },
+            requested_by: "agent"
+          )
+
+          return SyrusChatMcp.success(
+            pending_confirmation_id: pending_action.id,
+            pending_action_id: pending_action.id,
+            state: pending_action.state,
+            status: "queued",
+            message: "Feedback queued - will appear for your confirmation once #{::App::Presentation.job_slug(job)} finishes its current run."
+          )
+        end
 
         return SyrusChatMcp.invalid("#{job.state} jobs are not actionable for chat feedback; the job must be implemented or approved.") unless actionable?(job)
         if active_chat_feedback_workflow?(job)
