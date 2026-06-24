@@ -162,6 +162,23 @@ RSpec.describe "SyrusChatMcp side-effect pending tools" do
     expect(user.reload.landing_paused).to be false
   end
 
+  it "creates and confirms pause and resume landing queue actions without an attached repository" do
+    repositoryless_chat_session = ChatSession.create!(user: user)
+    allow(self).to receive(:chat_session).and_return(repositoryless_chat_session)
+
+    pause_action = pending_action_from(call_tool("pause_landing_queue"))
+    expect(pause_action).to have_attributes(action: "pause_landing_queue", payload: {}, repository: nil)
+    expect(pause_action.confirm!).to be true
+    expect(user.reload.landing_paused).to be true
+
+    resume_action = pending_action_from(call_tool("resume_landing_queue"))
+    expect(resume_action).to have_attributes(action: "resume_landing_queue", payload: {}, repository: nil)
+    expect {
+      expect(resume_action.confirm!).to be true
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+    expect(user.reload.landing_paused).to be false
+  end
+
   it "rejects cross-user jobs at tool call time" do
     other_user = Factories.user
     other_job = Factories.job_record(user: other_user, repository: Factories.repository(user: other_user))

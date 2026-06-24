@@ -47,7 +47,7 @@ class ChatPendingAction < ApplicationRecord
   attribute :payload, :json, default: -> { {} }
 
   belongs_to :chat_session
-  belongs_to :repository
+  belongs_to :repository, optional: true
   belongs_to :user
   belongs_to :result, polymorphic: true, optional: true
   has_one :message, class_name: "ChatMessage", foreign_key: :pending_action_id, dependent: :nullify, inverse_of: :pending_action
@@ -386,6 +386,8 @@ class ChatPendingAction < ApplicationRecord
 
   def repository_matches_chat_session
     return unless chat_session && repository
+    return if chat_session.repository.nil?
+
     errors.add(:repository, "must match chat session") if repository_id != chat_session.repository_id
   end
 
