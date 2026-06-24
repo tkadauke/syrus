@@ -74,7 +74,8 @@ their kanban states, schedule recurring work, inspect existing Jobs or PRs,
 approve or unapprove
 implemented Jobs, change Job priority, move Jobs into or out of Epics, drill
 through Job workflow and Run history progressively, search Jobs in the
-attached repository, search prior chat messages for the same user, read
+attached repository, read stored Job diffs, list and create the operator's
+tags, attach or remove tags on Jobs, search prior chat messages for the same user, read
 paginated chat transcripts, inspect Solid Queue health, update the chat's
 pinned context for future turns, and create proposal cards for the operator
 to confirm. New chats use a short interpreted title from the first prompt,
@@ -225,6 +226,10 @@ Epic, user, repository, trigger kind, a daily trend chart, and the most
 expensive individual Runs. When spending exists across multiple agent
 providers, the dashboard can filter those views by model provider such as
 Claude Code or Codex.
+
+Chat can query the same spending data for 7-, 30-, or 90-day windows,
+optionally narrowed to a repository or Epic, and returns the daily trend,
+token totals, and the most expensive Runs for the current operator.
 
 The view respects the same ownership model as the rest of the app:
 non-admin users see only their own Run and chat costs, while admins see

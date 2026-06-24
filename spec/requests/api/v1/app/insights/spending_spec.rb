@@ -126,6 +126,41 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     )
   end
 
+  it "filters workflow spending by repository and epic" do
+    user = Factories.user(email_address: "mine@example.com")
+    repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+    other_repo = Factories.repository(user: user, owner: "acme", name: "other")
+    epic = Factories.epic(user: user, repository: repo, title: "Cost scoped")
+    other_epic = Factories.epic(user: user, repository: other_repo, title: "Other cost")
+    included = Factories.job(user: user, repository: repo, issue_number: 303)
+    included.update!(epic: epic)
+    same_repo_no_epic = Factories.job(user: user, repository: repo, issue_number: 304)
+    other_repo_job = Factories.job(user: user, repository: other_repo, issue_number: 305)
+    other_repo_job.update!(epic: other_epic)
+    set_run_cost(initial_run(included), 0.40, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+    set_run_cost(initial_run(same_repo_no_epic), 0.60, created_at: Time.zone.parse("2026-06-03 12:00:00"))
+    set_run_cost(initial_run(other_repo_job), 0.80, created_at: Time.zone.parse("2026-06-04 12:00:00"))
+    ChatSession.create!(user: user, cumulative_cost_usd: 0.25)
+
+    sign_in_as(user)
+    get "/api/v1/app/insights/spending", params: {
+      start_date: "2026-06-01",
+      end_date: "2026-06-05",
+      repository_id: repo.id,
+      epic_id: epic.id
+    }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("filters", "repository_id")).to eq(repo.id)
+    expect(body.dig("filters", "epic_id")).to eq(epic.id)
+    expect(body.dig("totals", "lifetime_usd")).to eq(0.4)
+    expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(included).id, "cost_usd" => 0.4))
+    expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
+      { "date" => "2026-06-02", "total_usd" => 0.4 }
+    )
+  end
+
   it "ignores unsupported agent provider filters" do
     user = Factories.user(email_address: "mine@example.com")
     job = Factories.job(user: user, repository: Factories.repository(user: user), issue_number: 303, agent_provider: "claude")

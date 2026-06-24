@@ -11,6 +11,8 @@ module App
       @start_date = parse_date(params[:start_date]) || (@today - DEFAULT_WINDOW_DAYS.days)
       @end_date = parse_date(params[:end_date]) || @today
       @start_date, @end_date = @end_date, @start_date if @start_date > @end_date
+      @repository_id = params[:repository_id].presence
+      @epic_id = params[:epic_id].presence
       @agent_provider = parse_agent_provider(params[:agent_provider])
     end
 
@@ -32,7 +34,7 @@ module App
 
     private
 
-    attr_reader :user, :start_date, :end_date, :today, :agent_provider
+    attr_reader :user, :start_date, :end_date, :today, :agent_provider, :repository_id, :epic_id
 
     def scope_json
       {
@@ -48,6 +50,8 @@ module App
         end_date: end_date.iso8601,
         default_window_days: DEFAULT_WINDOW_DAYS,
         agent_provider: agent_provider,
+        repository_id: repository_id&.to_i,
+        epic_id: epic_id&.to_i,
         agent_providers: available_agent_providers
       }
     end
@@ -66,6 +70,8 @@ module App
 
     def scoped_runs
       relation = Run.where.not(cost_usd: nil)
+      relation = relation.joins(:job).where(jobs: { repository_id: repository_id }) if repository_id.present?
+      relation = relation.joins(:job).where(jobs: { epic_id: epic_id }) if epic_id.present?
       return relation if user.admin?
 
       relation.where(user_id: user.id)
@@ -73,12 +79,16 @@ module App
 
     def scoped_jobs
       relation = Job.all
+      relation = relation.where(repository_id: repository_id) if repository_id.present?
+      relation = relation.where(epic_id: epic_id) if epic_id.present?
       return relation if user.admin?
 
       relation.where(user_id: user.id)
     end
 
     def scoped_chat_sessions
+      return ChatSession.none if repository_id.present? || epic_id.present?
+
       relation = ChatSession.where.not(cumulative_cost_usd: nil)
       return relation if user.admin?
 

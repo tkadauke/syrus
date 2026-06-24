@@ -73,6 +73,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         add_epic_dependency
         remove_epic_dependency
         read_job
+        get_job_diff
         update_job
         list_job_workflows
         read_workflow
@@ -81,6 +82,11 @@ RSpec.describe SyrusChatMcp::Sidecar do
         read_chat_messages
         list_jobs
         search_jobs
+        get_spending
+        list_tags
+        create_tag
+        add_job_tag
+        remove_job_tag
         approve_job
         unapprove_job
         set_job_priority
