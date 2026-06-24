@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_015924) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_135815) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -254,6 +254,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_015924) do
     t.string "workspace_path"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_path"], name: "index_chat_sessions_on_workspace_path"
+  end
+
+  create_table "chat_wakeups", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "fire_at", null: false
+    t.text "prompt", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["chat_session_id"], name: "index_chat_wakeups_on_chat_session_id"
+    t.index ["state", "fire_at"], name: "index_chat_wakeups_on_state_and_fire_at"
+    t.index ["user_id"], name: "index_chat_wakeups_on_user_id"
   end
 
   create_table "chat_whiteboards", force: :cascade do |t|
@@ -942,6 +955,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_015924) do
   add_foreign_key "chat_proposals", "repositories"
   add_foreign_key "chat_queued_messages", "chat_sessions"
   add_foreign_key "chat_sessions", "users"
+  add_foreign_key "chat_wakeups", "chat_sessions"
+  add_foreign_key "chat_wakeups", "users"
   add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"
   add_foreign_key "cron_templates", "users"
