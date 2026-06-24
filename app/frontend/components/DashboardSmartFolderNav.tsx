@@ -72,10 +72,12 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
 
   function dragOverSavedFolder(index: number, event: DragEvent<HTMLElement>) {
     const sourceIndex = dragIndex.current
-    if (sourceIndex == null || sourceIndex === index) return
+    if (sourceIndex == null) return
 
     event.preventDefault()
     event.dataTransfer.dropEffect = "move"
+    if (sourceIndex === index) return
+
     const nextFolders = reorderFolders(orderedSavedFoldersRef.current, sourceIndex, index)
     orderedSavedFoldersRef.current = nextFolders
     dragIndex.current = index

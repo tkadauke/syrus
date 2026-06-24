@@ -47,6 +47,27 @@ describe("DashboardSmartFolderNav", () => {
     })
   })
 
+  it("keeps the reordered saved folder as a valid drop target", () => {
+    renderNav(dashboardPayload({
+      smart_folders: [
+        smartFolder({ id: 1, name: "Review", position: 0 }),
+        smartFolder({ id: 2, name: "Blocked", position: 1 }),
+        smartFolder({ id: 3, name: "Landing", position: 2 })
+      ]
+    }))
+
+    const savedNav = screen.getByRole("navigation", { name: "Saved smart folders" })
+    const review = within(savedNav).getByRole("link", { name: "Review 0" })
+    const landing = within(savedNav).getByRole("link", { name: "Landing 0" })
+    const dataTransfer = { dropEffect: "", effectAllowed: "", setData: vi.fn(), getData: vi.fn() }
+
+    fireEvent.dragStart(review, { dataTransfer })
+    fireEvent.dragOver(landing, { dataTransfer })
+
+    expect(fireEvent.dragOver(landing, { dataTransfer })).toBe(false)
+    expect(dataTransfer.dropEffect).toBe("move")
+  })
+
   it("does not make builtin folders draggable", () => {
     renderNav(dashboardPayload({
       smart_folders: [
