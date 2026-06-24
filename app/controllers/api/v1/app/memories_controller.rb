@@ -33,7 +33,7 @@ module Api
           memory = find_memory_for_write
           return unless memory
 
-          memory.destroy!
+          memory.soft_delete_by!(Current.user)
           render json: memories_payload.merge(message: "Memory deleted.")
         end
 
@@ -107,11 +107,11 @@ module Api
         end
 
         def visible_memories
-          return ChatMemory.all if Current.user.admin?
+          return ChatMemory.active if Current.user.admin?
 
           repository_ids = Current.user.repositories.active.select(:id)
-          ChatMemory.where(user_id: Current.user.id)
-            .or(ChatMemory.where(scope: "repository", scope_id: repository_ids, published: true))
+          ChatMemory.active.where(user_id: Current.user.id)
+            .or(ChatMemory.active.where(scope: "repository", scope_id: repository_ids, published: true))
         end
 
         def find_memory_for_write

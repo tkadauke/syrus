@@ -182,11 +182,25 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     sign_in_as(user)
     memory = memory_for(user)
 
-    expect {
-      delete "/api/v1/app/memories/#{memory.id}"
-    }.to change { ChatMemory.exists?(memory.id) }.from(true).to(false)
+    delete "/api/v1/app/memories/#{memory.id}"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Memory deleted.")
+    expect(memory.reload).to be_persisted
+    expect(memory.deleted_at).not_to be_nil
+    expect(memory.deleted_by_user).to eq(user)
+
+    get "/api/v1/app/memories"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["memories"].map { |row| row["id"] }).not_to include(memory.id)
+
+    admin = Factories.user(admin: true)
+    sign_in_as(admin)
+
+    get "/api/v1/app/memories"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["memories"].map { |row| row["id"] }).not_to include(memory.id)
   end
 end
