@@ -12,7 +12,7 @@ module Api
           filter_ast = ::Filters::Ast.parse(tree || legacy_filter_tree(subject_type))
           filter = ::Filters::Ast.serialize(filter_ast)
 
-          if filter_ast.is_a?(::Filters::Ast::AndNode) && filter_ast.children.empty?
+          if empty_filter?(filter_ast)
             render_error("validation_failed", "Choose at least one filter before saving a smart folder.", status: :unprocessable_content)
             return
           end
@@ -40,13 +40,26 @@ module Api
 
         def update
           smart_folder = Current.user.smart_folders.find(params[:id])
+          attributes = smart_folder_params.to_h
 
-          if smart_folder.update(smart_folder_params)
+          if params.key?(:filter)
+            filter_ast = ::Filters::Ast.parse(parsed_filter_tree)
+            if empty_filter?(filter_ast)
+              render_error("validation_failed", "Choose at least one filter before saving a smart folder.", status: :unprocessable_content)
+              return
+            end
+
+            attributes[:filter] = ::Filters::Ast.serialize(filter_ast)
+          end
+
+          if smart_folder.update(attributes)
             render json: smart_folders_payload(subject_type: smart_folder.subject_type).merge(message: "Smart folder updated.")
           else
             render_error("validation_failed", smart_folder.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
           end
+        rescue ArgumentError => e
+          render_error("validation_failed", "Couldn't save filter: #{e.message}", status: :unprocessable_content)
         end
 
         def destroy
@@ -132,6 +145,10 @@ module Api
 
         def next_position(subject_type)
           (Current.user.smart_folders.where(subject_type: subject_type).maximum(:position) || -1) + 1
+        end
+
+        def empty_filter?(filter_ast)
+          filter_ast.is_a?(::Filters::Ast::AndNode) && filter_ast.children.empty?
         end
       end
     end

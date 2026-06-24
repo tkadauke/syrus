@@ -34,6 +34,7 @@ module Admin
           visibility: folder.visibility.to_s,
           count: count,
           active: active_folder&.id == folder.id,
+          filter: folder.filter,
           path: folder_path(folder)
         }
       end

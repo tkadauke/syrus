@@ -864,6 +864,7 @@ module App
           visibility: folder.visibility.to_s,
           count: count,
           active: active_smart_folder&.id == folder.id,
+          filter: folder.filter,
           path: dashboard_path_for(subject, smart_folder_id: folder.id)
         }
       end

@@ -99,8 +99,49 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     expect(response).to have_http_status(:ok)
     expect(folder.reload.name).to eq("New")
     expect(folder.position).to eq(4)
+    expect(folder.filter).to eq("and" => [ { "field" => "state", "op" => "is", "value" => "open" } ])
     expect(parse_body["subject_type"]).to eq("workflow")
     expect(parse_body["message"]).to eq("Smart folder updated.")
+  end
+
+  it "updates a smart folder filter" do
+    sign_in_as(user)
+    folder = create_smart_folder(user: user, name: "Old", subject_type: "workflow", position: 1)
+
+    patch "/api/v1/app/smart_folders/#{folder.id}", params: {
+      filter: {
+        and: [
+          { field: "state", op: "is", value: "running" }
+        ]
+      }.to_json,
+      smart_folder: { name: "New", position: 4 }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(folder.reload).to have_attributes(name: "New", position: 4)
+    expect(folder.filter).to eq(
+      "and" => [
+        { "field" => "state", "op" => "is", "value" => "running" }
+      ]
+    )
+    expect(parse_body["smart_folders"].find { |row| row["id"] == folder.id }).to include(
+      "filter" => folder.filter
+    )
+  end
+
+  it "rejects smart folder updates with an empty filter" do
+    sign_in_as(user)
+    folder = create_smart_folder(user: user, name: "Old", subject_type: "job")
+
+    patch "/api/v1/app/smart_folders/#{folder.id}", params: {
+      filter: { and: [] }.to_json,
+      smart_folder: { name: "New", position: 2 }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Choose at least one filter")
+    expect(folder.reload).to have_attributes(name: "Old", position: 0)
+    expect(folder.filter).to eq("and" => [ { "field" => "state", "op" => "is", "value" => "open" } ])
   end
 
   it "returns validation errors" do

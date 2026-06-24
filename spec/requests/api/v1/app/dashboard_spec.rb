@@ -589,7 +589,12 @@ RSpec.describe "App API dashboard commands", type: :request do
         "name" => "Ready work",
         "visibility" => "user_defined",
         "count" => 1,
-        "active" => true
+        "active" => true,
+        "filter" => {
+          "and" => [
+            { "field" => "state", "op" => "is", "value" => "ready" }
+          ]
+        }
       ))
     end
 

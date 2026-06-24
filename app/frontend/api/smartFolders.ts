@@ -18,6 +18,7 @@ export type SmartFoldersPayload = {
 export type SmartFolderInput = {
   name: string
   position: number
+  filter?: Record<string, unknown>
 }
 
 export function fetchSmartFolders(search: string) {
@@ -25,8 +26,11 @@ export function fetchSmartFolders(search: string) {
 }
 
 export function updateSmartFolder(id: number, values: SmartFolderInput) {
+  const { filter, ...smartFolder } = values
+
   return patchJson<SmartFoldersPayload>(`/api/v1/app/smart_folders/${id}`, {
-    smart_folder: values
+    ...(filter === undefined ? {} : { filter: JSON.stringify(filter) }),
+    smart_folder: smartFolder
   })
 }
 

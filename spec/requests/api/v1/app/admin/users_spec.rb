@@ -51,6 +51,11 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     expect(rate_folder).to include(
       "subject_type" => "admin_user",
       "count" => 1,
+      "filter" => {
+        "and" => [
+          { "field" => "gh_rate", "op" => "is", "value" => "low" }
+        ]
+      },
       "path" => a_string_matching(%r{\A/admin/users\?smart_folder_id=})
     )
     expect(response.body).not_to include("ghp_secret")
