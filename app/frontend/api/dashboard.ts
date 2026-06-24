@@ -1,5 +1,5 @@
 import { getJson, patchJson, postJson } from "./client"
-import type { JobRetryState } from "./jobs"
+import type { JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
 
 import type { SetupStatusPayload } from "./setup"
 
@@ -47,6 +47,14 @@ export type DashboardClaimOwner = {
   profile_path: string
 }
 
+export type DashboardLandingQueueEntry = {
+  key: string
+  position: number
+  job_ids: number[]
+  blocker_jobs: LandingQueueBlockerJob[]
+  dependency_edges: LandingQueueDependencyEdge[]
+}
+
 export type DashboardJobItem = {
   type: "job"
   id: number
@@ -67,6 +75,7 @@ export type DashboardJobItem = {
   pr_url: string | null
   latest_workflow_state: string
   landing_queue_position: number | null
+  landing_queue_entry_key: string | null
   retry_state?: JobRetryState
   created_at: string | null
   updated_at: string | null
@@ -249,6 +258,7 @@ export type DashboardPayload = {
     visible: boolean
     paused: boolean
     toggle_path: string
+    entries?: DashboardLandingQueueEntry[]
   }
   ownership: {
     scope: string

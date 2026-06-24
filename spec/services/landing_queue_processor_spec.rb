@@ -59,6 +59,28 @@ RSpec.describe LandingQueueProcessor do
     expect(entries.map(&:position)).to eq([ 1, 2 ])
   end
 
+  it "collects transitive unmerged blockers and dependency edges for each landing unit" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    approved = queue_job(issue_number: 3, approved_at: 1.minute.ago, epic: epic)
+    blocker = Factories.job_record(user: user, repository: repository, issue_number: 2, state: "implemented", pr_number: 2)
+    root_blocker = Factories.job_record(user: user, repository: repository, issue_number: 1, state: "queued", pr_number: 1)
+    merged = queue_job(issue_number: 4, approved_at: 2.minutes.ago)
+    merged.update!(state: "closed", closure_reason: "pr_merged")
+    JobDependency.create!(job: approved, depends_on_job: blocker, source: "manual", created_by_user: user)
+    JobDependency.create!(job: blocker, depends_on_job: root_blocker, source: "manual", created_by_user: user)
+    JobDependency.create!(job: approved, depends_on_job: merged, source: "manual", created_by_user: user)
+
+    unit = described_class.landing_units(Job.where(id: approved.id)).sole
+
+    expect(unit.key).to eq("epic:#{epic.id}")
+    expect(unit.job_ids).to eq([ approved.id ])
+    expect(unit.blocker_jobs.map(&:id)).to eq([ root_blocker.id, blocker.id ])
+    expect(unit.dependency_edges).to contain_exactly(
+      { from_job_id: root_blocker.id, to_job_id: blocker.id },
+      { from_job_id: blocker.id, to_job_id: approved.id }
+    )
+  end
+
   it "groups Epic jobs together in landing queue positions" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     epic_child = queue_job(issue_number: 2, approved_at: 3.minutes.ago, epic: epic)

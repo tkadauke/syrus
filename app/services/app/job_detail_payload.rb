@@ -283,7 +283,9 @@ module App
       {
         position: entry.position,
         blocked_reason: entry.blocked_reason,
-        waiting_for_jobs: entry.waiting_for_jobs.map { |job| landing_queue_waiting_job_json(job) }
+        waiting_for_jobs: entry.waiting_for_jobs.map { |job| landing_queue_waiting_job_json(job) },
+        blocker_jobs: entry.blocker_jobs.map { |job| landing_queue_blocker_job_json(job, entry) },
+        dependency_edges: entry.dependency_edges
       }
     end
 
@@ -294,6 +296,26 @@ module App
         title: job.issue_title.presence || App::Presentation.job_slug(job),
         job_path: "/jobs/#{job.id}"
       }
+    end
+
+    def landing_queue_blocker_job_json(job, entry)
+      json = {
+        id: job.id,
+        title: job.issue_title.presence || App::Presentation.job_slug(job),
+        state: job.state,
+        pr_number: job.pr_number || job.external_pr_number,
+        pr_path: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job)
+      }
+      if job.epic_id != landing_queue_entry_epic_id(entry)
+        json[:epic_id] = job.epic_id
+        json[:epic_title] = job.epic&.title
+      end
+      json
+    end
+
+    def landing_queue_entry_epic_id(entry)
+      match = entry.landing_unit_key.to_s.match(/\Aepic:(\d+)\z/)
+      match ? match[1].to_i : nil
     end
 
     def workflows_json

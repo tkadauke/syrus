@@ -690,6 +690,7 @@ module App
         pr_url: job.pr_number.present? ? App::Presentation.job_pr_url(job) : App::Presentation.external_pr_url(job),
         latest_workflow_state: App::Presentation.workflow_dashboard_state(job.latest_workflow_state, job.latest_workflow_trigger_kind),
         landing_queue_position: landing_queue_position_for(job),
+        landing_queue_entry_key: landing_queue_entry_key_for(job),
         retry_state: ::App::RetryState.for(job),
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601,
@@ -962,11 +963,13 @@ module App
     end
 
     def landing_queue_json
-      {
+      json = {
         visible: landing_queue_visible?,
         paused: user.landing_paused?,
         toggle_path: "/api/v1/app/dashboard/landing_pause"
       }
+      json[:entries] = landing_queue_entries_json if landing_queue_visible?
+      json
     end
 
     def landing_queue_visible?
@@ -977,10 +980,68 @@ module App
       landing_queue_positions[job.id] if landing_queue_visible?
     end
 
+    def landing_queue_entry_key_for(job)
+      landing_queue_entry_keys[job.id] if landing_queue_visible?
+    end
+
     def landing_queue_positions
       return {} unless landing_queue_visible?
 
-      @landing_queue_positions ||= LandingQueueProcessor.entries(jobs_base_scope).to_h { |entry| [ entry.job_id, entry.position ] }
+      @landing_queue_positions ||= begin
+        position = 0
+        landing_queue_entries.each_with_object({}) do |entry, positions|
+          entry.jobs.each do |job|
+            position += 1
+            positions[job.id] = position
+          end
+        end
+      end
+    end
+
+    def landing_queue_entry_keys
+      return {} unless landing_queue_visible?
+
+      @landing_queue_entry_keys ||= landing_queue_entries.each_with_object({}) do |entry, keys|
+        entry.jobs.each { |job| keys[job.id] = entry.key }
+      end
+    end
+
+    def landing_queue_entries
+      return [] unless landing_queue_visible?
+
+      @landing_queue_entries ||= LandingQueueProcessor.landing_units(jobs_base_scope)
+    end
+
+    def landing_queue_entries_json
+      landing_queue_entries.map do |entry|
+        {
+          key: entry.key,
+          position: entry.position,
+          job_ids: entry.job_ids,
+          blocker_jobs: entry.blocker_jobs.map { |job| landing_queue_blocker_job_json(job, entry) },
+          dependency_edges: entry.dependency_edges
+        }
+      end
+    end
+
+    def landing_queue_blocker_job_json(job, entry)
+      json = {
+        id: job.id,
+        title: job.issue_title.presence || App::Presentation.job_slug(job),
+        state: job.state,
+        pr_number: job.pr_number || job.external_pr_number,
+        pr_path: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job)
+      }
+      if job.epic_id != landing_queue_entry_epic_id(entry)
+        json[:epic_id] = job.epic_id
+        json[:epic_title] = job.epic&.title
+      end
+      json
+    end
+
+    def landing_queue_entry_epic_id(entry)
+      match = entry.key.match(/\Aepic:(\d+)\z/)
+      match ? match[1].to_i : nil
     end
 
     def column_options_json

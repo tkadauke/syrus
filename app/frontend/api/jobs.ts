@@ -155,6 +155,21 @@ export type JobTestPlan = {
   notes: string | null
 }
 
+export type LandingQueueBlockerJob = {
+  id: number
+  title: string
+  state: string
+  pr_number: number | null
+  pr_path: string | null
+  epic_id?: number | null
+  epic_title?: string | null
+}
+
+export type LandingQueueDependencyEdge = {
+  from_job_id: number
+  to_job_id: number
+}
+
 export type JobLandingQueueEntry = {
   position: number
   blocked_reason: string | null
@@ -164,6 +179,8 @@ export type JobLandingQueueEntry = {
     title: string
     job_path: string
   }>
+  blocker_jobs?: LandingQueueBlockerJob[]
+  dependency_edges?: LandingQueueDependencyEdge[]
 }
 
 export type JobWorkflowsPagination = {

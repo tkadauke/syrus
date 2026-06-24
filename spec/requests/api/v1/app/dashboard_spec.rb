@@ -276,7 +276,8 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(parse_body["landing_queue"]).to eq(
         "visible" => true,
         "paused" => true,
-        "toggle_path" => "/api/v1/app/dashboard/landing_pause"
+        "toggle_path" => "/api/v1/app/dashboard/landing_pause",
+        "entries" => []
       )
     end
 
@@ -319,6 +320,87 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body.dig("controls", "sort_columns")).to include("landing_queue_position")
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
       expect(positions).to include(first.id => 1, second.id => 2)
+    end
+
+    it "includes transitive landing queue blockers and dependency edges by group" do
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress", title: "Forum release")
+      other_epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress", title: "Quarry release")
+      approved = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        epic: epic,
+        issue_number: 21,
+        issue_title: "Land forum paving",
+        state: "approved",
+        pr_number: 21,
+        approved_at: 1.hour.ago
+      )
+      blocker = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        epic: other_epic,
+        issue_number: 22,
+        issue_title: "Ship quarry stones",
+        state: "implemented",
+        pr_number: 22
+      )
+      root_blocker = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        issue_number: 23,
+        issue_title: "Survey road",
+        state: "queued",
+        pr_number: 23
+      )
+      JobDependency.create!(job: approved, depends_on_job: blocker, source: "manual", created_by_user: user)
+      JobDependency.create!(job: blocker, depends_on_job: root_blocker, source: "manual", created_by_user: user)
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Landing queue",
+        kind: "user_defined",
+        filter: SmartFolder.attention_preset_filter("landing_queue")
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.fetch("items").find { |item| item.fetch("id") == approved.id }).to include(
+        "landing_queue_position" => 1,
+        "landing_queue_entry_key" => "epic:#{epic.id}"
+      )
+      entry = body.fetch("landing_queue").fetch("entries").sole
+      expect(entry).to include(
+        "key" => "epic:#{epic.id}",
+        "position" => 1,
+        "job_ids" => [ approved.id ]
+      )
+      expect(entry.fetch("blocker_jobs")).to contain_exactly(
+        include(
+          "id" => root_blocker.id,
+          "title" => "Survey road",
+          "state" => "queued",
+          "pr_number" => 23,
+          "pr_path" => "https://github.com/#{repo.slug}/pull/23",
+          "epic_id" => nil,
+          "epic_title" => nil
+        ),
+        include(
+          "id" => blocker.id,
+          "title" => "Ship quarry stones",
+          "state" => "implemented",
+          "pr_number" => 22,
+          "pr_path" => "https://github.com/#{repo.slug}/pull/22",
+          "epic_id" => other_epic.id,
+          "epic_title" => "Quarry release"
+        )
+      )
+      expect(entry.fetch("dependency_edges")).to contain_exactly(
+        { "from_job_id" => root_blocker.id, "to_job_id" => blocker.id },
+        { "from_job_id" => blocker.id, "to_job_id" => approved.id }
+      )
     end
 
     it "groups Epic jobs together when assigning landing queue positions" do

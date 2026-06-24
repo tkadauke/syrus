@@ -12,7 +12,7 @@ class LandingQueueProcessor
   # advance. See PollMergeStateJob#dispatch_rebase.
   REBASE_PREFETCH_DEPTH = 3
 
-  Entry = Struct.new(:job, :position, :blocked_reason, :waiting_for, :waiting_for_jobs, keyword_init: true) do
+  Entry = Struct.new(:job, :position, :blocked_reason, :waiting_for, :waiting_for_jobs, :landing_unit_key, :blocker_jobs, :dependency_edges, keyword_init: true) do
     def eligible?
       blocked_reason.blank?
     end
@@ -20,11 +20,18 @@ class LandingQueueProcessor
     def job_id = job.id
   end
   LandingUnit = Struct.new(:key, :jobs, :position, keyword_init: true)
+  LandingUnitEntry = Struct.new(:key, :jobs, :position, :blocker_jobs, :dependency_edges, keyword_init: true) do
+    def job_ids = jobs.map(&:id)
+  end
 
   def self.call = new.call
 
   def self.entries(scope = Job.all)
     new.entries(scope)
+  end
+
+  def self.landing_units(scope = Job.all)
+    new.landing_units(scope)
   end
 
   # Is this Job within the first `depth` of its repository's landing
@@ -111,8 +118,40 @@ class LandingQueueProcessor
   end
 
   def entries(scope = Job.all)
-    ordered_queue(scope).map.with_index(1) do |job, position|
-      Entry.new(job: job, position: position, **blockage_for(job))
+    position = 0
+    landing_units(scope).flat_map do |unit|
+      unit.jobs.map do |job|
+        position += 1
+        Entry.new(
+          job: job,
+          position: position,
+          landing_unit_key: unit.key,
+          blocker_jobs: unit.blocker_jobs,
+          dependency_edges: unit.dependency_edges,
+          **blockage_for(job)
+        )
+      end
+    end
+  end
+
+  def landing_units(scope = Job.all)
+    chronological = queue_candidates(scope)
+    next_position = 1
+    ordered_landing_units(landing_units_for(chronological), chronological).map do |unit|
+      ordered_jobs = dependency_order(unit.jobs)
+      unit_job_ids = ordered_jobs.map(&:id).to_set
+      blocker_jobs = transitive_blocker_jobs_for(ordered_jobs, unit_job_ids)
+      graph_jobs = ordered_jobs + blocker_jobs
+      position = next_position
+      next_position += ordered_jobs.size
+
+      LandingUnitEntry.new(
+        key: unit.key,
+        jobs: ordered_jobs,
+        position: position,
+        blocker_jobs: blocker_jobs,
+        dependency_edges: dependency_edges_for(graph_jobs)
+      )
     end
   end
 
@@ -127,12 +166,16 @@ class LandingQueueProcessor
   private
 
   def ordered_queue(scope)
-    chronological = scope.where(state: %w[ approved landing ])
-                         .includes(:user, :repository, :epic, :parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
-                         .order(Arel.sql("COALESCE(jobs.approved_at, jobs.updated_at) ASC"), :id)
-                         .to_a
+    chronological = queue_candidates(scope)
 
     epic_grouped_dependency_order(chronological)
+  end
+
+  def queue_candidates(scope)
+    scope.where(state: %w[ approved landing ])
+         .includes(:user, :repository, :epic, :parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
+         .order(Arel.sql("COALESCE(jobs.approved_at, jobs.updated_at) ASC"), :id)
+         .to_a
   end
 
   def epic_grouped_dependency_order(jobs)
@@ -241,6 +284,45 @@ class LandingQueueProcessor
       ids << dependency.depends_on_job_id
     end
     ids.uniq
+  end
+
+  def transitive_blocker_jobs_for(jobs, unit_job_ids)
+    seen_ids = Set.new
+    blocker_ids = Set.new
+    pending_ids = jobs.flat_map { |job| landing_queue_prerequisite_ids(job) }.uniq
+
+    until pending_ids.empty?
+      batch_ids = pending_ids - seen_ids.to_a
+      break if batch_ids.empty?
+
+      seen_ids.merge(batch_ids)
+      dependencies = Job.where(id: batch_ids)
+                        .includes(:repository, :epic, :parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
+                        .to_a
+      dependencies.each do |dependency|
+        blocker_ids << dependency.id if dependency_blocker?(dependency, unit_job_ids)
+        pending_ids.concat(landing_queue_prerequisite_ids(dependency))
+      end
+    end
+
+    dependency_order(Job.where(id: blocker_ids.to_a)
+                        .includes(:repository, :epic, :parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
+                        .to_a)
+  end
+
+  def dependency_blocker?(job, unit_job_ids)
+    !unit_job_ids.include?(job.id) && !job.closed?
+  end
+
+  def dependency_edges_for(jobs)
+    job_ids = jobs.map(&:id).to_set
+    jobs.flat_map do |job|
+      landing_queue_prerequisite_ids(job).filter_map do |prerequisite_id|
+        next unless job_ids.include?(prerequisite_id)
+
+        { from_job_id: prerequisite_id, to_job_id: job.id }
+      end
+    end.uniq
   end
 
   def start_ready_epic_sibling_jobs!
