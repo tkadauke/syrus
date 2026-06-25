@@ -12,4 +12,13 @@ RSpec.describe "recurring job configuration" do
     )
     expect(configured_classes).not_to include("PollAllRebasesJob")
   end
+
+  it "prunes old notifications daily" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("prune_old_notifications")).to include(
+      "class" => "PruneOldNotificationsJob",
+      "schedule" => "every day at 3:30am"
+    )
+  end
 end

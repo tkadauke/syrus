@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_25_021204) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_043758) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -583,6 +583,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_021204) do
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
   end
 
+  create_table "notifications", force: :cascade do |t|
+    t.string "body", null: false
+    t.datetime "created_at", null: false
+    t.integer "job_id"
+    t.string "kind", null: false
+    t.string "pr_url"
+    t.datetime "read_at"
+    t.integer "user_id", null: false
+    t.index ["job_id"], name: "index_notifications_on_job_id"
+    t.index ["user_id"], name: "index_notifications_on_user_id"
+  end
+
   create_table "repositories", force: :cascade do |t|
     t.string "agent_provider"
     t.boolean "approval_propagates_to_github", default: true
@@ -992,6 +1004,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_021204) do
   add_foreign_key "merge_train_members", "merge_trains"
   add_foreign_key "merge_trains", "epics"
   add_foreign_key "merge_trains", "repositories"
+  add_foreign_key "notifications", "jobs"
+  add_foreign_key "notifications", "users"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
   add_foreign_key "repository_notes", "repositories"

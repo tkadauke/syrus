@@ -41,6 +41,14 @@ module Workflows
       end.max
 
       workflow.job.mark_feedback_addressed!(addressed_at)
+      job = workflow.job
+      NotificationService.create_for(
+        user: job.user,
+        kind: "pr_comment_addressed",
+        job: job,
+        pr_url: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job),
+        body: "Syrus addressed your PR comments on JOB-#{job.id}"
+      )
     end
 
     def self.parse_comment_time(value)

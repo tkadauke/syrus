@@ -82,7 +82,10 @@ class Epic < ApplicationRecord
     end
 
     event :auto_complete do
-      transitions from: :in_progress, to: :done, guard: :complete?, after: :stamp_done_at
+      transitions from: :in_progress, to: :done, guard: :complete?, after: -> {
+        stamp_done_at
+        notify_epic_completed
+      }
     end
 
     event :archive do
@@ -96,6 +99,16 @@ class Epic < ApplicationRecord
 
   def display_number
     "EPIC-#{number}"
+  end
+
+  def notify_epic_completed
+    jobs.includes(:owner_user, :user).map { |job| job.owner_user || job.user }.uniq.each do |owner|
+      NotificationService.create_for(
+        user: owner,
+        kind: "epic_completed",
+        body: "Epic \"#{title}\" completed"
+      )
+    end
   end
 
   def claimed?

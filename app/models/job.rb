@@ -16,7 +16,7 @@ class Job < ApplicationRecord
   # low (20). The gap of 10 between levels leaves room for future additions
   # without renumbering existing entries.
   PRIORITY_TO_SQ = { "high" => 0, "medium" => 10, "low" => 20 }.freeze
-  attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings
+  attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings, :notify_job_implemented_on_transition
 
   belongs_to :user
   belongs_to :owner_user, class_name: "User", optional: true
@@ -39,6 +39,7 @@ class Job < ApplicationRecord
   has_many :job_logs, through: :runs
   has_many :job_pins, dependent: :destroy
   has_many :pinning_users, through: :job_pins, source: :user
+  has_many :notifications, dependent: :nullify
   has_many :documents, -> { order(:created_at, :id) }, as: :attachable, dependent: :destroy
   has_many :job_attachments, -> { order(:created_at, :id) }, as: :attachable, class_name: "Document", dependent: :destroy
   has_many :job_tags, dependent: :destroy
@@ -205,7 +206,7 @@ class Job < ApplicationRecord
     # didn't open a new PR), Workflow#succeed's after-callback
     # transitions :running → :implemented since the PR already exists.
     event :mark_implemented do
-      transitions from: [ :queued, :running ], to: :implemented
+      transitions from: [ :queued, :running ], to: :implemented, after: :notify_job_implemented
     end
 
     # Fired by Workflow#fail's after-callback for non-auto_merge
@@ -241,6 +242,7 @@ class Job < ApplicationRecord
       transitions from: [ :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :approved, :landing ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
+        notify_pr_merged
         refresh_epic_auto_state
       }
     end
@@ -660,6 +662,13 @@ class Job < ApplicationRecord
     return if closed?
     if failure_count >= AppSetting.max_job_failures
       close_with_reason!("too_many_failures")
+      NotificationService.create_for(
+        user: user,
+        kind: "job_failed",
+        job: self,
+        pr_url: notification_pr_url,
+        body: "JOB-#{id} failed after repeated retries"
+      )
     end
   end
 
@@ -697,6 +706,34 @@ class Job < ApplicationRecord
 
   def promote_queued_chat_pending_actions
     ChatPendingAction.promote_queued_for_job!(self)
+  end
+
+  def notify_job_implemented
+    return unless notify_job_implemented_on_transition
+
+    NotificationService.create_for(
+      user: user,
+      kind: "job_implemented",
+      job: self,
+      pr_url: notification_pr_url,
+      body: "Syrus opened PR ##{pr_number} for JOB-#{id}"
+    )
+  end
+
+  def notify_pr_merged
+    return unless closure_reason.in?(%w[ pr_merged external_pr_merged ])
+
+    NotificationService.create_for(
+      user: user,
+      kind: "pr_merged",
+      job: self,
+      pr_url: notification_pr_url,
+      body: "JOB-#{id} merged"
+    )
+  end
+
+  def notification_pr_url
+    App::Presentation.job_pr_url(self) || App::Presentation.external_pr_url(self)
   end
 
   def cancel_queued_chat_pending_actions

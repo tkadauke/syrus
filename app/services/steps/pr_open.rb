@@ -44,8 +44,11 @@ module Steps
     def transition_job_to_implemented!
       return unless job.may_mark_implemented?
 
+      job.notify_job_implemented_on_transition = true
       job.mark_implemented!
       job.save!
+    ensure
+      job.notify_job_implemented_on_transition = false if job
     end
 
     def push_branch
