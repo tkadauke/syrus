@@ -10,6 +10,8 @@ module ApplicationCable
       def set_current_user
         if session = Session.find_by(id: cookies.signed[:session_id])
           self.current_user = session.user
+        elsif token = request.params[:api_token].presence
+          self.current_user = User.find_by(api_token: token)
         end
       end
   end

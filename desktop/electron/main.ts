@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url"
 import path from "node:path"
 import { promisify } from "node:util"
 import Store from "electron-store"
+import { DESKTOP_NOTIFICATION_EVENT, desktopNotificationEvents } from "./appUserEvents.js"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -78,6 +79,15 @@ let tray: Tray | null = null
 let cachedCredentials: Credentials | null = null
 let isQuitting = false
 let cachedCliAvailable: boolean | null = null
+let appUserCable: WebSocket | null = null
+let appUserCableReconnectTimer: NodeJS.Timeout | null = null
+let appUserCableGeneration = 0
+let appUserCableCredentialsKey: string | null = null
+
+const APP_USER_CHANNEL_IDENTIFIER = JSON.stringify({ channel: "AppUserChannel" })
+const APP_USER_CABLE_INITIAL_RECONNECT_MS = 1_000
+const APP_USER_CABLE_MAX_RECONNECT_MS = 30_000
+let appUserCableReconnectMs = APP_USER_CABLE_INITIAL_RECONNECT_MS
 
 const store = new Store<DesktopSettings>({
   defaults: {
@@ -161,6 +171,138 @@ const appApiUrl = (baseUrl: string, pathName: string, params?: Record<string, st
   }
   return url.toString()
 }
+
+const appCableUrl = (baseUrl: string, token: string) => {
+  const url = new URL("/cable", `${baseUrl.trim().replace(/\/+$/, "")}/`)
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+  url.searchParams.set("api_token", token.trim())
+  return url.toString()
+}
+
+const credentialsKey = (credentials: Credentials) => `${credentials.url.trim()}\n${credentials.token.trim()}`
+
+const clearAppUserCableReconnect = () => {
+  if (appUserCableReconnectTimer) {
+    clearTimeout(appUserCableReconnectTimer)
+    appUserCableReconnectTimer = null
+  }
+}
+
+const closeAppUserCable = () => {
+  clearAppUserCableReconnect()
+
+  if (appUserCable) {
+    const socket = appUserCable
+    appUserCable = null
+    socket.onopen = null
+    socket.onmessage = null
+    socket.onerror = null
+    socket.onclose = null
+    socket.close()
+  }
+}
+
+const stopAppUserCable = () => {
+  appUserCableGeneration += 1
+  appUserCableCredentialsKey = null
+  closeAppUserCable()
+}
+
+const scheduleAppUserCableReconnect = (credentials: Credentials, generation: number) => {
+  if (isQuitting || generation !== appUserCableGeneration) {
+    return
+  }
+
+  clearAppUserCableReconnect()
+  const delay = appUserCableReconnectMs
+  appUserCableReconnectMs = Math.min(appUserCableReconnectMs * 2, APP_USER_CABLE_MAX_RECONNECT_MS)
+  appUserCableReconnectTimer = setTimeout(() => {
+    appUserCableReconnectTimer = null
+    connectAppUserCable(credentials, generation)
+  }, delay)
+}
+
+const connectAppUserCable = (credentials: Credentials, generation = appUserCableGeneration) => {
+  if (isQuitting || generation !== appUserCableGeneration) {
+    return
+  }
+
+  closeAppUserCable()
+
+  const socket = new WebSocket(appCableUrl(credentials.url, credentials.token), "actioncable-v1-json")
+  appUserCable = socket
+
+  socket.onopen = () => {
+    appUserCableReconnectMs = APP_USER_CABLE_INITIAL_RECONNECT_MS
+    socket.send(JSON.stringify({
+      command: "subscribe",
+      identifier: APP_USER_CHANNEL_IDENTIFIER
+    }))
+  }
+
+  socket.onmessage = (event) => {
+    if (generation !== appUserCableGeneration) {
+      return
+    }
+
+    let data: unknown
+    try {
+      data = JSON.parse(String(event.data))
+    } catch {
+      return
+    }
+
+    if (!data || typeof data !== "object") {
+      return
+    }
+
+    const message = data as { type?: string; message?: unknown }
+    if (message.type === "reject_subscription") {
+      socket.close()
+      return
+    }
+
+    if ("message" in message) {
+      desktopNotificationEvents.emit(DESKTOP_NOTIFICATION_EVENT, message.message)
+    }
+  }
+
+  socket.onerror = () => {
+    socket.close()
+  }
+
+  socket.onclose = () => {
+    if (appUserCable === socket) {
+      appUserCable = null
+    }
+    scheduleAppUserCableReconnect(credentials, generation)
+  }
+}
+
+const startAppUserCable = (credentials: Credentials | null) => {
+  if (!credentials) {
+    stopAppUserCable()
+    return
+  }
+
+  const key = credentialsKey(credentials)
+  if (appUserCableCredentialsKey === key && appUserCable) {
+    return
+  }
+
+  appUserCableGeneration += 1
+  appUserCableCredentialsKey = key
+  appUserCableReconnectMs = APP_USER_CABLE_INITIAL_RECONNECT_MS
+  connectAppUserCable(credentials, appUserCableGeneration)
+}
+
+const broadcastNotificationEvent = (event: unknown) => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send("notification-event", event)
+  }
+}
+
+desktopNotificationEvents.on(DESKTOP_NOTIFICATION_EVENT, broadcastNotificationEvent)
 
 const validateCredentialsWithServer = async (credentials: Credentials) => {
   validateCredentialsShape(credentials)
@@ -431,6 +573,9 @@ const saveCredentials = async (credentials: Credentials) => {
   await fs.chmod(filePath, 0o600)
 
   cachedCredentials = normalizedCredentials
+  startAppUserCable(normalizedCredentials)
+  mainWindow?.webContents.send("credentials-saved", normalizedCredentials)
+  preferencesWindow?.webContents.send("credentials-saved", normalizedCredentials)
   return normalizedCredentials
 }
 
@@ -444,6 +589,7 @@ const deleteCredentials = async () => {
   }
 
   cachedCredentials = null
+  stopAppUserCable()
 }
 
 const rendererUrl = (view?: string) => {
@@ -697,6 +843,7 @@ app.whenReady().then(async () => {
 
   createMenu()
   await loadCredentials()
+  startAppUserCable(cachedCredentials)
   createTray()
 
   if (!app.isPackaged) {
@@ -714,4 +861,5 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true
+  stopAppUserCable()
 })

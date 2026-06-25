@@ -56,7 +56,10 @@ Syrus Desktop reads and writes the same credentials file. If you have
 already run `syrus login`, the desktop app starts authenticated. If the
 file is missing or incomplete, the desktop app prompts for the same URL
 and API token, validates them against `/api/v1/app/bootstrap`, and saves
-the file for both desktop and CLI use.
+the file for both desktop and CLI use. While signed in, the desktop main
+process keeps a live connection to the user's app events so native
+notifications, tray badge state, and renderer views can react without
+opening separate WebSocket connections.
 
 On macOS, Syrus Desktop runs as a menubar app without a Dock icon. Click
 the tray icon to open or hide the compact inbox popover. The popover

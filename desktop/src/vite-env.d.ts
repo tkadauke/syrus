@@ -77,5 +77,7 @@ interface Window {
     openTokenDocs: () => Promise<void>
     onDesktopSettingsUpdated: (callback: () => void) => () => void
     onCredentialsCleared: (callback: () => void) => () => void
+    onCredentialsSaved: (callback: (credentials: SyrusCredentials) => void) => () => void
+    onNotificationEvent: (callback: (event: unknown) => void) => () => void
   }
 }
