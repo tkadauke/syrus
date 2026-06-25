@@ -10,6 +10,8 @@ module SyrusChatMcp
       Create a Job proposal card. If epic_id is provided, confirming the
       card creates the Job under that Epic. Without epic_id, confirming
       creates an epicless direct Job.
+      Proposals cannot be updated after creation. To revise a proposal,
+      call delete_proposal with its slug, then call this tool again.
     DESC
 
     input_schema(

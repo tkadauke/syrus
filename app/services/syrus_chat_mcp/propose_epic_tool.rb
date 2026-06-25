@@ -9,6 +9,8 @@ module SyrusChatMcp
     description <<~DESC
       Create an Epic-only proposal card. Confirming the card creates the
       Epic by itself, with no child Jobs.
+      Proposals cannot be updated after creation. To revise a proposal,
+      call delete_proposal with its slug, then call this tool again.
     DESC
 
     input_schema(

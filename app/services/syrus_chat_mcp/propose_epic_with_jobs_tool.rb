@@ -9,6 +9,8 @@ module SyrusChatMcp
       Job depends_on entries reference sibling job slugs in the same call.
       Confirming the card creates the Epic, child Jobs, and sibling Job
       dependencies in one Syrus transaction.
+      Proposals cannot be updated after creation. To revise a proposal,
+      call delete_proposal with its slug, then call this tool again.
     DESC
 
     input_schema(
