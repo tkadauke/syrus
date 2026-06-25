@@ -29,8 +29,9 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const appliedTree = filterTreeFromPayload(payload.filter)
   const activeFolderTree = filterTreeFromPayload(activeFolder?.filter)
   const hasAppliedFilter = topFilterChildren(appliedTree).length > 0
+  const hasUrlFilterOverride = new URLSearchParams(search).has("q")
   const canUpdateFilter = activeFolder != null && hasAppliedFilter && JSON.stringify(appliedTree) !== JSON.stringify(activeFolderTree)
-  const canSaveFilter = activeFolder ? canUpdateFilter : hasAppliedFilter
+  const canSaveFilter = activeFolder ? canUpdateFilter : hasAppliedFilter && hasUrlFilterOverride
   const landingPause = useMutation({
     mutationFn: () => toggleDashboardLandingPause(payload.landing_queue.toggle_path),
     onSuccess: () => {

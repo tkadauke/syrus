@@ -3072,8 +3072,8 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
       expect(within(foldersPanel).getByRole("link", { name: "Saved review 2" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=4")
       expect(within(foldersPanel).getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/app-shell/smart_folders?subject_type=job")
-      expect(within(foldersPanel).getByLabelText("Folder name")).toBeInTheDocument()
-      expect(within(foldersPanel).getByRole("button", { name: "Save folder" })).toBeInTheDocument()
+      expect(within(foldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
+      expect(within(foldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
     } finally {
       script.remove()
     }
@@ -3108,7 +3108,7 @@ describe("App", () => {
           )
         )
       }
-      if (path === "/api/v1/app/dashboard?view=list&subject=job" || path === "/api/v1/app/dashboard?smart_folder_id=11&subject=job") {
+      if (path === "/api/v1/app/dashboard?view=list&subject=job" || path.startsWith("/api/v1/app/dashboard?view=list&q=") || path === "/api/v1/app/dashboard?smart_folder_id=11&subject=job") {
         return Promise.resolve(
           new Response(
             JSON.stringify(
@@ -3130,7 +3130,7 @@ describe("App", () => {
     try {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&q=stale"]}>
             <App />
           </MemoryRouter>
         </QueryClientProvider>
