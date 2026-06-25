@@ -64,6 +64,7 @@ export type EpicDetailRecord = {
   title: string
   description: string
   state: string
+  stuck: boolean
   owner: EpicOwner | null
   owned_by_current_user: boolean
   claimable: boolean

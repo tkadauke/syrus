@@ -131,6 +131,30 @@ RSpec.describe Epic do
     job
   end
 
+  describe "#stuck?" do
+    it "is true when in progress with all child Jobs closed but incomplete" do
+      epic = described_class.create!(user: user, repository: repository, title: "Stalled train", state: "in_progress")
+      child_job(epic: epic, number: 10, closure_reason: "cancelled")
+
+      expect(epic.reload).to be_stuck
+    end
+
+    it "is false while open child Jobs remain" do
+      epic = described_class.create!(user: user, repository: repository, title: "Active train", state: "in_progress")
+      child_job(epic: epic, number: 10, closure_reason: "cancelled")
+      child_job(epic: epic, number: 11)
+
+      expect(epic.reload).not_to be_stuck
+    end
+
+    it "is false once the Epic is done" do
+      epic = described_class.create!(user: user, repository: repository, title: "Completed train", state: "done")
+      child_job(epic: epic, number: 10, closure_reason: "cancelled")
+
+      expect(epic.reload).not_to be_stuck
+    end
+  end
+
   it "assigns an immutable display number separate from the editable title" do
     epic = described_class.create!(user: user, repository: repository, title: "First pass")
 

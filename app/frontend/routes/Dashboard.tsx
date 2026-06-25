@@ -714,6 +714,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
       <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
         <NeutralStatePill state={item.state} />
+        <EpicStuckBadge stuck={item.stuck} />
         <OwnerBadge badge={item.owner_badge} />
         <EpicProgressPill epic={item} />
         <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
@@ -1460,6 +1461,7 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
       <div className="min-w-0">
         <div className="mb-1">
           <NeutralStatePill state={epic.state} />
+          <EpicStuckBadge stuck={epic.stuck} />
           <EpicProgressPill epic={epic} />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -1493,6 +1495,7 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
       <td className="px-4 py-3">
         <div className="flex flex-wrap gap-1">
           <NeutralStatePill state={epic.state} />
+          <EpicStuckBadge stuck={epic.stuck} />
           <EpicProgressPill epic={epic} />
         </div>
       </td>
@@ -1536,6 +1539,20 @@ function EpicProgressPill({ epic }: { epic: DashboardEpicItem }) {
   if (epic.state !== "in_progress") return null
 
   return <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 dark:bg-gray-800 dark:text-gray-200">{epic.landed_jobs_count}/{epic.jobs_count} done</span>
+}
+
+function EpicStuckBadge({ stuck }: { stuck: boolean }) {
+  if (!stuck) return null
+
+  return (
+    <span
+      aria-label="Needs attention"
+      className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:ring-amber-800"
+      title="All jobs closed - mark this epic done or file a follow-up."
+    >
+      Needs attention
+    </span>
+  )
 }
 
 function MobileWorkflowsList({ items, prefix }: { items: DashboardWorkflowItem[]; prefix: string }) {

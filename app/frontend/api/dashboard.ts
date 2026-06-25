@@ -110,6 +110,7 @@ export type DashboardEpicItem = {
   title: string
   description: string
   state: string
+  stuck: boolean
   owner: DashboardOwner | null
   owned_by_current_user: boolean
   claimable: boolean

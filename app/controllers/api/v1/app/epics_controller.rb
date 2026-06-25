@@ -265,6 +265,7 @@ module Api
             title: epic.title.to_s,
             description: epic.description.to_s,
             state: epic.state,
+            stuck: epic.stuck?,
             owner: owner_json(epic.owner),
             owned_by_current_user: epic.owner_user_id == Current.user.id || epic.claimed_by?(Current.user),
             claimable: epic.claimable?,

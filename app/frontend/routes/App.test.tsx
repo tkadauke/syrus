@@ -3477,6 +3477,97 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Load more Running" })).not.toBeInTheDocument()
   })
 
+  it("shows a needs attention badge on stuck Epic kanban cards", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "epic",
+            view: "kanban",
+            preferences: {
+              sort: { column: "updated_at", direction: "desc" },
+              visible_columns: ["epic", "state", "repository", "updated"],
+              kanban_lanes: ["in_progress"],
+              raw: {}
+            },
+            controls: {
+              ...dashboardPayload().controls,
+              sort_columns: ["title", "state", "repository", "updated_at"],
+              kanban_lanes: [{ key: "in_progress", title: "In progress" }]
+            },
+            lanes: [
+              {
+                key: "in_progress",
+                title: "In progress",
+                count: 1,
+                items: [dashboardEpicItem({ state: "in_progress", stuck: true, landed_jobs_count: 0 })]
+              }
+            ],
+            kanban_limit: 100
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const card = await screen.findByLabelText("EPIC-7 Raise the forum")
+    const badge = within(card).getByText("Needs attention")
+    expect(badge).toHaveAttribute("title", "All jobs closed - mark this epic done or file a follow-up.")
+  })
+
+  it("hides the needs attention badge on non-stuck Epic kanban cards", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "epic",
+            view: "kanban",
+            preferences: {
+              sort: { column: "updated_at", direction: "desc" },
+              visible_columns: ["epic", "state", "repository", "updated"],
+              kanban_lanes: ["in_progress"],
+              raw: {}
+            },
+            controls: {
+              ...dashboardPayload().controls,
+              sort_columns: ["title", "state", "repository", "updated_at"],
+              kanban_lanes: [{ key: "in_progress", title: "In progress" }]
+            },
+            lanes: [
+              {
+                key: "in_progress",
+                title: "In progress",
+                count: 1,
+                items: [dashboardEpicItem({ state: "in_progress", stuck: false, landed_jobs_count: 0 })]
+              }
+            ],
+            kanban_limit: 100
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const card = await screen.findByLabelText("EPIC-7 Raise the forum")
+    expect(within(card).queryByText("Needs attention")).not.toBeInTheDocument()
+  })
+
   it("moves Epic kanban cards with drag and drop", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -11773,6 +11864,7 @@ function dashboardEpicItem(overrides: Record<string, unknown> = {}) {
     title: "Raise the forum",
     description: "Build columns.",
     state: "ready",
+    stuck: false,
     owner: null,
     owned_by_current_user: false,
     claimable: true,
@@ -11842,6 +11934,7 @@ function epicDetailPayload(overrides: {
       title: "Raise the forum",
       description: "Build **columns**.",
       state: overrides.state || "ready",
+      stuck: false,
       owner: null,
       owned_by_current_user: false,
       claimable: true,

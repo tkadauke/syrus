@@ -103,6 +103,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     body = parse_body
     expect(body.dig("epic", "display_number")).to eq(epic.display_number)
     expect(body.dig("epic", "description")).to eq("Build **columns**.")
+    expect(body.dig("epic", "stuck")).to eq(false)
     expect(body.dig("epic", "owner")).to be_nil
     expect(body.dig("epic", "owned_by_current_user")).to eq(true)
     expect(body.dig("epic", "claimable")).to eq(true)
@@ -157,6 +158,25 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "app_reassign_path" => "/api/v1/app/epics/#{epic.id}/reassign",
       "app_dependencies_path" => "/api/v1/app/epics/#{epic.id}/dependencies"
     )
+  end
+
+  it "includes stuck status in the Epic detail payload" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Stalled forum", state: "in_progress")
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 12,
+      issue_title: "Cancelled child",
+      state: "closed",
+      closure_reason: "cancelled"
+    )
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "stuck")).to eq(true)
   end
 
   it "surfaces Job dependency blocked reasons on the Epic detail payload" do

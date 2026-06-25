@@ -651,6 +651,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         "owner_user_id" => user.id,
         "owner_status" => "mine",
         "owner_user" => include("id" => user.id, "email_address" => user.email_address),
+        "stuck" => false,
         "jobs_count" => 0,
         "paths" => include(
           "epic_path" => epic_path(ready),

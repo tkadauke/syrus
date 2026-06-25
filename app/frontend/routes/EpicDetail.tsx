@@ -97,6 +97,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
             {payload.epic.title}
           </h1>
           <StatePill state={payload.epic.state} />
+          <EpicStuckBadge stuck={payload.epic.stuck} />
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           <Link className="font-mono hover:underline" to={withRoutePrefix(payload.epic.repository.repository_path, prefix)}>{payload.epic.repository.slug}</Link>
@@ -485,6 +486,20 @@ function StatePill({ state }: { state: string }) {
   }
 
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{humanize(state)}</span>
+}
+
+function EpicStuckBadge({ stuck }: { stuck: boolean }) {
+  if (!stuck) return null
+
+  return (
+    <span
+      aria-label="Needs attention"
+      className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:ring-amber-800"
+      title="All jobs closed - mark this epic done or file a follow-up."
+    >
+      Needs attention
+    </span>
+  )
 }
 
 function PanelMessage({ children, tone = "success" }: { children: ReactNode; tone?: "success" | "error" | "muted" }) {
