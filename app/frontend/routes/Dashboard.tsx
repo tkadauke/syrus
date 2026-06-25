@@ -379,9 +379,17 @@ function ColumnsIcon() {
 }
 
 function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
+  const activeFolder = payload.smart_folders.find((folder) => folder.id === payload.active_smart_folder_id)
+  const keepSmartFolderOnFilter = activeFolder?.kind === "user_defined"
+
   return (
     <FilterBar
-      buildLink={dashboardLinkFromSearch}
+      buildLink={(path, currentSearch, updates) => {
+        const nextUpdates = { ...updates }
+        if (nextUpdates.smart_folder_id != null && !keepSmartFolderOnFilter) nextUpdates.smart_folder_id = null
+
+        return dashboardLinkFromSearch(path, currentSearch, nextUpdates)
+      }}
       filter={payload.filter}
       filterSchema={payload.controls.filter_schema}
       legacyFilterKeys={legacyFilterKeys}

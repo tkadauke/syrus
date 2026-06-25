@@ -3233,7 +3233,7 @@ describe("App", () => {
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
       expect(within(smartFoldersPanel).getByRole("button", { name: "Update My work" })).toBeInTheDocument()
-      expect(within(smartFoldersPanel).getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
     } finally {
       script.remove()
     }
@@ -3404,7 +3404,7 @@ describe("App", () => {
     }
   })
 
-  it("saves a drifted active dashboard folder as a new folder", async () => {
+  it("clears built-in dashboard folder scope when applying filters", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -3415,52 +3415,39 @@ describe("App", () => {
       }
     }))
     document.body.appendChild(script)
-    const storedFilter = { and: [{ field: "state", op: "is", value: "open" }] }
-    const appliedFilter = { and: [{ field: "kind", op: "is", value: "issue" }] }
-    const savedFilter = { and: [...storedFilter.and, ...appliedFilter.and] }
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+    const dashboardRequests: string[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/smart_folders" && init?.method === "POST") {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              subject_type: "job",
-              subject_label: "Job",
-              dashboard_path: "/dashboard/jobs",
-              smart_folders: [],
-              smart_folder: { id: 12, name: "Open issues" },
-              redirect_to: "/dashboard/jobs?smart_folder_id=12",
-              message: "Smart folder created."
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
+      if (path === "/api/v1/app/filters/usage" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Recorded." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/dashboard") {
+        dashboardRequests.push(path)
+        const hasSmartFolder = url.searchParams.get("smart_folder_id") === "1"
         return Promise.resolve(
           new Response(
             JSON.stringify(
               dashboardPayload({
                 subject: "job",
                 view: "list",
-                active_smart_folder_id: 7,
-                filter: appliedFilter,
+                active_smart_folder_id: hasSmartFolder ? 1 : null,
+                filter: url.searchParams.get("q") ? decodeFilterQueryParam(url.searchParams.get("q")!) : { and: [] },
                 smart_folders: [
                   {
-                    id: 7,
-                    name: "My work",
-                    kind: "user_defined",
-                    position: 2,
+                    id: 1,
+                    name: "Inbox",
+                    kind: "attention_preset",
+                    position: 0,
                     subject_type: "job",
-                    visibility: "user_defined",
+                    visibility: "primary",
                     count: 1,
-                    active: true,
-                    filter: storedFilter,
-                    path: "/dashboard/jobs?view=list&smart_folder_id=7"
+                    active: hasSmartFolder,
+                    filter: { and: [{ field: "attention", op: "is", value: "inbox" }] },
+                    path: "/dashboard/jobs?view=list&smart_folder_id=1"
                   }
                 ],
                 items: [dashboardJobItem()]
@@ -3477,30 +3464,26 @@ describe("App", () => {
     try {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7&q=stale"]}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=1"]}>
             <App />
           </MemoryRouter>
         </QueryClientProvider>
       )
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
-      const folderNameInput = within(smartFoldersPanel).getByLabelText("Folder name")
-      fireEvent.change(folderNameInput, { target: { value: "Open issues" } })
-      fireEvent.click(within(smartFoldersPanel).getByRole("button", { name: "Save as new folder" }))
+      expect(within(smartFoldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
+
+      fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
+      fireEvent.click(screen.getByRole("button", { name: "Kind enum" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/smart_folders",
-          expect.objectContaining({
-            method: "POST",
-            body: JSON.stringify({
-              filter: JSON.stringify(savedFilter),
-              subject_type: "job",
-              smart_folder: { name: "Open issues" }
-            })
-          })
-        )
+        const latestRequest = dashboardRequests.at(-1)
+        expect(latestRequest).toBeTruthy()
+        const url = new URL(latestRequest!, "http://example.test")
+        expect(url.searchParams.has("q")).toBe(true)
+        expect(url.searchParams.has("smart_folder_id")).toBe(false)
       })
+      expect(await within(smartFoldersPanel).findByLabelText("Folder name")).toBeInTheDocument()
     } finally {
       script.remove()
     }
@@ -3519,7 +3502,6 @@ describe("App", () => {
     document.body.appendChild(script)
     const storedFilter = { and: [{ field: "state", op: "is", value: "open" }] }
     const appliedFilter = { and: [{ field: "kind", op: "is", value: "issue" }] }
-    const savedFilter = { and: [...storedFilter.and, ...appliedFilter.and] }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
@@ -3537,7 +3519,7 @@ describe("App", () => {
                   id: 7,
                   name: "My work",
                   position: 2,
-                  filter: savedFilter
+                  filter: appliedFilter
                 }
               ],
               message: "Smart folder updated."
@@ -3591,6 +3573,7 @@ describe("App", () => {
       )
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
       fireEvent.click(within(smartFoldersPanel).getByRole("button", { name: "Update My work" }))
 
       await waitFor(() => {
@@ -3604,7 +3587,7 @@ describe("App", () => {
               "Content-Type": "application/json"
             }),
             body: JSON.stringify({
-              filter: JSON.stringify(savedFilter),
+              filter: JSON.stringify(appliedFilter),
               smart_folder: {
                 name: "My work",
                 position: 2

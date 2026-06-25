@@ -422,7 +422,7 @@ module App
     end
 
     def jobs_filter
-      @jobs_filter ||= Jobs::Filter.from_params(params, smart_folder: active_smart_folder, user: user)
+      @jobs_filter ||= Jobs::Filter.from_params(params, smart_folder: active_smart_folder_for_filter, user: user)
     end
 
     def filtered_jobs_scope
@@ -430,7 +430,7 @@ module App
     end
 
     def epics_filter
-      @epics_filter ||= Epics::Filter.from_params(params, smart_folder: active_smart_folder, user: user)
+      @epics_filter ||= Epics::Filter.from_params(params, smart_folder: active_smart_folder_for_filter, user: user)
     end
 
     def filtered_epics_scope
@@ -442,7 +442,11 @@ module App
     end
 
     def workflows_filter
-      @workflows_filter ||= Workflows::Filter.from_params(params, smart_folder: active_smart_folder, user: user)
+      @workflows_filter ||= Workflows::Filter.from_params(params, smart_folder: active_smart_folder_for_filter, user: user)
+    end
+
+    def active_smart_folder_for_filter
+      url_filter.active? ? nil : active_smart_folder
     end
 
     def url_filter
