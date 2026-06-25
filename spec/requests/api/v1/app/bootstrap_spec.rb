@@ -110,7 +110,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body.dig("setup", "paths", "setup_path")).to eq(setup_path)
     expect(body["csrf_token"]).to be_present
     expect(body["system_alerts"]).to eq([])
-    expect(body["feature_flags"]).to eq({})
+    expect(body["feature_flags"]).to eq("v2_sidebar_subject_selector" => false)
   end
 
   it "returns enabled states for features declared in YAML" do
