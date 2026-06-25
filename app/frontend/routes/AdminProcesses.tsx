@@ -5,6 +5,7 @@ import { ApiError } from "../api/client"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
+import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
 import {
   fetchAdminProcess,
   fetchAdminProcesses,
@@ -21,6 +22,7 @@ export function AdminProcessesIndex() {
     queryKey: ["admin", "processes", location.search],
     queryFn: () => fetchAdminProcesses(location.search)
   })
+  const activeUserFolderId = processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined")?.id
 
   return (
     <main aria-label="Admin processes" className="mx-auto max-w-[96rem] space-y-6 p-6">
@@ -37,6 +39,7 @@ export function AdminProcessesIndex() {
             <FilterBar
               filter={processes.data.filter}
               filterSchema={processes.data.controls.filter_schema}
+              buildLink={adminSmartFolderFilterLinkBuilder(activeUserFolderId)}
               legacyFilterKeys={adminProcessLegacyFilterKeys}
               pathname={location.pathname}
               search={location.search}

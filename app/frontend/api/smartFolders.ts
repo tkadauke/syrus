@@ -1,4 +1,4 @@
-import { deleteJson, getJson, patchJson } from "./client"
+import { deleteJson, getJson, patchJson, postJson } from "./client"
 
 export type SmartFolderRow = {
   id: number
@@ -21,6 +21,12 @@ export type SmartFolderInput = {
   filter?: Record<string, unknown>
 }
 
+export type SmartFolderCreateInput = {
+  name: string
+  subjectType: string
+  filter: Record<string, unknown>
+}
+
 export function fetchSmartFolders(search: string) {
   return getJson<SmartFoldersPayload>(`/api/v1/app/smart_folders${search}`)
 }
@@ -31,6 +37,14 @@ export function updateSmartFolder(id: number, values: SmartFolderInput) {
   return patchJson<SmartFoldersPayload>(`/api/v1/app/smart_folders/${id}`, {
     ...(filter === undefined ? {} : { filter: JSON.stringify(filter) }),
     smart_folder: smartFolder
+  })
+}
+
+export function createSmartFolder(values: SmartFolderCreateInput) {
+  return postJson<SmartFoldersPayload>("/api/v1/app/smart_folders", {
+    filter: JSON.stringify(values.filter),
+    subject_type: values.subjectType,
+    smart_folder: { name: values.name }
   })
 }
 

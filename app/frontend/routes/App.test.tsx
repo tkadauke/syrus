@@ -3688,6 +3688,23 @@ describe("App", () => {
 
       expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
       fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText("Folder name"), { target: { value: "Chat repairs" } })
+      fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/smart_folders",
+          expect.objectContaining({ method: "POST" })
+        )
+      })
+      const postCall = fetchSpy.mock.calls.find(([path, init]) => path === "/api/v1/app/smart_folders" && (init as RequestInit | undefined)?.method === "POST")
+      expect(JSON.parse(String((postCall?.[1] as RequestInit).body))).toMatchObject({
+        filter: JSON.stringify(currentAdminQueueFilter()),
+        subject_type: "admin_queue",
+        smart_folder: { name: "Chat repairs" }
+      })
+
       fireEvent.click(screen.getByRole("button", { name: "Update Run repairs" }))
 
       await waitFor(() => {
@@ -3704,6 +3721,40 @@ describe("App", () => {
           position: 2
         }
       })
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
+  it("keeps an admin queue saved folder active when applying filters", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://example.test")
+      if (url.pathname === "/api/v1/app/admin/queue/active") {
+        return Promise.resolve(jsonResponse(adminQueuePayloadFromSearch(url.searchParams)))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url.pathname}`))
+    })
+
+    try {
+      renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10")
+
+      expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Run repairs" })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Queue is Runs" }))
+      fireEvent.change(screen.getByLabelText("Value"), { target: { value: "chat" } })
+
+      await waitFor(() => {
+        expect(fetchSpy.mock.calls.some(([path]) => {
+          const url = new URL(String(path), "http://example.test")
+          return url.pathname === "/api/v1/app/admin/queue/active" && url.searchParams.get("smart_folder_id") === "10" && url.searchParams.has("q")
+        })).toBe(true)
+      })
+      expect(await screen.findByRole("button", { name: "Update Run repairs" })).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
       restoreMedia()
@@ -3936,6 +3987,41 @@ describe("App", () => {
       expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
       fireEvent.click(screen.getByText("Folders and filters"))
       expect(screen.getByRole("button", { name: "Update Live agents" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
+  it("keeps an admin process saved folder active when applying filters", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://example.test")
+      if (url.pathname === "/api/v1/app/admin/processes") {
+        return Promise.resolve(jsonResponse(adminProcessesPayloadFromSearch(url.searchParams)))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url.pathname}`))
+    })
+
+    try {
+      renderAppAt("/app-shell/admin/processes?smart_folder_id=11")
+
+      expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Live agents" })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "State is Running" }))
+      fireEvent.change(screen.getByLabelText("Value"), { target: { value: "finished" } })
+
+      await waitFor(() => {
+        expect(fetchSpy.mock.calls.some(([path]) => {
+          const url = new URL(String(path), "http://example.test")
+          return url.pathname === "/api/v1/app/admin/processes" && url.searchParams.get("smart_folder_id") === "11" && url.searchParams.has("q")
+        })).toBe(true)
+      })
+      expect(await screen.findByRole("button", { name: "Update Live agents" })).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
       restoreMedia()
@@ -4149,6 +4235,41 @@ describe("App", () => {
       expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
       fireEvent.click(screen.getByText("Folders and filters"))
       expect(screen.getByRole("button", { name: "Update Low rate users" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
+  it("keeps an admin user saved folder active when applying filters", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://example.test")
+      if (url.pathname === "/api/v1/app/admin/users") {
+        return Promise.resolve(jsonResponse(adminUsersPayloadFromSearch(url.searchParams)))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url.pathname}`))
+    })
+
+    try {
+      renderAppAt("/app-shell/admin/users?smart_folder_id=12")
+
+      expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Low rate users" })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: /GH rate is Low/ }))
+      fireEvent.change(screen.getByLabelText("Value"), { target: { value: "exhausted" } })
+
+      await waitFor(() => {
+        expect(fetchSpy.mock.calls.some(([path]) => {
+          const url = new URL(String(path), "http://example.test")
+          return url.pathname === "/api/v1/app/admin/users" && url.searchParams.get("smart_folder_id") === "12" && url.searchParams.has("q")
+        })).toBe(true)
+      })
+      expect(await screen.findByRole("button", { name: "Update Low rate users" })).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
       restoreMedia()
@@ -11473,6 +11594,14 @@ function adminQueuePayloadWithSavedFolder(folderFilter: Record<string, unknown>)
   }
 }
 
+function adminQueuePayloadFromSearch(params: URLSearchParams) {
+  return {
+    ...adminQueuePayloadWithSavedFolder(currentAdminQueueFilter()),
+    active_smart_folder_id: params.get("smart_folder_id") === "10" ? 10 : null,
+    filter: filterFromSearch(params, currentAdminQueueFilter())
+  }
+}
+
 function currentAdminProcessFilter() {
   return { and: [ { field: "state", op: "is", value: "running" } ] }
 }
@@ -11508,6 +11637,14 @@ function adminProcessesPayloadWithSavedFolder(folderFilter: Record<string, unkno
     ],
     running_total: 0,
     processes: []
+  }
+}
+
+function adminProcessesPayloadFromSearch(params: URLSearchParams) {
+  return {
+    ...adminProcessesPayloadWithSavedFolder(currentAdminProcessFilter()),
+    active_smart_folder_id: params.get("smart_folder_id") === "11" ? 11 : null,
+    filter: filterFromSearch(params, currentAdminProcessFilter())
   }
 }
 
@@ -11548,6 +11685,23 @@ function adminUsersPayloadWithSavedFolder(folderFilter: Record<string, unknown>)
     ],
     users: []
   }
+}
+
+function adminUsersPayloadFromSearch(params: URLSearchParams) {
+  return {
+    ...adminUsersPayloadWithSavedFolder(currentAdminUserFilter()),
+    active_smart_folder_id: params.get("smart_folder_id") === "12" ? 12 : null,
+    filter: filterFromSearch(params, currentAdminUserFilter())
+  }
+}
+
+function filterFromSearch(params: URLSearchParams, fallback: Record<string, unknown>) {
+  const encoded = params.get("q")
+  if (!encoded) return fallback
+
+  const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/")
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")
+  return JSON.parse(decodeURIComponent(escape(window.atob(padded)))) as Record<string, unknown>
 }
 
 function epicDetailPayload(overrides: {

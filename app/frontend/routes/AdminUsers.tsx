@@ -5,6 +5,7 @@ import { ApiError } from "../api/client"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
+import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
 import {
   fetchAdminUser,
   fetchAdminUsers,
@@ -22,6 +23,7 @@ export function AdminUsersIndex() {
     queryKey: ["admin", "users", location.search],
     queryFn: () => fetchAdminUsers(location.search)
   })
+  const activeUserFolderId = users.data?.smart_folders.find((folder) => folder.id === users.data.active_smart_folder_id && folder.kind === "user_defined")?.id
 
   return (
     <main aria-label="Admin users" className="mx-auto max-w-[96rem] space-y-6 p-6">
@@ -40,6 +42,7 @@ export function AdminUsersIndex() {
             <FilterBar
               filter={users.data.filter}
               filterSchema={users.data.controls.filter_schema}
+              buildLink={adminSmartFolderFilterLinkBuilder(activeUserFolderId)}
               legacyFilterKeys={adminUserLegacyFilterKeys}
               pathname={location.pathname}
               search={location.search}
