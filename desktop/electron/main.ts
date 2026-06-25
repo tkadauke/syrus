@@ -8,6 +8,7 @@ import path from "node:path"
 import { promisify } from "node:util"
 import Store from "electron-store"
 import { DESKTOP_NOTIFICATION_EVENT, desktopNotificationEvents } from "./appUserEvents.js"
+import { dispatchNativeNotification } from "./nativeNotifications.js"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -303,6 +304,9 @@ const broadcastNotificationEvent = (event: unknown) => {
 }
 
 desktopNotificationEvents.on(DESKTOP_NOTIFICATION_EVENT, broadcastNotificationEvent)
+desktopNotificationEvents.on(DESKTOP_NOTIFICATION_EVENT, (event: unknown) => {
+  dispatchNativeNotification(event, cachedCredentials)
+})
 
 const validateCredentialsWithServer = async (credentials: Credentials) => {
   validateCredentialsShape(credentials)

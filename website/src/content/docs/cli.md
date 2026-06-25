@@ -59,7 +59,9 @@ and API token, validates them against `/api/v1/app/bootstrap`, and saves
 the file for both desktop and CLI use. While signed in, the desktop main
 process keeps a live connection to the user's app events so native
 notifications, tray badge state, and renderer views can react without
-opening separate WebSocket connections.
+opening separate WebSocket connections. `notification_created` events show
+OS-level banners using the notification body from Syrus; clicking a banner
+opens the matching Job page or pull request in the browser.
 
 On macOS, Syrus Desktop runs as a menubar app without a Dock icon. Click
 the tray icon to open or hide the compact inbox popover. The popover
