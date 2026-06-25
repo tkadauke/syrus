@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -44,7 +44,8 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
   const queryClient = useQueryClient()
   const queue = useQuery({
     queryKey: ["admin", "queue", tab, location.search],
-    queryFn: () => fetchAdminQueue(tab, location.search)
+    queryFn: () => fetchAdminQueue(tab, location.search),
+    placeholderData: keepPreviousData
   })
   const reaper = useMutation({
     mutationFn: reapStaleRuns,

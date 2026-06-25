@@ -495,15 +495,33 @@ function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: F
   if (meta.bucket === "date") return <DateFilterValueEditor chip={chip} onChange={onChange} />
   if (meta.bucket === "number") return <NumberFilterValueEditor chip={chip} onChange={onChange} />
 
+  return <TextFilterValueEditor chip={chip} onChange={onChange} />
+}
+
+function TextFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChange: (chip: FilterChip) => void }) {
+  const [localValue, setLocalValue] = useState(String(chip.value ?? ""))
+
+  useEffect(() => {
+    setLocalValue(String(chip.value ?? ""))
+  }, [chip.value])
+
+  function commit() {
+    if (localValue !== String(chip.value ?? "")) onChange({ ...chip, value: localValue })
+  }
+
   return (
-    <label className={filterLabelClass()} htmlFor={`filter-value-${meta.field}`}>
+    <label className={filterLabelClass()} htmlFor={`filter-value-${chip.field}`}>
       Value
       <input
         className={filterInputClass("mt-1 block w-56 rounded px-2 py-1.5")}
-        id={`filter-value-${meta.field}`}
-        onChange={(event) => onChange({ ...chip, value: event.target.value })}
+        id={`filter-value-${chip.field}`}
+        onBlur={commit}
+        onChange={(event) => setLocalValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit()
+        }}
         type="text"
-        value={String(chip.value ?? "")}
+        value={localValue}
       />
     </label>
   )

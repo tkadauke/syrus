@@ -22,6 +22,13 @@ const filterSchema: FilterSchemaField[] = [
     values: [{ value: "issue", label: "Issue" }]
   },
   {
+    field: "job_class",
+    label: "Job class",
+    bucket: "string",
+    operators: ["contains", "is"],
+    values: []
+  },
+  {
     field: "has_parent",
     label: "Has parent",
     bucket: "boolean",
@@ -314,6 +321,64 @@ describe("FilterBar", () => {
       })
     })
     expect(within(dialog).getByText("Closed")).toBeInTheDocument()
+  })
+
+  it("buffers text filter value edits until blur", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "job_class", op: "contains", value: "Run" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Job class contains Run" }))
+    const valueInput = screen.getByLabelText("Value")
+
+    fireEvent.change(valueInput, { target: { value: "RunJ" } })
+
+    expect(decodedFilterFromLocation()).toBeNull()
+    expect(screen.getByRole("dialog", { name: "Job class filter settings" })).toBeInTheDocument()
+
+    fireEvent.blur(valueInput)
+
+    await waitFor(() => {
+      expect(decodedFilterFromLocation()).toEqual({
+        and: [{ field: "job_class", op: "contains", value: "RunJ" }]
+      })
+    })
+  })
+
+  it("commits text filter value edits on Enter", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "job_class", op: "contains", value: "Run" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Job class contains Run" }))
+    const valueInput = screen.getByLabelText("Value")
+
+    fireEvent.change(valueInput, { target: { value: "RunJob" } })
+    expect(decodedFilterFromLocation()).toBeNull()
+
+    fireEvent.keyDown(valueInput, { key: "Enter" })
+
+    await waitFor(() => {
+      expect(decodedFilterFromLocation()).toEqual({
+        and: [{ field: "job_class", op: "contains", value: "RunJob" }]
+      })
+    })
   })
 
   it("uses search-as-you-type controls for FK filters", async () => {

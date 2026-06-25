@@ -3844,6 +3844,75 @@ describe("App", () => {
     }
   })
 
+  it("keeps the admin queue filter editor open while filter changes refetch", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    let resolveRefetch: (response: Response) => void = () => {}
+    const queuePayload = (value: string) => ({
+      filter: { and: [{ field: "job_class", op: "contains", value }] },
+      controls: {
+        filter_schema: [
+          { field: "queue_name", label: "Queue", bucket: "enum", operators: ["is"], values: [{ value: "runs", label: "Runs" }] },
+          { field: "job_class", label: "Job class", bucket: "string", operators: ["contains", "is"], values: [] }
+        ]
+      },
+      active_smart_folder_id: null,
+      smart_folders: [],
+      jobs: [
+        {
+          id: 12,
+          class_name: "RunJob",
+          queue_name: "runs",
+          arguments: [42],
+          created_at: "2026-05-30T12:00:00Z",
+          claimed_at: "2026-05-30T12:01:00Z"
+        }
+      ]
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://example.test")
+      if (url.pathname !== "/api/v1/app/admin/queue/active") {
+        return Promise.reject(new Error(`Unexpected fetch: ${url.pathname}`))
+      }
+
+      if (!url.searchParams.has("q")) {
+        return Promise.resolve(new Response(JSON.stringify(queuePayload("Run")), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return new Promise<Response>((resolve) => {
+        resolveRefetch = resolve
+      })
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/admin/queue/active"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByText("RunJob")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(screen.getByRole("button", { name: "Job class contains Run" }))
+
+      const valueInput = screen.getByLabelText("Value")
+      fireEvent.change(valueInput, { target: { value: "RunJ" } })
+      fireEvent.keyDown(valueInput, { key: "Enter" })
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
+      expect(screen.getByRole("dialog", { name: "Job class filter settings" })).toBeInTheDocument()
+      expect(screen.getByLabelText("Value")).toHaveValue("RunJ")
+
+      resolveRefetch(new Response(JSON.stringify(queuePayload("RunJ")), { status: 200, headers: { "Content-Type": "application/json" } }))
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Job class contains RunJ" })).toBeInTheDocument()
+      })
+    } finally {
+      restoreMedia()
+    }
+  })
+
   it("renders admin queue workers when SolidQueue reports queue metadata as a string", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
