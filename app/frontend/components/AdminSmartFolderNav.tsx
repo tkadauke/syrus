@@ -37,6 +37,7 @@ export function AdminSmartFolderNav({
   const activeFolder = savedFolders.find((folder) => folder.id === activeFolderId)
   const filtersDiffer = Boolean(activeFolder && currentFilter && stableStringify(activeFolder.filter || {}) !== stableStringify(currentFilter))
   const hasCurrentFilter = Boolean(currentFilter && topFilterChildren(currentFilter).length > 0)
+  const canSaveAsNew = hasCurrentFilter && (!activeFolder || filtersDiffer)
   const updateFolder = useMutation({
     mutationFn: () => {
       if (!activeFolder || !currentFilter) throw new Error("No active smart folder to update.")
@@ -112,27 +113,29 @@ export function AdminSmartFolderNav({
               {updateFolder.isPending ? "Updating..." : `Update ${activeFolder.name}`}
             </button>
             {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">Unable to update smart folder.</p> : null}
-            {hasCurrentFilter ? (
-              <form className="space-y-2" onSubmit={saveFolder}>
-                <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${subjectType}-smart-folder-name`}>
-                  Folder name
-                  <input
-                    className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                    disabled={createFolder.isPending}
-                    id={`${subjectType}-smart-folder-name`}
-                    maxLength={120}
-                    onChange={(event) => setFolderName(event.target.value)}
-                    required
-                    type="text"
-                    value={folderName}
-                  />
-                </label>
-                <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
-                  {createFolder.isPending ? "Saving..." : "Save as new folder"}
-                </button>
-                {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">Unable to save smart folder.</p> : null}
-              </form>
-            ) : null}
+          </div>
+        ) : null}
+        {canSaveAsNew ? (
+          <div className="space-y-2 px-2 pt-2">
+            <form className="space-y-2" onSubmit={saveFolder}>
+              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${subjectType}-smart-folder-name`}>
+                Folder name
+                <input
+                  className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                  disabled={createFolder.isPending}
+                  id={`${subjectType}-smart-folder-name`}
+                  maxLength={120}
+                  onChange={(event) => setFolderName(event.target.value)}
+                  required
+                  type="text"
+                  value={folderName}
+                />
+              </label>
+              <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
+                {createFolder.isPending ? "Saving..." : "Save as new folder"}
+              </button>
+              {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">Unable to save smart folder.</p> : null}
+            </form>
           </div>
         ) : null}
       </div>

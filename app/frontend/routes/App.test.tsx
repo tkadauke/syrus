@@ -3727,6 +3727,28 @@ describe("App", () => {
     }
   })
 
+  it("shows the save form for admin queue filters with no active folder", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const payload = adminQueuePayloadWithSavedFolder(currentAdminQueueFilter())
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...payload,
+      active_smart_folder_id: null,
+      smart_folders: payload.smart_folders.map((folder) => ({ ...folder, active: false }))
+    }))
+
+    try {
+      renderAppAt("/app-shell/admin/queue/active")
+
+      expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Run repairs" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
   it("keeps an admin queue saved folder active when applying filters", async () => {
     const restoreMedia = mockMediaQuery(false)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -3994,6 +4016,28 @@ describe("App", () => {
     }
   })
 
+  it("shows the save form for admin process filters with no active folder", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const payload = adminProcessesPayloadWithSavedFolder(currentAdminProcessFilter())
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...payload,
+      active_smart_folder_id: null,
+      smart_folders: payload.smart_folders.map((folder) => ({ ...folder, active: false }))
+    }))
+
+    try {
+      renderAppAt("/app-shell/admin/processes")
+
+      expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Live agents" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
   it("keeps an admin process saved folder active when applying filters", async () => {
     const restoreMedia = mockMediaQuery(false)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -4235,6 +4279,28 @@ describe("App", () => {
       expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
       fireEvent.click(screen.getByText("Folders and filters"))
       expect(screen.getByRole("button", { name: "Update Low rate users" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
+  it("shows the save form for admin user filters with no active folder", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const payload = adminUsersPayloadWithSavedFolder(currentAdminUserFilter())
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...payload,
+      active_smart_folder_id: null,
+      smart_folders: payload.smart_folders.map((folder) => ({ ...folder, active: false }))
+    }))
+
+    try {
+      renderAppAt("/app-shell/admin/users")
+
+      expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Low rate users" })).not.toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
