@@ -171,6 +171,9 @@ killing a process, clearing the GitHub cache, or refreshing installations,
 create pending actions and wait for operator confirmation before applying.
 Non-admin chats do not advertise those tools, and each admin tool repeats
 the admin check when it runs.
+Admin queue filters can be saved as smart folders from the queue sidebar,
+so repeated operational views are available beside the built-in queue
+folders.
 
 ## Direct Jobs
 

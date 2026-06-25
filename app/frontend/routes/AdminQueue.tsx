@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
@@ -41,9 +41,11 @@ export function AdminQueueRoute() {
 
 function AdminQueue({ tab }: { tab: QueueTab }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const queueQueryKey = ["admin", "queue", tab, location.search]
   const queue = useQuery({
-    queryKey: ["admin", "queue", tab, location.search],
+    queryKey: queueQueryKey,
     queryFn: () => fetchAdminQueue(tab, location.search),
     placeholderData: keepPreviousData
   })
@@ -100,13 +102,13 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
       {queue.isPending ? <PanelMessage>Loading queue...</PanelMessage> : null}
       {queue.isError ? <QueueError error={queue.error} /> : null}
       {queue.isSuccess ? (
-        <QueueContent basePath={basePath} pathname={location.pathname} payload={queue.data} prefix={prefix} search={location.search} tab={tab} />
+        <QueueContent basePath={basePath} onNavigate={(path) => navigate(withRoutePrefix(path, prefix))} pathname={location.pathname} payload={queue.data} prefix={prefix} queryKey={queueQueryKey} search={location.search} tab={tab} />
       ) : null}
     </main>
   )
 }
 
-function QueueContent({ basePath, pathname, payload, prefix, search, tab }: { basePath: string; pathname: string; payload: AdminQueuePayload; prefix: string; search: string; tab: QueueTab }) {
+function QueueContent({ basePath, onNavigate, pathname, payload, prefix, queryKey, search, tab }: { basePath: string; onNavigate: (path: string) => void; pathname: string; payload: AdminQueuePayload; prefix: string; queryKey: unknown[]; search: string; tab: QueueTab }) {
   const smartFolders = "smart_folders" in payload ? payload.smart_folders : []
   const filterBar = isFilteredQueuePayload(payload) ? (
     <FilterBar
@@ -125,10 +127,13 @@ function QueueContent({ basePath, pathname, payload, prefix, search, tab }: { ba
           activeSmartFolderId={"active_smart_folder_id" in payload ? payload.active_smart_folder_id : null}
           allLabel="All queue"
           allPath={`${basePath}/${tab}`}
+          appliedFilter={isFilteredQueuePayload(payload) ? payload.filter : null}
           ariaLabel="Admin queue smart folders"
           folders={smartFolders}
           heading="Queues"
+          onNavigate={onNavigate}
           prefix={prefix}
+          queryKey={queryKey}
           subjectType="admin_queue"
         />
       ) : null}
@@ -142,6 +147,13 @@ function QueueContent({ basePath, pathname, payload, prefix, search, tab }: { ba
 
 function isFilteredQueuePayload(payload: AdminQueuePayload): payload is ActiveQueuePayload | PendingQueuePayload | FailedQueuePayload {
   return "filter" in payload && "controls" in payload
+}
+
+function withRoutePrefix(path: string, prefix: string) {
+  if (!prefix || path.startsWith(prefix)) return path
+  if (!path.startsWith("/")) return path
+
+  return `${prefix}${path}`
 }
 
 function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {

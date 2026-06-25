@@ -1,29 +1,61 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import type { FormEvent } from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
-import type { AdminSmartFolder } from "../api/adminSmartFolders"
+import { ApiError } from "../api/client"
+import { createAdminSmartFolder, type AdminSmartFolder } from "../api/adminSmartFolders"
+import { filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren } from "./FilterBar"
 
 export function AdminSmartFolderNav({
   activeSmartFolderId,
   allLabel,
   allPath,
+  appliedFilter,
   ariaLabel,
   folders,
   heading,
+  onNavigate,
   prefix,
+  queryKey,
   subjectType
 }: {
   activeSmartFolderId: number | null
   allLabel: string
   allPath: string
+  appliedFilter?: Record<string, unknown> | null
   ariaLabel: string
   folders: AdminSmartFolder[]
   heading: string
+  onNavigate?: (path: string) => void
   prefix: string
+  queryKey?: unknown[]
   subjectType: string
 }) {
+  const queryClient = useQueryClient()
+  const [folderName, setFolderName] = useState("")
   const builtinFolders = folders.filter((folder) => folder.kind !== "user_defined")
   const primaryFolders = builtinFolders.filter((folder) => folder.visibility !== "on_demand")
   const moreFolders = builtinFolders.filter((folder) => folder.visibility === "on_demand")
   const savedFolders = folders.filter((folder) => folder.kind === "user_defined")
+  const appliedTree = filterTreeFromPayload(appliedFilter)
+  const canSaveFilter = topFilterChildren(appliedTree).length > 0 && activeSmartFolderId == null && Boolean(queryKey && onNavigate)
+  const createFolder = useMutation({
+    mutationFn: () => createAdminSmartFolder({
+      name: folderName,
+      subjectType,
+      filters: smartFolderFiltersFromTree(appliedTree)
+    }),
+    onSuccess: (result) => {
+      setFolderName("")
+      if (queryKey) void queryClient.invalidateQueries({ queryKey })
+      onNavigate?.(result.redirect_to)
+    }
+  })
+
+  function saveFolder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    createFolder.mutate()
+  }
 
   return (
     <aside className="space-y-2">
@@ -55,6 +87,27 @@ export function AdminSmartFolderNav({
           <p className="px-2 py-1.5 text-sm text-gray-400">No saved folders</p>
         )}
       </div>
+      {canSaveFilter ? (
+        <form className="space-y-2 px-2 pt-3" onSubmit={saveFolder}>
+          <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${subjectType}-smart-folder-name`}>
+            Folder name
+            <input
+              className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              disabled={createFolder.isPending}
+              id={`${subjectType}-smart-folder-name`}
+              maxLength={120}
+              onChange={(event) => setFolderName(event.target.value)}
+              required
+              type="text"
+              value={folderName}
+            />
+          </label>
+          <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
+            Save folder
+          </button>
+          {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(createFolder.error, "Unable to save smart folder.")}</p> : null}
+        </form>
+      ) : null}
     </aside>
   )
 }
@@ -77,4 +130,8 @@ function withRoutePrefix(path: string, prefix: string) {
   if (!path.startsWith("/")) return path
 
   return `${prefix}${path}`
+}
+
+function errorMessage(error: Error, fallback: string) {
+  return error instanceof ApiError ? error.message : fallback
 }

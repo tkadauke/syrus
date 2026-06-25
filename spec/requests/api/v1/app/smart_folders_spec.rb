@@ -74,6 +74,30 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Ready Epics")
   end
 
+  it "creates an admin queue smart folder from a serialized filter tree" do
+    sign_in_as(user)
+    filter = { and: [ { field: "queue_name", op: "is", value: "runs" } ] }
+
+    expect {
+      post "/api/v1/app/smart_folders", params: {
+        subject_type: "admin_queue",
+        filter: filter.to_json,
+        smart_folder: { name: "Runs queue" }
+      }
+    }.to change { user.smart_folders.count }.by(1)
+
+    folder = user.smart_folders.find_by!(name: "Runs queue")
+    expect(response).to have_http_status(:created)
+    expect(folder).to have_attributes(subject_type: "admin_queue", position: 0)
+    expect(folder.filter).to eq("and" => [ { "field" => "queue_name", "op" => "is", "value" => "runs" } ])
+    expect(parse_body).to include(
+      "message" => "Smart folder saved.",
+      "redirect_to" => admin_queue_root_path(smart_folder_id: folder.id),
+      "subject_type" => "admin_queue"
+    )
+    expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Runs queue")
+  end
+
   it "rejects smart folder creation without filters" do
     sign_in_as(user)
 

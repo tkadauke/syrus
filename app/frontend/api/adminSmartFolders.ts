@@ -1,4 +1,5 @@
 import type { FilterSchemaField } from "../components/FilterBar"
+import { postJson } from "./client"
 
 export type AdminSmartFolder = {
   id: number
@@ -23,4 +24,24 @@ export type AdminFilterControls = {
 export type AdminFilteredPayload = AdminSmartFolderPayload & {
   filter: Record<string, unknown>
   controls: AdminFilterControls
+}
+
+export type CreateAdminSmartFolderInput = {
+  name: string
+  subjectType: string
+  filters: Record<string, string>
+}
+
+export type CreateAdminSmartFolderResult = {
+  message: string
+  redirect_to: string
+  smart_folder: AdminSmartFolder
+}
+
+export function createAdminSmartFolder({ name, subjectType, filters }: CreateAdminSmartFolderInput) {
+  return postJson<CreateAdminSmartFolderResult>("/api/v1/app/smart_folders", {
+    smart_folder: { name, position: 0 },
+    subject_type: subjectType,
+    ...filters
+  })
 }

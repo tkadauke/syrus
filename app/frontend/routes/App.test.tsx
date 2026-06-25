@@ -3913,6 +3913,120 @@ describe("App", () => {
     }
   })
 
+  it("saves an applied admin queue filter from the smart folder nav", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const appliedFilter = { and: [ { field: "queue_name", op: "is", value: "runs" } ] }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/smart_folders" && init?.method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              message: "Smart folder saved.",
+              redirect_to: "/admin/queue?smart_folder_id=21",
+              smart_folder: { id: 21, name: "Runs queue", position: 1, filter: appliedFilter }
+            }),
+            { status: 201, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+      if (path === "/api/v1/app/admin/queue/active" || path === "/api/v1/app/admin/queue/active?smart_folder_id=21") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              filter: appliedFilter,
+              controls: {
+                filter_schema: [
+                  {
+                    field: "queue_name",
+                    label: "Queue",
+                    bucket: "enum",
+                    operators: ["is", "is_one_of"],
+                    values: [
+                      { value: "runs", label: "Runs" },
+                      { value: "chat", label: "Chat" }
+                    ]
+                  }
+                ]
+              },
+              active_smart_folder_id: path.endsWith("smart_folder_id=21") ? 21 : null,
+              smart_folders: [
+                {
+                  id: 1,
+                  name: "Runs",
+                  kind: "builtin",
+                  subject_type: "admin_queue",
+                  visibility: "always",
+                  count: 1,
+                  active: false,
+                  path: "/admin/queue/active?smart_folder_id=1"
+                }
+              ],
+              jobs: [
+                {
+                  id: 12,
+                  class_name: "RunJob",
+                  queue_name: "runs",
+                  arguments: [42],
+                  created_at: "2026-05-30T12:00:00Z",
+                  claimed_at: "2026-05-30T12:01:00Z"
+                }
+              ]
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/admin/queue/active"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByText("RunJob")
+      const disclosure = screen.getByText("Folders and filters").closest("details")
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(disclosure).toHaveAttribute("open")
+      const folderNameInput = screen.getByLabelText("Folder name")
+      fireEvent.change(folderNameInput, { target: { value: "Runs queue" } })
+      fireEvent.click(screen.getByRole("button", { name: "Save folder" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/smart_folders",
+          expect.objectContaining({
+            method: "POST",
+            credentials: "same-origin",
+            headers: expect.objectContaining({
+              Accept: "application/json",
+              "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({
+              smart_folder: { name: "Runs queue", position: 0 },
+              subject_type: "admin_queue",
+              filter: JSON.stringify(appliedFilter)
+            })
+          })
+        )
+      })
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/admin/queue/active?smart_folder_id=21",
+          expect.objectContaining({ credentials: "same-origin" })
+        )
+      })
+    } finally {
+      restoreMedia()
+    }
+  })
+
   it("renders admin queue workers when SolidQueue reports queue metadata as a string", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
