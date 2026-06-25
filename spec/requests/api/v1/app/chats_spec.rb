@@ -1069,6 +1069,25 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("attachment_groups", "repositories")).to eq([])
   end
 
+  it "renders attached Epics with their titles" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/attachments", params: { attachable_type: "Epic", attachable_id: epic.id }
+    }.to change(ChatAttachment, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    attachment = chat.reload.chat_attachments.sole
+    label = "#{epic.display_number}: Raise the forum"
+    expect(parse_body["message"]).to eq("#{label} attached.")
+    expect(parse_body.dig("attachment_groups", "epics")).to contain_exactly(include(
+      "label" => label,
+      "app_detach_path" => "/api/v1/app/chats/#{chat.id}/attachments/#{attachment.id}"
+    ))
+  end
+
   it "attaches a repository by slug through the app API" do
     sign_in_as(user)
     repository

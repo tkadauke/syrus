@@ -1243,7 +1243,7 @@ module Api
         def attachment_label(record)
           case record
           when Repository then record.slug
-          when Epic then record.display_number
+          when Epic then [ record.display_number, record.title.presence ].compact.join(": ")
           when Job then "#{::App::Presentation.job_slug(record)}: #{record.issue_title.presence || record.issue_number || record.kind}"
           when Document then "#{record.title} (#{record.repository&.slug})"
           else record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
