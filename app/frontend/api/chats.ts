@@ -27,6 +27,11 @@ export type ChatNavRecord = ChatRecord & {
   updated_at?: string
 }
 
+export type HiddenChatRecord = ChatNavRecord & {
+  hidden_at: string | null
+  app_unhide_path: string
+}
+
 export type ChatSystemMessage = {
   tone: "success" | "warning" | "error" | "neutral"
   label: string
@@ -257,6 +262,14 @@ export type MoreChatsPayload = {
   has_more: boolean
 }
 
+export type HiddenChatsPayload = {
+  chats: HiddenChatRecord[]
+  total: number
+  page: number
+  per_page: number
+  total_pages: number
+}
+
 export type ChatPayload = {
   message?: string | null
   chat: ChatRecord
@@ -341,8 +354,20 @@ export function markChatRead(id: string | number) {
   return patchJson<void>(`/api/v1/app/chats/${id}/mark_read`)
 }
 
+export function hideChat(id: string | number) {
+  return patchJson<{ message: string; chat: ChatNavRecord }>(`/api/v1/app/chats/${id}/hide`)
+}
+
+export function unhideChat(path: string) {
+  return patchJson<{ message: string; chat: ChatNavRecord }>(path)
+}
+
 export function fetchChats() {
   return getJson<ChatsIndexPayload>("/api/v1/app/chats")
+}
+
+export function fetchHiddenChats(page = 1) {
+  return getJson<HiddenChatsPayload>(`/api/v1/app/settings/hidden_chats?page=${encodeURIComponent(String(page))}`)
 }
 
 export function fetchMoreChatsForGroup(repositoryId: number | null, beforeChatId: number) {

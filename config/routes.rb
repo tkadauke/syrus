@@ -116,6 +116,7 @@ Rails.application.routes.draw do
         get "chats/more", to: "chats#more"
         get "chats/search", to: "chats#search"
         get "chats/search/messages", to: "chats#search_messages"
+        get "settings/hidden_chats", to: "chats#hidden"
         post "chats", to: "chats#create"
         post "chats/onboarding", to: "chats#onboarding"
         get "chats/:id", to: "chats#show", constraints: { id: /\d+/ }
@@ -123,6 +124,8 @@ Rails.application.routes.draw do
         get "chats/:id/whiteboard", to: "chat_whiteboards#show", constraints: { id: /\d+/ }
         patch "chats/:id/whiteboard", to: "chat_whiteboards#update", constraints: { id: /\d+/ }
         patch "chats/:id/mark_read", to: "chats#mark_read", constraints: { id: /\d+/ }
+        patch "chats/:id/hide", to: "chats#hide", constraints: { id: /\d+/ }
+        patch "chats/:id/unhide", to: "chats#unhide", constraints: { id: /\d+/ }
         post "chats/:id/rename", to: "chats#rename", constraints: { id: /\d+/ }
         patch "chats/:id/rename", to: "chats#rename", constraints: { id: /\d+/ }
         delete "chats/:id/messages", to: "chats#clear_messages", constraints: { id: /\d+/ }

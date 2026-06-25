@@ -101,13 +101,34 @@ curl -X POST https://syrus.example.com/api/v1/app/chats/123/rename \
   -d '{ "name": "Release planning" }'
 ```
 
+## Hide or Restore a Chat
+
+`PATCH /api/v1/app/chats/:id/hide` hides one of the authenticated user's
+chat sessions from the default sidebar, search, and chat listing surfaces.
+`PATCH /api/v1/app/chats/:id/unhide` restores it.
+
+```bash
+curl -X PATCH https://syrus.example.com/api/v1/app/chats/123/hide \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+`GET /api/v1/app/settings/hidden_chats` returns hidden chats ordered by
+most recently hidden first. Results include `hidden_at`, repository context,
+and an `app_unhide_path` for each row.
+
+```bash
+curl "https://syrus.example.com/api/v1/app/settings/hidden_chats?page=1" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
 ## Search Chats
 
 `GET /api/v1/app/chats/search` searches the authenticated user's chats.
-Pass `q` for full-text search, or omit it for a filter-only listing. The
-optional `repository_id`, `epic_id`, and `job_id` filters limit results to
-chats with matching attachments. Results are paginated with `page` and return
-chat-level cards with up to three matching message snippets.
+Hidden chats are excluded. Pass `q` for full-text search, or omit it for a
+filter-only listing. The optional `repository_id`, `epic_id`, and `job_id`
+filters limit results to chats with matching attachments. Results are
+paginated with `page` and return chat-level cards with up to three matching
+message snippets.
 
 ```bash
 curl "https://syrus.example.com/api/v1/app/chats/search?q=deploy&epic_id=456" \

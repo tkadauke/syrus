@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_25_033322) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_155122) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -243,6 +243,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_033322) do
     t.decimal "cumulative_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.integer "cumulative_input_tokens", default: 0, null: false
     t.integer "cumulative_output_tokens", default: 0, null: false
+    t.datetime "hidden_at"
     t.datetime "last_message_at"
     t.datetime "last_read_at"
     t.boolean "onboarding", default: false, null: false
@@ -252,6 +253,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_033322) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.string "workspace_path"
+    t.index ["user_id", "hidden_at"], name: "index_chat_sessions_on_user_id_and_hidden_at"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_path"], name: "index_chat_sessions_on_workspace_path"
   end

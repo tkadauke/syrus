@@ -90,6 +90,19 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body.to_s).not_to include("Foreign chat")
   end
 
+  it "omits hidden chats from recent chat groups" do
+    sign_in_as(user)
+    visible_chat = ChatSession.create!(user: user, repository: repository, title: "Visible chat", last_message_at: 1.hour.ago)
+    hidden_chat = ChatSession.create!(user: user, repository: repository, title: "Hidden chat", last_message_at: Time.current, hidden_at: 5.minutes.ago)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq([ visible_chat.id ])
+    expect(parse_body.to_s).not_to include(hidden_chat.title)
+  end
+
   it "includes every repository chat group instead of only the global top twenty" do
     sign_in_as(user)
     old_repo = Factories.repository(user: user, owner: "acme", name: "old")
@@ -135,6 +148,27 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["has_more"]).to eq(false)
   end
 
+  it "does not load hidden chats when paginating one sidebar group" do
+    sign_in_as(user)
+    chats = 7.times.map do |index|
+      ChatSession.create!(
+        user: user,
+        repository: repository,
+        title: "Chat #{index}",
+        last_message_at: (index + 1).hours.ago,
+        hidden_at: index == 5 ? Time.current : nil
+      )
+    end
+
+    get "/api/v1/app/chats"
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+
+    get "/api/v1/app/chats/more", params: { repository_id: repository.id, before_id: group["chats"].last["id"] }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["chats"].map { |chat| chat["id"] }).to eq([ chats.last.id ])
+  end
+
   describe "chat search" do
     before do
       allow(AppEvents).to receive(:broadcast)
@@ -173,6 +207,21 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(body["results"].first["top_matches"]).to contain_exactly(
         include("message_id" => stronger.id, "role" => "assistant")
       )
+    end
+
+    it "omits hidden chats from search results" do
+      visible_chat = ChatSession.create!(user: user, repository: repository, title: "Visible")
+      hidden_chat = ChatSession.create!(user: user, repository: repository, title: "Hidden", hidden_at: Time.current)
+      visible_message = create_indexed_message(visible_chat, text: "needle visible")
+      create_indexed_message(hidden_chat, text: "needle hidden")
+
+      get "/api/v1/app/chats/search", params: { q: "needle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["results"]).to contain_exactly(
+        include("chat_session_id" => visible_chat.id, "best_match_message_id" => visible_message.id)
+      )
+      expect(parse_body.to_s).not_to include("Hidden")
     end
 
     it "filters chats by attached epic without a text query" do
@@ -242,6 +291,15 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(parse_body["matches"]).to all(include("snippet", "role", "created_at"))
     end
 
+    it "does not expand message search for hidden chats" do
+      chat = ChatSession.create!(user: user, repository: repository, title: "Memory", hidden_at: Time.current)
+      create_indexed_message(chat, text: "needle hidden")
+
+      get "/api/v1/app/chats/search/messages", params: { chat_session_id: chat.id, q: "needle" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
     it "never returns another user's chats from search or expansion" do
       other_user = Factories.user
       other_chat = ChatSession.create!(
@@ -272,6 +330,47 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:no_content)
     expect(chat.reload.last_read_at).to be_present
     expect(foreign_chat.reload.last_read_at).to be_nil
+  end
+
+  it "hides and restores a chat for the signed-in user" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Planning", last_message_at: Time.current)
+
+    patch "/api/v1/app/chats/#{chat.id}/hide"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Chat hidden.")
+    expect(chat.reload.hidden_at).to be_present
+
+    patch "/api/v1/app/chats/#{chat.id}/unhide"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Chat restored.")
+    expect(chat.reload.hidden_at).to be_nil
+  end
+
+  it "lists hidden chats for recovery in hidden order" do
+    sign_in_as(user)
+    older = ChatSession.create!(user: user, repository: repository, title: "Older", hidden_at: 2.days.ago)
+    newer = ChatSession.create!(user: user, title: "Newer", hidden_at: 1.hour.ago)
+    ChatSession.create!(user: user, title: "Visible")
+    ChatSession.create!(user: Factories.user, title: "Foreign", hidden_at: Time.current)
+
+    get "/api/v1/app/settings/hidden_chats"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["chats"].map { |chat| chat["id"] }).to eq([ newer.id, older.id ])
+    expect(body["chats"].first).to include(
+      "title" => "Newer",
+      "repository" => nil,
+      "hidden_at" => newer.hidden_at.iso8601,
+      "app_unhide_path" => "/api/v1/app/chats/#{newer.id}/unhide"
+    )
+    expect(body["chats"].second["repository"]).to include("slug" => "acme/widgets")
+    expect(body).to include("total" => 2, "page" => 1, "per_page" => 20, "total_pages" => 1)
+    expect(body.to_s).not_to include("Visible")
+    expect(body.to_s).not_to include("Foreign")
   end
 
   it "renames a chat for the signed-in user" do

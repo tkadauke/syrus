@@ -20,6 +20,7 @@ module SyrusChatMcp
         per_page = normalize_per_page(per_page)
         scope = ChatSession
           .where(user: chat_session.user)
+          .visible
           .includes(:messages, :attached_repositories)
           .order(updated_at: :desc)
         total_count = scope.count

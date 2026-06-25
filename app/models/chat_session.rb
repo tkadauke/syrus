@@ -62,6 +62,8 @@ class ChatSession < ApplicationRecord
     joins(:chat_attachments)
       .where(chat_attachments: { attachable_type: "Repository", attachable_id: repository.id })
   }
+  scope :visible, -> { where(hidden_at: nil) }
+  scope :hidden, -> { where.not(hidden_at: nil) }
 
   def self.fallback_title_for(repository)
     return unless repository

@@ -4,6 +4,7 @@ module Api
       class ChatsController < BaseController
         PAGE_SIZE = ChatSession::MESSAGE_PAGE_SIZE
         CHAT_INDEX_GROUP_SIZE = 5
+        HIDDEN_CHATS_PAGE_SIZE = 20
         SEARCH_PAGE_SIZE = 20
         SEARCH_TOP_MATCHES = 3
         CHAT_TURN_ENQUEUE_RETRY_DELAYS = [ 0.05, 0.2 ].freeze
@@ -78,9 +79,28 @@ module Api
             return
           end
 
-          chat_session = Current.user.chat_sessions.find(params[:chat_session_id])
+          chat_session = Current.user.chat_sessions.visible.find(params[:chat_session_id])
           render json: {
             matches: chat_search_rows(query, chat_session_id: chat_session.id).map { |row| chat_search_match_json(row) }
+          }
+        end
+
+        def hidden
+          page = [ Integer(params[:page], exception: false).to_i, 1 ].max
+          scope = Current.user.chat_sessions.hidden
+          total = scope.count
+          chats = scope
+            .preload(repository_attachments: :attachable)
+            .order(hidden_at: :desc, id: :desc)
+            .offset((page - 1) * HIDDEN_CHATS_PAGE_SIZE)
+            .limit(HIDDEN_CHATS_PAGE_SIZE)
+
+          render json: {
+            chats: chats.map { |chat_session| hidden_chat_json(chat_session) },
+            total: total,
+            page: page,
+            per_page: HIDDEN_CHATS_PAGE_SIZE,
+            total_pages: (total.to_f / HIDDEN_CHATS_PAGE_SIZE).ceil
           }
         end
 
@@ -229,6 +249,20 @@ module Api
           find_chat_session.update!(last_read_at: Time.current)
 
           head :no_content
+        end
+
+        def hide
+          chat_session = find_chat_session
+          chat_session.update!(hidden_at: Time.current)
+
+          render json: { message: "Chat hidden.", chat: chat_index_json(chat_session.reload) }
+        end
+
+        def unhide
+          chat_session = find_chat_session
+          chat_session.update!(hidden_at: nil)
+
+          render json: { message: "Chat restored.", chat: chat_index_json(chat_session.reload) }
         end
 
         def enqueue_message
@@ -467,7 +501,7 @@ module Api
         end
 
         def filtered_chat_search_scope
-          scope = ChatSession.where(user_id: Current.user.id)
+          scope = ChatSession.where(user_id: Current.user.id).visible
           scope = apply_chat_attachment_filter(scope, "Repository", :repository_id)
           return scope if performed?
 
@@ -649,13 +683,15 @@ module Api
 
         def recent_chats_json(current_chat_session)
           chat_ids = Current.user.chat_sessions
+            .visible
             .order(Arel.sql("#{chat_activity_order_sql} DESC"), id: :desc)
             .limit(20)
             .pluck(:id)
 
-          chat_ids = chat_ids.first(19) + [ current_chat_session.id ] unless chat_ids.include?(current_chat_session.id)
+          chat_ids = chat_ids.first(19) + [ current_chat_session.id ] if current_chat_session.hidden_at.blank? && !chat_ids.include?(current_chat_session.id)
 
           Current.user.chat_sessions
+            .visible
             .where(id: chat_ids)
             .preload(repository_attachments: :attachable)
             .to_a
@@ -739,6 +775,7 @@ module Api
 
         def chat_index_group_scope(repository_id)
           scope = Current.user.chat_sessions
+            .visible
             .left_outer_joins(:repository_attachments)
             .order(Arel.sql("#{chat_activity_order_sql} DESC, chat_sessions.id DESC"))
 
@@ -751,6 +788,7 @@ module Api
 
         def chat_index_repositories
           repository_ids = Current.user.chat_sessions
+            .visible
             .joins(:repository_attachments)
             .where(chat_attachments: { attachable_type: "Repository" })
             .distinct
@@ -793,6 +831,13 @@ module Api
             chat_session.updated_at,
             chat_session.created_at
           ].compact.max
+        end
+
+        def hidden_chat_json(chat_session)
+          chat_index_json(chat_session).merge(
+            hidden_at: chat_session.hidden_at&.iso8601,
+            app_unhide_path: "/api/v1/app/chats/#{chat_session.id}/unhide"
+          )
         end
 
         def chat_unread?(chat_session)

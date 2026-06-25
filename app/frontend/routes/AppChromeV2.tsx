@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createChat, fetchChats, fetchMoreChatsForGroup, type ChatGroupRecord, type ChatNavRecord, type ChatPayload } from "../api/chats"
+import { createChat, fetchChats, fetchMoreChatsForGroup, hideChat, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { BugReportButton } from "../components/BugReportButton"
@@ -442,9 +442,12 @@ type ChatSection = {
 
 function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDrawer: () => void; prefix: string; userPresent: boolean }) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
   const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
+  const [hidingChatIds, setHidingChatIds] = useState<Set<number>>(() => new Set())
   const activeChatId = activeChatIdFromPath(location.pathname)
   const chats = useQuery({
     queryKey: ["chats", "recent"],
@@ -502,6 +505,46 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
     })
   }
 
+  function hideRecentChat(chat: ChatNavRecord) {
+    if (hidingChatIds.has(chat.id)) return
+
+    setHidingChatIds((current) => new Set(current).add(chat.id))
+    removeChatFromRecentLists(chat.id)
+    void hideChat(chat.id).then(() => {
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
+      if (chat.id === activeChatId) navigate(`${prefix}/chats/new`)
+    }).catch(() => {
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+    }).finally(() => {
+      setHidingChatIds((current) => {
+        const next = new Set(current)
+        next.delete(chat.id)
+        return next
+      })
+    })
+  }
+
+  function removeChatFromRecentLists(chatId: number) {
+    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+      if (!current) return current
+
+      return {
+        ...current,
+        groups: current.groups
+          .map((group) => ({ ...group, chats: group.chats.filter((chat) => chat.id !== chatId) }))
+          .filter((group) => group.chats.length > 0)
+      }
+    })
+    setLoadedSections((current) => {
+      const next: Record<string, { chats: ChatNavRecord[]; has_more: boolean }> = {}
+      Object.entries(current).forEach(([key, value]) => {
+        next[key] = { ...value, chats: value.chats.filter((chat) => chat.id !== chatId) }
+      })
+      return next
+    })
+  }
+
   if (!userPresent) return null
 
   return (
@@ -533,15 +576,29 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                   const active = chat.current || chat.id === activeChatId
                   const unread = chat.unread && !active
                   return (
-                    <div className="relative flex min-w-0 items-center" key={chat.id}>
+                    <div className="group relative flex min-w-0 items-center" key={chat.id}>
                       <Link
-                        className={`${recentChatLinkClass(active)} ${active ? "pr-9" : ""}`}
+                        className={`${recentChatLinkClass(active)} pr-16`}
                         onClick={onCloseDrawer}
                         to={withRoutePrefix(chat.chat_path, prefix)}
                       >
                         <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
                       </Link>
+                      <button
+                        aria-label={`Hide ${sidebarChatTitle(chat)}`}
+                        className={`absolute ${active ? "right-8" : "right-1"} top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-gray-400 opacity-0 hover:bg-gray-100 hover:text-red-700 focus:opacity-100 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-red-300 group-hover:opacity-100`}
+                        disabled={hidingChatIds.has(chat.id)}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          hideRecentChat(chat)
+                        }}
+                        title="Hide chat"
+                        type="button"
+                      >
+                        <HideIcon />
+                      </button>
                       {active ? <ActiveChatBookmarksMenu chatId={activeChatId} search={location.search} /> : null}
                     </div>
                   )
@@ -958,6 +1015,14 @@ function SunIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
       <path d="M12 4.75V3m0 18v-1.75M4.75 12H3m18 0h-1.75M6.87 6.87 5.64 5.64m12.72 12.72-1.23-1.23m0-10.26 1.23-1.23M5.64 18.36l1.23-1.23M15.25 12a3.25 3.25 0 1 1-6.5 0 3.25 3.25 0 0 1 6.5 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
+    </svg>
+  )
+}
+
+function HideIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path d="M4.75 7.75h14.5M9.75 7.75V5.5h4.5v2.25m-7.5 0 .75 11h9l.75-11M10.5 11v4.5m3-4.5v4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
     </svg>
   )
 }

@@ -30,11 +30,13 @@ RSpec.describe SyrusChatMcp::ListChatsTool do
     older_repo = Factories.repository(user: user, owner: "acme", name: "api")
     older = ChatSession.create!(user: user, repository: older_repo, title: nil, updated_at: 2.hours.ago)
     newer = ChatSession.create!(user: user, title: "Epic #42 follow-up", updated_at: 1.hour.ago)
+    hidden = ChatSession.create!(user: user, title: "Hidden", hidden_at: Time.current, updated_at: Time.current)
     ChatSession.create!(user: Factories.user, title: "Other user's chat", updated_at: Time.current)
 
     add_message(older)
     add_message(older, role: "assistant", text: "world")
     add_message(newer)
+    add_message(hidden)
     chat_session.touch(time: 3.hours.ago)
 
     response = call_tool
@@ -43,6 +45,7 @@ RSpec.describe SyrusChatMcp::ListChatsTool do
 
     expect(response[:result][:isError]).to be_falsey
     expect(chats.map { |chat| chat[:id] }).to eq([ newer.id, older.id, chat_session.id ])
+    expect(chats.map { |chat| chat[:id] }).not_to include(hidden.id)
     expect(chats.first).to include(
       title: "Epic #42 follow-up",
       repository: nil,
