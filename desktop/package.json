@@ -34,6 +34,7 @@
     "appId": "app.syrus.desktop",
     "productName": "Syrus Desktop",
     "files": [
+      "assets/**/*",
       "dist/**/*",
       "dist-electron/**/*",
       "package.json"

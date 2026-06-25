@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react"
 type AuthState = "loading" | "authenticated" | "setup"
 
 export function App() {
+  const isPreferencesView = new URLSearchParams(window.location.search).get("view") === "preferences"
   const [authState, setAuthState] = useState<AuthState>("loading")
   const [url, setUrl] = useState("")
   const [token, setToken] = useState("")
@@ -23,7 +24,7 @@ export function App() {
         if (credentials) {
           setUrl(credentials.url)
           setToken(credentials.token)
-          setAuthState("authenticated")
+          setAuthState(isPreferencesView ? "setup" : "authenticated")
         } else {
           setAuthState("setup")
         }
@@ -44,7 +45,7 @@ export function App() {
       isMounted = false
       unsubscribe()
     }
-  }, [])
+  }, [isPreferencesView])
 
   const saveCredentials = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()

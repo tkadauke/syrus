@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, shell } from "electron"
+import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } from "electron"
 import fs from "node:fs/promises"
 import os from "node:os"
 import { fileURLToPath } from "node:url"
@@ -14,7 +14,10 @@ type Credentials = {
 }
 
 let mainWindow: BrowserWindow | null = null
+let preferencesWindow: BrowserWindow | null = null
+let tray: Tray | null = null
 let cachedCredentials: Credentials | null = null
+let isQuitting = false
 
 const credentialsPath = () => path.join(os.homedir(), ".syrus", "credentials")
 
@@ -137,13 +140,37 @@ const deleteCredentials = async () => {
   cachedCredentials = null
 }
 
-const createMainWindow = async () => {
+const rendererUrl = (view?: string) => {
+  if (app.isPackaged) {
+    const filePath = path.join(__dirname, "../dist/index.html")
+    return view ? `file://${filePath}?view=${view}` : `file://${filePath}`
+  }
+
+  const url = new URL("http://127.0.0.1:5173")
+  if (view) {
+    url.searchParams.set("view", view)
+  }
+
+  return url.toString()
+}
+
+const loadRenderer = async (window: BrowserWindow, view?: string) => {
+  if (app.isPackaged) {
+    await window.loadFile(path.join(__dirname, "../dist/index.html"), view ? { query: { view } } : undefined)
+  } else {
+    await window.loadURL(rendererUrl(view))
+  }
+}
+
+const createPopoverWindow = async () => {
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 720,
-    minWidth: 640,
-    minHeight: 480,
+    width: 360,
+    height: 480,
     show: false,
+    frame: false,
+    resizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -151,31 +178,131 @@ const createMainWindow = async () => {
     }
   })
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow?.show()
+  mainWindow.on("blur", () => {
+    mainWindow?.hide()
   })
 
-  if (app.isPackaged) {
-    await mainWindow.loadFile(path.join(__dirname, "../dist/index.html"))
-  } else {
-    await mainWindow.loadURL("http://127.0.0.1:5173")
-    mainWindow.webContents.openDevTools({ mode: "detach" })
-  }
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
+  })
+
+  await loadRenderer(mainWindow)
 }
 
-const showSetupWindow = async () => {
-  if (!mainWindow) {
-    await createMainWindow()
+const popoverPosition = () => {
+  if (!tray || !mainWindow) {
     return
   }
 
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore()
+  const trayBounds = tray.getBounds()
+  const windowBounds = mainWindow.getBounds()
+  const x = Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2)
+  const y =
+    process.platform === "darwin"
+      ? Math.round(trayBounds.y + trayBounds.height)
+      : Math.round(trayBounds.y + trayBounds.height + 4)
+
+  mainWindow.setPosition(x, y, false)
+}
+
+const showPopoverWindow = async () => {
+  if (!mainWindow) {
+    await createPopoverWindow()
   }
 
-  mainWindow.show()
-  mainWindow.focus()
-  mainWindow.webContents.send("credentials-cleared")
+  popoverPosition()
+  mainWindow?.show()
+  mainWindow?.focus()
+}
+
+const togglePopoverWindow = async () => {
+  if (mainWindow?.isVisible()) {
+    mainWindow.hide()
+    return
+  }
+
+  await showPopoverWindow()
+}
+
+const showPreferencesWindow = async () => {
+  if (preferencesWindow) {
+    if (preferencesWindow.isMinimized()) {
+      preferencesWindow.restore()
+    }
+
+    preferencesWindow.show()
+    preferencesWindow.focus()
+    return
+  }
+
+  preferencesWindow = new BrowserWindow({
+    width: 520,
+    height: 620,
+    minWidth: 420,
+    minHeight: 480,
+    title: "Syrus Preferences",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, "preload.js")
+    }
+  })
+
+  preferencesWindow.on("closed", () => {
+    preferencesWindow = null
+  })
+
+  await loadRenderer(preferencesWindow, "preferences")
+}
+
+const showSetupWindow = async () => {
+  await showPreferencesWindow()
+  preferencesWindow?.webContents.send("credentials-cleared")
+}
+
+const openSyrusInBrowser = async () => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (credentials) {
+    await shell.openExternal(credentials.url)
+    return
+  }
+
+  await showPreferencesWindow()
+}
+
+const trayIconPath = () => path.join(app.getAppPath(), "assets", "trayTemplate.png")
+
+const createTray = () => {
+  const icon = nativeImage.createFromPath(trayIconPath())
+  icon.setTemplateImage(true)
+
+  tray = new Tray(icon)
+  tray.setToolTip("Syrus")
+  tray.on("click", () => {
+    void togglePopoverWindow()
+  })
+
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "Open Syrus",
+        click: () => {
+          void openSyrusInBrowser()
+        }
+      },
+      {
+        label: "Preferences",
+        click: () => {
+          void showPreferencesWindow()
+        }
+      },
+      { type: "separator" },
+      { role: "quit", label: "Quit" }
+    ])
+  )
 }
 
 const createMenu = () => {
@@ -218,19 +345,27 @@ ipcMain.handle("open-token-docs", async () => {
 })
 
 app.whenReady().then(async () => {
+  if (process.platform === "darwin") {
+    app.dock?.hide()
+  }
+
   createMenu()
   await loadCredentials()
-  await createMainWindow()
+  createTray()
+
+  if (!app.isPackaged) {
+    await showPopoverWindow()
+  }
 
   app.on("activate", async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createMainWindow()
-    }
+    await showPopoverWindow()
   })
 })
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit()
-  }
+  // Tray apps stay resident until the user chooses Quit.
+})
+
+app.on("before-quit", () => {
+  isQuitting = true
 })
