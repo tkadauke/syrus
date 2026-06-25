@@ -64,6 +64,28 @@ RSpec.describe ChatWorkspace do
       expect(path.join("README.md").read).to include("second")
       expect(chat_session.reload.repository_attachments.count).to eq(1)
     end
+
+    it "fetches existing checkouts from an authenticated URL" do
+      path = described_class.repo_path_for(chat_session, repository)
+      FileUtils.mkdir_p(path.join(".git", "info"))
+      allow(repository).to receive(:authenticated_push_url)
+        .with("ghp_test_token")
+        .and_return("https://token@example.com/acme/widgets.git")
+      git = RecordingGitRunner.new
+
+      described_class.new(chat_session, git: git).attach_repository!(repository)
+
+      fetch = git.commands.find { |command| command[:args].first == "fetch" }
+      expect(fetch[:args]).to eq(
+        [
+          "fetch",
+          "https://token@example.com/acme/widgets.git",
+          "+refs/heads/main:refs/remotes/origin/main",
+          "--prune"
+        ]
+      )
+      expect(fetch[:args]).not_to include("origin")
+    end
   end
 
   describe ".destroy!" do
@@ -141,5 +163,18 @@ RSpec.describe ChatWorkspace do
     )
     raise "shell failed: #{cmd}\n#{out}\n#{err}" unless status.success?
     out
+  end
+
+  class RecordingGitRunner
+    attr_reader :commands
+
+    def initialize
+      @commands = []
+    end
+
+    def run(*args, **kwargs)
+      @commands << { args: args, kwargs: kwargs }
+      ""
+    end
   end
 end

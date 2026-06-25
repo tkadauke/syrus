@@ -90,9 +90,17 @@ class ChatWorkspace
   end
 
   def fast_forward!(repository, path)
-    @git.run("fetch", "origin", repository.default_branch, "--prune", chdir: path.to_s, env: @env)
-    @git.run("checkout", repository.default_branch, chdir: path.to_s)
-    @git.run("merge", "--ff-only", "origin/#{repository.default_branch}", chdir: path.to_s)
+    default_branch = repository.default_branch
+    @git.run(
+      "fetch",
+      authenticated_url(repository),
+      "+refs/heads/#{default_branch}:refs/remotes/origin/#{default_branch}",
+      "--prune",
+      chdir: path.to_s,
+      env: @env
+    )
+    @git.run("checkout", default_branch, chdir: path.to_s)
+    @git.run("merge", "--ff-only", "origin/#{default_branch}", chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
   end
 
