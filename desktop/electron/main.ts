@@ -13,6 +13,29 @@ type Credentials = {
   token: string
 }
 
+type JobItem = {
+  id: number
+  state: string
+  summary_state: string
+  title: string
+  issue_title: string
+  repository_slug: string
+  branch_name: string
+  pr_number: number
+  pr_url: string
+  created_at: string
+  updated_at: string
+  started_at: string
+  finished_at: string
+  current_step: string
+  latest_run_id: number
+}
+
+type JobList = {
+  count: number
+  jobs: JobItem[]
+}
+
 let mainWindow: BrowserWindow | null = null
 let preferencesWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -87,6 +110,14 @@ const bootstrapUrl = (baseUrl: string) => {
   return `${trimmedUrl}/api/v1/app/bootstrap`
 }
 
+const appApiUrl = (baseUrl: string, pathName: string, params?: Record<string, string>) => {
+  const url = new URL(pathName, `${baseUrl.trim().replace(/\/+$/, "")}/`)
+  for (const [key, value] of Object.entries(params ?? {})) {
+    url.searchParams.set(key, value)
+  }
+  return url.toString()
+}
+
 const validateCredentialsWithServer = async (credentials: Credentials) => {
   validateCredentialsShape(credentials)
 
@@ -104,6 +135,42 @@ const validateCredentialsWithServer = async (credentials: Credentials) => {
   if (!response.ok) {
     throw new Error("The Syrus instance rejected those credentials.")
   }
+}
+
+const fetchJobList = async (credentials: Credentials, state: string) => {
+  const response = await fetch(
+    appApiUrl(credentials.url, "/api/v1/app/jobs", {
+      state,
+      limit: "100"
+    }),
+    {
+      headers: {
+        Authorization: `Bearer ${credentials.token.trim()}`
+      }
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Could not fetch ${state} jobs.`)
+  }
+
+  return (await response.json()) as JobList
+}
+
+const fetchInboxJobs = async () => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before loading inbox jobs.")
+  }
+
+  const lists = await Promise.all([
+    fetchJobList(credentials, "implemented"),
+    fetchJobList(credentials, "failed")
+  ])
+
+  return lists
+    .flatMap((list) => list.jobs)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
 }
 
 const saveCredentials = async (credentials: Credentials) => {
@@ -341,6 +408,19 @@ ipcMain.handle("get-credentials", async () => cachedCredentials ?? (await loadCr
 ipcMain.handle("save-credentials", async (_event, credentials: Credentials) => saveCredentials(credentials))
 ipcMain.handle("open-token-docs", async () => {
   await shell.openExternal(TOKEN_DOCS_URL)
+})
+ipcMain.handle("fetch-inbox-jobs", async () => fetchInboxJobs())
+ipcMain.handle("open-external", async (_event, url: string) => {
+  if (!URL.canParse(url)) {
+    throw new Error("Invalid URL.")
+  }
+
+  const parsedUrl = new URL(url)
+  if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+    throw new Error("Only HTTP and HTTPS URLs can be opened.")
+  }
+
+  await shell.openExternal(parsedUrl.toString())
 })
 
 app.whenReady().then(async () => {

@@ -59,9 +59,13 @@ and API token, validates them against `/api/v1/app/bootstrap`, and saves
 the file for both desktop and CLI use.
 
 On macOS, Syrus Desktop runs as a menubar app without a Dock icon. Click
-the tray icon to open or hide the compact popover. Right-click the tray
-icon to open the connected Syrus instance in your browser, open
-Preferences, or quit the app.
+the tray icon to open or hide the compact inbox popover. The popover
+shows implemented and failed Jobs, refreshes every 30 seconds, and lets
+you open the Job in Syrus or open its pull request in your browser when
+one exists. Local checkout actions stay disabled until a local projects
+root is configured in Preferences. Right-click the tray icon to open the
+connected Syrus instance in your browser, open Preferences, or quit the
+app.
 
 Most commands accept a normal user API token and scope themselves to
 what that user can see. Commands that read admin-only payloads, such as
