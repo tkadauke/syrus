@@ -222,13 +222,34 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(job.reload).to have_attributes(issue_title: "Old title", issue_body: "Old description")
   end
 
-  it "rejects updating jobs outside the chat repository" do
-    other_job = Factories.job(repository: Factories.repository(user: user))
+  it "updates jobs outside the pinned repository when they belong to the user" do
+    other_job = Factories.job_record(repository: Factories.repository(user: user), issue_title: "Old title")
+
+    response = call_tool("update_job", job_id: other_job.id, title: "New title")
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response)).to include(job_id: other_job.id, title: "New title")
+    expect(other_job.reload.issue_title).to eq("New title")
+  end
+
+  it "updates jobs without a repository pinned to the chat session" do
+    chat_session.update!(repository: nil)
+    job = Factories.job_record(repository: repository, issue_title: "Old title")
+
+    response = call_tool("update_job", job_id: job.id, title: "New title")
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response)).to include(job_id: job.id, title: "New title")
+    expect(job.reload.issue_title).to eq("New title")
+  end
+
+  it "rejects updating jobs owned by another user" do
+    other_job = Factories.job(repository: Factories.repository)
 
     response = call_tool("update_job", job_id: other_job.id, title: "New title")
 
     expect(response.dig(:result, :isError)).to be true
-    expect(response.dig(:result, :content, 0, :text)).to include("job not found in this repository")
+    expect(response.dig(:result, :content, 0, :text)).to include("job not found")
   end
 
   it "creates a pending retry_job confirmation without executing it" do
@@ -253,7 +274,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(job.workflows.where(trigger_kind: "rebase")).to be_empty
   end
 
-  it "rejects jobs outside the chat repository" do
+  it "rejects canceling jobs outside the chat repository" do
     other_job = Factories.job(repository: Factories.repository(user: user))
 
     response = call_tool("cancel_job", job_id: other_job.id)
@@ -263,14 +284,26 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(chat_session.pending_actions).to be_empty
   end
 
-  it "rejects epics outside the chat repository" do
+  it "finds epics outside the pinned repository when they belong to the user" do
+    other_repository = Factories.repository(user: user)
+    job = Factories.job_record(repository: other_repository, state: "queued")
+    other_epic = Factories.epic(user: user, repository: other_repository)
+
+    response = call_tool("assign_job_to_epic", job_id: job.id, epic_id: other_epic.id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response)).to include(job_id: job.id, epic_id: other_epic.id)
+    expect(job.reload.epic_id).to eq(other_epic.id)
+  end
+
+  it "rejects epics owned by another user" do
     job = Factories.job_record(repository: repository, state: "queued")
-    other_epic = Factories.epic(user: user, repository: Factories.repository(user: user))
+    other_epic = Factories.epic
 
     response = call_tool("assign_job_to_epic", job_id: job.id, epic_id: other_epic.id)
 
     expect(response.dig(:result, :isError)).to be true
-    expect(response.dig(:result, :content, 0, :text)).to include("epic not found in this repository")
+    expect(response.dig(:result, :content, 0, :text)).to include("epic not found")
     expect(job.reload.epic_id).to be_nil
   end
 end

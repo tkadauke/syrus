@@ -4,7 +4,7 @@ module SyrusChatMcp
   class SearchJobsTool < MCP::Tool
     tool_name "search_jobs"
 
-    description "Search Syrus Jobs for this chat session's repository by title and stored body text."
+    description "Search Syrus Jobs across all the current user's repositories by title and stored body text."
 
     input_schema(
       properties: {
@@ -21,7 +21,7 @@ module SyrusChatMcp
         query = query.to_s.strip
         return SyrusChatMcp.invalid("query must be at least 2 characters") if query.length < 2
 
-        scope = chat_session.repository.jobs
+        scope = chat_session.user.jobs
         scope = scope.where(state: state.to_s) if state.to_s.strip.present?
         scope = apply_search(scope, query)
         total = scope.count
@@ -56,6 +56,7 @@ module SyrusChatMcp
       def job_payload(job)
         {
           id: job.id,
+          repository_slug: job.repository&.slug,
           kind: job.kind,
           issue_title: job.issue_title,
           state: job.state,

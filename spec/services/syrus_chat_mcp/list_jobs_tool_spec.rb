@@ -22,17 +22,20 @@ RSpec.describe SyrusChatMcp::ListJobsTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
-  it "defaults to open jobs on the chat repository with a limit of 20" do
+  it "defaults to open jobs across the user's repositories with a limit of 20" do
     open_job = Factories.job(repository: repository, issue_number: 101, issue_title: "Open")
     closed_job = Factories.job(repository: repository, issue_number: 102, issue_title: "Closed")
     closed_job.close_with_reason!("pr_merged")
-    Factories.job(repository: Factories.repository(user: user), issue_number: 103)
+    other_repository = Factories.repository(user: user)
+    other_repo_job = Factories.job(repository: other_repository, issue_number: 103)
+    Factories.job(repository: Factories.repository, issue_number: 104)
 
     response = call_tool
     jobs = response_payload(response).fetch(:jobs)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(jobs.map { |job| job[:id] }).to eq([ open_job.id ])
+    expect(jobs.map { |job| job[:id] }).to eq([ other_repo_job.id, open_job.id ])
+    expect(jobs.find { |job| job[:id] == other_repo_job.id }).to include(repository_slug: other_repository.slug)
   end
 
   it "filters closed jobs and caps the requested limit" do
@@ -62,6 +65,17 @@ RSpec.describe SyrusChatMcp::ListJobsTool do
     response = call_tool(label: "bug")
 
     expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to include("arbitrary issue labels are not stored")
+    expect(response[:result][:content].first[:text]).to include("label filtering only supports")
+  end
+
+  it "works without a repository pinned to the chat session" do
+    chat_session.update!(repository: nil)
+    job = Factories.job(repository: repository, issue_number: 401)
+
+    response = call_tool
+    jobs = response_payload(response).fetch(:jobs)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(jobs.map { |result| result[:id] }).to eq([ job.id ])
   end
 end

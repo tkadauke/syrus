@@ -6,7 +6,7 @@ module SyrusChatMcp
 
     tool_name "list_epics"
 
-    description "List Epics for this chat session's repository from Syrus's database."
+    description "List Epics across all the current user's repositories from Syrus's database."
 
     input_schema(
       properties: {
@@ -21,7 +21,7 @@ module SyrusChatMcp
         state = state.to_s.presence
         return SyrusChatMcp.invalid("state must be one of #{Epic::STATES.join(", ")}") if state && !Epic::STATES.include?(state)
 
-        scope = chat_session.repository.epics
+        scope = Epic.where(repository: chat_session.user.repositories.active)
                             .left_outer_joins(:jobs)
                             .select(
                               "epics.*",
@@ -46,6 +46,7 @@ module SyrusChatMcp
       def epic_payload(epic)
         {
           id: epic.id,
+          repository_slug: epic.repository&.slug,
           title: epic.title.to_s,
           description: truncated_description(epic),
           state: epic.state,

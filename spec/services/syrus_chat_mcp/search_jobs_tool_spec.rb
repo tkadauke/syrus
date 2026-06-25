@@ -22,18 +22,24 @@ RSpec.describe SyrusChatMcp::SearchJobsTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
-  it "searches jobs in the chat repository case-insensitively and orders by update time" do
+  it "searches jobs across the user's repositories case-insensitively and orders by update time" do
     older = Factories.job(repository: repository, issue_title: "Repair the Aqueduct", issue_number: 10, updated_at: 2.days.ago)
     newer = Factories.job(repository: repository, issue_title: "AQUEDUCT inspection", issue_number: 11, updated_at: 1.hour.ago)
-    Factories.job(repository: Factories.repository(user: user), issue_title: "Aqueduct elsewhere", issue_number: 12)
+    other_repository = Factories.repository(user: user)
+    elsewhere = Factories.job(repository: other_repository, issue_title: "Aqueduct elsewhere", issue_number: 12, updated_at: 30.minutes.ago)
+    Factories.job(repository: Factories.repository, issue_title: "Aqueduct outsider", issue_number: 13)
+    older.update_columns(updated_at: 2.days.ago)
+    newer.update_columns(updated_at: 1.hour.ago)
+    elsewhere.update_columns(updated_at: 30.minutes.ago)
 
     response = call_tool(query: "aque")
     payload = response_payload(response)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(payload.fetch(:total)).to eq(2)
-    expect(payload.fetch(:results).map { |job| job[:id] }).to eq([ newer.id, older.id ])
-    expect(payload.fetch(:results).first).to include(
+    expect(payload.fetch(:total)).to eq(3)
+    expect(payload.fetch(:results).map { |job| job[:id] }).to eq([ elsewhere.id, newer.id, older.id ])
+    expect(payload.fetch(:results).find { |job| job[:id] == newer.id }).to include(
+      repository_slug: repository.slug,
       kind: newer.kind,
       issue_title: "AQUEDUCT inspection",
       state: newer.state,
@@ -67,5 +73,16 @@ RSpec.describe SyrusChatMcp::SearchJobsTool do
 
     expect(response[:result][:isError]).to be(true)
     expect(response[:result][:content].first[:text]).to include("query must be at least 2 characters")
+  end
+
+  it "works without a repository pinned to the chat session" do
+    chat_session.update!(repository: nil)
+    job = Factories.job(repository: repository, issue_title: "Aqueduct inspection", issue_number: 200)
+
+    response = call_tool(query: "aque")
+    results = response_payload(response).fetch(:results)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(results.map { |result| result[:id] }).to eq([ job.id ])
   end
 end

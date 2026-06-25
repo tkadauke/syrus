@@ -4,7 +4,7 @@ module SyrusChatMcp
   class ListJobsTool < MCP::Tool
     tool_name "list_jobs"
 
-    description "List Syrus Jobs for this chat session's repository from Syrus's database."
+    description "List Syrus Jobs across all the current user's repositories from Syrus's database."
 
     input_schema(
       properties: {
@@ -21,9 +21,9 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("state must be open or closed") unless %w[open closed].include?(state)
 
         limit = normalize_limit(limit)
-        scope = chat_session.repository.jobs.order(created_at: :desc, id: :desc)
+        scope = chat_session.user.jobs.order(created_at: :desc, id: :desc)
         scope = state == "open" ? scope.open_threads : scope.closed_threads
-        scope = apply_label_filter(scope, chat_session.repository, label)
+        scope = apply_label_filter(scope, label)
         return scope if scope.is_a?(MCP::Tool::Response)
 
         SyrusChatMcp.success(
@@ -37,18 +37,18 @@ module SyrusChatMcp
         value.to_i.clamp(1, 100)
       end
 
-      def apply_label_filter(scope, repository, label)
+      def apply_label_filter(scope, label)
         label = label.to_s.strip
         return scope if label.empty?
-        return scope if label == repository.trigger_label
         return scope.where(skip_prepare: true) if label == Job::PREPARE_SKIP_LABEL
 
-        SyrusChatMcp.invalid("label filtering is only available for #{repository.trigger_label.inspect} and #{Job::PREPARE_SKIP_LABEL.inspect}; arbitrary issue labels are not stored on Jobs")
+        SyrusChatMcp.invalid("label filtering only supports #{Job::PREPARE_SKIP_LABEL.inspect} across user scope")
       end
 
       def job_payload(job)
         {
           id: job.id,
+          repository_slug: job.repository&.slug,
           kind: job.kind,
           issue_number: job.issue_number,
           pr_number: job.pr_number || job.external_pr_number,

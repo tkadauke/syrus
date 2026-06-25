@@ -38,24 +38,28 @@ RSpec.describe "SyrusChatMcp epic kanban tools" do
   end
 
   describe "list_epics" do
-    it "lists non-archived repository Epics by default with child Job counts" do
+    it "lists non-archived Epics across the user's repositories by default with child Job counts" do
       backlog = Factories.epic(user: user, repository: repository, title: "Backlog", description: "a" * 250)
       ready = Factories.epic(user: user, repository: repository, title: "Ready", state: "ready")
       archived = Factories.epic(user: user, repository: repository, title: "Archived")
       archived.archive!
-      Factories.epic(user: user, repository: Factories.repository(user: user), title: "Other")
+      other_repository = Factories.repository(user: user)
+      other = Factories.epic(user: user, repository: other_repository, title: "Other")
+      Factories.epic(title: "Outsider")
       Factories.job_record(user: user, repository: repository, epic: ready, state: "queued")
       Factories.job_record(user: user, repository: repository, epic: ready, state: "closed")
 
       result = payload(call_tool("list_epics", limit: 10))
 
-      expect(result[:epics].pluck(:id)).to eq([ ready.id, backlog.id ])
+      expect(result[:epics].pluck(:id)).to eq([ other.id, ready.id, backlog.id ])
       expect(result[:epics].find { |epic| epic[:id] == ready.id }).to include(
+        repository_slug: repository.slug,
         title: "Ready",
         state: "ready",
         child_job_count: 2,
         open_job_count: 1
       )
+      expect(result[:epics].find { |epic| epic[:id] == other.id }).to include(repository_slug: other_repository.slug)
       expect(result[:epics].find { |epic| epic[:id] == backlog.id }[:description].length).to eq(200)
       expect(result[:epics].pluck(:id)).not_to include(archived.id)
     end
@@ -74,6 +78,15 @@ RSpec.describe "SyrusChatMcp epic kanban tools" do
 
       expect(response.dig(:result, :isError)).to be true
       expect(error_text(response)).to include("state must be one of backlog, ready, in_progress, done, archived")
+    end
+
+    it "works without a repository pinned to the chat session" do
+      chat_session.update!(repository: nil)
+      epic = Factories.epic(user: user, repository: repository, title: "Backlog")
+
+      result = payload(call_tool("list_epics"))
+
+      expect(result[:epics].pluck(:id)).to eq([ epic.id ])
     end
   end
 

@@ -33,7 +33,8 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
   end
 
   def create_scheduled_task(attrs = {})
-    repository.scheduled_tasks.create!({
+    task_repository = attrs.delete(:repository) || repository
+    task_repository.scheduled_tasks.create!({
       user: user,
       kind: "cron",
       name: "Daily review",
@@ -43,7 +44,7 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
     }.merge(attrs))
   end
 
-  it "lists non-archived scheduled tasks for the chat repository" do
+  it "lists non-archived scheduled tasks across the user's repositories" do
     first_task = create_scheduled_task(
       name: "First",
       cron_expression: "0 9 * * *",
@@ -55,8 +56,55 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
       state: "paused"
     )
     create_scheduled_task(name: "Archived", archived_at: Time.current)
-    Factories.repository(user: user).scheduled_tasks.create!(
-      user: user,
+    other_repository = Factories.repository(user: user)
+    other_task = create_scheduled_task(
+      repository: other_repository,
+      name: "Other repo",
+      cron_expression: "0 11 * * *"
+    )
+    outsider_repository = Factories.repository
+    outsider_repository.scheduled_tasks.create!(
+      user: outsider_repository.user,
+      kind: "cron",
+      name: "Outsider",
+      prompt: "Ignore this.",
+      cron_expression: "0 12 * * *",
+      pr_pileup_policy: "skip"
+    )
+
+    response = call_tool("list_scheduled_tasks")
+    tasks = payload(response).fetch(:tasks)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(tasks.map { |task| task.fetch(:id) }).to eq([ first_task.id, paused_task.id, other_task.id ])
+    expect(tasks.first).to include(
+      repository_slug: repository.slug,
+      label: "First",
+      cron_expression: "0 9 * * *",
+      enabled: true,
+      last_fired_at: "2026-06-20T09:00:00Z",
+      created_at: first_task.created_at.iso8601
+    )
+    expect(tasks.second).to include(label: "Paused", enabled: false)
+    expect(tasks.third).to include(repository_slug: other_repository.slug, label: "Other repo")
+  end
+
+  it "works without a repository pinned to the chat session" do
+    chat_session.update!(repository: nil)
+    task = create_scheduled_task(name: "First")
+
+    response = call_tool("list_scheduled_tasks")
+    tasks = payload(response).fetch(:tasks)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(tasks.map { |result| result.fetch(:id) }).to eq([ task.id ])
+  end
+
+  it "does not list scheduled tasks owned by another user" do
+    task = create_scheduled_task(name: "First")
+    other_repository = Factories.repository
+    other_repository.scheduled_tasks.create!(
+      user: other_repository.user,
       kind: "cron",
       name: "Other repo",
       prompt: "Ignore this.",
@@ -68,15 +116,7 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
     tasks = payload(response).fetch(:tasks)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(tasks.map { |task| task.fetch(:id) }).to eq([ first_task.id, paused_task.id ])
-    expect(tasks.first).to include(
-      label: "First",
-      cron_expression: "0 9 * * *",
-      enabled: true,
-      last_fired_at: "2026-06-20T09:00:00Z",
-      created_at: first_task.created_at.iso8601
-    )
-    expect(tasks.second).to include(label: "Paused", enabled: false)
+    expect(tasks.map { |result| result.fetch(:id) }).to eq([ task.id ])
   end
 
   it "pauses an enabled scheduled task" do
@@ -127,9 +167,20 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
     expect(task.reload.archived_at).to be_present
   end
 
-  it "rejects scheduled tasks outside the chat repository" do
-    other_task = Factories.repository(user: user).scheduled_tasks.create!(
-      user: user,
+  it "archives a scheduled task in another repository owned by the user" do
+    other_task = create_scheduled_task(repository: Factories.repository(user: user), name: "Other repo")
+
+    response = call_tool("delete_scheduled_task", scheduled_task_id: other_task.id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response)).to eq(scheduled_task_id: other_task.id, label: "Other repo", deleted: true)
+    expect(other_task.reload.archived_at).to be_present
+  end
+
+  it "rejects scheduled tasks owned by another user" do
+    other_repository = Factories.repository
+    other_task = other_repository.scheduled_tasks.create!(
+      user: other_repository.user,
       kind: "cron",
       name: "Other repo",
       prompt: "Ignore this.",
@@ -140,7 +191,7 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
     response = call_tool("delete_scheduled_task", scheduled_task_id: other_task.id)
 
     expect(response.dig(:result, :isError)).to be true
-    expect(response.dig(:result, :content, 0, :text)).to include("scheduled task not found in this repository")
+    expect(response.dig(:result, :content, 0, :text)).to include("scheduled task not found")
     expect(other_task.reload.archived_at).to be_nil
   end
 end
