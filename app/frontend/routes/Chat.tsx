@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
-import type { CSSProperties, ErrorInfo, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, UIEvent } from "react"
+import type { CSSProperties, DragEvent, ErrorInfo, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, UIEvent } from "react"
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
@@ -1018,6 +1018,7 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
   const [text, setText] = useState("")
   const [attachments, setAttachments] = useState<ChatComposeAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingSlashCommandConfirmation | null>(null)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const [clearConfirmationOpen, setClearConfirmationOpen] = useState(false)
@@ -1204,6 +1205,34 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
     }).catch(() => setAttachmentError("Unable to read the selected attachment."))
   }
 
+  function handleDragOver(event: DragEvent<HTMLFormElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLFormElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLFormElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+
+    setIsDragOver(false)
+  }
+
+  function handleDrop(event: DragEvent<HTMLFormElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+    if (event.dataTransfer.files.length === 0) return
+
+    handleAttachmentChange(event.dataTransfer.files)
+  }
+
   function removeAttachment(index: number) {
     setAttachments((current) => current.filter((_, attachmentIndex) => attachmentIndex !== index))
     setAttachmentError(null)
@@ -1284,7 +1313,14 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
   }, [])
 
   return (
-    <form className="relative rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+    <form
+      className={`relative rounded border border-gray-200 bg-white p-3 transition-shadow dark:border-gray-700 dark:bg-gray-900 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onSubmit={submit}
+    >
       {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
       {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
       {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
