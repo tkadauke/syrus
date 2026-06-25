@@ -76,12 +76,30 @@ function TerminalIcon() {
 }
 
 function InboxView({ instanceUrl }: { instanceUrl: string }) {
+  const [toast, setToast] = useState("")
   const inboxQuery = useQuery({
-    queryKey: ["inbox-jobs"],
+    queryKey: ["inbox-jobs", instanceUrl],
     queryFn: () => window.syrusDesktop.fetchInboxJobs(),
     refetchInterval: REFRESH_INTERVAL_MS
   })
+  const bootstrapQuery = useQuery({
+    queryKey: ["bootstrap", instanceUrl],
+    queryFn: () => window.syrusDesktop.fetchBootstrap(),
+    staleTime: REFRESH_INTERVAL_MS
+  })
+  const isAdmin = bootstrapQuery.data?.current_user?.admin === true
+  const adminControlsQuery = useQuery({
+    queryKey: ["admin-controls", instanceUrl],
+    queryFn: () => window.syrusDesktop.fetchAdminControls(),
+    enabled: isAdmin,
+    refetchInterval: isAdmin ? REFRESH_INTERVAL_MS : false
+  })
   const jobs = inboxQuery.data ?? []
+
+  const showErrorToast = (message: string) => {
+    setToast(message)
+    window.setTimeout(() => setToast(""), 3200)
+  }
 
   const openJob = (job: SyrusJobItem) => {
     void window.syrusDesktop.openExternal(`${normalizeInstanceUrl(instanceUrl)}/jobs/${job.id}`)
@@ -94,7 +112,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-slate-50 text-slate-950">
+    <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-slate-950 text-sm font-bold text-white">
@@ -142,7 +160,109 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
           </ul>
         )}
       </section>
+
+      {isAdmin ? (
+        <AdminControlsFooter
+          controls={adminControlsQuery.data}
+          disabled={adminControlsQuery.isLoading || adminControlsQuery.isFetching}
+          onError={showErrorToast}
+          onRefresh={() => void adminControlsQuery.refetch()}
+        />
+      ) : null}
+
+      {toast ? (
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 shadow-sm">
+          {toast}
+        </div>
+      ) : null}
     </main>
+  )
+}
+
+function AdminControlsFooter({
+  controls,
+  disabled,
+  onError,
+  onRefresh
+}: {
+  controls?: SyrusAdminControls
+  disabled: boolean
+  onError: (message: string) => void
+  onRefresh: () => void
+}) {
+  const [pendingControl, setPendingControl] = useState<SyrusAdminControl | null>(null)
+
+  const toggle = async (control: SyrusAdminControl, pause: boolean) => {
+    setPendingControl(control)
+
+    try {
+      const result = await window.syrusDesktop.toggleAdminControl(control, pause)
+      if (!result.cancelled) {
+        onRefresh()
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Could not update admin controls.")
+    } finally {
+      setPendingControl(null)
+    }
+  }
+
+  return (
+    <footer className="border-t border-slate-200 bg-white/95 px-4 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase leading-4 text-slate-400">Admin</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <AdminControlToggle
+            disabled={disabled || pendingControl !== null}
+            isPending={pendingControl === "polling"}
+            label="Polling"
+            paused={controls?.polling_paused}
+            onToggle={() => void toggle("polling", controls?.polling_paused !== true)}
+          />
+          <AdminControlToggle
+            disabled={disabled || pendingControl !== null}
+            isPending={pendingControl === "runs"}
+            label="Runs"
+            paused={controls?.runs_paused}
+            onToggle={() => void toggle("runs", controls?.runs_paused !== true)}
+          />
+        </div>
+      </div>
+    </footer>
+  )
+}
+
+function AdminControlToggle({
+  label,
+  paused,
+  disabled,
+  isPending,
+  onToggle
+}: {
+  label: string
+  paused?: boolean
+  disabled: boolean
+  isPending: boolean
+  onToggle: () => void
+}) {
+  const isPaused = paused === true
+  const isUnknown = paused == null
+
+  return (
+    <button
+      type="button"
+      className={[
+        "admin-toggle",
+        isPaused ? "admin-toggle--paused" : "admin-toggle--running"
+      ].join(" ")}
+      disabled={disabled || isUnknown}
+      onClick={onToggle}
+    >
+      <span>{label}</span>
+      <span className="admin-toggle__state">
+        {isPending ? "Saving" : isUnknown ? "Loading" : isPaused ? "Paused / Resume" : "Running / Pause"}
+      </span>
+    </button>
   )
 }
 

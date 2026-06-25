@@ -1,4 +1,5 @@
-import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } from "electron"
+import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, shell } from "electron"
+import type { MessageBoxOptions } from "electron"
 import fs from "node:fs/promises"
 import os from "node:os"
 import { fileURLToPath } from "node:url"
@@ -35,6 +36,21 @@ type JobList = {
   count: number
   jobs: JobItem[]
 }
+
+type BootstrapPayload = {
+  current_user: {
+    admin: boolean
+  } | null
+}
+
+type AdminConsolePayload = {
+  settings: {
+    polling_paused: boolean
+    runs_paused: boolean
+  }
+}
+
+type AdminControl = "polling" | "runs"
 
 let mainWindow: BrowserWindow | null = null
 let preferencesWindow: BrowserWindow | null = null
@@ -137,6 +153,25 @@ const validateCredentialsWithServer = async (credentials: Credentials) => {
   }
 }
 
+const fetchBootstrap = async () => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before loading account details.")
+  }
+
+  const response = await fetch(bootstrapUrl(credentials.url), {
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error("Could not load account details.")
+  }
+
+  return (await response.json()) as BootstrapPayload
+}
+
 const fetchJobList = async (credentials: Credentials, state: string) => {
   const response = await fetch(
     appApiUrl(credentials.url, "/api/v1/app/jobs", {
@@ -171,6 +206,85 @@ const fetchInboxJobs = async () => {
   return lists
     .flatMap((list) => list.jobs)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+}
+
+const fetchAdminControls = async () => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before loading admin controls.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, "/api/v1/app/admin/console"), {
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error("Could not load admin controls.")
+  }
+
+  const payload = (await response.json()) as AdminConsolePayload
+  return {
+    polling_paused: payload.settings.polling_paused,
+    runs_paused: payload.settings.runs_paused
+  }
+}
+
+const adminControlPath = (control: AdminControl, pause: boolean) => {
+  if (control === "polling") {
+    return pause ? "/api/v1/app/admin/console/pause_polling" : "/api/v1/app/admin/console/unpause_polling"
+  }
+
+  return pause ? "/api/v1/app/admin/console/pause_runs" : "/api/v1/app/admin/console/unpause_runs"
+}
+
+const toggleAdminControl = async (sender: Electron.WebContents, control: AdminControl, pause: boolean) => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before changing admin controls.")
+  }
+
+  const label = control === "polling" ? "polling" : "new Run starts"
+  const action = pause ? "pause" : "resume"
+  const parentWindow = BrowserWindow.fromWebContents(sender)
+  const confirmationOptions: MessageBoxOptions = {
+    type: "warning",
+    buttons: [pause ? "Pause" : "Resume", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+    message: `${pause ? "Pause" : "Resume"} ${label}?`,
+    detail: pause
+      ? `Syrus will stop ${control === "polling" ? "polling repositories" : "starting new Runs"} until an admin resumes it.`
+      : `Syrus will resume ${control === "polling" ? "repository polling" : "starting new Runs"}.`
+  }
+  const confirmation = parentWindow
+    ? await dialog.showMessageBox(parentWindow, confirmationOptions)
+    : await dialog.showMessageBox(confirmationOptions)
+
+  if (confirmation.response !== 0) {
+    return { cancelled: true, controls: await fetchAdminControls() }
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, adminControlPath(control, pause)), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(`Could not ${action} ${label}.`)
+  }
+
+  const payload = (await response.json()) as AdminConsolePayload
+  return {
+    cancelled: false,
+    controls: {
+      polling_paused: payload.settings.polling_paused,
+      runs_paused: payload.settings.runs_paused
+    }
+  }
 }
 
 const saveCredentials = async (credentials: Credentials) => {
@@ -406,6 +520,11 @@ const createMenu = () => {
 
 ipcMain.handle("get-credentials", async () => cachedCredentials ?? (await loadCredentials()))
 ipcMain.handle("save-credentials", async (_event, credentials: Credentials) => saveCredentials(credentials))
+ipcMain.handle("fetch-bootstrap", async () => fetchBootstrap())
+ipcMain.handle("fetch-admin-controls", async () => fetchAdminControls())
+ipcMain.handle("toggle-admin-control", async (event, control: AdminControl, pause: boolean) =>
+  toggleAdminControl(event.sender, control, pause)
+)
 ipcMain.handle("open-token-docs", async () => {
   await shell.openExternal(TOKEN_DOCS_URL)
 })

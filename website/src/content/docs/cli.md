@@ -63,9 +63,11 @@ the tray icon to open or hide the compact inbox popover. The popover
 shows implemented and failed Jobs, refreshes every 30 seconds, and lets
 you open the Job in Syrus or open its pull request in your browser when
 one exists. Local checkout actions stay disabled until a local projects
-root is configured in Preferences. Right-click the tray icon to open the
-connected Syrus instance in your browser, open Preferences, or quit the
-app.
+root is configured in Preferences. Admin users also see subtle footer
+toggles for pausing or resuming repository polling and new Run starts,
+with confirmation before either switch changes. Right-click the tray icon
+to open the connected Syrus instance in your browser, open Preferences,
+or quit the app.
 
 Most commands accept a normal user API token and scope themselves to
 what that user can see. Commands that read admin-only payloads, such as
