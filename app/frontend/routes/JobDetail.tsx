@@ -551,6 +551,8 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
 
       <TestPlanPanel testPlan={payload.test_plan} />
 
+      <FeedbackHistoryPanel prefix={prefix} workflows={payload.workflows} />
+
       <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} />
       <AttachmentPreview attachments={payload.attachments} />
     </div>
@@ -573,6 +575,58 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
       )}
     </section>
   )
+}
+
+export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWorkflow[]; prefix: string }) {
+  const feedbackWorkflows = [...workflows]
+    .filter((workflow) => workflow.trigger_kind === "chat_feedback" || workflow.trigger_kind === "pr_comment")
+    .sort((left, right) => workflowCreatedAtTime(right) - workflowCreatedAtTime(left))
+
+  if (feedbackWorkflows.length === 0) return null
+
+  return (
+    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Feedback history</h2>
+      <div className="mt-3">
+        {feedbackWorkflows.map((workflow) => {
+          const chatFeedback = workflow.artifacts.chat_feedback
+          return (
+            <div className="mt-3 border-t border-gray-100 pt-3 first:mt-0 first:border-t-0 first:pt-0 dark:border-gray-800" key={workflow.id}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{feedbackTriggerLabel(workflow.trigger_kind)}</span>
+                  <StatusPill state={workflow.state} />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{formatDate(workflow.created_at)}</span>
+                  <Link className="text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(workflow.path, prefix)}>
+                    {workflow.slug || workflowSlug(workflow.id)}
+                  </Link>
+                </div>
+              </div>
+              {workflow.trigger_kind === "chat_feedback" ? (
+                <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">{typeof chatFeedback === "string" ? chatFeedback : ""}</pre>
+              ) : (
+                <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">PR review feedback</p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function feedbackTriggerLabel(triggerKind: string) {
+  if (triggerKind === "chat_feedback") return "Chat feedback"
+  if (triggerKind === "pr_comment") return "PR review"
+  return triggerKind.replaceAll("_", " ")
+}
+
+function workflowCreatedAtTime(workflow: JobWorkflow) {
+  if (!workflow.created_at) return 0
+  const time = Date.parse(workflow.created_at)
+  return Number.isNaN(time) ? 0 : time
 }
 
 function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailPayload["epic"]>; prefix: string }) {
