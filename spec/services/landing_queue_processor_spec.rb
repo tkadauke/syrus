@@ -81,6 +81,26 @@ RSpec.describe LandingQueueProcessor do
     )
   end
 
+  it "includes unapproved Epic siblings as landing unit blockers" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    approved = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
+    sibling = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 2,
+      state: "implemented",
+      pr_number: 2
+    )
+
+    unit = described_class.landing_units(Job.where(id: approved.id)).sole
+
+    expect(unit.key).to eq("epic:#{epic.id}")
+    expect(unit.job_ids).to eq([ approved.id ])
+    expect(unit.blocker_jobs.map(&:id)).to eq([ sibling.id ])
+    expect(unit.dependency_edges).to be_empty
+  end
+
   it "groups Epic jobs together in landing queue positions" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     epic_child = queue_job(issue_number: 2, approved_at: 3.minutes.ago, epic: epic)

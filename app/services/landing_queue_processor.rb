@@ -305,9 +305,22 @@ class LandingQueueProcessor
       end
     end
 
+    blocker_ids.merge(unapproved_epic_sibling_blocker_ids_for(jobs, unit_job_ids))
+
     dependency_order(Job.where(id: blocker_ids.to_a)
                         .includes(:repository, :epic, :parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
                         .to_a)
+  end
+
+  def unapproved_epic_sibling_blocker_ids_for(jobs, unit_job_ids)
+    epic_ids = jobs.map(&:epic_id).compact.uniq
+    return [] unless epic_ids.one?
+
+    Job.where(epic_id: epic_ids.first)
+       .where.not(id: unit_job_ids.to_a)
+       .where.not(state: %w[ approved closed ])
+       .order(:id)
+       .pluck(:id)
   end
 
   def dependency_blocker?(job, unit_job_ids)

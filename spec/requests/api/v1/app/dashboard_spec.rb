@@ -447,6 +447,58 @@ RSpec.describe "App API dashboard commands", type: :request do
       )
     end
 
+    it "includes unapproved Epic sibling blockers without cross-Epic attribution" do
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress", title: "Forum release")
+      approved = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        epic: epic,
+        issue_number: 21,
+        issue_title: "Land forum paving",
+        state: "approved",
+        pr_number: 21,
+        approved_at: 1.hour.ago
+      )
+      sibling = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        epic: epic,
+        issue_number: 22,
+        issue_title: "Finish forum benches",
+        state: "implemented",
+        pr_number: 22
+      )
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Landing queue",
+        kind: "user_defined",
+        filter: SmartFolder.attention_preset_filter("landing_queue")
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      entry = parse_body.fetch("landing_queue").fetch("entries").sole
+      expect(entry).to include(
+        "key" => "epic:#{epic.id}",
+        "position" => 1,
+        "job_ids" => [ approved.id ]
+      )
+      expect(entry.fetch("blocker_jobs")).to contain_exactly(
+        include(
+          "id" => sibling.id,
+          "title" => "Finish forum benches",
+          "job_path" => "/jobs/#{sibling.id}",
+          "state" => "implemented",
+          "pr_number" => 22,
+          "pr_path" => "https://github.com/#{repo.slug}/pull/22"
+        )
+      )
+      expect(entry.fetch("blocker_jobs").sole).not_to include("epic_id", "epic_title")
+    end
+
     it "groups Epic jobs together when assigning landing queue positions" do
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress")
