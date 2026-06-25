@@ -464,6 +464,30 @@ RSpec.describe Epic do
     end
   end
 
+  it "treats no_changes child Jobs as complete" do
+    epic = described_class.create!(user: user, repository: repository, title: "Already shipped", state: "in_progress")
+    child_job(epic: epic, number: 32, closure_reason: "no_changes")
+
+    expect(epic).to be_complete
+  end
+
+  it "auto-completes in-progress Epics with mixed merged and no_changes child Jobs" do
+    epic = described_class.create!(user: user, repository: repository, title: "Mixed landing", state: "in_progress")
+    merged_job = child_job(epic: epic, number: 33)
+    no_changes_job = child_job(epic: epic, number: 34)
+
+    freeze_time do
+      merged_job.update!(closure_reason: "pr_merged")
+      merged_job.close!
+
+      expect {
+        no_changes_job.update!(closure_reason: "no_changes")
+        no_changes_job.close!
+      }.to change { epic.reload.state }.from("in_progress").to("done")
+      expect(epic.done_at).to eq(Time.current)
+    end
+  end
+
   it "blocks invalid AASM transitions but allows documented operator overrides" do
     epic = described_class.create!(user: user, repository: repository, title: "Escape hatch")
 

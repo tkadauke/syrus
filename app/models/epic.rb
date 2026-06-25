@@ -6,6 +6,7 @@ class Epic < ApplicationRecord
   ARCHIVED_STATE = "archived"
   STATES = (BOARD_STATES + [ ARCHIVED_STATE ]).freeze
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
+  SUCCESSFUL_JOB_CLOSURE_REASONS = (MERGED_JOB_CLOSURE_REASONS + %w[ no_changes ]).freeze
 
   attr_readonly :number
 
@@ -157,7 +158,7 @@ class Epic < ApplicationRecord
 
   def complete?
     child_jobs = jobs.reload
-    child_jobs.any? && child_jobs.all? { |job| job.closed? && MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+    child_jobs.any? && child_jobs.all? { |job| job.closed? && SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
   end
 
   def all_jobs_approved?

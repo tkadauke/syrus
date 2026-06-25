@@ -118,11 +118,10 @@ module Api
         end
 
         # Epic IDs that have at least one child Job not closed with a
-        # successful closure_reason. Mirrors Epic#complete?'s "all
-        # children merged" semantics, inverted.
+        # successful closure_reason. Mirrors Epic#complete?, inverted.
         def unfinished_child_epic_ids
-          merged_reasons = Epic::MERGED_JOB_CLOSURE_REASONS
-          Job.where("(state != 'closed' OR closure_reason NOT IN (?))", merged_reasons)
+          successful_reasons = Epic::SUCCESSFUL_JOB_CLOSURE_REASONS
+          Job.where("(state != 'closed' OR closure_reason IS NULL OR closure_reason NOT IN (?))", successful_reasons)
              .where.not(epic_id: nil)
              .distinct
              .pluck(:epic_id)

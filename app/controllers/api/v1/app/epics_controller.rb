@@ -442,7 +442,7 @@ module Api
 
         def done_jobs_count(jobs)
           jobs.count do |job|
-            job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason)
+            job.closed? && Epic::SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason)
           end
         end
 
