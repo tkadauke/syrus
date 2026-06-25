@@ -2067,7 +2067,7 @@ function MediaGallery({ messages }: { messages: ChatRenderItem[] }) {
                   title={name}
                   type="button"
                 >
-                  <img alt={name} className="h-full w-full object-cover transition group-hover/media:scale-105" src={src} />
+                  <img alt={name} className="h-full w-full object-contain transition group-hover/media:scale-105" src={src} />
                 </button>
                 <a
                   aria-label={`Download ${name}`}
