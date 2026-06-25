@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog, clipboard } from "electron"
-import type { MessageBoxOptions, OpenDialogOptions } from "electron"
+import type { MessageBoxOptions, NativeImage, OpenDialogOptions } from "electron"
 import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -62,6 +62,7 @@ type BootstrapPayload = {
   current_user: {
     admin: boolean
   } | null
+  unread_notifications_count?: number
 }
 
 type AdminConsolePayload = {
@@ -83,6 +84,8 @@ let appUserCable: WebSocket | null = null
 let appUserCableReconnectTimer: NodeJS.Timeout | null = null
 let appUserCableGeneration = 0
 let appUserCableCredentialsKey: string | null = null
+let plainTrayIcon: NativeImage | null = null
+let unreadCount = 0
 
 const APP_USER_CHANNEL_IDENTIFIER = JSON.stringify({ channel: "AppUserChannel" })
 const APP_USER_CABLE_INITIAL_RECONNECT_MS = 1_000
@@ -164,6 +167,11 @@ const bootstrapUrl = (baseUrl: string) => {
   return `${trimmedUrl}/api/v1/app/bootstrap`
 }
 
+const notificationsUrl = (baseUrl: string) => {
+  const trimmedUrl = baseUrl.trim().replace(/\/+$/, "")
+  return `${trimmedUrl}/api/v1/app/notifications`
+}
+
 const appApiUrl = (baseUrl: string, pathName: string, params?: Record<string, string>) => {
   const url = new URL(pathName, `${baseUrl.trim().replace(/\/+$/, "")}/`)
   for (const [key, value] of Object.entries(params ?? {})) {
@@ -200,6 +208,74 @@ const closeAppUserCable = () => {
     socket.onclose = null
     socket.close()
   }
+}
+
+const normalizeUnreadCount = (value: unknown) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null
+  }
+
+  return Math.max(0, Math.floor(value))
+}
+
+const trayBadgeLabel = (count: number) => count > 9 ? "9+" : String(count)
+
+const escapeSvgText = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+
+const badgedTrayIcon = (count: number) => {
+  const baseIcon = plainTrayIcon ?? nativeImage.createFromPath(trayIconPath()).resize({ width: 18, height: 18 })
+  const label = escapeSvgText(trayBadgeLabel(count))
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
+      <image href="${baseIcon.toDataURL()}" x="0" y="0" width="18" height="18"/>
+      <circle cx="13" cy="5" r="5" fill="#dc2626"/>
+      <text x="13" y="6.8" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="${count > 9 ? 5 : 6}" font-weight="700" fill="#ffffff">${label}</text>
+    </svg>
+  `.trim()
+
+  return nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
+}
+
+const updateTrayBadge = () => {
+  if (!tray || !plainTrayIcon) {
+    return
+  }
+
+  tray.setImage(unreadCount > 0 ? badgedTrayIcon(unreadCount) : plainTrayIcon)
+}
+
+const setUnreadCount = (count: number) => {
+  unreadCount = Math.max(0, Math.floor(count))
+  updateTrayBadge()
+}
+
+const seedUnreadCountFromBootstrap = (payload: BootstrapPayload) => {
+  const count = normalizeUnreadCount(payload.unread_notifications_count)
+  if (count !== null) {
+    setUnreadCount(count)
+  }
+}
+
+const handleNotificationCreated = (event: unknown) => {
+  if (!event || typeof event !== "object") {
+    return
+  }
+
+  const payload = (event as { payload?: unknown }).payload
+  if (payload && typeof payload === "object") {
+    const payloadCount = normalizeUnreadCount((payload as { unread_count?: unknown }).unread_count)
+    if (payloadCount !== null) {
+      setUnreadCount(payloadCount)
+      return
+    }
+  }
+
+  setUnreadCount(unreadCount + 1)
 }
 
 const stopAppUserCable = () => {
@@ -302,7 +378,13 @@ const broadcastNotificationEvent = (event: unknown) => {
   }
 }
 
-desktopNotificationEvents.on(DESKTOP_NOTIFICATION_EVENT, broadcastNotificationEvent)
+desktopNotificationEvents.on(DESKTOP_NOTIFICATION_EVENT, (event: unknown) => {
+  if (event && typeof event === "object" && (event as { type?: unknown }).type === "notification_created") {
+    handleNotificationCreated(event)
+  }
+
+  broadcastNotificationEvent(event)
+})
 
 const validateCredentialsWithServer = async (credentials: Credentials) => {
   validateCredentialsShape(credentials)
@@ -339,7 +421,37 @@ const fetchBootstrap = async () => {
     throw new Error("Could not load account details.")
   }
 
-  return (await response.json()) as BootstrapPayload
+  const payload = (await response.json()) as BootstrapPayload
+  seedUnreadCountFromBootstrap(payload)
+  return payload
+}
+
+const syncUnreadCount = async () => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    setUnreadCount(0)
+    return
+  }
+
+  const response = await fetch(notificationsUrl(credentials.url), {
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (response.status === 404) {
+    return
+  }
+
+  if (!response.ok) {
+    throw new Error("Could not load notifications.")
+  }
+
+  const payload = (await response.json()) as { unread_count?: unknown }
+  const count = normalizeUnreadCount(payload.unread_count)
+  if (count !== null) {
+    setUnreadCount(count)
+  }
 }
 
 const fetchJobList = async (credentials: Credentials, state: string) => {
@@ -574,6 +686,7 @@ const saveCredentials = async (credentials: Credentials) => {
 
   cachedCredentials = normalizedCredentials
   startAppUserCable(normalizedCredentials)
+  await fetchBootstrap()
   mainWindow?.webContents.send("credentials-saved", normalizedCredentials)
   preferencesWindow?.webContents.send("credentials-saved", normalizedCredentials)
   return normalizedCredentials
@@ -589,6 +702,7 @@ const deleteCredentials = async () => {
   }
 
   cachedCredentials = null
+  setUnreadCount(0)
   stopAppUserCable()
 }
 
@@ -665,6 +779,12 @@ const showPopoverWindow = async () => {
     await createPopoverWindow()
   }
 
+  try {
+    await syncUnreadCount()
+  } catch {
+    // The popover should still open if the badge sync is temporarily unavailable.
+  }
+
   popoverPosition()
   mainWindow?.show()
   mainWindow?.focus()
@@ -728,9 +848,9 @@ const openSyrusInBrowser = async () => {
 const trayIconPath = () => path.join(app.getAppPath(), "assets", "syrusIcon.png")
 
 const createTray = () => {
-  const icon = nativeImage.createFromPath(trayIconPath()).resize({ width: 18, height: 18 })
+  plainTrayIcon = nativeImage.createFromPath(trayIconPath()).resize({ width: 18, height: 18 })
 
-  tray = new Tray(icon)
+  tray = new Tray(plainTrayIcon)
   tray.setToolTip("Syrus")
   tray.on("click", () => {
     void togglePopoverWindow()
@@ -754,6 +874,7 @@ const createTray = () => {
       { role: "quit", label: "Quit" }
     ])
   )
+  updateTrayBadge()
 }
 
 const createMenu = () => {
@@ -845,6 +966,13 @@ app.whenReady().then(async () => {
   await loadCredentials()
   startAppUserCable(cachedCredentials)
   createTray()
+  if (cachedCredentials) {
+    try {
+      await fetchBootstrap()
+    } catch {
+      // Credentials may be stale or the instance may be offline; setup still handles it.
+    }
+  }
 
   if (!app.isPackaged) {
     await showPopoverWindow()

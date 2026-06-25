@@ -43,6 +43,7 @@ type BootstrapPayload = {
   current_user: {
     admin: boolean
   } | null
+  unread_notifications_count?: number
 }
 
 type AdminControls = {

@@ -110,6 +110,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body.dig("setup", "paths", "setup_path")).to eq(setup_path)
     expect(body["csrf_token"]).to be_present
     expect(body["system_alerts"]).to eq([])
+    expect(body["unread_notifications_count"]).to eq(0)
     expect(body["feature_flags"]).to eq("migrated_routes" => [])
   end
 

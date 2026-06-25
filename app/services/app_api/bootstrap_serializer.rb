@@ -18,6 +18,7 @@ module AppApi
         setup: setup_payload,
         flash: flash_payload,
         system_alerts: system_alerts_payload,
+        unread_notifications_count: unread_notifications_count,
         csrf_token: @csrf_token,
         feature_flags: {
           migrated_routes: []
@@ -102,6 +103,18 @@ module AppApi
           action_steps: alert.action_steps,
           cta: alert.cta
         }
+      end
+    end
+
+    def unread_notifications_count
+      return 0 unless user
+
+      if user.respond_to?(:notifications)
+        user.notifications.where(read_at: nil).count
+      elsif defined?(::Notification)
+        ::Notification.where(user: user, read_at: nil).count
+      else
+        0
       end
     end
 

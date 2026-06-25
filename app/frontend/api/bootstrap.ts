@@ -86,6 +86,7 @@ export type BootstrapPayload = {
       path: string
     } | null
   }>
+  unread_notifications_count: number
   csrf_token: string
   feature_flags: {
     migrated_routes: string[]
