@@ -227,7 +227,7 @@ First stop the active work: cancel the Job or stop the active Run.
 
 Then reduce future exposure:
 
-- Lower **Max turns** under **My credentials**. The default is `200`.
+- Lower **Max turns** under **Agent Settings**. The default is `200`.
 - Keep scheduled tasks on `skip` pileup unless parallel scheduled PRs are
   intentional.
 - Avoid broad prompts like "clean up the repo." Ask for a bounded file,

@@ -203,18 +203,15 @@ Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be
 visible in the repository's ordinary planning flow.
 
-## Credentials
+## Account Settings
 
-Each user owns their own credentials and defaults:
+Each user owns their own profile, credentials, defaults, and preferences:
 
-- GitHub credential or linked GitHub App access.
-- Claude credential.
-- Codex credential.
-- Default agent provider.
-- Max-turn setting.
-- Light or dark app theme.
-- Scheduling pause setting.
-- Admin API token, for admins.
+- **Profile** stores display name, GitHub handle, avatar, bio, and public team profile fields.
+- **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, and the admin API token panel for admins.
+- **Agent Settings** stores the default agent provider, max-turn setting, and auto-approval fallback.
+- **Preferences** stores account-level toggles such as scheduling pause.
+- Light or dark app theme is toggled from the account area.
 
 Credentials are stored with Active Record Encryption in the Syrus database,
 so every web, worker, console, and migration context that reads users needs

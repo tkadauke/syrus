@@ -150,12 +150,12 @@ describe("App", () => {
     expect(screen.getByRole("main", { name: "Syrus SPA" })).toBeInTheDocument()
     const accountNav = await screen.findByRole("navigation", { name: "Account" })
     expect(within(accountNav).getByRole("link", { name: "admin" })).toHaveAttribute("href", "/app-shell/admin")
-    expect(within(accountNav).getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/app-shell/settings")
+    expect(within(accountNav).getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/app-shell/profile")
     expect(within(accountNav).getByRole("button", { name: "operator@example.com" })).toHaveAttribute("aria-expanded", "false")
     expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument()
     fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
-    expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/settings")
+    expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
     expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
     expect(within(accountNav).getByRole("button", { name: "Sign out" })).toBeInTheDocument()
     expect(screen.getAllByText("dev").length).toBeGreaterThan(0)
@@ -582,12 +582,12 @@ describe("App", () => {
       expect(within(primaryNav).queryByRole("link", { name: "Admin" })).toBeNull()
       expect(within(accountNav).getByRole("link", { name: "admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(accountNav).getByRole("link", { name: "admin" })).toHaveClass("rounded")
-      expect(within(accountNav).getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/app-shell/settings")
+      expect(within(accountNav).getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(within(accountNav).getByRole("button", { name: "operator@example.com" })).toHaveAttribute("aria-expanded", "false")
       expect(within(accountNav).queryByRole("link", { name: "Settings" })).toBeNull()
       expect(within(accountNav).queryByRole("button", { name: "Sign out" })).toBeNull()
       fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
-      expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/settings")
+      expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(accountNav).getByRole("button", { name: "Sign out" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "9c0f8d15" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/commit/9c0f8d15")
@@ -787,7 +787,7 @@ describe("App", () => {
       fireEvent.click(screen.getByRole("button", { name: "operator@example.com" }))
       expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profiles/1")
-      expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/settings")
+      expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(screen.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/app-shell/profiles/1")
       expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument()
@@ -1204,19 +1204,22 @@ describe("App", () => {
     try {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/settings"]}>
+          <MemoryRouter initialEntries={["/app-shell/profile"]}>
             <App />
           </MemoryRouter>
         </QueryClientProvider>
       )
 
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
-      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
-      expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(await screen.findByRole("main", { name: "Profile" })).toBeInTheDocument()
       const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
       expect(settingsNav.closest("aside")).toHaveClass("lg:w-56", "lg:border-r")
-      expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
-      expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveClass("bg-blue-50", "text-blue-700")
+      expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profile")
+      expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-blue-50", "text-blue-700")
+      expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
+      expect(within(settingsNav).getByRole("link", { name: "Agent Settings" })).toHaveAttribute("href", "/app-shell/settings/agent")
+      expect(within(settingsNav).getByRole("link", { name: "Preferences" })).toHaveAttribute("href", "/app-shell/settings/preferences")
       expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
       expect(within(settingsNav).getByRole("link", { name: "Templates" })).toHaveAttribute("href", "/app-shell/cron_templates")
       expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
@@ -1418,7 +1421,7 @@ describe("App", () => {
       setup_status: setupStatus({
         state: "first_admin",
         next_step: "configure_credentials",
-        next_step_path: "/credentials/edit",
+        next_step_path: "/credentials",
         credentials_configured: false,
         repository_configured: false,
         first_job_started: false,
@@ -5394,7 +5397,7 @@ describe("App", () => {
     expect(screen.getByRole("main", { name: "Tags" })).toBeInTheDocument()
     expect(await screen.findByText("triage")).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-    expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+    expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
     expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveClass("bg-gray-900")
     expect(screen.getByText("3")).toBeInTheDocument()
 
@@ -5603,7 +5606,7 @@ describe("App", () => {
 
     expect(screen.getByRole("main", { name: "Cron template detail" })).toBeInTheDocument()
     expect(await screen.findByText("Weekly dependency bump")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+    expect(screen.getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
     expect(screen.getByRole("link", { name: "Weekly tests" })).toHaveAttribute("href", "/app-shell/scheduled_tasks/12")
     expect(screen.getAllByRole("link", { name: "acme/widgets" })[0]).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getAllByRole("link", { name: "acme/widgets" })[1]).toHaveAttribute("href", "/app-shell/repositories/3/scheduled_tasks/new?from_template=5")
@@ -5886,16 +5889,16 @@ describe("App", () => {
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/credentials/edit"]}>
+        <MemoryRouter initialEntries={["/app-shell/credentials"]}>
           <App />
         </MemoryRouter>
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Credentials" })).toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Settings tabs" })).not.toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-    expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveClass("bg-gray-900")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).not.toHaveClass("bg-gray-900")
     expect(await screen.findByText("A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.")).toBeInTheDocument()
@@ -5910,19 +5913,17 @@ describe("App", () => {
     await waitFor(() => expect(openSpy).toHaveBeenCalledWith("https://claude.ai/oauth/authorize?state=abc", "_blank", expect.any(String)))
     await waitFor(() => expect(screen.getByLabelText("Authorization code from Claude")).toBeEnabled())
     fireEvent.change(screen.getByLabelText("Authorization code from Claude"), { target: { value: "auth-code#state" } })
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Connect" }).at(-1) as HTMLButtonElement)
     await waitFor(() => expect(screen.getAllByText("Claude OAuth token is valid.").length).toBeGreaterThan(0))
     const exchangeCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials/claude_oauth_exchange")
     expect(JSON.parse(String(exchangeCall?.[1]?.body))).toEqual({ code: "auth-code#state" })
+    expect(screen.getByLabelText("Codex authentication")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Display name")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Max turns")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Pause scheduling")).not.toBeInTheDocument()
     expect(screen.queryByText("Personal documents")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Google Doc URL")).not.toBeInTheDocument()
-    fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Lovelace" } })
-    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } })
-    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Lovelace" } })
-    fireEvent.change(screen.getByLabelText("Profile bio"), { target: { value: "Mathematician and operator." } })
-    fireEvent.change(screen.getByLabelText("Company"), { target: { value: "Analytical Engines Ltd" } })
-    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "London" } })
-    fireEvent.change(screen.getByLabelText("Website"), { target: { value: "https://example.com/ada" } })
+    fireEvent.change(screen.getByLabelText("GitHub personal access token"), { target: { value: "ghp_new" } })
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
@@ -5937,17 +5938,10 @@ describe("App", () => {
     const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
     const patchBody = JSON.parse(String(patchCall?.[1]?.body))
     expect(patchBody.user).toEqual(expect.objectContaining({
-      name: "Ada Lovelace",
-      first_name: "Ada",
-      last_name: "Lovelace",
-      profile_bio: "Mathematician and operator.",
-      profile_company: "Analytical Engines Ltd",
-      profile_location: "London",
-      profile_website: "https://example.com/ada",
       claude_oauth_token: "",
       codex_api_key: "",
       codex_auth_json: "",
-      github_token: ""
+      github_token: "ghp_new"
     }))
     expect(await screen.findByText("Credentials updated.")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Notifications" })).not.toBeInTheDocument()
@@ -5976,10 +5970,10 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Notification settings" })).toBeInTheDocument()
     expect(await screen.findByRole("heading", { name: "Notifications" })).toBeInTheDocument()
-    expect(screen.queryByRole("main", { name: "My credentials" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("main", { name: "Credentials" })).not.toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials", expect.anything())
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-    expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+    expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveClass("bg-gray-900")
     const jobFailedToggle = await screen.findByLabelText("Notify me when a job fails")
     expect(jobFailedToggle).toBeChecked()
@@ -6024,13 +6018,13 @@ describe("App", () => {
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/credentials/edit"]}>
+        <MemoryRouter initialEntries={["/app-shell/credentials"]}>
           <App />
         </MemoryRouter>
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Credentials" })).toBeInTheDocument()
     const testButtons = await screen.findAllByRole("button", { name: "Test" })
     fireEvent.click(testButtons[testButtons.length - 1])
 
@@ -6075,14 +6069,13 @@ describe("App", () => {
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/credentials/edit"]}>
+        <MemoryRouter initialEntries={["/app-shell/credentials"]}>
           <App />
         </MemoryRouter>
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
-    fireEvent.change(await screen.findByLabelText("Agent provider"), { target: { value: "codex" } })
+    expect(await screen.findByRole("main", { name: "Credentials" })).toBeInTheDocument()
     fireEvent.change(await screen.findByLabelText("Codex authentication"), { target: { value: "chatgpt_login" } })
     fireEvent.click(await screen.findByRole("button", { name: "Authorize with ChatGPT" }))
 
@@ -6095,7 +6088,7 @@ describe("App", () => {
     expect(openSpy).toHaveBeenCalledWith("https://auth.openai.com/oauth/authorize?state=abc", "_blank", "noopener,noreferrer")
 
     fireEvent.change(screen.getByLabelText("ChatGPT authorization code"), { target: { value: "code#abc" } })
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Connect" }).at(-1) as HTMLButtonElement)
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -6138,14 +6131,13 @@ describe("App", () => {
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/credentials/edit"]}>
+        <MemoryRouter initialEntries={["/app-shell/credentials"]}>
           <App />
         </MemoryRouter>
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
-    fireEvent.change(await screen.findByLabelText("Agent provider"), { target: { value: "codex" } })
+    expect(await screen.findByRole("main", { name: "Credentials" })).toBeInTheDocument()
     fireEvent.change(await screen.findByLabelText("Codex authentication"), { target: { value: "chatgpt_login" } })
     fireEvent.click(await screen.findByRole("button", { name: "Authorize with ChatGPT" }))
 
@@ -6176,7 +6168,7 @@ describe("App", () => {
     expect((await screen.findAllByText("Codex ChatGPT auth.json is valid.")).length).toBeGreaterThan(0)
   })
 
-  it("renders /settings as the credentials route without admin links", async () => {
+  it("renders /settings as the profile route without admin links", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/notification_preferences") {
@@ -6194,10 +6186,12 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Profile" })).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-    expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
-    expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profile")
+    expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-gray-900")
+    expect(await screen.findByLabelText("Display name")).toBeInTheDocument()
+    expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
     expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
     expect(within(settingsNav).getByRole("link", { name: "Templates" })).toHaveAttribute("href", "/app-shell/cron_templates")
@@ -6205,6 +6199,79 @@ describe("App", () => {
     expect(screen.queryByRole("link", { name: "Invitations" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "App settings" })).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials", expect.objectContaining({ credentials: "same-origin" }))
+  })
+
+  it("renders and saves the agent settings route", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/credentials" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ agentProvider: "codex", message: "Credentials updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/settings/agent"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Agent Settings" })).toBeInTheDocument()
+    const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
+    expect(within(settingsNav).getByRole("link", { name: "Agent Settings" })).toHaveClass("bg-gray-900")
+    expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
+    fireEvent.change(await screen.findByLabelText("Agent provider"), { target: { value: "codex" } })
+    fireEvent.change(screen.getByLabelText("Max turns"), { target: { value: "42" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
+      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
+        agent_provider: "codex",
+        agent_max_turns: 42
+      }))
+    })
+  })
+
+  it("renders and saves the preferences route", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/credentials" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ schedulingPaused: true, message: "Credentials updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/settings/preferences"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Preferences" })).toBeInTheDocument()
+    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Preferences" })).toHaveClass("bg-gray-900")
+    expect(screen.queryByLabelText("Agent provider")).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByLabelText("Pause scheduling"))
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
+      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
+        scheduling_paused: true
+      }))
+    })
   })
 
   it("renders a teammate profile from the profile API without credential details", async () => {
@@ -6285,7 +6352,7 @@ describe("App", () => {
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/credentials/edit"]}>
+        <MemoryRouter initialEntries={["/app-shell/credentials"]}>
           <App />
         </MemoryRouter>
       </QueryClientProvider>
@@ -6644,7 +6711,7 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("heading", { name: "Connect credentials first" })).toBeInTheDocument()
-      expect(screen.getByRole("link", { name: "Open credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+      expect(screen.getByRole("link", { name: "Open credentials" })).toHaveAttribute("href", "/app-shell/credentials")
     } finally {
       script.remove()
     }
@@ -11434,7 +11501,7 @@ function setupStatusPayload(overrides: Record<string, unknown> = {}) {
     },
     paths: {
       setup_path: "/setup",
-      credentials_path: "/credentials/edit",
+      credentials_path: "/credentials",
       new_repository_path: "/repositories/new",
       repositories_path: "/repositories",
       new_job_path: "/jobs/new",
@@ -11466,7 +11533,7 @@ function publicBootstrapPayload(overrides: Partial<BootstrapPayload["public"]> =
 function bootstrapSetupStatusPayload(overrides: { nextStep?: "configure_credentials" | "add_repository" | "start_first_job" | "watch_first_job" | null } = {}) {
   const nextStep = overrides.nextStep ?? "start_first_job"
   const nextStepPath = {
-    configure_credentials: "/credentials/edit",
+    configure_credentials: "/credentials",
     add_repository: "/repositories/new",
     start_first_job: "/jobs/new",
     watch_first_job: "/dashboard/jobs?view=list"
@@ -11622,6 +11689,7 @@ function credentialsPayload(overrides: {
   agentProvider?: string
   codexAuthMode?: string
   codexAuthJson?: boolean
+  schedulingPaused?: boolean
 } = {}) {
   return {
     user: {
@@ -11640,7 +11708,7 @@ function credentialsPayload(overrides: {
       agent_provider: overrides.agentProvider ?? "claude",
       codex_auth_mode: overrides.codexAuthMode ?? "api_key",
       agent_max_turns: 200,
-      scheduling_paused: false,
+      scheduling_paused: overrides.schedulingPaused ?? false,
       auto_approve_mode: "never"
     },
     credential_status: {
@@ -12902,7 +12970,7 @@ function chatPayload(overrides: {
     },
     paths: {
       new_chat_path: "/chats/new",
-      credentials_path: "/credentials/edit",
+      credentials_path: "/credentials",
       repositories_path: "/repositories",
       app_messages_path: "/api/v1/app/chats/8/messages",
       app_message_path: "/api/v1/app/chats/8/message",

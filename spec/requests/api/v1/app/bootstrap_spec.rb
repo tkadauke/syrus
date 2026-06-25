@@ -90,7 +90,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["setup_status"]).to include(
       "state" => "first_admin",
       "next_step" => "configure_credentials",
-      "next_step_path" => "/credentials/edit",
+      "next_step_path" => "/credentials",
       "first_admin" => true,
       "credentials_configured" => false,
       "repository_configured" => false,
@@ -124,7 +124,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(alert).to include(
       "severity" => "alarm",
       "title" => a_string_matching(/GitHub API access/i),
-      "cta" => { "text" => "Update token", "path" => "/credentials/edit" }
+      "cta" => { "text" => "Update token", "path" => "/credentials" }
     )
     expect(alert.fetch("action_steps")).not_to be_empty
   end
@@ -222,7 +222,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(setup).to include(
       "state" => "repository_only",
       "next_step" => "configure_credentials",
-      "next_step_path" => "/credentials/edit",
+      "next_step_path" => "/credentials",
       "credentials_configured" => false,
       "repository_configured" => true,
       "first_job_started" => false,

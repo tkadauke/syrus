@@ -232,7 +232,7 @@ per-user or per-repo window is exhausted.
 
 Today you can use these controls:
 
-- Set **Max turns** under **My credentials**. The default is `200`; `0`
+- Set **Max turns** under **Agent Settings**. The default is `200`; `0`
   disables the turn cap while the per-run timeout still applies.
 - Keep scheduled tasks on `pr_pileup_policy: skip` unless you explicitly
   want many open PRs from one recurring prompt.

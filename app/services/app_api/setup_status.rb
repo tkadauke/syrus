@@ -1,7 +1,7 @@
 module AppApi
   class SetupStatus
     NEXT_STEP_PATHS = {
-      "configure_credentials" => "/credentials/edit",
+      "configure_credentials" => "/credentials",
       "add_repository" => "/repositories/new",
       "start_first_chat" => "/onboarding"
     }.freeze

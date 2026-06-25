@@ -574,7 +574,7 @@ module Api
             },
             paths: {
               new_chat_path: new_chat_path,
-              credentials_path: edit_credentials_path,
+              credentials_path: "/credentials",
               repositories_path: repositories_path,
               app_messages_path: "/api/v1/app/chats/#{chat_session.id}/messages",
               app_message_path: "/api/v1/app/chats/#{chat_session.id}/message",

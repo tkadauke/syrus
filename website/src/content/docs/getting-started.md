@@ -72,14 +72,14 @@ verify the product sequence.
 Open the web UI and sign up. The first user becomes an admin and can
 complete instance-level setup such as GitHub App registration.
 
-After signup, open **First-run setup** or **My credentials**. The setup
+After signup, open **First-run setup** or **Credentials**. The setup
 screen should point you at the next missing step until at least one Job
 has closed successfully.
 
 ### 2. Add credentials and choose a provider
 
-In **My credentials**, choose your default agent provider and add the
-matching credential:
+In **Agent Settings**, choose your default agent provider. Then open
+**Credentials** and add the matching credential:
 
 - **Claude** uses a Claude OAuth token. On the **First-run setup**
   checklist, the **Configure agent** step opens a guided modal: it first
@@ -90,13 +90,13 @@ matching credential:
   back into the modal — Syrus exchanges it for a long-lived token and tests it
   on the spot. No terminal needed; requires a Claude Pro, Max, Team, or
   Enterprise plan. The same authorization flow is available later in
-  **My credentials**, where you can also paste a `claude setup-token` value
+  **Credentials**, where you can also paste a `claude setup-token` value
   directly.
 - **Codex** uses either a Codex API key or ChatGPT login. In ChatGPT
   login mode, **Authorize with ChatGPT** opens the OpenAI authorization
   page in a new tab; paste the returned code and Syrus stores the resulting
   Codex auth JSON. You can still paste an existing local `auth.json`
-  manually from **My credentials**.
+  manually from **Credentials**.
 
 Set **Max turns** to the cap you want for agent runs. The default is meant
 to prevent runaway loops while still allowing normal implementation work.

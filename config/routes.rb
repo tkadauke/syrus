@@ -8,6 +8,7 @@ Rails.application.routes.draw do
   get "users/new", to: "spa#show", as: :new_user
   resources :users, only: %i[ create ]
 
+  get "credentials", to: "spa#show", as: :credentials_settings
   get "credentials/edit", to: "spa#show", as: :edit_credentials
   get "setup", to: "spa#show", as: :setup
 
@@ -367,6 +368,9 @@ Rails.application.routes.draw do
   # and remain admin-only.
   get "settings", to: "spa#show"
   get "settings/edit", to: "spa#show", as: :edit_settings
+  get "profile", to: "spa#show", as: :account_profile
+  get "settings/agent", to: "spa#show", as: :agent_settings
+  get "settings/preferences", to: "spa#show", as: :account_preferences
   get "jobs/new", to: "spa#show", as: :new_job
   get "jobs/:id/source", to: "spa#show", as: :source_job, constraints: { id: /\d+/ }
   get "jobs/:id", to: "spa#show", as: :job, constraints: { id: /\d+/ }

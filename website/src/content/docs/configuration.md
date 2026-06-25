@@ -104,21 +104,22 @@ prepare: false
 
 ## Per-User Settings
 
-Each user owns their own credentials and agent preferences.
+Each user owns their own profile, credentials, agent preferences, and account preferences.
 
 | Setting | Purpose |
 | --- | --- |
-| GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories |
-| Agent provider | Default provider for new Jobs: `claude` or `codex` |
-| Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN` |
-| Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode |
-| Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag |
+| Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
+| GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories; configured on `/credentials` |
+| Agent provider | Default provider for new Jobs: `claude` or `codex`; configured on `/settings/agent` |
+| Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; configured on `/credentials` |
+| Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
+| Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag; configured on `/settings/agent` |
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
-| Scheduling paused | Skips scheduled task firing for that user |
-| Admin API token | Admin-only bearer token for `/api/v1/admin/*` diagnostics, including Jobs, Runs, queue/processes, and chat transcripts; shown once on rotation |
+| Scheduling paused | Skips scheduled task firing for that user; configured on `/settings/preferences` |
+| Admin API token | Admin-only bearer token for `/api/v1/admin/*` diagnostics, including Jobs, Runs, queue/processes, and chat transcripts; shown once on rotation from `/credentials` |
 | Memories | Persistent agent context owned by the user; repository-scoped memories can be published from the Memories settings panel |
 
-The credentials page includes a per-credential **Test** action after a
+The **Credentials** page includes a per-credential **Test** action after a
 secret is saved. GitHub PAT tests call GitHub as the user and report the
 authenticated login plus token scopes. Claude and Codex tests run short CLI
 auth probes through the same credential paths used by Jobs, so expired or
@@ -134,8 +135,8 @@ token from Claude Code's local credential store; Syrus does not run
 Claude Code's local refresh machinery. See Anthropic's
 [long-lived token documentation](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token).
 
-For Codex ChatGPT login, use **Authorize with ChatGPT** in **My
-credentials**. Syrus opens OpenAI's authorization page, accepts the pasted
+For Codex ChatGPT login, use **Authorize with ChatGPT** in **Credentials**.
+Syrus opens OpenAI's authorization page, accepts the pasted
 code, exchanges it for Codex tokens, and stores those tokens encrypted as
 Codex auth JSON. The manual `auth.json` textarea remains available for
 operators who already have a local Codex credential file.

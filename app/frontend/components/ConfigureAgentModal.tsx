@@ -109,7 +109,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                 Configure agent
               </h2>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Set the default agent Syrus uses for runs. You can add more or switch later in My credentials.
+                Set the default agent Syrus uses for runs. You can add more or switch later in Agent Settings.
               </p>
             </div>
             <button

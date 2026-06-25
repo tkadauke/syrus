@@ -223,7 +223,7 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
       {!payload.chat_available ? (
         <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
           <div className="font-semibold">Claude credentials are required.</div>
-          <p className="mt-1">Chat uses Claude. Add a Claude OAuth token in <Link className="underline hover:no-underline" to={withRoutePrefix(payload.paths.credentials_path, prefix)}>Credentials</Link> to enable chat.</p>
+          <p className="mt-1">Chat uses Claude. Add a Claude OAuth token in <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>Credentials</Link> to enable chat.</p>
         </section>
       ) : (
         <ChatWorkspace
@@ -2143,7 +2143,7 @@ function ChatSettingsDialog({ payload, prefix, onClose }: { payload: ChatPayload
               Repository settings
             </Link>
           ) : null}
-          <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClose} to={withRoutePrefix(payload.paths.credentials_path, prefix)}>
+          <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClose} to={withRoutePrefix("/credentials", prefix)}>
             Chat credentials
           </Link>
         </div>
@@ -2770,7 +2770,7 @@ function systemMessage(message: ChatMessageItem): ChatSystemMessage {
       tone: "error",
       label: "Claude auth",
       body: text,
-      cta: { label: "Open Credentials", path: "/credentials/edit" }
+      cta: { label: "Open Credentials", path: "/credentials" }
     }
   }
 

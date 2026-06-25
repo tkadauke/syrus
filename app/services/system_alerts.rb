@@ -50,10 +50,10 @@ module SystemAlerts
         "Fine-grained PATs <em>do not work</em> for the full surface today: GitHub doesn't expose a <code>Checks: read</code> permission " \
           "for fine-grained tokens, so CI-failure detection silently breaks. If you want fine-grained anyway, accept that the " \
           "<code>check-runs</code> path will keep showing this banner.",
-        "Paste the new token into <a class=\"underline\" href=\"/credentials/edit\">Settings → Credentials</a> and save. " \
+        "Paste the new token into <a class=\"underline\" href=\"/credentials\">Settings → Credentials</a> and save. " \
           "The banner clears on the next successful API call."
       ],
-      cta: { text: "Update token", path: "/credentials/edit" }
+      cta: { text: "Update token", path: "/credentials" }
     )
   end
   private_class_method :github_token_blocked

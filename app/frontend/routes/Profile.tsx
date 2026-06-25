@@ -3,6 +3,8 @@ import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { fetchProfile, type TeamProfileJob } from "../api/profiles"
 
+export { AccountProfileRoute } from "./AccountSettings"
+
 export function ProfileRoute() {
   const { id } = useParams()
   const location = useLocation()

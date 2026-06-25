@@ -42,7 +42,7 @@ Run `syrus login` once:
 syrus login
 ```
 
-Generate or rotate the token from **My credentials** in the Syrus web UI;
+Generate or rotate the token from **Credentials** in the Syrus web UI;
 the token is shown once. `syrus login` asks for the Syrus instance URL
 and that API token, then writes
 `~/.syrus/credentials`:

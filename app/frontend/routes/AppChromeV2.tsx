@@ -652,7 +652,7 @@ function SettingsPopup({ bootstrapData, csrfToken, onCloseDrawer, prefix, showTe
             <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
           </button>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>Profile</Link>
-          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/settings`}>Settings</Link>
+          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>Settings</Link>
           {showTeamProfile ? <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>My Profile</Link> : null}
           {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} to={`${prefix}/admin`}>Admin</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />

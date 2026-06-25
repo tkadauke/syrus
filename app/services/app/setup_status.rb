@@ -125,7 +125,7 @@ module App
     def paths
       {
         setup_path: routes.setup_path,
-        credentials_path: routes.edit_credentials_path,
+        credentials_path: "/credentials",
         new_repository_path: routes.new_repository_path,
         repositories_path: routes.repositories_path,
         new_job_path: routes.new_job_path,

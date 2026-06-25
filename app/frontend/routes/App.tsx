@@ -22,6 +22,7 @@ import { AdminSettings } from "./AdminSettings"
 import { AdminStuck } from "./AdminStuck"
 import { AdminTranscript } from "./AdminTranscript"
 import { AdminUserDetailRoute, AdminUsersIndex } from "./AdminUsers"
+import { AgentSettingsRoute } from "./AgentSettings"
 import { PasswordRequestRoute, PasswordResetRoute, SignInRoute, SignUpRoute } from "./Auth"
 import { ChatNewRoute } from "./ChatNew"
 import { ChatSearchRoute } from "./ChatSearch"
@@ -37,7 +38,8 @@ import { MemoriesRoute } from "./Memories"
 import { NotificationsSettingsRoute } from "./NotificationsSettings"
 import { OnboardingRoute } from "./Onboarding"
 import { PersonalDocumentsRoute } from "./PersonalDocuments"
-import { ProfileRoute } from "./Profile"
+import { AccountProfileRoute, ProfileRoute } from "./Profile"
+import { PreferencesRoute } from "./Preferences"
 import { RepositoriesIndex } from "./Repositories"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
@@ -92,8 +94,12 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/github_app/confirm", element: <AdminGithubAppConfirm /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
-  { path: "/settings", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
+  { path: "/settings", element: <SettingsSectionRoute><AccountProfileRoute /></SettingsSectionRoute> },
+  { path: "/profile", element: <SettingsSectionRoute><AccountProfileRoute /></SettingsSectionRoute> },
+  { path: "/credentials", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
   { path: "/credentials/edit", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
+  { path: "/settings/agent", element: <SettingsSectionRoute><AgentSettingsRoute /></SettingsSectionRoute> },
+  { path: "/settings/preferences", element: <SettingsSectionRoute><PreferencesRoute /></SettingsSectionRoute> },
   { path: "/notifications/settings", element: <SettingsSectionRoute><NotificationsSettingsRoute /></SettingsSectionRoute> },
   { path: "/profiles", element: <TeamDirectoryRoute /> },
   { path: "/profiles/:id", element: <TeamProfileRoute /> },
@@ -567,7 +573,7 @@ function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfT
       >
         {theme === "dark" ? <SunIcon /> : <MoonIcon />}
       </button>
-      <Link aria-label="Account settings" className="inline-flex h-8 w-8 items-center justify-center text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-300 sm:hidden" to={`${prefix}/settings`}>
+      <Link aria-label="Account settings" className="inline-flex h-8 w-8 items-center justify-center text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-300 sm:hidden" to={`${prefix}/profile`}>
         <UserIcon />
       </Link>
       <div className="relative hidden sm:block" ref={menuRef}>
@@ -584,7 +590,7 @@ function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfT
         {open ? (
           <div className="absolute right-0 z-30 mt-2 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950">
             <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/profiles/${user.id}`}>Profile</Link>
-            <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/settings`}>Settings</Link>
+            <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/profile`}>Settings</Link>
             {showTeamProfile ? <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/profiles/${user.id}`}>My profile</Link> : null}
             {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" to={`${prefix}/admin`}>Admin</Link> : null}
             <button className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" onClick={switchToNewUi} type="button">Switch to new UI</button>
@@ -774,7 +780,10 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
 
 function settingsNavigationItems(): Array<{ label: string; path: string; active: (path: string) => boolean }> {
   return [
-    { label: "My credentials", path: "/credentials/edit", active: (path) => path === "/settings" || path === "/credentials/edit" },
+    { label: "Profile", path: "/profile", active: (path) => path === "/settings" || path === "/profile" },
+    { label: "Credentials", path: "/credentials", active: (path) => path === "/credentials" || path === "/credentials/edit" },
+    { label: "Agent Settings", path: "/settings/agent", active: (path) => path === "/settings/agent" },
+    { label: "Preferences", path: "/settings/preferences", active: (path) => path === "/settings/preferences" },
     { label: "Notifications", path: "/notifications/settings", active: (path) => path === "/notifications/settings" },
     { label: "Documents", path: "/documents", active: (path) => path === "/documents" },
     { label: "Memories", path: "/memories", active: (path) => path === "/memories" },
@@ -792,7 +801,11 @@ function showsAdminNavigation(pathname: string) {
 
 function showsSettingsNavigation(pathname: string) {
   return pathname === "/settings" ||
+    pathname === "/profile" ||
+    pathname === "/credentials" ||
     pathname === "/credentials/edit" ||
+    pathname === "/settings/agent" ||
+    pathname === "/settings/preferences" ||
     pathname === "/notifications/settings" ||
     pathname === "/documents" ||
     pathname === "/memories" ||

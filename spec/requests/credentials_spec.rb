@@ -15,17 +15,33 @@ RSpec.describe "Credentials", type: :request do
     before { sign_in_as(user) }
 
     it "serves the React credentials shell" do
+      get credentials_settings_path
+
+      expect(response).to be_successful
+      expect(response.body).to include('id="syrus-spa-root"')
+    end
+
+    it "serves the legacy React credentials shell alias" do
       get edit_credentials_path
 
       expect(response).to be_successful
       expect(response.body).to include('id="syrus-spa-root"')
     end
 
-    it "serves the React credentials shell from the settings alias" do
+    it "serves the React profile shell from the settings alias" do
       get settings_path
 
       expect(response).to be_successful
       expect(response.body).to include('id="syrus-spa-root"')
+    end
+
+    it "serves the React profile and settings shells" do
+      [ account_profile_path, agent_settings_path, account_preferences_path ].each do |path|
+        get path
+
+        expect(response).to be_successful
+        expect(response.body).to include('id="syrus-spa-root"')
+      end
     end
 
     it "serves the React personal documents shell" do

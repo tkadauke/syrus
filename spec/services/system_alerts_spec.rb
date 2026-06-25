@@ -28,7 +28,7 @@ RSpec.describe SystemAlerts do
       expect(alert.message).to include("<code>Resource not accessible by personal access token</code>")
       expect(alert.action_steps.size).to be >= 2
       expect(alert.action_steps.join).to match(/scope|read/)
-      expect(alert.cta).to eq(text: "Update token", path: "/credentials/edit")
+      expect(alert.cta).to eq(text: "Update token", path: "/credentials")
     end
 
     it "html-escapes the verbatim API reason before wrapping in <code> (untrusted content)" do

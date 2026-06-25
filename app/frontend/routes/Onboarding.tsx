@@ -131,7 +131,7 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       detail: user.admin ? `${user.display_name} can manage this Syrus instance.` : "Ask an admin to grant access before configuring shared setup.",
       complete: user.admin,
       ctaLabel: "Open account settings",
-      ctaPath: "/settings"
+      ctaPath: "/profile"
     },
     {
       key: "github",
@@ -139,7 +139,7 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       detail: githubStepDetail(setup),
       complete: setup.credential_status.github,
       ctaLabel: "Configure GitHub",
-      ctaPath: "/credentials/edit",
+      ctaPath: "/credentials",
       ctaModal: "github_token"
     },
     {
@@ -148,7 +148,7 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       detail: setup.credential_status.agent ? `${providerLabel(setup.credential_status.active_agent_provider)} is ready for runs.` : "Choose a provider and add its credentials.",
       complete: setup.credential_status.agent,
       ctaLabel: "Configure agent",
-      ctaPath: "/credentials/edit",
+      ctaPath: "/credentials",
       ctaModal: "configure_agent"
     },
     {

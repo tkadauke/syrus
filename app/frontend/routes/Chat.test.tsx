@@ -303,7 +303,7 @@ function chatPayload(overrides: { messages?: Array<Record<string, unknown>> } = 
     },
     paths: {
       new_chat_path: "/chats/new",
-      credentials_path: "/credentials/edit",
+      credentials_path: "/credentials",
       repositories_path: "/repositories",
       app_messages_path: "/api/v1/app/chats/8/messages",
       app_message_path: "/api/v1/app/chats/8/message",

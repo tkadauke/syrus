@@ -84,7 +84,7 @@ function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: Non
           <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">System readiness needs attention</h2>
           <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">Syrus may not be able to pick up or run work until these checks pass.</p>
         </div>
-        <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900" to={`${prefix}/settings`}>
+        <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900" to={`${prefix}/credentials`}>
           Open settings
         </Link>
       </div>
