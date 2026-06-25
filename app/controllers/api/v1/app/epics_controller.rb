@@ -321,7 +321,9 @@ module Api
             pr_url: ::App::Presentation.job_pr_url(job),
             owner_user_id: job.owner_user_id,
             owner_user: owner_user_json(job.owner_user),
-            repository_slug: job.repository.slug
+            repository_slug: job.repository.slug,
+            branch_name: job.branch_name.to_s,
+            depends_on_job_ids: job.dependencies.filter_map(&:depends_on_job_id)
           }
         end
 

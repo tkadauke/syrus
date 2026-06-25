@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"github.com/tkadauke/syrus/cli/internal/api"
 )
 
 type gitRunner func(ctx context.Context, dir string, args ...string) (string, error)
@@ -17,15 +19,31 @@ var checkoutRunGit gitRunner = runGit
 var checkoutBackupTimestamp = func() string {
 	return time.Now().UTC().Format("20060102T150405Z")
 }
+var epicPickerFunc = func(epicRef string, candidates []epicCandidate) (*api.JobItem, error) {
+	m := epicPickerModel{epicRef: epicRef, candidates: candidates, width: defaultInboxWidth}
+	result, err := tea.NewProgram(m).Run()
+	if err != nil {
+		return nil, err
+	}
+	if final, ok := result.(epicPickerModel); ok && final.chosen != nil {
+		return final.chosen, nil
+	}
+	return nil, nil
+}
 
 func NewCheckoutCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:           "checkout JOB-ID",
+		Use:           "checkout JOB-ID|EPIC-ID",
 		Short:         "Check out a Syrus Job branch",
 		Args:          cobra.ExactArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			upper := strings.ToUpper(strings.TrimSpace(args[0]))
+			if strings.HasPrefix(upper, "EPIC-") {
+				return runEpicCheckout(cmd, args[0])
+			}
+
 			jobRef, jobID, err := parseJobRef(args[0])
 			if err != nil {
 				return err
@@ -53,6 +71,204 @@ func NewCheckoutCommand() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func runEpicCheckout(cmd *cobra.Command, input string) error {
+	epicRef, epicID, err := parseEpicRef(input)
+	if err != nil {
+		return err
+	}
+
+	client, _, err := apiClient()
+	if err != nil {
+		return err
+	}
+	epic, err := client.GetEpic(cmd.Context(), epicID)
+	if err != nil {
+		return err
+	}
+	if len(epic.Jobs) == 0 {
+		return fmt.Errorf("Epic %s has no jobs", epicRef)
+	}
+	if strings.TrimSpace(epic.Epic.RepositorySlug) == "" {
+		return fmt.Errorf("Epic %s response did not include a repository slug", epicRef)
+	}
+
+	candidates := epicCheckoutCandidates(epic.Jobs)
+	if len(candidates) == 0 {
+		return fmt.Errorf("Epic %s has no jobs with a branch yet", epicRef)
+	}
+
+	var selected *api.JobItem
+	if len(candidates) == 1 {
+		selected = &candidates[0].job
+	} else {
+		selected, err = epicPickerFunc(epicTitleRef(epicRef, epic.Epic.Title, len(epic.Jobs)), candidates)
+		if err != nil {
+			return err
+		}
+		if selected == nil {
+			fmt.Fprintln(cmd.OutOrStdout(), "Cancelled.")
+			return nil
+		}
+	}
+
+	if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, selected.BranchName); err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s — run 'syrus test-plan JOB-%d' to see the test plan.\n", selected.BranchName, selected.ID)
+	return nil
+}
+
+func parseEpicRef(input string) (string, string, error) {
+	ref := strings.TrimSpace(input)
+	upper := strings.ToUpper(ref)
+	if !strings.HasPrefix(upper, "EPIC-") {
+		return "", "", fmt.Errorf("invalid epic id %q", input)
+	}
+	id := strings.TrimSpace(ref[5:])
+	if id == "" {
+		return "", "", fmt.Errorf("invalid epic id %q", input)
+	}
+	return "EPIC-" + id, id, nil
+}
+
+type epicCandidate struct {
+	job       api.JobItem
+	ancestors []api.JobItem
+}
+
+func epicCheckoutCandidates(jobs []api.JobItem) []epicCandidate {
+	byID := make(map[int64]api.JobItem, len(jobs))
+	for _, job := range jobs {
+		byID[job.ID] = job
+	}
+
+	hasDependent := map[int64]bool{}
+	for _, job := range jobs {
+		for _, dependencyID := range job.DependsOnJobIDs {
+			if _, ok := byID[dependencyID]; ok {
+				hasDependent[dependencyID] = true
+			}
+		}
+	}
+
+	candidates := []epicCandidate{}
+	for _, job := range jobs {
+		if hasDependent[job.ID] || strings.TrimSpace(job.BranchName) == "" {
+			continue
+		}
+		candidates = append(candidates, epicCandidate{
+			job:       job,
+			ancestors: epicAncestors(job, byID),
+		})
+	}
+	return candidates
+}
+
+func epicAncestors(job api.JobItem, byID map[int64]api.JobItem) []api.JobItem {
+	seen := map[int64]bool{}
+	ancestors := []api.JobItem{}
+	var visit func(api.JobItem)
+	visit = func(current api.JobItem) {
+		for _, dependencyID := range current.DependsOnJobIDs {
+			dependency, ok := byID[dependencyID]
+			if !ok || seen[dependencyID] {
+				continue
+			}
+			seen[dependencyID] = true
+			visit(dependency)
+			ancestors = append(ancestors, dependency)
+		}
+	}
+	visit(job)
+	return ancestors
+}
+
+type epicPickerModel struct {
+	epicRef    string
+	candidates []epicCandidate
+	cursor     int
+	chosen     *api.JobItem
+	quitting   bool
+	width      int
+}
+
+func (m epicPickerModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m epicPickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.candidates)-1 {
+				m.cursor++
+			}
+		case "enter":
+			if len(m.candidates) > 0 {
+				m.chosen = &m.candidates[m.cursor].job
+			}
+			return m, tea.Quit
+		case "ctrl+c", "q":
+			m.quitting = true
+			return m, tea.Quit
+		}
+	case tea.WindowSizeMsg:
+		if msg.Width > 0 {
+			m.width = msg.Width
+		}
+	}
+	return m, nil
+}
+
+func (m epicPickerModel) View() string {
+	lines := []string{
+		headerStyle.Render(m.epicRef),
+		"",
+	}
+	for i, candidate := range m.candidates {
+		pointer := "  "
+		if i == m.cursor {
+			pointer = "▶ "
+		}
+		lines = append(lines, pointer+epicJobLine(candidate.job, m.width-2))
+		for _, ancestor := range candidate.ancestors {
+			lines = append(lines, subtleStyle.Render("    "+epicJobLine(ancestor, m.width-4)))
+		}
+		lines = append(lines, "")
+	}
+	lines = append(lines, subtleStyle.Render("↑/↓ navigate · enter checkout · q cancel"))
+	return strings.Join(lines, "\n")
+}
+
+func epicTitleRef(epicRef string, title string, jobsCount int) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fmt.Sprintf("%s (%d jobs)", epicRef, jobsCount)
+	}
+	return fmt.Sprintf("%s · %s (%d jobs)", epicRef, title, jobsCount)
+}
+
+func epicJobLine(job api.JobItem, width int) string {
+	title := strings.TrimSpace(job.Title)
+	if title == "" {
+		title = strings.TrimSpace(job.IssueTitle)
+	}
+	if title == "" {
+		title = "Untitled"
+	}
+	prefix := fmt.Sprintf("JOB-%d · ", job.ID)
+	suffix := fmt.Sprintf("  [%s]", inspectColorState(job.State))
+	if width > len(prefix)+len(job.State)+5 {
+		title = truncate(title, width-len(prefix)-len(job.State)-5)
+	}
+	return prefix + title + suffix
 }
 
 func parseJobRef(input string) (string, string, error) {

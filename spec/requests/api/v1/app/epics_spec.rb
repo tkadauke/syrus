@@ -93,9 +93,12 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       epic: epic,
       issue_number: 12,
       issue_title: "Survey forum",
+      branch_name: "syrus/issue-12-#{epic.id}",
       state: "closed",
       closure_reason: "pr_merged"
     )
+    dependent = Factories.job_record(user: user, repository: repository, epic: epic)
+    dependent.dependencies.create!(depends_on_job: job, source: "manual", created_by_user: user)
 
     get "/api/v1/app/epics/#{epic.id}"
 
@@ -114,7 +117,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(body.dig("epic", "repository")).to include("slug" => "acme/widgets", "repository_path" => repository_path(repository))
     expect(body["summary"]).to include(
       "done_jobs_count" => 1,
-      "total_jobs_count" => 1,
+      "total_jobs_count" => 2,
       "dependency_edge_count" => 1,
       "blocked" => false,
       "blocked_reason" => nil
@@ -139,13 +142,20 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "url" => epic_path(blocker)
     ))
     expect(body["dependents"]).to eq([])
-    expect(body["jobs"]).to contain_exactly(include(
+    expect(body["jobs"]).to include(include(
       "id" => job.id,
       "label" => "#12",
       "title" => "Survey forum",
       "path" => job_path(job),
       "state" => "closed",
-      "repository_slug" => "acme/widgets"
+      "repository_slug" => "acme/widgets",
+      "branch_name" => "syrus/issue-12-#{epic.id}",
+      "depends_on_job_ids" => []
+    ))
+    expect(body["jobs"]).to include(include(
+      "id" => dependent.id,
+      "branch_name" => dependent.branch_name.to_s,
+      "depends_on_job_ids" => [ job.id ]
     ))
     expect(body["paths"]).to include(
       "dashboard_epics_path" => dashboard_epics_path,
