@@ -364,6 +364,7 @@ Rails.application.routes.draw do
   # per-user credentials page. App-wide settings live at `/settings/edit`
   # and remain admin-only.
   get "settings", to: "spa#show"
+  get "settings/hidden_chats", to: "spa#show"
   get "settings/edit", to: "spa#show", as: :edit_settings
   get "jobs/new", to: "spa#show", as: :new_job
   get "jobs/:id/source", to: "spa#show", as: :source_job, constraints: { id: /\d+/ }

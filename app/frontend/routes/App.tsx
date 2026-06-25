@@ -31,6 +31,7 @@ import { DashboardRoute } from "./Dashboard"
 import { DirectJobNewRoute } from "./DirectJobNew"
 import { EpicDetailRoute } from "./EpicDetail"
 import { EpicFormRoute } from "./EpicForm"
+import { HiddenChatsRoute } from "./HiddenChats"
 import { JobDetailRoute } from "./JobDetail"
 import { MemoriesRoute } from "./Memories"
 import { OnboardingRoute } from "./Onboarding"
@@ -90,6 +91,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
   { path: "/settings", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
+  { path: "/settings/hidden_chats", element: <SettingsSectionRoute><HiddenChatsRoute /></SettingsSectionRoute> },
   { path: "/credentials/edit", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
   { path: "/profiles", element: <TeamDirectoryRoute /> },
   { path: "/profiles/:id", element: <TeamProfileRoute /> },
@@ -770,6 +772,7 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
 function settingsNavigationItems(): Array<{ label: string; path: string; active: (path: string) => boolean }> {
   return [
     { label: "My credentials", path: "/credentials/edit", active: (path) => path === "/settings" || path === "/credentials/edit" },
+    { label: "Hidden chats", path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats" },
     { label: "Documents", path: "/documents", active: (path) => path === "/documents" },
     { label: "Memories", path: "/memories", active: (path) => path === "/memories" },
     { label: "Templates", path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
@@ -786,6 +789,7 @@ function showsAdminNavigation(pathname: string) {
 
 function showsSettingsNavigation(pathname: string) {
   return pathname === "/settings" ||
+    pathname === "/settings/hidden_chats" ||
     pathname === "/credentials/edit" ||
     pathname === "/documents" ||
     pathname === "/memories" ||
