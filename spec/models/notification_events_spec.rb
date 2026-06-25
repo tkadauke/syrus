@@ -90,7 +90,8 @@ RSpec.describe "notification event generation" do
 
   it "creates epic_completed notifications for all child job owners" do
     user = Factories.user
-    other = Factories.user
+    other = Factories.user(notification_preferences: { "epic_completed" => true })
+    user.update!(notification_preferences: { "epic_completed" => true })
     repository = Factories.repository(user: user)
     epic = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Ship notifications")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
