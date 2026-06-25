@@ -5,6 +5,15 @@ RSpec.describe App::ChatMessagePayload do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat) { ChatSession.create!(user: user, repository: repository) }
 
+  it "includes stored chat message attachments" do
+    attachment = { "name" => "diagram.png", "mime_type" => "image/png", "data" => "cGl4ZWxz" }
+    message = chat.messages.create!(role: "user", content: { "text" => "Inspect this.", "attachments" => [ attachment ] })
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:attachments)).to eq([ attachment ])
+  end
+
   it "returns materialized job details for a confirmed job proposal" do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Add inspection tools", state: "open")
     proposal = chat.proposals.create!(

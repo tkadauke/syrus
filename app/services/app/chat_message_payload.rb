@@ -28,6 +28,7 @@ module App
         bookmarkable: message.bookmarkable?
       }
 
+      payload[:attachments] = message.content["attachments"] if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
       payload[:proposal] = proposal_json(message.proposal, chat_session: message.chat_session) if message.proposal_id.present?
       payload[:pending_action] = pending_action_json(message.pending_action, chat_session: message.chat_session) if message.pending_action_id.present?
 

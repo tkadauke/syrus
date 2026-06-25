@@ -62,6 +62,56 @@ describe("ChatWorkspace panel collapse", () => {
   })
 })
 
+describe("chat message image attachments", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("renders image thumbnails and opens a dismissible lightbox", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "user",
+            tool_name: null,
+            content: { text: "Inspect this." },
+            text: "Inspect this.",
+            bookmarkable: true,
+            attachments: [
+              { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
+              { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" }
+            ]
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    const thumbnail = await screen.findByRole("button", { name: "Open diagram.png" })
+    expect(screen.getByAltText("diagram.png")).toHaveAttribute("src", "data:image/png;base64,cGl4ZWxz")
+    expect(screen.queryByText("notes.pdf")).not.toBeInTheDocument()
+
+    fireEvent.click(thumbnail)
+
+    expect(screen.getByRole("dialog", { name: "diagram.png" })).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "Escape" })
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "diagram.png" })).not.toBeInTheDocument()
+    })
+  })
+})
+
 function renderRoute() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -95,7 +145,7 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 }
 
-function chatPayload() {
+function chatPayload(overrides: { messages?: Array<Record<string, unknown>> } = {}) {
   return {
     chat: {
       id: 8,
@@ -113,7 +163,7 @@ function chatPayload() {
     turn_in_flight: false,
     agent_busy: false,
     has_more_older: false,
-    messages: [
+    messages: overrides.messages || [
       {
         type: "message",
         id: 9,

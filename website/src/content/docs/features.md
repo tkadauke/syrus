@@ -87,7 +87,9 @@ wants to hide those chats. In the V2 layout, the sidebar search field opens a
 dedicated chat search page where operators can search chat text or filter
 sessions by repository, Epic, or Job.
 The chat composer accepts image and PDF attachments through the plus button
-and sends them with the next message.
+and sends them with the next message. Image attachments render as inline
+thumbnails in the transcript and open in a full-size preview; PDFs are passed
+to the agent without an inline preview.
 
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
