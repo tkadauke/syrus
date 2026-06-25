@@ -85,7 +85,10 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("Memory guidance:")
-    expect(out).to include("Write chat memories for facts that emerged conversationally")
+    expect(out).to include("Consult memories")
+    expect(out).to include("preference alternatives")
+    expect(out).to include("Do NOT save")
+    expect(out).to include("Write memories for facts that emerged conversationally")
     expect(out).to include("Propose a CLAUDE.md edit when the fact is a durable team")
   end
 

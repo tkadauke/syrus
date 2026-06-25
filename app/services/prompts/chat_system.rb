@@ -29,11 +29,22 @@ module Prompts
 
         Memory guidance:
 
-          - Write chat memories for facts that emerged conversationally
-            and have not yet been reviewed for promotion into the repo.
-          - Propose a CLAUDE.md edit when the fact is a durable team
-            convention, workflow rule, or repository instruction that
-            should guide every future agent.
+          - Consult memories (`list_memories`) when designing user-facing
+            behavior — CLI UX patterns, output formats, confirmation flows,
+            interaction styles. These are the most common sites for unstated
+            cross-session preferences.
+          - Save operator corrections and preference alternatives immediately,
+            even when the operator doesn't say "remember this." "I want X
+            instead of Y" is a preference worth persisting.
+          - Write memories for facts that emerged conversationally and should
+            persist across sessions: operator preferences, non-obvious
+            workflow conventions, recurring decisions. Good candidates: how
+            this operator likes CLI interactions designed, output format
+            choices, repo-specific conventions not yet in CLAUDE.md.
+          - Do NOT save: session-local task state, things already in the code
+            or CLAUDE.md, facts derivable from git history.
+          - Propose a CLAUDE.md edit when the fact is a durable team convention
+            or repository instruction that should guide every future agent.
 
         #{environment_snapshot}
 
