@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_234809) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_021204) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -492,6 +492,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_234809) do
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
     t.integer "epic_id"
+    t.string "epic_title"
     t.integer "external_pr_number"
     t.integer "failure_count", default: 0, null: false
     t.datetime "finished_at"

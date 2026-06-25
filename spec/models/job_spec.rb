@@ -1,6 +1,24 @@
 require "rails_helper"
 
 RSpec.describe Job do
+  describe "epic title snapshot" do
+    it "stores the Epic title when assigned" do
+      epic = Factories.epic(title: "Migration train")
+      job = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic)
+
+      expect(job.reload.epic_title).to eq("Migration train")
+    end
+
+    it "clears the Epic title when removed from an Epic" do
+      epic = Factories.epic(title: "Migration train")
+      job = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic)
+
+      job.update!(epic: nil)
+
+      expect(job.reload.epic_title).to be_nil
+    end
+  end
+
   describe "app events" do
     it "broadcasts a compact event when created" do
       repo = Factories.repository

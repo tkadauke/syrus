@@ -42,8 +42,10 @@ class Epic < ApplicationRecord
   after_create :seed_parsed_epic_dependencies
   after_create :resolve_pending_epic_dependencies_targeting_self
   after_create_commit :broadcast_app_epic_created
+  after_update_commit :sync_job_epic_titles, if: :saved_change_to_title?
   after_update_commit :broadcast_app_epic_updated
   after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
+  before_destroy :clear_job_epic_titles
 
   scope :claimed, -> { where("owner_id IS NOT NULL OR owner_user_id IS NOT NULL") }
   scope :unclaimed, -> { where(owner_id: nil, owner_user_id: nil) }
@@ -135,6 +137,14 @@ class Epic < ApplicationRecord
 
   def releases_jobs_for_execution?
     @releasing_jobs_for_execution || ((in_progress? || done?) && dependencies_done?)
+  end
+
+  def sync_job_epic_titles
+    jobs.update_all(epic_title: title)
+  end
+
+  def clear_job_epic_titles
+    jobs.update_all(epic_title: nil)
   end
 
   def in_progress!

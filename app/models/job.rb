@@ -76,6 +76,7 @@ class Job < ApplicationRecord
   before_validation :default_credential_mode, on: :create
   before_validation :default_lifecycle_metadata, on: :create
   before_validation :defer_stale_closed_epic_assignment
+  before_validation :sync_epic_title
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
   enum :triaging_reason, TRIAGING_REASONS.index_with(&:itself), prefix: true, validate: true
@@ -977,6 +978,16 @@ class Job < ApplicationRecord
 
     errors.add(:epic, "must belong to the same user") if epic.user_id != user_id
     errors.add(:epic, "must belong to the same repository") if epic.repository_id != repository_id
+  end
+
+  def sync_epic_title
+    if epic
+      self.epic_title = epic.title
+    elsif epic_id.present?
+      self.epic_title = Epic.where(id: epic_id).pick(:title)
+    else
+      self.epic_title = nil
+    end
   end
 
   def refresh_epic_auto_state

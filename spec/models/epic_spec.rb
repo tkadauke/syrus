@@ -44,6 +44,15 @@ RSpec.describe Epic do
     expect(epic.auto_approve_mode).to eq("if_graders_pass")
   end
 
+  it "keeps child Job epic titles in sync when renamed" do
+    epic = Factories.epic(title: "Migration train")
+    job = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic)
+
+    epic.update!(title: "Landing train")
+
+    expect(job.reload.epic_title).to eq("Landing train")
+  end
+
   it "rejects unknown auto-approval modes" do
     epic = Factories.epic
     epic.auto_approve_mode = "always"
