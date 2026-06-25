@@ -3220,7 +3220,9 @@ describe("App", () => {
       const primaryNav = screen.getByRole("navigation", { name: "Primary" })
       const dashboardLink = within(primaryNav).getByRole("link", { name: "Dashboard" })
       const dashboardSections = within(primaryNav).getByRole("navigation", { name: "Dashboard sections" })
+      const dashboardSubnav = foldersPanel.closest("[aria-hidden]")
       expect(screen.queryByRole("navigation", { name: "Dashboard subjects" })).not.toBeInTheDocument()
+      expect(dashboardSubnav).toHaveAttribute("aria-hidden", "false")
       expect(dashboardSections).toHaveClass("inline-flex", "max-w-full", "flex-wrap", "overflow-hidden", "rounded", "border", "border-gray-300", "bg-white", "dark:border-gray-700", "dark:bg-gray-900")
       expect(within(dashboardSections).getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list")
       expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
@@ -3241,6 +3243,12 @@ describe("App", () => {
       expect(within(foldersPanel).getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/app-shell/smart_folders?subject_type=job")
       expect(within(foldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
       expect(within(foldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+
+      fireEvent.click(dashboardLink)
+      expect(dashboardSubnav).toHaveAttribute("aria-hidden", "true")
+
+      fireEvent.click(dashboardLink)
+      expect(dashboardSubnav).toHaveAttribute("aria-hidden", "false")
     } finally {
       script.remove()
     }

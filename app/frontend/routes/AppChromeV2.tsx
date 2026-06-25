@@ -254,6 +254,30 @@ function SidebarContent({
   showTeamProfile: boolean
   user: BootstrapPayload["current_user"] | undefined
 }) {
+  const dashboardActive = navItems.some((item) => item.label === "Dashboard" && item.active)
+  const [dashboardNavOpen, setDashboardNavOpen] = useState(dashboardActive)
+
+  useEffect(() => {
+    setDashboardNavOpen(dashboardActive)
+  }, [dashboardActive])
+
+  function handlePrimaryNavClick(item: { label: string; active: boolean }, event: MouseEvent<HTMLAnchorElement>) {
+    if (item.label === "Dashboard") {
+      if (item.active) {
+        event.preventDefault()
+        setDashboardNavOpen((open) => !open)
+        return
+      }
+
+      setDashboardNavOpen(true)
+      onCloseDrawer()
+      return
+    }
+
+    setDashboardNavOpen(false)
+    onCloseDrawer()
+  }
+
   return (
     <div className="flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <div className="shrink-0 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
@@ -285,7 +309,7 @@ function SidebarContent({
           <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
             {navItems.map((item) => {
               const link = (
-                <Link className={sidebarLinkClass(item.active)} key={item.label} onClick={onCloseDrawer} to={item.to}>
+                <Link className={sidebarLinkClass(item.active)} key={item.label} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
                   {item.icon}
                   <span>{item.label}</span>
                 </Link>
@@ -296,7 +320,7 @@ function SidebarContent({
               return (
                 <div className="space-y-1" key={item.label}>
                   {link}
-                  <SidebarDashboardNav onCloseDrawer={onCloseDrawer} prefix={prefix} />
+                  <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} />
                 </div>
               )
             })}
@@ -320,10 +344,11 @@ function SidebarContent({
   )
 }
 
-function SidebarDashboardNav({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
+function SidebarDashboardNav({ expanded, onCloseDrawer, prefix }: { expanded: boolean; onCloseDrawer: () => void; prefix: string }) {
   const location = useLocation()
   const isDashboard = location.pathname.includes("/dashboard")
   const search = dashboardApiSearch(location.pathname, location.search)
+  const [renderedPayload, setRenderedPayload] = useState<DashboardPayload | null>(null)
   const dashboard = useQuery({
     queryKey: ["dashboard", search],
     queryFn: ({ signal }) => fetchDashboard(search, { signal }),
@@ -331,12 +356,27 @@ function SidebarDashboardNav({ onCloseDrawer, prefix }: { onCloseDrawer: () => v
     placeholderData: (previousData) => previousData
   })
 
-  if (!isDashboard || !dashboard.data) return null
+  useEffect(() => {
+    if (dashboard.data) setRenderedPayload(dashboard.data)
+  }, [dashboard.data])
+
+  const payload = dashboard.data ?? renderedPayload
+  if (!payload) return null
+
+  const inertAttributes = expanded ? {} : { inert: "" }
 
   return (
-    <div className="space-y-3 pl-7">
-      <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={dashboard.data} prefix={prefix} />
-      <DashboardSmartFolderNav payload={dashboard.data} prefix={prefix} search={location.search} />
+    <div
+      {...inertAttributes}
+      aria-hidden={!expanded}
+      className={`grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+    >
+      <div className={`min-h-0 overflow-hidden transition-opacity duration-150 ease-out ${expanded ? "opacity-100 delay-75" : "opacity-0"}`}>
+        <div className="space-y-3 pl-7 pt-1">
+          <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={payload} prefix={prefix} />
+          <DashboardSmartFolderNav payload={payload} prefix={prefix} search={location.search} />
+        </div>
+      </div>
     </div>
   )
 }
