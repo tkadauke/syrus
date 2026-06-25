@@ -131,9 +131,7 @@ describe("App", () => {
             default_chat_path: "/chats/new"
           },
           csrf_token: "csrf-token",
-          feature_flags: {
-            migrated_routes: []
-          }
+          feature_flags: {}
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
@@ -11410,9 +11408,7 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
     csrf_token: "csrf-token",
     unread_notifications_count: 0,
     setup_status: setupStatusOverride ?? (setupStatusPayloadOverride as ReturnType<typeof bootstrapSetupStatusPayload> | undefined) ?? defaultSetupStatus(),
-    feature_flags: {
-      migrated_routes: []
-    },
+    feature_flags: {},
     ...payloadOverrides
   }
 }
