@@ -575,7 +575,7 @@ describe("App", () => {
       expect(primaryNav).toBeInTheDocument()
       const accountNav = screen.getByRole("navigation", { name: "Account" })
       expectSyrusBrandLink("/app-shell/chats/9")
-      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveClass("hidden", "sm:inline-flex")
       expect(within(primaryNav).queryByRole("link", { name: "Jobs" })).toBeNull()
       expect(within(primaryNav).queryByRole("link", { name: "Chat" })).toBeNull()
@@ -777,7 +777,7 @@ describe("App", () => {
 
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
       expectSyrusBrandLink("/app-shell")
-      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
       expect(within(primaryNav).getByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
       expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
@@ -1103,7 +1103,7 @@ describe("App", () => {
       fireEvent.click(floatingTrigger as HTMLButtonElement)
       const drawerPrimaryNav = screen.getAllByRole("navigation", { name: "Primary" }).at(-1) as HTMLElement | undefined
       if (!(drawerPrimaryNav instanceof HTMLElement)) throw new Error("Expected drawer primary navigation to render")
-      expect(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
       expect(screen.getAllByRole("button", { name: "Close sidebar" }).length).toBeGreaterThan(0)
       expect(screen.getAllByRole("separator", { name: "Resize sidebar" })).toHaveLength(1)
     } finally {
@@ -1211,7 +1211,7 @@ describe("App", () => {
       )
 
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
-      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
       expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
       const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
       expect(settingsNav.closest("aside")).toHaveClass("lg:w-56", "lg:border-r")
@@ -2047,6 +2047,60 @@ describe("App", () => {
       "/api/v1/app/dashboard?subject=job",
       expect.objectContaining({ credentials: "same-origin" })
     )
+  })
+
+  it("does not carry the current dashboard view when switching subjects in the v2 sidebar", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      if (path.startsWith("/api/v1/app/dashboard")) {
+        const subject = path.includes("subject=epic") ? "epic" : "job"
+        const view = subject === "epic" ? "kanban" : "list"
+        return Promise.resolve(
+          new Response(JSON.stringify(dashboardPayload({ subject, view })), { status: 200, headers: { "Content-Type": "application/json" } })
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+            <App />
+            <LocationProbe />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const dashboardSections = await screen.findByRole("navigation", { name: "Dashboard sections" })
+      fireEvent.click(within(dashboardSections).getByRole("link", { name: "Jobs" }))
+
+      await waitFor(() => {
+        expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
+      })
+      expect(screen.getByTestId("location")).not.toHaveTextContent("view=")
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/dashboard?subject=job",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
+    } finally {
+      script.remove()
+    }
   })
 
   it("persists and clears the selected dashboard smart folder", async () => {
@@ -3517,10 +3571,10 @@ describe("App", () => {
       expect(screen.queryByRole("navigation", { name: "Dashboard subjects" })).not.toBeInTheDocument()
       expect(dashboardSubnav).toHaveAttribute("aria-hidden", "false")
       expect(dashboardSections).toHaveClass("inline-flex", "max-w-full", "flex-wrap", "overflow-hidden", "rounded", "border", "border-gray-300", "bg-white", "dark:border-gray-700", "dark:bg-gray-900")
-      expect(within(dashboardSections).getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list")
-      expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(within(dashboardSections).getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics")
+      expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
       expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveClass("bg-blue-50", "text-blue-700", "ring-blue-600", "dark:bg-blue-950", "dark:text-blue-200")
-      expect(within(dashboardSections).getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows?view=list")
+      expect(within(dashboardSections).getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows")
       expect(primaryNav).toContainElement(foldersPanel)
       expect(dashboardLink.parentElement).toContainElement(dashboardSections)
       expect(dashboardLink.parentElement).toContainElement(foldersPanel)

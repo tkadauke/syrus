@@ -44,7 +44,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const mainRef = useRef<HTMLElement | null>(null)
 
   const navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }> = user ? [
-    { label: "Dashboard", to: `${prefix}/dashboard/jobs?view=list`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
+    { label: "Dashboard", to: `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
     { label: "Spending", to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
     { label: "Repositories", to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
     { label: "Schedules", to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> },
@@ -427,7 +427,7 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
           className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           key={subject.key}
           onClick={onCloseDrawer}
-          to={dashboardLink(`${prefix}${subject.path}`, { view: payload.view })}
+          to={withRoutePrefix(subject.path, prefix)}
         >
           {subject.label}
         </Link>
@@ -714,16 +714,6 @@ function withRoutePrefix(path: string, prefix: string) {
   if (!path.startsWith("/")) return path
 
   return `${prefix}${path}`
-}
-
-function dashboardLink(path: string, params: Record<string, string | number | null | undefined>) {
-  const search = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    if (value != null && String(value).length > 0) search.set(key, String(value))
-  }
-
-  const query = search.toString()
-  return query ? `${path}?${query}` : path
 }
 
 function activeChatIdFromPath(pathname: string) {

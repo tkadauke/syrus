@@ -371,7 +371,7 @@ module App
     def active_smart_folder
       @active_smart_folder ||= begin
         id = Integer(params[:smart_folder_id], exception: false)
-        if id.nil? && !param_key?(:smart_folder_id) && !default_inbox_smart_folder?
+        if id.nil? && !param_key?(:smart_folder_id)
           id = Integer(user.dashboard_preferences.dig(subject.pluralize, "last_smart_folder_id"), exception: false)
         end
 

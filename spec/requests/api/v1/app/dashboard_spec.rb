@@ -772,6 +772,25 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["items"].map { |item| item.fetch("id") }).to include(inbox_job.id, closed_job.id)
     end
 
+    it "uses a saved jobs smart folder before the Inbox default" do
+      SmartFolder.ensure_builtins!
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "My work",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
+      )
+      user.update_dashboard_smart_folder!(subject: "job", smart_folder_id: folder.id)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["active_smart_folder_id"]).to eq(folder.id)
+      expect(body["filter"]).to eq(folder.filter)
+    end
+
     it "keeps an active empty when-present smart folder visible" do
       SmartFolder.ensure_builtins!
       folder = SmartFolder.find_by!(user_id: nil, subject_type: "job", name: "Landing queue")

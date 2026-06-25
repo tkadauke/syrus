@@ -461,7 +461,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
   const navItems: Array<{ label: string; to: string; active: boolean; desktopOnly?: boolean }> = user ? [
     ...(inOnboarding ? [{ label: "Setup", to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding" }] : []),
     ...(tabsHidden ? [] : [
-      { label: "Dashboard", to: `${prefix}/dashboard/jobs?view=list`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard") },
+      { label: "Dashboard", to: `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard") },
       { label: "Spending", to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), desktopOnly: true },
       { label: "Repos", to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories") },
       ...(data && data.team_user_count > 1 ? [ { label: "Team", to: `${prefix}/profiles`, active: normalizedPath.startsWith("/profiles"), desktopOnly: true } ] : []),
