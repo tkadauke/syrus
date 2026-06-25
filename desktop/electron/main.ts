@@ -41,6 +41,12 @@ type JobList = {
   jobs: JobItem[]
 }
 
+type ApiErrorPayload = {
+  error?: {
+    message?: string
+  }
+}
+
 type DesktopSettings = {
   localProjectsRoot: string
   localRepoPaths: Record<string, string>
@@ -234,6 +240,33 @@ const fetchInboxJobs = async () => {
   return lists
     .flatMap((list) => list.jobs)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+}
+
+const apiErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const payload = (await response.json()) as ApiErrorPayload
+    return payload.error?.message || fallback
+  } catch {
+    return fallback
+  }
+}
+
+const retryJob = async (jobID: number) => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before retrying jobs.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, `/api/v1/app/jobs/${jobID}/run_again`), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, `Could not retry JOB-${jobID}.`))
+  }
 }
 
 const getDesktopSettings = (): DesktopSettings => ({
@@ -677,6 +710,7 @@ ipcMain.handle("open-token-docs", async () => {
   await shell.openExternal(TOKEN_DOCS_URL)
 })
 ipcMain.handle("fetch-inbox-jobs", async () => fetchInboxJobs())
+ipcMain.handle("retry-job", async (_event, jobID: number) => retryJob(jobID))
 ipcMain.handle("open-external", async (_event, url: string) => {
   if (!URL.canParse(url)) {
     throw new Error("Invalid URL.")

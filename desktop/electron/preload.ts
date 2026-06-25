@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   copyText: (text: string) => ipcRenderer.invoke("copy-text", text) as Promise<void>,
   fetchBootstrap: () => ipcRenderer.invoke("fetch-bootstrap") as Promise<BootstrapPayload>,
   fetchInboxJobs: () => ipcRenderer.invoke("fetch-inbox-jobs") as Promise<JobItem[]>,
+  retryJob: (jobID: number) => ipcRenderer.invoke("retry-job", jobID) as Promise<void>,
   fetchAdminControls: () => ipcRenderer.invoke("fetch-admin-controls") as Promise<AdminControls>,
   toggleAdminControl: (control: AdminControl, pause: boolean) =>
     ipcRenderer.invoke("toggle-admin-control", control, pause) as Promise<ToggleAdminControlResult>,
