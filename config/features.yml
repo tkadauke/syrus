@@ -1,4 +1,9 @@
 features:
+  - slug: v2_ui
+    category: "UI"
+    name: "V2 UI"
+    description: "Enables the V2 application shell. When off, all users receive the classic UI regardless of their layout_version preference."
+    default: false
   - slug: v2_sidebar_subject_selector
     category: "UI Experiments"
     name: "V2 Sidebar Subject Selector"

@@ -657,7 +657,11 @@ describe("App", () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
-    script.textContent = JSON.stringify(bootstrapPayload())
+    script.textContent = JSON.stringify(bootstrapPayload({
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
     document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ layout_version: "v2" }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -699,6 +703,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -737,6 +744,109 @@ describe("App", () => {
     }
   })
 
+  it("uses the classic shell when v2 UI is disabled despite a v2 layout preference", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: false
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("navigation", { name: "Account" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("uses the v2 shell when v2 UI is enabled and the user prefers v2", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("navigation", { name: "Primary" })).toBeInTheDocument()
+      expect(screen.queryByRole("navigation", { name: "Account" })).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("keeps the classic shell when v2 UI is enabled and the user prefers v1", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v1"
+      },
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("navigation", { name: "Account" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("renders the v2 sidebar navigation and account popup actions", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
@@ -745,6 +855,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       },
       team_user_count: 2
     }))
@@ -825,6 +938,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -876,6 +992,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -926,6 +1045,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -995,6 +1117,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -1058,6 +1183,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -1118,6 +1246,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -1187,6 +1318,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -1236,6 +1370,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -1326,6 +1463,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -2059,7 +2199,7 @@ describe("App", () => {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
       },
-      feature_flags: { v2_sidebar_subject_selector: true }
+      feature_flags: { v2_ui: true, v2_sidebar_subject_selector: true }
     }))
     document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -2496,7 +2636,7 @@ describe("App", () => {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
       },
-      feature_flags: { v2_sidebar_subject_selector: false }
+      feature_flags: { v2_ui: true, v2_sidebar_subject_selector: false }
     }))
     document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -2534,7 +2674,7 @@ describe("App", () => {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
       },
-      feature_flags: { v2_sidebar_subject_selector: true }
+      feature_flags: { v2_ui: true, v2_sidebar_subject_selector: true }
     }))
     document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -3162,6 +3302,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -3564,7 +3707,7 @@ describe("App", () => {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
       },
-      feature_flags: { v2_sidebar_subject_selector: true }
+      feature_flags: { v2_ui: true, v2_sidebar_subject_selector: true }
     }))
     document.body.appendChild(script)
     vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -3688,6 +3831,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -9719,6 +9865,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -11233,6 +11382,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)

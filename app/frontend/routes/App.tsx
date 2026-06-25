@@ -151,7 +151,8 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
   const data = bootstrap.data ?? initialBootstrap
-  const layoutVersion = data?.current_user?.layout_version ?? "v1"
+  const featureFlags = data?.feature_flags ?? {}
+  const layoutVersion = featureFlags.v2_ui ? (data?.current_user?.layout_version ?? "v1") : "v1"
   const routes = (
     <Routes>
       <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
