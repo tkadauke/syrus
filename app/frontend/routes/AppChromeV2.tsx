@@ -578,28 +578,20 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                   return (
                     <div className="group relative flex min-w-0 items-center" key={chat.id}>
                       <Link
-                        className={`${recentChatLinkClass(active)} pr-16`}
+                        className={`${recentChatLinkClass(active)} pr-9`}
                         onClick={onCloseDrawer}
                         to={withRoutePrefix(chat.chat_path, prefix)}
                       >
                         <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
                       </Link>
-                      <button
-                        aria-label={`Hide ${sidebarChatTitle(chat)}`}
-                        className={`absolute ${active ? "right-8" : "right-1"} top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-gray-400 opacity-0 hover:bg-gray-100 hover:text-red-700 focus:opacity-100 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-red-300 group-hover:opacity-100`}
+                      <RecentChatActionsMenu
+                        chat={chat}
                         disabled={hidingChatIds.has(chat.id)}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          hideRecentChat(chat)
-                        }}
-                        title="Hide chat"
-                        type="button"
-                      >
-                        <HideIcon />
-                      </button>
-                      {active ? <ActiveChatBookmarksMenu chatId={activeChatId} search={location.search} /> : null}
+                        onHide={() => hideRecentChat(chat)}
+                        search={location.search}
+                        showBookmarks={active}
+                      />
                     </div>
                   )
                 })}
@@ -635,12 +627,18 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
   )
 }
 
-function ActiveChatBookmarksMenu({ chatId, search }: { chatId: number | null; search: string }) {
+function RecentChatActionsMenu({ chat, disabled, onHide, search, showBookmarks }: {
+  chat: ChatNavRecord
+  disabled: boolean
+  onHide: () => void
+  search: string
+  showBookmarks: boolean
+}) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
-  const chatData = open && chatId
-    ? queryClient.getQueryData<ChatPayload>(chatQueryKey(String(chatId), search))
+  const chatData = open && showBookmarks
+    ? queryClient.getQueryData<ChatPayload>(chatQueryKey(String(chat.id), search))
     : undefined
   const bookmarks = chatData?.bookmarks ?? []
 
@@ -648,8 +646,8 @@ function ActiveChatBookmarksMenu({ chatId, search }: { chatId: number | null; se
     <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={menuRef}>
       <button
         aria-expanded={open}
-        aria-label="Chat bookmarks"
-        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-blue-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-blue-900 dark:hover:text-blue-200"
+        aria-label={`Chat actions for ${sidebarChatTitle(chat)}`}
+        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 opacity-0 hover:bg-blue-100 hover:text-blue-700 focus:opacity-100 dark:text-gray-400 dark:hover:bg-blue-900 dark:hover:text-blue-200 group-hover:opacity-100"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
@@ -657,22 +655,40 @@ function ActiveChatBookmarksMenu({ chatId, search }: { chatId: number | null; se
       </button>
       {open ? (
         <div className="absolute bottom-full right-0 z-20 mb-1 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950">
-          {bookmarks.length > 0 ? bookmarks.map((bookmark) => {
-            const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
+          {bookmarks.length > 0 ? (
+            <>
+              <div className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Bookmarks</div>
+              {bookmarks.map((bookmark) => {
+                const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
 
-            return (
-              <a
-                className="block truncate px-3 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200"
-                href={`#message-${anchorMessageId}`}
-                key={bookmark.id}
-                onClick={() => setOpen(false)}
-              >
-                {bookmark.label}
-              </a>
-            )
-          }) : (
+                return (
+                  <a
+                    className="block truncate px-3 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200"
+                    href={`#message-${anchorMessageId}`}
+                    key={bookmark.id}
+                    onClick={() => setOpen(false)}
+                  >
+                    {bookmark.label}
+                  </a>
+                )
+              })}
+            </>
+          ) : (
             <div className="px-3 py-2 text-gray-400 dark:text-gray-500">No bookmarks yet</div>
           )}
+          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+          <button
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
+            disabled={disabled}
+            onClick={() => {
+              setOpen(false)
+              onHide()
+            }}
+            type="button"
+          >
+            <HideIcon />
+            <span>Hide Chat</span>
+          </button>
         </div>
       ) : null}
     </div>
