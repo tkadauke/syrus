@@ -42,13 +42,21 @@ Run `syrus login` once:
 syrus login
 ```
 
-It asks for the Syrus instance URL and an API token, then writes
+Generate or rotate the token from **My credentials** in the Syrus web UI;
+the token is shown once. `syrus login` asks for the Syrus instance URL
+and that API token, then writes
 `~/.syrus/credentials`:
 
 ```text
 url=https://syrus.example.com
 token=your-api-token
 ```
+
+Syrus Desktop reads and writes the same credentials file. If you have
+already run `syrus login`, the desktop app starts authenticated. If the
+file is missing or incomplete, the desktop app prompts for the same URL
+and API token, validates them against `/api/v1/app/bootstrap`, and saves
+the file for both desktop and CLI use.
 
 Most commands accept a normal user API token and scope themselves to
 what that user can see. Commands that read admin-only payloads, such as
