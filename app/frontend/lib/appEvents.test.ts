@@ -27,6 +27,19 @@ describe("queryKeysFor", () => {
 })
 
 describe("applyAppEvent", () => {
+  it("updates and invalidates notification cache when a notification is created", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { type: "notification_created", unread_count: 3 })
+
+    expect(queryClient.getQueryData(["notifications"])).toMatchObject({
+      notifications: [],
+      unread_count: 3
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"] })
+  })
+
   it("invalidates non-dashboard query keys immediately", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")

@@ -8,6 +8,7 @@ import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type Dashboa
 import { BugReportButton } from "../components/BugReportButton"
 import { CloseIcon } from "../components/CloseIcon"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
+import { NotificationsBell } from "../components/Notifications"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
@@ -283,14 +284,17 @@ function SidebarContent({
       <div className="shrink-0 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
         <div className="flex items-center justify-between gap-3">
           <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}><SyrusBrand /></Link>
-          <button
-            aria-label="Close sidebar"
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300 lg:hidden"
-            onClick={onCloseDrawer}
-            type="button"
-          >
-            <CloseIcon />
-          </button>
+          <div className="flex items-center gap-1">
+            {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
+            <button
+              aria-label="Close sidebar"
+              className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300 lg:hidden"
+              onClick={onCloseDrawer}
+              type="button"
+            >
+              <CloseIcon />
+            </button>
+          </div>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">

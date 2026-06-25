@@ -5,6 +5,7 @@ import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../
 import { patchJson } from "../api/client"
 import { BugReportButton } from "../components/BugReportButton"
 import { NoticeToast } from "../components/NoticeToast"
+import { NotificationsBell, NotificationsRoute } from "../components/Notifications"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { LayoutVersionProvider, useLayoutVersion } from "../lib/layoutVersion"
 import { useAppEvents } from "../lib/useAppEvents"
@@ -72,6 +73,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
   { path: "/insights/spending", element: <SpendingInsightsRoute /> },
+  { path: "/notifications", element: <NotificationsRoute /> },
   { path: "/setup", element: <SetupRedirect /> },
   { path: "/admin", element: <AdminOverview /> },
   { path: "/admin/queue", element: <AdminQueueRoute /> },
@@ -551,6 +553,7 @@ function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfT
   return (
     <nav aria-label="Account" className="flex items-center gap-2">
       {user.admin ? <Link className={accountLinkClass()} to={`${prefix}/admin`}>admin</Link> : null}
+      <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} />
       <button
         aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"

@@ -15,14 +15,35 @@ const dashboardInvalidations = new WeakMap<QueryClient, DashboardInvalidationSta
 
 export type AppEvent = {
   type: string
-  resource: string
-  id: number | string | null
-  changed: string[]
-  occurred_at: string
+  resource?: string
+  id?: number | string | null
+  changed?: string[]
+  occurred_at?: string
   payload?: unknown
+  unread_count?: number
 }
 
 export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
+  if (event.type === "notification_created") {
+    const current = queryClient.getQueryData<{ unread_count: number }>(["notifications"])
+    const unreadCount = typeof event.unread_count === "number" ? event.unread_count : (current?.unread_count ?? 0) + 1
+    queryClient.setQueryData(["notifications"], current ? {
+      ...current,
+      unread_count: unreadCount
+    } : {
+      notifications: [],
+      unread_count: unreadCount,
+      pagination: {
+        page: 1,
+        per_page: 20,
+        total: 0,
+        total_pages: 0
+      }
+    })
+    void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    return
+  }
+
   if (applyChatPayloadEvent(queryClient, event)) return
 
   let dashboardChanged = false

@@ -26,6 +26,18 @@ Job kinds:
 | `cron` | A scheduled task fire. |
 | `direct` | An operator-created prompt with no GitHub issue. |
 
+## Notifications
+
+Signed-in operators see a bell in the app chrome with the current unread
+count. On desktop, the bell opens a recent-notifications panel with Job and
+PR outcomes such as failed Jobs, implemented work, addressed PR feedback,
+merged PRs, and completed Epics. Rows link to the matching Job page or PR
+URL and mark themselves read when opened; the panel also supports marking
+all notifications read.
+
+On mobile, the bell opens the full `/notifications` page with the same
+recent list and read behavior.
+
 ## Epics
 
 Epics group related Jobs inside one repository. They are useful when a
