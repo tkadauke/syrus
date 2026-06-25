@@ -1,35 +1,58 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
+import { updateSmartFolder } from "../api/smartFolders"
 
 export function AdminSmartFolderNav({
-  activeSmartFolderId,
+  activeFolderId,
   allLabel,
   allPath,
   ariaLabel,
+  currentFilter,
   folders,
   heading,
+  invalidateQueryKey,
   prefix,
   subjectType
 }: {
-  activeSmartFolderId: number | null
+  activeFolderId?: number | null
   allLabel: string
   allPath: string
   ariaLabel: string
+  currentFilter?: Record<string, unknown>
   folders: AdminSmartFolder[]
   heading: string
+  invalidateQueryKey?: readonly unknown[]
   prefix: string
   subjectType: string
 }) {
+  const queryClient = useQueryClient()
   const builtinFolders = folders.filter((folder) => folder.kind !== "user_defined")
   const primaryFolders = builtinFolders.filter((folder) => folder.visibility !== "on_demand")
   const moreFolders = builtinFolders.filter((folder) => folder.visibility === "on_demand")
   const savedFolders = folders.filter((folder) => folder.kind === "user_defined")
+  const activeFolder = savedFolders.find((folder) => folder.id === activeFolderId)
+  const filtersDiffer = Boolean(activeFolder && currentFilter && stableStringify(activeFolder.filter || {}) !== stableStringify(currentFilter))
+  const updateFolder = useMutation({
+    mutationFn: () => {
+      if (!activeFolder || !currentFilter) throw new Error("No active smart folder to update.")
+
+      return updateSmartFolder(activeFolder.id, {
+        name: activeFolder.name,
+        position: activeFolder.position,
+        filter: currentFilter
+      })
+    },
+    onSuccess: () => {
+      if (invalidateQueryKey) void queryClient.invalidateQueries({ queryKey: invalidateQueryKey })
+    }
+  })
 
   return (
     <aside className="space-y-2">
       <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{heading}</h2>
       <nav aria-label={ariaLabel} className="space-y-1">
-        <Link className={folderClass(activeSmartFolderId == null)} to={withRoutePrefix(allPath, prefix)}>
+        <Link className={folderClass(activeFolderId == null)} to={withRoutePrefix(allPath, prefix)}>
           <span className="truncate">{allLabel}</span>
         </Link>
         {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
@@ -54,6 +77,19 @@ export function AdminSmartFolderNav({
         ) : (
           <p className="px-2 py-1.5 text-sm text-gray-400">No saved folders</p>
         )}
+        {filtersDiffer && activeFolder ? (
+          <div className="space-y-1 px-2 pt-2">
+            <button
+              className="w-full rounded border border-blue-200 bg-blue-50 px-2 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950 dark:disabled:border-gray-700 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
+              disabled={updateFolder.isPending}
+              onClick={() => updateFolder.mutate()}
+              type="button"
+            >
+              {updateFolder.isPending ? "Updating..." : `Update ${activeFolder.name}`}
+            </button>
+            {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">Unable to update smart folder.</p> : null}
+          </div>
+        ) : null}
       </div>
     </aside>
   )
@@ -77,4 +113,19 @@ function withRoutePrefix(path: string, prefix: string) {
   if (!path.startsWith("/")) return path
 
   return `${prefix}${path}`
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(sortObjectKeys(value))
+}
+
+function sortObjectKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortObjectKeys)
+  if (!value || typeof value !== "object") return value
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, sortObjectKeys(child)])
+  )
 }

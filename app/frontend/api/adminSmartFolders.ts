@@ -3,6 +3,7 @@ import type { FilterSchemaField } from "../components/FilterBar"
 export type AdminSmartFolder = {
   id: number
   name: string
+  position: number
   kind: string
   subject_type: string
   visibility: string

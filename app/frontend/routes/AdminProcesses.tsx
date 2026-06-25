@@ -44,12 +44,14 @@ export function AdminProcessesIndex() {
           }
           smartFolders={
             <AdminSmartFolderNav
-              activeSmartFolderId={processes.data.active_smart_folder_id}
+              activeFolderId={processes.data.active_smart_folder_id}
               allLabel="Active + recent"
               allPath={basePath}
               ariaLabel="Admin process smart folders"
+              currentFilter={processes.data.filter}
               folders={processes.data.smart_folders}
               heading="Processes"
+              invalidateQueryKey={["admin", "processes", location.search]}
               prefix={prefix}
               subjectType="spawned_process"
             />

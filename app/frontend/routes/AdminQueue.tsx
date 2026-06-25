@@ -121,12 +121,14 @@ function QueueContent({ basePath, pathname, payload, prefix, search, tab }: { ba
       filterBar={filterBar}
       smartFolders={smartFolders.length > 0 ? (
         <AdminSmartFolderNav
-          activeSmartFolderId={"active_smart_folder_id" in payload ? payload.active_smart_folder_id : null}
+          activeFolderId={"active_smart_folder_id" in payload ? payload.active_smart_folder_id : null}
           allLabel="All queue"
           allPath={`${basePath}/${tab}`}
           ariaLabel="Admin queue smart folders"
+          currentFilter={isFilteredQueuePayload(payload) ? payload.filter : undefined}
           folders={smartFolders}
           heading="Queues"
+          invalidateQueryKey={["admin", "queue", tab, search]}
           prefix={prefix}
           subjectType="admin_queue"
         />

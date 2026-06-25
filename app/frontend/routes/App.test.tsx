@@ -3677,6 +3677,55 @@ describe("App", () => {
     }
   })
 
+  it("shows an update button for admin queue saved folder filter drift", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminQueuePayloadWithSavedFolder({
+      and: [ { field: "queue_name", op: "is", value: "chat" } ]
+    })))
+
+    try {
+      renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10")
+
+      expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(screen.getByRole("button", { name: "Update Run repairs" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/smart_folders/10",
+          expect.objectContaining({ method: "PATCH" })
+        )
+      })
+      const patchCall = fetchSpy.mock.calls.find(([path, init]) => path === "/api/v1/app/smart_folders/10" && (init as RequestInit | undefined)?.method === "PATCH")
+      expect(JSON.parse(String((patchCall?.[1] as RequestInit).body))).toMatchObject({
+        filter: JSON.stringify(currentAdminQueueFilter()),
+        smart_folder: {
+          name: "Run repairs",
+          position: 2
+        }
+      })
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
+  it("hides the update button for admin queue saved folder matching filters", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminQueuePayloadWithSavedFolder(currentAdminQueueFilter())))
+
+    try {
+      renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10")
+
+      expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Run repairs" })).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
   it("renders admin queue workers when SolidQueue reports queue metadata as a string", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
@@ -3875,6 +3924,40 @@ describe("App", () => {
     }
   })
 
+  it("shows an update button for admin process saved folder filter drift", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminProcessesPayloadWithSavedFolder({
+      and: [ { field: "state", op: "is", value: "finished" } ]
+    })))
+
+    try {
+      renderAppAt("/app-shell/admin/processes?smart_folder_id=11")
+
+      expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.getByRole("button", { name: "Update Live agents" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
+  it("hides the update button for admin process saved folder matching filters", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminProcessesPayloadWithSavedFolder(currentAdminProcessFilter())))
+
+    try {
+      renderAppAt("/app-shell/admin/processes?smart_folder_id=11")
+
+      expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Live agents" })).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
   it("renders the admin process detail route with React transcript links", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
@@ -4050,6 +4133,40 @@ describe("App", () => {
         })
       )
     } finally {
+      restoreMedia()
+    }
+  })
+
+  it("shows an update button for admin user saved folder filter drift", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminUsersPayloadWithSavedFolder({
+      and: [ { field: "admin", op: "is", value: true } ]
+    })))
+
+    try {
+      renderAppAt("/app-shell/admin/users?smart_folder_id=12")
+
+      expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.getByRole("button", { name: "Update Low rate users" })).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
+  it("hides the update button for admin user saved folder matching filters", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminUsersPayloadWithSavedFolder(currentAdminUserFilter())))
+
+    try {
+      renderAppAt("/app-shell/admin/users?smart_folder_id=12")
+
+      expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByRole("button", { name: "Update Low rate users" })).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
       restoreMedia()
     }
   })
@@ -11302,6 +11419,134 @@ function dashboardWorkflowItem(overrides: Record<string, unknown> = {}) {
       path: "/jobs/42"
     },
     ...overrides
+  }
+}
+
+function renderAppAt(path: string) {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[path]}>
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function jsonResponse(payload: unknown) {
+  return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
+}
+
+function currentAdminQueueFilter() {
+  return { and: [ { field: "queue_name", op: "is", value: "runs" } ] }
+}
+
+function adminQueuePayloadWithSavedFolder(folderFilter: Record<string, unknown>) {
+  return {
+    filter: currentAdminQueueFilter(),
+    controls: {
+      filter_schema: [
+        {
+          field: "queue_name",
+          label: "Queue",
+          bucket: "enum",
+          operators: ["is"],
+          values: [ { value: "runs", label: "Runs" }, { value: "chat", label: "Chat" } ]
+        }
+      ]
+    },
+    active_smart_folder_id: 10,
+    smart_folders: [
+      {
+        id: 10,
+        name: "Run repairs",
+        position: 2,
+        kind: "user_defined",
+        subject_type: "admin_queue",
+        visibility: "user_defined",
+        count: 0,
+        active: true,
+        filter: folderFilter,
+        path: "/admin/queue/active?smart_folder_id=10"
+      }
+    ],
+    jobs: []
+  }
+}
+
+function currentAdminProcessFilter() {
+  return { and: [ { field: "state", op: "is", value: "running" } ] }
+}
+
+function adminProcessesPayloadWithSavedFolder(folderFilter: Record<string, unknown>) {
+  return {
+    filter: currentAdminProcessFilter(),
+    controls: {
+      filter_schema: [
+        {
+          field: "state",
+          label: "State",
+          bucket: "enum",
+          operators: ["is"],
+          values: [ { value: "running", label: "Running" }, { value: "finished", label: "Finished" } ]
+        }
+      ]
+    },
+    active_smart_folder_id: 11,
+    smart_folders: [
+      {
+        id: 11,
+        name: "Live agents",
+        position: 3,
+        kind: "user_defined",
+        subject_type: "spawned_process",
+        visibility: "user_defined",
+        count: 0,
+        active: true,
+        filter: folderFilter,
+        path: "/admin/processes?smart_folder_id=11"
+      }
+    ],
+    running_total: 0,
+    processes: []
+  }
+}
+
+function currentAdminUserFilter() {
+  return { and: [ { field: "gh_rate", op: "is", value: "low" } ] }
+}
+
+function adminUsersPayloadWithSavedFolder(folderFilter: Record<string, unknown>) {
+  return {
+    filters: { gh_rate: "low" },
+    filter: currentAdminUserFilter(),
+    controls: {
+      filter_schema: [
+        {
+          field: "gh_rate",
+          label: "GH rate",
+          bucket: "enum",
+          operators: ["is"],
+          values: [ { value: "low", label: "Low (<10%)" }, { value: "exhausted", label: "Exhausted" } ]
+        }
+      ]
+    },
+    count: 0,
+    active_smart_folder_id: 12,
+    smart_folders: [
+      {
+        id: 12,
+        name: "Low rate users",
+        position: 4,
+        kind: "user_defined",
+        subject_type: "admin_user",
+        visibility: "user_defined",
+        count: 0,
+        active: true,
+        filter: folderFilter,
+        path: "/admin/users?smart_folder_id=12"
+      }
+    ],
+    users: []
   }
 }
 

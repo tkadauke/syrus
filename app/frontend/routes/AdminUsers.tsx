@@ -47,12 +47,14 @@ export function AdminUsersIndex() {
           }
           smartFolders={
             <AdminSmartFolderNav
-              activeSmartFolderId={users.data.active_smart_folder_id}
+              activeFolderId={users.data.active_smart_folder_id}
               allLabel="All users"
               allPath={basePath}
               ariaLabel="Admin user smart folders"
+              currentFilter={users.data.filter}
               folders={users.data.smart_folders}
               heading="Smart folders"
+              invalidateQueryKey={["admin", "users", location.search]}
               prefix={prefix}
               subjectType="admin_user"
             />
