@@ -189,7 +189,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         </button>
         {showAdminSubnav ? (
           <div className="flex min-h-full min-w-0">
-            <AdminSubnav normalizedPath={normalizedPath} prefix={prefix} />
+            <AdminSubnav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix} />
             <div className="min-w-0 flex-1">
               {children ?? <Outlet />}
             </div>
@@ -216,11 +216,17 @@ const adminNavItems = [
   { label: "Settings", to: "/settings/edit", paths: ["/settings/edit"] }
 ]
 
-function AdminSubnav({ normalizedPath, prefix }: { normalizedPath: string; prefix: string }) {
+function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: Record<string, boolean>; normalizedPath: string; prefix: string }) {
+  const items = [
+    ...adminNavItems.slice(0, -1),
+    ...(hasFeatureFlags(featureFlags) ? [{ label: "Features", to: "/admin/features", paths: ["/admin/features"] }] : []),
+    adminNavItems[adminNavItems.length - 1]
+  ]
+
   return (
     <aside className="w-40 shrink-0 border-r border-gray-200 bg-white px-3 py-4 dark:border-gray-800 dark:bg-gray-950 sm:w-52">
       <nav aria-label="Admin" className="space-y-1">
-        {adminNavItems.map((item) => {
+        {items.map((item) => {
           const active = item.paths.some((path) => adminNavItemActive(normalizedPath, path))
 
           return (
@@ -232,6 +238,10 @@ function AdminSubnav({ normalizedPath, prefix }: { normalizedPath: string; prefi
       </nav>
     </aside>
   )
+}
+
+function hasFeatureFlags(featureFlags: Record<string, boolean>) {
+  return Object.keys(featureFlags).length > 0
 }
 
 function SidebarContent({

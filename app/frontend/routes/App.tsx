@@ -31,6 +31,7 @@ import { CredentialsRoute } from "./Credentials"
 import { CronTemplateDetailRoute, CronTemplateFormRoute, CronTemplatesIndex } from "./CronTemplates"
 import { DashboardRoute } from "./Dashboard"
 import { DirectJobNewRoute } from "./DirectJobNew"
+import { AdminFeatures } from "./AdminFeatures"
 import { EpicDetailRoute } from "./EpicDetail"
 import { EpicFormRoute } from "./EpicForm"
 import { JobDetailRoute } from "./JobDetail"
@@ -92,6 +93,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/installations", element: <AdminInstallations /> },
   { path: "/admin/github_app/register", element: <AdminGithubAppRegister /> },
   { path: "/admin/github_app/confirm", element: <AdminGithubAppConfirm /> },
+  { path: "/admin/features", element: <AdminFeatures /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
   { path: "/settings", element: <SettingsSectionRoute><AccountProfileRoute /></SettingsSectionRoute> },
@@ -497,7 +499,7 @@ function AppChrome({ children, initialBootstrap }: { children: ReactNode; initia
           </div>
         </div>
       </header>
-      {showsAdminNavigation(normalizedPath) ? <AdminNavigation normalizedPath={normalizedPath} prefix={prefix} /> : null}
+      {showsAdminNavigation(normalizedPath) ? <AdminNavigation featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix} /> : null}
       {showsSettingsNavigation(normalizedPath) ? <SettingsNavigation normalizedPath={normalizedPath} prefix={prefix} /> : null}
       <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
       <FlashBanner flash={data?.flash} />
@@ -713,7 +715,7 @@ function SystemAlertItem({ alert, prefix }: { alert: NonNullable<BootstrapPayloa
   )
 }
 
-function AdminNavigation({ normalizedPath, prefix }: { normalizedPath: string; prefix: string }) {
+function AdminNavigation({ featureFlags, normalizedPath, prefix }: { featureFlags: Record<string, boolean>; normalizedPath: string; prefix: string }) {
   const items: Array<{ label: string; path: string; active: (path: string) => boolean }> = [
     { label: "Overview", path: "/admin", active: (path) => path === "/admin" },
     { label: "Stuck", path: "/admin/stuck", active: (path) => path === "/admin/stuck" },
@@ -723,6 +725,7 @@ function AdminNavigation({ normalizedPath, prefix }: { normalizedPath: string; p
     { label: "Console", path: "/admin/console", active: (path) => path === "/admin/console" },
     { label: "GitHub App", path: "/admin/github_app/register", active: (path) => path.startsWith("/admin/github_app") },
     { label: "Installations", path: "/admin/installations", active: (path) => path === "/admin/installations" },
+    ...(hasFeatureFlags(featureFlags) ? [{ label: "Features", path: "/admin/features", active: (path: string) => path === "/admin/features" }] : []),
     { label: "App settings", path: "/settings/edit", active: (path) => path === "/settings/edit" },
     { label: "Invitations", path: "/invitations", active: (path) => path === "/invitations" }
   ]
@@ -797,6 +800,10 @@ function showsAdminNavigation(pathname: string) {
     pathname.startsWith("/admin/") ||
     pathname === "/settings/edit" ||
     pathname === "/invitations"
+}
+
+function hasFeatureFlags(featureFlags: Record<string, boolean>) {
+  return Object.keys(featureFlags).length > 0
 }
 
 function showsSettingsNavigation(pathname: string) {

@@ -211,6 +211,7 @@ Rails.application.routes.draw do
           get "installations", to: "installations#index"
           post "installations/refresh", to: "installations#refresh"
           resources :invitations, only: %i[ index create destroy ]
+          resources :features, only: %i[ index update ], param: :slug
           get "settings", to: "settings#show"
           patch "settings", to: "settings#update"
           post "settings/clear_secret", to: "settings#clear_secret"

@@ -192,6 +192,11 @@ Admin queue filters can be saved as smart folders from the queue sidebar,
 so repeated operational views are available beside the built-in queue
 folders.
 
+Admins can also toggle boolean feature flags from `/admin/features` when
+the instance declares features in `config/features.yml`. The page groups
+declared flags by category, shows the slug and description for each flag,
+and hides the admin navigation item entirely when no flags are declared.
+
 ## Direct Jobs
 
 Direct Jobs are for work that should start from an operator prompt instead
