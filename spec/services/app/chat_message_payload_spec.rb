@@ -80,6 +80,7 @@ RSpec.describe App::ChatMessagePayload do
       action: "cancel_job",
       state: "pending",
       label: "Cancel JOB-#{job.id}",
+      detail: nil,
       app_confirm_path: "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm",
       app_reject_path: "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/reject",
       resource_title: "Inject memories into chat system prompt",
@@ -104,6 +105,37 @@ RSpec.describe App::ChatMessagePayload do
     )
     expect(payload).not_to have_key(:resource_title)
     expect(payload).not_to have_key(:resource_url)
+  end
+
+  it "includes inline pending action detail for chat feedback" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    action = chat.pending_actions.create!(
+      action: "submit_chat_feedback",
+      requested_by: "agent",
+      payload: { "job_id" => job.id, "feedback" => "Please tighten this implementation." }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Send feedback?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload.fetch(:detail)).to eq("Please tighten this implementation.")
+  end
+
+  it "includes inline pending action detail for recurring schedules" do
+    action = chat.pending_actions.create!(
+      action_type: "schedule_recurring",
+      requested_by: "agent",
+      payload: {
+        "label" => "Nightly sweep",
+        "cron_expression" => "15 2 * * *",
+        "prompt" => "Review open issues and suggest cleanup."
+      }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Schedule it?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload.fetch(:detail)).to eq("Nightly sweep — 15 2 * * *\n\nReview open issues and suggest cleanup.")
   end
 
   it "returns dependency details for a proposal" do

@@ -43,6 +43,7 @@ module App
         action: action.action.presence || action.action_type,
         state: action.state,
         label: pending_action_label(action),
+        detail: pending_action_detail(action),
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject"
       }
@@ -189,6 +190,19 @@ module App
         "Reopen Epic ##{payload['epic_id']} and attach #{::App::Presentation.job_slug(payload['job_id'])}"
       else
         payload["label"].presence || action.action_type.to_s.humanize
+      end
+    end
+
+    def pending_action_detail(action)
+      payload = action.payload || {}
+      case action.action.presence || action.action_type
+      when "submit_chat_feedback"
+        payload["feedback"].presence
+      when "schedule_recurring"
+        [
+          [ payload["label"], payload["cron_expression"] ].compact_blank.join(" — ").presence,
+          payload["prompt"].presence
+        ].compact.join("\n\n").presence
       end
     end
 

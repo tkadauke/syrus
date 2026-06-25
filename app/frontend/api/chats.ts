@@ -120,6 +120,7 @@ export type ChatPendingActionInline = {
   action: string | null
   state: string
   label: string
+  detail: string | null
   resource_title?: string
   resource_url?: string
   app_confirm_path: string
@@ -155,6 +156,7 @@ export type ChatBookmark = {
 export type ChatPendingAction = {
   id: number
   label: string
+  detail: string | null
   state: "queued" | "pending" | "confirmed" | "rejected" | "cancelled"
   action: string | null
   action_type: string | null

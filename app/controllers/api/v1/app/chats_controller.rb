@@ -490,6 +490,7 @@ module Api
             {
               id: action.id,
               label: pending_action_label(action),
+              detail: pending_action_detail(action),
               state: action.state,
               action: action.action,
               action_type: action.action_type,
@@ -949,6 +950,19 @@ module Api
             "Refresh GitHub App installations"
           else
             payload["label"].presence || action.action_type.to_s.humanize
+          end
+        end
+
+        def pending_action_detail(action)
+          payload = action.payload || {}
+          case action.action.presence || action.action_type
+          when "submit_chat_feedback"
+            payload["feedback"].presence
+          when "schedule_recurring"
+            [
+              [ payload["label"], payload["cron_expression"] ].compact_blank.join(" — ").presence,
+              payload["prompt"].presence
+            ].compact.join("\n\n").presence
           end
         end
 

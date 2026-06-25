@@ -274,12 +274,15 @@ function PendingActionRow({ action, disabled, onCancel, onConfirm }: { action: C
           null
 
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-sm dark:bg-gray-950 ${pendingActionRowClass(action.state)}`}>
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {isQueued ? <WaitingIcon /> : null}
-        <span className="font-medium text-gray-900 dark:text-gray-100">{action.label}</span>
-        {isQueued ? <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">Waiting...</span> : null}
-        {terminalLabel ? <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{terminalLabel}</span> : null}
+    <div className={`flex flex-wrap items-start justify-between gap-3 rounded border bg-white px-3 py-2 text-sm dark:bg-gray-950 ${pendingActionRowClass(action.state)}`}>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {isQueued ? <WaitingIcon /> : null}
+          <span className="font-medium text-gray-900 dark:text-gray-100">{action.label}</span>
+          {isQueued ? <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">Waiting...</span> : null}
+          {terminalLabel ? <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{terminalLabel}</span> : null}
+        </div>
+        {action.detail ? <PendingActionDetail detail={action.detail} /> : null}
       </div>
       {isPending ? (
         <div className="flex gap-2">
@@ -810,6 +813,7 @@ function PendingActionCard({ pendingAction, queryKey, onNotice }: { pendingActio
           {pendingAction.resource_title && pendingAction.resource_url ? (
             <a className="mt-2 inline-block break-words text-sm font-medium text-blue-700 hover:underline dark:text-blue-300" href={pendingAction.resource_url}>{pendingAction.resource_title}</a>
           ) : null}
+          {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
         </div>
       </div>
       {terminalLabel ? (
@@ -838,6 +842,12 @@ function PendingActionCard({ pendingAction, queryKey, onNotice }: { pendingActio
         </div>
       )}
     </article>
+  )
+}
+
+function PendingActionDetail({ detail }: { detail: string }) {
+  return (
+    <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded border border-gray-200 bg-gray-50 px-3 py-2 font-sans text-xs leading-5 text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">{detail}</pre>
   )
 }
 

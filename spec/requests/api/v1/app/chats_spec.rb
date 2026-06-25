@@ -944,7 +944,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to contain_exactly(
-      include("id" => action.id, "label" => "Submit feedback on JOB-#{job.id}")
+      include("id" => action.id, "label" => "Submit feedback on JOB-#{job.id}", "detail" => "Please tighten this implementation.")
     )
 
     expect {
@@ -973,7 +973,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to contain_exactly(
-      include("id" => action.id, "state" => "queued", "label" => "Submit feedback on JOB-#{job.id}")
+      include("id" => action.id, "state" => "queued", "label" => "Submit feedback on JOB-#{job.id}", "detail" => "Please tighten this implementation.")
     )
 
     delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
@@ -981,6 +981,31 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Pending action cancelled.")
     expect(action.reload).to be_cancelled
+  end
+
+  it "renders schedule recurring pending action details through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    action = chat.pending_actions.create!(
+      user: user,
+      repository: repository,
+      action_type: "schedule_recurring",
+      payload: {
+        "label" => "Nightly sweep",
+        "cron_expression" => "15 2 * * *",
+        "prompt" => "Review open issues and suggest cleanup."
+      }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "label" => "Nightly sweep",
+        "detail" => "Nightly sweep — 15 2 * * *\n\nReview open issues and suggest cleanup."
+      )
+    )
   end
 
   it "appends a message through the app API and returns the refreshed payload" do

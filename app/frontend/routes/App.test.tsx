@@ -9897,6 +9897,7 @@ describe("App", () => {
       pending_action: {
         id: 7,
         label: "Cancel job",
+        detail: "Cancel this job before it lands.",
         action: "cancel_job",
         state: "pending",
         resource_title: "Refactor checkout flow",
@@ -9969,6 +9970,7 @@ describe("App", () => {
 
     expect(await screen.findByText("This needs confirmation.")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Cancel job" })).toBeInTheDocument()
+    expect(screen.getByText("Cancel this job before it lands.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Refactor checkout flow" })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument()
@@ -10120,6 +10122,30 @@ describe("App", () => {
     expect(screen.getByText("Waiting...")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+  })
+
+  it("renders pending action detail in the confirmation list", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        ...chatPayload({
+          pendingActions: [
+            pendingAction({ id: 7, label: "Send feedback to JOB-44", detail: "Please tighten this implementation.\n\nUse focused tests." })
+          ]
+        })
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Send feedback to JOB-44")).toBeInTheDocument()
+    expect(screen.getByText(/Please tighten this implementation/)).toBeInTheDocument()
+    expect(screen.getByText(/Use focused tests/)).toBeInTheDocument()
   })
 
   it("renders terminal pending actions as read-only badges", async () => {
@@ -12135,6 +12161,7 @@ function chatPayload(overrides: {
 function pendingAction(overrides: {
   id?: number
   label?: string
+  detail?: string | null
   state?: string
   action?: string | null
   actionType?: string | null
@@ -12145,6 +12172,7 @@ function pendingAction(overrides: {
   return {
     id,
     label: overrides.label ?? "Cancel JOB-44",
+    detail: overrides.detail ?? null,
     state: overrides.state ?? "pending",
     action: overrides.action ?? "cancel_job",
     action_type: overrides.actionType ?? null,
