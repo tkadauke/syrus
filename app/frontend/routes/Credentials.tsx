@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createConsumer } from "@rails/actioncable"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { useLocation } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
@@ -21,29 +21,10 @@ import {
   type CredentialsInput,
   type CredentialsPayload
 } from "../api/credentials"
-import {
-  fetchNotificationPreferences,
-  updateNotificationPreferences,
-  type NotificationPreferenceKind,
-  type NotificationPreferencesPayload
-} from "../api/notifications"
 
 const queryKey = ["credentials"] as const
-const notificationPreferencesQueryKey = ["notification_preferences"] as const
-const notificationPreferenceLabels: Array<{ kind: NotificationPreferenceKind; label: string }> = [
-  { kind: "job_failed", label: "Notify me when a job fails" },
-  { kind: "job_implemented", label: "Notify me when a PR is ready for review" },
-  { kind: "pr_comment_addressed", label: "Notify me when Syrus addresses my PR comments" },
-  { kind: "pr_merged", label: "Notify me when a job is merged" },
-  { kind: "epic_completed", label: "Notify me when an epic completes" }
-]
-
-type CredentialsTab = "account" | "notifications"
 
 export function CredentialsRoute() {
-  const location = useLocation()
-  const prefix = routePrefix(location.pathname)
-  const activeTab = credentialsTabFromSearch(location.search)
   const [notice, setNotice] = useState<string | null>(null)
 
   return (
@@ -54,28 +35,12 @@ export function CredentialsRoute() {
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      <CredentialsTabs active={activeTab} prefix={prefix} />
-      {activeTab === "account" ? <CredentialsAccountTab onNotice={setNotice} /> : <NotificationPreferencesPanel onNotice={setNotice} />}
+      <CredentialsAccountPanel onNotice={setNotice} />
     </main>
   )
 }
 
-function CredentialsTabs({ active, prefix }: { active: CredentialsTab; prefix: string }) {
-  const tabs = [
-    { key: "account", label: "Account", to: `${prefix}/credentials/edit` },
-    { key: "notifications", label: "Notifications", to: `${prefix}/credentials/edit?tab=notifications` }
-  ] satisfies Array<{ key: CredentialsTab; label: string; to: string }>
-
-  return (
-    <nav aria-label="Settings tabs" className="flex flex-wrap border-b border-gray-200 dark:border-gray-700">
-      {tabs.map((tab) => (
-        <Link className={tabClass(active === tab.key)} key={tab.key} to={tab.to}>{tab.label}</Link>
-      ))}
-    </nav>
-  )
-}
-
-function CredentialsAccountTab({ onNotice }: { onNotice: (message: string | null) => void }) {
+function CredentialsAccountPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
   const credentials = useQuery({
     queryKey,
     queryFn: fetchCredentials
@@ -812,75 +777,6 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
   )
 }
 
-function NotificationPreferencesPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
-  const queryClient = useQueryClient()
-  const preferences = useQuery({
-    queryKey: notificationPreferencesQueryKey,
-    queryFn: fetchNotificationPreferences
-  })
-  const update = useMutation({
-    mutationFn: ({ kind, enabled }: { kind: NotificationPreferenceKind; enabled: boolean }) => updateNotificationPreferences({ [kind]: enabled }),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(notificationPreferencesQueryKey, updated)
-      onNotice(updated.message || "Notification preferences updated.")
-    }
-  })
-
-  return (
-    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
-      {preferences.isPending ? <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading notification preferences...</p> : null}
-      {preferences.isError ? <PanelMessage tone="error">{errorMessage(preferences.error, "Unable to load notification preferences.")}</PanelMessage> : null}
-      {update.isError ? <PanelMessage tone="error">{errorMessage(update.error, "Unable to update notification preferences.")}</PanelMessage> : null}
-      {preferences.isSuccess ? (
-        <NotificationPreferenceToggles
-          disabled={update.isPending}
-          onChange={(kind, enabled) => {
-            onNotice(null)
-            queryClient.setQueryData<NotificationPreferencesPayload>(notificationPreferencesQueryKey, {
-              ...preferences.data,
-              notification_preferences: {
-                ...preferences.data.notification_preferences,
-                [kind]: enabled
-              }
-            })
-            update.mutate({ kind, enabled })
-          }}
-          payload={preferences.data}
-        />
-      ) : null}
-    </section>
-  )
-}
-
-function NotificationPreferenceToggles({
-  payload,
-  disabled,
-  onChange
-}: {
-  payload: NotificationPreferencesPayload
-  disabled: boolean
-  onChange: (kind: NotificationPreferenceKind, enabled: boolean) => void
-}) {
-  return (
-    <div className="mt-4 space-y-3">
-      {notificationPreferenceLabels.map(({ kind, label }) => (
-        <label className="flex items-center justify-between gap-4 rounded border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm" key={kind}>
-          <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
-          <input
-            aria-label={label}
-            checked={payload.notification_preferences[kind]}
-            className="h-4 w-4 rounded border-gray-400"
-            disabled={disabled}
-            onChange={(event) => onChange(kind, event.target.checked)}
-            type="checkbox"
-          />
-        </label>
-      ))}
-    </div>
-  )
-}
-
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -972,14 +868,6 @@ function titleize(value: string) {
 
 function errorMessage(error: Error, fallback: string) {
   return error instanceof ApiError ? error.message : fallback
-}
-
-function credentialsTabFromSearch(search: string): CredentialsTab {
-  return new URLSearchParams(search).get("tab") === "notifications" ? "notifications" : "account"
-}
-
-function tabClass(active: boolean) {
-  return `border-b-2 px-4 py-2 text-sm font-medium ${active ? "border-blue-600 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-gray-100"}`
 }
 
 function routePrefix(pathname: string) {

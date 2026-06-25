@@ -32,6 +32,7 @@ import { EpicDetailRoute } from "./EpicDetail"
 import { EpicFormRoute } from "./EpicForm"
 import { JobDetailRoute } from "./JobDetail"
 import { MemoriesRoute } from "./Memories"
+import { NotificationsSettingsRoute } from "./NotificationsSettings"
 import { OnboardingRoute } from "./Onboarding"
 import { PersonalDocumentsRoute } from "./PersonalDocuments"
 import { ProfileRoute } from "./Profile"
@@ -90,6 +91,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/settings/edit", element: <AdminSettings /> },
   { path: "/settings", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
   { path: "/credentials/edit", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
+  { path: "/notifications/settings", element: <SettingsSectionRoute><NotificationsSettingsRoute /></SettingsSectionRoute> },
   { path: "/profiles", element: <TeamDirectoryRoute /> },
   { path: "/profiles/:id", element: <TeamProfileRoute /> },
   { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
@@ -768,6 +770,7 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
 function settingsNavigationItems(): Array<{ label: string; path: string; active: (path: string) => boolean }> {
   return [
     { label: "My credentials", path: "/credentials/edit", active: (path) => path === "/settings" || path === "/credentials/edit" },
+    { label: "Notifications", path: "/notifications/settings", active: (path) => path === "/notifications/settings" },
     { label: "Documents", path: "/documents", active: (path) => path === "/documents" },
     { label: "Memories", path: "/memories", active: (path) => path === "/memories" },
     { label: "Templates", path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
@@ -785,6 +788,7 @@ function showsAdminNavigation(pathname: string) {
 function showsSettingsNavigation(pathname: string) {
   return pathname === "/settings" ||
     pathname === "/credentials/edit" ||
+    pathname === "/notifications/settings" ||
     pathname === "/documents" ||
     pathname === "/memories" ||
     pathname === "/tags" ||

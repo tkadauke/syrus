@@ -5460,10 +5460,11 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
-    const settingsTabs = screen.getByRole("navigation", { name: "Settings tabs" })
-    expect(within(settingsTabs).getByRole("link", { name: "Account" })).toHaveAttribute("href", "/app-shell/credentials/edit")
-    expect(within(settingsTabs).getByRole("link", { name: "Account" })).toHaveClass("border-blue-600")
-    expect(within(settingsTabs).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/credentials/edit?tab=notifications")
+    expect(screen.queryByRole("navigation", { name: "Settings tabs" })).not.toBeInTheDocument()
+    const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
+    expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
+    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).not.toHaveClass("bg-gray-900")
     expect(await screen.findByText("A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.")).toBeInTheDocument()
     expect(screen.getByText("Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.")).toBeInTheDocument()
     expect(screen.getByText("Authorize with Claude, copy the code Claude shows, then paste it here to save a durable OAuth token for Syrus runs.")).toBeInTheDocument()
@@ -5517,9 +5518,36 @@ describe("App", () => {
     }))
     expect(await screen.findByText("Credentials updated.")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Notifications" })).not.toBeInTheDocument()
-    fireEvent.click(within(settingsTabs).getByRole("link", { name: "Notifications" }))
+  })
+
+  it("renders notification settings as a sibling settings route", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/notification_preferences" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload({ job_failed: false, message: "Notification preferences updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/notifications/settings"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Notification settings" })).toBeInTheDocument()
     expect(await screen.findByRole("heading", { name: "Notifications" })).toBeInTheDocument()
-    expect(within(settingsTabs).getByRole("link", { name: "Notifications" })).toHaveClass("border-blue-600")
+    expect(screen.queryByRole("main", { name: "My credentials" })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials", expect.anything())
+    const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
+    expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveClass("bg-gray-900")
     const jobFailedToggle = await screen.findByLabelText("Notify me when a job fails")
     expect(jobFailedToggle).toBeChecked()
     fireEvent.click(jobFailedToggle)
@@ -5737,6 +5765,7 @@ describe("App", () => {
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveAttribute("href", "/app-shell/credentials/edit")
     expect(within(settingsNav).getByRole("link", { name: "My credentials" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
     expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
     expect(within(settingsNav).getByRole("link", { name: "Templates" })).toHaveAttribute("href", "/app-shell/cron_templates")
     expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
