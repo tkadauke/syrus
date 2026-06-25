@@ -96,7 +96,7 @@ module App
         preferences: preferences_json,
         controls: controls_json,
         ownership: ownership_json,
-        filter: current_filter.to_h,
+        filter: url_filter.to_h,
         landing_queue: landing_queue_json,
         smart_folders: smart_folders_json,
         active_smart_folder_id: active_smart_folder&.id,
@@ -443,6 +443,17 @@ module App
 
     def workflows_filter
       @workflows_filter ||= Workflows::Filter.from_params(params, smart_folder: active_smart_folder, user: user)
+    end
+
+    def url_filter
+      @url_filter ||= case subject
+      when "job"
+        Jobs::Filter.from_params(params, user: user)
+      when "workflow"
+        Workflows::Filter.from_params(params, user: user)
+      else
+        Epics::Filter.from_params(params, user: user)
+      end
     end
 
     def filtered_workflows_scope

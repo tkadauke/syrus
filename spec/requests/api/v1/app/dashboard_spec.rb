@@ -579,11 +579,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       )
       expect(body.dig("controls", "columns", "required")).to eq([{ "key" => "epic", "title" => "Epic" }])
       expect(body["active_smart_folder_id"]).to eq(folder.id)
-      expect(body["filter"]).to eq(
-        "and" => [
-          { "field" => "state", "op" => "is", "value" => "ready" }
-        ]
-      )
+      expect(body["filter"]).to eq("and" => [])
       expect(body["smart_folders"]).to include(include(
         "id" => folder.id,
         "name" => "Ready work",
@@ -681,7 +677,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       body = parse_body
       inbox_folder = SmartFolder.find_builtin_by_attention("inbox")
       expect(body["active_smart_folder_id"]).to eq(inbox_folder.id)
-      expect(body["filter"]).to eq(SmartFolder.attention_preset_filter("inbox"))
+      expect(body["filter"]).to eq("and" => [])
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ inbox_job.id ])
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
@@ -691,6 +687,32 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["active_smart_folder_id"]).to be_nil
       expect(body["filter"]).to eq("and" => [])
       expect(body["items"].map { |item| item.fetch("id") }).to include(inbox_job.id, closed_job.id)
+    end
+
+    it "returns only URL filters in the editable filter payload while querying with an active smart folder" do
+      folder_tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "open" } ] }
+      q_tree = { "and" => [ { "field" => "kind", "op" => "is", "value" => "direct" } ] }
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Open work",
+        kind: "user_defined",
+        filter: folder_tree
+      )
+      match = Factories.job_record(repository: repo, owner_user: user, issue_number: nil, issue_title: "Direct open", kind: "direct", state: "queued")
+      Factories.job_record(repository: repo, owner_user: user, issue_number: 43, issue_title: "Issue open", kind: "issue", state: "queued")
+      Factories.job_record(repository: repo, owner_user: user, issue_number: nil, issue_title: "Direct closed", kind: "direct", state: "closed")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: folder.id, q: Filters::QueryParam.encode(q_tree) }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["filter"]).to eq(q_tree)
+      expect(body["items"].map { |item| item.fetch("id") }).to eq([ match.id ])
+      expect(body["smart_folders"].find { |row| row.fetch("id") == folder.id }).to include(
+        "filter" => folder_tree,
+        "active" => true
+      )
     end
 
     it "keeps an active empty when-present smart folder visible" do

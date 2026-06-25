@@ -5,7 +5,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { createDashboardSmartFolder, toggleDashboardLandingPause, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject } from "../api/dashboard"
 import { updateSmartFolder } from "../api/smartFolders"
-import { filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren } from "./FilterBar"
+import { filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren, type FilterNode, type FilterTree } from "./FilterBar"
 import { NoticeToast } from "./NoticeToast"
 
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
@@ -28,8 +28,11 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   )
   const appliedTree = filterTreeFromPayload(payload.filter)
   const activeFolderTree = filterTreeFromPayload(activeFolder?.filter)
-  const canSaveFilter = topFilterChildren(appliedTree).length > 0 && payload.active_smart_folder_id == null
-  const canUpdateFilter = activeFolder != null && JSON.stringify(appliedTree) !== JSON.stringify(activeFolderTree)
+  const effectiveTree = mergeFilterTrees(activeFolderTree, appliedTree)
+  const hasAppliedFilter = topFilterChildren(appliedTree).length > 0
+  const hasEffectiveFilter = topFilterChildren(effectiveTree).length > 0
+  const canUpdateFilter = activeFolder != null && hasAppliedFilter && JSON.stringify(effectiveTree) !== JSON.stringify(activeFolderTree)
+  const canSaveFilter = hasEffectiveFilter && (payload.active_smart_folder_id == null || canUpdateFilter)
   const landingPause = useMutation({
     mutationFn: () => toggleDashboardLandingPause(payload.landing_queue.toggle_path),
     onSuccess: () => {
@@ -40,7 +43,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
     mutationFn: () => createDashboardSmartFolder({
       subject: payload.subject,
       name: folderName,
-      filters: smartFolderFiltersFromTree(appliedTree)
+      filters: smartFolderFiltersFromTree(effectiveTree)
     }),
     onSuccess: (created) => {
       setFolderName("")
@@ -55,7 +58,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       return updateSmartFolder(activeFolder.id, {
         name: activeFolder.name,
         position: activeFolder.position,
-        filter: appliedTree
+        filter: effectiveTree
       })
     },
     onSuccess: () => {
@@ -112,24 +115,24 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
               value={folderName}
             />
           </label>
-          <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
-            Save folder
-          </button>
+          <div className={canUpdateFilter ? "grid gap-2 sm:grid-cols-2" : undefined}>
+            {canUpdateFilter && activeFolder ? (
+              <button
+                className="w-full rounded border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 break-words hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-300 dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-950 dark:disabled:border-gray-700 dark:disabled:text-gray-600"
+                disabled={updateFolder.isPending}
+                onClick={() => updateFolder.mutate()}
+                type="button"
+              >
+                Update {activeFolder.name}
+              </button>
+            ) : null}
+            <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
+              {canUpdateFilter ? "Save as new folder" : "Save folder"}
+            </button>
+          </div>
           {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(createFolder.error, "Unable to save smart folder.")}</p> : null}
-        </form>
-      ) : null}
-      {canUpdateFilter && activeFolder ? (
-        <div className="space-y-2 px-2 pt-3">
-          <button
-            className="w-full rounded border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 break-words hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-300 dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-950 dark:disabled:border-gray-700 dark:disabled:text-gray-600"
-            disabled={updateFolder.isPending}
-            onClick={() => updateFolder.mutate()}
-            type="button"
-          >
-            Update {activeFolder.name}
-          </button>
           {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updateFolder.error, "Unable to update smart folder.")}</p> : null}
-        </div>
+        </form>
       ) : null}
       {payload.landing_queue.visible ? (
         <div className="space-y-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
@@ -194,6 +197,15 @@ function withRoutePrefix(path: string, prefix: string) {
   if (!path.startsWith("/")) return path
 
   return `${prefix}${path}`
+}
+
+function mergeFilterTrees(baseTree: FilterTree, overrideTree: FilterTree): FilterTree {
+  const children: FilterNode[] = [
+    ...topFilterChildren(baseTree),
+    ...topFilterChildren(overrideTree)
+  ]
+
+  return { and: children }
 }
 
 function folderClass(active: boolean) {
