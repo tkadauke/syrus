@@ -3429,7 +3429,8 @@ describe("App", () => {
           )
         )
       }
-      if (path === "/api/v1/app/dashboard?view=list&smart_folder_id=7&subject=job") {
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("smart_folder_id") === "7") {
         return Promise.resolve(
           new Response(
             JSON.stringify(
@@ -3466,7 +3467,7 @@ describe("App", () => {
     try {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"]}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7&q=stale"]}>
             <App />
           </MemoryRouter>
         </QueryClientProvider>
@@ -3493,6 +3494,12 @@ describe("App", () => {
               }
             })
           })
+        )
+      })
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/dashboard?view=list&smart_folder_id=7&subject=job",
+          expect.objectContaining({ credentials: "same-origin" })
         )
       })
     } finally {

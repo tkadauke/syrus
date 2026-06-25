@@ -8,6 +8,8 @@ import { updateSmartFolder } from "../api/smartFolders"
 import { filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren } from "./FilterBar"
 import { NoticeToast } from "./NoticeToast"
 
+const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
+
 export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload; prefix: string; search: string }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -57,6 +59,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       })
     },
     onSuccess: () => {
+      navigate(clearDashboardFilterOverrides(`${prefix}${subjectPath(payload.subject)}`, search), { replace: true })
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
@@ -174,6 +177,15 @@ function dashboardLink(path: string, params: Record<string, string | number | nu
   }
 
   const query = search.toString()
+  return query ? `${path}?${query}` : path
+}
+
+function clearDashboardFilterOverrides(path: string, search: string) {
+  const params = new URLSearchParams(search)
+  params.delete("page")
+  for (const key of dashboardFilterOverrideKeys) params.delete(key)
+
+  const query = params.toString()
   return query ? `${path}?${query}` : path
 }
 
