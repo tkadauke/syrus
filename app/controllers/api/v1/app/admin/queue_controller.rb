@@ -29,6 +29,10 @@ module Api
             render_error("queue_unreachable",
                          "SolidQueue tables unreachable from this connection: #{e.message}",
                          status: :service_unavailable)
+          rescue ArgumentError => e
+            render_error("invalid_filter",
+                         "Invalid queue filter: #{e.message}",
+                         status: :unprocessable_content)
           end
         end
       end

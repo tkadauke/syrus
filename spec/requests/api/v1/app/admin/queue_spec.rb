@@ -95,6 +95,16 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     expect(body["jobs"].map { |job| job["queue_name"] }).to eq([ "chat", "runs" ])
   end
 
+  it "handles queue filters with unknown fields" do
+    sign_in_as(admin)
+    tree = { "and" => [ { "field" => "retired_field", "op" => "is", "value" => "runs" } ] }
+
+    get "/api/v1/app/admin/queue/active", params: { q: Filters::QueryParam.encode(tree) }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_filter")
+  end
+
   it "returns recent failed executions" do
     sign_in_as(admin)
     failed_job = solid_queue_job(class_name: "RunJob", queue_name: "runs", arguments: { "arguments" => [ 9 ] })
@@ -118,6 +128,16 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
         { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "days" } }
       ]
     )
+  end
+
+  it "handles malformed failed_since filter durations" do
+    sign_in_as(admin)
+    tree = { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "" } } ] }
+
+    get "/api/v1/app/admin/queue/failed", params: { q: Filters::QueryParam.encode(tree) }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_filter")
   end
 
   it "returns recurring task status" do
