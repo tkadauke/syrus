@@ -3304,6 +3304,93 @@ describe("App", () => {
     }
   })
 
+  it("preserves the active smart folder while dashboard filters change", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      }
+    }))
+    document.body.appendChild(script)
+    const storedFilter = { and: [{ field: "state", op: "is", value: "open" }] }
+    const changedFilter = { and: [{ field: "state", op: "is", value: "closed" }] }
+    const dashboardRequests: string[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/filters/usage" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Recorded." }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("smart_folder_id") === "7") {
+        dashboardRequests.push(path)
+        const filter = url.searchParams.has("q") ? changedFilter : storedFilter
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                active_smart_folder_id: 7,
+                filter,
+                smart_folders: [
+                  {
+                    id: 7,
+                    name: "My work",
+                    kind: "user_defined",
+                    position: 2,
+                    subject_type: "job",
+                    visibility: "user_defined",
+                    count: 1,
+                    active: true,
+                    filter: storedFilter,
+                    path: "/dashboard/jobs?view=list&smart_folder_id=7"
+                  }
+                ],
+                items: [dashboardJobItem()]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Update My work" })).not.toBeInTheDocument()
+
+      fireEvent.click(await screen.findByRole("button", { name: "State is Any open" }))
+      fireEvent.change(screen.getByLabelText("Value"), { target: { value: "closed" } })
+
+      await waitFor(() => {
+        expect(dashboardRequests.some((request) => {
+          const url = new URL(request, "http://example.test")
+          return url.searchParams.get("smart_folder_id") === "7" && url.searchParams.has("q")
+        })).toBe(true)
+      })
+      expect(await within(smartFoldersPanel).findByRole("button", { name: "Update My work" })).toBeInTheDocument()
+    } finally {
+      script.remove()
+    }
+  })
+
   it("updates the active saved dashboard folder with the applied filter", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"

@@ -152,10 +152,11 @@ describe("FilterBar", () => {
       expect.objectContaining({
         page: null,
         q: expect.any(String),
-        smart_folder_id: null,
         state: null
       })
     )
+    const applyCall = buildLink.mock.calls.find((call) => typeof call[2].q === "string")
+    expect(applyCall?.[2]).not.toHaveProperty("smart_folder_id")
   })
 
   it("shows suggested filters above the regular add-filter menu and applies them immediately", async () => {

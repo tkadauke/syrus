@@ -193,9 +193,9 @@ export function FilterBar({
     const nextQ = topFilterChildren(normalized).length > 0 ? encodeFilterTree(normalized) : null
     const updates: FilterLinkUpdates = {
       q: nextQ,
-      page: null,
-      smart_folder_id: null
+      page: null
     }
+    if (params.has("smart_folder_id")) updates.smart_folder_id = params.get("smart_folder_id")
     for (const key of legacyFilterKeys) updates[key] = null
 
     navigate(buildLink(pathname, search, updates))
