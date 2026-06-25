@@ -13,7 +13,7 @@ module Admin
         SmartFolder.ensure_admin_queue_builtins!
         base = SolidQueue::Job.joins(:claimed_execution)
         active_folder = active_smart_folder
-        filter = queue_filter(:active, active_folder)
+        filter = display_filter(:active, active_folder)
         jobs = filter
           .apply(base)
           .order("solid_queue_claimed_executions.created_at DESC")
@@ -28,7 +28,7 @@ module Admin
         SmartFolder.ensure_admin_queue_builtins!
         active_folder = active_smart_folder
         base = SolidQueue::Job.joins(:ready_execution)
-        filter = queue_filter(:pending, active_folder)
+        filter = display_filter(:pending, active_folder)
         filtered = filter.apply(base)
         jobs = filtered.order("solid_queue_ready_executions.created_at ASC").limit(@per_page)
 
@@ -46,7 +46,7 @@ module Admin
           .includes(:job)
           .references(:job)
           .where(SolidQueue::FailedExecution.arel_table[:created_at].gteq(since))
-        filter = queue_filter(:failed, active_folder)
+        filter = display_filter(:failed, active_folder)
         failures = filter
           .apply(base)
           .order(created_at: :desc)
@@ -93,6 +93,13 @@ module Admin
 
       def queue_filter(tab, active_folder)
         ::Admin::Queue::Filter.from_params(params, smart_folder: active_folder, user: user, tab: tab)
+      end
+
+      def display_filter(tab, active_folder)
+        url_filter = ::Admin::Queue::Filter.from_params(params, user: user, tab: tab)
+        return url_filter if url_filter.active? && (active_folder.nil? || params[Filters::QueryParam::PARAM_NAME].present?)
+
+        queue_filter(tab, active_folder)
       end
 
       def smart_folder_payload(tab, base_scope, active_folder, filter:)

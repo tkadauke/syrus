@@ -9,7 +9,7 @@ module Admin
       def index
         SmartFolder.ensure_admin_user_builtins!
         active_folder = active_smart_folder
-        filter = ::Admin::Users::Filter.from_params(params, smart_folder: active_folder, user: actor)
+        filter = display_filter(active_folder)
         base_scope = User.all
         users = filter.apply(base_scope).order(:email_address).limit(500)
         {
@@ -47,6 +47,13 @@ module Admin
 
       def active_smart_folder
         ::Admin::SmartFolderNavigation.active_folder(subject: :admin_user, user: actor, params: params)
+      end
+
+      def display_filter(active_folder)
+        url_filter = ::Admin::Users::Filter.from_params(params, user: actor)
+        return url_filter if url_filter.active?
+
+        ::Admin::Users::Filter.from_params(params, smart_folder: active_folder, user: actor)
       end
 
       def smart_folders(base_scope, active_folder)

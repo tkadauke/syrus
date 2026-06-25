@@ -13,7 +13,7 @@ module Admin
         SmartFolder.ensure_spawned_process_builtins!
         active_folder = active_smart_folder
         base_scope = SpawnedProcess.all
-        filter = ::Admin::SpawnedProcesses::Filter.from_params(params, smart_folder: active_folder, user: user)
+        filter = display_filter(active_folder)
         scope = filter.apply(base_scope).order(started_at: :desc).limit(@per_page)
 
         {
@@ -44,6 +44,13 @@ module Admin
 
       def active_smart_folder
         ::Admin::SmartFolderNavigation.active_folder(subject: :spawned_process, user: user, params: params)
+      end
+
+      def display_filter(active_folder)
+        url_filter = ::Admin::SpawnedProcesses::Filter.from_params(params, user: user)
+        return url_filter if url_filter.active?
+
+        ::Admin::SpawnedProcesses::Filter.from_params(params, smart_folder: active_folder, user: user)
       end
 
       def smart_folders(base_scope, active_folder)

@@ -79,6 +79,61 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     expect(active_folder).to include("active" => true, "count" => be >= 1)
   end
 
+  it "returns the active user-defined folder filter when no URL filter is present" do
+    sign_in_as(admin)
+    folder_tree = {
+      "and" => [
+        { "field" => "email", "op" => "contains", "value" => "folder" }
+      ]
+    }
+    folder = admin.smart_folders.create!(
+      name: "Folder users",
+      kind: "user_defined",
+      subject_type: "admin_user",
+      filter: folder_tree,
+      position: 0
+    )
+    folder_user = Factories.user(email_address: "folder@example.com")
+    Factories.user(email_address: "other@example.com")
+
+    get "/api/v1/app/admin/users", params: { smart_folder_id: folder.id }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["filter"]).to eq(folder_tree)
+    expect(body["users"].map { |user| user["id"] }).to include(folder_user.id)
+  end
+
+  it "returns only the URL filter when a user-defined folder also has q" do
+    sign_in_as(admin)
+    folder_tree = {
+      "and" => [
+        { "field" => "email", "op" => "contains", "value" => "folder" }
+      ]
+    }
+    url_tree = {
+      "and" => [
+        { "field" => "email", "op" => "contains", "value" => "url" }
+      ]
+    }
+    folder = admin.smart_folders.create!(
+      name: "Folder users",
+      kind: "user_defined",
+      subject_type: "admin_user",
+      filter: folder_tree,
+      position: 0
+    )
+    Factories.user(email_address: "folder@example.com")
+    url_user = Factories.user(email_address: "url@example.com")
+
+    get "/api/v1/app/admin/users", params: { smart_folder_id: folder.id, q: Filters::QueryParam.encode(url_tree) }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["filter"]).to eq(url_tree)
+    expect(body["users"].map { |user| user["id"] }).to include(url_user.id)
+  end
+
   it "returns user detail" do
     sign_in_as(admin)
     target = Factories.user(email_address: "target@example.com",

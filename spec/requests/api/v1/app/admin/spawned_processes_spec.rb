@@ -90,6 +90,62 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     expect(body["smart_folders"].find { |row| row["id"] == folder.id }).to include("active" => true, "count" => 1)
   end
 
+  it "returns the active user-defined process folder filter when no q is present" do
+    sign_in_as(admin)
+    running = fixture(kind: "agent")
+    fixture(kind: "grader", started_at: 5.hours.ago, finished_at: 4.hours.ago, outcome: "succeeded", exit_status: 0)
+    folder_tree = {
+      "and" => [
+        { "field" => "state", "op" => "is", "value" => "running" }
+      ]
+    }
+    folder = admin.smart_folders.create!(
+      name: "Running processes",
+      kind: "user_defined",
+      subject_type: "spawned_process",
+      filter: folder_tree,
+      position: 0
+    )
+
+    get "/api/v1/app/admin/processes", params: { smart_folder_id: folder.id }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["filter"]).to eq(folder_tree)
+    expect(body["processes"].map { |process| process["id"] }).to eq([ running.id ])
+  end
+
+  it "returns only the URL process filter when a user-defined folder also has q" do
+    sign_in_as(admin)
+    fixture(kind: "agent")
+    running_grader = fixture(kind: "grader", command: "bin/rspec")
+    finished_grader = fixture(kind: "grader", command: "bin/rubocop", started_at: 5.hours.ago, finished_at: 4.hours.ago, outcome: "succeeded", exit_status: 0)
+    folder_tree = {
+      "and" => [
+        { "field" => "state", "op" => "is", "value" => "running" }
+      ]
+    }
+    url_tree = {
+      "and" => [
+        { "field" => "kind", "op" => "is", "value" => "grader" }
+      ]
+    }
+    folder = admin.smart_folders.create!(
+      name: "Running processes",
+      kind: "user_defined",
+      subject_type: "spawned_process",
+      filter: folder_tree,
+      position: 0
+    )
+
+    get "/api/v1/app/admin/processes", params: { smart_folder_id: folder.id, q: Filters::QueryParam.encode(url_tree) }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["filter"]).to eq(url_tree)
+    expect(body["processes"].map { |process| process["id"] }).to contain_exactly(running_grader.id, finished_grader.id)
+  end
+
   it "returns process detail with host metrics key" do
     sign_in_as(admin)
     job = Factories.job(user: admin)
