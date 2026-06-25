@@ -273,11 +273,10 @@ const openSyrusInBrowser = async () => {
   await showPreferencesWindow()
 }
 
-const trayIconPath = () => path.join(app.getAppPath(), "assets", "trayTemplate.png")
+const trayIconPath = () => path.join(app.getAppPath(), "assets", "syrusIcon.png")
 
 const createTray = () => {
-  const icon = nativeImage.createFromPath(trayIconPath())
-  icon.setTemplateImage(true)
+  const icon = nativeImage.createFromPath(trayIconPath()).resize({ width: 18, height: 18 })
 
   tray = new Tray(icon)
   tray.setToolTip("Syrus")
