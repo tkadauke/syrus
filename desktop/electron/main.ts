@@ -1,12 +1,17 @@
-import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } from "electron"
+import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog, clipboard } from "electron"
+import type { OpenDialogOptions } from "electron"
+import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
 import os from "node:os"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
+import { promisify } from "node:util"
+import Store from "electron-store"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const TOKEN_DOCS_URL = "https://syrus.dev/docs/cli/"
+const execFileAsync = promisify(execFile)
 
 type Credentials = {
   url: string
@@ -36,11 +41,35 @@ type JobList = {
   jobs: JobItem[]
 }
 
+type DesktopSettings = {
+  localProjectsRoot: string
+  localRepoPaths: Record<string, string>
+}
+
+type CheckoutAvailability = {
+  cliAvailable: boolean
+  localPath: string | null
+}
+
+type CheckoutRequest = {
+  jobRef: string
+  repoSlug: string
+  branchName: string
+}
+
 let mainWindow: BrowserWindow | null = null
 let preferencesWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let cachedCredentials: Credentials | null = null
 let isQuitting = false
+let cachedCliAvailable: boolean | null = null
+
+const store = new Store<DesktopSettings>({
+  defaults: {
+    localProjectsRoot: "",
+    localRepoPaths: {}
+  }
+})
 
 const credentialsPath = () => path.join(os.homedir(), ".syrus", "credentials")
 
@@ -171,6 +200,103 @@ const fetchInboxJobs = async () => {
   return lists
     .flatMap((list) => list.jobs)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+}
+
+const getDesktopSettings = (): DesktopSettings => ({
+  localProjectsRoot: store.get("localProjectsRoot", ""),
+  localRepoPaths: store.get("localRepoPaths", {})
+})
+
+const saveDesktopSettings = async (settings: DesktopSettings) => {
+  const localProjectsRoot = settings.localProjectsRoot.trim()
+  const localRepoPaths: Record<string, string> = Object.fromEntries(
+    Object.entries(settings.localRepoPaths)
+      .map(([repoSlug, repoPath]) => [repoSlug.trim(), repoPath.trim()])
+      .filter(([repoSlug, repoPath]) => repoSlug !== "" && repoPath !== "")
+  )
+
+  if (localProjectsRoot !== "" && !path.isAbsolute(localProjectsRoot)) {
+    throw new Error("Local projects root must be an absolute path.")
+  }
+
+  for (const [repoSlug, repoPath] of Object.entries(localRepoPaths)) {
+    if (!repoSlug.includes("/")) {
+      throw new Error("Repository overrides must use owner/repo slugs.")
+    }
+
+    if (!path.isAbsolute(repoPath)) {
+      throw new Error(`Local path for ${repoSlug} must be absolute.`)
+    }
+  }
+
+  store.set("localProjectsRoot", localProjectsRoot)
+  store.set("localRepoPaths", localRepoPaths)
+  mainWindow?.webContents.send("desktop-settings-updated")
+  return getDesktopSettings()
+}
+
+const commandExists = async (command: string) => {
+  const lookupCommand = process.platform === "win32" ? "where" : "which"
+
+  try {
+    await execFileAsync(lookupCommand, [command])
+    return true
+  } catch {
+    return false
+  }
+}
+
+const syrusCliAvailable = async () => {
+  if (cachedCliAvailable !== null) {
+    return cachedCliAvailable
+  }
+
+  cachedCliAvailable = await commandExists("syrus")
+  return cachedCliAvailable
+}
+
+const repoNameFromSlug = (repoSlug: string) => repoSlug.split("/").filter(Boolean).at(-1) ?? repoSlug
+
+const resolveLocalPath = (repoSlug: string) => {
+  const settings = getDesktopSettings()
+  const overridePath = settings.localRepoPaths[repoSlug]?.trim()
+  if (overridePath) {
+    return overridePath
+  }
+
+  const localProjectsRoot = settings.localProjectsRoot.trim()
+  if (localProjectsRoot) {
+    return path.join(localProjectsRoot, repoNameFromSlug(repoSlug))
+  }
+
+  return null
+}
+
+const checkoutAvailability = async (repoSlug: string): Promise<CheckoutAvailability> => ({
+  cliAvailable: await syrusCliAvailable(),
+  localPath: resolveLocalPath(repoSlug)
+})
+
+const checkoutJob = async ({ jobRef, repoSlug, branchName }: CheckoutRequest) => {
+  const localPath = resolveLocalPath(repoSlug)
+  if (!localPath) {
+    await showPreferencesWindow()
+    throw new Error("Configure a local projects root or repository override in Preferences.")
+  }
+
+  if (!(await syrusCliAvailable())) {
+    throw new Error("Install the Syrus CLI to enable local branch checkout.")
+  }
+
+  try {
+    await execFileAsync("syrus", ["checkout", jobRef], { cwd: localPath })
+    return { branchName }
+  } catch (error) {
+    const processError = error as NodeJS.ErrnoException & { stderr?: string; stdout?: string }
+    const stderr = processError.stderr?.trim()
+    const stdout = processError.stdout?.trim()
+    throw new Error(stderr || stdout || processError.message || "Local checkout failed.")
+  }
 }
 
 const saveCredentials = async (credentials: Credentials) => {
@@ -406,6 +532,29 @@ const createMenu = () => {
 
 ipcMain.handle("get-credentials", async () => cachedCredentials ?? (await loadCredentials()))
 ipcMain.handle("save-credentials", async (_event, credentials: Credentials) => saveCredentials(credentials))
+ipcMain.handle("get-desktop-settings", async () => getDesktopSettings())
+ipcMain.handle("save-desktop-settings", async (_event, settings: DesktopSettings) => saveDesktopSettings(settings))
+ipcMain.handle("choose-local-projects-root", async () => {
+  const browserWindow = preferencesWindow ?? mainWindow
+  const options: OpenDialogOptions = {
+    properties: ["openDirectory"],
+    title: "Choose local projects root"
+  }
+  const result = browserWindow
+    ? await dialog.showOpenDialog(browserWindow, options)
+    : await dialog.showOpenDialog(options)
+
+  return result.canceled ? null : result.filePaths[0]
+})
+ipcMain.handle("syrus-cli-status", async () => ({ available: await syrusCliAvailable() }))
+ipcMain.handle("checkout-availability", async (_event, repoSlug: string) => checkoutAvailability(repoSlug))
+ipcMain.handle("checkout-job", async (_event, request: CheckoutRequest) => checkoutJob(request))
+ipcMain.handle("show-preferences", async () => {
+  await showPreferencesWindow()
+})
+ipcMain.handle("copy-text", async (_event, text: string) => {
+  clipboard.writeText(text)
+})
 ipcMain.handle("open-token-docs", async () => {
   await shell.openExternal(TOKEN_DOCS_URL)
 })
