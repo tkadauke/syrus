@@ -1,1 +1,6 @@
-features: []
+features:
+  - slug: v2_sidebar_subject_selector
+    category: "UI Experiments"
+    name: "V2 Sidebar Subject Selector"
+    description: "Moves the Epics/Jobs/Workflows selector from the dashboard header into the sidebar. Introduced in PR #1185."
+    default: false

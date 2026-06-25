@@ -45,12 +45,13 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   })
   const readiness = bootstrap.data?.setup_status?.readiness
   const usesV2Shell = bootstrap.data?.current_user?.layout_version === "v2"
+  const useSidebarSubjectSelector = Boolean(bootstrap.data?.feature_flags.v2_sidebar_subject_selector)
 
   return (
     <main aria-label="Dashboard" className="mx-auto max-w-[96rem] space-y-5 p-6">
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">Dashboard</h1>
-        {isDesktop && !usesV2Shell ? <SubjectTabs payload={payload} prefix={prefix} /> : null}
+        {isDesktop && (!usesV2Shell || !useSidebarSubjectSelector) ? <SubjectTabs payload={payload} prefix={prefix} /> : null}
         {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>

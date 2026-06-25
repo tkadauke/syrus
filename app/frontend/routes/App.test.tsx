@@ -2137,6 +2137,82 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
   }, 15000)
 
+  it("keeps v2 dashboard subjects in the header when the sidebar selector flag is off", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      },
+      feature_flags: { v2_sidebar_subject_selector: false }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard?view=list&subject=job") {
+        return Promise.resolve(new Response(JSON.stringify(dashboardPayload({ subject: "job", view: "list" })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("navigation", { name: "Dashboard subjects" })).toBeInTheDocument()
+      expect(screen.queryByRole("navigation", { name: "Dashboard sections" })).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("moves v2 dashboard subjects into the sidebar when the selector flag is on", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      },
+      feature_flags: { v2_sidebar_subject_selector: true }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard?view=list&subject=job") {
+        return Promise.resolve(new Response(JSON.stringify(dashboardPayload({ subject: "job", view: "list" })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("navigation", { name: "Dashboard sections" })).toBeInTheDocument()
+      expect(screen.queryByRole("navigation", { name: "Dashboard subjects" })).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("uses the indigo trigger badge for chat feedback workflows", async () => {
     const restoreMedia = mockMediaQuery(true)
     vi.spyOn(window, "fetch").mockResolvedValue(
@@ -3136,7 +3212,8 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
-      }
+      },
+      feature_flags: { v2_sidebar_subject_selector: true }
     }))
     document.body.appendChild(script)
     vi.spyOn(window, "fetch").mockImplementation((input) => {

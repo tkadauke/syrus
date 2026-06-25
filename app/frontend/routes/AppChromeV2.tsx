@@ -35,6 +35,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
+  const showDashboardSidebarSubjects = Boolean(data?.feature_flags.v2_sidebar_subject_selector)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [creatingChat, setCreatingChat] = useState(false)
   const [mobileBrandFloating, setMobileBrandFloating] = useState(false)
@@ -134,6 +135,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           onStartChat={startChat}
           prefix={prefix}
           showTeamProfile={(data?.team_user_count || 0) > 1}
+          showDashboardSidebarSubjects={showDashboardSidebarSubjects}
           user={user}
         />
         <div
@@ -172,6 +174,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             onStartChat={startChat}
             prefix={prefix}
             showTeamProfile={(data?.team_user_count || 0) > 1}
+            showDashboardSidebarSubjects={showDashboardSidebarSubjects}
             user={user}
           />
         </div>
@@ -241,6 +244,7 @@ function SidebarContent({
   onCloseDrawer,
   onStartChat,
   prefix,
+  showDashboardSidebarSubjects,
   showTeamProfile,
   user
 }: {
@@ -251,6 +255,7 @@ function SidebarContent({
   onCloseDrawer: () => void
   onStartChat: () => void
   prefix: string
+  showDashboardSidebarSubjects: boolean
   showTeamProfile: boolean
   user: BootstrapPayload["current_user"] | undefined
 }) {
@@ -296,7 +301,7 @@ function SidebarContent({
               return (
                 <div className="space-y-1" key={item.label}>
                   {link}
-                  <SidebarDashboardNav onCloseDrawer={onCloseDrawer} prefix={prefix} />
+                  <SidebarDashboardNav onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
                 </div>
               )
             })}
@@ -320,7 +325,7 @@ function SidebarContent({
   )
 }
 
-function SidebarDashboardNav({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
+function SidebarDashboardNav({ onCloseDrawer, prefix, showSubjects }: { onCloseDrawer: () => void; prefix: string; showSubjects: boolean }) {
   const location = useLocation()
   const isDashboard = location.pathname.includes("/dashboard")
   const search = dashboardApiSearch(location.pathname, location.search)
@@ -335,7 +340,7 @@ function SidebarDashboardNav({ onCloseDrawer, prefix }: { onCloseDrawer: () => v
 
   return (
     <div className="space-y-3 pl-7">
-      <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={dashboard.data} prefix={prefix} />
+      {showSubjects ? <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={dashboard.data} prefix={prefix} /> : null}
       <DashboardSmartFolderNav payload={dashboard.data} prefix={prefix} search={location.search} />
     </div>
   )
