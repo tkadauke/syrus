@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { ChatRoute, storedWorkspaceCollapsed } from "./Chat"
@@ -110,6 +110,97 @@ describe("chat message image attachments", () => {
       expect(screen.queryByRole("dialog", { name: "diagram.png" })).not.toBeInTheDocument()
     })
   })
+
+  it("shows all shared images in the media tab with downloads and lightbox preview", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "user",
+            tool_name: null,
+            content: { text: "First image." },
+            text: "First image.",
+            bookmarkable: true,
+            attachments: [
+              { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
+              { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" }
+            ]
+          },
+          {
+            type: "message",
+            id: 10,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "Second image." },
+            text: "Second image.",
+            bookmarkable: true,
+            attachments: [
+              { name: "mockup.jpg", mime_type: "image/jpeg", data: "anBlZw==" }
+            ]
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Media" }))
+
+    const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
+    expect(within(workspace).getByText("diagram.png")).toBeInTheDocument()
+    expect(within(workspace).getByText("mockup.jpg")).toBeInTheDocument()
+    expect(within(workspace).queryByText("notes.pdf")).not.toBeInTheDocument()
+
+    const download = within(workspace).getByRole("link", { name: "Download diagram.png" })
+    expect(download).toHaveAttribute("href", "data:image/png;base64,cGl4ZWxz")
+    expect(download).toHaveAttribute("download", "diagram.png")
+
+    fireEvent.click(within(workspace).getByRole("button", { name: "Open mockup.jpg" }))
+
+    expect(screen.getByRole("dialog", { name: "mockup.jpg" })).toBeInTheDocument()
+  })
+
+  it("shows an empty media tab state when no images have been shared", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "media")
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("No images shared yet.")).toBeInTheDocument()
+  })
+
+  it("includes media in the mobile chat tab list", async () => {
+    mockMobileViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Media" })).toBeInTheDocument()
+  })
 })
 
 function renderRoute() {
@@ -130,6 +221,23 @@ function mockDesktopViewport() {
     writable: true,
     value: vi.fn((query: string) => ({
       matches: query.includes("min-width: 1024px"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
+function mockMobileViewport() {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn((query: string) => ({
+      matches: !query.includes("min-width: 1024px"),
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
