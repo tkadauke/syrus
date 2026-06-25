@@ -158,6 +158,7 @@ export type JobTestPlan = {
 export type LandingQueueBlockerJob = {
   id: number
   title: string
+  job_path: string
   state: string
   pr_number: number | null
   pr_path: string | null

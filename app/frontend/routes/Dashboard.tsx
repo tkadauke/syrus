@@ -1027,7 +1027,7 @@ function LandingQueueJobGroup({
         if (row.kind === "blocker") {
           return (
             <tr className={`bg-gray-50/70 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400${separatorClass ? ` ${separatorClass}` : ""}`} key={`blocker-${group.key}-${row.id}`}>
-              {columns.map((column) => <LandingQueueBlockerCell column={column} job={row.job} attribution={row.attribution} key={column} />)}
+              {columns.map((column) => <LandingQueueBlockerCell column={column} job={row.job} attribution={row.attribution} key={column} prefix={prefix} />)}
             </tr>
           )
         }
@@ -1042,13 +1042,13 @@ function LandingQueueJobGroup({
   )
 }
 
-function LandingQueueBlockerCell({ job, column, attribution }: { job: LandingQueueBlockerJob; column: string; attribution: string | null }) {
+function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: LandingQueueBlockerJob; column: string; attribution: string | null; prefix: string }) {
   if (column === "checkbox") return <td className="px-4 py-3 align-top" />
   if (column === "landing_queue_position") return <td className="px-4 py-3" />
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
-        <span className="font-medium text-gray-600 dark:text-gray-300">{job.title}</span>
+        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <span>JOB-{job.id}</span>
           {job.pr_number && job.pr_path ? <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink> : null}

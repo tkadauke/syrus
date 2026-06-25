@@ -381,6 +381,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         include(
           "id" => root_blocker.id,
           "title" => "Survey road",
+          "job_path" => "/jobs/#{root_blocker.id}",
           "state" => "queued",
           "pr_number" => 23,
           "pr_path" => "https://github.com/#{repo.slug}/pull/23",
@@ -390,6 +391,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         include(
           "id" => blocker.id,
           "title" => "Ship quarry stones",
+          "job_path" => "/jobs/#{blocker.id}",
           "state" => "implemented",
           "pr_number" => 22,
           "pr_path" => "https://github.com/#{repo.slug}/pull/22",

@@ -2869,8 +2869,8 @@ describe("App", () => {
                   position: 1,
                   job_ids: [1],
                   blocker_jobs: [
-                    { id: 2, title: "Prepare data layer", state: "open", pr_number: 22, pr_path: "https://github.com/acme/widgets/pull/22", epic_id: 20, epic_title: "Data Layer" },
-                    { id: 3, title: "Document rollout", state: "open", pr_number: null, pr_path: null, epic_id: null, epic_title: null }
+                    { id: 2, title: "Prepare data layer", job_path: "/jobs/2", state: "open", pr_number: 22, pr_path: "https://github.com/acme/widgets/pull/22", epic_id: 20, epic_title: "Data Layer" },
+                    { id: 3, title: "Document rollout", job_path: "/jobs/3", state: "open", pr_number: null, pr_path: null, epic_id: null, epic_title: null }
                   ],
                   dependency_edges: [
                     { from_job_id: 2, to_job_id: 1 },
@@ -2914,7 +2914,8 @@ describe("App", () => {
       expect(expander).toHaveAttribute("aria-expanded", "true")
       expect(screen.getByText("Epic: Data Layer")).toBeInTheDocument()
       expect(screen.getByText("standalone")).toBeInTheDocument()
-      expect(screen.getByText("Prepare data layer").closest("tr")).toHaveClass("bg-gray-50/70")
+      expect(screen.getByRole("link", { name: "Prepare data layer" })).toHaveAttribute("href", "/app-shell/jobs/2")
+      expect(screen.getByRole("link", { name: "Prepare data layer" }).closest("tr")).toHaveClass("bg-gray-50/70")
       expect(screen.getByText("Prepare data layer").closest("tr")?.textContent).not.toContain("#1")
 
       const rowText = Array.from(document.querySelectorAll("tbody tr")).map((row) => row.textContent || "")
@@ -2946,7 +2947,7 @@ describe("App", () => {
                   key: "job:1",
                   position: 1,
                   job_ids: [1],
-                  blocker_jobs: [{ id: 2, title: "Hidden blocker", state: "open", pr_number: null, pr_path: null }],
+                  blocker_jobs: [{ id: 2, title: "Hidden blocker", job_path: "/jobs/2", state: "open", pr_number: null, pr_path: null }],
                   dependency_edges: [{ from_job_id: 2, to_job_id: 1 }]
                 }
               ]

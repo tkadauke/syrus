@@ -302,6 +302,7 @@ module App
       json = {
         id: job.id,
         title: job.issue_title.presence || App::Presentation.job_slug(job),
+        job_path: "/jobs/#{job.id}",
         state: job.state,
         pr_number: job.pr_number || job.external_pr_number,
         pr_path: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job)
