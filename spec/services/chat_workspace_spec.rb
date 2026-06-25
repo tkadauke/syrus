@@ -71,7 +71,7 @@ RSpec.describe ChatWorkspace do
       allow(repository).to receive(:authenticated_push_url)
         .with("ghp_test_token")
         .and_return("https://token@example.com/acme/widgets.git")
-      git = RecordingGitRunner.new
+      git = ChatWorkspaceRecordingGitRunner.new
 
       described_class.new(chat_session, git: git).attach_repository!(repository)
 
@@ -165,7 +165,7 @@ RSpec.describe ChatWorkspace do
     out
   end
 
-  class RecordingGitRunner
+  class ChatWorkspaceRecordingGitRunner
     attr_reader :commands
 
     def initialize
