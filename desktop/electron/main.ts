@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog, clipboard } from "electron"
+import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog, clipboard, globalShortcut } from "electron"
 import type { MessageBoxOptions, OpenDialogOptions } from "electron"
 import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
@@ -11,6 +11,7 @@ import Store from "electron-store"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const TOKEN_DOCS_URL = "https://syrus.dev/docs/cli/"
+const DEFAULT_GLOBAL_HOTKEY = "CommandOrControl+Shift+S"
 const execFileAsync = promisify(execFile)
 
 type Credentials = {
@@ -46,6 +47,10 @@ type DesktopSettings = {
   localRepoPaths: Record<string, string>
 }
 
+type DesktopStore = DesktopSettings & {
+  globalHotkey: string
+}
+
 type CheckoutAvailability = {
   cliAvailable: boolean
   localPath: string | null
@@ -79,10 +84,11 @@ let cachedCredentials: Credentials | null = null
 let isQuitting = false
 let cachedCliAvailable: boolean | null = null
 
-const store = new Store<DesktopSettings>({
+const store = new Store<DesktopStore>({
   defaults: {
     localProjectsRoot: "",
-    localRepoPaths: {}
+    localRepoPaths: {},
+    globalHotkey: DEFAULT_GLOBAL_HOTKEY
   }
 })
 
@@ -610,6 +616,25 @@ const createTray = () => {
   )
 }
 
+const registerGlobalHotkey = () => {
+  const globalHotkey = store.get("globalHotkey", DEFAULT_GLOBAL_HOTKEY).trim()
+  if (globalHotkey === "") {
+    return
+  }
+
+  try {
+    const registered = globalShortcut.register(globalHotkey, () => {
+      void togglePopoverWindow()
+    })
+
+    if (!registered) {
+      console.warn(`Could not register global hotkey "${globalHotkey}"; it may already be in use.`)
+    }
+  } catch (error) {
+    console.warn(`Could not register global hotkey "${globalHotkey}"; it may already be in use.`, error)
+  }
+}
+
 const createMenu = () => {
   const applicationMenu = Menu.buildFromTemplate([
     {
@@ -698,6 +723,7 @@ app.whenReady().then(async () => {
   createMenu()
   await loadCredentials()
   createTray()
+  registerGlobalHotkey()
 
   if (!app.isPackaged) {
     await showPopoverWindow()
@@ -714,4 +740,8 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true
+})
+
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll()
 })
