@@ -42,6 +42,7 @@ class User < ApplicationRecord
       "last_smart_folder_id" => nil,
       "sort_column" => "updated_at",
       "sort_direction" => "desc",
+      "folder_prefs" => {},
       "ownership_scope" => "team",
       "visible_columns" => %w[epic state repository updated],
       "kanban_lanes" => %w[backlog ready in_progress done]
@@ -51,6 +52,7 @@ class User < ApplicationRecord
       "last_smart_folder_id" => nil,
       "sort_column" => "created_at",
       "sort_direction" => "desc",
+      "folder_prefs" => {},
       "ownership_scope" => "team",
       "visible_columns" => %w[checkbox issue state repository latest workflows_count started],
       "kanban_lanes" => %w[queued running landing]
@@ -60,6 +62,7 @@ class User < ApplicationRecord
       "last_smart_folder_id" => nil,
       "sort_column" => "started_at",
       "sort_direction" => "desc",
+      "folder_prefs" => {},
       "ownership_scope" => "mine",
       "visible_columns" => %w[workflow job trigger state started finished agent],
       "kanban_lanes" => %w[queued running done]
@@ -265,6 +268,41 @@ class User < ApplicationRecord
     updated[subject_key] = updated.fetch(subject_key).merge(
       "sort_column" => column,
       "sort_direction" => direction
+    )
+
+    update!(dashboard_preferences: updated) if updated != dashboard_preferences
+  end
+
+  def update_dashboard_folder_preferences!(subject:, smart_folder_id:, view: nil, sort_column: nil, sort_direction: nil)
+    subject_key = normalize_dashboard_preference_table(subject)
+    normalized_subject = normalize_dashboard_preference_subject(subject)
+    folder_key = smart_folder_id.present? ? smart_folder_id.to_s : "null"
+
+    if view.present? && !DASHBOARD_VIEWS.include?(view.to_s)
+      raise ArgumentError, "Unknown dashboard view: #{view}"
+    end
+
+    if sort_column.present? && !DASHBOARD_SORT_COLUMNS.fetch(normalized_subject).include?(sort_column.to_s)
+      raise ArgumentError, "Unknown dashboard sort column: #{sort_column}"
+    end
+
+    if sort_direction.present? && !DASHBOARD_SORT_DIRECTIONS.include?(sort_direction.to_s)
+      raise ArgumentError, "Unknown dashboard sort direction: #{sort_direction}"
+    end
+
+    updated = dashboard_preferences
+    existing_subject = updated.fetch(subject_key)
+    existing_folder_prefs = existing_subject.fetch("folder_prefs", {})
+    slot = existing_folder_prefs.fetch(folder_key, {}).dup
+
+    slot["view"] = view.to_s if view.present?
+    if sort_column.present? && sort_direction.present?
+      slot["sort_column"] = sort_column.to_s
+      slot["sort_direction"] = sort_direction.to_s
+    end
+
+    updated[subject_key] = existing_subject.merge(
+      "folder_prefs" => existing_folder_prefs.merge(folder_key => slot)
     )
 
     update!(dashboard_preferences: updated) if updated != dashboard_preferences
@@ -529,9 +567,29 @@ class User < ApplicationRecord
       normalized_key = key.to_s
       hash[normalized_key] = if normalized_key.in?(%w[visible_columns kanban_lanes])
         Array(value).map(&:to_s)
+      elsif normalized_key == "folder_prefs"
+        normalize_dashboard_folder_preferences(value)
       else
         value.to_s
       end
+    end
+  end
+
+  def normalize_dashboard_folder_preferences(value)
+    return {} unless value.is_a?(Hash)
+
+    value.each_with_object({}) do |(folder_id, preferences), hash|
+      next unless preferences.is_a?(Hash)
+
+      slot = {}
+      view = preferences["view"] || preferences[:view]
+      sort_column = preferences["sort_column"] || preferences[:sort_column]
+      sort_direction = preferences["sort_direction"] || preferences[:sort_direction]
+
+      slot["view"] = view.to_s if view.present?
+      slot["sort_column"] = sort_column.to_s if sort_column.present?
+      slot["sort_direction"] = sort_direction.to_s if sort_direction.present?
+      hash[folder_id.to_s] = slot if slot.present?
     end
   end
 

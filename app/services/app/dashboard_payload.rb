@@ -8,6 +8,10 @@ module App
     DEFAULT_SUBJECT = "epic"
     DEFAULT_VIEW = "list"
     DEFAULT_OWNERSHIP_SCOPE = "mine"
+    FOLDER_PREFERENCE_DEFAULTS = {
+      [ "epic", "null" ] => { "view" => "kanban" },
+      [ "job", "landing_queue" ] => { "sort_column" => "landing_queue_position", "sort_direction" => "asc" }
+    }.freeze
     USER_FOCUSED_SUBJECTS = %w[epic].freeze
     TEAM_FOCUSED_SUBJECTS = %w[job workflow].freeze
     PER_PAGE = 25
@@ -143,9 +147,17 @@ module App
 
     def view
       @view ||= params[:view].to_s.presence_in(VIEWS) ||
+                folder_pref_view ||
                 user.dashboard_preferences.dig(subject.pluralize, "last_view").to_s.presence_in(VIEWS) ||
                 user.dashboard_preferences["last_view"].to_s.presence_in(VIEWS) ||
                 DEFAULT_VIEW
+    end
+
+    def folder_pref_view
+      slot = active_folder_preference_slot
+      return slot["view"].to_s.presence_in(VIEWS) if slot.key?("view")
+
+      folder_preference_default("view").to_s.presence_in(VIEWS)
     end
 
     def page
@@ -385,6 +397,67 @@ module App
       end
     end
 
+    def active_folder_key_for_prefs
+      @active_folder_key_for_prefs ||= begin
+        id = Integer(params[:smart_folder_id], exception: false)
+        unless id || param_key?(:smart_folder_id)
+          id = Integer(user.dashboard_preferences.dig(subject.pluralize, "last_smart_folder_id"), exception: false)
+        end
+
+        id&.to_s || "null"
+      end
+    end
+
+    def active_folder_builtin_key
+      @active_folder_builtin_key ||= begin
+        id_str = active_folder_key_for_prefs
+        return "null" if id_str == "null"
+
+        folder = SmartFolder.for_subject(subject).where(user_id: nil).builtin.find_by(id: id_str.to_i)
+        return "null" unless folder
+
+        definition = SmartFolder::BUILTINS_BY_SUBJECT.fetch(subject, []).find do |candidate|
+          candidate.fetch(:name) == folder.name
+        end
+        definition&.fetch(:key) || "null"
+      end
+    end
+
+    def active_folder_preference_slot
+      user.dashboard_preferences.dig(subject.pluralize, "folder_prefs", active_folder_key_for_prefs) || {}
+    end
+
+    def folder_preference_default(key)
+      FOLDER_PREFERENCE_DEFAULTS.dig([ subject, active_folder_builtin_key ], key)
+    end
+
+    def dashboard_sort(subject_name = subject)
+      normalized_subject = subject_name.to_s.delete_suffix("s")
+      subject_preferences = user.dashboard_preferences.fetch(normalized_subject.pluralize)
+      slot = normalized_subject == subject ? active_folder_preference_slot : {}
+
+      column = params[:sort_column].to_s.presence_in(User::DASHBOARD_SORT_COLUMNS.fetch(normalized_subject)) ||
+               slot["sort_column"].to_s.presence_in(User::DASHBOARD_SORT_COLUMNS.fetch(normalized_subject)) ||
+               folder_sort_default(normalized_subject, "sort_column").to_s.presence_in(User::DASHBOARD_SORT_COLUMNS.fetch(normalized_subject)) ||
+               subject_preferences["sort_column"].to_s.presence_in(User::DASHBOARD_SORT_COLUMNS.fetch(normalized_subject)) ||
+               User::DASHBOARD_SORT_DEFAULTS.fetch(normalized_subject).fetch("column")
+      direction = params[:sort_direction].to_s.presence_in(User::DASHBOARD_SORT_DIRECTIONS) ||
+                  slot["sort_direction"].to_s.presence_in(User::DASHBOARD_SORT_DIRECTIONS) ||
+                  folder_sort_default(normalized_subject, "sort_direction").to_s.presence_in(User::DASHBOARD_SORT_DIRECTIONS) ||
+                  subject_preferences["sort_direction"].to_s.presence_in(User::DASHBOARD_SORT_DIRECTIONS) ||
+                  User::DASHBOARD_SORT_DEFAULTS.fetch(normalized_subject).fetch("direction")
+
+      return { column: column, direction: direction } if normalized_subject == "job"
+
+      { "column" => column, "direction" => direction }
+    end
+
+    def folder_sort_default(subject_name, key)
+      return unless subject_name == subject
+
+      folder_preference_default(key)
+    end
+
     def default_inbox_smart_folder?
       subject == "job" &&
         params[:view] == "list" &&
@@ -466,7 +539,7 @@ module App
     end
 
     def apply_sort(scope, subject_name)
-      sort = user.dashboard_sort(subject_name)
+      sort = dashboard_sort(subject_name)
       column = sort_value(sort, "column")
       direction = sort_value(sort, "direction") == "asc" ? :asc : :desc
 
@@ -505,11 +578,11 @@ module App
     end
 
     def landing_queue_position_sort?
-      landing_queue_visible? && sort_value(user.dashboard_sort(:job), "column") == "landing_queue_position"
+      landing_queue_visible? && sort_value(dashboard_sort(:job), "column") == "landing_queue_position"
     end
 
     def landing_queue_sorted_jobs(scope)
-      direction = sort_value(user.dashboard_sort(:job), "direction") == "asc" ? 1 : -1
+      direction = sort_value(dashboard_sort(:job), "direction") == "asc" ? 1 : -1
       positions = landing_queue_positions
       sorted = scope.to_a.sort_by do |job|
         position = positions[job.id]
@@ -901,7 +974,7 @@ module App
     def preferences_json
       table = subject.pluralize
       {
-        sort: user.dashboard_sort(subject),
+        sort: dashboard_sort(subject),
         visible_columns: user.dashboard_visible_columns(subject),
         kanban_lanes: user.dashboard_visible_kanban_lanes(subject),
         ownership_scope: ownership_scope,

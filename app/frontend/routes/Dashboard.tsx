@@ -295,7 +295,13 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
             <Link
               className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
               key={view}
-              onClick={() => updatePreferences.mutate({ subject: payload.subject, view })}
+              onClick={() =>
+                updatePreferences.mutate({
+                  subject: payload.subject,
+                  active_smart_folder_id: payload.active_smart_folder_id,
+                  view
+                })
+              }
               to={dashboardLinkFromSearch(pathname, search, { view, page: null })}
             >
               {view}
@@ -427,10 +433,11 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
     setQueueSortResetRequested(true)
     updateSort.mutate({
       subject: payload.subject,
+      active_smart_folder_id: payload.active_smart_folder_id,
       sort_column: "created_at",
       sort_direction: "desc"
     })
-  }, [payload.subject, queueSortOutsideLanding, queueSortResetRequested, updateSort])
+  }, [payload.active_smart_folder_id, payload.subject, queueSortOutsideLanding, queueSortResetRequested, updateSort])
 
   const sortState: DashboardSortState = {
     column: effectiveSortColumn || payload.controls.sort_columns[0] || "title",
@@ -446,6 +453,7 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
       const nextDirection = currentColumn === sortColumn && currentDirection === "asc" ? "desc" : "asc"
       updateSort.mutate({
         subject: payload.subject,
+        active_smart_folder_id: payload.active_smart_folder_id,
         sort_column: sortColumn,
         sort_direction: nextDirection
       })

@@ -296,6 +296,71 @@ RSpec.describe User do
       expect(preferences.dig("epics", "last_view")).to eq("list")
     end
 
+    it "persists dashboard view and sort per folder" do
+      user = User.create!(attrs)
+
+      user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: nil, view: "kanban")
+      user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, sort_column: "landing_queue_position", sort_direction: "asc")
+
+      preferences = user.reload.dashboard_preferences.fetch("jobs").fetch("folder_prefs")
+      expect(preferences.fetch("null")).to eq("view" => "kanban")
+      expect(preferences.fetch("42")).to eq(
+        "sort_column" => "landing_queue_position",
+        "sort_direction" => "asc"
+      )
+    end
+
+    it "preserves existing folder sort when saving folder view" do
+      user = User.create!(attrs)
+      user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, sort_column: "created_at", sort_direction: "desc")
+
+      user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, view: "kanban")
+
+      expect(user.reload.dashboard_preferences.dig("jobs", "folder_prefs", "42")).to eq(
+        "sort_column" => "created_at",
+        "sort_direction" => "desc",
+        "view" => "kanban"
+      )
+    end
+
+    it "preserves existing folder view when saving folder sort" do
+      user = User.create!(attrs)
+      user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, view: "kanban")
+
+      user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, sort_column: "started_at", sort_direction: "asc")
+
+      expect(user.reload.dashboard_preferences.dig("jobs", "folder_prefs", "42")).to eq(
+        "view" => "kanban",
+        "sort_column" => "started_at",
+        "sort_direction" => "asc"
+      )
+    end
+
+    it "rejects unknown folder dashboard preferences" do
+      user = User.create!(attrs)
+
+      expect {
+        user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, view: "board")
+      }.to raise_error(ArgumentError, "Unknown dashboard view: board")
+      expect {
+        user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, sort_column: "priority", sort_direction: "asc")
+      }.to raise_error(ArgumentError, "Unknown dashboard sort column: priority")
+      expect {
+        user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, sort_column: "created_at", sort_direction: "sideways")
+      }.to raise_error(ArgumentError, "Unknown dashboard sort direction: sideways")
+    end
+
+    it "keeps folder preference slots independent within a subject" do
+      user = User.create!(attrs)
+
+      user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 12, view: "kanban")
+      user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 34, view: "list")
+
+      preferences = user.reload.dashboard_preferences.fetch("jobs").fetch("folder_prefs")
+      expect(preferences.fetch("12")).to eq("view" => "kanban")
+      expect(preferences.fetch("34")).to eq("view" => "list")
+    end
+
     it "rejects unknown dashboard views" do
       user = User.create!(attrs)
 

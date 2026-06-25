@@ -1036,6 +1036,55 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(parse_body["view"]).to eq("kanban")
     end
 
+    it "uses the built-in null-folder Epic view default" do
+      get "/api/v1/app/dashboard", params: { subject: "epic" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["view"]).to eq("kanban")
+    end
+
+    it "uses the built-in landing queue sort default" do
+      SmartFolder.ensure_builtins!
+      folder = SmartFolder.find_by!(user_id: nil, subject_type: "job", name: "Landing queue")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("preferences", "sort")).to include("column" => "landing_queue_position", "direction" => "asc")
+    end
+
+    it "lets saved folder preferences override built-in defaults" do
+      SmartFolder.ensure_builtins!
+      folder = SmartFolder.find_by!(user_id: nil, subject_type: "job", name: "Landing queue")
+      user.update_dashboard_folder_preferences!(
+        subject: "job",
+        smart_folder_id: folder.id,
+        sort_column: "created_at",
+        sort_direction: "desc"
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("preferences", "sort")).to include("column" => "created_at", "direction" => "desc")
+    end
+
+    it "falls back to subject-level sort when a folder has no saved or built-in preference" do
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Running jobs",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
+      )
+      user.update_dashboard_sort!(subject: "job", column: "started_at", direction: "asc")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("preferences", "sort")).to include("column" => "started_at", "direction" => "asc")
+    end
+
     it "falls back to the saved smart folder when the URL omits smart_folder_id" do
       folder = SmartFolder.create!(
         user: user,
@@ -1115,6 +1164,36 @@ RSpec.describe "App API dashboard commands", type: :request do
           "message" => "Unknown dashboard sort column: vapor"
         }
       )
+    end
+
+    it "saves sort with an active smart folder to folder preferences" do
+      patch "/api/v1/app/dashboard/preferences",
+            params: {
+              subject: "jobs",
+              active_smart_folder_id: 42,
+              sort_column: "started_at",
+              sort_direction: "asc"
+            },
+            as: :json
+
+      expect(response).to have_http_status(:ok)
+      preferences = user.reload.dashboard_preferences.fetch("jobs")
+      expect(preferences).to include("sort_column" => "created_at", "sort_direction" => "desc")
+      expect(preferences.dig("folder_prefs", "42")).to eq(
+        "sort_column" => "started_at",
+        "sort_direction" => "asc"
+      )
+    end
+
+    it "saves view without an active smart folder to subject preferences" do
+      patch "/api/v1/app/dashboard/preferences",
+            params: { subject: "jobs", view: "kanban" },
+            as: :json
+
+      expect(response).to have_http_status(:ok)
+      preferences = user.reload.dashboard_preferences.fetch("jobs")
+      expect(preferences.fetch("last_view")).to eq("kanban")
+      expect(preferences.fetch("folder_prefs")).to eq({})
     end
   end
 

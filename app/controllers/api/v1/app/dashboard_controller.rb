@@ -12,11 +12,20 @@ module Api
           subject = params.require(:subject)
 
           if params.key?(:sort_column) || params.key?(:sort_direction)
-            Current.user.update_dashboard_sort!(
-              subject: subject,
-              column: params.require(:sort_column),
-              direction: params.require(:sort_direction)
-            )
+            if params.key?(:active_smart_folder_id)
+              Current.user.update_dashboard_folder_preferences!(
+                subject: subject,
+                smart_folder_id: params[:active_smart_folder_id],
+                sort_column: params.require(:sort_column),
+                sort_direction: params.require(:sort_direction)
+              )
+            else
+              Current.user.update_dashboard_sort!(
+                subject: subject,
+                column: params.require(:sort_column),
+                direction: params.require(:sort_direction)
+              )
+            end
           end
 
           if params.key?(:visible_columns)
@@ -34,10 +43,18 @@ module Api
           end
 
           if params.key?(:view)
-            Current.user.update_dashboard_view!(
-              subject: subject,
-              view: params[:view]
-            )
+            if params.key?(:active_smart_folder_id)
+              Current.user.update_dashboard_folder_preferences!(
+                subject: subject,
+                smart_folder_id: params[:active_smart_folder_id],
+                view: params[:view]
+              )
+            else
+              Current.user.update_dashboard_view!(
+                subject: subject,
+                view: params[:view]
+              )
+            end
           end
 
           if params.key?(:smart_folder_id)
