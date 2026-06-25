@@ -326,14 +326,35 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
   it "marks a chat read for the signed-in user" do
     sign_in_as(user)
-    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current, last_read_at: nil)
+    newer_chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Newer chat",
+      last_message_at: 1.hour.ago
+    )
+    chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Older chat",
+      last_message_at: 1.day.ago,
+      last_read_at: nil
+    )
+    chat.update_columns(created_at: 2.days.ago, updated_at: chat.last_message_at)
+    newer_chat.update_columns(created_at: 2.hours.ago, updated_at: newer_chat.last_message_at)
+    original_updated_at = chat.reload.updated_at
     foreign_chat = ChatSession.create!(user: Factories.user, last_message_at: Time.current, last_read_at: nil)
 
     patch "/api/v1/app/chats/#{chat.id}/mark_read"
 
     expect(response).to have_http_status(:no_content)
     expect(chat.reload.last_read_at).to be_present
+    expect(chat.updated_at.to_i).to eq(original_updated_at.to_i)
     expect(foreign_chat.reload.last_read_at).to be_nil
+
+    get "/api/v1/app/chats"
+
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |candidate| candidate.fetch("id") }).to eq([ newer_chat.id, chat.id ])
   end
 
   it "hides and restores a chat for the signed-in user" do

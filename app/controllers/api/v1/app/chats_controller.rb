@@ -246,7 +246,7 @@ module Api
         end
 
         def mark_read
-          find_chat_session.update!(last_read_at: Time.current)
+          find_chat_session.update_columns(last_read_at: Time.current)
 
           head :no_content
         end
