@@ -61,6 +61,17 @@ grade:
     run: bin/check-thread-budget
     timeout_minutes: 1
 
+  - name: feature-slugs
+    description: |
+      Ensures every Feature.enabled? call and frontend featureFlags
+      reference uses a slug declared in config/features.yml. Undeclared
+      slugs would silently stay disabled or disappear from the bootstrap
+      payload, so feature rollout code must stay aligned with the YAML
+      declaration.
+    run: bin/check_feature_slugs
+    required: true
+    timeout_minutes: 1
+
   - name: eager-load
     description: |
       Forces Rails.application.eager_load! to surface Zeitwerk

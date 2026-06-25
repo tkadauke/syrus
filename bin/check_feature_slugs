@@ -1,0 +1,115 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "yaml"
+require "pathname"
+require "set"
+
+ROOT = Pathname.new(Dir.pwd)
+CONFIG_PATH = ROOT.join("config/features.yml")
+
+SCAN_EXTENSIONS = %w[.rb .ts .tsx].freeze
+EXCLUDED_DIRS = %w[
+  .git
+  .syrus
+  coverage
+  db
+  log
+  node_modules
+  public/assets
+  spec
+  storage
+  test
+  tmp
+  vendor
+].freeze
+
+Reference = Struct.new(:slug, :path, :line, keyword_init: true)
+
+def fail_check(message)
+  warn "[check-feature-slugs] #{message}"
+  exit 1
+end
+
+def declared_slugs
+  fail_check("missing #{CONFIG_PATH.relative_path_from(ROOT)}") unless CONFIG_PATH.file?
+
+  raw = YAML.safe_load(CONFIG_PATH.read) || {}
+  features = raw.fetch("features", [])
+  fail_check("config/features.yml features must be an array") unless features.is_a?(Array)
+
+  features.filter_map do |feature|
+    next unless feature.is_a?(Hash)
+
+    feature["slug"]&.to_s
+  end.to_set
+rescue Psych::SyntaxError => e
+  fail_check("could not parse config/features.yml: #{e.message}")
+end
+
+def candidate_files
+  files = if ROOT.join(".git").directory?
+    `git ls-files`.lines.map(&:chomp)
+  else
+    Dir.glob("**/*", File::FNM_DOTMATCH).select { |path| File.file?(path) }
+  end
+
+  files.select do |path|
+    next false unless SCAN_EXTENSIONS.include?(File.extname(path))
+    next false if excluded_path?(path)
+
+    true
+  end
+end
+
+def excluded_path?(path)
+  EXCLUDED_DIRS.any? do |excluded|
+    path == excluded || path.start_with?("#{excluded}/")
+  end
+end
+
+def references_in_file(path)
+  references = []
+  File.readlines(ROOT.join(path), chomp: true).each_with_index do |line, index|
+    line.scan(/Feature\.enabled\?\(\s*:([A-Za-z_][A-Za-z0-9_.-]*)\s*\)/) do |match|
+      references << Reference.new(slug: match.first, path: path, line: index + 1)
+    end
+
+    line.scan(/Feature\.enabled\?\(\s*["']([^"']+)["']\s*\)/) do |match|
+      references << Reference.new(slug: match.first, path: path, line: index + 1)
+    end
+
+    line.scan(/featureFlags\.([A-Za-z_$][A-Za-z0-9_$]*)/) do |match|
+      references << Reference.new(slug: match.first, path: path, line: index + 1)
+    end
+
+    line.scan(/featureFlags\[\s*["']([^"']+)["']\s*\]/) do |match|
+      references << Reference.new(slug: match.first, path: path, line: index + 1)
+    end
+  end
+  references
+end
+
+declared = declared_slugs
+references = candidate_files.flat_map { |path| references_in_file(path) }
+referenced_slugs = references.map(&:slug).to_set
+undeclared_slugs = referenced_slugs - declared
+unused_slugs = declared - referenced_slugs
+
+unless undeclared_slugs.empty?
+  warn "[check-feature-slugs] undeclared feature slug references found:"
+  undeclared_slugs.sort.each do |slug|
+    locations = references.select { |reference| reference.slug == slug }.map do |reference|
+      "#{reference.path}:#{reference.line}"
+    end
+    warn "  #{slug}: #{locations.join(", ")}"
+  end
+  exit 1
+end
+
+unless unused_slugs.empty?
+  warn "[check-feature-slugs] warning: declared feature slugs have no code references:"
+  unused_slugs.sort.each { |slug| warn "  #{slug}" }
+end
+
+puts "[check-feature-slugs] ok (#{referenced_slugs.size} referenced, #{declared.size} declared)"
