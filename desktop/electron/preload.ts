@@ -26,6 +26,14 @@ type JobItem = {
 type DesktopSettings = {
   localProjectsRoot: string
   localRepoPaths: Record<string, string>
+  lastUsedRepo: string
+}
+
+type DesktopSettingsInput = Pick<DesktopSettings, "localProjectsRoot" | "localRepoPaths">
+
+type RepositoryItem = {
+  id: number
+  slug: string
 }
 
 type CheckoutAvailability = {
@@ -62,7 +70,7 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   saveCredentials: (credentials: Credentials) =>
     ipcRenderer.invoke("save-credentials", credentials) as Promise<Credentials>,
   getDesktopSettings: () => ipcRenderer.invoke("get-desktop-settings") as Promise<DesktopSettings>,
-  saveDesktopSettings: (settings: DesktopSettings) =>
+  saveDesktopSettings: (settings: DesktopSettingsInput) =>
     ipcRenderer.invoke("save-desktop-settings", settings) as Promise<DesktopSettings>,
   chooseLocalProjectsRoot: () => ipcRenderer.invoke("choose-local-projects-root") as Promise<string | null>,
   syrusCliStatus: () => ipcRenderer.invoke("syrus-cli-status") as Promise<{ available: boolean }>,
@@ -73,6 +81,9 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   showPreferences: () => ipcRenderer.invoke("show-preferences") as Promise<void>,
   copyText: (text: string) => ipcRenderer.invoke("copy-text", text) as Promise<void>,
   fetchBootstrap: () => ipcRenderer.invoke("fetch-bootstrap") as Promise<BootstrapPayload>,
+  fetchRepositories: () => ipcRenderer.invoke("fetch-repositories") as Promise<RepositoryItem[]>,
+  getLastUsedRepo: () => ipcRenderer.invoke("get-last-used-repo") as Promise<string>,
+  setLastUsedRepo: (repoSlug: string) => ipcRenderer.invoke("set-last-used-repo", repoSlug) as Promise<string>,
   fetchInboxJobs: () => ipcRenderer.invoke("fetch-inbox-jobs") as Promise<JobItem[]>,
   fetchAdminControls: () => ipcRenderer.invoke("fetch-admin-controls") as Promise<AdminControls>,
   toggleAdminControl: (control: AdminControl, pause: boolean) =>

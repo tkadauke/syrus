@@ -219,6 +219,118 @@ button:disabled {
   font-size: 0.75rem;
 }
 
+.compose-field {
+  gap: 7px;
+  font-size: 0.85rem;
+}
+
+.compose-prompt {
+  min-height: 180px;
+  resize: vertical;
+  border: 1px solid #c8d0da;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #15171a;
+  padding: 11px 12px;
+  line-height: 1.45;
+}
+
+.compose-prompt:focus {
+  border-color: #2663eb;
+  box-shadow: 0 0 0 3px rgb(38 99 235 / 16%);
+  outline: none;
+}
+
+.repo-picker {
+  position: relative;
+}
+
+.repo-picker__trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #c8d0da;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #15171a;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.repo-picker__trigger:focus {
+  border-color: #2663eb;
+  box-shadow: 0 0 0 3px rgb(38 99 235 / 16%);
+  outline: none;
+}
+
+.repo-picker__value,
+.repo-picker__placeholder {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-picker__placeholder,
+.repo-picker__chevron {
+  color: #64748b;
+}
+
+.repo-picker__popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  border: 1px solid #c8d0da;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px;
+  box-shadow: 0 16px 32px rgb(15 23 42 / 18%);
+}
+
+.repo-picker__search {
+  padding: 9px 10px;
+}
+
+.repo-picker__list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.repo-picker__status {
+  padding: 12px 10px;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.repo-picker__option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #15171a;
+  padding: 9px 10px;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.repo-picker__option:hover,
+.repo-picker__option[aria-selected="true"] {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .overflow-wrap-anywhere {
   overflow-wrap: anywhere;
 }

@@ -1,6 +1,7 @@
 import "./styles.css"
 import { FormEvent, useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { RepoPicker } from "./RepoPicker"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type CheckoutStatusByRepo = Record<string, SyrusCheckoutAvailability>
@@ -477,8 +478,49 @@ function JobRow({
   )
 }
 
+function ComposeView({ instanceUrl }: { instanceUrl: string }) {
+  const [repoSlug, setRepoSlug] = useState("")
+  const [prompt, setPrompt] = useState("")
+
+  return (
+    <main className="flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
+      <header className="border-b border-slate-200 bg-white px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-slate-950 text-sm font-bold text-white">
+            S
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold leading-5">New job</p>
+            <p className="truncate text-xs text-slate-500">{normalizeInstanceUrl(instanceUrl)}</p>
+          </div>
+        </div>
+      </header>
+
+      <section className="grid min-h-0 flex-1 content-start gap-4 px-4 py-4">
+        <label className="compose-field">
+          <span>Repository</span>
+          <RepoPicker value={repoSlug} onChange={setRepoSlug} />
+        </label>
+
+        <label className="compose-field">
+          <span>Prompt</span>
+          <textarea
+            className="compose-prompt"
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="Describe the job..."
+            rows={9}
+            value={prompt}
+          />
+        </label>
+      </section>
+    </main>
+  )
+}
+
 export function App() {
-  const isPreferencesView = new URLSearchParams(window.location.search).get("view") === "preferences"
+  const view = new URLSearchParams(window.location.search).get("view")
+  const isPreferencesView = view === "preferences"
+  const isComposeView = view === "compose"
   const [authState, setAuthState] = useState<AuthState>("loading")
   const [url, setUrl] = useState("")
   const [token, setToken] = useState("")
@@ -737,7 +779,5 @@ export function App() {
     )
   }
 
-  return (
-    <InboxView instanceUrl={url} />
-  )
+  return isComposeView ? <ComposeView instanceUrl={url} /> : <InboxView instanceUrl={url} />
 }
