@@ -22,6 +22,7 @@ module SyrusChatMcp
         chat_session = server_context.fetch(:chat_session)
         job, error = find_repository_job(chat_session, job_id)
         return error if error
+        return SyrusChatMcp.invalid("Job ##{job.id} is closed and cannot be updated.") if job.closed?
 
         attrs = {}
         attrs[:issue_title] = title if title.present?
