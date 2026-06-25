@@ -969,9 +969,9 @@ describe("App", () => {
 
       expect(await screen.findByRole("link", { name: "Forum planning" })).toHaveAttribute("href", "/chats/77")
       expect(screen.getByText((_content, element) => element?.textContent === "Best needle ignored")).toBeInTheDocument()
-      expect(screen.getByText(/Jun/)).toBeInTheDocument()
+      expect(screen.getByText(/ago$/)).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole("button", { name: "1 more match" }))
+      fireEvent.click(screen.getByRole("button", { name: "Show 1 more match" }))
       const secondMatch = await screen.findByText((_content, element) => element?.textContent === "Second needle")
       fireEvent.click(secondMatch.closest("button") as HTMLButtonElement)
 

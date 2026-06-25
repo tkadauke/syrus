@@ -66,7 +66,7 @@ function SearchResults({ payload, search }: { payload: ChatSearchPayload; search
 
   return (
     <>
-      <section className="space-y-3">
+      <section className="divide-y divide-gray-200 border-y border-gray-200 dark:divide-gray-800 dark:border-gray-800">
         {payload.results.map((result) => <SearchResultCard key={result.chat_session_id} result={result} search={search} />)}
       </section>
       <SearchPagination page={payload.page} perPage={payload.per_page} total={payload.total} />
@@ -89,27 +89,34 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
   const hiddenMatchCount = Math.max(result.total_match_count - result.top_matches.length, 0)
 
   return (
-    <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+    <article className="py-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
           <Link className="hover:text-blue-700 dark:hover:text-blue-300" to={`/chats/${result.chat_session_id}`}>{result.chat_title}</Link>
         </h2>
-        <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(result.top_matches[0]?.created_at)}</span>
+        <span className="text-sm text-gray-500 dark:text-gray-400">{formatRelativeTime(result.top_matches[0]?.created_at)}</span>
       </div>
-      <Snippet className="mt-3 text-sm leading-6 text-gray-700 dark:text-gray-300" html={result.best_snippet || "No message snippet available."} />
-      {result.has_more_matches ? (
-        <button
-          className="mt-3 rounded border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-          onClick={() => setExpanded((current) => !current)}
-          type="button"
-        >
-          {expanded ? "Hide matches" : `${hiddenMatchCount} more ${hiddenMatchCount === 1 ? "match" : "matches"}`}
-        </button>
-      ) : null}
+      <div className="mt-3 flex items-start gap-2">
+        {result.has_more_matches ? (
+          <button
+            aria-expanded={expanded}
+            aria-label={`${expanded ? "Hide" : "Show"} ${hiddenMatchCount} more ${hiddenMatchCount === 1 ? "match" : "matches"}`}
+            className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+            onClick={() => setExpanded((current) => !current)}
+            title={`${hiddenMatchCount} more ${hiddenMatchCount === 1 ? "match" : "matches"}`}
+            type="button"
+          >
+            <span aria-hidden="true" className={`text-lg leading-none transition-transform ${expanded ? "rotate-90" : ""}`}>{">"}</span>
+          </button>
+        ) : (
+          <span className="h-6 w-6 shrink-0" aria-hidden="true" />
+        )}
+        <Snippet className="min-w-0 text-sm leading-6 text-gray-700 dark:text-gray-300" html={result.best_snippet || "No message snippet available."} />
+      </div>
       {expanded ? (
-        <div className="mt-3 divide-y divide-gray-100 rounded border border-gray-100 dark:divide-gray-800 dark:border-gray-800">
-          {expandedMatches.isPending ? <div className="p-3 text-sm text-gray-500 dark:text-gray-400">Loading matches...</div> : null}
-          {expandedMatches.isError ? <div className="p-3 text-sm text-red-700 dark:text-red-300">Unable to load matches.</div> : null}
+        <div className="ml-8 mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
+          {expandedMatches.isPending ? <div className="py-3 text-sm text-gray-500 dark:text-gray-400">Loading matches...</div> : null}
+          {expandedMatches.isError ? <div className="py-3 text-sm text-red-700 dark:text-red-300">Unable to load matches.</div> : null}
           {expandedMatches.data?.matches.map((match) => (
             <MatchRow chatSessionId={result.chat_session_id} key={match.message_id} match={match} />
           ))}
@@ -124,13 +131,13 @@ function MatchRow({ chatSessionId, match }: { chatSessionId: number; match: Chat
 
   return (
     <button
-      className="grid w-full gap-2 p-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 sm:grid-cols-[7rem_minmax(0,1fr)_10rem]"
+      className="flex w-full flex-col gap-2 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 sm:flex-row sm:items-start"
       onClick={() => navigate(`/chats/${chatSessionId}?message_id=${match.message_id}`)}
       type="button"
     >
-      <span className="inline-flex w-fit rounded bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 dark:bg-gray-800 dark:text-gray-200">{match.role.replace(/_/g, " ")}</span>
-      <Snippet className="min-w-0 text-gray-700 dark:text-gray-300" html={match.snippet || ""} />
-      <span className="text-gray-500 dark:text-gray-400 sm:text-right">{formatDate(match.created_at)}</span>
+      <span className="inline-flex w-fit shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 dark:bg-gray-800 dark:text-gray-200">{match.role.replace(/_/g, " ")}</span>
+      <Snippet className="min-w-0 flex-1 text-gray-700 dark:text-gray-300" html={match.snippet || ""} />
+      <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{formatRelativeTime(match.created_at)}</span>
     </button>
   )
 }
@@ -279,7 +286,22 @@ function disabledPaginationClass() {
   return "rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600"
 }
 
-function formatDate(value: string | null | undefined) {
+function formatRelativeTime(value: string | null | undefined) {
   if (!value) return ""
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
+  const timestamp = new Date(value).getTime()
+  if (Number.isNaN(timestamp)) return ""
+
+  const seconds = Math.round((timestamp - Date.now()) / 1000)
+  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["year", 60 * 60 * 24 * 365],
+    ["month", 60 * 60 * 24 * 30],
+    ["week", 60 * 60 * 24 * 7],
+    ["day", 60 * 60 * 24],
+    ["hour", 60 * 60],
+    ["minute", 60],
+    ["second", 1]
+  ]
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "always" })
+  const [unit, unitSeconds] = units.find(([, unitSeconds]) => Math.abs(seconds) >= unitSeconds) || ["second", 1]
+  return formatter.format(Math.round(seconds / unitSeconds), unit)
 }
