@@ -6,6 +6,8 @@ RSpec.describe NotificationService do
       user = Factories.user
       job = Factories.job_record(user: user)
 
+      allow(ActionCable.server).to receive(:broadcast)
+
       notification = described_class.create_for(
         user: user,
         kind: "job_failed",
@@ -21,6 +23,10 @@ RSpec.describe NotificationService do
         pr_url: "https://github.com/acme/widgets/pull/1",
         body: "JOB-1 failed after repeated retries"
       )
+      expect(ActionCable.server).to have_received(:broadcast).with(
+        AppUserChannel.broadcasting_for(user),
+        { type: "notification_created", unread_count: 1 }
+      )
     end
 
     it "rejects unknown notification kinds" do
@@ -32,10 +38,12 @@ RSpec.describe NotificationService do
     it "short-circuits when the user does not exist" do
       user = Factories.user
       user.destroy!
+      allow(ActionCable.server).to receive(:broadcast)
 
       expect {
         expect(described_class.create_for(user: user, kind: "job_failed", body: "Skipped")).to be_nil
       }.not_to change(Notification, :count)
+      expect(ActionCable.server).not_to have_received(:broadcast)
     end
   end
 end

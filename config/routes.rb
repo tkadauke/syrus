@@ -38,6 +38,9 @@ Rails.application.routes.draw do
         resources :profiles, only: %i[ index show ]
         resources :smart_folders, only: %i[ index create update destroy ]
         resources :cron_templates, only: %i[ index show create update destroy ]
+        get "notifications", to: "notifications#index"
+        post "notifications/mark_all_read", to: "notifications#mark_all_read"
+        patch "notifications/:id/mark_read", to: "notifications#mark_read", constraints: { id: /\d+/ }
         resource :credentials, only: %i[ show update ] do
           post :clear_credential
           post :test_credential
