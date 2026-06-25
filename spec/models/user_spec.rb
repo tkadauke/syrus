@@ -308,6 +308,38 @@ RSpec.describe User do
     end
   end
 
+  describe "#notification_preference_for" do
+    it "returns the default notification preferences when none are stored" do
+      user = User.create!(attrs)
+
+      expect(user.notification_preferences).to eq(User::NOTIFICATION_PREFERENCES_DEFAULTS)
+      expect(user.notification_preference_for("job_failed")).to be(true)
+      expect(user.notification_preference_for("epic_completed")).to be(false)
+    end
+
+    it "falls back to defaults for missing stored keys" do
+      user = User.create!(attrs.merge(notification_preferences: { "job_failed" => false }))
+
+      expect(user.notification_preference_for("job_failed")).to be(false)
+      expect(user.notification_preference_for("job_implemented")).to be(true)
+    end
+
+    it "ignores unknown stored keys and coerces values to booleans" do
+      user = User.create!(
+        attrs.merge(
+          notification_preferences: {
+            job_failed: "0",
+            pr_merged: "1",
+            unknown: true
+          }
+        )
+      )
+
+      expect(user.notification_preferences).to include("job_failed" => false, "pr_merged" => true)
+      expect(user.notification_preferences).not_to have_key("unknown")
+    end
+  end
+
   describe "#update_dashboard_columns!" do
     it "re-adds required Dashboard columns when optional choices omit them" do
       user = User.create!(attrs)

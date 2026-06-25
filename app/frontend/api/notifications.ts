@@ -28,6 +28,20 @@ export type NotificationPayload = {
   unread_count: number
 }
 
+export type NotificationPreferenceKind =
+  | "job_failed"
+  | "job_implemented"
+  | "pr_comment_addressed"
+  | "pr_merged"
+  | "epic_completed"
+
+export type NotificationPreferences = Record<NotificationPreferenceKind, boolean>
+
+export type NotificationPreferencesPayload = {
+  notification_preferences: NotificationPreferences
+  message?: string
+}
+
 export function fetchNotifications(options: { page?: number; unread?: boolean } = {}) {
   const params = new URLSearchParams()
 
@@ -44,4 +58,14 @@ export function markAllNotificationsRead() {
 
 export function markNotificationRead(id: string | number) {
   return patchJson<NotificationPayload>(`/api/v1/app/notifications/${id}/mark_read`)
+}
+
+export function fetchNotificationPreferences() {
+  return getJson<NotificationPreferencesPayload>("/api/v1/app/notification_preferences")
+}
+
+export function updateNotificationPreferences(preferences: Partial<NotificationPreferences>) {
+  return patchJson<NotificationPreferencesPayload>("/api/v1/app/notification_preferences", {
+    notification_preferences: preferences
+  })
 }

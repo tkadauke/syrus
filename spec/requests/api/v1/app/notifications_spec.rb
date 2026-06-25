@@ -125,3 +125,49 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(notification.reload.read_at).to be_nil
   end
 end
+
+RSpec.describe "API: /api/v1/app/notification_preferences", type: :request do
+  let(:user) { Factories.user(notification_preferences: { "job_failed" => false }) }
+
+  def parse_body
+    JSON.parse(response.body)
+  end
+
+  it "401s with a JSON error when signed out" do
+    get "/api/v1/app/notification_preferences"
+
+    expect(response).to have_http_status(:unauthorized)
+    expect(parse_body.dig("error", "code")).to eq("unauthorized")
+  end
+
+  it "returns stored preferences merged with defaults" do
+    sign_in_as(user)
+
+    get "/api/v1/app/notification_preferences"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["notification_preferences"]).to eq(
+      User::NOTIFICATION_PREFERENCES_DEFAULTS.merge("job_failed" => false)
+    )
+  end
+
+  it "updates a partial preference hash without replacing existing preferences" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/notification_preferences", params: {
+      notification_preferences: {
+        "job_implemented" => false,
+        "epic_completed" => true
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Notification preferences updated.")
+    expect(parse_body["notification_preferences"]).to include(
+      "job_failed" => false,
+      "job_implemented" => false,
+      "epic_completed" => true
+    )
+    expect(user.reload.notification_preference_for("pr_merged")).to be(true)
+  end
+end

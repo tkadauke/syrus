@@ -1022,9 +1022,14 @@ describe("App", () => {
       }
     }))
     document.body.appendChild(script)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
 
     try {
       render(
@@ -5420,6 +5425,12 @@ describe("App", () => {
     const openSpy = vi.spyOn(window, "open").mockReturnValue({} as Window)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/notification_preferences" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload({ job_failed: false, message: "Notification preferences updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/credentials" && init?.method === "PATCH") {
         return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ name: "Ada Lovelace", message: "Credentials updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -5501,11 +5512,30 @@ describe("App", () => {
       github_token: ""
     }))
     expect(await screen.findByText("Credentials updated.")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Notifications" })).toBeInTheDocument()
+    const jobFailedToggle = await screen.findByLabelText("Notify me when a job fails")
+    expect(jobFailedToggle).toBeChecked()
+    fireEvent.click(jobFailedToggle)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/notification_preferences",
+        expect.objectContaining({
+          method: "PATCH",
+          credentials: "same-origin",
+          body: JSON.stringify({ notification_preferences: { job_failed: false } })
+        })
+      )
+    })
+    expect(await screen.findByText("Notification preferences updated.")).toBeInTheDocument()
   })
 
   it("tests a credential from the credentials route", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/credentials/test_credential" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
           credential_test: {
@@ -5554,6 +5584,9 @@ describe("App", () => {
     const openSpy = vi.spyOn(window, "open").mockReturnValue({} as Window)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/credentials/codex_oauth_start" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -5614,6 +5647,9 @@ describe("App", () => {
     const openSpy = vi.spyOn(window, "open").mockReturnValue({} as Window)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/credentials/codex_oauth_start" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -5673,9 +5709,14 @@ describe("App", () => {
   })
 
   it("renders /settings as the credentials route without admin links", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -5763,6 +5804,9 @@ describe("App", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/notification_preferences") {
+        return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/credentials/rotate_api_token" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ apiToken: true, newApiToken: "syrus_newtoken", message: "API token rotated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -11124,6 +11168,19 @@ function credentialsPayload(overrides: {
     },
     message: overrides.message,
     new_api_token: overrides.newApiToken
+  }
+}
+
+function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed", boolean>> & { message?: string } = {}) {
+  return {
+    notification_preferences: {
+      job_failed: overrides.job_failed ?? true,
+      job_implemented: overrides.job_implemented ?? true,
+      pr_comment_addressed: overrides.pr_comment_addressed ?? true,
+      pr_merged: overrides.pr_merged ?? true,
+      epic_completed: overrides.epic_completed ?? false
+    },
+    message: overrides.message
   }
 }
 

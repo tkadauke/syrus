@@ -45,5 +45,15 @@ RSpec.describe NotificationService do
       }.not_to change(Notification, :count)
       expect(ActionCable.server).not_to have_received(:broadcast)
     end
+
+    it "skips notification creation when the user disabled that kind" do
+      user = Factories.user(notification_preferences: { "job_failed" => false })
+      allow(ActionCable.server).to receive(:broadcast)
+
+      expect {
+        expect(described_class.create_for(user: user, kind: "job_failed", body: "Skipped")).to be_nil
+      }.not_to change(Notification, :count)
+      expect(ActionCable.server).not_to have_received(:broadcast)
+    end
   end
 end

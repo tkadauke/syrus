@@ -21,8 +21,22 @@ import {
   type CredentialsInput,
   type CredentialsPayload
 } from "../api/credentials"
+import {
+  fetchNotificationPreferences,
+  updateNotificationPreferences,
+  type NotificationPreferenceKind,
+  type NotificationPreferencesPayload
+} from "../api/notifications"
 
 const queryKey = ["credentials"] as const
+const notificationPreferencesQueryKey = ["notification_preferences"] as const
+const notificationPreferenceLabels: Array<{ kind: NotificationPreferenceKind; label: string }> = [
+  { kind: "job_failed", label: "Notify me when a job fails" },
+  { kind: "job_implemented", label: "Notify me when a PR is ready for review" },
+  { kind: "pr_comment_addressed", label: "Notify me when Syrus addresses my PR comments" },
+  { kind: "pr_merged", label: "Notify me when a job is merged" },
+  { kind: "epic_completed", label: "Notify me when an epic completes" }
+]
 
 export function CredentialsRoute() {
   const credentials = useQuery({
@@ -63,6 +77,7 @@ function CredentialsView({ payload }: { payload: CredentialsPayload }) {
         />
       ) : null}
       <CredentialsForm onNotice={setNotice} payload={payload} />
+      <NotificationPreferencesPanel onNotice={setNotice} />
       {payload.user.admin ? <ApiTokenPanel onNotice={setNotice} payload={payload} /> : null}
     </>
   )
@@ -761,6 +776,75 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
         ) : null}
       </div>
     </section>
+  )
+}
+
+function NotificationPreferencesPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const preferences = useQuery({
+    queryKey: notificationPreferencesQueryKey,
+    queryFn: fetchNotificationPreferences
+  })
+  const update = useMutation({
+    mutationFn: ({ kind, enabled }: { kind: NotificationPreferenceKind; enabled: boolean }) => updateNotificationPreferences({ [kind]: enabled }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(notificationPreferencesQueryKey, updated)
+      onNotice(updated.message || "Notification preferences updated.")
+    }
+  })
+
+  return (
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
+      {preferences.isPending ? <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading notification preferences...</p> : null}
+      {preferences.isError ? <PanelMessage tone="error">{errorMessage(preferences.error, "Unable to load notification preferences.")}</PanelMessage> : null}
+      {update.isError ? <PanelMessage tone="error">{errorMessage(update.error, "Unable to update notification preferences.")}</PanelMessage> : null}
+      {preferences.isSuccess ? (
+        <NotificationPreferenceToggles
+          disabled={update.isPending}
+          onChange={(kind, enabled) => {
+            onNotice(null)
+            queryClient.setQueryData<NotificationPreferencesPayload>(notificationPreferencesQueryKey, {
+              ...preferences.data,
+              notification_preferences: {
+                ...preferences.data.notification_preferences,
+                [kind]: enabled
+              }
+            })
+            update.mutate({ kind, enabled })
+          }}
+          payload={preferences.data}
+        />
+      ) : null}
+    </section>
+  )
+}
+
+function NotificationPreferenceToggles({
+  payload,
+  disabled,
+  onChange
+}: {
+  payload: NotificationPreferencesPayload
+  disabled: boolean
+  onChange: (kind: NotificationPreferenceKind, enabled: boolean) => void
+}) {
+  return (
+    <div className="mt-4 space-y-3">
+      {notificationPreferenceLabels.map(({ kind, label }) => (
+        <label className="flex items-center justify-between gap-4 rounded border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm" key={kind}>
+          <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
+          <input
+            aria-label={label}
+            checked={payload.notification_preferences[kind]}
+            className="h-4 w-4 rounded border-gray-400"
+            disabled={disabled}
+            onChange={(event) => onChange(kind, event.target.checked)}
+            type="checkbox"
+          />
+        </label>
+      ))}
+    </div>
   )
 }
 

@@ -93,6 +93,13 @@ class User < ApplicationRecord
     "workflow" => { "column" => "started_at", "direction" => "desc" }
   }.freeze
   DASHBOARD_SORT_DIRECTIONS = %w[asc desc].freeze
+  NOTIFICATION_PREFERENCES_DEFAULTS = {
+    "job_failed" => true,
+    "job_implemented" => true,
+    "pr_comment_addressed" => true,
+    "pr_merged" => true,
+    "epic_completed" => false
+  }.freeze
 
   encrypts :claude_oauth_token
   encrypts :codex_api_key
@@ -137,6 +144,7 @@ class User < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :profile_location, :profile_company, length: { maximum: 100 }
   validates :profile_website, length: { maximum: 255 }
+  after_initialize :seed_notification_preferences
   before_create :promote_first_user_to_admin
 
   def admin?
@@ -215,6 +223,21 @@ class User < ApplicationRecord
     selected_lanes = lanes.select { |lane| known_lanes.include?(lane) }
 
     selected_lanes.presence || dashboard_default_kanban_lanes_for(subject_key)
+  end
+
+  def notification_preferences
+    NOTIFICATION_PREFERENCES_DEFAULTS.merge(normalized_notification_preferences(read_attribute(:notification_preferences)))
+  end
+
+  def notification_preferences=(value)
+    write_attribute(:notification_preferences, normalized_notification_preferences(value))
+  end
+
+  def notification_preference_for(kind)
+    kind = kind.to_s
+    raise ArgumentError, "Unknown notification kind: #{kind}" unless NOTIFICATION_PREFERENCES_DEFAULTS.key?(kind)
+
+    notification_preferences.fetch(kind)
   end
 
   def update_dashboard_sort!(subject:, column:, direction:)
@@ -403,6 +426,21 @@ class User < ApplicationRecord
       codex_auth_json.present?
     else
       false
+    end
+  end
+
+  def seed_notification_preferences
+    self.notification_preferences = {} if has_attribute?(:notification_preferences) && read_attribute(:notification_preferences).nil?
+  end
+
+  def normalized_notification_preferences(value)
+    return {} unless value.is_a?(Hash)
+
+    value.each_with_object({}) do |(key, preference), hash|
+      normalized_key = key.to_s
+      next unless NOTIFICATION_PREFERENCES_DEFAULTS.key?(normalized_key)
+
+      hash[normalized_key] = ActiveModel::Type::Boolean.new.cast(preference)
     end
   end
 
