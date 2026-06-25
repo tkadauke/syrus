@@ -40,7 +40,7 @@ export function ChatSearchRoute() {
           buildLink={chatSearchFilterLink}
           filter={filter}
           filterSchema={filterSchema}
-          legacyFilterKeys={filterFields}
+          legacyFilterKeys={["repository_id", "epic_id", "job_id"]}
           pathname={location.pathname}
           search={location.search}
         />
@@ -208,7 +208,8 @@ const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) => {
 
 function decodeFilterChips(encoded: string): Array<{ field: string; value: string }> {
   try {
-    const parsed = JSON.parse(atob(encoded)) as { and?: unknown[] }
+    const standard = encoded.replace(/-/g, "+").replace(/_/g, "/")
+    const parsed = JSON.parse(atob(standard)) as { and?: unknown[] }
     return (parsed.and || []).flatMap((node) => {
       if (!node || typeof node !== "object" || !("field" in node) || !("value" in node)) return []
       const field = String((node as { field: unknown }).field)
