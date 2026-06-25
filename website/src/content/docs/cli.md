@@ -59,15 +59,17 @@ and API token, validates them against `/api/v1/app/bootstrap`, and saves
 the file for both desktop and CLI use.
 
 On macOS, Syrus Desktop runs as a menubar app without a Dock icon. Click
-the tray icon, or press `CommandOrControl+Shift+S`, to open or hide the
-compact inbox popover. The popover shows implemented and failed Jobs,
-refreshes every 30 seconds, and lets you open the Job in Syrus or open
-its pull request in your browser when one exists. Local checkout actions
-require the `syrus` CLI binary on `PATH`; when the app cannot find it,
-the popover shows an install banner and disables checkout buttons.
-Configure a local projects root in Preferences to derive
-`<root>/<repo-name>` paths, or add per-repository absolute path overrides
-for repositories that live elsewhere. Desktop delegates checkout to
+the tray icon, or press the configured global keyboard shortcut
+(`CommandOrControl+Shift+S` by default), to open or hide the compact
+inbox popover. The shortcut can be changed or cleared from Preferences.
+The popover shows implemented and failed Jobs, refreshes every 30
+seconds, and lets you open the Job in Syrus or open its pull request in
+your browser when one exists. Local checkout actions require the `syrus`
+CLI binary on `PATH`; when the app cannot find it, the popover shows an
+install banner and disables checkout buttons. Configure a local projects
+root in Preferences to derive `<root>/<repo-name>` paths, or add
+per-repository absolute path overrides for repositories that live
+elsewhere. Desktop delegates checkout to
 `syrus checkout JOB-<id>` from the resolved local path, so the CLI handles
 branch fetching, dirty working trees, backup branches, and
 repository-origin validation. Admin users also see subtle footer toggles

@@ -177,6 +177,73 @@ button:disabled {
   padding-top: 22px;
 }
 
+.shortcut-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.shortcut-details {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.shortcut-pill {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  border: 1px solid #c8d0da;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #15171a;
+  padding: 5px 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.shortcut-pill--empty {
+  color: #596579;
+  font-weight: 650;
+}
+
+.shortcut-recorder {
+  display: grid;
+  min-width: min(100%, 190px);
+  gap: 3px;
+  border: 1px solid #93b4f7;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1f3b6d;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.shortcut-recorder:focus {
+  box-shadow: 0 0 0 3px rgb(38 99 235 / 16%);
+}
+
+.shortcut-recorder span {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.shortcut-recorder strong {
+  color: #15171a;
+  font-size: 0.95rem;
+}
+
+.shortcut-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .input-with-button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
