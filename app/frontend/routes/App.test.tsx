@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { App } from "./App"
 import type { BootstrapPayload } from "../api/bootstrap"
 import type { JobStep } from "../api/jobs"
@@ -2017,6 +2017,38 @@ describe("App", () => {
     })
   })
 
+  it("does not carry the current dashboard view when switching subjects", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      const subject = path.includes("subject=epic") ? "epic" : "job"
+      const view = subject === "job" ? "kanban" : "list"
+
+      return Promise.resolve(
+        new Response(JSON.stringify(dashboardPayload({ subject, view })), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=list"]}>
+          <App />
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("link", { name: "Jobs" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
+    })
+    expect(screen.getByTestId("location")).not.toHaveTextContent("view=")
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/dashboard?subject=job",
+      expect.objectContaining({ credentials: "same-origin" })
+    )
+  })
+
   it("persists and clears the selected dashboard smart folder", async () => {
     const restoreMedia = mockMediaQuery(false)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -2200,10 +2232,10 @@ describe("App", () => {
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
     expect(screen.getByRole("link", { name: "kanban" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=kanban")
-    expect(screen.getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics?view=list")
-    expect(screen.getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+    expect(screen.getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics")
+    expect(screen.getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
     expect(screen.getByRole("link", { name: "Jobs" })).toHaveClass("bg-blue-50", "text-blue-700", "ring-blue-600", "dark:bg-blue-950", "dark:text-blue-200")
-    expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows?view=list")
+    expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveAttribute("href", "/app-shell/epics/new")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveClass("bg-blue-600", "text-white")
     expect(screen.getByRole("link", { name: "New Job" })).toHaveAttribute("href", "/app-shell/jobs/new")
@@ -12196,6 +12228,11 @@ function mockMediaQuery(matches: boolean) {
       Reflect.deleteProperty(window, "matchMedia")
     }
   }
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
 }
 
 function decodeFilterQ(q: string) {
