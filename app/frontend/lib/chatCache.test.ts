@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 import { updateRecentChatCache } from "./chatCache"
-import type { ChatNavRecord } from "../api/chats"
+import type { ChatNavRecord, ChatsIndexPayload } from "../api/chats"
 
 describe("updateRecentChatCache", () => {
   it("moves the active chat to the top and records fresh activity", () => {
@@ -11,17 +11,26 @@ describe("updateRecentChatCache", () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(["chats", "recent"], {
       repositories: [],
-      chats: [
-        chatRecord({ id: 1, title: "Newer", lastMessageAt: "2026-06-25T11:00:00Z" }),
-        chatRecord({ id: 2, title: "Active", lastMessageAt: "2026-06-24T11:00:00Z", updatedAt: "2026-06-24T11:00:00Z" })
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [
+            chatRecord({ id: 1, title: "Newer", lastMessageAt: "2026-06-25T11:00:00Z" }),
+            chatRecord({ id: 2, title: "Active", lastMessageAt: "2026-06-24T11:00:00Z", updatedAt: "2026-06-24T11:00:00Z" })
+          ],
+          has_more: false
+        }
       ]
     })
 
     updateRecentChatCache(queryClient, { ...chatRecord({ id: 2, title: "Active", lastMessageAt: "2026-06-24T11:00:00Z" }) }, { prepend: true })
 
-    const updated = queryClient.getQueryData<{ chats: ChatNavRecord[] }>(["chats", "recent"])
-    expect(updated?.chats.map((chat) => chat.id)).toEqual([2, 1])
-    expect(updated?.chats[0].updated_at).toBe("2026-06-25T12:00:00.000Z")
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])
+    const chats = updated?.groups[0]?.chats
+    expect(chats?.map((chat) => chat.id)).toEqual([2, 1])
+    expect(chats?.[0].updated_at).toBe("2026-06-25T12:00:00.000Z")
 
     vi.useRealTimers()
   })

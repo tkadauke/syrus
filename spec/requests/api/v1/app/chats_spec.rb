@@ -125,12 +125,14 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   it "loads more chats for one sidebar group with a cursor" do
     sign_in_as(user)
     chats = 7.times.map do |index|
-      ChatSession.create!(
+      chat = ChatSession.create!(
         user: user,
         repository: repository,
         title: "Chat #{index}",
         last_message_at: (index + 1).hours.ago
       )
+      chat.update_columns(created_at: chat.last_message_at, updated_at: chat.last_message_at)
+      chat
     end
 
     get "/api/v1/app/chats"
@@ -151,13 +153,15 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   it "does not load hidden chats when paginating one sidebar group" do
     sign_in_as(user)
     chats = 7.times.map do |index|
-      ChatSession.create!(
+      chat = ChatSession.create!(
         user: user,
         repository: repository,
         title: "Chat #{index}",
         last_message_at: (index + 1).hours.ago,
         hidden_at: index == 5 ? Time.current : nil
       )
+      chat.update_columns(created_at: chat.last_message_at, updated_at: chat.last_message_at)
+      chat
     end
 
     get "/api/v1/app/chats"
@@ -880,7 +884,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["chats"].map { |chat| chat.fetch("id") }).to start_with(queued_chat.id, quiet_chat.id)
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat.fetch("id") }).to start_with(queued_chat.id, quiet_chat.id)
   end
 
   it "reports a running chat agent process in the app payload" do
