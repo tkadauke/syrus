@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 
 type AuthState = "loading" | "authenticated" | "setup"
+type PreferencesTab = "account" | "projects"
 type CheckoutStatusByRepo = Record<string, SyrusCheckoutAvailability>
 type ToastState = {
   kind: "success" | "error"
@@ -484,6 +485,7 @@ export function App() {
   const [token, setToken] = useState("")
   const [error, setError] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const [preferencesTab, setPreferencesTab] = useState<PreferencesTab>("account")
   const [localProjectsRoot, setLocalProjectsRoot] = useState("")
   const [repoPathDrafts, setRepoPathDrafts] = useState<RepoPathDraft[]>([])
   const [settingsError, setSettingsError] = useState("")
@@ -543,7 +545,7 @@ export function App() {
       const credentials = await window.syrusDesktop.saveCredentials({ url, token })
       setUrl(credentials.url)
       setToken(credentials.token)
-      setAuthState("authenticated")
+      setAuthState(isPreferencesView ? "setup" : "authenticated")
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save credentials.")
     } finally {
@@ -616,6 +618,11 @@ export function App() {
   }
 
   if (authState === "setup") {
+    const tabClass = (tab: PreferencesTab) => [
+      "preferences-tab",
+      preferencesTab === tab ? "preferences-tab--active" : ""
+    ].join(" ")
+
     return (
       <main className="shell">
         <section className="panel" aria-label="Syrus Desktop settings">
@@ -624,114 +631,153 @@ export function App() {
             <h1>Connect Syrus</h1>
           </div>
 
-          <form className="settings-form" onSubmit={saveCredentials}>
-            <label>
-              <span>Syrus instance URL</span>
-              <input
-                autoFocus
-                required
-                type="url"
-                value={url}
-                placeholder="https://your-syrus-instance.com"
-                onChange={(event) => setUrl(event.target.value)}
-              />
-            </label>
+          <div className="preferences-tabs" role="tablist" aria-label="Preferences sections">
+            <button
+              type="button"
+              className={tabClass("account")}
+              role="tab"
+              aria-selected={preferencesTab === "account"}
+              aria-controls="preferences-account-panel"
+              id="preferences-account-tab"
+              onClick={() => setPreferencesTab("account")}
+            >
+              Account
+            </button>
+            <button
+              type="button"
+              className={tabClass("projects")}
+              role="tab"
+              aria-selected={preferencesTab === "projects"}
+              aria-controls="preferences-projects-panel"
+              id="preferences-projects-tab"
+              onClick={() => setPreferencesTab("projects")}
+            >
+              Projects
+            </button>
+          </div>
 
-            <label>
-              <span>API token</span>
-              <input
-                required
-                type="password"
-                value={token}
-                autoComplete="off"
-                onChange={(event) => setToken(event.target.value)}
-              />
-            </label>
-
-            {error ? <p className="form-error">{error}</p> : null}
-
-            <div className="form-actions">
-              <button type="button" className="link-button" onClick={() => window.syrusDesktop.openTokenDocs()}>
-                Generate a token
-              </button>
-              <button type="submit" disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </form>
-
-          <section className="settings-section" aria-label="Local checkout settings">
-            <div>
-              <h2>Local checkout</h2>
-            </div>
-
-            <div className="settings-form">
+          {preferencesTab === "account" ? (
+            <form
+              className="settings-form"
+              id="preferences-account-panel"
+              role="tabpanel"
+              aria-labelledby="preferences-account-tab"
+              onSubmit={saveCredentials}
+            >
               <label>
-                <span>Local projects root</span>
-                <div className="input-with-button">
-                  <input
-                    type="text"
-                    value={localProjectsRoot}
-                    placeholder="/Users/you/src"
-                    onChange={(event) => {
-                      setLocalProjectsRoot(event.target.value)
-                      setSettingsSaved(false)
-                    }}
-                  />
-                  <button type="button" className="secondary-button" onClick={chooseLocalProjectsRoot}>
-                    Choose
-                  </button>
-                </div>
+                <span>Syrus instance URL</span>
+                <input
+                  autoFocus
+                  required
+                  type="url"
+                  value={url}
+                  placeholder="https://your-syrus-instance.com"
+                  onChange={(event) => setUrl(event.target.value)}
+                />
               </label>
 
-              <div className="repo-paths-header">
-                <span>Per-repo overrides</span>
-                <button type="button" className="secondary-button" onClick={addRepoPathDraft}>
-                  Add row
+              <label>
+                <span>API token</span>
+                <input
+                  required
+                  type="password"
+                  value={token}
+                  autoComplete="off"
+                  onChange={(event) => setToken(event.target.value)}
+                />
+              </label>
+
+              {error ? <p className="form-error">{error}</p> : null}
+
+              <div className="form-actions">
+                <button type="button" className="link-button" onClick={() => window.syrusDesktop.openTokenDocs()}>
+                  Generate a token
+                </button>
+                <button type="submit" disabled={isSaving}>
+                  {isSaving ? "Saving..." : "Save"}
                 </button>
               </div>
-
-              {repoPathDrafts.length > 0 ? (
-                <div className="repo-paths-table">
-                  {repoPathDrafts.map((draft) => (
-                    <div className="repo-path-row" key={draft.id}>
-                      <input
-                        type="text"
-                        value={draft.repoSlug}
-                        placeholder="owner/repo"
-                        aria-label="Repository slug"
-                        onChange={(event) => updateRepoPathDraft(draft.id, "repoSlug", event.target.value)}
-                      />
-                      <input
-                        type="text"
-                        value={draft.localPath}
-                        placeholder="/absolute/path/to/repo"
-                        aria-label="Repository local path"
-                        onChange={(event) => updateRepoPathDraft(draft.id, "localPath", event.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="remove-row-button"
-                        aria-label={`Remove ${draft.repoSlug || "repository override"}`}
-                        onClick={() => removeRepoPathDraft(draft.id)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+            </form>
+          ) : (
+            <div className="settings-form">
+              <section
+                className="settings-section settings-section--flush"
+                id="preferences-projects-panel"
+                role="tabpanel"
+                aria-labelledby="preferences-projects-tab"
+                aria-label="Local checkout settings"
+              >
+                <div>
+                  <h2>Local checkout</h2>
                 </div>
-              ) : null}
 
-              {settingsError ? <p className="form-error">{settingsError}</p> : null}
-              {settingsSaved ? <p className="form-success">Local checkout settings saved.</p> : null}
+                <label>
+                  <span>Local projects root</span>
+                  <div className="input-with-button">
+                    <input
+                      type="text"
+                      value={localProjectsRoot}
+                      placeholder="/Users/you/src"
+                      onChange={(event) => {
+                        setLocalProjectsRoot(event.target.value)
+                        setSettingsSaved(false)
+                      }}
+                    />
+                    <button type="button" className="secondary-button" onClick={chooseLocalProjectsRoot}>
+                      Choose
+                    </button>
+                  </div>
+                </label>
 
-              <div className="form-actions form-actions--end">
-                <button type="button" disabled={isSavingSettings} onClick={saveDesktopSettings}>
-                  {isSavingSettings ? "Saving..." : "Save local checkout settings"}
-                </button>
-              </div>
+                <div className="repo-paths-header">
+                  <span>Per-repo overrides</span>
+                  <button type="button" className="secondary-button" onClick={addRepoPathDraft}>
+                    Add row
+                  </button>
+                </div>
+
+                {repoPathDrafts.length > 0 ? (
+                  <div className="repo-paths-table">
+                    {repoPathDrafts.map((draft) => (
+                      <div className="repo-path-row" key={draft.id}>
+                        <input
+                          type="text"
+                          value={draft.repoSlug}
+                          placeholder="owner/repo"
+                          aria-label="Repository slug"
+                          onChange={(event) => updateRepoPathDraft(draft.id, "repoSlug", event.target.value)}
+                        />
+                        <input
+                          type="text"
+                          value={draft.localPath}
+                          placeholder="/absolute/path/to/repo"
+                          aria-label="Repository local path"
+                          onChange={(event) => updateRepoPathDraft(draft.id, "localPath", event.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="remove-row-button"
+                          aria-label={`Remove ${draft.repoSlug || "repository override"}`}
+                          onClick={() => removeRepoPathDraft(draft.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {settingsError ? <p className="form-error">{settingsError}</p> : null}
+                {settingsSaved ? <p className="form-success">Local checkout settings saved.</p> : null}
+
+                <div className="form-actions form-actions--end">
+                  <button type="button" disabled={isSavingSettings} onClick={saveDesktopSettings}>
+                    {isSavingSettings ? "Saving..." : "Save local checkout settings"}
+                  </button>
+                </div>
+              </section>
             </div>
-          </section>
+          )}
         </section>
       </main>
     )

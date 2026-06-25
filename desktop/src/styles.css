@@ -88,6 +88,35 @@ h2 {
   gap: 18px;
 }
 
+.preferences-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  border: 1px solid #d7dde4;
+  border-radius: 7px;
+  background: #eef2f6;
+  padding: 4px;
+}
+
+.preferences-tab {
+  border-color: transparent;
+  background: transparent;
+  color: #596579;
+  padding: 8px 12px;
+}
+
+.preferences-tab:hover {
+  background: rgb(255 255 255 / 65%);
+}
+
+.preferences-tab--active,
+.preferences-tab--active:hover {
+  border-color: #c8d0da;
+  background: #ffffff;
+  color: #15171a;
+  box-shadow: 0 1px 2px rgb(20 28 38 / 8%);
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -175,6 +204,11 @@ button:disabled {
   gap: 16px;
   border-top: 1px solid #e2e8f0;
   padding-top: 22px;
+}
+
+.settings-section--flush {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .input-with-button {
