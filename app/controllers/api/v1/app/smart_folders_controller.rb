@@ -40,10 +40,11 @@ module Api
 
         def update
           smart_folder = Current.user.smart_folders.find(params[:id])
+          tree = parsed_filter_tree
           attributes = smart_folder_params.to_h
 
-          if params.key?(:filter)
-            filter_ast = ::Filters::Ast.parse(parsed_filter_tree)
+          if tree
+            filter_ast = ::Filters::Ast.parse(tree)
             if empty_filter?(filter_ast)
               render_error("validation_failed", "Choose at least one filter before saving a smart folder.", status: :unprocessable_content)
               return

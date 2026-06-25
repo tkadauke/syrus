@@ -96,7 +96,7 @@ module App
         preferences: preferences_json,
         controls: controls_json,
         ownership: ownership_json,
-        filter: url_filter.to_h,
+        filter: current_filter.to_h,
         landing_queue: landing_queue_json,
         smart_folders: smart_folders_json,
         active_smart_folder_id: active_smart_folder&.id,

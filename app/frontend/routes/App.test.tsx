@@ -3072,8 +3072,8 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
       expect(within(foldersPanel).getByRole("link", { name: "Saved review 2" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=4")
       expect(within(foldersPanel).getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/app-shell/smart_folders?subject_type=job")
-      expect(within(foldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
-      expect(within(foldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+      expect(within(foldersPanel).getByLabelText("Folder name")).toBeInTheDocument()
+      expect(within(foldersPanel).getByRole("button", { name: "Save folder" })).toBeInTheDocument()
     } finally {
       script.remove()
     }
@@ -3233,7 +3233,7 @@ describe("App", () => {
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
       expect(within(smartFoldersPanel).getByRole("button", { name: "Update My work" })).toBeInTheDocument()
-      expect(within(smartFoldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+      expect(within(smartFoldersPanel).getByRole("button", { name: "Save folder" })).toBeInTheDocument()
     } finally {
       script.remove()
     }
@@ -3263,7 +3263,7 @@ describe("App", () => {
                 subject: "job",
                 view: "list",
                 active_smart_folder_id: 7,
-                filter: { and: [] },
+                filter: { and: [{ field: "state", op: "is", value: "open" }] },
                 smart_folders: [
                   {
                     id: 7,
@@ -3573,7 +3573,7 @@ describe("App", () => {
       )
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
-      expect(within(smartFoldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+      expect(within(smartFoldersPanel).getByRole("button", { name: "Save folder" })).toBeInTheDocument()
       fireEvent.click(within(smartFoldersPanel).getByRole("button", { name: "Update My work" }))
 
       await waitFor(() => {

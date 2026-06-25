@@ -579,7 +579,11 @@ RSpec.describe "App API dashboard commands", type: :request do
       )
       expect(body.dig("controls", "columns", "required")).to eq([{ "key" => "epic", "title" => "Epic" }])
       expect(body["active_smart_folder_id"]).to eq(folder.id)
-      expect(body["filter"]).to eq("and" => [])
+      expect(body["filter"]).to eq(
+        "and" => [
+          { "field" => "state", "op" => "is", "value" => "ready" }
+        ]
+      )
       expect(body["smart_folders"]).to include(include(
         "id" => folder.id,
         "name" => "Ready work",
@@ -677,7 +681,11 @@ RSpec.describe "App API dashboard commands", type: :request do
       body = parse_body
       inbox_folder = SmartFolder.find_builtin_by_attention("inbox")
       expect(body["active_smart_folder_id"]).to eq(inbox_folder.id)
-      expect(body["filter"]).to eq("and" => [])
+      expect(body["filter"]).to eq(
+        "and" => [
+          { "field" => "attention", "op" => "is", "value" => "inbox" }
+        ]
+      )
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ inbox_job.id ])
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
