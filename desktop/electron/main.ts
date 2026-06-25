@@ -318,6 +318,40 @@ const fetchRepositories = async () => {
   return payload.active_repositories ?? payload.repositories ?? []
 }
 
+const confirmApproveJob = async (sender: Electron.WebContents, jobID: number) => {
+  const parentWindow = BrowserWindow.fromWebContents(sender)
+  const confirmationOptions: MessageBoxOptions = {
+    type: "question",
+    buttons: ["Approve", "Cancel"],
+    defaultId: 0,
+    cancelId: 1,
+    message: `Approve JOB-${jobID} for landing?`
+  }
+  const confirmation = parentWindow
+    ? await dialog.showMessageBox(parentWindow, confirmationOptions)
+    : await dialog.showMessageBox(confirmationOptions)
+
+  return confirmation.response === 0
+}
+
+const approveJob = async (jobID: number) => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before approving jobs.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, `/api/v1/app/jobs/${jobID}/approve`), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(`Could not approve JOB-${jobID}.`)
+  }
+}
+
 const getDesktopSettings = (): DesktopSettings => ({
   localProjectsRoot: store.get("localProjectsRoot", ""),
   localRepoPaths: store.get("localRepoPaths", {}),
@@ -772,6 +806,8 @@ ipcMain.handle("open-token-docs", async () => {
   await shell.openExternal(TOKEN_DOCS_URL)
 })
 ipcMain.handle("fetch-inbox-jobs", async () => fetchInboxJobs())
+ipcMain.handle("confirm-approve-job", async (event, jobID: number) => confirmApproveJob(event.sender, jobID))
+ipcMain.handle("approve-job", async (_event, jobID: number) => approveJob(jobID))
 ipcMain.handle("open-external", async (_event, url: string) => {
   if (!URL.canParse(url)) {
     throw new Error("Invalid URL.")

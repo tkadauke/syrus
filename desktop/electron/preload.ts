@@ -98,6 +98,8 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   fetchInboxJobs: () => ipcRenderer.invoke("fetch-inbox-jobs") as Promise<JobItem[]>,
   createDirectJob: (request: CreateJobRequest) =>
     ipcRenderer.invoke("create-direct-job", request) as Promise<CreateJobResponse>,
+  confirmApproveJob: (jobID: number) => ipcRenderer.invoke("confirm-approve-job", jobID) as Promise<boolean>,
+  approveJob: (jobID: number) => ipcRenderer.invoke("approve-job", jobID) as Promise<void>,
   fetchAdminControls: () => ipcRenderer.invoke("fetch-admin-controls") as Promise<AdminControls>,
   toggleAdminControl: (control: AdminControl, pause: boolean) =>
     ipcRenderer.invoke("toggle-admin-control", control, pause) as Promise<ToggleAdminControlResult>,
