@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "build": "vite build",
+    "desktop:build": "npm --prefix desktop run build",
+    "desktop:dev": "npm --prefix desktop run dev",
     "typecheck": "tsc --noEmit",
     "test:react": "vitest run && npm run typecheck"
   },

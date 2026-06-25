@@ -1,0 +1,63 @@
+{
+  "name": "syrus-desktop",
+  "version": "0.1.0",
+  "description": "Syrus desktop shell",
+  "author": "Syrus",
+  "private": true,
+  "type": "module",
+  "desktopName": "SyrusDesktop",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "build": "npm run build:renderer && npm run build:main && electron-builder",
+    "build:main": "tsc -p tsconfig.electron.json",
+    "build:renderer": "vite build",
+    "dev": "npm run build:main && concurrently -k \"tsc -p tsconfig.electron.json --watch\" \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 dist-electron/main.js && electron .\"",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@types/react": "^18.3.29",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.14",
+    "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "app.syrus.desktop",
+    "productName": "Syrus Desktop",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "out"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "category": "Development",
+      "syncDesktopName": true,
+      "target": [
+        "AppImage"
+      ]
+    }
+  }
+}
