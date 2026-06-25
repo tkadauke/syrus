@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog, clipboard } from "electron"
+import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog, clipboard, globalShortcut } from "electron"
 import type { MessageBoxOptions, NativeImage, OpenDialogOptions } from "electron"
 import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
@@ -13,6 +13,7 @@ import { dispatchNativeNotification } from "./nativeNotifications.js"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const TOKEN_DOCS_URL = "https://syrus.dev/docs/cli/"
+const DEFAULT_GLOBAL_HOTKEY = "CommandOrControl+Shift+S"
 const execFileAsync = promisify(execFile)
 
 type Credentials = {
@@ -79,6 +80,10 @@ type DesktopSettings = {
 
 type DesktopSettingsInput = Pick<DesktopSettings, "localProjectsRoot" | "localRepoPaths">
 
+type DesktopStore = DesktopSettings & {
+  globalHotkey: string
+}
+
 type CheckoutAvailability = {
   cliAvailable: boolean
   localPath: string | null
@@ -124,11 +129,12 @@ const APP_USER_CABLE_INITIAL_RECONNECT_MS = 1_000
 const APP_USER_CABLE_MAX_RECONNECT_MS = 30_000
 let appUserCableReconnectMs = APP_USER_CABLE_INITIAL_RECONNECT_MS
 
-const store = new Store<DesktopSettings>({
+const store = new Store<DesktopStore>({
   defaults: {
     localProjectsRoot: "",
     localRepoPaths: {},
-    lastUsedRepo: ""
+    lastUsedRepo: "",
+    globalHotkey: DEFAULT_GLOBAL_HOTKEY
   }
 })
 
@@ -1028,6 +1034,25 @@ const createTray = () => {
   updateTrayBadge()
 }
 
+const registerGlobalHotkey = () => {
+  const globalHotkey = store.get("globalHotkey", DEFAULT_GLOBAL_HOTKEY).trim()
+  if (globalHotkey === "") {
+    return
+  }
+
+  try {
+    const registered = globalShortcut.register(globalHotkey, () => {
+      void togglePopoverWindow()
+    })
+
+    if (!registered) {
+      console.warn(`Could not register global hotkey "${globalHotkey}"; it may already be in use.`)
+    }
+  } catch (error) {
+    console.warn(`Could not register global hotkey "${globalHotkey}"; it may already be in use.`, error)
+  }
+}
+
 const createMenu = () => {
   const applicationMenu = Menu.buildFromTemplate([
     {
@@ -1131,6 +1156,7 @@ app.whenReady().then(async () => {
       // Credentials may be stale or the instance may be offline; setup still handles it.
     }
   }
+  registerGlobalHotkey()
 
   if (!app.isPackaged) {
     await showPopoverWindow()
@@ -1148,4 +1174,8 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   isQuitting = true
   stopAppUserCable()
+})
+
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll()
 })
