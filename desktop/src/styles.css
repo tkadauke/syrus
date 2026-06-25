@@ -219,6 +219,15 @@ button:disabled {
   font-size: 0.75rem;
 }
 
+.compose-panel {
+  padding: 14px 16px 16px;
+}
+
+.compose-form {
+  display: grid;
+  gap: 13px;
+}
+
 .compose-field {
   gap: 7px;
   font-size: 0.85rem;

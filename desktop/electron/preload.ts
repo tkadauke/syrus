@@ -23,6 +23,17 @@ type JobItem = {
   latest_run_id: number
 }
 
+type CreateJobRequest = {
+  repositoryId: number
+  prompt: string
+}
+
+type CreateJobResponse = {
+  message: string
+  redirect_to: string
+  job: JobItem
+}
+
 type DesktopSettings = {
   localProjectsRoot: string
   localRepoPaths: Record<string, string>
@@ -85,6 +96,8 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   getLastUsedRepo: () => ipcRenderer.invoke("get-last-used-repo") as Promise<string>,
   setLastUsedRepo: (repoSlug: string) => ipcRenderer.invoke("set-last-used-repo", repoSlug) as Promise<string>,
   fetchInboxJobs: () => ipcRenderer.invoke("fetch-inbox-jobs") as Promise<JobItem[]>,
+  createDirectJob: (request: CreateJobRequest) =>
+    ipcRenderer.invoke("create-direct-job", request) as Promise<CreateJobResponse>,
   fetchAdminControls: () => ipcRenderer.invoke("fetch-admin-controls") as Promise<AdminControls>,
   toggleAdminControl: (control: AdminControl, pause: boolean) =>
     ipcRenderer.invoke("toggle-admin-control", control, pause) as Promise<ToggleAdminControlResult>,

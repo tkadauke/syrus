@@ -41,6 +41,17 @@ type JobList = {
   jobs: JobItem[]
 }
 
+type CreateJobRequest = {
+  repositoryId: number
+  prompt: string
+}
+
+type CreateJobResponse = {
+  message: string
+  redirect_to: string
+  job: JobItem
+}
+
 type RepositoryItem = {
   id: number
   slug: string
@@ -242,6 +253,8 @@ const fetchInboxJobs = async () => {
   }
 
   const lists = await Promise.all([
+    fetchJobList(credentials, "queued"),
+    fetchJobList(credentials, "running"),
     fetchJobList(credentials, "implemented"),
     fetchJobList(credentials, "failed")
   ])
@@ -249,6 +262,40 @@ const fetchInboxJobs = async () => {
   return lists
     .flatMap((list) => list.jobs)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+}
+
+const responseErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const payload = (await response.json()) as { error?: { message?: string } }
+    return payload.error?.message || fallback
+  } catch {
+    return fallback
+  }
+}
+
+const createDirectJob = async ({ repositoryId, prompt }: CreateJobRequest) => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before creating jobs.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, "/api/v1/app/jobs"), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      repository_id: repositoryId,
+      prompt
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response, "Could not create job."))
+  }
+
+  return (await response.json()) as CreateJobResponse
 }
 
 const fetchRepositories = async () => {
@@ -720,6 +767,7 @@ ipcMain.handle("fetch-admin-controls", async () => fetchAdminControls())
 ipcMain.handle("toggle-admin-control", async (event, control: AdminControl, pause: boolean) =>
   toggleAdminControl(event.sender, control, pause)
 )
+ipcMain.handle("create-direct-job", async (_event, request: CreateJobRequest) => createDirectJob(request))
 ipcMain.handle("open-token-docs", async () => {
   await shell.openExternal(TOKEN_DOCS_URL)
 })

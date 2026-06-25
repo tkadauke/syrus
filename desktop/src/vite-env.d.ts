@@ -47,6 +47,17 @@ type SyrusCheckoutRequest = {
   branchName: string
 }
 
+type SyrusCreateJobRequest = {
+  repositoryId: number
+  prompt: string
+}
+
+type SyrusCreateJobResponse = {
+  message: string
+  redirect_to: string
+  job: SyrusJobItem
+}
+
 type SyrusBootstrapPayload = {
   current_user: {
     admin: boolean
@@ -82,6 +93,7 @@ interface Window {
     getLastUsedRepo: () => Promise<string>
     setLastUsedRepo: (repoSlug: string) => Promise<string>
     fetchInboxJobs: () => Promise<SyrusJobItem[]>
+    createDirectJob: (request: SyrusCreateJobRequest) => Promise<SyrusCreateJobResponse>
     fetchAdminControls: () => Promise<SyrusAdminControls>
     toggleAdminControl: (control: SyrusAdminControl, pause: boolean) => Promise<SyrusToggleAdminControlResult>
     openExternal: (url: string) => Promise<void>
