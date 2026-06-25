@@ -5460,6 +5460,10 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "My credentials" })).toBeInTheDocument()
+    const settingsTabs = screen.getByRole("navigation", { name: "Settings tabs" })
+    expect(within(settingsTabs).getByRole("link", { name: "Account" })).toHaveAttribute("href", "/app-shell/credentials/edit")
+    expect(within(settingsTabs).getByRole("link", { name: "Account" })).toHaveClass("border-blue-600")
+    expect(within(settingsTabs).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/credentials/edit?tab=notifications")
     expect(await screen.findByText("A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.")).toBeInTheDocument()
     expect(screen.getByText("Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.")).toBeInTheDocument()
     expect(screen.getByText("Authorize with Claude, copy the code Claude shows, then paste it here to save a durable OAuth token for Syrus runs.")).toBeInTheDocument()
@@ -5512,7 +5516,10 @@ describe("App", () => {
       github_token: ""
     }))
     expect(await screen.findByText("Credentials updated.")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Notifications" })).not.toBeInTheDocument()
+    fireEvent.click(within(settingsTabs).getByRole("link", { name: "Notifications" }))
     expect(await screen.findByRole("heading", { name: "Notifications" })).toBeInTheDocument()
+    expect(within(settingsTabs).getByRole("link", { name: "Notifications" })).toHaveClass("border-blue-600")
     const jobFailedToggle = await screen.findByLabelText("Notify me when a job fails")
     expect(jobFailedToggle).toBeChecked()
     fireEvent.click(jobFailedToggle)

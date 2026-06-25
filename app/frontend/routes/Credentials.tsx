@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createConsumer } from "@rails/actioncable"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
@@ -38,11 +38,13 @@ const notificationPreferenceLabels: Array<{ kind: NotificationPreferenceKind; la
   { kind: "epic_completed", label: "Notify me when an epic completes" }
 ]
 
+type CredentialsTab = "account" | "notifications"
+
 export function CredentialsRoute() {
-  const credentials = useQuery({
-    queryKey,
-    queryFn: fetchCredentials
-  })
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
+  const activeTab = credentialsTabFromSearch(location.search)
+  const [notice, setNotice] = useState<string | null>(null)
 
   return (
     <main aria-label="My credentials" className="mx-auto max-w-4xl space-y-6 p-6">
@@ -51,22 +53,54 @@ export function CredentialsRoute() {
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Encrypted credentials and account settings for Syrus runs.</p>
       </header>
 
-      {credentials.isPending ? <PanelMessage>Loading credentials...</PanelMessage> : null}
-      {credentials.isError ? <CredentialsError error={credentials.error} /> : null}
-      {credentials.isSuccess ? <CredentialsView payload={credentials.data} /> : null}
+      <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+      <CredentialsTabs active={activeTab} prefix={prefix} />
+      {activeTab === "account" ? <CredentialsAccountTab onNotice={setNotice} /> : <NotificationPreferencesPanel onNotice={setNotice} />}
     </main>
   )
 }
 
-function CredentialsView({ payload }: { payload: CredentialsPayload }) {
-  const location = useLocation()
-  const setupStatus = useSetupStatus()
-  const prefix = routePrefix(location.pathname)
-  const [notice, setNotice] = useState<string | null>(payload.message || null)
+function CredentialsTabs({ active, prefix }: { active: CredentialsTab; prefix: string }) {
+  const tabs = [
+    { key: "account", label: "Account", to: `${prefix}/credentials/edit` },
+    { key: "notifications", label: "Notifications", to: `${prefix}/credentials/edit?tab=notifications` }
+  ] satisfies Array<{ key: CredentialsTab; label: string; to: string }>
+
+  return (
+    <nav aria-label="Settings tabs" className="flex flex-wrap border-b border-gray-200 dark:border-gray-700">
+      {tabs.map((tab) => (
+        <Link className={tabClass(active === tab.key)} key={tab.key} to={tab.to}>{tab.label}</Link>
+      ))}
+    </nav>
+  )
+}
+
+function CredentialsAccountTab({ onNotice }: { onNotice: (message: string | null) => void }) {
+  const credentials = useQuery({
+    queryKey,
+    queryFn: fetchCredentials
+  })
+
+  useEffect(() => {
+    if (credentials.data?.message) onNotice(credentials.data.message)
+  }, [credentials.data?.message, onNotice])
 
   return (
     <>
-      <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+      {credentials.isPending ? <PanelMessage>Loading credentials...</PanelMessage> : null}
+      {credentials.isError ? <CredentialsError error={credentials.error} /> : null}
+      {credentials.isSuccess ? <CredentialsView onNotice={onNotice} payload={credentials.data} /> : null}
+    </>
+  )
+}
+
+function CredentialsView({ payload, onNotice }: { payload: CredentialsPayload; onNotice: (message: string | null) => void }) {
+  const location = useLocation()
+  const setupStatus = useSetupStatus()
+  const prefix = routePrefix(location.pathname)
+
+  return (
+    <>
       <GithubCredentialGuide />
       {setupStatus && !setupStatus.first_successful_job_completed ? (
         <OnboardingEmptyState
@@ -76,9 +110,8 @@ function CredentialsView({ payload }: { payload: CredentialsPayload }) {
           setupStatus={setupStatus}
         />
       ) : null}
-      <CredentialsForm onNotice={setNotice} payload={payload} />
-      <NotificationPreferencesPanel onNotice={setNotice} />
-      {payload.user.admin ? <ApiTokenPanel onNotice={setNotice} payload={payload} /> : null}
+      <CredentialsForm onNotice={onNotice} payload={payload} />
+      {payload.user.admin ? <ApiTokenPanel onNotice={onNotice} payload={payload} /> : null}
     </>
   )
 }
@@ -939,6 +972,14 @@ function titleize(value: string) {
 
 function errorMessage(error: Error, fallback: string) {
   return error instanceof ApiError ? error.message : fallback
+}
+
+function credentialsTabFromSearch(search: string): CredentialsTab {
+  return new URLSearchParams(search).get("tab") === "notifications" ? "notifications" : "account"
+}
+
+function tabClass(active: boolean) {
+  return `border-b-2 px-4 py-2 text-sm font-medium ${active ? "border-blue-600 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-gray-100"}`
 }
 
 function routePrefix(pathname: string) {
