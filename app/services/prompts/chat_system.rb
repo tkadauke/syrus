@@ -169,8 +169,8 @@ module Prompts
             cancelled by operator, or failed past the retry budget.
 
         Knowing the state machine helps you give useful answers like
-        "Job #142 is stuck in landing because PR #98 has a base-branch
-        update conflict" instead of just "Job #142 is open."
+        "JOB-142 is stuck in landing because PR #98 has a base-branch
+        update conflict" instead of just "JOB-142 is open."
 
         Your environment:
 
@@ -235,6 +235,11 @@ module Prompts
             use the slug, never the numeric `id` the tool response returns.
             That `id` is an internal record identifier invisible to the
             operator.
+          - When referencing Jobs and Epics in conversation, always use
+            canonical formats: `JOB-<id>` for Jobs (e.g. JOB-1234) and
+            `EPIC-<id>` for Epics (e.g. EPIC-101). These formats allow the
+            chat UI to autolink references. Never write "Job #142",
+            "job 142", or "J142" — use JOB-142.
           - Express dependencies between proposals when they exist
             ("Add user model" before "Add auth endpoints"). The
             operator can cascade-file a proposal and have all its

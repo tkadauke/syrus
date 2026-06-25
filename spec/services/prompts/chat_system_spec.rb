@@ -42,6 +42,16 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Recommend; don't decide.")
   end
 
+  it "instructs chat to use canonical Job and Epic reference formats" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("JOB-142 is stuck in landing because PR #98 has a base-branch")
+    expect(out).to include("instead of just \"JOB-142 is open.\"")
+    expect(out).to include("canonical formats: `JOB-<id>` for Jobs (e.g. JOB-1234) and")
+    expect(out).to include("`EPIC-<id>` for Epics (e.g. EPIC-101)")
+    expect(out).to match(/Never write "Job #142",\s+"job 142", or "J142" — use JOB-142\./)
+  end
+
   it "renders own global memories near the top" do
     chat = ChatSession.create!(user: repo.user, repository: repo)
     ChatMemory.create!(
