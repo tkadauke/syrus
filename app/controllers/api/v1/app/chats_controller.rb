@@ -217,6 +217,7 @@ module Api
           return if performed?
 
           queued_message = chat_session.chat_queued_messages.create!(content: content)
+          chat_session.touch
           notice = "Message queued."
 
           unless chat_session.turn_in_flight? || chat_session.agent_busy?
@@ -623,7 +624,7 @@ module Api
 
         def recent_chats_json(current_chat_session)
           chat_ids = Current.user.chat_sessions
-            .order(created_at: :desc, id: :desc)
+            .order(Arel.sql("#{chat_activity_order_sql} DESC"), id: :desc)
             .limit(20)
             .pluck(:id)
 
@@ -633,13 +634,15 @@ module Api
             .where(id: chat_ids)
             .preload(repository_attachments: :attachable)
             .to_a
-            .sort_by { |chat_session| [ chat_session.created_at, chat_session.id ] }
+            .sort_by { |chat_session| [ chat_activity_at(chat_session), chat_session.id ] }
             .reverse
             .map do |chat_session|
             chat_json(chat_session).merge(
               current: chat_session.id == current_chat_session.id,
               last_message_at: chat_session.last_message_at&.iso8601,
-              unread: chat_unread?(chat_session)
+              unread: chat_unread?(chat_session),
+              created_at: chat_session.created_at.iso8601,
+              updated_at: chat_session.updated_at.iso8601
             )
           end
         end
@@ -647,7 +650,7 @@ module Api
         def recent_chats_index_json
           Current.user.chat_sessions
             .preload(repository_attachments: :attachable)
-            .order(Arel.sql("COALESCE(chat_sessions.last_message_at, chat_sessions.updated_at, chat_sessions.created_at) DESC"))
+            .order(Arel.sql("#{chat_activity_order_sql} DESC"), id: :desc)
             .limit(20)
             .map do |chat_session|
             chat_json(chat_session).merge(
@@ -657,6 +660,27 @@ module Api
               updated_at: chat_session.updated_at.iso8601
             )
           end
+        end
+
+        def chat_activity_order_sql
+          <<~SQL.squish
+            CASE
+              WHEN chat_sessions.last_message_at IS NOT NULL
+                AND chat_sessions.last_message_at > chat_sessions.updated_at
+                AND chat_sessions.last_message_at > chat_sessions.created_at
+                THEN chat_sessions.last_message_at
+              WHEN chat_sessions.updated_at > chat_sessions.created_at THEN chat_sessions.updated_at
+              ELSE chat_sessions.created_at
+            END
+          SQL
+        end
+
+        def chat_activity_at(chat_session)
+          [
+            chat_session.last_message_at,
+            chat_session.updated_at,
+            chat_session.created_at
+          ].compact.max
         end
 
         def chat_unread?(chat_session)

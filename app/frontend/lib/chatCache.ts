@@ -1,12 +1,12 @@
 import type { QueryClient } from "@tanstack/react-query"
 import type { ChatNavRecord, ChatRecord, ChatsIndexPayload } from "../api/chats"
 
-export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean } = {}) {
+export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
     if (!current || !Array.isArray(current.chats)) return current
 
     const existing = current.chats.find((item) => item.id === chat.id)
-    const updated = recentChatRecord(chat, existing)
+    const updated = recentChatRecord(chat, existing, options.occurredAt)
     const chats = current.chats.filter((item) => item.id !== chat.id)
 
     if (options.prepend || !existing) {
@@ -29,7 +29,7 @@ export function refreshRecentChats(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
 }
 
-function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord): ChatNavRecord {
+function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
   const candidate = chat as ChatNavRecord
 
   return {
@@ -38,7 +38,24 @@ function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord): ChatNavRe
     current: candidate.current ?? existing?.current,
     last_message_at: candidate.last_message_at ?? existing?.last_message_at ?? null,
     unread: candidate.unread ?? existing?.unread ?? false,
-    created_at: candidate.created_at ?? existing?.created_at,
-    updated_at: candidate.updated_at ?? existing?.updated_at ?? new Date().toISOString()
+    created_at: candidate.created_at ?? existing?.created_at ?? occurredAt,
+    updated_at: latestTimestamp(candidate.updated_at, existing?.updated_at, occurredAt)
   }
+}
+
+function latestTimestamp(...values: Array<string | null | undefined>) {
+  let latest: string | undefined
+  let latestValue = 0
+
+  values.forEach((value) => {
+    if (!value) return
+
+    const timestamp = Date.parse(value)
+    if (Number.isNaN(timestamp) || timestamp < latestValue) return
+
+    latest = value
+    latestValue = timestamp
+  })
+
+  return latest
 }

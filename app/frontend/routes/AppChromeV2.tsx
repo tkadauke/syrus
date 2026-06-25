@@ -784,7 +784,7 @@ function compareChatsByRecentActivity(left: ChatNavRecord, right: ChatNavRecord)
 }
 
 function compareChatsByLastMessage(left: ChatNavRecord, right: ChatNavRecord) {
-  return chatLastMessageTime(right) - chatLastMessageTime(left) || chatActivityTime(right) - chatActivityTime(left) || right.id - left.id
+  return chatActivityTime(right) - chatActivityTime(left) || right.id - left.id
 }
 
 function chatLastMessageTime(chat: ChatNavRecord) {
@@ -792,7 +792,11 @@ function chatLastMessageTime(chat: ChatNavRecord) {
 }
 
 function chatActivityTime(chat: ChatNavRecord) {
-  return timestampValue(chat.last_message_at || chat.updated_at || chat.created_at)
+  return Math.max(
+    chatLastMessageTime(chat),
+    timestampValue(chat.updated_at),
+    timestampValue(chat.created_at)
+  )
 }
 
 function timestampValue(value?: string | null) {

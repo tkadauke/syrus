@@ -1036,6 +1036,7 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
       : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText, attachments),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       setText("")
       setAttachments([])
       setAttachmentError(null)
@@ -2497,6 +2498,10 @@ function chatDisplayTitle(chat: Pick<ChatNavRecord, "id" | "title" | "title_pend
   if (chat.title_pending) return "Naming chat..."
 
   return chat.title || chat.repository?.slug || `Chat #${chat.id}`
+}
+
+function currentRecentChat(payload: ChatPayload) {
+  return payload.recent_chats.find((chat) => chat.id === payload.chat.id)
 }
 
 function formatTokenCount(value: number) {

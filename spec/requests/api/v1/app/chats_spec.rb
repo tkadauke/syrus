@@ -60,6 +60,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       last_message_at: 1.day.ago,
       last_read_at: Time.current
     )
+    current_chat.update_columns(created_at: 3.hours.ago, updated_at: current_chat.last_message_at)
+    older_chat.update_columns(created_at: 2.days.ago, updated_at: older_chat.last_message_at)
     ChatSession.create!(user: Factories.user, title: "Foreign chat", last_message_at: Time.current)
 
     get "/api/v1/app/chats"
@@ -666,13 +668,14 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     )
   end
 
-  it "orders the chat navigation by creation time rather than last use" do
+  it "orders the chat navigation by recent activity" do
     sign_in_as(user)
     current_chat = ChatSession.create!(
       user: user,
       repository: repository,
       title: "Old but active",
       created_at: 3.days.ago,
+      updated_at: 3.days.ago,
       last_message_at: Time.current
     )
     middle_chat = ChatSession.create!(
@@ -680,7 +683,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       repository: repository,
       title: "Middle",
       created_at: 2.days.ago,
-      last_message_at: 1.day.ago,
+      updated_at: 2.days.ago,
+      last_message_at: 12.hours.ago,
       last_read_at: Time.current
     )
     newest_chat = ChatSession.create!(
@@ -688,6 +692,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       repository: repository,
       title: "Newest",
       created_at: 1.day.ago,
+      updated_at: 1.day.ago,
       last_message_at: nil
     )
 
@@ -695,9 +700,36 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["recent_chats"].map { |chat| chat.fetch("id") }).to eq([ newest_chat.id, middle_chat.id, current_chat.id ])
-    expect(body["recent_chats"].map { |chat| chat.fetch("current") }).to eq([ false, false, true ])
-    expect(body["recent_chats"].map { |chat| chat.fetch("unread") }).to eq([ false, false, true ])
+    expect(body["recent_chats"].map { |chat| chat.fetch("id") }).to eq([ current_chat.id, middle_chat.id, newest_chat.id ])
+    expect(body["recent_chats"].map { |chat| chat.fetch("current") }).to eq([ true, false, false ])
+    expect(body["recent_chats"].map { |chat| chat.fetch("unread") }).to eq([ true, false, false ])
+  end
+
+  it "uses queued-message activity when listing recent chats" do
+    sign_in_as(user)
+    quiet_chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Quiet",
+      created_at: 2.days.ago,
+      updated_at: 2.days.ago,
+      last_message_at: 1.hour.ago
+    )
+    queued_chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Queued",
+      created_at: 3.days.ago,
+      updated_at: 3.days.ago,
+      last_message_at: 1.day.ago
+    )
+
+    queued_chat.touch
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["chats"].map { |chat| chat.fetch("id") }).to start_with(queued_chat.id, quiet_chat.id)
   end
 
   it "reports a running chat agent process in the app payload" do
