@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-23._
+_Last reviewed: 2026-06-24._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -743,7 +743,9 @@ agent at it over stdio. Today's tool surface:
 
 - `read_live_state(detail:)` — read-only snapshot of the current Job,
   Workflow, Run, queue, and related chat state; agents use it before
-  making operational claims.
+  making operational claims. In chat contexts this related state can
+  include attached sessions, pending chat action counts, turn-in-flight
+  status, stop requests, and recent message snippets.
 - `submit_summary(pr_title:, pr_body:, summary:)` — records
   agent-authored PR copy on Workflow artifacts and appends an audit
   `JobLog` line. Read tier-1 by `pr_open`/`push`/summary promotion
@@ -786,17 +788,37 @@ that chat session. Its tools cover:
   Epic, or PR details.
 - Operator actions: propose GitHub issues, Syrus Jobs, Epics, or an
   Epic with child Jobs; delete proposals; schedule recurring work;
-  update Job title/description copy; and submit chat feedback, retry,
-  rebase, or cancel Jobs visible to the session.
-- Collaboration state: set bookmarks and mutate the chat whiteboard
+  schedule/list/cancel one-shot chat wakeups; update Job
+  title/description copy; and submit chat feedback, retry, rebase, or
+  cancel Jobs visible to the session.
+- Collaboration state: ask blocking operator questions, set bookmarks,
+  read/search/manage chat memories, and mutate the chat whiteboard
   through scene/drawing tools.
+- Admin diagnostics and controls, for admin users only: overview,
+  stuck-item, queue, process, run, user, and version reads plus
+  confirmed actions such as killing a subprocess, pausing/unpausing
+  polling or runs, pausing user scheduling, retrying failed Steps,
+  cleaning workspaces, clearing GitHub cache, and refreshing
+  installations.
 
-Most chat actions stop at a confirmation boundary. For
-`submit_chat_feedback`, the MCP tool creates a pending action after the
-agent and operator agree on feedback for an implemented or approved Job.
-Confirming it queues a `chat_feedback` Workflow and stores the feedback
-text in Workflow artifacts; rejecting or cancelling it leaves the Job
-untouched.
+Most chat actions stop at a confirmation boundary. `ChatPendingAction`
+stores these proposed mutations, with `pending` actions shown to the
+operator for confirm/reject and `queued` actions held until their target
+Job reaches an actionable state. For `submit_chat_feedback`, the MCP
+tool creates the pending action after the agent and operator agree on
+feedback; feedback for queued/running Jobs is stored as `queued` and
+promoted when the Job is implemented or approved. Confirming it queues a
+`chat_feedback` Workflow and stores the feedback text in Workflow
+artifacts; rejecting or cancelling it leaves the Job untouched.
+
+One-shot chat wakeups are `ChatWakeup` rows owned by the chat session
+and user. `schedule_wakeup` creates a pending wakeup and enqueues
+`ChatWakeupFireJob` for `fire_at`; `list_wakeups` and `cancel_wakeup`
+operate only on pending wakeups for the current session. When the fire
+job runs, `ChatSession::WakeupTurn` appends a user-role message tagged
+with `requested_by: "wakeup"` and the wakeup id, marks the wakeup fired,
+and enqueues `ChatTurnJob` so the follow-up stays in the same
+transcript.
 
 Small metadata edits that do not schedule work, such as `update_job`,
 apply immediately after repository-scoped authorization. The tool can
@@ -821,7 +843,8 @@ the controller stores a `ChatQueuedMessage`; when the active turn
 finishes, `ChatTurnJob` atomically delivers the next queued message and
 enqueues the following turn. Ctrl+C from the CLI and the UI Stop control
 both set `stop_requested_at`, which the running Claude invocation polls
-and records as a cancelled chat turn.
+and records as a cancelled chat turn; each turn clears stale stop
+requests as it exits so the next turn is not cancelled by an old signal.
 
 ## Failure recovery
 
