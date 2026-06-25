@@ -170,6 +170,7 @@ export type ChatPendingAction = {
   state: "queued" | "pending" | "confirmed" | "rejected" | "cancelled"
   action: string | null
   action_type: string | null
+  chat_message_id?: number | null
   app_confirm_path: string
   app_cancel_path: string
 }

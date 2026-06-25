@@ -854,6 +854,7 @@ module Api
               state: action.state,
               action: action.action,
               action_type: action.action_type,
+              chat_message_id: action.message&.id,
               app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
               app_cancel_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
             }

@@ -1255,11 +1255,12 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       action: "submit_chat_feedback",
       payload: { "job_id" => job.id, "feedback" => "Please tighten this implementation." }
     )
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Feedback queued." }, pending_action: action)
 
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to contain_exactly(
-      include("id" => action.id, "label" => "Submit feedback on JOB-#{job.id}", "detail" => "Please tighten this implementation.")
+      include("id" => action.id, "label" => "Submit feedback on JOB-#{job.id}", "detail" => "Please tighten this implementation.", "chat_message_id" => message.id)
     )
 
     expect {

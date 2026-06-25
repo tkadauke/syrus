@@ -13,7 +13,6 @@ import {
   addChatAttachment,
   answerAgentQuestion,
   attachChatRepository,
-  cancelPendingAction,
   clearChatHistory,
   confirmChatProposal,
   confirmPendingAction,
@@ -218,7 +217,6 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
       )}
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {whiteboardFullscreen ? null : <PendingActions payload={payload} queryKey={queryKey} onNotice={setNotice} />}
 
       {!payload.chat_available ? (
         <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
@@ -239,59 +237,49 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
   )
 }
 
-function PendingActions({ payload, queryKey, onNotice }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
-  const queryClient = useQueryClient()
-  const search = queryKey[2]
-  const action = useMutation({
-    mutationFn: (input: { kind: "confirm" | "cancel"; path: string }) => {
-      const path = appendSearch(input.path, search)
-      return input.kind === "confirm" ? confirmPendingAction(path) : cancelPendingAction(path)
-    },
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || null)
-    }
-  })
-
+function PendingActions({ payload, onSelectMessage }: { payload: ChatPayload; onSelectMessage: (messageId: number) => void }) {
   if (payload.pending_actions.length === 0) return null
 
   return (
-    <section className="space-y-3 rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/60">
+    <section className="space-y-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/60">
       <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Pending actions</h2>
       {payload.pending_actions.map((pendingAction) => (
-        <PendingActionRow action={pendingAction} disabled={action.isPending} key={pendingAction.id} onCancel={() => action.mutate({ kind: "cancel", path: pendingAction.app_cancel_path })} onConfirm={() => action.mutate({ kind: "confirm", path: pendingAction.app_confirm_path })} />
+        <PendingActionRow action={pendingAction} key={pendingAction.id} onSelectMessage={onSelectMessage} />
       ))}
-      {action.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div> : null}
     </section>
   )
 }
 
-function PendingActionRow({ action, disabled, onCancel, onConfirm }: { action: ChatPendingAction; disabled: boolean; onCancel: () => void; onConfirm: () => void }) {
+function PendingActionRow({ action, onSelectMessage }: { action: ChatPendingAction; onSelectMessage: (messageId: number) => void }) {
   const isQueued = action.state === "queued"
-  const isPending = action.state === "pending"
   const terminalLabel =
     action.state === "confirmed" ? "Confirmed" :
       action.state === "rejected" ? "Rejected" :
         action.state === "cancelled" ? "Cancelled" :
           null
+  const stateLabel = isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"
+  const chatMessageId = action.chat_message_id
 
   return (
-    <div className={`flex flex-wrap items-start justify-between gap-3 rounded border bg-white px-3 py-2 text-sm dark:bg-gray-950 ${pendingActionRowClass(action.state)}`}>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {isQueued ? <WaitingIcon /> : null}
-          <span className="font-medium text-gray-900 dark:text-gray-100">{action.label}</span>
-          {isQueued ? <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">Waiting...</span> : null}
-          {terminalLabel ? <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{terminalLabel}</span> : null}
-        </div>
-        {action.detail ? <PendingActionDetail detail={action.detail} /> : null}
+    <div className={`flex flex-wrap items-center justify-between gap-2 rounded border bg-white px-3 py-2 text-sm dark:bg-gray-950 ${pendingActionRowClass(action.state)}`}>
+      <div className="flex min-w-0 items-center gap-2">
+        {isQueued ? <WaitingIcon /> : <WarningIcon />}
+        {chatMessageId ? (
+          <a
+            className="truncate font-medium text-blue-700 hover:underline dark:text-blue-300"
+            href={`#message-${chatMessageId}`}
+            onClick={(event) => {
+              event.preventDefault()
+              onSelectMessage(chatMessageId)
+            }}
+          >
+            {action.label}
+          </a>
+        ) : (
+          <span className="truncate font-medium text-gray-900 dark:text-gray-100">{action.label}</span>
+        )}
       </div>
-      {isPending ? (
-        <div className="flex gap-2">
-          <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">Confirm</button>
-          <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">Cancel</button>
-        </div>
-      ) : null}
+      <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{stateLabel}</span>
     </div>
   )
 }
@@ -1850,7 +1838,7 @@ function ChatWorkspace({
         </nav>
         <div className="flex min-h-0 w-full flex-1">
           {activeMobileTab === "chat" ? (
-            <ChatColumn bookmarkTarget={bookmarkTarget} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
+            <ChatColumn bookmarkTarget={bookmarkTarget} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onPendingActionSelect={selectBookmark} />
           ) : (
             <ChatWorkspacePanel
               activeTab={activeTab}
@@ -1885,7 +1873,7 @@ function ChatWorkspace({
             }
       }
     >
-      {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />}
+      {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onPendingActionSelect={selectBookmark} />}
       {expanded || panelCollapsed ? null : (
         <button
           aria-label="Resize chat workspace"
@@ -1930,9 +1918,10 @@ function ChatWorkspace({
   )
 }
 
-function ChatColumn({ bookmarkTarget, commandHandlers, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function ChatColumn({ bookmarkTarget, commandHandlers, payload, prefix, queryKey, onNotice, onPendingActionSelect }: { bookmarkTarget: BookmarkTarget | null; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onPendingActionSelect: (messageId: number) => void }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      <PendingActions payload={payload} onSelectMessage={onPendingActionSelect} />
       <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />

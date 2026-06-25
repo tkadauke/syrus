@@ -11105,12 +11105,36 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
   })
 
-  it("renders pending action detail in the confirmation list", async () => {
+  it("links pending action summaries to their inline confirmation cards", async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+    const pendingMessage = {
+      type: "message",
+      id: 12,
+      role: "assistant",
+      tool_name: null,
+      content: { text: "Feedback queued for confirmation." },
+      text: "Feedback queued for confirmation.",
+      bookmarkable: true,
+      pending_action: {
+        id: 7,
+        label: "Send feedback to JOB-44",
+        detail: "Please **tighten** this implementation.\n\n- Use focused tests.",
+        action: "submit_chat_feedback",
+        state: "pending",
+        app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
+        app_reject_path: "/api/v1/app/chats/8/pending_actions/7/reject"
+      }
+    }
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
         ...chatPayload({
+          messages: [pendingMessage],
           pendingActions: [
-            pendingAction({ id: 7, label: "Send feedback to JOB-44", detail: "Please **tighten** this implementation.\n\n- Use focused tests." })
+            pendingAction({ id: 7, label: "Send feedback to JOB-44", detail: "Please **tighten** this implementation.\n\n- Use focused tests.", chatMessageId: 12 })
           ]
         })
       }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -11124,7 +11148,18 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Send feedback to JOB-44")).toBeInTheDocument()
+    const summary = await screen.findByRole("heading", { name: "Pending actions" })
+    const summarySection = summary.closest("section")!
+    expect(within(summarySection).getByRole("link", { name: "Send feedback to JOB-44" })).toHaveAttribute("href", "#message-12")
+    expect(within(summarySection).getByText("Needs confirmation")).toBeInTheDocument()
+    expect(within(summarySection).queryByText((_content, element) => element?.tagName === "P" && element.textContent === "Please tighten this implementation.")).not.toBeInTheDocument()
+    expect(within(summarySection).queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
+
+    fireEvent.click(within(summarySection).getByRole("link", { name: "Send feedback to JOB-44" }))
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" }))
+
+    expect(screen.getByText("Feedback queued for confirmation.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Send feedback to JOB-44" })).toBeInTheDocument()
     expect(screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === "Please tighten this implementation.")).toBeInTheDocument()
     expect(screen.getByText("tighten").tagName).toBe("STRONG")
     expect(screen.getByText("Use focused tests.").tagName).toBe("LI")
@@ -13220,6 +13255,7 @@ function pendingAction(overrides: {
   actionType?: string | null
   confirmPath?: string
   cancelPath?: string
+  chatMessageId?: number | null
 } = {}) {
   const id = overrides.id ?? 7
   return {
@@ -13229,6 +13265,7 @@ function pendingAction(overrides: {
     state: overrides.state ?? "pending",
     action: overrides.action ?? "cancel_job",
     action_type: overrides.actionType ?? null,
+    chat_message_id: overrides.chatMessageId,
     app_confirm_path: overrides.confirmPath ?? `/api/v1/app/chats/8/pending_actions/${id}/confirm`,
     app_cancel_path: overrides.cancelPath ?? `/api/v1/app/chats/8/pending_actions/${id}`
   }
