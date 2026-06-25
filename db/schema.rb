@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_234809) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_004415) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -363,6 +363,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_234809) do
     t.index ["repository_id"], name: "index_epics_on_repository_id"
     t.index ["user_id", "state"], name: "index_epics_on_user_id_and_state"
     t.index ["user_id"], name: "index_epics_on_user_id"
+  end
+
+  create_table "features", force: :cascade do |t|
+    t.string "category", null: false
+    t.datetime "created_at", null: false
+    t.boolean "default_enabled", default: false, null: false
+    t.text "description"
+    t.boolean "enabled", default: false, null: false
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug"], name: "index_features_on_slug", unique: true
   end
 
   create_table "filter_usages", force: :cascade do |t|

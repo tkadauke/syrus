@@ -19,9 +19,7 @@ module AppApi
         flash: flash_payload,
         system_alerts: system_alerts_payload,
         csrf_token: @csrf_token,
-        feature_flags: {
-          migrated_routes: []
-        }
+        feature_flags: feature_flags_payload
       }
     end
 
@@ -102,6 +100,13 @@ module AppApi
           action_steps: alert.action_steps,
           cta: alert.cta
         }
+      end
+    end
+
+    def feature_flags_payload
+      Features::SyncFromYaml.declarations.to_h do |feature|
+        slug = feature.fetch(:slug)
+        [ slug, Feature.enabled?(slug) ]
       end
     end
 

@@ -110,7 +110,25 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body.dig("setup", "paths", "setup_path")).to eq(setup_path)
     expect(body["csrf_token"]).to be_present
     expect(body["system_alerts"]).to eq([])
-    expect(body["feature_flags"]).to eq("migrated_routes" => [])
+    expect(body["feature_flags"]).to eq({})
+  end
+
+  it "returns enabled states for features declared in YAML" do
+    user = Factories.user
+    sign_in_as(user)
+    Feature.create!(slug: "enabled_feature", category: "Example", name: "Enabled", enabled: true)
+    Feature.create!(slug: "hidden_feature", category: "Example", name: "Hidden", enabled: true)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return([
+      { slug: "enabled_feature", category: "Example", name: "Enabled", description: nil, default_enabled: false },
+      { slug: "disabled_feature", category: "Example", name: "Disabled", description: nil, default_enabled: false }
+    ])
+
+    get api_v1_app_bootstrap_path
+
+    expect(parse_body["feature_flags"]).to eq(
+      "enabled_feature" => true,
+      "disabled_feature" => false
+    )
   end
 
   it "serializes active system alerts for the SPA shell" do
