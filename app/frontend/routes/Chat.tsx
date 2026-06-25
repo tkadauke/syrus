@@ -852,7 +852,9 @@ function PendingActionCard({ pendingAction, queryKey, onNotice }: { pendingActio
 
 function PendingActionDetail({ detail }: { detail: string }) {
   return (
-    <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded border border-gray-200 bg-gray-50 px-3 py-2 font-sans text-xs leading-5 text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">{detail}</pre>
+    <div className="mt-2 max-h-40 overflow-y-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-950">
+      <Markdown className="chat-prose text-xs text-gray-700 dark:text-gray-300" text={detail} />
+    </div>
   )
 }
 

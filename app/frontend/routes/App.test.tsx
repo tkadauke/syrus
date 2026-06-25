@@ -10088,7 +10088,7 @@ describe("App", () => {
       pending_action: {
         id: 7,
         label: "Cancel job",
-        detail: "Cancel this job before it lands.",
+        detail: "Cancel **this job** before it lands.\n\n- Notify reviewers.",
         action: "cancel_job",
         state: "pending",
         resource_title: "Refactor checkout flow",
@@ -10161,7 +10161,9 @@ describe("App", () => {
 
     expect(await screen.findByText("This needs confirmation.")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Cancel job" })).toBeInTheDocument()
-    expect(screen.getByText("Cancel this job before it lands.")).toBeInTheDocument()
+    expect(screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === "Cancel this job before it lands.")).toBeInTheDocument()
+    expect(screen.getByText("this job").tagName).toBe("STRONG")
+    expect(screen.getByText("Notify reviewers.").tagName).toBe("LI")
     expect(screen.getByRole("link", { name: "Refactor checkout flow" })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument()
@@ -10320,7 +10322,7 @@ describe("App", () => {
       new Response(JSON.stringify({
         ...chatPayload({
           pendingActions: [
-            pendingAction({ id: 7, label: "Send feedback to JOB-44", detail: "Please tighten this implementation.\n\nUse focused tests." })
+            pendingAction({ id: 7, label: "Send feedback to JOB-44", detail: "Please **tighten** this implementation.\n\n- Use focused tests." })
           ]
         })
       }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -10335,8 +10337,9 @@ describe("App", () => {
     )
 
     expect(await screen.findByText("Send feedback to JOB-44")).toBeInTheDocument()
-    expect(screen.getByText(/Please tighten this implementation/)).toBeInTheDocument()
-    expect(screen.getByText(/Use focused tests/)).toBeInTheDocument()
+    expect(screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === "Please tighten this implementation.")).toBeInTheDocument()
+    expect(screen.getByText("tighten").tagName).toBe("STRONG")
+    expect(screen.getByText("Use focused tests.").tagName).toBe("LI")
   })
 
   it("renders terminal pending actions as read-only badges", async () => {
