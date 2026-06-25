@@ -91,7 +91,7 @@ export type BootstrapPayload = {
   csrf_token: string
   feature_flags: {
     migrated_routes: string[]
-  }
+  } & Record<string, boolean | string[]>
 }
 
 export function fetchBootstrap() {

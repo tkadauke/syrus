@@ -20,9 +20,7 @@ module AppApi
         system_alerts: system_alerts_payload,
         unread_notifications_count: unread_notifications_count,
         csrf_token: @csrf_token,
-        feature_flags: {
-          migrated_routes: []
-        }
+        feature_flags: feature_flags_payload
       }
     end
 
@@ -117,6 +115,15 @@ module AppApi
       else
         0
       end
+    end
+
+    def feature_flags_payload
+      {
+        migrated_routes: []
+      }.merge(Features::SyncFromYaml.declarations.to_h do |feature|
+        slug = feature.fetch(:slug)
+        [ slug, Feature.enabled?(slug) ]
+      end)
     end
 
     def app_revision

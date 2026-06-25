@@ -365,6 +365,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_051135) do
     t.index ["user_id"], name: "index_epics_on_user_id"
   end
 
+  create_table "features", force: :cascade do |t|
+    t.string "category", null: false
+    t.datetime "created_at", null: false
+    t.boolean "default_enabled", default: false, null: false
+    t.text "description"
+    t.boolean "enabled", default: false, null: false
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug"], name: "index_features_on_slug", unique: true
+  end
+
   create_table "filter_usages", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.json "filter_node", null: false
