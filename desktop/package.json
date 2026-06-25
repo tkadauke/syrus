@@ -11,7 +11,7 @@
     "build": "npm run build:renderer && npm run build:main && electron-builder",
     "build:main": "tsc -p tsconfig.electron.json",
     "build:renderer": "vite build",
-    "dev": "npm run build:main && concurrently -k \"tsc -p tsconfig.electron.json --watch\" \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 dist-electron/main.js && electron .\"",
+    "dev": "concurrently -k -n renderer,electron -c cyan,yellow \"vite\" \"wait-on http://localhost:5173 && npm run build:main && electron .\"",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit"
   },
   "dependencies": {
