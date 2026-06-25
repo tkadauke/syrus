@@ -35,7 +35,7 @@ module SyrusChatMcp
               title: { type: "string", description: "Child Job title." },
               description: { type: "string", description: "Child Job prompt/body." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job depends on." },
-              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs this child depends on." }
+              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs this child depends on. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when the jobs are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." }
             },
             required: %w[slug target_repo title description]
           },

@@ -19,7 +19,7 @@ module SyrusChatMcp
         title: { type: "string", description: "Job title." },
         description: { type: "string", description: "Markdown Job description." },
         depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
-        depends_on: { type: "array", items: { type: "string" }, description: "Optional proposal slugs that must be confirmed first." }
+        depends_on: { type: "array", items: { type: "string" }, description: "Optional proposal slugs that must be confirmed first. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." }
       },
       required: %w[repo title description]
     )
