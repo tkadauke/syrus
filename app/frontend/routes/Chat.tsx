@@ -600,12 +600,12 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
           return (
             <button
               aria-label={`Open ${attachment.name || "image attachment"}`}
-              className="h-20 w-20 overflow-hidden rounded border border-gray-200 bg-white p-0 shadow-sm transition hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900"
+              className="min-h-12 min-w-12 max-h-[10rem] max-w-[16rem] overflow-hidden rounded border border-gray-200 bg-white p-0 shadow-sm transition hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900"
               key={`${attachment.name}-${index}`}
               onClick={() => setLightboxImage(attachment)}
               type="button"
             >
-              <img alt={attachment.name || "Image attachment"} className="h-full w-full object-cover" src={src} />
+              <img alt={attachment.name || "Image attachment"} className="max-h-[10rem] min-h-12 min-w-12 max-w-[16rem] object-contain" src={src} />
             </button>
           )
         })}
