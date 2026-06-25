@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createChat, fetchChats, type ChatNavRecord, type ChatPayload } from "../api/chats"
+import { createChat, fetchChats, fetchMoreChatsForGroup, type ChatGroupRecord, type ChatNavRecord, type ChatPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { BugReportButton } from "../components/BugReportButton"
@@ -435,13 +435,16 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
 type ChatSection = {
   key: string
   label: string
+  repository_id: number | null
   chats: ChatNavRecord[]
+  has_more: boolean
 }
 
 function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDrawer: () => void; prefix: string; userPresent: boolean }) {
   const location = useLocation()
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set())
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
+  const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
+  const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
   const activeChatId = activeChatIdFromPath(location.pathname)
   const chats = useQuery({
     queryKey: ["chats", "recent"],
@@ -449,16 +452,12 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
     enabled: userPresent,
     staleTime: 30_000
   })
-  const sections = useMemo(() => groupedRecentChats(chats.data?.chats || []), [chats.data?.chats])
+  const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
 
-  function toggleSection(key: string) {
-    setExpandedSections((current) => {
-      const next = new Set(current)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
+  function showLess(key: string) {
+    setLoadedSections((current) => {
+      const next = { ...current }
+      delete next[key]
       return next
     })
   }
@@ -475,16 +474,46 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
     })
   }
 
+  function showMore(section: ChatSection) {
+    const beforeChat = section.chats[section.chats.length - 1]
+    if (!beforeChat || loadingSections.has(section.key)) return
+
+    setLoadingSections((current) => new Set(current).add(section.key))
+    void fetchMoreChatsForGroup(section.repository_id, beforeChat.id).then((payload) => {
+      setLoadedSections((current) => {
+        const existing = current[section.key]
+        const existingIds = new Set(existing?.chats.map((chat) => chat.id) || [])
+        const nextChats = payload.chats.filter((chat) => !existingIds.has(chat.id))
+
+        return {
+          ...current,
+          [section.key]: {
+            chats: [...(existing?.chats || []), ...nextChats],
+            has_more: payload.has_more
+          }
+        }
+      })
+    }).finally(() => {
+      setLoadingSections((current) => {
+        const next = new Set(current)
+        next.delete(section.key)
+        return next
+      })
+    })
+  }
+
   if (!userPresent) return null
 
   return (
     <div className="px-3 pb-4">
       <nav aria-label="Recent chats" className="space-y-4">
         {sections.map((section) => {
-          const expanded = expandedSections.has(section.key)
           const collapsed = collapsedSections.has(section.key)
-          const visibleChats = collapsed ? [] : expanded ? section.chats : section.chats.slice(0, 5)
-          const hiddenCount = collapsed ? 0 : section.chats.length - visibleChats.length
+          const loaded = loadedSections[section.key]
+          const loading = loadingSections.has(section.key)
+          const visibleChats = collapsed ? [] : section.chats
+          const canShowMore = !collapsed && section.has_more
+          const canShowLess = !collapsed && Boolean(loaded)
 
           return (
             <section className="space-y-1" key={section.key}>
@@ -518,14 +547,28 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                   )
                 })}
               </div>
-              {hiddenCount > 0 ? (
-                <button
-                  className="ml-6 rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
-                  onClick={() => toggleSection(section.key)}
-                  type="button"
-                >
-                  Show more
-                </button>
+              {canShowMore || canShowLess ? (
+                <div className="ml-6 flex flex-wrap gap-1">
+                  {canShowMore ? (
+                    <button
+                      className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+                      disabled={loading}
+                      onClick={() => showMore(section)}
+                      type="button"
+                    >
+                      {loading ? "Loading..." : "Show more"}
+                    </button>
+                  ) : null}
+                  {canShowLess ? (
+                    <button
+                      className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+                      onClick={() => showLess(section.key)}
+                      type="button"
+                    >
+                      Show less
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </section>
           )
@@ -745,42 +788,21 @@ function titleize(value: string) {
   return value.replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-function groupedRecentChats(chats: ChatNavRecord[]) {
-  const topChats = [...chats]
-    .sort(compareChatsByRecentActivity)
-    .slice(0, 20)
-
-  const generalChats = topChats.filter((chat) => !chat.repository)
-  const repositoryGroups = new Map<number, { label: string; chats: ChatNavRecord[] }>()
-
-  topChats.forEach((chat) => {
-    if (!chat.repository) return
-
-    const group = repositoryGroups.get(chat.repository.id) || { label: chat.repository.slug, chats: [] }
-    group.chats.push(chat)
-    repositoryGroups.set(chat.repository.id, group)
-  })
-
-  const sections: ChatSection[] = []
-  if (generalChats.length > 0) {
-    sections.push({ key: "general", label: "General", chats: generalChats.sort(compareChatsByLastMessage) })
-  }
-
-  Array.from(repositoryGroups.entries())
-    .map(([id, group]) => ({
-      key: `repository-${id}`,
+function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSections: Record<string, { chats: ChatNavRecord[]; has_more: boolean }>) {
+  return groups.map((group) => {
+    const loaded = loadedSections[group.key]
+    const chats = [...group.chats, ...(loaded?.chats || [])].sort(compareChatsByLastMessage)
+    return {
+      key: group.key,
       label: group.label,
-      chats: group.chats.sort(compareChatsByLastMessage),
-      activeAt: Math.max(...group.chats.map(chatActivityTime))
-    }))
+      repository_id: group.repository_id,
+      chats,
+      has_more: loaded?.has_more ?? group.has_more,
+      activeAt: Math.max(...chats.map(chatActivityTime))
+    }
+  })
     .sort((left, right) => right.activeAt - left.activeAt)
-    .forEach((group) => sections.push({ key: group.key, label: group.label, chats: group.chats }))
-
-  return sections
-}
-
-function compareChatsByRecentActivity(left: ChatNavRecord, right: ChatNavRecord) {
-  return chatActivityTime(right) - chatActivityTime(left)
+    .map(({ activeAt: _activeAt, ...group }) => group)
 }
 
 function compareChatsByLastMessage(left: ChatNavRecord, right: ChatNavRecord) {

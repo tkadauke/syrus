@@ -239,9 +239,22 @@ export type ChatCreatedPayload = {
   chat: ChatRecord
 }
 
-export type ChatsIndexPayload = {
+export type ChatGroupRecord = {
+  key: string
+  label: string
+  repository_id: number | null
   chats: ChatNavRecord[]
+  has_more: boolean
+}
+
+export type ChatsIndexPayload = {
+  groups: ChatGroupRecord[]
   repositories: ChatRepository[]
+}
+
+export type MoreChatsPayload = {
+  chats: ChatNavRecord[]
+  has_more: boolean
 }
 
 export type ChatPayload = {
@@ -330,6 +343,11 @@ export function markChatRead(id: string | number) {
 
 export function fetchChats() {
   return getJson<ChatsIndexPayload>("/api/v1/app/chats")
+}
+
+export function fetchMoreChatsForGroup(repositoryId: number | null, beforeChatId: number) {
+  const repositoryParam = repositoryId == null ? "general" : String(repositoryId)
+  return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?repository_id=${encodeURIComponent(repositoryParam)}&before_id=${encodeURIComponent(String(beforeChatId))}`)
 }
 
 export function fetchChatSearch(search = "", options: { signal?: AbortSignal } = {}) {

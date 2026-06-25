@@ -709,7 +709,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ layout_version: "v1" }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
-      return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     try {
@@ -833,7 +833,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/filters/fk_options")) {
         return Promise.resolve(new Response(JSON.stringify({ options: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -884,7 +884,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path.includes("field=repository_id")) {
         return Promise.resolve(new Response(JSON.stringify({ options: [{ value: "3", label: "acme/widgets" }] }), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -934,7 +934,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/filters/fk_options")) {
         return Promise.resolve(new Response(JSON.stringify({ options: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -1003,7 +1003,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -1066,7 +1066,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -1126,7 +1126,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/admin/console") {
         return Promise.resolve(new Response(
@@ -1244,10 +1244,18 @@ describe("App", () => {
       sidebarChat({ id: 15, title: "Widgets hidden", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, last_message_at: "2026-06-13T12:00:00Z" }),
       sidebarChat({ id: 20, title: "Roads latest", repository: { id: 4, slug: "acme/roads", repository_path: "/repositories/4" }, last_message_at: "2026-06-21T12:00:00Z" })
     ]
+    const recentGroups = [
+      { key: "general", label: "General", repository_id: null, chats: recentChats.slice(0, 2), has_more: false },
+      { key: "repository-4", label: "acme/roads", repository_id: 4, chats: [recentChats[8]], has_more: false },
+      { key: "repository-3", label: "acme/widgets", repository_id: 3, chats: recentChats.slice(2, 7), has_more: true }
+    ]
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: recentChats, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: recentGroups, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/more?repository_id=3&before_id=14") {
+        return Promise.resolve(new Response(JSON.stringify({ chats: [recentChats[7]], has_more: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/10") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -1292,7 +1300,7 @@ describe("App", () => {
 
       fireEvent.click(within(recentNav).getByRole("button", { name: "Show more" }))
 
-      expect(within(recentNav).getByRole("link", { name: "Widgets hidden" })).toBeInTheDocument()
+      expect(await within(recentNav).findByRole("link", { name: "Widgets hidden" })).toBeInTheDocument()
 
       fireEvent.click(within(recentNav).getByRole("button", { name: "acme/widgets" }))
 
@@ -1335,7 +1343,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: recentChats, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: sidebarGroups(recentChats), repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/10") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload({ id: 10 })), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -2914,7 +2922,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/dashboard/landing_pause" && init?.method === "POST") {
         return Promise.resolve(
@@ -3314,7 +3322,7 @@ describe("App", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/dashboard?view=list&smart_folder_id=3&subject=job") {
         return Promise.resolve(
@@ -3439,7 +3447,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/smart_folders" && init?.method === "POST") {
         return Promise.resolve(
@@ -9353,7 +9361,7 @@ describe("App", () => {
           return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/9", chat: newPayload.chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
         }
 
-        return Promise.resolve(new Response(JSON.stringify({ chats: sidebarChats, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: sidebarGroups(sidebarChats), repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/8/rename" && init?.method === "PATCH") {
         sidebarChats = [{ ...initialChat, title: "Canal review" }]
@@ -10856,7 +10864,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ chats: recentChats, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: sidebarGroups(recentChats), repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
@@ -12528,6 +12536,24 @@ function sidebarChat(overrides: {
     updated_at: overrides.last_message_at || "2026-06-01T00:00:00Z",
     unread: overrides.unread ?? false
   }
+}
+
+function sidebarGroups(chats: ReturnType<typeof sidebarChat>[], options: { hasMore?: Record<string, boolean> } = {}) {
+  const groups = new Map<string, { key: string; label: string; repository_id: number | null; chats: ReturnType<typeof sidebarChat>[]; has_more: boolean }>()
+  chats.forEach((chat) => {
+    const key = chat.repository ? `repository-${chat.repository.id}` : "general"
+    const group = groups.get(key) || {
+      key,
+      label: chat.repository?.slug || "General",
+      repository_id: chat.repository?.id ?? null,
+      chats: [],
+      has_more: Boolean(options.hasMore?.[key])
+    }
+    group.chats.push(chat)
+    groups.set(key, group)
+  })
+
+  return Array.from(groups.values())
 }
 
 function chatPayload(overrides: {

@@ -1,11 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query"
-import type { ChatNavRecord, ChatRecord, ChatsIndexPayload } from "../api/chats"
+import type { ChatGroupRecord, ChatNavRecord, ChatRecord, ChatsIndexPayload } from "../api/chats"
 
 export function upsertRecentChatCache(queryClient: QueryClient, chat: ChatRecord, occurredAt = new Date().toISOString()) {
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
-    if (!current || !Array.isArray(current.chats)) return current
+    if (!current || !Array.isArray(current.groups)) return current
 
-    const existing = current.chats.find((item) => item.id === chat.id)
+    const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
     const nextChat: ChatNavRecord = {
       ...chat,
       current: existing?.current ?? false,
@@ -14,29 +14,56 @@ export function upsertRecentChatCache(queryClient: QueryClient, chat: ChatRecord
       created_at: existing?.created_at ?? occurredAt,
       updated_at: occurredAt
     }
+    const targetKey = chatGroupKey(nextChat)
+    const groups = current.groups.map((group) => ({
+      ...group,
+      chats: group.chats.filter((item) => item.id !== chat.id)
+    }))
+    const targetIndex = groups.findIndex((group) => group.key === targetKey)
+    const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(nextChat)
+    const nextGroup = { ...targetGroup, chats: [nextChat, ...targetGroup.chats] }
+    const nextGroups = targetIndex >= 0
+      ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)]
+      : [nextGroup, ...groups]
 
-    return {
-      ...current,
-      chats: [
-        nextChat,
-        ...current.chats.filter((item) => item.id !== chat.id)
-      ]
-    }
+    return { ...current, groups: nextGroups }
   })
 }
 
 export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: number | string, updates: Partial<ChatRecord>) {
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
-    if (!current || !Array.isArray(current.chats)) return current
+    if (!current || !Array.isArray(current.groups)) return current
 
-    let changed = false
-    const chats = current.chats.map((chat) => {
-      if (String(chat.id) !== String(chatId)) return chat
+    const existing = current.groups.flatMap((group) => group.chats).find((chat) => String(chat.id) === String(chatId))
+    if (!existing) return current
 
-      changed = true
-      return { ...chat, ...updates }
-    })
+    const updated = { ...existing, ...updates }
+    const targetKey = chatGroupKey(updated)
+    const groups = current.groups.map((group) => ({
+      ...group,
+      chats: group.chats.filter((chat) => String(chat.id) !== String(chatId))
+    }))
+    const targetIndex = groups.findIndex((group) => group.key === targetKey)
+    const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
+    const nextGroup = { ...targetGroup, chats: [updated, ...targetGroup.chats] }
+    const nextGroups = targetIndex >= 0
+      ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)]
+      : [nextGroup, ...groups]
 
-    return changed ? { ...current, chats } : current
+    return { ...current, groups: nextGroups }
   })
+}
+
+function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
+  return {
+    key: chatGroupKey(chat),
+    label: chat.repository?.slug || "General",
+    repository_id: chat.repository?.id ?? null,
+    chats: [],
+    has_more: false
+  }
+}
+
+function chatGroupKey(chat: ChatNavRecord) {
+  return chat.repository ? `repository-${chat.repository.id}` : "general"
 }

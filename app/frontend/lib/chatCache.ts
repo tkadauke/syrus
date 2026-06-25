@@ -1,27 +1,28 @@
 import type { QueryClient } from "@tanstack/react-query"
-import type { ChatNavRecord, ChatRecord, ChatsIndexPayload } from "../api/chats"
+import type { ChatGroupRecord, ChatNavRecord, ChatRecord, ChatsIndexPayload } from "../api/chats"
 
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
-    if (!current || !Array.isArray(current.chats)) return current
+    if (!current || !Array.isArray(current.groups)) return current
 
-    const existing = current.chats.find((item) => item.id === chat.id)
+    const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
     const updated = recentChatRecord(chat, existing, options.occurredAt)
-    const chats = current.chats.filter((item) => item.id !== chat.id)
+    const targetKey = chatGroupKey(updated)
+    const groups = current.groups.map((group) => ({
+      ...group,
+      chats: group.chats.filter((item) => item.id !== chat.id)
+    }))
+    const targetIndex = groups.findIndex((group) => group.key === targetKey)
+    const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
+    const nextChats = options.prepend || !existing
+      ? [updated, ...targetGroup.chats]
+      : replaceOrPrependChat(targetGroup.chats, updated)
+    const nextGroup = { ...targetGroup, chats: nextChats }
+    const nextGroups = targetIndex >= 0
+      ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)]
+      : [nextGroup, ...groups]
 
-    if (options.prepend || !existing) {
-      return { ...current, chats: [updated, ...chats] }
-    }
-
-    const index = current.chats.findIndex((item) => item.id === chat.id)
-    return {
-      ...current,
-      chats: [
-        ...current.chats.slice(0, index),
-        updated,
-        ...current.chats.slice(index + 1)
-      ]
-    }
+    return { ...current, groups: nextGroups }
   })
 }
 
@@ -58,4 +59,29 @@ function latestTimestamp(...values: Array<string | null | undefined>) {
   })
 
   return latest
+}
+
+function replaceOrPrependChat(chats: ChatNavRecord[], chat: ChatNavRecord) {
+  const index = chats.findIndex((item) => item.id === chat.id)
+  if (index < 0) return [chat, ...chats]
+
+  return [
+    ...chats.slice(0, index),
+    chat,
+    ...chats.slice(index + 1)
+  ]
+}
+
+function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
+  return {
+    key: chatGroupKey(chat),
+    label: chat.repository?.slug || "General",
+    repository_id: chat.repository?.id ?? null,
+    chats: [],
+    has_more: false
+  }
+}
+
+function chatGroupKey(chat: ChatNavRecord) {
+  return chat.repository ? `repository-${chat.repository.id}` : "general"
 }

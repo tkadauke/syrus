@@ -41,7 +41,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["repositories_path"]).to eq(repositories_path)
   end
 
-  it "lists recent chats and active repositories for CLI session picking" do
+  it "lists recent chat groups and active repositories for CLI session picking" do
     sign_in_as(user)
     repository
     other_repo = Factories.repository(user: user, owner: "acme", name: "api")
@@ -72,15 +72,67 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       include("id" => repository.id, "slug" => "acme/widgets"),
       include("id" => other_repo.id, "slug" => "acme/api")
     )
-    expect(body["chats"].map { |chat| chat["id"] }).to eq([ current_chat.id, older_chat.id ])
-    expect(body["chats"].first).to include(
+    expect(body["groups"].map { |group| group["key"] }).to eq([ "repository-#{repository.id}", "repository-#{other_repo.id}" ])
+    expect(body["groups"].first).to include(
+      "key" => "repository-#{repository.id}",
+      "label" => "acme/widgets",
+      "repository_id" => repository.id,
+      "has_more" => false
+    )
+    expect(body["groups"].first["chats"].map { |chat| chat["id"] }).to eq([ current_chat.id ])
+    expect(body["groups"].first["chats"].first).to include(
       "title" => "Planning open source release",
       "repository" => include("id" => repository.id, "slug" => "acme/widgets"),
       "unread" => true
     )
-    expect(body["chats"].second).to include("unread" => false)
-    expect(body["chats"].first["last_message_at"]).to be_present
+    expect(body["groups"].second["chats"].first).to include("id" => older_chat.id, "unread" => false)
+    expect(body["groups"].first["chats"].first["last_message_at"]).to be_present
     expect(body.to_s).not_to include("Foreign chat")
+  end
+
+  it "includes every repository chat group instead of only the global top twenty" do
+    sign_in_as(user)
+    old_repo = Factories.repository(user: user, owner: "acme", name: "old")
+
+    20.times do |index|
+      repo = Factories.repository(user: user, owner: "acme", name: "repo-#{index}")
+      ChatSession.create!(user: user, repository: repo, title: "Recent #{index}", last_message_at: (index + 1).minutes.ago)
+    end
+    old_chat = ChatSession.create!(user: user, repository: old_repo, title: "Older repository chat", last_message_at: 2.days.ago)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    old_group = body["groups"].find { |group| group["repository_id"] == old_repo.id }
+    expect(old_group).to include("key" => "repository-#{old_repo.id}", "label" => "acme/old")
+    expect(old_group["chats"].map { |chat| chat["id"] }).to eq([ old_chat.id ])
+  end
+
+  it "loads more chats for one sidebar group with a cursor" do
+    sign_in_as(user)
+    chats = 7.times.map do |index|
+      ChatSession.create!(
+        user: user,
+        repository: repository,
+        title: "Chat #{index}",
+        last_message_at: (index + 1).hours.ago
+      )
+    end
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(5).map(&:id))
+    expect(group["has_more"]).to eq(true)
+
+    get "/api/v1/app/chats/more", params: { repository_id: repository.id, before_id: group["chats"].last["id"] }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["chats"].map { |chat| chat["id"] }).to eq(chats.last(2).map(&:id))
+    expect(body["has_more"]).to eq(false)
   end
 
   describe "chat search" do
