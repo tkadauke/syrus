@@ -77,6 +77,7 @@ const CHAT_INITIAL_FILL_MARGIN_PX = 80
 const CHAT_COMPOSE_MAX_ROWS = 5
 const CHAT_WORKSPACE_WIDTH_KEY = "syrus.chat.workspace.width"
 const CHAT_WORKSPACE_TAB_KEY = "syrus.chat.workspace.tab"
+const CHAT_WORKSPACE_COLLAPSED_KEY = "syrus.chat.workspace.collapsed"
 const CHAT_WORKSPACE_DEFAULT_WIDTH = 520
 const CHAT_WORKSPACE_MIN_WIDTH = 360
 const CHAT_WORKSPACE_MAX_WIDTH = 760
@@ -1628,6 +1629,7 @@ function ChatWorkspace({
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
+  const [panelCollapsed, setPanelCollapsed] = useState(storedWorkspaceCollapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const bookmarkRequestIdRef = useRef(0)
@@ -1641,6 +1643,10 @@ function ChatWorkspace({
   useEffect(() => {
     storeWorkspacePreference(CHAT_WORKSPACE_WIDTH_KEY, String(workspaceWidth))
   }, [workspaceWidth])
+
+  useEffect(() => {
+    storeWorkspacePreference(CHAT_WORKSPACE_COLLAPSED_KEY, String(panelCollapsed))
+  }, [panelCollapsed])
 
   function beginResize(event: ReactMouseEvent<HTMLButtonElement>) {
     event.preventDefault()
@@ -1737,10 +1743,19 @@ function ChatWorkspace({
   return (
     <div
       className={expanded ? "flex min-h-0 flex-1 flex-col" : "flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:gap-0"}
-      style={expanded ? undefined : { gridTemplateColumns: `minmax(0,1fr) 0.5rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)` }}
+      style={
+        expanded
+          ? undefined
+          : {
+              gridTemplateColumns: panelCollapsed
+                ? "minmax(0,1fr) 0 2.5rem"
+                : `minmax(0,1fr) 0.5rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)`,
+              transition: "grid-template-columns 150ms ease"
+            }
+      }
     >
       {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />}
-      {expanded ? null : (
+      {expanded || panelCollapsed ? null : (
         <button
           aria-label="Resize chat workspace"
           className="hidden cursor-col-resize rounded bg-transparent transition hover:bg-blue-100 focus:bg-blue-100 focus:outline-none lg:block dark:hover:bg-blue-950 dark:focus:bg-blue-950"
@@ -1748,17 +1763,37 @@ function ChatWorkspace({
           type="button"
         />
       )}
-      <ChatWorkspacePanel
-        activeTab={activeTab}
-        fullscreen={expanded}
-        onSelectTab={selectTab}
-        onToggleWhiteboardFullscreen={() => onWhiteboardFullscreenChange(!expanded)}
-        payload={payload}
-        prefix={prefix}
-        queryKey={queryKey}
-        onNotice={onNotice}
-        onBookmarkSelect={selectBookmark}
-      />
+      {!expanded && panelCollapsed ? (
+        <div className="hidden lg:flex lg:flex-col lg:items-start lg:pt-3">
+          <button
+            aria-label="Open workspace panel"
+            className="rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            onClick={() => setPanelCollapsed(false)}
+            title="Open panel"
+            type="button"
+          >
+            <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <rect height="18" rx="2" ry="2" width="18" x="3" y="3" />
+              <line x1="15" x2="15" y1="3" y2="21" />
+              <polyline points="12 9 15 12 12 15" />
+            </svg>
+          </button>
+        </div>
+      ) : null}
+      {expanded || !panelCollapsed ? (
+        <ChatWorkspacePanel
+          activeTab={activeTab}
+          fullscreen={expanded}
+          onSelectTab={selectTab}
+          onToggleCollapse={expanded ? undefined : () => setPanelCollapsed(true)}
+          onToggleWhiteboardFullscreen={() => onWhiteboardFullscreenChange(!expanded)}
+          payload={payload}
+          prefix={prefix}
+          queryKey={queryKey}
+          onNotice={onNotice}
+          onBookmarkSelect={selectBookmark}
+        />
+      ) : null}
       {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} onClose={() => setSettingsOpen(false)} /> : null}
     </div>
   )
@@ -1848,6 +1883,7 @@ function ChatWorkspacePanel({
   fullscreen,
   showTabs = true,
   onSelectTab,
+  onToggleCollapse,
   onToggleWhiteboardFullscreen,
   payload,
   prefix,
@@ -1859,6 +1895,7 @@ function ChatWorkspacePanel({
   fullscreen: boolean
   showTabs?: boolean
   onSelectTab: (tab: WorkspaceTab) => void
+  onToggleCollapse?: () => void
   onToggleWhiteboardFullscreen: () => void
   payload: ChatPayload
   prefix: string
@@ -1869,7 +1906,7 @@ function ChatWorkspacePanel({
   return (
     <aside aria-label="Chat workspace" className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
-        <nav aria-label="Chat workspace tabs" className="flex border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
+        <nav aria-label="Chat workspace tabs" className="flex items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
           {(["whiteboard", "context"] as WorkspaceTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeTab === tab)}
@@ -1880,6 +1917,21 @@ function ChatWorkspacePanel({
               {workspaceTabLabel(tab)}
             </button>
           ))}
+          {onToggleCollapse ? (
+            <button
+              aria-label="Close workspace panel"
+              className="ml-auto self-center rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              onClick={onToggleCollapse}
+              title="Close panel"
+              type="button"
+            >
+              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <rect height="18" rx="2" ry="2" width="18" x="3" y="3" />
+                <line x1="15" x2="15" y1="3" y2="21" />
+                <polyline points="18 9 15 12 18 15" />
+              </svg>
+            </button>
+          ) : null}
         </nav>
       )}
       <div className={`min-h-0 flex-1 ${activeTab === "whiteboard" ? "overflow-hidden p-3" : "overflow-y-auto p-4"}`}>
@@ -2391,6 +2443,15 @@ function storedWorkspaceTab(): WorkspaceTab | null {
     return value === "whiteboard" || value === "context" ? value : null
   } catch (_error) {
     return null
+  }
+}
+
+export function storedWorkspaceCollapsed(): boolean {
+  try {
+    const value = window.localStorage.getItem(CHAT_WORKSPACE_COLLAPSED_KEY)
+    return value === null ? true : value === "true"
+  } catch (_error) {
+    return true
   }
 }
 

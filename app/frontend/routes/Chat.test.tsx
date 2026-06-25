@@ -1,0 +1,161 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { ChatRoute, storedWorkspaceCollapsed } from "./Chat"
+
+describe("storedWorkspaceCollapsed", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("defaults to collapsed when the preference is absent", () => {
+    expect(storedWorkspaceCollapsed()).toBe(true)
+  })
+
+  it("returns the stored boolean preference", () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    expect(storedWorkspaceCollapsed()).toBe(false)
+
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
+    expect(storedWorkspaceCollapsed()).toBe(true)
+  })
+})
+
+describe("ChatWorkspace panel collapse", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
+    mockDesktopViewport()
+  })
+
+  it("renders a collapsed strip by default and toggles the workspace panel", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open workspace panel" })).toBeInTheDocument()
+    expect(screen.queryByRole("complementary", { name: "Chat workspace" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Open workspace panel" }))
+
+    expect(screen.getByRole("complementary", { name: "Chat workspace" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Close workspace panel" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open workspace panel" })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.workspace.collapsed")).toBe("false")
+
+    fireEvent.click(screen.getByRole("button", { name: "Close workspace panel" }))
+
+    expect(screen.queryByRole("complementary", { name: "Chat workspace" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open workspace panel" })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(window.localStorage.getItem("syrus.chat.workspace.collapsed")).toBe("true")
+    })
+  })
+})
+
+function renderRoute() {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+        <Routes>
+          <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function mockDesktopViewport() {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn((query: string) => ({
+      matches: query.includes("min-width: 1024px"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
+}
+
+function chatPayload() {
+  return {
+    chat: {
+      id: 8,
+      title: "Aqueduct planning",
+      title_pending: false,
+      pinned_context: null,
+      chat_path: "/chats/8",
+      repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+      stop_requested_at: null,
+      cumulative_input_tokens: 12400,
+      cumulative_output_tokens: 3200,
+      cumulative_cost_usd: 0.0123
+    },
+    chat_available: true,
+    turn_in_flight: false,
+    agent_busy: false,
+    has_more_older: false,
+    messages: [
+      {
+        type: "message",
+        id: 9,
+        role: "assistant",
+        tool_name: null,
+        content: { text: "Discuss aqueducts." },
+        text: "Discuss aqueducts.",
+        bookmarkable: true
+      }
+    ],
+    bookmarks: [],
+    recent_chats: [],
+    pending_actions: [],
+    agent_questions: [],
+    queued_messages: [],
+    attachment_groups: {
+      repositories: [],
+      epics: [],
+      jobs: [],
+      documents: []
+    },
+    documents_in_scope: [],
+    attachment_results: [],
+    whiteboard: {
+      version: 1,
+      elements: [],
+      appState: {},
+      files: {}
+    },
+    paths: {
+      new_chat_path: "/chats/new",
+      credentials_path: "/credentials/edit",
+      repositories_path: "/repositories",
+      app_messages_path: "/api/v1/app/chats/8/messages",
+      app_message_path: "/api/v1/app/chats/8/message",
+      app_rename_path: "/api/v1/app/chats/8/rename",
+      app_clear_path: "/api/v1/app/chats/8/messages",
+      app_enqueue_message_path: "/api/v1/app/chats/8/queued_messages",
+      app_stop_path: "/api/v1/app/chats/8/stop",
+      app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
+      app_attachments_path: "/api/v1/app/chats/8/attachments",
+      app_whiteboard_path: "/api/v1/app/chats/8/whiteboard"
+    }
+  }
+}
