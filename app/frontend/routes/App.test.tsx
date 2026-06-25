@@ -1211,7 +1211,7 @@ describe("App", () => {
       )
 
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
-      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
       expect(await screen.findByRole("main", { name: "Profile" })).toBeInTheDocument()
       const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
       expect(settingsNav.closest("aside")).toHaveClass("lg:w-56", "lg:border-r")
