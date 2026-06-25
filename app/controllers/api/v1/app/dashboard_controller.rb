@@ -33,6 +33,20 @@ module Api
             )
           end
 
+          if params.key?(:view)
+            Current.user.update_dashboard_view!(
+              subject: subject,
+              view: params[:view]
+            )
+          end
+
+          if params.key?(:smart_folder_id)
+            Current.user.update_dashboard_smart_folder!(
+              subject: subject,
+              smart_folder_id: params[:smart_folder_id]
+            )
+          end
+
           render json: {
             message: "Dashboard preferences updated.",
             dashboard_preferences: Current.user.reload.dashboard_preferences

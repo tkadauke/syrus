@@ -143,6 +143,7 @@ module App
 
     def view
       @view ||= params[:view].to_s.presence_in(VIEWS) ||
+                user.dashboard_preferences.dig(subject.pluralize, "last_view").to_s.presence_in(VIEWS) ||
                 user.dashboard_preferences["last_view"].to_s.presence_in(VIEWS) ||
                 DEFAULT_VIEW
     end
@@ -370,6 +371,10 @@ module App
     def active_smart_folder
       @active_smart_folder ||= begin
         id = Integer(params[:smart_folder_id], exception: false)
+        if id.nil? && !param_key?(:smart_folder_id) && !default_inbox_smart_folder?
+          id = Integer(user.dashboard_preferences.dig(subject.pluralize, "last_smart_folder_id"), exception: false)
+        end
+
         if id
           SmartFolder.for_subject(subject)
                      .where("user_id IS NULL OR user_id = ?", user.id)

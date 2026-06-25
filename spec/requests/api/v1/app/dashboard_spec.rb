@@ -964,17 +964,68 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body.dig("ownership", "badges_visible")).to eq(false)
       expect(body.dig("items", 0, "owner_badge")).to be_nil
     end
+
+    it "falls back to the saved per-subject dashboard view" do
+      user.update_dashboard_view!(subject: "job", view: "kanban")
+      Factories.job_record(repository: repo, owner_user: user, issue_number: 91, issue_title: "Board item", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["view"]).to eq("kanban")
+    end
+
+    it "falls back to the saved smart folder when the URL omits smart_folder_id" do
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "epic",
+        name: "Ready work",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "ready" } ] }
+      )
+      user.update_dashboard_smart_folder!(subject: "epic", smart_folder_id: folder.id)
+
+      get "/api/v1/app/dashboard", params: { subject: "epic" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["active_smart_folder_id"]).to eq(folder.id)
+    end
+
+    it "lets the URL smart folder override the saved preference" do
+      saved = SmartFolder.create!(
+        user: user,
+        subject_type: "epic",
+        name: "Saved ready",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "ready" } ] }
+      )
+      requested = SmartFolder.create!(
+        user: user,
+        subject_type: "epic",
+        name: "Requested backlog",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "backlog" } ] }
+      )
+      user.update_dashboard_smart_folder!(subject: "epic", smart_folder_id: saved.id)
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", smart_folder_id: requested.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["active_smart_folder_id"]).to eq(requested.id)
+    end
   end
 
   describe "PATCH /api/v1/app/dashboard/preferences" do
-    it "updates dashboard sort, visible columns, and Kanban lanes" do
+    it "updates dashboard sort, visible columns, Kanban lanes, view, and smart folder" do
       patch "/api/v1/app/dashboard/preferences",
             params: {
               subject: "jobs",
               sort_column: "started_at",
               sort_direction: "asc",
               visible_columns: %w[state repository],
-              kanban_lanes: %w[queued running]
+              kanban_lanes: %w[queued running],
+              view: "kanban",
+              smart_folder_id: 7
             },
             as: :json
 
@@ -985,7 +1036,9 @@ RSpec.describe "App API dashboard commands", type: :request do
         "sort_column" => "started_at",
         "sort_direction" => "asc",
         "visible_columns" => %w[title state repository],
-        "kanban_lanes" => %w[queued running]
+        "kanban_lanes" => %w[queued running],
+        "last_view" => "kanban",
+        "last_smart_folder_id" => "7"
       )
     end
 

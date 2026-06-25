@@ -286,6 +286,34 @@ RSpec.describe User do
       expect(user.dashboard_preferences.fetch("jobs").fetch("kanban_lanes")).to eq(%w[blocked running failed])
     end
 
+    it "persists the dashboard view per subject" do
+      user = User.create!(attrs)
+
+      user.update_dashboard_view!(subject: :jobs, view: "kanban")
+
+      preferences = user.reload.dashboard_preferences
+      expect(preferences.dig("jobs", "last_view")).to eq("kanban")
+      expect(preferences.dig("epics", "last_view")).to eq("list")
+    end
+
+    it "rejects unknown dashboard views" do
+      user = User.create!(attrs)
+
+      expect {
+        user.update_dashboard_view!(subject: :jobs, view: "board")
+      }.to raise_error(ArgumentError, "Unknown dashboard view: board")
+    end
+
+    it "persists and clears the dashboard smart folder per subject" do
+      user = User.create!(attrs)
+
+      user.update_dashboard_smart_folder!(subject: :workflows, smart_folder_id: 12)
+      expect(user.reload.dashboard_preferences.dig("workflows", "last_smart_folder_id")).to eq("12")
+
+      user.update_dashboard_smart_folder!(subject: :workflows, smart_folder_id: nil)
+      expect(user.reload.dashboard_preferences.dig("workflows", "last_smart_folder_id")).to be_nil
+    end
+
     it "falls back to the per-subject ownership default" do
       user = User.create!(attrs)
 

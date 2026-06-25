@@ -286,6 +286,8 @@ export type DashboardPayload = {
 
 export type DashboardPreferencesInput = {
   subject: DashboardSubject
+  view?: string
+  smart_folder_id?: number | null
   sort_column?: string
   sort_direction?: string
   visible_columns?: string[]

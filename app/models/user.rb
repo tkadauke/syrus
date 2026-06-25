@@ -38,6 +38,8 @@ class User < ApplicationRecord
     "last_view" => "list",
     "last_ownership_scope" => "team",
     "epics" => {
+      "last_view" => "list",
+      "last_smart_folder_id" => nil,
       "sort_column" => "updated_at",
       "sort_direction" => "desc",
       "ownership_scope" => "team",
@@ -45,6 +47,8 @@ class User < ApplicationRecord
       "kanban_lanes" => %w[backlog ready in_progress done]
     },
     "jobs" => {
+      "last_view" => "list",
+      "last_smart_folder_id" => nil,
       "sort_column" => "created_at",
       "sort_direction" => "desc",
       "ownership_scope" => "team",
@@ -52,6 +56,8 @@ class User < ApplicationRecord
       "kanban_lanes" => %w[queued running landing]
     },
     "workflows" => {
+      "last_view" => "list",
+      "last_smart_folder_id" => nil,
       "sort_column" => "started_at",
       "sort_direction" => "desc",
       "ownership_scope" => "mine",
@@ -100,6 +106,7 @@ class User < ApplicationRecord
     "pr_merged" => true,
     "epic_completed" => false
   }.freeze
+  DASHBOARD_VIEWS = %w[list kanban].freeze
 
   encrypts :claude_oauth_token
   encrypts :codex_api_key
@@ -297,6 +304,30 @@ class User < ApplicationRecord
     updated[subject_key] = updated.fetch(subject_key).merge(
       "kanban_lanes" => lanes.presence || dashboard_default_kanban_lanes_for(subject_key)
     )
+
+    update!(dashboard_preferences: updated) if updated != dashboard_preferences
+  end
+
+  def update_dashboard_view!(subject:, view:)
+    subject_key = normalize_dashboard_preference_table(subject)
+    view = view.to_s
+
+    unless DASHBOARD_VIEWS.include?(view)
+      raise ArgumentError, "Unknown dashboard view: #{view}"
+    end
+
+    updated = dashboard_preferences
+    updated[subject_key] = updated.fetch(subject_key).merge("last_view" => view)
+
+    update!(dashboard_preferences: updated) if updated != dashboard_preferences
+  end
+
+  def update_dashboard_smart_folder!(subject:, smart_folder_id:)
+    subject_key = normalize_dashboard_preference_table(subject)
+    smart_folder_id = smart_folder_id.to_s.presence
+
+    updated = dashboard_preferences
+    updated[subject_key] = updated.fetch(subject_key).merge("last_smart_folder_id" => smart_folder_id)
 
     update!(dashboard_preferences: updated) if updated != dashboard_preferences
   end

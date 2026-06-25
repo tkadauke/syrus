@@ -1982,6 +1982,91 @@ describe("App", () => {
     })
   })
 
+  it("persists the selected dashboard view when the view toggle is clicked", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard/preferences" && init?.method === "PATCH") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ message: "Dashboard preferences updated.", dashboard_preferences: {} }), { status: 200, headers: { "Content-Type": "application/json" } })
+        )
+      }
+
+      return Promise.resolve(
+        new Response(JSON.stringify(dashboardPayload({ subject: "job", view: path.includes("view=kanban") ? "kanban" : "list" })), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("link", { name: "kanban" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/dashboard/preferences",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ subject: "job", view: "kanban" })
+        })
+      )
+    })
+  })
+
+  it("persists and clears the selected dashboard smart folder", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard/preferences" && init?.method === "PATCH") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ message: "Dashboard preferences updated.", dashboard_preferences: {} }), { status: 200, headers: { "Content-Type": "application/json" } })
+        )
+      }
+
+      return Promise.resolve(
+        new Response(JSON.stringify(dashboardPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      fireEvent.click(await screen.findByText("Folders and filters"))
+      fireEvent.click(screen.getByRole("link", { name: "My work 1" }))
+      fireEvent.click(screen.getByText("More"))
+      fireEvent.click(screen.getByRole("link", { name: "All jobs" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/dashboard/preferences",
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ subject: "job", smart_folder_id: 7 })
+          })
+        )
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/dashboard/preferences",
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ subject: "job", smart_folder_id: null })
+          })
+        )
+      })
+    } finally {
+      restoreMedia()
+    }
+  })
+
   it("renders the app-shell dashboard route from the app dashboard API", async () => {
     let sortColumn = "title"
     let sortDirection = "desc"

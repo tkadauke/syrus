@@ -294,6 +294,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
             <Link
               className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
               key={view}
+              onClick={() => updatePreferences.mutate({ subject: payload.subject, view })}
               to={dashboardLinkFromSearch(pathname, search, { view, page: null })}
             >
               {view}
