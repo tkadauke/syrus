@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-24._
+_Last reviewed: 2026-06-25._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -113,6 +113,7 @@ state.
 | `kind` | `"issue"` (created from a labeled issue), `"cron"` (created from a `ScheduledTask` fire), or `"direct"` (created from an operator prompt) |
 | `state` | AASM lifecycle: triage/dependency states, execution states, approval/landing states, and `closed` |
 | `repository_id`, `user_id`, `owner_user_id` | scope and durable assignee |
+| `epic_id`, `epic_title` | optional Epic membership plus a denormalized title snapshot for dashboard/filter payloads; kept in sync when the Epic title changes |
 | `issue_number` | nullable for cron and direct jobs |
 | `issue_title`, `issue_body` | cached at ingest |
 | `branch_name` | `syrus/issue-{N}-{job_id}` (issue Jobs), `syrus/scheduled-{task_id}-{job_id}` (cron Jobs), or a direct-job branch; assigned by workspace setup and persisted for follow-up Workflows |
@@ -219,7 +220,6 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `replay` | operator replay of a failed/retryable path | uses the retry Workflow template |
 | `manual` | operator: explicit manual prompt | freeform |
 | `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
-| `local_dev` | local CLI path | runs against a local checkout without opening a PR |
 
 State changes reach the browser through app events; see
 [UI surface](#ui-surface) for how updates land in React.
@@ -550,7 +550,6 @@ Current Workflow chains:
 | `ci_failure` | `prepare → analyze_and_fix → summarize_amend → push` |
 | `retry` / `replay` | same shape as `initial`, reusing the existing branch and PR if present |
 | `manual` / `resume` | `manual` |
-| `local_dev` | `prepare → implement` |
 | `rebase` | `auto_rebase → agent_rebase → force_push` |
 | `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
 | `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
@@ -928,6 +927,11 @@ Several layers, each catching different failure modes:
   failures, merge-train enablement, etc.); redirects non-admins to
   credentials.
 - **`/invitations`** — admin invite flow.
+- **`/admin/queue`** — admin Solid Queue view for active, pending,
+  failed, recurring, and worker tabs. Queue filters support built-in and
+  user-saved smart folders scoped to the queue surface; invalid filter
+  expressions return structured `invalid_filter` errors instead of
+  crashing the page.
 - **`/admin/processes`** — subprocess inventory with host metrics and
   kill controls.
 - **`/api/v1/admin/*`** — bearer-token admin API for overview, jobs,
