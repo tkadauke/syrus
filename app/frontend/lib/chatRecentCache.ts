@@ -54,6 +54,22 @@ export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: nu
   })
 }
 
+export function updateRecentChatTurnCache(queryClient: QueryClient, chatId: number | string, updates: Pick<ChatRecord, "turn_in_flight"> & Partial<Pick<ChatRecord, "agent_busy">>) {
+  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+    if (!current || !Array.isArray(current.groups)) return current
+
+    return {
+      ...current,
+      groups: current.groups.map((group) => ({
+        ...group,
+        chats: group.chats.map((chat) => (
+          String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat
+        ))
+      }))
+    }
+  })
+}
+
 function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
   return {
     key: chatGroupKey(chat),

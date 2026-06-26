@@ -1226,6 +1226,8 @@ module Api
             pinned_context: chat_session.pinned_context,
             chat_path: chat_path(chat_session),
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
+            turn_in_flight: chat_session.turn_in_flight?,
+            agent_busy: chat_session.agent_busy?,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,

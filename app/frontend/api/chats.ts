@@ -13,6 +13,8 @@ export type ChatRecord = {
   pinned_context: string | null
   chat_path: string
   repository: ChatRepository | null
+  turn_in_flight?: boolean
+  agent_busy?: boolean
   stop_requested_at: string | null
   cumulative_input_tokens: number
   cumulative_output_tokens: number

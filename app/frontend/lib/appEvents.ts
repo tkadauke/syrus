@@ -1,6 +1,6 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
 import type { ChatAgentQuestion, ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
-import { updateRecentChatHeaderCache } from "./chatRecentCache"
+import { updateRecentChatHeaderCache, updateRecentChatTurnCache } from "./chatRecentCache"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const DASHBOARD_INVALIDATION_RETRY_MS = 1_000
@@ -122,6 +122,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const replaceTail = chatReplaceTailPayload(event.payload)
   if (replaceTail) {
     let patched = false
+    if (typeof replaceTail.turn_in_flight === "boolean") updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: replaceTail.turn_in_flight, agent_busy: replaceTail.agent_busy })
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {
@@ -147,6 +148,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const controls = chatControlsPayload(event.payload)
   if (controls) {
     let patched = false
+    updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: controls.turn_in_flight, agent_busy: controls.agent_busy })
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {

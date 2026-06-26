@@ -601,7 +601,7 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                         onClick={onCloseDrawer}
                         to={withRoutePrefix(chat.chat_path, prefix)}
                       >
-                        <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
+                        <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
                       </Link>
                       <RecentChatActionsMenu
@@ -644,6 +644,25 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
       </nav>
     </div>
   )
+}
+
+function RecentChatActivityMarker({ active, unread }: { active: boolean; unread: boolean }) {
+  if (active) {
+    return (
+      <span aria-hidden="true" className="mt-[0.35rem] inline-flex h-2 w-3.5 shrink-0 items-center justify-between" title="Chat turn active">
+        {[0, 1, 2].map((index) => (
+          <span
+            aria-hidden="true"
+            className="h-1 w-1 animate-bounce rounded-full bg-blue-600 dark:bg-blue-300"
+            key={index}
+            style={{ animationDelay: `${index * 140}ms` }}
+          />
+        ))}
+      </span>
+    )
+  }
+
+  return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
 }
 
 function RecentChatActionsMenu({ chat, disabled, onHide, search, showBookmarks }: {

@@ -153,6 +153,16 @@ describe("applyAppEvent", () => {
   it("applies chat controls payloads directly to cached chat data", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "recent"], {
+      groups: [{
+        key: "general",
+        label: "General",
+        repository_id: null,
+        chats: [{ ...chatPayload([]).chat, turn_in_flight: true, agent_busy: true, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false }],
+        has_more: false
+      }],
+      repositories: []
+    })
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
 
     applyAppEvent(queryClient, {
@@ -170,6 +180,9 @@ describe("applyAppEvent", () => {
     expect(updated?.turn_in_flight).toBe(false)
     expect(updated?.agent_busy).toBe(false)
     expect(updated?.chat.stop_requested_at).toBe("2026-05-30T12:00:00Z")
+    const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; turn_in_flight?: boolean; agent_busy?: boolean }> }> }>(["chats", "recent"])
+    expect(recent?.groups[0].chats[0].turn_in_flight).toBe(false)
+    expect(recent?.groups[0].chats[0].agent_busy).toBe(false)
   })
 
   it("applies chat header payloads directly to cached chat data", () => {

@@ -616,6 +616,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     body = parse_body
     expect(body.dig("chat", "repository", "slug")).to eq("acme/widgets")
     expect(body.dig("chat", "cumulative_input_tokens")).to eq(12_400)
+    expect(body.dig("chat", "turn_in_flight")).to eq(false)
+    expect(body.dig("chat", "agent_busy")).to eq(false)
     expect(body["chat_available"]).to eq(true)
     expect(body["turn_in_flight"]).to eq(false)
     expect(body["agent_busy"]).to eq(false)
@@ -1360,6 +1362,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["message"]).to eq("Message sent.")
     expect(parse_body["turn_in_flight"]).to eq(true)
     expect(parse_body["agent_busy"]).to eq(false)
+    expect(parse_body.dig("chat", "turn_in_flight")).to eq(true)
+    expect(parse_body.dig("chat", "agent_busy")).to eq(false)
   end
 
   it "stores valid file attachments on a chat message" do
