@@ -203,6 +203,32 @@ describe("chat message image attachments", () => {
   })
 })
 
+describe("repositoryless chat compose", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("invites open-ended chat and allows submit without an attached repository", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { repository: null }, messages: [] })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Ask anything, or attach a repository for code context.")).toBeInTheDocument()
+    const textarea = await screen.findByPlaceholderText("Ask anything — or attach a repository to give the agent context...")
+    fireEvent.change(textarea, { target: { value: "Can you help me plan a release?" } })
+
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled()
+  })
+})
+
 function renderRoute() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -253,7 +279,7 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 }
 
-function chatPayload(overrides: { messages?: Array<Record<string, unknown>> } = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>> } = {}) {
   return {
     chat: {
       id: 8,
@@ -265,7 +291,8 @@ function chatPayload(overrides: { messages?: Array<Record<string, unknown>> } = 
       stop_requested_at: null,
       cumulative_input_tokens: 12400,
       cumulative_output_tokens: 3200,
-      cumulative_cost_usd: 0.0123
+      cumulative_cost_usd: 0.0123,
+      ...overrides.chat
     },
     chat_available: true,
     turn_in_flight: false,

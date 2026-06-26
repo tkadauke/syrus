@@ -448,7 +448,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
     return (
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <div>{payload.chat.repository ? "Start a chat with this repository." : "Attach a repository to start chatting."}</div>
+          <div>{payload.chat.repository ? "Start a chat with this repository." : "Ask anything, or attach a repository for code context."}</div>
           {agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
@@ -1483,7 +1483,7 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
             if (clearConfirmationOpen) setClearConfirmationOpen(false)
           }}
           onKeyDown={handleKeyDown}
-          placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Attach a repository to start chatting..."}
+          placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
           ref={textareaRef}
           required
           rows={1}

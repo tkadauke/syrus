@@ -23,6 +23,7 @@ module Prompts
 
         Repository context:
         #{repository_context}
+        #{repositoryless_guidance}
 
         Pinned context:
         #{pinned_context}
@@ -343,6 +344,12 @@ module Prompts
                  "named by the operator, or ask which checkout to inspect before using one."
       end
       lines.join("\n")
+    end
+
+    def repositoryless_guidance
+      return "" if @repository
+
+      "\nNo repository is currently attached. If the operator's request requires code context, ask them to attach one via the + menu."
     end
 
     def attached_repositories

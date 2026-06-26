@@ -427,6 +427,22 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Pinned context:\n  - (none)")
   end
 
+  it "asks the operator to attach a repository from the plus menu when code context is needed" do
+    chat = ChatSession.create!(user: repo.user)
+
+    out = described_class.new(repository: nil, chat_session: chat).to_s
+
+    expect(out).to include("No repository is currently attached. If the operator's request requires code context, ask them to attach one via the + menu.")
+  end
+
+  it "omits the plus-menu repository guidance when a repository is attached" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).not_to include("No repository is currently attached. If the operator's request requires code context, ask them to attach one via the + menu.")
+  end
+
   it "captures the durable chat artifact contract that should not regress" do
     out = described_class.new(repository: repo).to_s
 
