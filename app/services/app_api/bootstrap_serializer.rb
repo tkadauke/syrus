@@ -42,7 +42,6 @@ module AppApi
         scheduling_paused: user.scheduling_paused,
         landing_paused: user.landing_paused,
         theme: user.theme,
-        layout_version: user.layout_version,
         agent_provider: user.agent_provider,
         agent_max_turns: user.agent_max_turns,
         notification_unread_count: user.notifications.unread.count

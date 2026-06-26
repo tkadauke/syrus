@@ -12,6 +12,7 @@ import { StatusPill, TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
 import { workflowSlug } from "../lib/slugs"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { useLayoutVersion } from "../lib/layoutVersion"
 import { bulkDashboardEpics, bulkDashboardJobs, fetchDashboard, recordDashboardFilterUsage, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkEpicAction, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLane, type DashboardPayload, type DashboardRepository, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
 import type { LandingQueueBlockerJob } from "../api/jobs"
 
@@ -44,7 +45,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
   const readiness = bootstrap.data?.setup_status?.readiness
-  const usesV2Shell = bootstrap.data?.current_user?.layout_version === "v2"
+  const usesV2Shell = useLayoutVersion() === "v2"
   const useSidebarSubjectSelector = Boolean(bootstrap.data?.feature_flags.v2_sidebar_subject_selector)
 
   return (

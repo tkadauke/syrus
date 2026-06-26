@@ -158,23 +158,6 @@ RSpec.describe User do
     end
   end
 
-  describe "layout_version" do
-    it "defaults to v1" do
-      expect(User.create!(attrs).layout_version).to eq("v1")
-    end
-
-    it "accepts v2" do
-      user = User.create!(attrs.merge(layout_version: "v2"))
-      expect(user.layout_version).to eq("v2")
-    end
-
-    it "rejects unknown layout versions" do
-      user = User.new(attrs.merge(layout_version: "v3"))
-      expect(user).not_to be_valid
-      expect(user.errors[:layout_version]).to be_present
-    end
-  end
-
   describe "auto_approve_mode" do
     it "defaults to never" do
       expect(User.create!(attrs).auto_approve_mode).to eq("never")

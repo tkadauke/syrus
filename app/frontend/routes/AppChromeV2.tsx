@@ -128,7 +128,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }}>
         <SidebarContent
-          bootstrapData={data}
           creatingChat={creatingChat}
           csrfToken={data?.csrf_token}
           navItems={navItems}
@@ -167,7 +166,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       {drawerOpen ? (
         <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
           <SidebarContent
-            bootstrapData={data}
             creatingChat={creatingChat}
             csrfToken={data?.csrf_token}
             navItems={navItems}
@@ -248,7 +246,6 @@ function hasFeatureFlags(featureFlags: Record<string, boolean>) {
 }
 
 function SidebarContent({
-  bootstrapData,
   creatingChat,
   csrfToken,
   navItems,
@@ -259,7 +256,6 @@ function SidebarContent({
   showTeamProfile,
   user
 }: {
-  bootstrapData: BootstrapPayload | null | undefined
   creatingChat: boolean
   csrfToken?: string
   navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }>
@@ -351,7 +347,6 @@ function SidebarContent({
       <div className="shrink-0 border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
           <SettingsPopup
-            bootstrapData={bootstrapData}
             csrfToken={csrfToken}
             onCloseDrawer={onCloseDrawer}
             prefix={prefix}
@@ -714,8 +709,7 @@ function RecentChatActionsMenu({ chat, disabled, onHide, search, showBookmarks }
   )
 }
 
-function SettingsPopup({ bootstrapData, csrfToken, onCloseDrawer, prefix, showTeamProfile, user }: {
-  bootstrapData: BootstrapPayload | null | undefined
+function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user }: {
   csrfToken?: string
   onCloseDrawer: () => void
   prefix: string
@@ -725,24 +719,12 @@ function SettingsPopup({ bootstrapData, csrfToken, onCloseDrawer, prefix, showTe
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [theme, setTheme] = useState(user.theme)
-  const [switching, setSwitching] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
 
   useEffect(() => {
     setTheme(user.theme)
     document.documentElement.classList.toggle("dark", user.theme === "dark")
   }, [user.theme])
-
-  function switchToClassicUi() {
-    setSwitching(true)
-    void patchJson<{ layout_version: "v1" | "v2" }>("/api/v1/app/layout_version", { layout_version: "v1" }).then((payload) => {
-      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapLayoutVersion(current ?? bootstrapData, payload.layout_version))
-      setOpen(false)
-      onCloseDrawer()
-    }).finally(() => {
-      setSwitching(false)
-    })
-  }
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark"
@@ -787,7 +769,6 @@ function SettingsPopup({ bootstrapData, csrfToken, onCloseDrawer, prefix, showTe
           {showTeamProfile ? <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>My Profile</Link> : null}
           {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} to={`${prefix}/admin`}>Admin</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
-          <button className={popupButtonClass()} disabled={switching} onClick={switchToClassicUi} type="button">Switch to classic UI</button>
           <form action="/session" method="post">
             {csrfToken ? <input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
             <input name="_method" type="hidden" value="delete" />
@@ -797,18 +778,6 @@ function SettingsPopup({ bootstrapData, csrfToken, onCloseDrawer, prefix, showTe
       ) : null}
     </div>
   )
-}
-
-function updateBootstrapLayoutVersion(payload: BootstrapPayload | undefined | null, layoutVersion: "v1" | "v2") {
-  if (!payload?.current_user) return payload ?? undefined
-
-  return {
-    ...payload,
-    current_user: {
-      ...payload.current_user,
-      layout_version: layoutVersion
-    }
-  }
 }
 
 function updateBootstrapTheme(payload: BootstrapPayload | undefined, theme: "light" | "dark") {

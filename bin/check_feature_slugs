@@ -55,6 +55,7 @@ def candidate_files
   end
 
   files.select do |path|
+    next false unless ROOT.join(path).file?
     next false unless SCAN_EXTENSIONS.include?(File.extname(path))
     next false if excluded_path?(path)
 

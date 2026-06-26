@@ -188,7 +188,6 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       agent_provider: "claude",
       agent_max_turns: 200,
       theme: "light",
-      layout_version: "v2"
     },
     team_user_count: 1,
     app: {

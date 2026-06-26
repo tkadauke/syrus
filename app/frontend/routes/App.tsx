@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
@@ -154,7 +154,7 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
   })
   const data = bootstrap.data ?? initialBootstrap
   const featureFlags = data?.feature_flags ?? {}
-  const layoutVersion = featureFlags.v2_ui ? (data?.current_user?.layout_version ?? "v1") : "v1"
+  const layoutVersion = featureFlags.v2_ui ? "v2" : "v1"
   const routes = (
     <Routes>
       <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
@@ -535,7 +535,6 @@ function PubliliusSyrusFooter({ quote }: { quote: string }) {
 }
 
 function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfToken?: string; prefix: string; showTeamProfile: boolean; user: NonNullable<BootstrapPayload["current_user"]> }) {
-  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [theme, setTheme] = useState(user.theme)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
@@ -555,13 +554,6 @@ function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfT
     }).catch(() => {
       document.documentElement.classList.toggle("dark", theme === "dark")
       setTheme(theme)
-    })
-  }
-
-  function switchToNewUi() {
-    void patchJson<{ layout_version: "v1" | "v2" }>("/api/v1/app/layout_version", { layout_version: "v2" }).then((payload) => {
-      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapLayoutVersion(current, payload.layout_version))
-      setOpen(false)
     })
   }
 
@@ -598,7 +590,6 @@ function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfT
             <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/profile`}>Settings</Link>
             {showTeamProfile ? <Link className="block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" to={`${prefix}/profiles/${user.id}`}>My profile</Link> : null}
             {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" to={`${prefix}/admin`}>Admin</Link> : null}
-            <button className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800" onClick={switchToNewUi} type="button">Switch to new UI</button>
             <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
             <form action="/session" method="post">
               {csrfToken ? <input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
@@ -610,18 +601,6 @@ function AccountNavigation({ csrfToken, prefix, showTeamProfile, user }: { csrfT
       </div>
     </nav>
   )
-}
-
-function updateBootstrapLayoutVersion(payload: BootstrapPayload | undefined, layoutVersion: "v1" | "v2") {
-  if (!payload?.current_user) return payload
-
-  return {
-    ...payload,
-    current_user: {
-      ...payload.current_user,
-      layout_version: layoutVersion
-    }
-  }
 }
 
 function UserIcon() {
