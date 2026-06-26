@@ -10939,6 +10939,7 @@ describe("App", () => {
       )
     })
 
+    fireEvent.click(screen.getByRole("button", { name: "Context" }))
     fireEvent.click(screen.getByTitle("Detach acme/widgets"))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
