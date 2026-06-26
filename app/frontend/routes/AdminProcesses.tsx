@@ -56,6 +56,7 @@ export function AdminProcessesIndex() {
               heading="Processes"
               invalidateQueryKey={["admin", "processes", location.search]}
               prefix={prefix}
+              search={location.search}
               subjectType="spawned_process"
             />
           }

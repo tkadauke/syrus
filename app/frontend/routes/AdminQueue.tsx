@@ -134,6 +134,7 @@ function QueueContent({ basePath, pathname, payload, prefix, search, tab }: { ba
           heading="Queues"
           invalidateQueryKey={["admin", "queue", tab, search]}
           prefix={prefix}
+          search={search}
           subjectType="admin_queue"
         />
       ) : null}

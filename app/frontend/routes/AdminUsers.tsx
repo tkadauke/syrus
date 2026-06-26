@@ -59,6 +59,7 @@ export function AdminUsersIndex() {
               heading="Smart folders"
               invalidateQueryKey={["admin", "users", location.search]}
               prefix={prefix}
+              search={location.search}
               subjectType="admin_user"
             />
           }

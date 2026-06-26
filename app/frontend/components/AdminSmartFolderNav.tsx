@@ -15,6 +15,7 @@ export function AdminSmartFolderNav({
   heading,
   invalidateQueryKey,
   prefix,
+  search,
   subjectType
 }: {
   activeFolderId?: number | null
@@ -26,6 +27,7 @@ export function AdminSmartFolderNav({
   heading: string
   invalidateQueryKey?: readonly unknown[]
   prefix: string
+  search: string
   subjectType: string
 }) {
   const queryClient = useQueryClient()
@@ -35,7 +37,8 @@ export function AdminSmartFolderNav({
   const moreFolders = builtinFolders.filter((folder) => folder.visibility === "on_demand")
   const savedFolders = folders.filter((folder) => folder.kind === "user_defined")
   const activeFolder = savedFolders.find((folder) => folder.id === activeFolderId)
-  const filtersDiffer = Boolean(activeFolder && currentFilter && stableStringify(activeFolder.filter || {}) !== stableStringify(currentFilter))
+  const hasUrlFilterOverride = new URLSearchParams(search).has("q")
+  const filtersDiffer = Boolean(activeFolder && hasUrlFilterOverride)
   const hasCurrentFilter = Boolean(currentFilter && topFilterChildren(currentFilter).length > 0)
   const canSaveAsNew = hasCurrentFilter && (!activeFolder || filtersDiffer)
   const updateFolder = useMutation({
@@ -163,22 +166,7 @@ function withRoutePrefix(path: string, prefix: string) {
   return `${prefix}${path}`
 }
 
-function stableStringify(value: unknown): string {
-  return JSON.stringify(sortObjectKeys(value))
-}
-
 function topFilterChildren(filter: Record<string, unknown>): unknown[] {
   const children = filter.and
   return Array.isArray(children) ? children : []
-}
-
-function sortObjectKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortObjectKeys)
-  if (!value || typeof value !== "object") return value
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, sortObjectKeys(child)])
-  )
 }
