@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_031542) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_050259) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -924,6 +924,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_031542) do
     t.index ["landing_paused"], name: "index_users_on_landing_paused"
   end
 
+  create_table "whiteboard_snapshots", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "element_count", null: false
+    t.string "name"
+    t.json "scene_json", null: false
+    t.string "snapshot_kind", null: false
+    t.index ["chat_session_id"], name: "index_whiteboard_snapshots_on_chat_session_id"
+  end
+
   create_table "whiteboards", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
@@ -1039,6 +1049,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_031542) do
   add_foreign_key "spawned_processes", "workflows"
   add_foreign_key "steps", "steps", column: "next_step_id"
   add_foreign_key "steps", "workflows"
+  add_foreign_key "whiteboard_snapshots", "chat_sessions"
   add_foreign_key "whiteboards", "chat_sessions"
   add_foreign_key "workflows", "jobs"
   add_foreign_key "workflows", "users"

@@ -44,6 +44,7 @@ class ChatSession < ApplicationRecord
            source: :bookmarks
   has_many :proposals, class_name: "ChatProposal", dependent: :destroy
   has_many :pending_actions, class_name: "ChatPendingAction", dependent: :destroy
+  has_many :whiteboard_snapshots, dependent: :destroy
   has_one :claude_session, as: :resumable, dependent: :destroy
   has_one :whiteboard, dependent: :destroy
 
