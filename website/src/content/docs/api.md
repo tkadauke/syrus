@@ -123,6 +123,19 @@ curl "https://syrus.example.com/api/v1/app/settings/hidden_chats?page=1" \
 
 ## Search Chats
 
+`GET /api/v1/app/search` searches the authenticated user's Jobs, Epics,
+and chat messages with one relevance-ranked result list. Pass `q` with at
+least two characters. Optional `types[]` values are `job`, `epic`, and
+`chat`; omit `types[]` to search all three. `limit` defaults to 30 and is
+capped at 100. Results include the result `type`, `id`, `title`, matched
+`snippet`, normalized `rank`, app navigation `path`, state and repository
+context for Jobs and Epics, and `created_at`.
+
+```bash
+curl "https://syrus.example.com/api/v1/app/search?q=deploy&types[]=job&types[]=chat" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
 `GET /api/v1/app/chats/search` searches the authenticated user's chats.
 Hidden chats are excluded. Pass `q` for full-text search, or omit it for a
 filter-only listing. The optional `repository_id`, `epic_id`, and `job_id`
