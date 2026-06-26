@@ -136,6 +136,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         <SidebarContent
           creatingChat={creatingChat}
           csrfToken={data?.csrf_token}
+          dashboardSubnavEnabled={true}
           navItems={navItems}
           onCloseDrawer={() => setDrawerOpen(false)}
           onStartChat={startChat}
@@ -174,6 +175,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           <SidebarContent
             creatingChat={creatingChat}
             csrfToken={data?.csrf_token}
+            dashboardSubnavEnabled={false}
             navItems={navItems}
             onCloseDrawer={() => setDrawerOpen(false)}
             onStartChat={startChat}
@@ -254,6 +256,7 @@ function hasFeatureFlags(featureFlags: Record<string, boolean>) {
 function SidebarContent({
   creatingChat,
   csrfToken,
+  dashboardSubnavEnabled,
   navItems,
   onCloseDrawer,
   onStartChat,
@@ -264,6 +267,7 @@ function SidebarContent({
 }: {
   creatingChat: boolean
   csrfToken?: string
+  dashboardSubnavEnabled: boolean
   navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }>
   onCloseDrawer: () => void
   onStartChat: () => void
@@ -280,7 +284,7 @@ function SidebarContent({
   }, [dashboardActive])
 
   function handlePrimaryNavClick(item: { label: string; active: boolean }, event: MouseEvent<HTMLAnchorElement>) {
-    if (item.label === "Dashboard") {
+    if (item.label === "Dashboard" && dashboardSubnavEnabled) {
       if (item.active) {
         event.preventDefault()
         setDashboardNavOpen((open) => !open)
@@ -342,7 +346,9 @@ function SidebarContent({
               return (
                 <div className="space-y-1" key={item.label}>
                   {link}
-                  <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
+                  {dashboardSubnavEnabled ? (
+                    <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
+                  ) : null}
                 </div>
               )
             })}

@@ -1194,6 +1194,75 @@ describe("App", () => {
     }
   })
 
+  it("omits dashboard subjects and smart folders from the v2 mobile drawer", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+      },
+      feature_flags: { v2_ui: true, v2_sidebar_subject_selector: true }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/dashboard?view=list&smart_folder_id=3&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                active_smart_folder_id: 3,
+                smart_folders: [
+                  {
+                    id: 3,
+                    name: "Merged this week",
+                    kind: "builtin",
+                    subject_type: "job",
+                    visibility: "always",
+                    count: 8,
+                    active: true,
+                    path: "/dashboard/jobs?smart_folder_id=3"
+                  }
+                ],
+                items: [dashboardJobItem()]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=3"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByLabelText("Dashboard smart folders panel")
+      fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }))
+      const drawerPrimaryNav = screen.getAllByRole("navigation", { name: "Primary" }).at(-1) as HTMLElement | undefined
+      if (!(drawerPrimaryNav instanceof HTMLElement)) throw new Error("Expected drawer primary navigation to render")
+
+      expect(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
+      expect(within(drawerPrimaryNav).queryByRole("navigation", { name: "Dashboard sections" })).not.toBeInTheDocument()
+      expect(within(drawerPrimaryNav).queryByLabelText("Dashboard smart folders panel")).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("renders v2 admin subnavigation above admin content with horizontal scrolling", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
