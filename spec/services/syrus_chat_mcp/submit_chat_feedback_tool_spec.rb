@@ -114,13 +114,14 @@ RSpec.describe SyrusChatMcp::SubmitChatFeedbackTool do
     )
   end
 
-  it "rejects jobs outside the chat repository" do
+  it "accepts jobs outside the chat repository when they belong to the chat user" do
     other_job = Factories.job_record(repository: Factories.repository(user: user), state: "implemented")
 
     response = call_tool(job_id: other_job.id, feedback: "Adjust this.")
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
 
-    expect(response.dig(:result, :isError)).to be(true)
-    expect(response.dig(:result, :content, 0, :text)).to include("job not found in this repository")
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(pending_action).to have_attributes(action: "submit_chat_feedback", payload: { "job_id" => other_job.id, "feedback" => "Adjust this." })
   end
 
   it "rejects jobs in a non-actionable state" do

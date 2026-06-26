@@ -2,6 +2,9 @@ require "mcp"
 
 module SyrusChatMcp
   class GetJobDiffTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "get_job_diff"
 
     description "Read the latest stored agent diff for a Job in this chat session's repository."
@@ -21,11 +24,7 @@ module SyrusChatMcp
     class << self
       def call(job_id:, server_context:, page: 1, per_bytes: DEFAULT_DIFF_BYTES)
         chat_session = server_context.fetch(:chat_session)
-        repository = chat_session.repository
-        return SyrusChatMcp.invalid("this chat session has no repository attached") unless repository
-
-        job = repository.jobs.find_by(id: job_id)
-        return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
+        job = find_job!(job_id)
 
         run = job.latest_workflow&.runs&.order(created_at: :desc, id: :desc)&.first
         diff = run&.agent_diff.to_s

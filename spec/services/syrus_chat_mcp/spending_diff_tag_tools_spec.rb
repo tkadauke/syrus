@@ -142,13 +142,14 @@ RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
     )
   end
 
-  it "rejects reading a diff for a job outside the chat repository" do
+  it "reads a diff for a job outside the chat repository when it belongs to the chat user" do
     other = Factories.job(repository: Factories.repository(user: user))
 
     response = call_tool("get_job_diff", job_id: other.id)
+    body = payload(response)
 
-    expect(response.dig(:result, :isError)).to be(true)
-    expect(response.dig(:result, :content, 0, :text)).to include("job not found")
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(job_id: other.id, diff: nil)
   end
 
   it "lists only current user's tags" do
@@ -194,14 +195,14 @@ RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
   end
 
   it "rejects cross-user jobs and tags when changing job tags" do
-    job = Factories.job(repository: Factories.repository(user: user))
+    job = Factories.job(repository: Factories.repository(user: Factories.user))
     tag = Factories.tag(user: Factories.user)
 
     job_response = call_tool("add_job_tag", job_id: job.id, tag_id: Factories.tag(user: user).id)
     tag_response = call_tool("add_job_tag", job_id: Factories.job(repository: repository).id, tag_id: tag.id)
 
     expect(job_response.dig(:result, :isError)).to be(true)
-    expect(job_response.dig(:result, :content, 0, :text)).to include("job not found")
+    expect(payload(job_response)).to eq(error: "not_authorized")
     expect(tag_response.dig(:result, :isError)).to be(true)
     expect(tag_response.dig(:result, :content, 0, :text)).to include("tag not found")
   end

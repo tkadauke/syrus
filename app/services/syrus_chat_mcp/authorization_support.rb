@@ -39,22 +39,27 @@ module SyrusChatMcp
       SyrusChatMcp::AuthorizationSupport.current_server_context || raise(KeyError, "server_context is required")
     end
 
-    def find_job!(id)
-      current_user.jobs.find_by!(id: id)
+    def find_job!(id, includes: nil)
+      scope = current_user.jobs
+      scope = scope.includes(includes) if includes
+      scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
       raise AuthorizationError, "job not found or not accessible"
     end
 
-    def find_epic!(id)
-      current_user.epics.find_by!(id: id)
+    def find_epic!(id, includes: nil)
+      scope = current_user.epics
+      scope = scope.includes(includes) if includes
+      scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
       raise AuthorizationError, "epic not found or not accessible"
     end
 
-    def find_workflow!(id)
-      Workflow.joins(job: :repository)
+    def find_workflow!(id, includes: nil)
+      scope = Workflow.joins(job: :repository)
               .where(repositories: { user_id: current_user.id })
-              .find_by!(id: id)
+      scope = scope.includes(includes) if includes
+      scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
       raise AuthorizationError, "workflow not found or not accessible"
     end

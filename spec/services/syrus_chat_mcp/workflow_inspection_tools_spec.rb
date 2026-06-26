@@ -68,13 +68,14 @@ RSpec.describe "SyrusChatMcp workflow inspection tools" do
       )
     end
 
-    it "rejects jobs outside the chat repository" do
+    it "lists jobs outside the chat repository when they belong to the chat user" do
       other_job = Factories.job(repository: Factories.repository(user: user))
 
       response = call_tool("list_job_workflows", job_id: other_job.id)
+      payload = response_payload(response)
 
-      expect(response[:result][:isError]).to be(true)
-      expect(response[:result][:content].first[:text]).to include("job not found")
+      expect(response[:result][:isError]).to be_falsey
+      expect(payload[:workflows].map { |workflow| workflow[:id] }).to include(other_job.latest_workflow.id)
     end
   end
 
@@ -97,14 +98,15 @@ RSpec.describe "SyrusChatMcp workflow inspection tools" do
       expect(payload[:workflow][:steps].last[:runs].first[:agent_summary].length).to eq(500)
     end
 
-    it "rejects workflows outside the chat repository" do
+    it "reads workflows outside the chat repository when they belong to the chat user" do
       other_job = Factories.job(repository: Factories.repository(user: user))
       workflow = other_job.latest_workflow
 
       response = call_tool("read_workflow", workflow_id: workflow.id)
+      payload = response_payload(response)
 
-      expect(response[:result][:isError]).to be(true)
-      expect(response[:result][:content].first[:text]).to include("workflow not found")
+      expect(response[:result][:isError]).to be_falsey
+      expect(payload[:workflow]).to include(id: workflow.id, job_id: other_job.id)
     end
   end
 
@@ -127,13 +129,14 @@ RSpec.describe "SyrusChatMcp workflow inspection tools" do
       ])
     end
 
-    it "rejects runs outside the chat repository" do
+    it "reads runs outside the chat repository when they belong to the chat user" do
       other_job = Factories.job(repository: Factories.repository(user: user))
 
       response = call_tool("read_run_transcript", run_id: other_job.initial_run.id, per: 500)
+      payload = response_payload(response)
 
-      expect(response[:result][:isError]).to be(true)
-      expect(response[:result][:content].first[:text]).to include("run not found")
+      expect(response[:result][:isError]).to be_falsey
+      expect(payload).to include(run_id: other_job.initial_run.id, per: 200)
     end
 
     it "caps per-page size at 200 chunks" do

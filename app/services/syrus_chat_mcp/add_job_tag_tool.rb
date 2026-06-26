@@ -2,6 +2,9 @@ require "mcp"
 
 module SyrusChatMcp
   class AddJobTagTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "add_job_tag"
 
     description "Attach a user-owned tag to a Job in this chat session's repository."
@@ -17,8 +20,7 @@ module SyrusChatMcp
     class << self
       def call(job_id:, tag_id:, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        job = find_job(chat_session, job_id)
-        return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
+        job = find_job!(job_id)
 
         tag = chat_session.user.tags.find_by(id: tag_id)
         return SyrusChatMcp.invalid("tag not found for this user: #{tag_id}") unless tag
@@ -31,13 +33,6 @@ module SyrusChatMcp
       end
 
       private
-
-      def find_job(chat_session, job_id)
-        repository = chat_session.repository
-        return unless repository
-
-        repository.jobs.find_by(id: job_id)
-      end
 
       def broadcast_job_update(user, job)
         AppEvents.broadcast(user: user, type: "updated", resource: "job", id: job.id, changed: [ "tags" ])

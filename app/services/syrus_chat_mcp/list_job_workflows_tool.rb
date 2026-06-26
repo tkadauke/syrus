@@ -2,9 +2,12 @@ require "mcp"
 
 module SyrusChatMcp
   class ListJobWorkflowsTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "list_job_workflows"
 
-    description "List all Workflows for a Syrus Job in this chat session's repository, newest first."
+    description "List all Workflows for a Syrus Job visible to this chat session's user, newest first."
 
     input_schema(
       properties: {
@@ -15,9 +18,7 @@ module SyrusChatMcp
 
     class << self
       def call(job_id:, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        job = chat_session.repository.jobs.find_by(id: job_id)
-        return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
+        job = find_job!(job_id)
 
         SyrusChatMcp.success(workflows: workflow_index_for(job))
       end

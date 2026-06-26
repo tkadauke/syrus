@@ -20,6 +20,8 @@ module SyrusChatMcp
         pr_number = pr_number.to_i
         return SyrusChatMcp.invalid("pr_number must be positive") unless pr_number.positive?
 
+        # GitHub reads use the chat user's credentials for this repository, not
+        # a shared token, so private PR access follows the same user boundary.
         client = GithubClient.for(repository: repository, user: chat_session.user)
         pr = client.pull_request(repository.slug, pr_number)
         diff = client.pull_request_diff(repository.slug, pr_number)

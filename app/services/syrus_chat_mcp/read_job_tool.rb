@@ -2,6 +2,9 @@ require "mcp"
 
 module SyrusChatMcp
   class ReadJobTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "read_job"
 
     description <<~DESC
@@ -18,9 +21,7 @@ module SyrusChatMcp
 
     class << self
       def call(job_id:, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        job = chat_session.repository.jobs.includes(workflows: { steps: { runs: :job_logs } }).find_by(id: job_id)
-        return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
+        job = find_job!(job_id, includes: { workflows: { steps: { runs: :job_logs } } })
 
         workflow = job.latest_workflow
         workflows_index = SyrusChatMcp::ListJobWorkflowsTool.workflow_index_for(job)

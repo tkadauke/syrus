@@ -2,6 +2,9 @@ require "mcp"
 
 module SyrusChatMcp
   class ReadEpicTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "read_epic"
 
     description <<~DESC
@@ -18,16 +21,15 @@ module SyrusChatMcp
 
     class << self
       def call(id:, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        epic = chat_session.user.epics
-                           .includes(
-                             :repository,
-                             depends_on_epics: :repository,
-                             dependent_epics: :repository,
-                             jobs: [ :repository, { depends_on_jobs: :repository } ]
-                           )
-                           .find_by(id: id)
-        return SyrusChatMcp.invalid("epic not found or not readable: #{id}") unless epic
+        epic = find_epic!(
+          id,
+          includes: [
+            :repository,
+            { depends_on_epics: :repository },
+            { dependent_epics: :repository },
+            { jobs: [ :repository, { depends_on_jobs: :repository } ] }
+          ]
+        )
 
         SyrusChatMcp.success(
           epic: epic_payload(epic),

@@ -2,9 +2,12 @@ require "mcp"
 
 module SyrusChatMcp
   class ReadWorkflowTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "read_workflow"
 
-    description "Read Workflow metadata, Steps, and per-Step Run summaries for this chat session's repository."
+    description "Read Workflow metadata, Steps, and per-Step Run summaries for a Workflow visible to this chat session's user."
 
     input_schema(
       properties: {
@@ -15,13 +18,7 @@ module SyrusChatMcp
 
     class << self
       def call(workflow_id:, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        workflow = Workflow
-          .joins(:job)
-          .includes(steps: :runs)
-          .where(jobs: { repository_id: chat_session.repository_id })
-          .find_by(id: workflow_id)
-        return SyrusChatMcp.invalid("workflow not found in this repository: #{workflow_id}") unless workflow
+        workflow = find_workflow!(workflow_id, includes: { steps: :runs })
 
         SyrusChatMcp.success(workflow: workflow_payload(workflow))
       end

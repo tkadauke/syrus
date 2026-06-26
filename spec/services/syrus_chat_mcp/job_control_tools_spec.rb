@@ -274,14 +274,14 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(job.workflows.where(trigger_kind: "rebase")).to be_empty
   end
 
-  it "rejects canceling jobs outside the chat repository" do
+  it "allows canceling jobs outside the chat repository when they belong to the chat user" do
     other_job = Factories.job(repository: Factories.repository(user: user))
 
     response = call_tool("cancel_job", job_id: other_job.id)
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
 
-    expect(response.dig(:result, :isError)).to be true
-    expect(response.dig(:result, :content, 0, :text)).to include("job not found in this repository")
-    expect(chat_session.pending_actions).to be_empty
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => other_job.id })
   end
 
   it "finds epics outside the pinned repository when they belong to the user" do

@@ -2,9 +2,12 @@ require "mcp"
 
 module SyrusChatMcp
   class ReadRunTranscriptTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "read_run_transcript"
 
-    description "Read paginated transcript chunks and full agent diff for a Run in this chat session's repository."
+    description "Read paginated transcript chunks and full agent diff for a Run visible to this chat session's user."
 
     input_schema(
       properties: {
@@ -17,12 +20,7 @@ module SyrusChatMcp
 
     class << self
       def call(run_id:, server_context:, page: 1, per: 50)
-        chat_session = server_context.fetch(:chat_session)
-        run = Run
-          .joins(:job)
-          .where(jobs: { repository_id: chat_session.repository_id })
-          .find_by(id: run_id)
-        return SyrusChatMcp.invalid("run not found in this repository: #{run_id}") unless run
+        run = find_run!(run_id)
 
         page = normalize_page(page)
         per = normalize_per(per)

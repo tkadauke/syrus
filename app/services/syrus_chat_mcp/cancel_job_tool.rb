@@ -3,6 +3,8 @@ require "mcp"
 module SyrusChatMcp
   class CancelJobTool < MCP::Tool
     extend ProposalToolSupport
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "cancel_job"
 
@@ -24,8 +26,7 @@ module SyrusChatMcp
         job_id = Integer(job_id, exception: false)
         return SyrusChatMcp.invalid("job_id is required") unless job_id
 
-        job = chat_session.repository.jobs.find_by(id: job_id)
-        return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
+        job = find_job!(job_id)
 
         pending_action = create_pending_action_for_current_message!(
           server_context,

@@ -43,13 +43,14 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
     expect(payload[:transcript][:tail]).to include("tail")
   end
 
-  it "returns a tool error when the job is outside the chat repository" do
+  it "reads jobs outside the chat repository when they belong to the chat user" do
     other = Factories.job(repository: Factories.repository(user: user))
 
     response = call_tool(job_id: other.id)
+    payload = response_payload(response)
 
-    expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to include("job not found")
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job]).to include(id: other.id)
   end
 
   it "returns all workflows in newest-first index order" do

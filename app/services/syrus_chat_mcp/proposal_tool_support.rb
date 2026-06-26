@@ -19,6 +19,8 @@ module SyrusChatMcp
         return nil
       end
 
+      # Proposal targets may name another repo, but only from the current
+      # user's active repository scope.
       scope = chat_session.user.repositories.active
       scope.find_by(id: Integer(token, exception: false)) ||
         scope.find_by(owner: token.split("/", 2).first, name: token.split("/", 2).second) ||

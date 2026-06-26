@@ -79,6 +79,6 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
     response = call_tool(id: epic.id)
 
     expect(response.dig(:result, :isError)).to eq(true)
-    expect(response.dig(:result, :content, 0, :text)).to include("epic not found or not readable")
+    expect(tool_payload(response)).to eq(error: "not_authorized")
   end
 end

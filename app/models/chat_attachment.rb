@@ -31,6 +31,8 @@ class ChatAttachment < ApplicationRecord
     return unless chat_session && attachable
     return unless attachable.respond_to?(:user_id)
 
+    # This guards all attachment paths, including attached Epics consumed by
+    # chat MCP tools, against attaching another user's resource by raw id.
     errors.add(:attachable, "must belong to the chat session user") if attachable.user_id != chat_session.user_id
   end
 end

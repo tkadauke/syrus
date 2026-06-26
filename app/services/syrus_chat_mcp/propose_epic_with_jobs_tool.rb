@@ -207,6 +207,8 @@ module SyrusChatMcp
         owner, name = slug.split("/", 2)
         return nil if owner.blank? || name.blank?
 
+        # Cross-repo Epic proposals are allowed only within the current user's
+        # active repository scope.
         user.repositories.active.find_by(owner: owner, name: name)
       end
 

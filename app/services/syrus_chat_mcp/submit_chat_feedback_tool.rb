@@ -3,6 +3,8 @@ require "mcp"
 module SyrusChatMcp
   class SubmitChatFeedbackTool < MCP::Tool
     extend ProposalToolSupport
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "submit_chat_feedback"
 
@@ -27,8 +29,7 @@ module SyrusChatMcp
         feedback = feedback.to_s.strip
         return SyrusChatMcp.invalid("feedback is required") if feedback.blank?
 
-        job = chat_session.repository.jobs.find_by(id: job_id)
-        return SyrusChatMcp.invalid("job not found in this repository: #{job_id}") unless job
+        job = find_job!(job_id)
 
         if job.running? || job.queued?
           pending_action = chat_session.pending_actions.create!(
