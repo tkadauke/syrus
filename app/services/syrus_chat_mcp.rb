@@ -13,6 +13,10 @@ module SyrusChatMcp
     MCP::Tool::Response.new([ { type: "text", text: "Unauthorized: #{message}" } ], error: true)
   end
 
+  def self.not_authorized
+    MCP::Tool::Response.new([ { type: "text", text: JSON.generate(error: "not_authorized") } ], error: true)
+  end
+
   def self.tool_error(reason)
     MCP::Tool::Response.new([ { type: "text", text: reason } ], error: true)
   end

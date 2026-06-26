@@ -156,7 +156,13 @@ module SyrusChatMcp
     def self.tools_for(chat_session)
       tools = TOOLS.dup
       tools += ADMIN_TOOLS if chat_session.user.admin?
-      tools
+      tools.map { |tool| authorize_tool(tool) }
+    end
+
+    def self.authorize_tool(tool)
+      tool.extend(AuthorizationSupport) unless tool.singleton_class < AuthorizationSupport
+      tool.singleton_class.prepend(AuthorizationSupport::ToolDispatch) unless tool.singleton_class < AuthorizationSupport::ToolDispatch
+      tool
     end
 
     def initialize(session_id: ENV["SYRUS_CHAT_SESSION_ID"], current_message_id: ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"])
