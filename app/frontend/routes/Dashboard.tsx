@@ -1249,7 +1249,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "latest") return <LatestWorkflowCell job={job} />
   if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{job.workflows_count}</td>
 
-  return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(jobDateValue(job, column))}</td>
+  return <TimestampCell value={jobDateValue(job, column)} />
 }
 
 function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJobItem; prefix: string; quiet?: boolean }) {
@@ -1527,9 +1527,9 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
   if (column === "repository") {
     return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={epic.repository} /></td>
   }
-  if (column === "updated") return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(epic.updated_at)}</td>
+  if (column === "updated") return <TimestampCell value={epic.updated_at} />
 
-  return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(epicDateValue(epic, column))}</td>
+  return <TimestampCell value={epicDateValue(epic, column)} />
 }
 
 function WorkflowsTable({ items, columns, prefix, sortState }: { items: DashboardWorkflowItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
@@ -1659,10 +1659,18 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   }
   if (column === "trigger") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{workflow.trigger_kind}</td>
   if (column === "agent") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{workflow.agent_provider}</td>
-  if (column === "started") return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(workflow.started_at || workflow.created_at)}</td>
-  if (column === "finished") return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(workflow.finished_at)}</td>
+  if (column === "started") return <TimestampCell value={workflow.started_at || workflow.created_at} />
+  if (column === "finished") return <TimestampCell value={workflow.finished_at} />
 
-  return <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(workflowDateValue(workflow, column))}</td>
+  return <TimestampCell value={workflowDateValue(workflow, column)} />
+}
+
+function TimestampCell({ value }: { value: string | null }) {
+  return (
+    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+      <RelativeTimestamp value={value} />
+    </td>
+  )
 }
 
 function workflowLabel(workflow: Pick<DashboardWorkflowItem, "id" | "slug">) {
@@ -1952,4 +1960,36 @@ function formatDate(value: string | null) {
   if (!value) return "-"
 
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
+}
+
+function RelativeTimestamp({ value }: { value: string | null }) {
+  if (!value) return <>-</>
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return <>-</>
+
+  return (
+    <time dateTime={value} title={formatDate(value)}>
+      {formatRelativeDate(date)}
+    </time>
+  )
+}
+
+function formatRelativeDate(date: Date) {
+  const seconds = Math.round((date.getTime() - Date.now()) / 1000)
+  const absSeconds = Math.abs(seconds)
+  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["year", 60 * 60 * 24 * 365],
+    ["month", 60 * 60 * 24 * 30],
+    ["week", 60 * 60 * 24 * 7],
+    ["day", 60 * 60 * 24],
+    ["hour", 60 * 60],
+    ["minute", 60],
+    ["second", 1]
+  ]
+
+  const [unit, divisor] = units.find(([, unitSeconds]) => absSeconds >= unitSeconds) || ["second", 1]
+  const value = Math.round(seconds / divisor)
+
+  return new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(value, unit)
 }

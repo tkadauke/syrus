@@ -2766,6 +2766,57 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
   }, 15000)
 
+  it("renders dashboard timestamp columns as relative times with absolute tooltips", async () => {
+    const restoreMedia = mockMediaQuery(true)
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(new Date("2026-05-30T12:01:00Z").getTime())
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard?view=list&subject=job") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                preferences: {
+                  ...dashboardPayload().preferences,
+                  visible_columns: ["checkbox", "issue", "started", "created_at", "updated_at"]
+                },
+                items: [dashboardJobItem()]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const startedAt = "2026-05-30T10:01:00Z"
+      const absoluteStartedAt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(startedAt))
+      await screen.findByText("Repair aqueduct")
+      const relativeStartedAt = document.querySelector(`time[datetime="${startedAt}"]`)
+
+      expect(relativeStartedAt).toHaveTextContent("2 hours ago")
+      expect(relativeStartedAt).toHaveAttribute("dateTime", startedAt)
+      expect(relativeStartedAt).toHaveAttribute("title", absoluteStartedAt)
+      expect(screen.queryByText(absoluteStartedAt)).not.toBeInTheDocument()
+    } finally {
+      dateNowSpy.mockRestore()
+      restoreMedia()
+    }
+  })
+
   it("keeps v2 dashboard subjects in the header when the sidebar selector flag is off", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
