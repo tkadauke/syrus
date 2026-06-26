@@ -167,8 +167,13 @@ class ChatTurnJob < ApplicationJob
           "syrus-chat-sidecar" => {
             type: "stdio",
             command: Rails.root.join("bin/syrus-chat-sidecar").to_s,
-            env: sidecar_env,
+            env: sidecar_env(tool_tier: "essential", server_name: "syrus-chat-sidecar"),
             alwaysLoad: true
+          },
+          "syrus-chat-deferred-sidecar" => {
+            type: "stdio",
+            command: Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s,
+            env: sidecar_env(tool_tier: "deferred", server_name: "syrus-chat-deferred-sidecar")
           }
         }
       }.to_json)
@@ -177,8 +182,12 @@ class ChatTurnJob < ApplicationJob
     end
   end
 
-  def sidecar_env
-    ENV.slice(*SIDECAR_ENV_FORWARD).compact.merge("SYRUS_CHAT_SESSION_ID" => @chat.id.to_s)
+  def sidecar_env(tool_tier:, server_name:)
+    ENV.slice(*SIDECAR_ENV_FORWARD).compact.merge(
+      "SYRUS_CHAT_SESSION_ID" => @chat.id.to_s,
+      "SYRUS_CHAT_MCP_TOOL_TIER" => tool_tier,
+      "SYRUS_CHAT_MCP_SERVER_NAME" => server_name
+    )
   end
 
   def record_agent_event(chunk, kind: nil, tool_name: nil, tool_input: nil,
@@ -236,7 +245,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def mcp_tool_names_for(name)
-    return SyrusChatMcp::Sidecar.tool_names(@chat) if name == "syrus-chat-sidecar"
+    return SyrusChatMcp::Sidecar.tool_names(@chat, tier: :essential) if name == "syrus-chat-sidecar"
+    return SyrusChatMcp::Sidecar.tool_names(@chat, tier: :deferred) if name == "syrus-chat-deferred-sidecar"
 
     []
   end
