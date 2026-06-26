@@ -6,7 +6,6 @@ import { NotificationsBell, NotificationsRoute } from "./Notifications"
 
 describe("Notifications", () => {
   afterEach(() => {
-    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
