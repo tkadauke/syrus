@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+# Entry point for the deferred per-chat MCP server. The distinct
+# basename keeps Claude Code's resumed MCP tool prefixes aligned with
+# the mcp.json server key while sharing the normal chat sidecar boot.
+require_relative "syrus-chat-sidecar"

@@ -46,10 +46,19 @@ RSpec.describe ChatTurnJob do
     ChatTurnJob.agent_runner = ->(**kwargs) {
       received.merge!(kwargs)
       config = JSON.parse(File.read(kwargs[:mcp_config]))
-      expect(config.dig("mcpServers", "syrus-chat-sidecar", "command")).to eq(Rails.root.join("bin/syrus-chat-sidecar").to_s)
-      expect(config.dig("mcpServers", "syrus-chat-sidecar", "env", "SYRUS_CHAT_SESSION_ID")).to eq(chat.id.to_s)
-      expect(config.dig("mcpServers", "syrus-chat-sidecar", "env")).to include(host_env)
-      expect(config.dig("mcpServers", "syrus-chat-sidecar", "alwaysLoad")).to eq(true)
+      essential = config.dig("mcpServers", "syrus-chat-sidecar")
+      deferred = config.dig("mcpServers", "syrus-chat-deferred-sidecar")
+      expect(essential["command"]).to eq(Rails.root.join("bin/syrus-chat-sidecar").to_s)
+      expect(essential.dig("env", "SYRUS_CHAT_SESSION_ID")).to eq(chat.id.to_s)
+      expect(essential.dig("env", "SYRUS_CHAT_MCP_TOOL_TIER")).to eq("essential")
+      expect(essential.dig("env", "SYRUS_CHAT_MCP_SERVER_NAME")).to eq("syrus-chat-sidecar")
+      expect(essential["env"]).to include(host_env)
+      expect(essential["alwaysLoad"]).to eq(true)
+      expect(deferred["command"]).to eq(Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s)
+      expect(deferred.dig("env", "SYRUS_CHAT_SESSION_ID")).to eq(chat.id.to_s)
+      expect(deferred.dig("env", "SYRUS_CHAT_MCP_TOOL_TIER")).to eq("deferred")
+      expect(deferred.dig("env", "SYRUS_CHAT_MCP_SERVER_NAME")).to eq("syrus-chat-deferred-sidecar")
+      expect(deferred).not_to have_key("alwaysLoad")
 
       kwargs[:log_sink].call("Here is the shape of it.", kind: "assistant_text")
       kwargs[:log_sink].call(
@@ -372,19 +381,28 @@ RSpec.describe ChatTurnJob do
   it "records available, pending, and unavailable MCP tools in structured chat context" do
     ChatTurnJob.agent_runner = ->(log_sink:, **_) {
       log_sink.call(
-        "[mcp_servers] syrus-chat-sidecar=connected",
+        "[mcp_servers] syrus-chat-sidecar=connected syrus-chat-deferred-sidecar=connected",
         kind: "system",
-        mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "connected" } ]
+        mcp_servers: [
+          { "name" => "syrus-chat-sidecar", "status" => "connected" },
+          { "name" => "syrus-chat-deferred-sidecar", "status" => "connected" }
+        ]
       )
       log_sink.call(
-        "[mcp_servers] syrus-chat-sidecar=pending",
+        "[mcp_servers] syrus-chat-sidecar=pending syrus-chat-deferred-sidecar=pending",
         kind: "system",
-        mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "pending" } ]
+        mcp_servers: [
+          { "name" => "syrus-chat-sidecar", "status" => "pending" },
+          { "name" => "syrus-chat-deferred-sidecar", "status" => "pending" }
+        ]
       )
       log_sink.call(
-        "[mcp_servers] syrus-chat-sidecar=failed",
+        "[mcp_servers] syrus-chat-sidecar=failed syrus-chat-deferred-sidecar=failed",
         kind: "system",
-        mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "failed" } ]
+        mcp_servers: [
+          { "name" => "syrus-chat-sidecar", "status" => "failed" },
+          { "name" => "syrus-chat-deferred-sidecar", "status" => "failed" }
+        ]
       )
       result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
     }
@@ -399,10 +417,23 @@ RSpec.describe ChatTurnJob do
       "pending_tools" => [],
       "unavailable_tools" => []
     )
+    expect(connected.content.dig("mcp_health", 1)).to include(
+      "name" => "syrus-chat-deferred-sidecar",
+      "status" => "connected",
+      "available_tools" => include("draw_shape", "read_workflow"),
+      "pending_tools" => [],
+      "unavailable_tools" => []
+    )
     expect(pending.content.dig("mcp_health", 0)).to include(
       "status" => "pending",
       "available_tools" => [],
       "pending_tools" => include("propose_job", "repo_info"),
+      "unavailable_tools" => []
+    )
+    expect(pending.content.dig("mcp_health", 1)).to include(
+      "status" => "pending",
+      "available_tools" => [],
+      "pending_tools" => include("draw_shape", "read_workflow"),
       "unavailable_tools" => []
     )
     expect(failed.content.dig("mcp_health", 0)).to include(
@@ -410,6 +441,12 @@ RSpec.describe ChatTurnJob do
       "available_tools" => [],
       "pending_tools" => [],
       "unavailable_tools" => include("propose_job", "repo_info")
+    )
+    expect(failed.content.dig("mcp_health", 1)).to include(
+      "status" => "failed",
+      "available_tools" => [],
+      "pending_tools" => [],
+      "unavailable_tools" => include("draw_shape", "read_workflow")
     )
   end
 
