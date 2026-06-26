@@ -195,7 +195,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           <SyrusBrand />
         </button>
         {showAdminSubnav ? (
-          <div className="flex min-h-full min-w-0">
+          <div className="min-h-full min-w-0">
             <AdminSubnav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix} />
             <div className="min-w-0 flex-1">
               {children ?? <Outlet />}
@@ -231,8 +231,8 @@ function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: R
   ]
 
   return (
-    <aside className="w-40 shrink-0 border-r border-gray-200 bg-white px-3 py-4 dark:border-gray-800 dark:bg-gray-950 sm:w-52">
-      <nav aria-label="Admin" className="space-y-1">
+    <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+      <nav aria-label="Admin" className="flex gap-2 overflow-x-auto px-4 py-3 text-sm">
         {items.map((item) => {
           const active = item.paths.some((path) => adminNavItemActive(normalizedPath, path))
 
@@ -243,7 +243,7 @@ function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: R
           )
         })}
       </nav>
-    </aside>
+    </div>
   )
 }
 
@@ -949,7 +949,7 @@ function recentChatLinkClass(active: boolean) {
 }
 
 function adminSubnavLinkClass(active: boolean) {
-  return `block rounded px-2.5 py-2 text-sm font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
+  return `block whitespace-nowrap rounded px-3 py-2 font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
 }
 
 function popupLinkClass() {

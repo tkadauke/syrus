@@ -1194,7 +1194,7 @@ describe("App", () => {
     }
   })
 
-  it("renders v2 admin subnavigation between the primary nav and admin content", async () => {
+  it("renders v2 admin subnavigation above admin content with horizontal scrolling", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -1245,6 +1245,8 @@ describe("App", () => {
       expect(await screen.findByRole("main", { name: "Admin console" })).toBeInTheDocument()
       expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument()
       const adminNav = screen.getByRole("navigation", { name: "Admin" })
+      expect(adminNav.closest("aside")).toBeNull()
+      expect(adminNav).toHaveClass("flex", "overflow-x-auto")
       expect(within(adminNav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(adminNav).getByRole("link", { name: "Queue" })).toHaveAttribute("href", "/app-shell/admin/queue")
       expect(within(adminNav).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")
