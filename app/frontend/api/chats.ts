@@ -226,6 +226,19 @@ export type ChatWhiteboardScene = {
   files: ChatWhiteboardFiles
 }
 
+export type WhiteboardSnapshot = {
+  id: number
+  name: string | null
+  snapshot_kind: "manual" | "auto_clear" | "auto_before_load"
+  element_count: number
+  created_at: string
+  scene_json?: ChatWhiteboardScene
+}
+
+export type WhiteboardSnapshotsPayload = {
+  whiteboard_snapshots: WhiteboardSnapshot[]
+}
+
 export type NewChatPayload = {
   repositories: ChatRepository[]
   repositories_path: string
@@ -393,6 +406,18 @@ export function fetchChatMessages(path: string, before: number) {
 
 export function fetchChatWhiteboard(path: string) {
   return getJson<ChatWhiteboardPayload>(path)
+}
+
+export function fetchWhiteboardSnapshots(chatSessionId: string | number) {
+  return getJson<WhiteboardSnapshotsPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots`)
+}
+
+export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshotId: string | number) {
+  return getJson<WhiteboardSnapshot>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots/${encodeURIComponent(String(snapshotId))}`)
+}
+
+export function createWhiteboardSnapshot(chatSessionId: string | number, input: { scene_json: ChatWhiteboardScene; snapshot_kind: WhiteboardSnapshot["snapshot_kind"]; name?: string | null }) {
+  return postJson<WhiteboardSnapshot>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots`, input)
 }
 
 export async function patchChatWhiteboard(path: string, input: ChatWhiteboardScene & { expected_version: number }) {

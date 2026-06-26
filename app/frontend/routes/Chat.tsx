@@ -18,12 +18,15 @@ import {
   confirmPendingAction,
   createChat,
   createChatBookmark,
+  createWhiteboardSnapshot,
   deleteQueuedChatMessage,
   deleteChatAttachment,
   enqueueChatMessage,
   fetchChat,
   fetchChatMessages,
   fetchChatWhiteboard,
+  fetchWhiteboardSnapshot,
+  fetchWhiteboardSnapshots,
   markChatRead,
   patchChatWhiteboard,
   rejectChatProposal,
@@ -52,7 +55,8 @@ import {
   type ChatSystemMessage,
   type ChatWhiteboardElement,
   type ChatWhiteboardScene,
-  type ChatToolGroupItem
+  type ChatToolGroupItem,
+  type WhiteboardSnapshot
 } from "../api/chats"
 import { CloseIcon } from "../components/CloseIcon"
 import { StartEpicButton } from "../components/StartEpicButton"
@@ -82,6 +86,7 @@ const CHAT_WORKSPACE_MIN_WIDTH = 360
 const CHAT_WORKSPACE_MAX_WIDTH = 760
 const CHAT_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
 const CHAT_ATTACHMENT_TOTAL_MAX_BYTES = 20 * 1024 * 1024
+const WHITEBOARD_MAX_ELEMENTS = 1000
 
 type ExcalidrawComponent = typeof import("@excalidraw/excalidraw")["Excalidraw"]
 type ExcalidrawApi = Pick<ExcalidrawImperativeAPI, "addFiles" | "updateScene">
@@ -2078,56 +2083,195 @@ function ChatWorkspacePanel({
           </WhiteboardBoundary>
         ) : null}
         {activeTab === "context" ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
-        {activeTab === "media" ? <MediaGallery messages={payload.messages} /> : null}
+        {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
       </div>
     </aside>
   )
 }
 
-function MediaGallery({ messages }: { messages: ChatRenderItem[] }) {
+function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: ChatRenderItem[]; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const images = imageAttachments(messages)
   const [lightboxImage, setLightboxImage] = useState<ChatMessageImageAttachment | null>(null)
+  const [loadingSnapshotId, setLoadingSnapshotId] = useState<number | null>(null)
+  const [snapshotError, setSnapshotError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const snapshots = useQuery({
+    queryKey: ["whiteboard_snapshots", String(payload.chat.id)],
+    queryFn: () => fetchWhiteboardSnapshots(payload.chat.id),
+    enabled: payload.chat.id != null
+  })
+  const whiteboardLocked = payload.agent_busy
+  const snapshotItems = snapshots.data?.whiteboard_snapshots || []
 
-  if (images.length === 0) {
-    return <PanelMessage>No images shared yet.</PanelMessage>
+  async function loadSnapshot(snapshot: WhiteboardSnapshot) {
+    if (whiteboardLocked || loadingSnapshotId != null) return
+
+    setSnapshotError(null)
+    setLoadingSnapshotId(snapshot.id)
+    try {
+      const fullSnapshot = await fetchWhiteboardSnapshot(payload.chat.id, snapshot.id)
+      const snapshotScene = cloneWhiteboardScene(fullSnapshot.scene_json || { elements: [], appState: {}, files: {} })
+      const current = await fetchChatWhiteboard(payload.paths.app_whiteboard_path)
+      const currentScene = cloneWhiteboardScene(current.scene_json)
+      const nextElements = [
+        ...currentScene.elements,
+        ...withFreshElementIds(snapshotScene.elements)
+      ]
+
+      if (nextElements.length > WHITEBOARD_MAX_ELEMENTS) {
+        throw new ApiError(`Loading this snapshot would exceed the ${WHITEBOARD_MAX_ELEMENTS} element limit.`, { status: 422 })
+      }
+
+      if (currentScene.elements.length > 0) {
+        await createWhiteboardSnapshot(payload.chat.id, {
+          scene_json: currentScene,
+          snapshot_kind: "auto_before_load",
+          name: `Before load · ${new Date().toLocaleString()}`
+        })
+      }
+
+      const mergedScene: ChatWhiteboardScene = {
+        elements: nextElements,
+        appState: currentScene.appState,
+        files: { ...currentScene.files, ...snapshotScene.files }
+      }
+      const result = await patchChatWhiteboard(payload.paths.app_whiteboard_path, {
+        ...mergedScene,
+        expected_version: current.version
+      })
+      if (result.status === 409) throw new ApiError("Whiteboard changed before the snapshot could load. Try again.", { status: 409 })
+
+      queryClient.setQueryData<ChatPayload>(queryKey, (currentPayload) => {
+        if (!currentPayload) return currentPayload
+
+        return {
+          ...currentPayload,
+          whiteboard: {
+            version: result.payload.version,
+            elements: result.payload.scene_json.elements,
+            appState: result.payload.scene_json.appState,
+            files: result.payload.scene_json.files
+          }
+        }
+      })
+      await queryClient.invalidateQueries({ queryKey: ["whiteboard_snapshots", String(payload.chat.id)] })
+      onNotice(`Loaded ${fullSnapshot.name || "snapshot"} onto canvas`)
+    } catch (error) {
+      setSnapshotError(errorMessage(errorAsError(error), "Snapshot could not be loaded."))
+    } finally {
+      setLoadingSnapshotId(null)
+    }
+  }
+
+  if (images.length === 0 && snapshotItems.length === 0 && !snapshots.isPending && !snapshots.isError) {
+    return <PanelMessage>No media shared yet.</PanelMessage>
   }
 
   return (
-    <>
-      <div className="grid grid-cols-3 gap-2">
-        {images.map(({ attachment, key }) => {
-          const src = attachmentDataUrl(attachment)
-          const name = attachment.name || "image attachment"
+    <div className="space-y-5">
+      {snapshots.isPending ? <PanelMessage>Loading snapshots...</PanelMessage> : null}
+      {snapshots.isError ? <PanelMessage tone="error">{errorMessage(snapshots.error, "Unable to load snapshots.")}</PanelMessage> : null}
+      {snapshotError ? <PanelMessage tone="error">{snapshotError}</PanelMessage> : null}
+      {whiteboardLocked ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">Canvas is busy. Wait for drawing to finish before loading a snapshot.</div> : null}
 
-          return (
-            <figure className="group/media min-w-0 space-y-1" key={key}>
-              <div className="relative aspect-square overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
-                <button
-                  aria-label={`Open ${name}`}
-                  className="h-full w-full p-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-                  onClick={() => setLightboxImage(attachment)}
-                  title={name}
-                  type="button"
-                >
-                  <img alt={name} className="h-full w-full object-contain transition group-hover/media:scale-105" src={src} />
-                </button>
-                <a
-                  aria-label={`Download ${name}`}
-                  className="absolute right-1 top-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500 group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-                  download={attachment.name || "image"}
-                  href={src}
-                >
-                  Download
-                </a>
-              </div>
-              <figcaption className="truncate text-xs text-gray-600 dark:text-gray-300" title={name}>{name}</figcaption>
-            </figure>
-          )
-        })}
-      </div>
+      {snapshotItems.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Whiteboard Snapshots</h2>
+          <div className="space-y-2">
+            {snapshotItems.map((snapshot) => (
+              <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={snapshot.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={snapshot.name || "Snapshot"}>{truncateSnapshotName(snapshot.name || "Snapshot")}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{snapshotKindLabel(snapshot.snapshot_kind)}</span>
+                      <span>{snapshot.element_count} {snapshot.element_count === 1 ? "element" : "elements"}</span>
+                      <span>{formatRelativeTime(snapshot.created_at)}</span>
+                    </div>
+                  </div>
+                  <button
+                    className={`${secondaryButton()} shrink-0 px-2 py-1 text-xs`}
+                    disabled={whiteboardLocked || loadingSnapshotId != null}
+                    onClick={() => void loadSnapshot(snapshot)}
+                    type="button"
+                  >
+                    {loadingSnapshotId === snapshot.id ? "Loading..." : "Load"}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {images.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Image Attachments</h2>
+          <div className="grid grid-cols-3 gap-2">
+            {images.map(({ attachment, key }) => {
+              const src = attachmentDataUrl(attachment)
+              const name = attachment.name || "image attachment"
+
+              return (
+                <figure className="group/media min-w-0 space-y-1" key={key}>
+                  <div className="relative aspect-square overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
+                    <button
+                      aria-label={`Open ${name}`}
+                      className="h-full w-full p-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                      onClick={() => setLightboxImage(attachment)}
+                      title={name}
+                      type="button"
+                    >
+                      <img alt={name} className="h-full w-full object-contain transition group-hover/media:scale-105" src={src} />
+                    </button>
+                    <a
+                      aria-label={`Download ${name}`}
+                      className="absolute right-1 top-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500 group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+                      download={attachment.name || "image"}
+                      href={src}
+                    >
+                      Download
+                    </a>
+                  </div>
+                  <figcaption className="truncate text-xs text-gray-600 dark:text-gray-300" title={name}>{name}</figcaption>
+                </figure>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
       {lightboxImage ? <ImageLightbox attachment={lightboxImage} onClose={() => setLightboxImage(null)} /> : null}
-    </>
+    </div>
   )
+}
+
+function snapshotKindLabel(kind: WhiteboardSnapshot["snapshot_kind"]) {
+  if (kind === "auto_clear") return "Before clear"
+  if (kind === "auto_before_load") return "Before load"
+  return "Saved"
+}
+
+function truncateSnapshotName(name: string) {
+  return name.length > 40 ? `${name.slice(0, 39)}...` : name
+}
+
+function formatRelativeTime(value: string) {
+  const timestamp = Date.parse(value)
+  if (Number.isNaN(timestamp)) return ""
+
+  const seconds = Math.round((timestamp - Date.now()) / 1000)
+  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["year", 60 * 60 * 24 * 365],
+    ["month", 60 * 60 * 24 * 30],
+    ["week", 60 * 60 * 24 * 7],
+    ["day", 60 * 60 * 24],
+    ["hour", 60 * 60],
+    ["minute", 60],
+    ["second", 1]
+  ]
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "always" })
+  const [unit, unitSeconds] = units.find(([, unitSeconds]) => Math.abs(seconds) >= unitSeconds) || ["second", 1]
+  return formatter.format(Math.round(seconds / unitSeconds), unit)
 }
 
 function ChatSettingsDialog({ payload, prefix, onClose }: { payload: ChatPayload; prefix: string; onClose: () => void }) {
@@ -2391,6 +2535,34 @@ function cloneWhiteboardScene(scene: ChatWhiteboardScene): ChatWhiteboardScene {
     appState: cleanWhiteboardAppState(scene.appState),
     files: cleanWhiteboardFiles(scene.files)
   }
+}
+
+function withFreshElementIds(elements: ChatWhiteboardElement[]) {
+  const copied = JSON.parse(JSON.stringify(elements)) as ChatWhiteboardElement[]
+  const idMap = new Map<string, string>()
+
+  copied.forEach((element) => {
+    const id = typeof element.id === "string" ? element.id : null
+    if (id) idMap.set(id, newElementId())
+  })
+
+  return copied.map((element) => replaceElementIdReferences(element, idMap) as ChatWhiteboardElement)
+}
+
+function replaceElementIdReferences(value: unknown, idMap: Map<string, string>): unknown {
+  if (typeof value === "string") return idMap.get(value) || value
+  if (Array.isArray(value)) return value.map((item) => replaceElementIdReferences(item, idMap))
+  if (!isPlainObject(value)) return value
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [key, replaceElementIdReferences(child, idMap)])
+  )
+}
+
+function newElementId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID().replace(/-/g, "")
+
+  return `snapshot${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
 }
 
 function signatureForScene(scene: ChatWhiteboardScene) {

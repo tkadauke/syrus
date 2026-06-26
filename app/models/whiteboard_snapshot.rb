@@ -10,12 +10,25 @@ class WhiteboardSnapshot < ApplicationRecord
 
   def self.create_from_scene!(chat_session:, scene:, kind:, name: nil)
     normalized_scene = Whiteboard.normalize_scene!(scene)
-    create!(
+    snapshot = create!(
       chat_session: chat_session,
       name: name || default_name_for(kind),
       scene_json: normalized_scene,
       snapshot_kind: kind,
       element_count: normalized_scene.fetch("elements").size
+    )
+    snapshot.broadcast_created
+    snapshot
+  end
+
+  def broadcast_created
+    AppEvents.broadcast(
+      user: chat_session.user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session_id,
+      changed: [ "whiteboard_snapshots" ],
+      payload: { action: "whiteboard_snapshots_changed" }
     )
   end
 

@@ -183,7 +183,7 @@ describe("chat message image attachments", () => {
 
     renderRoute()
 
-    expect(await screen.findByText("No images shared yet.")).toBeInTheDocument()
+    expect(await screen.findByText("No media shared yet.")).toBeInTheDocument()
   })
 
   it("includes media in the mobile chat tab list", async () => {

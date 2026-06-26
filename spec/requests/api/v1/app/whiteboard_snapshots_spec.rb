@@ -111,6 +111,40 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
     end
   end
 
+  describe "POST /api/v1/app/chats/:chat_id/whiteboard_snapshots" do
+    it "creates a snapshot for the chat and broadcasts the list change" do
+      scene_json = {
+        "elements" => [ { "id" => "box-1", "type" => "rectangle" } ],
+        "appState" => { "viewBackgroundColor" => "#ffffff" },
+        "files" => {}
+      }
+      expect(AppEvents).to receive(:broadcast).with(
+        user: user,
+        type: "updated",
+        resource: "chat",
+        id: chat.id,
+        changed: [ "whiteboard_snapshots" ],
+        payload: { action: "whiteboard_snapshots_changed" }
+      )
+
+      post snapshots_path(chat), params: {
+        scene_json: scene_json,
+        snapshot_kind: "auto_before_load",
+        name: "Before load - Jun 26 10:00"
+      }, as: :json
+
+      snapshot = chat.whiteboard_snapshots.first
+      expect(response).to have_http_status(:created)
+      expect(parse_body).to include(
+        "id" => snapshot.id,
+        "name" => "Before load - Jun 26 10:00",
+        "snapshot_kind" => "auto_before_load",
+        "element_count" => 1,
+        "scene_json" => scene_json
+      )
+    end
+  end
+
   def create_snapshot(attributes)
     WhiteboardSnapshot.create!(
       {

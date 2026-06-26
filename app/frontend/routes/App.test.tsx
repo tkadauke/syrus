@@ -10326,6 +10326,99 @@ describe("App", () => {
     expect(screen.queryByText(/^Version \d+$/)).not.toBeInTheDocument()
   })
 
+  it("shows whiteboard snapshots in media and loads one onto the canvas", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/whiteboard_snapshots" && init?.method == null) {
+        return Promise.resolve(new Response(JSON.stringify({
+          whiteboard_snapshots: [{
+            id: 12,
+            name: "Important milestone with a long enough title to truncate",
+            snapshot_kind: "manual",
+            element_count: 1,
+            created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+          }]
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/whiteboard_snapshots/12") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 12,
+          name: "Important milestone",
+          snapshot_kind: "manual",
+          element_count: 1,
+          created_at: "2026-06-26T10:00:00Z",
+          scene_json: {
+            elements: [{ id: "snapshot-box", type: "rectangle", boundElements: [{ id: "snapshot-label", type: "text" }] }],
+            appState: { viewBackgroundColor: "#fff8" },
+            files: { "file-snapshot": { id: "file-snapshot", mimeType: "image/png" } }
+          }
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/whiteboard" && init?.method == null) {
+        return Promise.resolve(new Response(JSON.stringify({
+          scene_json: { elements: [{ id: "box-1", type: "rectangle" }], appState: {}, files: {} },
+          version: 2
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/whiteboard_snapshots" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 13,
+          name: "Before load",
+          snapshot_kind: "auto_before_load",
+          element_count: 1,
+          created_at: "2026-06-26T11:00:00Z",
+          scene_json: { elements: [{ id: "box-1", type: "rectangle" }], appState: {}, files: {} }
+        }), { status: 201, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/whiteboard" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({
+          scene_json: {
+            elements: [{ id: "box-1", type: "rectangle" }, { id: "fresh-snapshot-box", type: "rectangle", boundElements: [{ id: "fresh-snapshot-label", type: "text" }] }],
+            appState: {},
+            files: { "file-snapshot": { id: "file-snapshot", mimeType: "image/png" } }
+          },
+          version: 3
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Media" }))
+
+    expect(await screen.findByText("Whiteboard Snapshots")).toBeInTheDocument()
+    expect(screen.getByText("Saved")).toBeInTheDocument()
+    expect(screen.getByText("1 element")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Load" }))
+
+    await waitFor(() => expect(screen.getByText("Loaded Important milestone onto canvas")).toBeInTheDocument())
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/whiteboard_snapshots",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"snapshot_kind\":\"auto_before_load\"")
+        })
+      )
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/whiteboard",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining("\"expected_version\":2")
+        })
+      )
+    })
+  })
+
   it("does not push the initial whiteboard scene back through the imperative API", async () => {
     excalidrawMock.updateScene.mockClear()
     vi.spyOn(window, "fetch").mockResolvedValue(

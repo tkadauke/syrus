@@ -107,7 +107,10 @@ The chat composer accepts image and PDF attachments through the plus button
 and sends them with the next message. Image attachments render as inline
 thumbnails in the transcript and open in a full-size preview. The chat
 workspace also includes a Media tab that gathers image attachments into a
-downloadable gallery; PDFs are passed to the agent without an inline preview.
+downloadable gallery and lists saved whiteboard snapshots with element counts,
+relative timestamps, and a Load action that merges the snapshot back onto the
+current canvas after preserving existing work. PDFs are passed to the agent
+without an inline preview.
 
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,

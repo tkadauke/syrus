@@ -71,7 +71,11 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
     case "repository":
       return event.id == null ? [["dashboard"], ["repositories"]] : [["dashboard"], ["repositories"], ["repositories", String(event.id)]]
     case "chat":
-      return event.id == null ? [["chats"]] : [["chats"], ["chats", String(event.id)]]
+      return event.id == null
+        ? [["chats"]]
+        : event.changed?.includes("whiteboard_snapshots")
+          ? [["chats"], ["chats", String(event.id)], ["whiteboard_snapshots", String(event.id)]]
+          : [["chats"], ["chats", String(event.id)]]
     case "admin_overview":
       return [["admin", "overview"], ["admin", "stuck"]]
     default:
