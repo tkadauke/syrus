@@ -9244,7 +9244,8 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Attachments" })).toHaveClass("dark:text-gray-100")
     expect(screen.getByRole("button", { name: "acme/widgets" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "acme/widgets" })).toHaveClass("dark:bg-gray-800", "dark:text-gray-300")
-    expect(screen.getByRole("heading", { name: "Add attachment" }).parentElement).toHaveClass("dark:bg-gray-800", "dark:border-gray-700")
+    expect(screen.queryByRole("heading", { name: "Add attachment" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Type")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Recent chats" })).not.toBeInTheDocument()
     expect(screen.getByText("12.4k in", { exact: false })).toBeInTheDocument()
@@ -9291,7 +9292,112 @@ describe("App", () => {
     await screen.findByPlaceholderText("Ask about this repository...")
     const addAttachment = screen.getByRole("button", { name: "Add attachment" })
     expect(addAttachment).toHaveTextContent("+")
+    expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
     expect(screen.getByLabelText("Chat attachments")).toHaveAttribute("accept", "image/*,application/pdf")
+  })
+
+  it("opens and dismisses the chat attachment popover from the compose button", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Upload file" })).toBeInTheDocument()
+    expect(screen.getByText("Attach context")).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Add attachment" }), { key: "Escape" })
+    expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
+  })
+
+  it("triggers the chat file input from the attachment popover", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => undefined)
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByPlaceholderText("Ask about this repository...")
+      fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+      fireEvent.click(screen.getByRole("button", { name: "Upload file" }))
+
+      expect(inputClickSpy).toHaveBeenCalled()
+      expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
+    } finally {
+      inputClickSpy.mockRestore()
+    }
+  })
+
+  it("adds a searched repository from the chat attachment popover", async () => {
+    const search = "?attachment_type=Repository&attachment_query=tools"
+    const initialPayload = {
+      ...chatPayload(),
+      attachment_results: [{ type: "Repository", id: 4, label: "acme/tools" }]
+    }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === `/api/v1/app/chats/8/attachments${search}` && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ...initialPayload,
+          message: "acme/tools attached.",
+          attachment_groups: {
+            ...initialPayload.attachment_groups,
+            repositories: [
+              ...initialPayload.attachment_groups.repositories,
+              { id: 4, label: "acme/tools", app_detach_path: "/api/v1/app/chats/8/attachments/4" }
+            ]
+          },
+          attachment_results: []
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(initialPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[`/app-shell/chats/8${search}`]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    fireEvent.click(await screen.findByRole("button", { name: "acme/tools" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        `/api/v1/app/chats/8/attachments${search}`,
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ attachable_type: "Repository", attachable_id: 4 })
+        })
+      )
+    })
+    expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
   })
 
   it("adds a selected chat attachment chip with a remove button", async () => {
@@ -10821,7 +10927,7 @@ describe("App", () => {
     })
     expect(screen.queryByText("Bookmarked Aqueduct marker.")).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Context" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
     fireEvent.click(await screen.findByText("acme/tools"))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
