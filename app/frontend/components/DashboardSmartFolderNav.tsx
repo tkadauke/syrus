@@ -21,7 +21,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
-  const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view, smart_folder_id: payload.subject === "job" ? "all" : null })
+  const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { smart_folder_id: payload.subject === "job" ? "all" : null })
   const allJobsSelected = payload.subject === "job" && payload.active_smart_folder_id == null && new URLSearchParams(search).get("smart_folder_id") === "all"
   const allJobsLink = (
     <Link className={folderClass(payload.subject === "job" ? allJobsSelected : payload.active_smart_folder_id == null)} onClick={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null })} to={allPath}>

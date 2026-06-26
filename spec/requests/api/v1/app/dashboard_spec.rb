@@ -1069,6 +1069,26 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(parse_body.dig("preferences", "sort")).to include("column" => "created_at", "direction" => "desc")
     end
 
+    it "uses a saved folder view preference when the URL omits view" do
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Board jobs",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "queued" } ] }
+      )
+      user.update_dashboard_folder_preferences!(
+        subject: "job",
+        smart_folder_id: folder.id,
+        view: "kanban"
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["view"]).to eq("kanban")
+    end
+
     it "falls back to subject-level sort when a folder has no saved or built-in preference" do
       folder = SmartFolder.create!(
         user: user,

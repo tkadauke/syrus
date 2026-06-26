@@ -1176,11 +1176,11 @@ module App
       extra = ownership_query_params.merge(extra)
       case target_subject.to_s
       when "epic"
-        dashboard_epics_path({ view: view }.merge(extra))
+        dashboard_epics_path(extra)
       when "workflow"
-        dashboard_workflows_path({ view: view }.merge(extra))
+        dashboard_workflows_path(extra)
       else
-        dashboard_jobs_path({ view: view }.merge(extra))
+        dashboard_jobs_path(extra)
       end
     end
 
