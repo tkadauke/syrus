@@ -796,7 +796,7 @@ describe("App", () => {
     }
   })
 
-  it("submits the v2 sidebar chat search field to the search route", async () => {
+  it("submits the v2 sidebar global search field to the search route", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -817,8 +817,8 @@ describe("App", () => {
       if (path.startsWith("/api/v1/app/filters/fk_options")) {
         return Promise.resolve(new Response(JSON.stringify({ options: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/chats/search?q=forum") {
-        return Promise.resolve(new Response(JSON.stringify(chatSearchPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (path === "/api/v1/app/search?q=forum") {
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -827,19 +827,19 @@ describe("App", () => {
     try {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/chats/search"]}>
+          <MemoryRouter initialEntries={["/app-shell/search"]}>
             <App />
           </MemoryRouter>
         </QueryClientProvider>
       )
 
-      fireEvent.change(await screen.findByLabelText("Search chats"), { target: { value: "forum" } })
+      fireEvent.change(await screen.findByLabelText("Search Syrus"), { target: { value: "forum" } })
       fireEvent.submit(screen.getByRole("search"))
 
-      expect(await screen.findByRole("main", { name: "Chat search" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Search" })).toBeInTheDocument()
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/chats/search?q=forum",
+          "/api/v1/app/search?q=forum",
           expect.objectContaining({ credentials: "same-origin" })
         )
       })

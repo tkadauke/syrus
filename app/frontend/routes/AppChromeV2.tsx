@@ -360,30 +360,79 @@ function SidebarContent({
 }
 
 function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
+  const location = useLocation()
   const navigate = useNavigate()
-  const [query, setQuery] = useState("")
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [query, setQuery] = useState(() => searchQueryFromLocation(location.search))
+  const userEditedRef = useRef(false)
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const trimmedQuery = query.trim()
-    onCloseDrawer()
-    navigate(trimmedQuery ? `${prefix}/chats/search?q=${encodeURIComponent(trimmedQuery)}` : `${prefix}/chats/search`)
+    navigateToSearch(query)
   }
+
+  function navigateToSearch(value: string) {
+    const trimmedQuery = value.trim()
+    onCloseDrawer()
+    navigate(trimmedQuery ? `${prefix}/search?q=${encodeURIComponent(trimmedQuery)}` : `${prefix}/search`)
+  }
+
+  useEffect(() => {
+    userEditedRef.current = false
+    setQuery(searchQueryFromLocation(location.search))
+  }, [location.search])
+
+  useEffect(() => {
+    if (!userEditedRef.current) return
+
+    const timer = window.setTimeout(() => {
+      navigateToSearch(query)
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [query])
+
+  useEffect(() => {
+    function focusSearch(event: globalThis.KeyboardEvent) {
+      const target = event.target
+      const targetElement = target instanceof HTMLElement ? target : null
+      const typingTarget = targetElement?.tagName === "INPUT" ||
+        targetElement?.tagName === "TEXTAREA" ||
+        targetElement?.isContentEditable
+      const shortcut = event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k")
+      if (!shortcut || typingTarget) return
+
+      event.preventDefault()
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+
+    window.addEventListener("keydown", focusSearch)
+    return () => window.removeEventListener("keydown", focusSearch)
+  }, [])
 
   return (
     <form className="relative" onSubmit={submitSearch} role="search">
-      <label className="sr-only" htmlFor="sidebar-chat-search">Search chats</label>
+      <label className="sr-only" htmlFor="sidebar-global-search">Search Syrus</label>
       <SearchIcon />
       <input
         className="block h-9 w-full rounded border border-gray-200 bg-gray-50 py-1.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-blue-400 dark:focus:bg-gray-950 dark:focus:ring-blue-400"
-        id="sidebar-chat-search"
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search chats..."
+        id="sidebar-global-search"
+        onChange={(event) => {
+          userEditedRef.current = true
+          setQuery(event.target.value)
+        }}
+        placeholder="Search..."
+        ref={inputRef}
         type="search"
         value={query}
       />
     </form>
   )
+}
+
+function searchQueryFromLocation(search: string) {
+  return new URLSearchParams(search).get("q") || ""
 }
 
 function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: { expanded: boolean; onCloseDrawer: () => void; prefix: string; showSubjects: boolean }) {

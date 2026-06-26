@@ -48,6 +48,7 @@ import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
 import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
+import { SearchRoute } from "./Search"
 import { SmartFolders } from "./SmartFolders"
 import { SpendingInsightsRoute } from "./SpendingInsights"
 import { Tags } from "./Tags"
@@ -78,6 +79,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/epics", element: <DashboardRoute /> },
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
+  { path: "/search", element: <SearchRoute /> },
   { path: "/insights/spending", element: <SpendingInsightsRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
   { path: "/setup", element: <SetupRedirect /> },
