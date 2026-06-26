@@ -1095,7 +1095,7 @@ function ProposalChildren({ children, mutation }: { children: ChatProposalChild[
   )
 }
 
-function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function Compose({ commandHandlers, payload, prefix, queryKey, onNotice, onMessageSent }: { commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [text, setText] = useState("")
@@ -1125,6 +1125,7 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice }: { com
       setAttachmentError(null)
       setPendingConfirmation(null)
       onNotice(null)
+      onMessageSent?.()
     }
   })
   const systemAction = useMutation<ChatPayload | ChatCreatedPayload, Error, ChatSystemAction>({
@@ -1936,14 +1937,27 @@ function ChatWorkspace({
 }
 
 function ChatColumn({ bookmarkTarget, commandHandlers, payload, prefix, queryKey, onNotice, onPendingActionSelect }: { bookmarkTarget: BookmarkTarget | null; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onPendingActionSelect: (messageId: number) => void }) {
+  const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
+  const landing = payload.messages.length === 0 && !hasSentFirstMessage
+
+  useEffect(() => {
+    setHasSentFirstMessage(false)
+  }, [payload.chat.id])
+
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <PendingActions payload={payload} onSelectMessage={onPendingActionSelect} />
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
+    <section className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-3"}`}>
+      {landing ? (
+        <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">What would you like to build?</h1>
+      ) : (
+        <PendingActions payload={payload} onSelectMessage={onPendingActionSelect} />
+      )}
+      <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`}>
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
-      <Compose commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
+      <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : undefined}>
+        <Compose commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+      </div>
     </section>
   )
 }
