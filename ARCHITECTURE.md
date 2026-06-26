@@ -688,7 +688,7 @@ Git and GitHub:
 | `GitRunner` | Subprocess wrapper around `git` that streams stdout/stderr into `JobLog` and redacts `https://x-access-token:TOKEN@github.com/...` URLs from error messages. |
 | `GithubClient` | One Octokit client per user. Wraps `issues_with_label`, `pull_request`, `pull_request_comments`, `pull_request_reviews`, `combined_status_for_ref`, etc. Surfaces `Octokit::TooManyRequests` to callers (logged then re-raised). |
 | `PullRequestOpener` | Octokit `create_pull_request` with retry on transient failures. |
-| `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows, and applies landing state transitions. |
+| `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, exposes dependency and unapproved-sibling blockers for each unit, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows, and applies landing state transitions. |
 | `LandingValidationCache` | Records prior green landing checks; optionally lets clean rebases carry validation forward for repositories that trust it. |
 | `ClosedPullRequestResolution` / `BranchPatchPresence` | Classifies closed Syrus PRs as merged, no-change, or closed-with-unique-patches. The patch-presence check clones the base branch under `$SYRUS_DATA_ROOT/closed-pr-checks`, fetches the Syrus branch, and uses `git cherry` to detect whether any patch remains unique to the PR branch. |
 
@@ -734,6 +734,10 @@ when dispatching merge-trains. Dependencies and `parent_job` edges are
 still honored: the processor topologically orders units against
 cross-unit prerequisites, then orders Jobs inside each unit by the same
 dependency rules before landing or assembling the integration branch.
+Each landing unit also carries the Jobs currently blocking it for
+dashboard explanation. Those blockers include transitive explicit
+dependencies and, for an Epic unit, same-Epic sibling Jobs that are not
+yet approved or closed even when there is no explicit dependency edge.
 
 ## MCP sidecar
 
@@ -923,6 +927,12 @@ Several layers, each catching different failure modes:
   users. It optimistically flips the `dark` class on `<html>`, persists
   `User#theme` through `/api/v1/app/theme`, and re-syncs from the
   bootstrap/current-user payload.
+- **Feature flags** — declared in `config/features.yml`, synchronized
+  into `Feature` rows, serialized through the bootstrap
+  `feature_flags` payload, and toggled by admins at `/admin/features`.
+  The `v2_ui` flag is the system-level shell gate: when disabled, React
+  forces the classic app shell even if `User#layout_version` is `"v2"`,
+  preserving the saved user preference for later rollout.
 - **`/settings`** — admin console toggles (signups open, max job
   failures, merge-train enablement, etc.); redirects non-admins to
   credentials.
