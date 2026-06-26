@@ -83,7 +83,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
     } catch (error) {
       console.error(error)
       setScreenshotChoice(captures.viewport ? "viewport" : "none")
-      setCaptureError("Full-page screenshot is too large for this page. The viewport screenshot is still available.")
+      setCaptureError("Full-page screenshot capture failed. The viewport screenshot is still available.")
     } finally {
       setCapturingFullPage(false)
     }
@@ -303,14 +303,16 @@ function captureFullPage(html2canvas: Html2Canvas) {
     document.documentElement.scrollHeight,
     window.innerHeight
   )
-
-  if (width * height > MAX_FULL_PAGE_SCREENSHOT_PIXELS) {
-    throw new Error(`Full-page screenshot is too large: ${width}x${height}`)
-  }
+  const scale = Math.min(1, Math.sqrt(MAX_FULL_PAGE_SCREENSHOT_PIXELS / (width * height)))
 
   return html2canvas(document.body, {
+    x: 0,
+    y: 0,
     width,
     height,
+    scrollX: 0,
+    scrollY: 0,
+    scale,
     windowWidth: width,
     windowHeight: height,
     useCORS: true

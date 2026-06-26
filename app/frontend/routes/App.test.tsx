@@ -1891,6 +1891,16 @@ describe("App", () => {
       expect(screen.getByRole("radio", { name: "No screenshot" })).toBeInTheDocument()
       fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
       await waitFor(() => expect(html2canvasMock).toHaveBeenCalledTimes(2))
+      expect(html2canvasMock).toHaveBeenLastCalledWith(
+        document.body,
+        expect.objectContaining({
+          x: 0,
+          y: 0,
+          scrollX: 0,
+          scrollY: 0,
+          scale: 1
+        })
+      )
       fireEvent.change(screen.getByLabelText("Description"), { target: { value: "The aqueduct counter is off by one." } })
       fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
 
@@ -1950,6 +1960,63 @@ describe("App", () => {
         })
       )
     } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("scales oversized full-page bug report screenshots instead of rejecting them", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
+      fireEvent.click(await screen.findByRole("button", { name: "Report a bug" }))
+      expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+
+      Object.defineProperty(document.body, "scrollWidth", { configurable: true, value: 4000 })
+      Object.defineProperty(document.body, "scrollHeight", { configurable: true, value: 4000 })
+      Object.defineProperty(document.documentElement, "scrollWidth", { configurable: true, value: 4000 })
+      Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 4000 })
+
+      fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
+      await waitFor(() => expect(html2canvasMock).toHaveBeenCalledTimes(2))
+      const fullPageCall = html2canvasMock.mock.calls[1] as unknown as [HTMLElement, { scale?: number; scrollX?: number; scrollY?: number; width?: number; height?: number }]
+      const options = fullPageCall[1]
+
+      expect(options).toEqual(expect.objectContaining({
+        width: 4000,
+        height: 4000,
+        scrollX: 0,
+        scrollY: 0
+      }))
+      expect(options.scale).toBeCloseTo(Math.sqrt(8_000_000 / 16_000_000))
+      expect(screen.getByRole("radio", { name: "Full page" })).toBeChecked()
+      expect(screen.queryByText("Full-page screenshot capture failed. The viewport screenshot is still available.")).not.toBeInTheDocument()
+    } finally {
+      delete (document.body as { scrollWidth?: number }).scrollWidth
+      delete (document.body as { scrollHeight?: number }).scrollHeight
+      delete (document.documentElement as { scrollWidth?: number }).scrollWidth
+      delete (document.documentElement as { scrollHeight?: number }).scrollHeight
       fetchSpy.mockRestore()
       script.remove()
     }
