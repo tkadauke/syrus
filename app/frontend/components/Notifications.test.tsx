@@ -6,6 +6,7 @@ import { NotificationsBell, NotificationsRoute } from "./Notifications"
 
 describe("Notifications", () => {
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
@@ -88,6 +89,51 @@ describe("Notifications", () => {
     expect(within(main).getByRole("heading", { name: "Notifications" })).toBeInTheDocument()
     expect(await within(main).findByText("Implementation ready")).toBeInTheDocument()
   })
+
+  it("splits notification row navigation between the job body and PR link", async () => {
+    const notification = notificationRecord({
+      id: 1263,
+      kind: "job_implemented",
+      body: "Syrus opened PR #1263 for JOB-1228: Add dark mode toggle",
+      job_id: 1228,
+      job_title: "Add dark mode toggle",
+      pr_url: "https://github.com/acme/widgets/pull/1263"
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.includes("/api/v1/app/notifications/1263/mark_read") && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({
+          notification: { ...notification, read_at: "2026-06-25T12:01:00Z" },
+          unread_count: 0
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(notificationsPayload({
+        notifications: [ notification ],
+        unread_count: 1
+      })))
+    })
+    const open = vi.spyOn(window, "open").mockReturnValue(null)
+
+    renderWithClient(
+      <MemoryRouter initialEntries={["/app-shell/notifications"]}>
+        <Routes>
+          <Route element={<NotificationsRoute />} path="/app-shell/notifications" />
+          <Route element={<div>Job detail</div>} path="/app-shell/jobs/1228" />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    const main = await screen.findByRole("main", { name: "Notifications" })
+    fireEvent.click(await within(main).findByRole("link", { name: "PR #1263" }))
+
+    expect(open).toHaveBeenCalledWith("https://github.com/acme/widgets/pull/1263", "_blank", "noopener")
+    expect(screen.queryByText("Job detail")).not.toBeInTheDocument()
+
+    fireEvent.click(within(main).getByText("Syrus opened PR #1263 for JOB-1228: Add dark mode toggle"))
+
+    expect(await screen.findByText("Job detail")).toBeInTheDocument()
+  })
 })
 
 function renderWithClient(children: React.ReactNode) {
@@ -125,6 +171,7 @@ function notificationRecord(overrides: Partial<{
   read_at: string | null
   pr_url: string | null
   job_id: number | null
+  job_title: string | null
   created_at: string
 }> = {}) {
   return {
@@ -134,6 +181,7 @@ function notificationRecord(overrides: Partial<{
     read_at: overrides.read_at ?? null,
     pr_url: overrides.pr_url ?? null,
     job_id: overrides.job_id ?? null,
+    job_title: overrides.job_title ?? null,
     created_at: overrides.created_at ?? "2026-06-25T12:00:00Z"
   }
 }

@@ -137,6 +137,10 @@ class Job < ApplicationRecord
     claimed_by_user_id.present?
   end
 
+  def title
+    issue_title.presence || App::Presentation.job_slug(self)
+  end
+
   # Returns an "issue-shaped" object (responds to #title, #body) for
   # use by prompt classes that historically only knew about GitHub
   # issues. For issue Jobs this is delegated to GithubClient by the
@@ -667,7 +671,7 @@ class Job < ApplicationRecord
         kind: "job_failed",
         job: self,
         pr_url: notification_pr_url,
-        body: "JOB-#{id} failed after repeated retries"
+        body: "JOB-#{id} failed after repeated retries: #{title.truncate(80)}"
       )
     end
   end
@@ -716,7 +720,7 @@ class Job < ApplicationRecord
       kind: "job_implemented",
       job: self,
       pr_url: notification_pr_url,
-      body: "Syrus opened PR ##{pr_number} for JOB-#{id}"
+      body: "Syrus opened PR ##{pr_number} for JOB-#{id}: #{title.truncate(80)}"
     )
   end
 
@@ -728,7 +732,7 @@ class Job < ApplicationRecord
       kind: "pr_merged",
       job: self,
       pr_url: notification_pr_url,
-      body: "JOB-#{id} merged"
+      body: "JOB-#{id} merged: #{title.truncate(80)}"
     )
   end
 

@@ -50,7 +50,8 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
       "body" => "Opened PR",
       "read_at" => nil,
       "pr_url" => nil,
-      "job_id" => nil
+      "job_id" => nil,
+      "job_title" => nil
     )
     expect(body["notifications"].first["created_at"]).to be_present
     expect(body["notifications"].second).to include(
@@ -58,7 +59,8 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
       "kind" => "pr_merged",
       "body" => "Merged",
       "pr_url" => "https://github.com/acme/widgets/pull/7",
-      "job_id" => job.id
+      "job_id" => job.id,
+      "job_title" => job.title
     )
     expect(body["notifications"].second["read_at"]).to be_present
     expect(body["pagination"]).to include("page" => 1, "per_page" => 20, "total" => 2, "total_pages" => 1)
@@ -76,6 +78,17 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(parse_body["notifications"].map { |notification| notification["id"] }).to eq([ unread.id ])
     expect(parse_body["unread_count"]).to eq(1)
     expect(parse_body["notifications"].map { |notification| notification["id"] }).not_to include(read.id)
+  end
+
+  it "eager-loads notification jobs for job_title serialization" do
+    sign_in_as(user)
+    job = Factories.job_record(user: user)
+    notification_for(user, job: job)
+
+    get "/api/v1/app/notifications"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("notifications", 0, "job_title")).to eq(job.title)
   end
 
   it "marks all current-user notifications read" do

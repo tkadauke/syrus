@@ -7,6 +7,7 @@ export type NotificationRecord = {
   read_at: string | null
   pr_url: string | null
   job_id: number | null
+  job_title: string | null
   created_at: string
 }
 

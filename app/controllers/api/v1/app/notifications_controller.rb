@@ -49,7 +49,7 @@ module Api
         end
 
         def filtered_notifications
-          notifications = Current.user.notifications
+          notifications = Current.user.notifications.includes(:job)
           return notifications.unread if ActiveModel::Type::Boolean.new.cast(params[:unread])
 
           notifications
@@ -63,6 +63,7 @@ module Api
             read_at: notification.read_at&.iso8601,
             pr_url: notification.pr_url,
             job_id: notification.job_id,
+            job_title: notification.job&.title,
             created_at: notification.created_at.iso8601
           }
         end

@@ -31,9 +31,10 @@ Job kinds:
 Signed-in operators see a bell in the app chrome with the current unread
 count. On desktop, the bell opens a recent-notifications panel with Job and
 PR outcomes such as failed Jobs, implemented work, addressed PR feedback,
-merged PRs, and completed Epics. Rows link to the matching Job page or PR
-URL and mark themselves read when opened; the panel also supports marking
-all notifications read.
+merged PRs, and completed Epics. Job notifications include the Job title;
+clicking the row opens the matching Job page, while a separate PR link opens
+the pull request. Both actions mark the notification read. The panel also
+supports marking all notifications read.
 
 On mobile, the bell opens the full `/notifications` page with the same
 recent list and read behavior.

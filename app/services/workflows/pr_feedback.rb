@@ -47,7 +47,7 @@ module Workflows
         kind: "pr_comment_addressed",
         job: job,
         pr_url: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job),
-        body: "Syrus addressed your PR comments on JOB-#{job.id}"
+        body: "Syrus addressed your PR comments on JOB-#{job.id}: #{job.title.truncate(80)}"
       )
     end
 

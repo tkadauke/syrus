@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ReactNode, useEffect, useState } from "react"
+import { type MouseEvent, type ReactNode, useEffect, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   fetchNotifications,
@@ -156,8 +156,10 @@ function NotificationsPanel({
 function NotificationRow({ notification, onNavigate, prefix }: { notification: NotificationRecord; onNavigate?: () => void; prefix: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const target = notificationTarget(notification, prefix)
   const read = Boolean(notification.read_at)
+  const jobTarget = notification.job_id ? withRoutePrefix(`/jobs/${notification.job_id}`, prefix) : null
+  const prNumber = notification.pr_url?.match(/\/pull\/(\d+)/)?.[1]
+  const showJobTitle = Boolean(notification.job_title && !bodyIncludesJobTitle(notification.body, notification.job_title))
   const markRead = useMutation({
     mutationFn: () => markNotificationRead(notification.id),
     onSuccess(payload) {
@@ -176,30 +178,59 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
     markRead.mutate(undefined, {
       onSettled() {
         onNavigate?.()
-        if (!target) return
-        if (target.external) {
-          window.location.assign(target.to)
-        } else {
-          navigate(target.to)
-        }
+        if (jobTarget) navigate(jobTarget)
       }
     })
   }
 
+  function openPullRequest(event: MouseEvent<HTMLAnchorElement>) {
+    event.stopPropagation()
+    event.preventDefault()
+    markRead.mutate()
+    if (notification.pr_url) window.open(notification.pr_url, "_blank", "noopener")
+  }
+
   return (
-    <button
-      className={`flex w-full min-w-0 items-start gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900 ${read ? "" : "bg-blue-50/50 dark:bg-blue-950/20"}`}
+    <div
+      className={`flex w-full min-w-0 items-start gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 ${jobTarget ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900" : ""} ${read ? "" : "bg-blue-50/50 dark:bg-blue-950/20"}`}
       onClick={openNotification}
-      type="button"
+      onKeyDown={(event) => {
+        if (!jobTarget) return
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          openNotification()
+        }
+      }}
+      role={jobTarget ? "button" : undefined}
+      tabIndex={jobTarget ? 0 : undefined}
     >
       <KindIcon kind={notification.kind} />
       <span className="min-w-0 flex-1">
         <span className={`block text-sm leading-5 ${read ? "font-medium text-gray-700 dark:text-gray-300" : "font-semibold text-gray-950 dark:text-gray-100"}`}>
           {notification.body}
         </span>
-        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{relativeTimestamp(notification.created_at)}</span>
+        {showJobTitle ? (
+          <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">{notification.job_title}</span>
+        ) : null}
+        <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+          {notification.pr_url ? (
+            <>
+              <a
+                className="font-medium text-blue-700 hover:underline dark:text-blue-300"
+                href={notification.pr_url}
+                onClick={openPullRequest}
+                rel="noopener"
+                target="_blank"
+              >
+                PR #{prNumber ?? "link"}
+              </a>
+              <span aria-hidden="true">·</span>
+            </>
+          ) : null}
+          <span>{relativeTimestamp(notification.created_at)}</span>
+        </span>
       </span>
-    </button>
+    </div>
   )
 }
 
@@ -212,10 +243,11 @@ function useNotificationsQuery({ enabled }: { enabled: boolean }) {
   })
 }
 
-function notificationTarget(notification: NotificationRecord, prefix: string) {
-  if (notification.job_id) return { to: withRoutePrefix(`/jobs/${notification.job_id}`, prefix), external: false }
-  if (notification.pr_url) return { to: notification.pr_url, external: true }
-  return null
+function bodyIncludesJobTitle(body: string, jobTitle: string | null) {
+  if (!jobTitle) return false
+  if (body.includes(jobTitle)) return true
+
+  return jobTitle.length > 77 && body.includes(`${jobTitle.slice(0, 77)}...`)
 }
 
 function relativeTimestamp(value: string) {

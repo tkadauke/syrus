@@ -175,7 +175,8 @@ curl -X PATCH https://syrus.example.com/api/v1/app/theme \
 User-scoped clients can read and update the authenticated user's
 notifications through the app API. `GET /api/v1/app/notifications` returns
 newest-first paginated notifications and an `unread_count` envelope value.
-Pass `unread=true` to list only unread notifications.
+Each notification includes `job_title` when it is associated with a Job. Pass
+`unread=true` to list only unread notifications.
 
 ```bash
 curl https://syrus.example.com/api/v1/app/notifications?unread=true \

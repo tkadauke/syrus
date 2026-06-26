@@ -15,7 +15,7 @@ RSpec.describe "notification event generation" do
       kind: "job_implemented",
       job: job,
       pr_url: "https://github.com/#{job.repository.slug}/pull/17",
-      body: "Syrus opened PR #17 for JOB-#{job.id}"
+      body: "Syrus opened PR #17 for JOB-#{job.id}: #{job.title.truncate(80)}"
     )
   end
 
@@ -40,7 +40,7 @@ RSpec.describe "notification event generation" do
       user: job.user,
       kind: "job_failed",
       job: job,
-      body: "JOB-#{job.id} failed after repeated retries"
+      body: "JOB-#{job.id} failed after repeated retries: #{job.title.truncate(80)}"
     )
   end
 
@@ -67,7 +67,7 @@ RSpec.describe "notification event generation" do
       kind: "pr_comment_addressed",
       job: job,
       pr_url: "https://github.com/#{job.repository.slug}/pull/22",
-      body: "Syrus addressed your PR comments on JOB-#{job.id}"
+      body: "Syrus addressed your PR comments on JOB-#{job.id}: #{job.title.truncate(80)}"
     )
   end
 
@@ -84,7 +84,7 @@ RSpec.describe "notification event generation" do
       kind: "pr_merged",
       job: job,
       pr_url: "https://github.com/#{job.repository.slug}/pull/23",
-      body: "JOB-#{job.id} merged"
+      body: "JOB-#{job.id} merged: #{job.title.truncate(80)}"
     )
   end
 
