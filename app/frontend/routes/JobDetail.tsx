@@ -111,7 +111,7 @@ function tabFromLocation(pathname: string, search: string): JobTab {
   return value === "workflows" || value === "attachments" || value === "source" ? value : "summary"
 }
 
-function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
+export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
   const location = useLocation()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const command = useJobCommand(payload.job.id, queryKey, setNotice)
