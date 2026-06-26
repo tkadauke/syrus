@@ -125,6 +125,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         draw_image
         move_element
         delete_element
+        save_canvas
         clear_canvas
         update_scene
         schedule_recurring

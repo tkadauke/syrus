@@ -4,15 +4,25 @@ module SyrusChatMcp
   class ClearCanvasTool < MCP::Tool
     tool_name "clear_canvas"
 
-    description "Remove all elements from the whiteboard scene."
+    description "Remove all elements from the whiteboard scene. The current scene is automatically saved as a snapshot before clearing and can be restored from the media tab or via load_canvas."
 
     input_schema(properties: {})
 
     class << self
       def call(server_context:)
-        result = Canvas.mutate(server_context.fetch(:chat_session), tool_name, {}) do |elements|
+        chat_session = server_context.fetch(:chat_session)
+        scene = Canvas.read(chat_session)
+        snapshot = if scene.fetch("elements").any?
+          WhiteboardSnapshot.create_from_scene!(
+            chat_session: chat_session,
+            scene: scene,
+            kind: "auto_clear"
+          )
+        end
+
+        result = Canvas.mutate(chat_session, tool_name, {}) do |elements|
           elements.clear
-          { cleared: true }
+          { cleared: true, snapshot_id: snapshot&.id }
         end
 
         SyrusChatMcp.success(result)

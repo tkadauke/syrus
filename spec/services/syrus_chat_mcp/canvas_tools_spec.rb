@@ -20,6 +20,7 @@ RSpec.describe "SyrusChatMcp canvas tools" do
         SyrusChatMcp::DrawImageTool,
         SyrusChatMcp::MoveElementTool,
         SyrusChatMcp::DeleteElementTool,
+        SyrusChatMcp::SaveCanvasTool,
         SyrusChatMcp::ClearCanvasTool,
         SyrusChatMcp::UpdateSceneTool
       ],
@@ -243,14 +244,38 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     expect(chat_session.reload.whiteboard.elements).to be_empty
   end
 
-  it "clear_canvas empties the scene" do
+  it "clear_canvas saves a snapshot before emptying the scene" do
     draw_shape
     call_tool("draw_text", content: "Note", x: 5, y: 5)
     expect_canvas_broadcast
 
-    response = call_tool("clear_canvas")
+    response = nil
+    expect {
+      response = call_tool("clear_canvas")
+    }.to change(WhiteboardSnapshot, :count).by(1)
+
+    snapshot = WhiteboardSnapshot.first
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload(response)).to include(cleared: true, snapshot_id: snapshot.id)
+    expect(snapshot).to have_attributes(
+      chat_session: chat_session,
+      snapshot_kind: "auto_clear",
+      element_count: 2
+    )
+    expect(snapshot.scene_json.fetch("elements").map { |element| element.fetch("type") }).to contain_exactly("rectangle", "text")
+    expect(chat_session.reload.whiteboard.elements).to be_empty
+  end
+
+  it "clear_canvas skips snapshot creation for an empty scene" do
+    expect_canvas_broadcast
+
+    response = nil
+    expect {
+      response = call_tool("clear_canvas")
+    }.not_to change(WhiteboardSnapshot, :count)
 
     expect(response[:result][:isError]).to be_falsey
+    expect(payload(response)).to include(cleared: true, snapshot_id: nil)
     expect(chat_session.reload.whiteboard.elements).to be_empty
   end
 

@@ -473,6 +473,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("`draw_line`")
     expect(out).to include("The scene\ncan include Excalidraw `elements`, `appState`, and `files`.")
     expect(out).to include("Reading the canvas via `read_scene` is cheap")
+    expect(out).to include("`save_canvas` when the operator asks to preserve the current")
   end
 
   it "captures the helpfulness guidance that should not regress" do

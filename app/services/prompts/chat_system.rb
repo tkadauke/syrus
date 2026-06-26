@@ -290,7 +290,9 @@ module Prompts
         Excalidraw feature the high-level tools cannot express. The scene
         can include Excalidraw `elements`, `appState`, and `files`.
         Reading the canvas via `read_scene` is cheap — do it when the
-        operator references something they drew or moved.
+        operator references something they drew or moved. Use
+        `save_canvas` when the operator asks to preserve the current
+        canvas as a named snapshot.
 
         How to be helpful:
 

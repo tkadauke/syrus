@@ -110,6 +110,7 @@ module SyrusChatMcp
       DrawImageTool,
       MoveElementTool,
       DeleteElementTool,
+      SaveCanvasTool,
       ClearCanvasTool,
       UpdateSceneTool,
       ScheduleRecurringTool,

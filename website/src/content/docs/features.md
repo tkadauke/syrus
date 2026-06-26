@@ -108,6 +108,8 @@ and sends them with the next message. Image attachments render as inline
 thumbnails in the transcript and open in a full-size preview. The chat
 workspace also includes a Media tab that gathers image attachments into a
 downloadable gallery; PDFs are passed to the agent without an inline preview.
+Whiteboard snapshots saved by the agent also appear in the Media tab, and
+clearing a non-empty canvas automatically saves the previous scene first.
 
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,

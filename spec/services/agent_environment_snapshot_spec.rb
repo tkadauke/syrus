@@ -56,6 +56,7 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include('checkout=not cloned; call `attach_repository("rome/forums")`')
       expect(snapshot).to include("live Syrus state: list_chats, list_jobs, read_job, read_pr")
       expect(snapshot).to include("whiteboard: read_scene, draw_shape")
+      expect(snapshot).to include("save_canvas, clear_canvas")
     end
   end
 
