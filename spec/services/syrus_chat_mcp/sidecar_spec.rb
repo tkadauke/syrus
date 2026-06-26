@@ -62,6 +62,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         set_bookmark
         propose_epic_with_jobs
         list_chats
+        list_repositories
         list_proposals
         delete_proposal
         list_epics
