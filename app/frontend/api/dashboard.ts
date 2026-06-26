@@ -41,6 +41,16 @@ export type DashboardJobEpic = {
   path: string
 }
 
+export type JobSourceChat = {
+  chat_id: number
+  chat_title: string | null
+  proposal_id: number
+  proposal_kind: string
+  message_id: number | null
+  path: string
+  label: string
+}
+
 export type DashboardClaimOwner = {
   id: number
   display_name: string
@@ -96,6 +106,7 @@ export type DashboardJobItem = {
   epic: DashboardJobEpic | null
   owner_badge: DashboardOwnerBadge | null
   tags: DashboardTag[]
+  source_chat: JobSourceChat | null
   paths: {
     job_path: string
     source_path: string

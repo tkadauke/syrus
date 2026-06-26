@@ -1188,6 +1188,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
+          <JobSourceChatLink job={job} prefix={prefix} />
           <DashboardOwnerLabel job={job} prefix={prefix} quiet />
           <span>{approvalLabel}</span>
           <OwnerBadge badge={job.owner_badge} />
@@ -1215,6 +1216,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
         <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
+          <JobSourceChatLink job={job} prefix={prefix} />
           <OwnerBadge badge={job.owner_badge} />
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
           <RetryStateInline job={job} />
@@ -1319,6 +1321,16 @@ function IssueMetadata({ job }: { job: DashboardJobItem }) {
   const label = `#${job.issue_number}`
 
   return <ExternalMetadataLink href={job.issue_url}>{label}</ExternalMetadataLink>
+}
+
+function JobSourceChatLink({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
+  if (!job.source_chat) return null
+
+  return (
+    <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.source_chat.path, prefix)}>
+      Chat
+    </Link>
+  )
 }
 
 function RetryStateInline({ job }: { job: DashboardJobItem }) {

@@ -15,6 +15,7 @@ class Epic < ApplicationRecord
   belongs_to :repository
   belongs_to :owner_user, class_name: "User", optional: true, inverse_of: :dashboard_owned_epics
   has_many :jobs, dependent: :nullify
+  has_many :chat_proposals, dependent: :nullify
   has_many :dependencies,
            class_name: "EpicDependency",
            dependent: :destroy,

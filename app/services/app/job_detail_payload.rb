@@ -98,6 +98,7 @@ module App
         epic_id: @job.epic_id,
         total_cost_usd: @job.display_total_cost_usd&.to_f,
         billed_runs_count: @job.billed_runs_count,
+        source_chat: App::JobSourceChat.for(@job),
         workflows_count: @job.workflows.size,
         runs_count: @job.runs.size,
         any_active_run: @job.any_active_run?,

@@ -66,6 +66,7 @@ export type JobRecord = {
   claimed_by_current_user: boolean
   total_cost_usd: number | null
   billed_runs_count: number
+  source_chat: JobSourceChat | null
   workflows_count: number
   runs_count: number
   any_active_run: boolean
@@ -86,6 +87,16 @@ export type JobOwner = {
   id: number
   display_name: string
   profile_path: string
+}
+
+export type JobSourceChat = {
+  chat_id: number
+  chat_title: string | null
+  proposal_id: number
+  proposal_kind: string
+  message_id: number | null
+  path: string
+  label: string
 }
 
 export type JobTag = {

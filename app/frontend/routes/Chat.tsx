@@ -299,6 +299,7 @@ function WaitingIcon() {
 }
 
 function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const location = useLocation()
   const streamRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const streamChatIdRef = useRef(payload.chat.id)
@@ -410,6 +411,14 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
     bookmarkLoadBeforeRef.current = null
     setActiveBookmarkTarget(bookmarkTarget)
   }, [bookmarkTarget?.messageId, bookmarkTarget?.requestId])
+
+  useEffect(() => {
+    const messageId = messageIdFromHash(location.hash)
+    if (!messageId) return
+
+    bookmarkLoadBeforeRef.current = null
+    setActiveBookmarkTarget({ messageId, requestId: messageId })
+  }, [location.hash, payload.chat.id])
 
   useEffect(() => {
     if (!activeBookmarkTarget) return
@@ -677,6 +686,14 @@ function scrollChatMessageIntoView(element: HTMLElement) {
   if (typeof element.scrollIntoView === "function") {
     element.scrollIntoView({ block: "start", behavior: "smooth" })
   }
+}
+
+function messageIdFromHash(hash: string) {
+  const match = hash.match(/^#message-(\d+)$/)
+  if (!match) return null
+
+  const messageId = Number.parseInt(match[1], 10)
+  return Number.isFinite(messageId) && messageId > 0 ? messageId : null
 }
 
 function countIncomingVisibleMessages(messages: ChatMessageItem[], previousMaxMessageId: number, showSystemMessages: boolean) {

@@ -154,6 +154,11 @@ function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { 
               <span>· {payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")}</span>
               {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
               {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· prepare skipped</span> : null}
+              {payload.job.source_chat ? (
+                <span>
+                  · <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
+                </span>
+              ) : null}
             </div>
           </div>
           <HeaderActions command={command} payload={payload} />

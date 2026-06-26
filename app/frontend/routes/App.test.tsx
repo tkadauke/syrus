@@ -12802,6 +12802,7 @@ function dashboardJobItem(overrides: Record<string, unknown> = {}) {
     owner_user: { id: 1, name: "Operator", email_address: "operator@example.com" },
     owner_badge: null,
     tags: [{ id: 5, name: "urgent", color: "red" }],
+    source_chat: null,
     paths: { job_path: "/jobs/42", source_path: "/jobs/42/source" },
     ...overrides
   }

@@ -30,6 +30,17 @@ RSpec.describe "App API dashboard commands", type: :request do
       first = Factories.job_record(repository: repo, epic: epic, issue_number: 1, issue_title: "Build aqueduct", state: "queued", pr_number: 17, owner_user: user)
       second = Factories.job_record(repository: repo, issue_number: 2, issue_title: "Chart forum", state: "running", owner_user: user)
       second_workflow = Workflow.create!(job: second, trigger_kind: "rebase", state: "running")
+      chat = ChatSession.create!(user: user, repository: repo, title: "Roadmap chat")
+      proposal = chat.proposals.create!(
+        slug: "build-aqueduct",
+        title: "Build aqueduct",
+        body: "Bring water across the valley.",
+        job: first,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+      proposal_message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
       first.update!(claimed_by_user: user, claimed_at: Time.zone.parse("2026-06-03 05:45:00 UTC"))
       first.tags << tag
       archived_repo = Factories.repository(user: user, owner: "acme", name: "archived", archived_at: Time.current)
@@ -68,6 +79,13 @@ RSpec.describe "App API dashboard commands", type: :request do
         "pr_url" => "https://github.com/acme/widgets/pull/17",
         "active_workflow_trigger_kind" => nil,
         "repository" => include("slug" => "acme/widgets", "repository_path" => repository_path(repo)),
+        "source_chat" => include(
+          "chat_id" => chat.id,
+          "proposal_id" => proposal.id,
+          "message_id" => proposal_message.id,
+          "path" => "/chats/#{chat.id}#message-#{proposal_message.id}",
+          "label" => "Job proposal in Roadmap chat"
+        ),
         "epic" => {
           "id" => epic.id,
           "number" => epic.number,
