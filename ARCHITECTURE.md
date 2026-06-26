@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-25._
+_Last reviewed: 2026-06-26._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -41,6 +41,9 @@ domain concepts. File paths are repo-relative.
 - **Go CLI** under `cli/` for terminal chat, inbox review, checkout,
   test-plan, approval, identity, and Job/Epic/repository/schedule
   workflows through the app API
+- **Electron desktop shell** under `desktop/` for a menubar inbox,
+  native notifications, checkout/approval shortcuts, and local
+  repository path preferences against the same app API
 - **Octokit** for the GitHub API
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
@@ -128,6 +131,12 @@ state.
 | `scheduled_task_id` | nullable; set on cron Jobs |
 | `priority` | `high` / `medium` / `low`, mapped to Solid Queue priorities 0 / 10 / 20 |
 | `agent_provider` | provider captured for the Job; Workflows/Runs denormalize the selected provider |
+
+Jobs also have optional `chat_proposals` source links for work created
+from chat. `App::JobSourceChat` uses the direct Job proposal when
+present, or falls back to the Epic proposal for bundled child Jobs, so
+dashboard and Job detail payloads can link back to the originating chat
+message.
 
 `closure_reason` values:
 
@@ -255,9 +264,12 @@ an explicitly configured provider. `agent_max_turns` is the per-user
 ceiling on Claude `--max-turns`; `0` means "no `--max-turns` flag" —
 the per-Run wall-clock timeout still applies. `theme` is a per-user UI
 preference (`light` or `dark`) returned in the bootstrap payload and
-updated through `PATCH /api/v1/app/theme`. The first user to sign up is
-auto-promoted to admin (bootstrap convenience, not a core architectural
-concern).
+updated through `PATCH /api/v1/app/theme`. `dashboard_preferences`
+stores subject-level view/sort/column/lane choices plus `folder_prefs`
+slots keyed by active smart folder id, so operators can keep different
+layouts and sort orders for Inbox, Landing Queue, All Epics, and custom
+folders. The first user to sign up is auto-promoted to admin (bootstrap
+convenience, not a core architectural concern).
 
 First-run setup is also user-scoped. `AppApi::SetupStatus` feeds the
 React `/onboarding` route and root/navigation guards; `App::SetupStatus`
@@ -848,6 +860,9 @@ enqueues the following turn. Ctrl+C from the CLI and the UI Stop control
 both set `stop_requested_at`, which the running Claude invocation polls
 and records as a cancelled chat turn; each turn clears stale stop
 requests as it exits so the next turn is not cancelled by an old signal.
+Chat index records and app events carry `turn_in_flight`/`agent_busy`
+state, letting the React sidebar mark active chat turns without waiting
+for a full recent-chat refetch.
 
 ## Failure recovery
 
@@ -911,7 +926,11 @@ Several layers, each catching different failure modes:
   live-streaming transcript per Run, agent diff, PR + branch links,
   action buttons (`run_again`, `restart`, `cancel`, `reopen`,
   `poll_feedback`, `rebase`, `check_mergeability`, `stop_run`,
-  approval/landing actions, claim/release, dependencies, tags).
+  approval/landing actions, claim/release, dependencies, tags). Job
+  detail payloads include `source_chat` links back to the chat proposal
+  that created the Job (or the Epic proposal for bundled child Jobs) and
+  the Summary tab renders feedback history from `pr_comment` and
+  `chat_feedback` Workflows.
 - **`/scheduled_tasks`** — cron task management.
 - **`/cron_templates`** — reusable schedule templates and links to apply
   them to repositories.
@@ -919,6 +938,10 @@ Several layers, each catching different failure modes:
 - **`/chats`** — repository-scoped chat sessions, proposal review,
   attached repository/document context, bookmarks, whiteboard state, MCP
   health, and queued follow-up messages.
+- **`/notifications`** and **`/notifications/settings`** — app
+  notification inbox and per-kind preferences. The API returns unread
+  counts, Job ids/titles, PR URLs, and read state; web and desktop
+  clients mark rows read through the app API.
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
   repository, trigger kind, provider, trend, and top Runs.
 - **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause, and
@@ -969,14 +992,17 @@ side-effect-light: the payload ensures only that subject's built-in
 `SmartFolder` rows exist, applies ownership/smart-folder filters, and
 returns current preferences without persisting navigation choices.
 Preference writes go through `PATCH /api/v1/app/dashboard/preferences`
-for sort, visible columns, and Kanban lanes. Job list mode defaults to
-the Inbox smart folder when no smart-folder id or filter is present;
-operators can still request the unfiltered list with
-`smart_folder_id=all`. Job smart folders are backed by `attention`
-preset chips: Inbox includes actionable unread feedback, failed Jobs,
-open Jobs with `landing_failure_reason`, validity review, and
-approval-ready Jobs; Just failed includes both failed Jobs and open
-landing failures. Job rows carry their latest Workflow snapshot through
+for subject defaults and, when `active_smart_folder_id` is supplied,
+folder-specific view/sort slots. Built-in folder defaults layer below
+saved preferences: All Epics defaults to Kanban and Landing Queue
+defaults to queue-position sorting. Job list mode defaults to the Inbox
+smart folder when no smart-folder id or filter is present; operators can
+still request the unfiltered list with `smart_folder_id=all`. Job smart
+folders are backed by `attention` preset chips: Inbox includes
+actionable unread feedback, failed Jobs, open Jobs with
+`landing_failure_reason`, validity review, and approval-ready Jobs; Just
+failed includes both failed Jobs and open landing failures. Job rows
+carry `source_chat` links and their latest Workflow snapshot through
 correlated subqueries on `workflows` so the dashboard can show recent
 Workflow state without joining every Workflow row into the paginated Job
 query.
@@ -1012,6 +1038,15 @@ artifacts. Repository-aware commands detect the current GitHub checkout
 from `origin`, scope lists to that repository by default, and refuse
 checkout-changing operations when the local repository does not match the
 Job's repository.
+
+The Electron desktop shell (`desktop/`) uses the same credentials file
+and app API as the CLI. The main process owns stored instance/token
+settings, local repository path mappings, app-user Cable connection,
+native notifications, global hotkey registration, checkout/approval
+IPC handlers, and external browser launches. The React renderer shows
+the compact inbox, repository picker, direct-Job form, admin controls,
+and preferences UI; checkout actions delegate to the `syrus` CLI so the
+desktop app does not reimplement branch-management semantics.
 
 ## Deployment topology
 
