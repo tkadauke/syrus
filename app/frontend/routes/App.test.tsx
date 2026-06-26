@@ -3587,7 +3587,7 @@ describe("App", () => {
       expect(within(foldersPanel).getAllByRole("link", { name: "All jobs" })).toHaveLength(1)
       expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
       expect(within(foldersPanel).getByRole("link", { name: "Saved review 2" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=4")
-      expect(within(foldersPanel).getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/app-shell/smart_folders?subject_type=job")
+      expect(within(foldersPanel).queryByRole("link", { name: "Manage" })).not.toBeInTheDocument()
       expect(within(foldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
       expect(within(foldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
 
@@ -5423,88 +5423,6 @@ describe("App", () => {
     })
     expect(await screen.findByText("Tag created.")).toBeInTheDocument()
     expect(screen.getByText("epic:attachments")).toBeInTheDocument()
-  })
-
-  it("renders the smart folders route from the app API and updates folders", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/smart_folders/7" && init?.method === "PATCH") {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              subject_type: "epic",
-              subject_label: "Epic",
-              dashboard_path: "/dashboard/epics",
-              smart_folders: [
-                {
-                  id: 7,
-                  name: "Ready Epics",
-                  position: 3,
-                  filter: { and: [{ field: "state", op: "is", value: "ready" }] }
-                }
-              ],
-              message: "Smart folder updated."
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
-      }
-
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            subject_type: "epic",
-            subject_label: "Epic",
-            dashboard_path: "/dashboard/epics",
-            smart_folders: [
-              {
-                id: 7,
-                name: "Ready Epics",
-                position: 2,
-                filter: { and: [{ field: "state", op: "is", value: "ready" }] }
-              }
-            ]
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
-      )
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/smart_folders?subject_type=epic"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(screen.getByRole("main", { name: "Smart folders" })).toBeInTheDocument()
-    expect(await screen.findByDisplayValue("Ready Epics")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Back to dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/epics")
-
-    fireEvent.change(screen.getByLabelText("Position for Ready Epics"), { target: { value: "3" } })
-    fireEvent.click(screen.getByRole("button", { name: "Save" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/smart_folders/7",
-        expect.objectContaining({
-          method: "PATCH",
-          credentials: "same-origin",
-          headers: expect.objectContaining({
-            Accept: "application/json",
-            "Content-Type": "application/json"
-          }),
-          body: JSON.stringify({
-            smart_folder: {
-              name: "Ready Epics",
-              position: 3
-            }
-          })
-        })
-      )
-    })
-    expect(await screen.findByText("Smart folder updated.")).toBeInTheDocument()
   })
 
   it("renders the cron templates route from the app API and links to detail", async () => {

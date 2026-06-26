@@ -36,7 +36,7 @@ Rails.application.routes.draw do
           end
         end
         resources :profiles, only: %i[ index show ]
-        resources :smart_folders, only: %i[ index create update destroy ]
+        resources :smart_folders, only: %i[ create update destroy ]
         resources :cron_templates, only: %i[ index show create update destroy ]
         get "notifications", to: "notifications#index"
         post "notifications/mark_all_read", to: "notifications#mark_all_read"
@@ -355,7 +355,6 @@ Rails.application.routes.draw do
   get "epics/new", to: "spa#show", as: :new_epic
   get "epics/:id", to: "spa#show", as: :epic, constraints: { id: /\d+/ }
   get "epics/:id/edit", to: "spa#show", as: :edit_epic, constraints: { id: /\d+/ }
-  get "smart_folders", to: "spa#show", as: :smart_folders
   get "tags", to: "spa#show", as: :tags
   get "cron_templates", to: "spa#show", as: :cron_templates
   get "cron_templates/new", to: "spa#show", as: :new_cron_template

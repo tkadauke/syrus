@@ -44,7 +44,6 @@ import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
 import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
-import { SmartFolders } from "./SmartFolders"
 import { SpendingInsightsRoute } from "./SpendingInsights"
 import { Tags } from "./Tags"
 import { TeamDirectoryRoute, TeamProfileRoute } from "./Profiles"
@@ -100,7 +99,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
   { path: "/memories", element: <SettingsSectionRoute><MemoriesRoute /></SettingsSectionRoute> },
   { path: "/profiles/:id", element: <ProfileRoute /> },
-  { path: "/smart_folders", element: <SmartFolders /> },
   { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
   { path: "/cron_templates", element: <SettingsSectionRoute><CronTemplatesIndex /></SettingsSectionRoute> },
   { path: "/cron_templates/new", element: <SettingsSectionRoute><CronTemplateFormRoute mode="new" /></SettingsSectionRoute> },

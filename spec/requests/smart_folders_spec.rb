@@ -5,16 +5,10 @@ RSpec.describe "Smart folders", type: :request do
 
   before { sign_in_as(user) }
 
-  describe "GET /smart_folders" do
-    it "serves the React smart folders shell" do
-      get smart_folders_path, params: { subject_type: "epic" }
-
-      expect(response).to be_successful
-      expect(response.body).to include('id="syrus-spa-root"')
-    end
-
-    it "does not route retired legacy HTML management endpoints" do
+  describe "retired HTML management endpoints" do
+    it "does not route smart folder management endpoints" do
       [
+        [ :get, "/smart_folders" ],
         [ :get, "/smart_folders/legacy" ],
         [ :post, "/smart_folders" ],
         [ :patch, "/smart_folders/legacy/1" ],

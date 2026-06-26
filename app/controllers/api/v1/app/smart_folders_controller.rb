@@ -2,10 +2,6 @@ module Api
   module V1
     module App
       class SmartFoldersController < BaseController
-        def index
-          render json: smart_folders_payload
-        end
-
         def create
           subject_type = smart_folder_subject
           tree = parsed_filter_tree

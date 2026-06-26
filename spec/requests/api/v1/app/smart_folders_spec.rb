@@ -8,49 +8,6 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     JSON.parse(response.body)
   end
 
-  it "401s with a JSON error when signed out" do
-    get "/api/v1/app/smart_folders"
-
-    expect(response).to have_http_status(:unauthorized)
-    expect(parse_body.dig("error", "code")).to eq("unauthorized")
-  end
-
-  it "lists only the current user's smart folders for the selected subject" do
-    sign_in_as(user)
-    job_folder = create_smart_folder(user: user, name: "Job folder", subject_type: "job", position: 1)
-    epic_folder = create_smart_folder(user: user, name: "Epic folder", subject_type: "epic", position: 2)
-    create_smart_folder(user: other, name: "Other epic folder", subject_type: "epic", position: 0)
-
-    get "/api/v1/app/smart_folders", params: { subject_type: "epic" }
-
-    expect(response).to have_http_status(:ok)
-    body = parse_body
-    expect(body).to include(
-      "subject_type" => "epic",
-      "subject_label" => "Epic",
-      "dashboard_path" => dashboard_epics_path
-    )
-    expect(body["smart_folders"]).to contain_exactly(
-      include("id" => epic_folder.id, "name" => "Epic folder", "position" => 2)
-    )
-    expect(response.body).not_to include(job_folder.name)
-    expect(response.body).not_to include("Other epic folder")
-  end
-
-  it "defaults to job smart folders" do
-    sign_in_as(user)
-    job_folder = create_smart_folder(user: user, name: "Job folder", subject_type: "job")
-    create_smart_folder(user: user, name: "Epic folder", subject_type: "epic")
-
-    get "/api/v1/app/smart_folders"
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["subject_type"]).to eq("job")
-    expect(parse_body["smart_folders"]).to contain_exactly(
-      include("id" => job_folder.id, "name" => "Job folder")
-    )
-  end
-
   it "creates a smart folder from dashboard filter params" do
     sign_in_as(user)
 

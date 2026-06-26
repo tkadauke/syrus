@@ -72,10 +72,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
         ) : null}
       </nav>
       <div className="space-y-1 pt-3">
-        <div className="flex items-center justify-between gap-2 px-2">
-          <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Saved</h3>
-          <Link className="text-xs font-medium text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-200" to={withRoutePrefix(`/smart_folders?subject_type=${payload.subject}`, prefix)}>Manage</Link>
-        </div>
+        <h3 className="px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Saved</h3>
         {savedFolders.length > 0 ? (
           <nav aria-label="Saved smart folders" className="space-y-1">
             {savedFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
