@@ -1194,6 +1194,63 @@ describe("App", () => {
     }
   })
 
+  it("opens the active dashboard page and closes the v2 mobile sidebar drawer", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+      },
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/dashboard")) {
+        const subject = path.includes("subject=epic") ? "epic" : "job"
+        return Promise.resolve(new Response(JSON.stringify(dashboardPayload({ subject })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+            <App />
+            <LocationProbe />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByRole("main", { name: "Dashboard" })
+      fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }))
+
+      const drawerPrimaryNav = screen.getAllByRole("navigation", { name: "Primary" }).at(-1) as HTMLElement | undefined
+      if (!(drawerPrimaryNav instanceof HTMLElement)) throw new Error("Expected drawer primary navigation to render")
+
+      fireEvent.click(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" }))
+
+      await waitFor(() => {
+        expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
+      })
+      expect(screen.getByTestId("location")).not.toHaveTextContent("view=")
+      await waitFor(() => {
+        expect(screen.getAllByRole("navigation", { name: "Primary" })).toHaveLength(1)
+      })
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("renders v2 admin subnavigation above admin content with horizontal scrolling", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"

@@ -136,6 +136,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         <SidebarContent
           creatingChat={creatingChat}
           csrfToken={data?.csrf_token}
+          desktopSidebar
           navItems={navItems}
           onCloseDrawer={() => setDrawerOpen(false)}
           onStartChat={startChat}
@@ -254,6 +255,7 @@ function hasFeatureFlags(featureFlags: Record<string, boolean>) {
 function SidebarContent({
   creatingChat,
   csrfToken,
+  desktopSidebar = false,
   navItems,
   onCloseDrawer,
   onStartChat,
@@ -264,6 +266,7 @@ function SidebarContent({
 }: {
   creatingChat: boolean
   csrfToken?: string
+  desktopSidebar?: boolean
   navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }>
   onCloseDrawer: () => void
   onStartChat: () => void
@@ -281,7 +284,7 @@ function SidebarContent({
 
   function handlePrimaryNavClick(item: { label: string; active: boolean }, event: MouseEvent<HTMLAnchorElement>) {
     if (item.label === "Dashboard") {
-      if (item.active) {
+      if (item.active && desktopSidebar) {
         event.preventDefault()
         setDashboardNavOpen((open) => !open)
         return
