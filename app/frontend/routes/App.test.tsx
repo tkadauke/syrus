@@ -1375,6 +1375,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
@@ -1540,6 +1543,9 @@ describe("App", () => {
       current_user: {
         ...bootstrapPayload().current_user,
         layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
       }
     }))
     document.body.appendChild(script)
