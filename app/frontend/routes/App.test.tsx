@@ -930,6 +930,101 @@ describe("App", () => {
     }
   })
 
+  it("hides v2 sidebar navigation behind Setup before onboarding chat starts", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      ...incompleteOnboardingBootstrap(),
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/onboarding"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
+      expect(within(primaryNav).getByRole("link", { name: "Setup" })).toHaveAttribute("href", "/app-shell/onboarding")
+      expect(within(primaryNav).queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument()
+      expect(within(primaryNav).queryByRole("link", { name: "Repositories" })).not.toBeInTheDocument()
+      expect(within(primaryNav).queryByRole("link", { name: "Schedules" })).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("keeps Setup in the v2 sidebar and reveals navigation after onboarding chat starts", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      setup: setupStatusPayload({ complete: false, chat_started: true, onboarding_chat_path: "/chats/5", next_step: "epic" }),
+      setup_status: setupStatus({
+        state: "first_chat_started",
+        next_step: "start_first_chat",
+        next_step_path: "/onboarding",
+        first_successful_job_completed: false,
+        first_epic_landed: false,
+        onboarding_chat_started: true
+      }),
+      current_user: {
+        ...bootstrapPayload().current_user,
+        layout_version: "v2"
+      },
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/onboarding"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
+      expect(within(primaryNav).getByRole("link", { name: "Setup" })).toHaveAttribute("href", "/app-shell/onboarding")
+      expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
+      expect(within(primaryNav).getByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
+      expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
+      expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("submits the v2 sidebar chat search field to the search route", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
