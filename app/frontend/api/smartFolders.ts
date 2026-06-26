@@ -13,6 +13,7 @@ export type SmartFoldersPayload = {
   dashboard_path: string
   smart_folders: SmartFolderRow[]
   message?: string
+  redirect_to?: string
 }
 
 export type SmartFolderInput = {

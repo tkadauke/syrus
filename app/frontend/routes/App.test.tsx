@@ -3679,32 +3679,35 @@ describe("App", () => {
 
   it("shows an update button for admin queue saved folder filter drift", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminQueuePayloadWithSavedFolder({
+    const driftPayload = adminQueuePayloadWithSavedFolder({
       and: [ { field: "queue_name", op: "is", value: "chat" } ]
-    })))
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = new URL(String(input), "http://example.test")
+      const method = init?.method || "GET"
+      if (url.pathname === "/api/v1/app/admin/queue/active") {
+        return Promise.resolve(jsonResponse(driftPayload))
+      }
+      if (url.pathname === "/api/v1/app/smart_folders/10" && method === "PATCH") {
+        return Promise.resolve(jsonResponse({ ...driftPayload, message: "Smart folder updated." }))
+      }
+      if (url.pathname === "/api/v1/app/smart_folders" && method === "POST") {
+        return Promise.resolve(jsonResponse({
+          ...driftPayload,
+          message: "Smart folder saved.",
+          redirect_to: "/admin/queue/active?smart_folder_id=10"
+        }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${method} ${url.pathname}`))
+    })
 
     try {
-      renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10&q=dGVzdA")
+      const updateView = renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10&q=dGVzdA")
 
       expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
       fireEvent.click(screen.getByText("Folders and filters"))
       expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
-      fireEvent.change(screen.getByLabelText("Folder name"), { target: { value: "Chat repairs" } })
-      fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
-
-      await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/smart_folders",
-          expect.objectContaining({ method: "POST" })
-        )
-      })
-      const postCall = fetchSpy.mock.calls.find(([path, init]) => path === "/api/v1/app/smart_folders" && (init as RequestInit | undefined)?.method === "POST")
-      expect(JSON.parse(String((postCall?.[1] as RequestInit).body))).toMatchObject({
-        filter: JSON.stringify(currentAdminQueueFilter()),
-        subject_type: "admin_queue",
-        smart_folder: { name: "Chat repairs" }
-      })
-
       fireEvent.click(screen.getByRole("button", { name: "Update Run repairs" }))
 
       await waitFor(() => {
@@ -3721,6 +3724,37 @@ describe("App", () => {
           position: 2
         }
       })
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Update Run repairs" })).not.toBeInTheDocument()
+      })
+      expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
+
+      updateView.unmount()
+      fetchSpy.mockClear()
+
+      renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10&q=dGVzdA")
+
+      expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.change(screen.getByLabelText("Folder name"), { target: { value: "Chat repairs" } })
+      fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/smart_folders",
+          expect.objectContaining({ method: "POST" })
+        )
+      })
+      const postCall = fetchSpy.mock.calls.find(([path, init]) => path === "/api/v1/app/smart_folders" && (init as RequestInit | undefined)?.method === "POST")
+      expect(JSON.parse(String((postCall?.[1] as RequestInit).body))).toMatchObject({
+        filter: JSON.stringify(currentAdminQueueFilter()),
+        subject_type: "admin_queue",
+        smart_folder: { name: "Chat repairs" }
+      })
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
+      })
+      expect(screen.queryByRole("button", { name: "Update Run repairs" })).not.toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
       restoreMedia()
@@ -11610,7 +11644,7 @@ function dashboardWorkflowItem(overrides: Record<string, unknown> = {}) {
 }
 
 function renderAppAt(path: string) {
-  render(
+  return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[path]}>
         <App />
