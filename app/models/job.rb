@@ -297,6 +297,7 @@ class Job < ApplicationRecord
   # awareness without scheduling any agent work.
   after_create :seed_parsed_dependencies
   after_create :resolve_pending_dependencies_targeting_self
+  after_create_commit :enqueue_search_index_after_create
   after_create_commit :broadcast_app_job_created
   # `after_save :refresh_epic_auto_state` used to fire on every save.
   # Keep it scoped to changes that actually affect the epic rollup:
@@ -314,6 +315,7 @@ class Job < ApplicationRecord
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
+  after_update_commit :enqueue_search_index_after_update
   after_update_commit :broadcast_app_job_updated
 
   def solid_queue_priority
@@ -802,6 +804,18 @@ class Job < ApplicationRecord
     workflow = Workflows::Initial.instantiate(job: self, agent_provider: agent_provider)
     prompt = direct? ? Prompts::DirectJob.new(prompt: issue_body.to_s, epic: epic).to_s : nil
     StepDispatcher.start_workflow(workflow, prompt: prompt)
+  end
+
+  def enqueue_search_index_after_create
+    enqueue_search_index
+  end
+
+  def enqueue_search_index_after_update
+    enqueue_search_index
+  end
+
+  def enqueue_search_index
+    IndexJobSearchJob.perform_later(id)
   end
 
   # Auto-create the Job's first workflow when the Job reaches :queued

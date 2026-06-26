@@ -1,6 +1,31 @@
 require "rails_helper"
 
 RSpec.describe Job do
+  include ActiveJob::TestHelper
+
+  before do
+    clear_enqueued_jobs
+  end
+
+  describe "search indexing" do
+    it "enqueues indexing when created" do
+      repo = Factories.repository
+
+      expect {
+        Factories.job_record(user: repo.user, repository: repo, issue_title: "Search me")
+      }.to have_enqueued_job(IndexJobSearchJob).with(kind_of(Integer)).on_queue("default")
+    end
+
+    it "enqueues indexing when updated" do
+      job = Factories.job_record(issue_title: "Search me")
+      clear_enqueued_jobs
+
+      expect {
+        job.update!(issue_title: "Search me again")
+      }.to have_enqueued_job(IndexJobSearchJob).with(job.id).on_queue("default")
+    end
+  end
+
   describe "epic title snapshot" do
     it "stores the Epic title when assigned" do
       epic = Factories.epic(title: "Migration train")

@@ -1,6 +1,31 @@
 require "rails_helper"
 
 RSpec.describe Epic do
+  include ActiveJob::TestHelper
+
+  before do
+    clear_enqueued_jobs
+  end
+
+  describe "search indexing" do
+    it "enqueues indexing when created" do
+      repository = Factories.repository
+
+      expect {
+        Factories.epic(user: repository.user, repository: repository, title: "Search me")
+      }.to have_enqueued_job(IndexEpicSearchJob).with(kind_of(Integer)).on_queue("default")
+    end
+
+    it "enqueues indexing when updated" do
+      epic = Factories.epic(title: "Search me")
+      clear_enqueued_jobs
+
+      expect {
+        epic.update!(title: "Search me again")
+      }.to have_enqueued_job(IndexEpicSearchJob).with(epic.id).on_queue("default")
+    end
+  end
+
   describe "app events" do
     it "broadcasts a compact event when created" do
       repository = Factories.repository

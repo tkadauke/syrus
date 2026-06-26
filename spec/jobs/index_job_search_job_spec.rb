@@ -1,0 +1,45 @@
+require "rails_helper"
+
+RSpec.describe IndexJobSearchJob do
+  let(:repo) { Factories.repository }
+
+  before do
+    allow(AppEvents).to receive(:broadcast)
+    prepare_search_tables
+  end
+
+  it "upserts an existing job into the search index" do
+    job = Factories.job_record(repository: repo, issue_title: "Find this later.")
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to change { indexed_job_ids }.from([]).to([ job.id ])
+  end
+
+  it "skips missing jobs" do
+    expect {
+      described_class.perform_now(-1)
+    }.not_to change { indexed_job_ids }
+  end
+
+  def indexed_job_ids
+    SearchRecord.connection.select_values("SELECT job_id FROM job_fts ORDER BY job_id").map(&:to_i)
+  end
+
+  def prepare_search_tables
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS job_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE job_fts
+      USING fts5(
+        title,
+        body,
+        job_id UNINDEXED,
+        user_id UNINDEXED,
+        repository_id UNINDEXED,
+        state UNINDEXED,
+        created_at UNINDEXED,
+        tokenize = 'porter unicode61'
+      )
+    SQL
+  end
+end
