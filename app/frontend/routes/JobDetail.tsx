@@ -7,6 +7,7 @@ import { CloseIcon } from "../components/CloseIcon"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill } from "../components/StatusPill"
+import { Markdown } from "../lib/Markdown"
 import { workflowSlug } from "../lib/slugs"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
@@ -503,7 +504,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Issue</h2>
-          {payload.job.issue_body ? <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-600 dark:text-gray-300">{payload.job.issue_body}</pre> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No issue body.</p>}
+          {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No issue body.</p>}
         </section>
         <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent summary</h2>

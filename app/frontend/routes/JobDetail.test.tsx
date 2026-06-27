@@ -25,6 +25,22 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("link", { name: "Job proposal in Roadmap chat" }))
       .toHaveAttribute("href", "/app-shell/chats/4#message-12")
   })
+
+  it("renders the issue body as markdown", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        issue_body: "## Problem\n\nFix `JobDetail` and read [the docs](/docs).\n\n1. Render markdown"
+      }
+    }))
+
+    const panel = screen.getByRole("heading", { name: "Issue" }).closest("section")
+    expect(panel).not.toBeNull()
+    expect(within(panel as HTMLElement).getByRole("heading", { name: "Problem" })).toBeInTheDocument()
+    expect(within(panel as HTMLElement).getByText("JobDetail").tagName).toBe("CODE")
+    expect(within(panel as HTMLElement).getByRole("link", { name: "the docs" })).toHaveAttribute("href", "/docs")
+    expect(within(panel as HTMLElement).getByText("Render markdown")).toBeInTheDocument()
+  })
 })
 
 describe("TestPlanPanel", () => {
