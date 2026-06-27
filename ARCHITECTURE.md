@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-26._
+_Last reviewed: 2026-06-27._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -1087,8 +1087,13 @@ CLI so the desktop app does not reimplement branch-management semantics.
   (`~/.kube/config-production`). Diagnostic recipes are in `CLAUDE.md`
   under "Debugging staging / production via kubectl".
 - Kubernetes deploys use `bin/deploy` to build and push the web and
-  worker images for the configured cluster architecture; see CLAUDE.md
-  "Deploy target" for platform-specific notes.
+  worker images for the configured cluster architecture. That path uses
+  plain `docker build` plus `docker push` through `bin/docker-image-lib`
+  instead of buildx registry exporters, because the deploy path has
+  observed buildx hangs after image export. Local Compose and publish
+  flows still share the same helper and can opt into the registry-backed
+  BuildKit cache. See CLAUDE.md "Deploy target" for platform-specific
+  notes.
 
 ## What's intentionally not here
 
