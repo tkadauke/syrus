@@ -192,7 +192,9 @@ RSpec.describe Steps::Prepare do
     it "forces flushes at LOG_FLUSH_MAX_BUF during sustained high-rate output" do
       data = 3.times.map { |i| i.to_s.rjust(4, "0") + ("x" * (Steps::Base::LOG_FLUSH_MAX_BUF - 4)) }.join
 
-      stream(data)
+      freeze_time do
+        stream(data)
+      end
 
       logs = run.job_logs.order(:sequence).pluck(:chunk)
       expect(logs.count).to eq(3)
