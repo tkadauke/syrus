@@ -391,6 +391,7 @@ Rails.application.routes.draw do
   get "admin/runs/:run_id/transcript", to: "spa#show", as: :admin_run_transcript, constraints: { run_id: /\d+/ }
   get "admin/users", to: "spa#show", as: :admin_users
   get "admin/users/:id", to: "spa#show", as: :admin_user, constraints: { id: /\d+/ }
+  get "admin/features", to: "spa#show", as: :admin_features
   get "admin/console", to: "spa#show", as: :admin_console
   get "admin/installations", to: "spa#show", as: :admin_installations
   get "admin/github_app/register", to: "spa#show", as: :admin_github_app_register

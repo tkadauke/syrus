@@ -289,6 +289,15 @@ across web/worker processes.
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
   `CLAUDE.md`.
+- **SPA routes must be registered in Rails and React together.** Every path
+  declared in `app/frontend/routes/App.tsx` (and any nested route file it
+  references) needs a matching `get "...", to: "spa#show"` entry in
+  `config/routes.rb`. Without it, a browser hard-reload or direct navigation
+  to that URL returns "No route matches ..." from Rails instead of serving the
+  SPA shell. The `app-shell/*path` wildcard only covers `/app-shell/`-prefixed
+  paths; all other routes require an explicit entry. When adding a new React
+  route, add the Rails counterpart in the same PR. Reviewers should check both
+  files.
 - **Go CLI** lives under `cli/` and talks to the app-scoped JSON API
   (`/api/v1/app/*`). Keep CLI commands, API serializers/controllers, and
   `website/src/content/docs/api.md` aligned when changing terminal-visible
