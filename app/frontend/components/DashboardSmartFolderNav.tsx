@@ -139,8 +139,8 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
         {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
         {moreFolders.length > 0 || payload.subject === "job" ? (
           <details className="space-y-1" open={allJobsSelected || moreFolders.some((folder) => folder.active) || undefined}>
-            <summary className="list-none cursor-pointer rounded px-2 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">More</summary>
-            <div className="space-y-1 pl-2">
+            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">More</summary>
+            <div className="space-y-1">
               {payload.subject === "job" ? allJobsLink : null}
               {moreFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
             </div>

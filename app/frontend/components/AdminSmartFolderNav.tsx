@@ -139,8 +139,8 @@ export function AdminSmartFolderNav({
         {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
         {moreFolders.length > 0 ? (
           <details className="space-y-1" open={moreFolders.some((folder) => folder.active) || undefined}>
-            <summary className="cursor-pointer rounded px-2 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 dark:bg-gray-800">More</summary>
-            <div className="space-y-1 pl-2">
+            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">More</summary>
+            <div className="space-y-1">
               {moreFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
             </div>
           </details>
