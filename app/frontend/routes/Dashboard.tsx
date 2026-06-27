@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
 import { dashboardApiSearch } from "../api/dashboard"
+import { CopyableSlug } from "../components/CopyableSlug"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { NoticeToast } from "../components/NoticeToast"
@@ -730,7 +731,10 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
       onDragEnd={onDragEnd}
       onDragStart={(event) => onDragStart(item, event)}
     >
-      <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
+        <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+      </div>
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
         <NeutralStatePill state={item.state} />
         <EpicStuckBadge stuck={item.stuck} />

@@ -4804,6 +4804,7 @@ describe("App", () => {
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
     )
+    const clipboardWrite = mockClipboardWrite()
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -4814,6 +4815,10 @@ describe("App", () => {
     )
 
     const card = await screen.findByLabelText("EPIC-7 Raise the forum")
+    const copySlugButton = within(card).getByRole("button", { name: "Copy EPIC-7 to clipboard" })
+    expect(copySlugButton).toHaveTextContent("EPIC-7")
+    fireEvent.click(copySlugButton)
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("EPIC-7"))
     const badge = within(card).getByText("Needs attention")
     expect(badge).toHaveAttribute("title", "All jobs closed - mark this epic done or file a follow-up.")
   })
