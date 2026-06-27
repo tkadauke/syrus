@@ -378,22 +378,22 @@ RSpec.describe ChatTurnJob do
     )
   end
 
-  it "records available, pending, and unavailable MCP tools in structured chat context" do
+  it "records available and unavailable MCP tools while suppressing pending-only MCP health" do
     ChatTurnJob.agent_runner = ->(log_sink:, **_) {
-      log_sink.call(
-        "[mcp_servers] syrus-chat-sidecar=connected syrus-chat-deferred-sidecar=connected",
-        kind: "system",
-        mcp_servers: [
-          { "name" => "syrus-chat-sidecar", "status" => "connected" },
-          { "name" => "syrus-chat-deferred-sidecar", "status" => "connected" }
-        ]
-      )
       log_sink.call(
         "[mcp_servers] syrus-chat-sidecar=pending syrus-chat-deferred-sidecar=pending",
         kind: "system",
         mcp_servers: [
           { "name" => "syrus-chat-sidecar", "status" => "pending" },
           { "name" => "syrus-chat-deferred-sidecar", "status" => "pending" }
+        ]
+      )
+      log_sink.call(
+        "[mcp_servers] syrus-chat-sidecar=connected syrus-chat-deferred-sidecar=connected",
+        kind: "system",
+        mcp_servers: [
+          { "name" => "syrus-chat-sidecar", "status" => "connected" },
+          { "name" => "syrus-chat-deferred-sidecar", "status" => "connected" }
         ]
       )
       log_sink.call(
@@ -409,7 +409,13 @@ RSpec.describe ChatTurnJob do
 
     described_class.perform_now(chat.id, user_message.id)
 
-    connected, pending, failed = chat.messages.where(role: "system").order(:id).last(3)
+    mcp_messages = chat.messages.where(role: "system").order(:id).last(2)
+    expect(mcp_messages.map { |message| message.content["text"] }).to eq([
+      "[mcp_servers] syrus-chat-sidecar=connected syrus-chat-deferred-sidecar=connected",
+      "[mcp_servers] syrus-chat-sidecar=failed syrus-chat-deferred-sidecar=failed"
+    ])
+
+    connected, failed = mcp_messages
     expect(connected.content.dig("mcp_health", 0)).to include(
       "name" => "syrus-chat-sidecar",
       "status" => "connected",
@@ -422,18 +428,6 @@ RSpec.describe ChatTurnJob do
       "status" => "connected",
       "available_tools" => include("draw_shape", "read_workflow"),
       "pending_tools" => [],
-      "unavailable_tools" => []
-    )
-    expect(pending.content.dig("mcp_health", 0)).to include(
-      "status" => "pending",
-      "available_tools" => [],
-      "pending_tools" => include("propose_job", "repo_info"),
-      "unavailable_tools" => []
-    )
-    expect(pending.content.dig("mcp_health", 1)).to include(
-      "status" => "pending",
-      "available_tools" => [],
-      "pending_tools" => include("draw_shape", "read_workflow"),
       "unavailable_tools" => []
     )
     expect(failed.content.dig("mcp_health", 0)).to include(

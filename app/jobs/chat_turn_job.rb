@@ -216,6 +216,9 @@ class ChatTurnJob < ApplicationJob
     when "assistant_text"
       create_message!("assistant", text: chunk.to_s)
     else
+      return if mcp_servers.present? &&
+                mcp_servers.all? { |server| mcp_pending?(server["status"].to_s) }
+
       create_message!("system", system_content_for(chunk, mcp_servers: mcp_servers))
     end
   end
