@@ -7,6 +7,7 @@ type Credentials = {
 
 type JobItem = {
   id: number
+  epic_id: number | null
   state: string
   summary_state: string
   title: string

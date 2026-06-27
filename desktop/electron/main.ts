@@ -23,6 +23,7 @@ type Credentials = {
 
 type JobItem = {
   id: number
+  epic_id: number | null
   state: string
   summary_state: string
   title: string
@@ -57,6 +58,20 @@ type JobDetail = {
     slug: string
   }
   test_plan: JobTestPlan | null
+}
+
+const compareInboxJobs = (a: JobItem, b: JobItem) => {
+  const repositoryComparison = (a.repository_slug || "").localeCompare(b.repository_slug || "")
+  if (repositoryComparison !== 0) {
+    return repositoryComparison
+  }
+
+  const epicComparison = (a.epic_id ?? Infinity) - (b.epic_id ?? Infinity)
+  if (!Number.isNaN(epicComparison) && epicComparison !== 0) {
+    return epicComparison
+  }
+
+  return b.id - a.id
 }
 
 type CreateJobRequest = {
@@ -573,7 +588,7 @@ const fetchInboxJobs = async () => {
 
   return lists
     .flatMap((list) => list.jobs)
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    .sort(compareInboxJobs)
 }
 
 const fetchJobDetail = async (jobID: number) => {

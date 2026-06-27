@@ -28,10 +28,24 @@ const normalizeInstanceUrl = (url: string) => url.trim().replace(/\/+$/, "")
 
 const jobTitle = (job: SyrusJobItem) => job.title || job.issue_title || `JOB-${job.id}`
 
+const compareInboxJobs = (a: SyrusJobItem, b: SyrusJobItem) => {
+  const repositoryComparison = (a.repository_slug || "").localeCompare(b.repository_slug || "")
+  if (repositoryComparison !== 0) {
+    return repositoryComparison
+  }
+
+  const epicComparison = (a.epic_id ?? Infinity) - (b.epic_id ?? Infinity)
+  if (!Number.isNaN(epicComparison) && epicComparison !== 0) {
+    return epicComparison
+  }
+
+  return b.id - a.id
+}
+
 const groupJobsByRepository = (jobs: SyrusJobItem[]) => {
   const groups = new Map<string, { repositorySlug: string; repositoryId?: number; jobs: SyrusJobItem[] }>()
 
-  for (const job of jobs) {
+  for (const job of [...jobs].sort(compareInboxJobs)) {
     const repositorySlug = job.repository_slug || "Unknown repository"
     const group = groups.get(repositorySlug)
     if (group) {
@@ -41,7 +55,7 @@ const groupJobsByRepository = (jobs: SyrusJobItem[]) => {
     }
   }
 
-  return Array.from(groups.values())
+  return Array.from(groups.values()).sort((a, b) => a.repositorySlug.localeCompare(b.repositorySlug))
 }
 
 const isMacPlatform = () => /Mac|iPhone|iPad|iPod/.test(navigator.platform)

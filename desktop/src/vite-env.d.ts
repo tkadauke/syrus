@@ -7,6 +7,7 @@ type SyrusCredentials = {
 
 type SyrusJobItem = {
   id: number
+  epic_id: number | null
   state: string
   summary_state: string
   title: string

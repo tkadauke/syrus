@@ -140,6 +140,7 @@ module Api
           steps = workflow&.steps&.sort_by(&:position) || []
           {
             id: job.id,
+            epic_id: job.epic_id,
             state: job.state,
             summary_state: ::App::Presentation.job_summary_state(job),
             title: job.issue_title.to_s,

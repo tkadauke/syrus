@@ -39,7 +39,9 @@ RSpec.describe "App API job detail", type: :request do
 
   it "lists jobs for bearer-token CLI clients without admin access" do
     user.update!(api_token: "syrus_cli_token", admin: false)
+    epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct")
     job
+    job.update!(epic: epic)
     Factories.job(repository: Factories.repository(user: Factories.user, owner: "other", name: "repo"), issue_title: "Private")
 
     get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "all", limit: 5 },
@@ -49,6 +51,7 @@ RSpec.describe "App API job detail", type: :request do
     body = parse_body
     expect(body["jobs"]).to contain_exactly(include(
       "id" => job.id,
+      "epic_id" => epic.id,
       "title" => "Repair aqueduct",
       "issue_title" => "Repair aqueduct",
       "repository_id" => repo.id,
