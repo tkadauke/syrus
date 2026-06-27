@@ -10,4 +10,8 @@ class Feature < ApplicationRecord
   def self.enabled?(slug)
     find_by(slug: slug.to_s)&.enabled? || false
   end
+
+  def self.terminal_enabled?
+    enabled?(:terminal)
+  end
 end

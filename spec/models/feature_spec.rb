@@ -33,4 +33,32 @@ RSpec.describe Feature, type: :model do
       expect(Feature.enabled?("missing")).to be false
     end
   end
+
+  describe ".terminal_enabled?" do
+    it "returns the live terminal flag state" do
+      Feature.find_or_create_by!(slug: "terminal") do |feature|
+        feature.category = "labs"
+        feature.name = "Terminal"
+      end.update!(enabled: true)
+
+      expect(Feature.terminal_enabled?).to be true
+    end
+  end
+
+  describe "seed data" do
+    it "creates the terminal feature idempotently" do
+      Feature.where(slug: "terminal").delete_all
+
+      Rails.application.load_seed
+      Rails.application.load_seed
+
+      features = Feature.where(slug: "terminal")
+      expect(features.count).to eq(1)
+      expect(features.first).to have_attributes(
+        category: "labs",
+        name: "Terminal",
+        enabled: false
+      )
+    end
+  end
 end

@@ -4,3 +4,8 @@ features:
     name: "V2 Sidebar Subject Selector"
     description: "Moves the Epics/Jobs/Workflows selector from the dashboard header into the sidebar. Introduced in PR #1185."
     default: false
+  - slug: terminal
+    category: "Labs"
+    name: "Terminal"
+    description: "Enables the interactive terminal experience."
+    default: false

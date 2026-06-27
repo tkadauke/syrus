@@ -882,6 +882,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_191833) do
     t.index ["user_id"], name: "index_tags_on_user_id"
   end
 
+  create_table "terminal_sessions", force: :cascade do |t|
+    t.string "auth_token", null: false
+    t.datetime "created_at", null: false
+    t.datetime "finished_at"
+    t.string "name", null: false
+    t.string "outcome"
+    t.string "relay_address"
+    t.datetime "started_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.integer "workflow_id"
+    t.string "working_directory", null: false
+    t.index ["finished_at"], name: "index_terminal_sessions_on_finished_at"
+    t.index ["user_id"], name: "index_terminal_sessions_on_user_id"
+    t.index ["workflow_id"], name: "index_terminal_sessions_on_workflow_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.boolean "admin", default: false, null: false
     t.integer "agent_max_turns", default: 200, null: false
@@ -1050,6 +1067,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_191833) do
   add_foreign_key "spawned_processes", "workflows"
   add_foreign_key "steps", "steps", column: "next_step_id"
   add_foreign_key "steps", "workflows"
+  add_foreign_key "terminal_sessions", "users"
+  add_foreign_key "terminal_sessions", "workflows"
   add_foreign_key "whiteboard_snapshots", "chat_sessions"
   add_foreign_key "whiteboards", "chat_sessions"
   add_foreign_key "workflows", "jobs"
