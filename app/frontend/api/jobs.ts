@@ -361,6 +361,7 @@ export type JobDetailPayload = {
   landing_queue_entry: JobLandingQueueEntry | null
   workflows: JobWorkflow[]
   workflows_pagination: JobWorkflowsPagination
+  feature_flags?: Record<string, boolean>
   actions: JobActions
   paths: JobPaths
 }

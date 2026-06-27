@@ -1,7 +1,7 @@
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { MemoryRouter, useLocation } from "react-router-dom"
+import { describe, expect, it, vi } from "vitest"
 import type { JobDetailPayload, JobWorkflow } from "../api/jobs"
 import { FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
 
@@ -40,6 +40,47 @@ describe("JobDetailView", () => {
     expect(within(panel as HTMLElement).getByText("JobDetail").tagName).toBe("CODE")
     expect(within(panel as HTMLElement).getByRole("link", { name: "the docs" })).toHaveAttribute("href", "/docs")
     expect(within(panel as HTMLElement).getByText("Render markdown")).toBeInTheDocument()
+  })
+
+  it("hides workflow terminal actions when the feature flag is disabled", () => {
+    renderJobDetail(jobPayload({
+      workflows: [ workflow({ id: 4, slug: "WF-4" }) ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    expect(screen.queryByRole("button", { name: "Open terminal in workspace" })).not.toBeInTheDocument()
+  })
+
+  it("opens a terminal session from a workflow row and navigates to it", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      id: 77,
+      name: "WF-4 workspace",
+      working_directory: "/tmp/workflows/4",
+      relay_address: null,
+      started_at: "2026-06-27T10:00:00Z",
+      finished_at: null,
+      outcome: null,
+      workflow_id: 4
+    }))
+
+    renderJobDetail(jobPayload({
+      feature_flags: { terminal: true },
+      workflows: [ workflow({ id: 4, slug: "WF-4" }) ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows", showLocation: true })
+
+    fireEvent.click(screen.getByRole("button", { name: "Open terminal in workspace" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/terminal_sessions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ workflow_id: 4, name: "WF-4 workspace" })
+      })
+    ))
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/terminal?session=77"))
+
+    fetchSpy.mockRestore()
   })
 })
 
@@ -152,14 +193,15 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
   )
 }
 
-function renderJobDetail(payload: JobDetailPayload) {
+function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "workflows" | "attachments" | "source"; showLocation?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+        {options.showLocation ? <LocationProbe /> : null}
         <JobDetailView
-          activeTab="summary"
+          activeTab={options.activeTab || "summary"}
           onSelectTab={() => {}}
           payload={payload}
           prefix="/app-shell"
@@ -168,6 +210,11 @@ function renderJobDetail(payload: JobDetailPayload) {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}{location.search}</div>
 }
 
 function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
@@ -204,6 +251,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       previous_path: null,
       next_path: null
     },
+    feature_flags: { terminal: false },
     actions: {
       can_start: false,
       can_poll_feedback: false,
@@ -253,6 +301,26 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     },
     ...overrides
   }
+}
+
+function workflowPagination(totalWorkflows: number): JobDetailPayload["workflows_pagination"] {
+  return {
+    page: 1,
+    per_page: 10,
+    total_workflows: totalWorkflows,
+    total_pages: 1,
+    first_item: totalWorkflows > 0 ? 1 : 0,
+    last_item: totalWorkflows,
+    previous_path: null,
+    next_path: null
+  }
+}
+
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  })
 }
 
 function baseJob(): JobDetailPayload["job"] {

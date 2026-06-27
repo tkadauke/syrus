@@ -35,6 +35,7 @@ module App
         landing_queue_entry: landing_queue_entry_json,
         workflows: workflows_json,
         workflows_pagination: workflows_pagination_json,
+        feature_flags: feature_flags_json,
         actions: actions_json,
         paths: paths_json
       }
@@ -48,6 +49,12 @@ module App
     end
 
     private
+
+    def feature_flags_json
+      {
+        terminal: Feature.terminal_enabled?
+      }
+    end
 
     def job_json
       {

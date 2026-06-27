@@ -24,6 +24,29 @@ checkout, Job, Epic, repository, and schedule commands. See
 [Syrus CLI](/docs/cli) for installation, login, command reference, and
 terminal workflows.
 
+## Terminal Sessions
+
+When the `terminal` feature flag is enabled, user-scoped app API clients
+can manage their own interactive terminal sessions. `GET
+/api/v1/app/terminal_sessions` lists the authenticated user's running
+sessions. `POST /api/v1/app/terminal_sessions` creates a session and accepts
+optional `workflow_id`, `name`, and `working_directory` fields; when
+`workflow_id` is present, Syrus defaults the working directory to that
+Workflow workspace.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/terminal_sessions \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "workflow_id": 8454, "name": "Workflow 8454" }'
+```
+
+`GET /api/v1/app/terminal_sessions/:id` returns one session scoped to the
+authenticated user, and `POST /api/v1/app/terminal_sessions/:id/kill` marks
+that session killed so the relay terminates the PTY. Session payloads include
+`id`, `name`, `working_directory`, `relay_address`, timestamps, `outcome`,
+and `workflow_id`; they never include the relay auth token.
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal

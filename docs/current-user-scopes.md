@@ -42,6 +42,7 @@ per-user/private:
   - app/controllers/api/v1/app/setup_controller.rb
   - app/controllers/api/v1/app/smart_folders_controller.rb
   - app/controllers/api/v1/app/tags_controller.rb
+  - app/controllers/api/v1/app/terminal_sessions_controller.rb
   - app/controllers/api/v1/app/theme_controller.rb
   - app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
   - app/controllers/application_controller.rb
@@ -80,7 +81,8 @@ These scopes expose or mutate records that belong to the signed-in user.
 They intentionally use associations such as `Current.user.jobs`,
 `Current.user.repositories`, `Current.user.epics`, `Current.user.tags`,
 `Current.user.documents`, `Current.user.chat_sessions`, and
-`ScheduledTask.where(user: Current.user)` instead of broader model scopes.
+`Current.user.terminal_sessions`, plus `ScheduledTask.where(user: Current.user)`,
+instead of broader model scopes.
 
 | File | Classification | Reason |
 | --- | --- | --- |
@@ -121,6 +123,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness, completion state, credentials, credential checks, repositories, onboarding state, first-run progress, and provider configuration are computed for the signed-in user so onboarding reflects that user's state. |
 | `app/controllers/api/v1/app/smart_folders_controller.rb` | per-user/private | User-defined smart folders are owned by `Current.user`; built-ins are returned through `SmartFolder.for_user`. |
 | `app/controllers/api/v1/app/tags_controller.rb` | per-user/private | Tags are created, updated, deleted, and listed through `Current.user.tags`. |
+| `app/controllers/api/v1/app/terminal_sessions_controller.rb` | per-user/private | Terminal sessions are listed, created, shown, and killed through `Current.user.terminal_sessions`; workflow defaults are scoped through `Current.user.workflows`. |
 | `app/controllers/api/v1/app/theme_controller.rb` | per-user/private | Updates only `Current.user.theme` for the signed-in operator. |
 | `app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Lists and loads snapshots only through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |
