@@ -39,6 +39,7 @@ function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt
     current: candidate.current ?? existing?.current,
     last_message_at: candidate.last_message_at ?? existing?.last_message_at ?? null,
     unread: candidate.unread ?? existing?.unread ?? false,
+    pending_proposal_count: candidate.pending_proposal_count ?? existing?.pending_proposal_count ?? 0,
     created_at: candidate.created_at ?? existing?.created_at ?? occurredAt,
     updated_at: latestTimestamp(candidate.updated_at, existing?.updated_at, occurredAt)
   }

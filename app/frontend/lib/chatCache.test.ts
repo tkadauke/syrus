@@ -51,6 +51,7 @@ function chatRecord({ id, title, lastMessageAt, updatedAt }: { id: number; title
     current: false,
     last_message_at: lastMessageAt,
     unread: false,
+    pending_proposal_count: 0,
     created_at: "2026-06-20T10:00:00Z",
     updated_at: updatedAt || lastMessageAt || "2026-06-20T10:00:00Z"
   }

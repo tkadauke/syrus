@@ -1228,6 +1228,7 @@ module Api
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
             turn_in_flight: chat_session.turn_in_flight?,
             agent_busy: chat_session.agent_busy?,
+            pending_proposal_count: chat_session.proposals.where(state: "proposed").count,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,

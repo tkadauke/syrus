@@ -25,6 +25,7 @@ export type ChatNavRecord = ChatRecord & {
   current?: boolean
   last_message_at: string | null
   unread: boolean
+  pending_proposal_count: number
   created_at?: string
   updated_at?: string
 }

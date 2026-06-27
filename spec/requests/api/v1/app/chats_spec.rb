@@ -63,6 +63,9 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     current_chat.update_columns(created_at: 3.hours.ago, updated_at: current_chat.last_message_at)
     older_chat.update_columns(created_at: 2.days.ago, updated_at: older_chat.last_message_at)
     ChatSession.create!(user: Factories.user, title: "Foreign chat", last_message_at: Time.current)
+    ChatProposal.create!(chat_session: current_chat, slug: "auth-map", title: "Map auth", body: "Trace auth.")
+    ChatProposal.create!(chat_session: current_chat, slug: "auth-done", title: "Done auth", body: "Already handled.", state: "confirmed")
+    ChatProposal.create!(chat_session: older_chat, slug: "api-map", title: "Map API", body: "Trace API.")
 
     get "/api/v1/app/chats"
 
@@ -83,9 +86,10 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["groups"].first["chats"].first).to include(
       "title" => "Planning open source release",
       "repository" => include("id" => repository.id, "slug" => "acme/widgets"),
-      "unread" => true
+      "unread" => true,
+      "pending_proposal_count" => 1
     )
-    expect(body["groups"].second["chats"].first).to include("id" => older_chat.id, "unread" => false)
+    expect(body["groups"].second["chats"].first).to include("id" => older_chat.id, "unread" => false, "pending_proposal_count" => 1)
     expect(body["groups"].first["chats"].first["last_message_at"]).to be_present
     expect(body.to_s).not_to include("Foreign chat")
   end

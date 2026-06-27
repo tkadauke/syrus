@@ -658,6 +658,9 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                         to={withRoutePrefix(chat.chat_path, prefix)}
                       >
                         <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
+                        {chat.pending_proposal_count > 0 && (
+                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
+                        )}
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
                       </Link>
                       <RecentChatActionsMenu

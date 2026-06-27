@@ -11,6 +11,7 @@ export function upsertRecentChatCache(queryClient: QueryClient, chat: ChatRecord
       current: existing?.current ?? false,
       last_message_at: existing?.last_message_at ?? occurredAt,
       unread: existing?.unread ?? false,
+      pending_proposal_count: existing?.pending_proposal_count ?? 0,
       created_at: existing?.created_at ?? occurredAt,
       updated_at: occurredAt
     }
