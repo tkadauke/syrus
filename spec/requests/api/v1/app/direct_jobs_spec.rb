@@ -115,6 +115,21 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("job", "title")).to eq("Bump Ruby version")
   end
 
+  it "generates a title from the prompt when the title is blank" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: " ",
+      prompt: "- `Tighten the dashboard filters`\n\nUse native validity for the form."
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.issue_title).to eq("Tighten the dashboard filters")
+    expect(parse_body.dig("job", "title")).to eq("Tighten the dashboard filters")
+  end
+
   it "uses an explicitly selected configured agent for the job, workflow, and run" do
     sign_in_as(user)
     user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")

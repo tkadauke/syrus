@@ -83,7 +83,7 @@ module Api
             repository: repository,
             kind: "direct",
             issue_number: nil,
-            issue_title: attrs[:title].to_s.strip.presence || "Direct job",
+            issue_title: attrs[:title].to_s.strip.presence || DirectJobTitleGenerator.call(prompt_text),
             issue_body: prompt_text,
             agent_provider: agent_provider || repository.effective_agent_provider,
             priority: priority,

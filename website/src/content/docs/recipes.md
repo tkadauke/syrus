@@ -195,7 +195,7 @@ job = user.jobs.create!(
   repository: repo,
   kind: "direct",
   issue_number: nil,
-  issue_title: ENV.fetch("SYRUS_JOB_TITLE", "Direct job"),
+  issue_title: ENV["SYRUS_JOB_TITLE"].presence || DirectJobTitleGenerator.call(prompt),
   issue_body: prompt,
   agent_provider: repo.effective_agent_provider,
   priority: ENV.fetch("SYRUS_PRIORITY", "medium")

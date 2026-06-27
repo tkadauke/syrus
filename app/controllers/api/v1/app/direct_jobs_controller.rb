@@ -61,7 +61,7 @@ module Api
         end
 
         def create_direct_job(repository:, agent_provider:, prompt_text:)
-          title = params[:title].to_s.strip.presence || "Direct job"
+          title = params[:title].to_s.strip.presence || DirectJobTitleGenerator.call(prompt_text)
           priority = params[:priority].to_s.presence
           priority = "medium" unless Job::PRIORITIES.include?(priority)
 

@@ -100,6 +100,25 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(created.runs).to be_empty
     end
 
+    it "generates a direct job title from the prompt when admin title is blank" do
+      repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
+
+      post "/api/v1/admin/jobs",
+           params: {
+             job: {
+               repository_id: repo.id,
+               title: "",
+               prompt: "### Repair the checkout flow\n\nKeep the existing route."
+             }
+           },
+           headers: auth(admin_token)
+
+      expect(response).to have_http_status(:created)
+      created = Job.order(:created_at).last
+      expect(created.issue_title).to eq("Repair the checkout flow")
+      expect(parse_body.dig("job", "issue_title")).to eq("Repair the checkout flow")
+    end
+
     it "rejects invalid create requests" do
       repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
 

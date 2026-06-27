@@ -47,8 +47,9 @@ curl -X POST https://syrus.example.com/api/v1/admin/jobs \
 ```
 
 Use either `repository_id` or `repository`/`repo` as `owner/name`.
-Optional fields are `priority` (`high`, `medium`, `low`), `agent_provider`,
-`epic_id`, and `owner_user_id`.
+Optional fields are `title`, `priority` (`high`, `medium`, `low`),
+`agent_provider`, `epic_id`, and `owner_user_id`. When `title` is blank or
+omitted, Syrus derives a short deterministic title from the prompt.
 
 ## Create an Epic
 
