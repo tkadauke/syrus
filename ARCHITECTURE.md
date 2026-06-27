@@ -971,12 +971,13 @@ Several layers, each catching different failure modes:
   workflows, runs, queues, processes, and version/instance status.
 
 During first-run setup, React uses bootstrap setup payloads to gate app
-chrome. Before the onboarding chat starts, root/dashboard visits are
-redirected to `/onboarding`, the only top-level tab is **Setup**, and the
-brand link returns to onboarding. Starting the onboarding chat refreshes
-bootstrap in place, reveals the normal tabs, and points the brand link at
-that onboarding chat. Once the first Epic lands, setup is complete and
-the Setup tab disappears.
+chrome in both the classic and V2 shells. Before the onboarding chat
+starts, root/dashboard visits are redirected to `/onboarding`, the only
+top-level navigation item is **Setup**, and the brand link returns to
+onboarding. Starting the onboarding chat refreshes bootstrap in place,
+reveals the normal tabs, and points the brand link at that onboarding
+chat. Once the first Epic lands, setup is complete and the Setup tab
+disappears.
 
 Realtime updates use `AppUserChannel` app events consumed by React.
 Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
@@ -1045,8 +1046,10 @@ settings, local repository path mappings, app-user Cable connection,
 native notifications, global hotkey registration, checkout/approval
 IPC handlers, and external browser launches. The React renderer shows
 the compact inbox, repository picker, direct-Job form, admin controls,
-and preferences UI; checkout actions delegate to the `syrus` CLI so the
-desktop app does not reimplement branch-management semantics.
+and preferences UI. The inbox consumes the app Job payload's
+`repository_id` and `repository_slug` to group rows by repository and
+link back to repository pages; checkout actions delegate to the `syrus`
+CLI so the desktop app does not reimplement branch-management semantics.
 
 ## Deployment topology
 
