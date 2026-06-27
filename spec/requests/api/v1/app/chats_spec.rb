@@ -1193,6 +1193,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       post "/api/v1/app/chats/#{chat.id}/proposals/#{confirmed.id}/confirm"
     }.to change(Job, :count).by(1)
       .and change { chat.messages.reload.where(role: "system").count }.by(1)
+      .and change { chat.messages.reload.where(role: "user").count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to match(/\AProposal confirmed and filed as JOB-\d+\.\z/)
@@ -1204,10 +1206,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(confirmation_message.content).to eq(
       "text" => %(Proposal confirmed. Job ##{confirmed.job.id} "Map auth" was created.)
     )
+    confirmation_notification = chat.messages.where(role: "user").order(:created_at, :id).last
+    expect(confirmation_notification.content).to eq(
+      "text" => %(Notification: your proposal "Map auth" was confirmed as JOB-#{confirmed.job.id} (proposal slug: auth-map).),
+      "source" => "proposal_notification"
+    )
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/proposals/#{rejected.id}/reject"
     }.to change { chat.messages.reload.where(role: "system").count }.by(1)
+      .and change { chat.messages.reload.where(role: "user").count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Proposal rejected.")
@@ -1217,6 +1226,11 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(rejection_message.proposal_id).to be_nil
     expect(rejection_message.content).to eq(
       "text" => %(Proposal rejected. "Clean up" was discarded.)
+    )
+    rejection_notification = chat.messages.where(role: "user").order(:created_at, :id).last
+    expect(rejection_notification.content).to eq(
+      "text" => %(Notification: your proposal "Clean up" was rejected (proposal slug: cleanup).),
+      "source" => "proposal_notification"
     )
   end
 
@@ -1256,6 +1270,37 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(confirmation_message.content.fetch("text")).to eq(
       "Proposal confirmed. Epic ##{proposal.epic.id} \"Ship auth\" was created. " \
       "Child jobs: Job ##{schema.job.id} \"Auth schema\", Job ##{ui.job.id} \"Auth UI\"."
+    )
+    notification = chat.messages.where(role: "user").order(:created_at, :id).last
+    expect(notification.content).to eq(
+      "text" => "Notification: your proposal \"Ship auth\" was confirmed as EPIC-#{proposal.epic.id} " \
+        "with child jobs JOB-#{schema.job.id}, JOB-#{ui.job.id} (proposal slug: ship-auth).",
+      "source" => "proposal_notification"
+    )
+  end
+
+  it "enqueues proposal outcome notifications while a chat turn is active" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(slug: "cleanup", title: "Clean up", body: "Sweep it.")
+    SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "worker-1",
+      started_at: Time.current
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/reject"
+    }.to change { chat.messages.reload.where(role: "user").count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+    expect(response).to have_http_status(:ok)
+    notification = chat.messages.where(role: "user").order(:created_at, :id).last
+    expect(notification.content).to include(
+      "text" => %(Notification: your proposal "Clean up" was rejected (proposal slug: cleanup).),
+      "source" => "proposal_notification"
     )
   end
 

@@ -134,6 +134,8 @@ note.
 Confirmed and discarded proposal and action cards are also written back into the chat
 transcript so the next assistant turn can see the created Job, Epic, or
 GitHub issue identifiers without asking the operator to repeat them.
+When an operator confirms or rejects a proposal, Syrus immediately starts a
+system-generated chat turn that tells the agent the outcome.
 
 After discussing changes with an operator, the chat agent can propose
 structured feedback on an implemented or approved Job. Operator confirmation
