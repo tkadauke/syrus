@@ -57,7 +57,8 @@ type JobDetail struct {
 	Repository struct {
 		Slug string `json:"slug"`
 	} `json:"repository"`
-	Summary   *JobSummary     `json:"summary"`
+	Summary   *JobSummary  `json:"summary"`
+	TestPlan  *JobTestPlan `json:"test_plan"`
 	Workflows []WorkflowBrief `json:"workflows"`
 }
 
@@ -85,6 +86,12 @@ type JobSummary struct {
 	RunID      int64  `json:"run_id"`
 	Text       string `json:"text"`
 	FinishedAt string `json:"finished_at"`
+}
+
+type JobTestPlan struct {
+	WorkflowID int64    `json:"workflow_id"`
+	Steps      []string `json:"steps"`
+	Notes      string   `json:"notes"`
 }
 
 type JobTranscript struct {

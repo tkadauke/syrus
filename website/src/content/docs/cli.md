@@ -71,18 +71,23 @@ compact inbox popover. The shortcut can be changed or cleared from
 Preferences. The popover shows implemented and failed Jobs, refreshes
 every 30 seconds, syncs the unread notification count, and lets you open
 the Job in Syrus or open its pull request in your browser when one
-exists. Implemented rows can also be approved for landing from the
-popover after a native confirmation prompt, and failed rows can be queued
-for retry directly from the row. Local checkout actions require the
-`syrus` CLI binary on `PATH`; when the app cannot find it, the popover
-shows an install banner and disables checkout buttons. Configure a local
-projects root in Preferences to derive `<root>/<repo-name>` paths, or add
-per-repository absolute path overrides for repositories that live
-elsewhere. Desktop delegates checkout to
-`syrus checkout JOB-<id>` from the resolved local path, so the CLI handles
-branch fetching, dirty working trees, backup branches, and
-repository-origin validation. Admin users also see subtle footer toggles
-for pausing or resuming repository polling and new Run starts, with
+exists. Selecting a row opens an in-popover Job detail view with back
+navigation, the generated test plan, a copyable
+`syrus checkout JOB-<id>` command, and the same browser, pull request,
+approval, retry, and checkout actions as the inbox row. Implemented rows
+can be approved for landing from the popover after a native confirmation
+prompt, and failed rows can be queued for retry directly from the row.
+Local checkout actions require the `syrus` CLI binary on `PATH`; when the
+app cannot find it, the popover shows an install banner and disables
+checkout buttons. Configure a local projects root in Preferences to
+derive `<root>/<repo-name>` paths, or add per-repository absolute path
+overrides for repositories that live elsewhere. Desktop delegates
+checkout to `syrus checkout JOB-<id>` from the resolved local path, so the
+CLI handles branch fetching, dirty working trees, backup branches, and
+repository-origin validation. After a successful checkout, the popover
+automatically navigates to that Job's detail view so the test plan is
+visible immediately. Admin users also see subtle footer toggles for
+pausing or resuming repository polling and new Run starts, with
 confirmation before either switch changes. Right-click the tray icon to
 open the connected Syrus instance in your browser, open Preferences, or
 quit the app.

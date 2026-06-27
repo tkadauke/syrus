@@ -73,6 +73,7 @@ RSpec.describe App::JobDetailPayload do
       workflow = Workflow.create!(
         job: job,
         trigger_kind: "initial",
+        state: "succeeded",
         artifacts: {
           "test_plan" => {
             "steps" => [ "Run bin/rspec spec/services/app/job_detail_payload_spec.rb", "Run bin/test-react" ],
@@ -93,12 +94,14 @@ RSpec.describe App::JobDetailPayload do
       older = Workflow.create!(
         job: job,
         trigger_kind: "initial",
+        state: "succeeded",
         created_at: 2.hours.ago,
         artifacts: { "test_plan" => { "steps" => [ "Run old tests" ], "notes" => "old" } }
       )
       newer = Workflow.create!(
         job: job,
         trigger_kind: "retry",
+        state: "succeeded",
         created_at: 1.hour.ago,
         artifacts: { "test_plan" => { "steps" => [ "Run new tests" ], "notes" => nil } }
       )
@@ -116,7 +119,28 @@ RSpec.describe App::JobDetailPayload do
       Workflow.create!(
         job: job,
         trigger_kind: "initial",
+        state: "succeeded",
         artifacts: { "test_plan" => { "steps" => [], "notes" => "Nothing to run." } }
+      )
+
+      expect(payload_for(job)[:test_plan]).to be_nil
+    end
+
+    it "ignores unfinished and non initial/retry workflow test plans" do
+      job = Factories.job_record(repository: repo)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        created_at: 1.hour.ago,
+        artifacts: { "test_plan" => { "steps" => [ "Run unfinished tests" ], "notes" => nil } }
+      )
+      Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        created_at: 30.minutes.ago,
+        artifacts: { "test_plan" => { "steps" => [ "Run follow-up tests" ], "notes" => nil } }
       )
 
       expect(payload_for(job)[:test_plan]).to be_nil

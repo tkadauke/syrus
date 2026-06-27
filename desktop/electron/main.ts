@@ -45,6 +45,20 @@ type JobList = {
   jobs: JobItem[]
 }
 
+type JobTestPlan = {
+  workflow_id: number
+  steps: string[]
+  notes: string | null
+}
+
+type JobDetail = {
+  job: JobItem
+  repository: {
+    slug: string
+  }
+  test_plan: JobTestPlan | null
+}
+
 type CreateJobRequest = {
   repositoryId: number
   prompt: string
@@ -560,6 +574,25 @@ const fetchInboxJobs = async () => {
   return lists
     .flatMap((list) => list.jobs)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+}
+
+const fetchJobDetail = async (jobID: number) => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before loading jobs.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, `/api/v1/app/jobs/${jobID}`), {
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response, `Could not load JOB-${jobID}.`))
+  }
+
+  return (await response.json()) as JobDetail
 }
 
 const responseErrorMessage = async (response: Response, fallback: string) => {
@@ -1208,6 +1241,7 @@ ipcMain.handle("open-token-docs", async () => {
   await shell.openExternal(TOKEN_DOCS_URL)
 })
 ipcMain.handle("fetch-inbox-jobs", async () => fetchInboxJobs())
+ipcMain.handle("fetch-job-detail", async (_event, jobID: number) => fetchJobDetail(jobID))
 ipcMain.handle("confirm-approve-job", async (event, jobID: number) => confirmApproveJob(event.sender, jobID))
 ipcMain.handle("approve-job", async (_event, jobID: number) => approveJob(jobID))
 ipcMain.handle("retry-job", async (_event, jobID: number) => retryJob(jobID))

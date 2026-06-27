@@ -35,6 +35,20 @@ type CreateJobResponse = {
   job: JobItem
 }
 
+type JobTestPlan = {
+  workflow_id: number
+  steps: string[]
+  notes: string | null
+}
+
+type JobDetail = {
+  job: JobItem
+  repository: {
+    slug: string
+  }
+  test_plan: JobTestPlan | null
+}
+
 type DesktopSettings = {
   localProjectsRoot: string
   localRepoPaths: Record<string, string>
@@ -101,6 +115,7 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   getLastUsedRepo: () => ipcRenderer.invoke("get-last-used-repo") as Promise<string>,
   setLastUsedRepo: (repoSlug: string) => ipcRenderer.invoke("set-last-used-repo", repoSlug) as Promise<string>,
   fetchInboxJobs: () => ipcRenderer.invoke("fetch-inbox-jobs") as Promise<JobItem[]>,
+  fetchJobDetail: (jobID: number) => ipcRenderer.invoke("fetch-job-detail", jobID) as Promise<JobDetail>,
   createDirectJob: (request: CreateJobRequest) =>
     ipcRenderer.invoke("create-direct-job", request) as Promise<CreateJobResponse>,
   confirmApproveJob: (jobID: number) => ipcRenderer.invoke("confirm-approve-job", jobID) as Promise<boolean>,

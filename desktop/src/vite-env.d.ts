@@ -59,6 +59,20 @@ type SyrusCreateJobResponse = {
   job: SyrusJobItem
 }
 
+type SyrusJobTestPlan = {
+  workflow_id: number
+  steps: string[]
+  notes: string | null
+}
+
+type SyrusJobDetail = {
+  job: SyrusJobItem
+  repository: {
+    slug: string
+  }
+  test_plan: SyrusJobTestPlan | null
+}
+
 type SyrusBootstrapPayload = {
   current_user: {
     admin: boolean
@@ -97,6 +111,7 @@ interface Window {
     getLastUsedRepo: () => Promise<string>
     setLastUsedRepo: (repoSlug: string) => Promise<string>
     fetchInboxJobs: () => Promise<SyrusJobItem[]>
+    fetchJobDetail: (jobID: number) => Promise<SyrusJobDetail>
     createDirectJob: (request: SyrusCreateJobRequest) => Promise<SyrusCreateJobResponse>
     confirmApproveJob: (jobID: number) => Promise<boolean>
     approveJob: (jobID: number) => Promise<void>

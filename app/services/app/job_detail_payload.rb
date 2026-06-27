@@ -256,6 +256,8 @@ module App
 
     def test_plan_json
       entry = @job.workflows.to_a.filter_map do |workflow|
+        next unless workflow.succeeded?
+        next unless %w[initial retry].include?(workflow.trigger_kind)
         next unless workflow.artifacts.is_a?(Hash)
 
         plan = workflow.artifacts["test_plan"]

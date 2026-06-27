@@ -6,6 +6,7 @@ import syrusIconUrl from "../assets/syrusIcon.png"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
+type PopoverNavigationState = { view: "inbox" } | { view: "job-detail"; jobId: number }
 type CheckoutStatusByRepo = Record<string, SyrusCheckoutAvailability>
 type ToastState = {
   kind: "success" | "error"
@@ -217,6 +218,14 @@ function MoreIcon() {
   )
 }
 
+function BackIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  )
+}
+
 function CopyIcon({ className = "" }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20">
@@ -297,6 +306,7 @@ function StatusPill({ state, className = "" }: { state: string; className?: stri
 
 function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const queryClient = useQueryClient()
+  const [navigation, setNavigation] = useState<PopoverNavigationState>({ view: "inbox" })
   const [checkoutStatusByRepo, setCheckoutStatusByRepo] = useState<CheckoutStatusByRepo>({})
   const [pendingApprovals, setPendingApprovals] = useState<Set<number>>(() => new Set())
   const [toast, setToast] = useState<ToastState | null>(null)
@@ -327,6 +337,13 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     refetchInterval: isAdmin ? REFRESH_INTERVAL_MS : false
   })
   const jobs = inboxQuery.data ?? EMPTY_JOBS
+  const detailJobId = navigation.view === "job-detail" ? navigation.jobId : null
+  const detailQuery = useQuery({
+    queryKey: ["job-detail", instanceUrl, detailJobId],
+    queryFn: () => window.syrusDesktop.fetchJobDetail(detailJobId ?? 0),
+    enabled: detailJobId !== null,
+    refetchInterval: detailJobId !== null ? REFRESH_INTERVAL_MS : false
+  })
 
   const showErrorToast = (message: string) => {
     setToast({ kind: "error", message })
@@ -377,6 +394,11 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     void window.syrusDesktop.openExternal(`${normalizeInstanceUrl(instanceUrl)}/jobs/${job.id}`)
   }
 
+  const openJobDetail = (job: SyrusJobItem) => {
+    setNavigation({ view: "job-detail", jobId: job.id })
+    setIsComposeOpen(false)
+  }
+
   const openPullRequest = (job: SyrusJobItem) => {
     if (job.pr_url) {
       void window.syrusDesktop.openExternal(job.pr_url)
@@ -412,6 +434,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         branchName: job.branch_name
       })
       setToast({ kind: "success", message: `Checked out ${result.branchName}` })
+      setNavigation({ view: "job-detail", jobId: job.id })
     } catch (checkoutError) {
       setToast({
         kind: "error",
@@ -531,26 +554,47 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   return (
     <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <HeaderBrand title="Syrus" instanceUrl={instanceUrl} />
+        <div className="flex min-w-0 items-center gap-2">
+          {navigation.view === "job-detail" ? (
+            <button
+              type="button"
+              className="icon-button"
+              title="Back"
+              aria-label="Back"
+              onClick={() => setNavigation({ view: "inbox" })}
+            >
+              <BackIcon />
+            </button>
+          ) : null}
+          <HeaderBrand title="Syrus" instanceUrl={instanceUrl} />
+        </div>
         <div className="flex shrink-0 items-center gap-1">
+          {navigation.view === "inbox" ? (
+            <button
+              type="button"
+              className="icon-button"
+              title={isComposeOpen ? "Close compose" : "Compose job"}
+              aria-label={isComposeOpen ? "Close job compose" : "Compose job"}
+              aria-pressed={isComposeOpen}
+              ref={composeButtonRef}
+              onClick={() => setIsComposeOpen((open) => !open)}
+            >
+              <ComposeIcon />
+            </button>
+          ) : null}
           <button
             type="button"
             className="icon-button"
-            title={isComposeOpen ? "Close compose" : "Compose job"}
-            aria-label={isComposeOpen ? "Close job compose" : "Compose job"}
-            aria-pressed={isComposeOpen}
-            ref={composeButtonRef}
-            onClick={() => setIsComposeOpen((open) => !open)}
-          >
-            <ComposeIcon />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            title="Refresh inbox"
-            aria-label="Refresh inbox"
-            disabled={inboxQuery.isFetching}
-            onClick={() => void inboxQuery.refetch()}
+            title={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
+            aria-label={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
+            disabled={navigation.view === "job-detail" ? detailQuery.isFetching : inboxQuery.isFetching}
+            onClick={() => {
+              if (navigation.view === "job-detail") {
+                void detailQuery.refetch()
+              } else {
+                void inboxQuery.refetch()
+              }
+            }}
           >
             <RefreshIcon />
           </button>
@@ -593,7 +637,25 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
       ) : null}
 
       <section className="min-h-0 flex-1 overflow-y-auto">
-        {isComposeOpen ? (
+        {navigation.view === "job-detail" ? (
+          <JobDetailView
+            detail={detailQuery.data}
+            error={detailQuery.error}
+            fallbackJob={jobs.find((job) => job.id === navigation.jobId)}
+            isError={detailQuery.isError}
+            isLoading={detailQuery.isLoading}
+            checkoutStatusByRepo={checkoutStatusByRepo}
+            cliAvailable={cliStatusQuery.data?.available ?? false}
+            retryingJobID={retryingJobID}
+            pendingApprovals={pendingApprovals}
+            onOpenJob={openJob}
+            onOpenPullRequest={openPullRequest}
+            onCheckout={(job) => void checkoutJob(job)}
+            onApprove={(job) => void approveJob(job)}
+            onRetry={(job) => void retryJob(job)}
+            onRetryLoad={() => void detailQuery.refetch()}
+          />
+        ) : isComposeOpen ? (
           <ComposePanel
             panelRef={composeRef}
             onCancel={() => setIsComposeOpen(false)}
@@ -649,6 +711,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                           checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
                           cliAvailable={cliStatusQuery.data?.available ?? false}
                           retrying={retryingJobID === job.id}
+                          onOpenDetail={() => openJobDetail(job)}
                           onOpenJob={() => openJob(job)}
                           onOpenPullRequest={() => openPullRequest(job)}
                           onCheckout={() => void checkoutJob(job)}
@@ -676,6 +739,202 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         />
       ) : null}
     </main>
+  )
+}
+
+function JobDetailView({
+  detail,
+  fallbackJob,
+  error,
+  isError,
+  isLoading,
+  checkoutStatusByRepo,
+  cliAvailable,
+  retryingJobID,
+  pendingApprovals,
+  onOpenJob,
+  onOpenPullRequest,
+  onCheckout,
+  onApprove,
+  onRetry,
+  onRetryLoad
+}: {
+  detail?: SyrusJobDetail
+  fallbackJob?: SyrusJobItem
+  error: unknown
+  isError: boolean
+  isLoading: boolean
+  checkoutStatusByRepo: CheckoutStatusByRepo
+  cliAvailable: boolean
+  retryingJobID: number | null
+  pendingApprovals: Set<number>
+  onOpenJob: (job: SyrusJobItem) => void
+  onOpenPullRequest: (job: SyrusJobItem) => void
+  onCheckout: (job: SyrusJobItem) => void
+  onApprove: (job: SyrusJobItem) => void
+  onRetry: (job: SyrusJobItem) => void
+  onRetryLoad: () => void
+}) {
+  const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle")
+  const job = detail?.job ?? fallbackJob
+
+  useEffect(() => {
+    if (copyState === "idle") {
+      return
+    }
+
+    const timeout = window.setTimeout(() => setCopyState("idle"), 900)
+    return () => window.clearTimeout(timeout)
+  }, [copyState])
+
+  if (!job && isLoading) {
+    return <StatusPanel title="Loading job" />
+  }
+
+  if (!job && isError) {
+    return (
+      <StatusPanel
+        title="Could not load job"
+        detail={error instanceof Error ? error.message : "Try again in a moment."}
+        actionLabel="Retry"
+        onAction={onRetryLoad}
+      />
+    )
+  }
+
+  if (!job) {
+    return <StatusPanel title="Job unavailable" />
+  }
+
+  const command = `syrus checkout JOB-${job.id}`
+  const testPlan = detail?.test_plan ?? null
+  const displayState = pendingApprovals.has(job.id) ? "approved" : job.state
+
+  const copyCommand = async () => {
+    try {
+      await window.syrusDesktop.copyText(command)
+      setCopyState("success")
+    } catch {
+      setCopyState("error")
+    }
+  }
+
+  return (
+    <article className="job-detail">
+      <section className="job-detail__summary" aria-label={`JOB-${job.id}`}>
+        <div className="min-w-0">
+          <h1 className="job-detail__title">{jobTitle(job)}</h1>
+          <p className="job-detail__meta">{job.repository_slug}</p>
+        </div>
+        <StatusPill state={displayState} />
+      </section>
+
+      <section className="job-detail__section" aria-label="Test plan">
+        <div className="checkout-command">
+          <code>{command}</code>
+          <button
+            type="button"
+            className="icon-button"
+            title={copyState === "success" ? "Copied" : copyState === "error" ? "Could not copy command" : "Copy checkout command"}
+            aria-label="Copy checkout command"
+            onClick={() => void copyCommand()}
+          >
+            <CopyIcon className="h-4 w-4" />
+          </button>
+        </div>
+
+        {testPlan ? (
+          <div className="test-plan">
+            <ul className="test-plan__steps">
+              {testPlan.steps.map((step, index) => (
+                <li className="test-plan__step" key={`${index}-${step}`}>
+                  <span className="test-plan__checkbox" aria-hidden="true" />
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ul>
+            {testPlan.notes ? <p className="test-plan__notes">{testPlan.notes}</p> : null}
+          </div>
+        ) : (
+          <p className="job-detail__placeholder">{isLoading ? "Loading test plan..." : "Test plan not yet available"}</p>
+        )}
+      </section>
+
+      <section className="job-detail__actions" aria-label="Actions">
+        <JobActionButtons
+          job={job}
+          checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
+          cliAvailable={cliAvailable}
+          retrying={retryingJobID === job.id}
+          approving={pendingApprovals.has(job.id)}
+          onOpenJob={() => onOpenJob(job)}
+          onOpenPullRequest={() => onOpenPullRequest(job)}
+          onCheckout={() => onCheckout(job)}
+          onApprove={() => onApprove(job)}
+          onRetry={() => onRetry(job)}
+        />
+      </section>
+    </article>
+  )
+}
+
+function JobActionButtons({
+  job,
+  checkoutStatus,
+  cliAvailable,
+  retrying,
+  approving,
+  onOpenJob,
+  onOpenPullRequest,
+  onCheckout,
+  onApprove,
+  onRetry
+}: {
+  job: SyrusJobItem
+  checkoutStatus?: SyrusCheckoutAvailability
+  cliAvailable: boolean
+  retrying: boolean
+  approving: boolean
+  onOpenJob: () => void
+  onOpenPullRequest: () => void
+  onCheckout: () => void
+  onApprove: () => void
+  onRetry: () => void
+}) {
+  const isFailed = job.state === "failed"
+  const isImplemented = job.state === "implemented"
+  const checkoutEnabled = cliAvailable && Boolean(checkoutStatus?.localPath)
+  const checkoutTitle = !cliAvailable
+    ? "Install the Syrus CLI to enable local branch checkout"
+    : checkoutStatus?.localPath
+      ? `Checkout in ${checkoutStatus.localPath}`
+      : "Configure local projects root in Preferences"
+
+  return (
+    <div className="detail-actions">
+      {isFailed ? (
+        <button type="button" className="detail-action-button" disabled={retrying} onClick={onRetry}>
+          {retrying ? "Retrying" : "Retry"}
+        </button>
+      ) : null}
+      {isImplemented ? (
+        <button type="button" className="detail-action-button" disabled={approving} onClick={onApprove}>
+          {approving ? "Approving" : "Approve"}
+        </button>
+      ) : null}
+      <button type="button" className="detail-action-button" onClick={onOpenJob}>
+        <ExternalIcon />
+        <span>Open in Syrus</span>
+      </button>
+      <button type="button" className="detail-action-button" disabled={!job.pr_url} onClick={onOpenPullRequest}>
+        <GitPullRequestIcon />
+        <span>{job.pr_url ? "Open PR" : "No PR"}</span>
+      </button>
+      <button type="button" className="detail-action-button" disabled={!checkoutEnabled} title={checkoutTitle} onClick={onCheckout}>
+        <TerminalIcon />
+        <span>Checkout locally</span>
+      </button>
+    </div>
   )
 }
 
@@ -798,6 +1057,7 @@ function JobRow({
   checkoutStatus,
   cliAvailable,
   retrying,
+  onOpenDetail,
   onOpenJob,
   onOpenPullRequest,
   onCheckout,
@@ -810,6 +1070,7 @@ function JobRow({
   checkoutStatus?: SyrusCheckoutAvailability
   cliAvailable: boolean
   retrying: boolean
+  onOpenDetail: () => void
   onOpenJob: () => void
   onOpenPullRequest: () => void
   onCheckout: () => void
@@ -891,9 +1152,18 @@ function JobRow({
   ].filter(Boolean).join(" ")
 
   return (
-    <li className="job-row">
+    <li
+      className="job-row"
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("button")) {
+          return
+        }
+
+        onOpenDetail()
+      }}
+    >
       <div className="job-row__content">
-        <button type="button" className="job-row__title" onClick={onOpenJob}>
+        <button type="button" className="job-row__title" onClick={onOpenDetail}>
           {jobTitle(job)}
         </button>
         <span className="job-row__meta">
