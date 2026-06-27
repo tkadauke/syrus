@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
+import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createChat, fetchChats, fetchMoreChatsForGroup, hideChat, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
@@ -8,6 +8,7 @@ import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type Dashboa
 import { BugReportButton } from "../components/BugReportButton"
 import { CloseIcon } from "../components/CloseIcon"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
+import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsBell } from "../components/Notifications"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
@@ -18,6 +19,16 @@ const SIDEBAR_WIDTH_KEY = "syrus.sidebar.width"
 const SIDEBAR_DEFAULT_WIDTH = 240
 const SIDEBAR_MIN_WIDTH = 208
 const SIDEBAR_MAX_WIDTH = 420
+const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
+const PUBLILIUS_SYRUS_QUOTES = [
+  "A rolling stone gathers no moss.",
+  "A good reputation is more valuable than money.",
+  "It is a bad plan that admits of no modification.",
+  "No one knows what he can do until he tries.",
+  "Practice is the best of all instructors.",
+  "The fear of death is more to be dreaded than death itself.",
+  "Where there is unity there is always victory."
+]
 
 export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNode; initialBootstrap: BootstrapPayload | null }) {
   const location = useLocation()
@@ -25,7 +36,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const queryClient = useQueryClient()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
-  const shouldLoadChromeBootstrap = initialBootstrap != null
+  const shouldLoadChromeBootstrap = initialBootstrap == null && !isAuthPath(normalizedPath)
   const bootstrap = useQuery({
     queryKey: ["bootstrap"],
     queryFn: fetchBootstrap,
@@ -36,7 +47,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
-  const showDashboardSidebarSubjects = Boolean(data?.feature_flags.v2_sidebar_subject_selector)
+  const quote = useMemo(randomPubliliusSyrusQuote, [])
+  const showQuote = !normalizedPath.startsWith("/chats")
+  const showDashboardSidebarSubjects = Boolean(data?.feature_flags?.v2_sidebar_subject_selector)
   const inOnboarding = Boolean(data?.setup && !data.setup.complete)
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
   const tabsHidden = inOnboarding && !onboardingChatStarted
@@ -46,6 +59,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
   const mainRef = useRef<HTMLElement | null>(null)
+  const pageContent = redirectsToSetup(data, normalizedPath)
+    ? <Navigate replace to={`${prefix}/onboarding`} />
+    : children ?? <Outlet />
 
   const navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }> = user ? [
     ...(inOnboarding ? [{ label: "Setup", to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
@@ -206,19 +222,98 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           </button>
           {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
         </div>
+        <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
+        <FlashBanner flash={data?.flash} />
         {showAdminSubnav ? (
           <div className="min-h-full min-w-0">
             <AdminSubnav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix} />
             <div className="min-w-0 flex-1">
-              {children ?? <Outlet />}
+              {pageContent}
             </div>
           </div>
         ) : (
-          children ?? <Outlet />
+          pageContent
         )}
+        {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
       {user ? <BugReportButton context={bugReportContext(location.pathname)} position="bottom-right" /> : null}
     </div>
+  )
+}
+
+function randomPubliliusSyrusQuote() {
+  return PUBLILIUS_SYRUS_QUOTES[Math.floor(Math.random() * PUBLILIUS_SYRUS_QUOTES.length)]
+}
+
+function PubliliusSyrusFooter({ quote }: { quote: string }) {
+  return (
+    <footer className="mx-auto hidden max-w-[96rem] px-6 py-8 text-center text-xs text-gray-500 dark:text-gray-400 lg:block">
+      <a className="hover:text-blue-600 hover:underline dark:hover:text-blue-300" href={PUBLILIUS_SYRUS_WIKIPEDIA_URL} rel="noopener" target="_blank">
+        {quote}
+      </a>
+    </footer>
+  )
+}
+
+function FlashBanner({ flash }: { flash?: BootstrapPayload["flash"] }) {
+  const [visible, setVisible] = useState(Boolean(flash?.alert || flash?.notice))
+  const message = flash?.alert || flash?.notice
+
+  useEffect(() => {
+    setVisible(Boolean(message))
+  }, [message])
+
+  if (!message) return null
+  if (!flash?.alert && flash?.notice && visible) return <NoticeToast message={flash.notice} onDismiss={() => setVisible(false)} />
+  if (!visible) return null
+
+  const tone = flash?.alert ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"
+  return (
+    <div className="mx-auto max-w-[96rem] px-6 pt-4">
+      <p className={`inline-block rounded border px-3 py-2 text-sm ${tone}`}>{message}</p>
+    </div>
+  )
+}
+
+function SystemAlertsBanner({ alerts, prefix }: { alerts?: BootstrapPayload["system_alerts"]; prefix: string }) {
+  const active = alerts || []
+  if (active.length === 0) return null
+
+  return (
+    <section aria-label="System alerts" className="mx-auto max-w-[96rem] space-y-3 px-6 pt-4">
+      {active.map((alert) => <SystemAlertItem alert={alert} key={alert.id} prefix={prefix} />)}
+    </section>
+  )
+}
+
+function SystemAlertItem({ alert, prefix }: { alert: NonNullable<BootstrapPayload["system_alerts"]>[number]; prefix: string }) {
+  const tone = {
+    alarm: "border-red-200 bg-red-50 text-red-900",
+    warn: "border-amber-200 bg-amber-50 text-amber-900",
+    info: "border-blue-200 bg-blue-50 text-blue-900"
+  }[alert.severity] || "border-gray-200 bg-gray-50 text-gray-900"
+
+  return (
+    <article className={`rounded border px-4 py-3 text-sm ${tone}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <h2 className="font-semibold">{alert.title}</h2>
+          <p dangerouslySetInnerHTML={{ __html: alert.message }} />
+          {alert.action_steps.length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5">
+              {alert.action_steps.map((step) => (
+                <li dangerouslySetInnerHTML={{ __html: step }} key={step} />
+              ))}
+            </ul>
+          ) : null}
+        </div>
+        {alert.cta ? (
+          <Link className="inline-flex shrink-0 items-center justify-center rounded border border-current px-3 py-1.5 font-medium hover:bg-white/60" to={withRoutePrefix(alert.cta.path, prefix)}>
+            {alert.cta.text}
+          </Link>
+        ) : null}
+      </div>
+    </article>
   )
 }
 
@@ -368,13 +463,15 @@ function SidebarContent({
       </div>
       <div className="shrink-0 border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
-          <SettingsPopup
-            csrfToken={csrfToken}
-            onCloseDrawer={onCloseDrawer}
-            prefix={prefix}
-            showTeamProfile={showTeamProfile}
-            user={user}
-          />
+          <nav aria-label="Account">
+            <SettingsPopup
+              csrfToken={csrfToken}
+              onCloseDrawer={onCloseDrawer}
+              prefix={prefix}
+              showTeamProfile={showTeamProfile}
+              user={user}
+            />
+          </nav>
         ) : null}
       </div>
     </div>
@@ -886,11 +983,24 @@ function normalizedAppPath(pathname: string) {
   return pathname.replace(/^\/app-shell/, "") || "/"
 }
 
+function redirectsToSetup(data: BootstrapPayload | null | undefined, normalizedPath: string) {
+  if (!data?.setup || data.setup.complete) return false
+  if (data.setup.chat_started) return false
+  return normalizedPath === "/" || normalizedPath.startsWith("/dashboard")
+}
+
 function isAdminPath(pathname: string) {
   return pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
     pathname === "/invitations" ||
     pathname === "/settings/edit"
+}
+
+function isAuthPath(pathname: string) {
+  return pathname === "/session/new" ||
+    pathname === "/users/new" ||
+    pathname === "/passwords/new" ||
+    pathname.startsWith("/passwords/")
 }
 
 function adminNavItemActive(pathname: string, navPath: string) {

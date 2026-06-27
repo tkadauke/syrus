@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 
 type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
 
@@ -32,12 +32,15 @@ const setupCopy: Record<NonNullable<SetupStatus["next_step"]>, { title: string; 
 }
 
 export function useSetupStatus() {
+  const initialBootstrap = readInitialBootstrap()
   const bootstrap = useQuery({
     queryKey: ["bootstrap"],
     queryFn: fetchBootstrap,
-    enabled: false
+    enabled: false,
+    initialData: initialBootstrap ?? undefined,
+    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
-  return bootstrap.data?.setup_status ?? null
+  return bootstrap.data?.setup_status ?? initialBootstrap?.setup_status ?? null
 }
 
 export function OnboardingEmptyState({

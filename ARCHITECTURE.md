@@ -953,9 +953,8 @@ Several layers, each catching different failure modes:
 - **Feature flags** — declared in `config/features.yml`, synchronized
   into `Feature` rows, serialized through the bootstrap
   `feature_flags` payload, and toggled by admins at `/admin/features`.
-  The `v2_ui` flag is the system-level shell gate: when disabled, React
-  forces the classic app shell even if `User#layout_version` is `"v2"`,
-  preserving the saved user preference for later rollout.
+  `v2_sidebar_subject_selector` controls the dashboard subject selector
+  inside the V2 sidebar.
 - **`/settings`** — admin console toggles (signups open, max job
   failures, merge-train enablement, etc.); redirects non-admins to
   credentials.
@@ -971,7 +970,7 @@ Several layers, each catching different failure modes:
   workflows, runs, queues, processes, and version/instance status.
 
 During first-run setup, React uses bootstrap setup payloads to gate app
-chrome in both the classic and V2 shells. Before the onboarding chat
+chrome. Before the onboarding chat
 starts, root/dashboard visits are redirected to `/onboarding`, the only
 top-level navigation item is **Setup**, and the brand link returns to
 onboarding. Starting the onboarding chat refreshes bootstrap in place,

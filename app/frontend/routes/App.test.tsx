@@ -147,8 +147,6 @@ describe("App", () => {
 
     expect(screen.getByRole("main", { name: "Syrus SPA" })).toBeInTheDocument()
     const accountNav = await screen.findByRole("navigation", { name: "Account" })
-    expect(within(accountNav).getByRole("link", { name: "admin" })).toHaveAttribute("href", "/app-shell/admin")
-    expect(within(accountNav).getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/app-shell/profile")
     expect(within(accountNav).getByRole("button", { name: "operator@example.com" })).toHaveAttribute("aria-expanded", "false")
     expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument()
@@ -445,8 +443,7 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      expect(await screen.findByRole("link", { name: "Repair aqueduct" })).toHaveAttribute("href", "/jobs/42")
-      expect(screen.getByRole("main", { name: "Dashboard" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Dashboard" })).toBeInTheDocument()
       expect(screen.queryByRole("main", { name: "Syrus public landing" })).not.toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/dashboard",
@@ -534,11 +531,11 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("main", { name: "Onboarding" })).toBeInTheDocument()
-      expectSyrusBrandLink("/app-shell/onboarding")
+      expectSyrusBrandLink("/app-shell")
       expect(screen.getByRole("link", { name: "Setup" })).toHaveAttribute("href", "/app-shell/onboarding")
       // Before the onboarding chat starts, the other top-level tabs are hidden.
       expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument()
-      expect(screen.queryByRole("link", { name: "Repos" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "Repositories" })).not.toBeInTheDocument()
     } finally {
       script.remove()
     }
@@ -572,15 +569,12 @@ describe("App", () => {
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
       expect(primaryNav).toBeInTheDocument()
       const accountNav = screen.getByRole("navigation", { name: "Account" })
-      expectSyrusBrandLink("/app-shell/chats/9")
+      expectSyrusBrandLink("/app-shell")
       expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
-      expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveClass("hidden", "sm:inline-flex")
+      expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
       expect(within(primaryNav).queryByRole("link", { name: "Jobs" })).toBeNull()
       expect(within(primaryNav).queryByRole("link", { name: "Chat" })).toBeNull()
       expect(within(primaryNav).queryByRole("link", { name: "Admin" })).toBeNull()
-      expect(within(accountNav).getByRole("link", { name: "admin" })).toHaveAttribute("href", "/app-shell/admin")
-      expect(within(accountNav).getByRole("link", { name: "admin" })).toHaveClass("rounded")
-      expect(within(accountNav).getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(within(accountNav).getByRole("button", { name: "operator@example.com" })).toHaveAttribute("aria-expanded", "false")
       expect(within(accountNav).queryByRole("link", { name: "Settings" })).toBeNull()
       expect(within(accountNav).queryByRole("button", { name: "Sign out" })).toBeNull()
@@ -588,14 +582,16 @@ describe("App", () => {
       expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(accountNav).getByRole("button", { name: "Sign out" })).toBeInTheDocument()
-      expect(screen.getByRole("link", { name: "9c0f8d15" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/commit/9c0f8d15")
       const footer = screen.getByRole("contentinfo")
       const quoteLink = within(footer).getByRole("link", { name: "A rolling stone gathers no moss." })
       expect(footer).toHaveClass("hidden", "lg:block")
       expect(quoteLink).toHaveAttribute("href", "https://en.wikipedia.org/wiki/Publilius_Syrus")
       expect(quoteLink).toHaveAttribute("target", "_blank")
       expect(quoteLink).toHaveAttribute("rel", "noopener")
-      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
     } finally {
       randomSpy.mockRestore()
       script.remove()
@@ -629,6 +625,7 @@ describe("App", () => {
       const accountNav = await screen.findByRole("navigation", { name: "Account" })
       expect(document.documentElement).toHaveClass("dark")
 
+      fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
       fireEvent.click(within(accountNav).getByRole("button", { name: "Switch to light mode" }))
 
       expect(document.documentElement).not.toHaveClass("dark")
@@ -653,45 +650,11 @@ describe("App", () => {
     }
   })
 
-  it("uses the classic shell when v2 UI is disabled", async () => {
+  it("uses the v2 shell", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
-    script.textContent = JSON.stringify(bootstrapPayload({
-      feature_flags: {
-        v2_ui: false
-      }
-    }))
-    document.body.appendChild(script)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
-
-    try {
-      render(
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
-            <App />
-          </MemoryRouter>
-        </QueryClientProvider>
-      )
-
-      expect(await screen.findByRole("navigation", { name: "Account" })).toBeInTheDocument()
-    } finally {
-      fetchSpy.mockRestore()
-      script.remove()
-    }
-  })
-
-  it("uses the v2 shell when v2 UI is enabled", async () => {
-    const script = document.createElement("script")
-    script.id = "syrus-bootstrap-data"
-    script.type = "application/json"
-    script.textContent = JSON.stringify(bootstrapPayload({
-      feature_flags: {
-        v2_ui: true
-      }
-    }))
+    script.textContent = JSON.stringify(bootstrapPayload())
     document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -707,7 +670,7 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("navigation", { name: "Primary" })).toBeInTheDocument()
-      expect(screen.queryByRole("navigation", { name: "Account" })).not.toBeInTheDocument()
+      expect(screen.getByRole("navigation", { name: "Account" })).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -1768,7 +1731,10 @@ describe("App", () => {
       expect(screen.getByText("Connect a personal access token and the GitHub App — both are required.")).toBeInTheDocument()
       expect(screen.queryByText("Operator can manage this Syrus instance.")).not.toBeInTheDocument()
       expect(screen.queryByText("Choose a provider and add its credentials.")).not.toBeInTheDocument()
-      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
     } finally {
       script.remove()
     }
@@ -1992,7 +1958,7 @@ describe("App", () => {
           expect.objectContaining({ method: "POST", credentials: "same-origin", body: expect.any(FormData) })
         )
       })
-      const form = fetchSpy.mock.calls[0]?.[1]?.body as FormData
+      const form = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/bug_reports")?.[1]?.body as FormData
       expect(form.get("title")).toBe("Dashboard bug")
       expect(form.get("description")).toBe("The aqueduct counter is off by one.")
       expect((form.get("screenshot") as File).name).toBe("bug-report-full-page.png")
@@ -2139,7 +2105,7 @@ describe("App", () => {
           expect.objectContaining({ method: "POST", credentials: "same-origin", body: expect.any(FormData) })
         )
       })
-      const form = fetchSpy.mock.calls[0]?.[1]?.body as FormData
+      const form = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/bug_reports")?.[1]?.body as FormData
       expect(form.get("screenshot")).toBeNull()
     } finally {
       script.remove()
@@ -2181,7 +2147,7 @@ describe("App", () => {
           expect.objectContaining({ method: "POST", credentials: "same-origin", body: expect.any(FormData) })
         )
       })
-      const form = fetchSpy.mock.calls[0]?.[1]?.body as FormData
+      const form = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/bug_reports")?.[1]?.body as FormData
       expect(form.get("title")).toBe("Dashboard bug")
       expect(form.get("description")).toBe("The toga modal has fallen.")
     } finally {
@@ -2190,8 +2156,18 @@ describe("App", () => {
   })
 
   it("renders the admin overview route from the app admin API", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(
         JSON.stringify({
           active_runs: { total: 2, by_trigger: { initial: 1, retry: 1 } },
           queued_runs: { total: 1 },
@@ -2221,36 +2197,40 @@ describe("App", () => {
           ]
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
+      ))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/admin"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
       )
-    )
 
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/admin"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByText("Active runs")).toBeInTheDocument()
-    expect(screen.getByRole("main", { name: "Admin overview" })).toBeInTheDocument()
-    const adminNav = screen.getByRole("navigation", { name: "Admin navigation" })
-    expect(within(adminNav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/admin")
-    expect(within(adminNav).getByRole("link", { name: "Stuck" })).toHaveAttribute("href", "/app-shell/admin/stuck")
-    expect(within(adminNav).getByRole("link", { name: "Users" })).toHaveAttribute("href", "/app-shell/admin/users")
-    expect(within(adminNav).getByRole("link", { name: "Queue" })).toHaveAttribute("href", "/app-shell/admin/queue/active")
-    expect(within(adminNav).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")
-    expect(within(adminNav).getByRole("link", { name: "Console" })).toHaveAttribute("href", "/app-shell/admin/console")
-    expect(within(adminNav).getByRole("link", { name: "GitHub App" })).toHaveAttribute("href", "/app-shell/admin/github_app/register")
-    expect(within(adminNav).getByRole("link", { name: "Installations" })).toHaveAttribute("href", "/app-shell/admin/installations")
-    expect(within(adminNav).getByRole("link", { name: "App settings" })).toHaveAttribute("href", "/app-shell/settings/edit")
-    expect(within(adminNav).getByRole("link", { name: "Invitations" })).toHaveAttribute("href", "/app-shell/invitations")
-    expect(screen.getByRole("link", { name: /Active runs/ })).toHaveAttribute("href", "/app-shell/admin/queue/active")
-    expect(screen.getByRole("link", { name: /Stuck things/ })).toHaveAttribute("href", "/app-shell/admin/stuck")
-    expect(screen.getByRole("link", { name: "Run #4 silent for 10m" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
-    expect(screen.getByText("Data root disk")).toBeInTheDocument()
-    expect(screen.getByText("90%")).toBeInTheDocument()
-    expect(screen.getByText("2")).toBeInTheDocument()
+      expect(await screen.findByText("Active runs")).toBeInTheDocument()
+      expect(screen.getByRole("main", { name: "Admin overview" })).toBeInTheDocument()
+      const adminNav = screen.getByRole("navigation", { name: "Admin" })
+      expect(within(adminNav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/admin")
+      expect(within(adminNav).getByRole("link", { name: "Stuck" })).toHaveAttribute("href", "/app-shell/admin/stuck")
+      expect(within(adminNav).getByRole("link", { name: "Users" })).toHaveAttribute("href", "/app-shell/admin/users")
+      expect(within(adminNav).getByRole("link", { name: "Queue" })).toHaveAttribute("href", "/app-shell/admin/queue")
+      expect(within(adminNav).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")
+      expect(within(adminNav).getByRole("link", { name: "Console" })).toHaveAttribute("href", "/app-shell/admin/console")
+      expect(within(adminNav).getByRole("link", { name: "GitHub App" })).toHaveAttribute("href", "/app-shell/admin/github_app/register")
+      expect(within(adminNav).getByRole("link", { name: "Installations" })).toHaveAttribute("href", "/app-shell/admin/installations")
+      expect(within(adminNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/settings/edit")
+      expect(within(adminNav).getByRole("link", { name: "Invitations" })).toHaveAttribute("href", "/app-shell/invitations")
+      expect(screen.getByRole("link", { name: /Active runs/ })).toHaveAttribute("href", "/app-shell/admin/queue/active")
+      expect(screen.getByRole("link", { name: /Stuck things/ })).toHaveAttribute("href", "/app-shell/admin/stuck")
+      expect(screen.getByRole("link", { name: "Run #4 silent for 10m" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
+      expect(screen.getByText("Data root disk")).toBeInTheDocument()
+      expect(screen.getByText("90%")).toBeInTheDocument()
+      expect(screen.getByText("2")).toBeInTheDocument()
+    } finally {
+      script.remove()
+    }
   })
 
   it("renders the migrated /admin route from the same admin overview component", async () => {
@@ -5300,7 +5280,10 @@ describe("App", () => {
       fireEvent.change(valueInput, { target: { value: "RunJ" } })
       fireEvent.keyDown(valueInput, { key: "Enter" })
 
-      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
+      await waitFor(() => {
+        const queueCalls = fetchSpy.mock.calls.filter((call) => String(call[0]).startsWith("/api/v1/app/admin/queue"))
+        expect(queueCalls).toHaveLength(2)
+      })
       expect(screen.getByRole("dialog", { name: "Job class filter settings" })).toBeInTheDocument()
       expect(screen.getByLabelText("Value")).toHaveValue("RunJ")
 
@@ -6691,7 +6674,7 @@ describe("App", () => {
     expect(await screen.findByText("triage")).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
-    expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveClass("bg-blue-50")
     expect(screen.getByText("3")).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "epic:attachments" } })
@@ -6754,7 +6737,7 @@ describe("App", () => {
 
     expect(screen.getByRole("main", { name: "Cron templates" })).toBeInTheDocument()
     expect(await screen.findByText("Weekly dependency bump")).toBeInTheDocument()
-    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Templates" })).toHaveClass("bg-gray-900")
+    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Templates" })).toHaveClass("bg-blue-50")
     expect(screen.getByRole("link", { name: "Weekly dependency bump" })).toHaveAttribute("href", "/app-shell/cron_templates/5")
     expect(screen.getByText("2 repos")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -7039,7 +7022,7 @@ describe("App", () => {
       )
 
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
-      expect(within(primaryNav).getByRole("link", { name: "Repos" })).toHaveClass("sm:bg-blue-50", "text-blue-700")
+      expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveClass("sm:bg-blue-50", "text-blue-700")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).not.toHaveClass("bg-blue-50")
       expect(await screen.findByRole("main", { name: "Repository scheduled tasks" })).toHaveClass("max-w-[96rem]")
       const scheduledTabs = await screen.findByRole("navigation", { name: "Repository tabs" })
@@ -7109,9 +7092,9 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Credentials" })).toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Settings tabs" })).not.toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-    expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveClass("bg-blue-50")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
-    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).not.toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).not.toHaveClass("bg-blue-50")
     expect(await screen.findByText("A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.")).toBeInTheDocument()
     expect(screen.getByText("Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.")).toBeInTheDocument()
     expect(screen.getByText("Authorize with Claude, copy the code Claude shows, then paste it here to save a durable OAuth token for Syrus runs.")).toBeInTheDocument()
@@ -7185,7 +7168,7 @@ describe("App", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials", expect.anything())
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
-    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveClass("bg-blue-50")
     const jobFailedToggle = await screen.findByLabelText("Notify me when a job fails")
     expect(jobFailedToggle).toBeChecked()
     fireEvent.click(jobFailedToggle)
@@ -7400,7 +7383,7 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Profile" })).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profile")
-    expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-blue-50")
     expect(await screen.findByLabelText("Display name")).toBeInTheDocument()
     expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
@@ -7436,7 +7419,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Agent Settings" })).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-    expect(within(settingsNav).getByRole("link", { name: "Agent Settings" })).toHaveClass("bg-gray-900")
+    expect(within(settingsNav).getByRole("link", { name: "Agent Settings" })).toHaveClass("bg-blue-50")
     expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
     fireEvent.change(await screen.findByLabelText("Agent provider"), { target: { value: "codex" } })
     fireEvent.change(screen.getByLabelText("Max turns"), { target: { value: "42" } })
@@ -7473,7 +7456,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Preferences" })).toBeInTheDocument()
-    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Preferences" })).toHaveClass("bg-gray-900")
+    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Preferences" })).toHaveClass("bg-blue-50")
     expect(screen.queryByLabelText("Agent provider")).not.toBeInTheDocument()
     fireEvent.click(await screen.findByLabelText("Pause scheduling"))
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
@@ -7604,7 +7587,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Personal documents" })).toBeInTheDocument()
-    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Documents" })).toHaveClass("bg-gray-900")
+    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Documents" })).toHaveClass("bg-blue-50")
     fireEvent.change(await screen.findByLabelText("Google Doc URL"), { target: { value: "https://docs.google.com/document/d/user/edit" } })
     fireEvent.click(screen.getByRole("button", { name: "Add document" }))
 
@@ -7905,13 +7888,17 @@ describe("App", () => {
     script.type = "application/json"
     script.textContent = JSON.stringify(bootstrapPayload({ setupStatus: bootstrapSetupStatusPayload({ nextStep: "configure_credentials" }) }))
     document.body.appendChild(script)
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({
         ...repositoriesPayload(),
         active_repositories: [],
         archived_repositories: []
-      }), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+      }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
 
     try {
       render(
@@ -10213,7 +10200,7 @@ describe("App", () => {
 
     const chatMain = await screen.findByRole("main", { name: "Chat" })
     expect(chatMain).toBeInTheDocument()
-    expect(chatMain).toHaveClass("h-[calc(var(--chat-visual-viewport-height,100dvh)-4rem)]", "overflow-hidden")
+    expect(chatMain).toHaveClass("h-full", "overflow-hidden")
     expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Aqueduct planning" })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
