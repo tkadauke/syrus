@@ -161,11 +161,10 @@ module Steps
       tail.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?").strip
     end
 
-    # Read `io` until EOF, batching writes into JobLog. Flush becomes due
-    # when the buffer crosses LOG_FLUSH_BYTES or LOG_FLUSH_INTERVAL elapses,
-    # but is rate-limited by LOG_FLUSH_MIN_GAP unless LOG_FLUSH_MAX_BUF is
-    # reached. The IO.select timeout shrinks toward the next eligible flush
-    # deadline, so quiet streams still flush promptly.
+    # Read `io` until EOF, batching writes into JobLog. Active streams flush
+    # only when the buffer reaches LOG_FLUSH_MAX_BUF; the IO.select timeout
+    # shrinks toward the next eligible flush deadline so quiet streams still
+    # flush promptly.
     def stream_buffered(io)
       buffer = new_log_buffer
       loop do
@@ -195,7 +194,7 @@ module Steps
 
     def stream_buffered_chunk(buffer, chunk)
       buffer[:content] << chunk
-      flush_log_buffer(buffer) if log_flush_ready?(buffer[:content], buffer[:last_flush])
+      flush_log_buffer(buffer) if buffer[:content].bytesize >= LOG_FLUSH_MAX_BUF
     end
 
     def flush_log_buffer(buffer)
