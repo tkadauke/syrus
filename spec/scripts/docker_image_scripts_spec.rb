@@ -37,9 +37,8 @@ RSpec.describe "Docker image scripts" do
     expect(publish_image).to include("syrus_docker_build_image worker-dev \"$GIT_SHA\"")
 
     expect(deploy).to include('. "${SCRIPT_DIR}/docker-image-lib"')
-    expect(deploy).to include('CACHE_REF="$(syrus_docker_cache_ref "${REGISTRY}:cache")"')
-    expect(deploy).to include("syrus_docker_buildx_image app \"$SHA\"")
-    expect(deploy).to include("syrus_docker_buildx_image worker-dev \"$SHA\"")
+    expect(deploy).to include("syrus_docker_build_image app \"$SHA\"")
+    expect(deploy).to include("syrus_docker_build_image worker-dev \"$SHA\"")
     expect(deploy).to include("syrus_verify_pushed \"$1\" \"$2\" \"$GHCR_TOKEN\"")
   end
 
