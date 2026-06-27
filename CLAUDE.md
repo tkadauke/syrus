@@ -203,6 +203,31 @@ the landing queue.
 newest addressed comment, and future polls use the later timestamp as the
 cutoff so already-handled feedback is not re-enqueued.
 
+### Terminal feature
+
+Interactive terminal access is a labs feature and is off by default. Enable it
+with:
+
+```ruby
+Feature.find_by(slug: 'terminal').update(enabled: true)
+```
+
+Worker-side terminal sessions advertise their TCP relay with
+`SYRUS_TERMINAL_HOST`. Bare-metal/local development can leave it blank and
+`TerminalRelay` falls back to `127.0.0.1`. Docker Compose sets it to the
+worker service name (`worker`) so the web container can connect through Docker
+internal DNS. Kubernetes worker pods should set both `MY_POD_IP` and
+`SYRUS_TERMINAL_HOST` from the Downward API field
+`status.podIP`; the web pod reads each session's `relay_address` from the DB
+and connects directly over the CNI network. Traefik is not involved.
+
+Terminal sessions survive browser navigation because the PTY lives in the
+worker-side session until it exits or the user kills it. Sessions die on worker
+restart/deploy; there is no wall-clock idle timeout. The security boundary is a
+per-session auth token exchanged over the relay socket after the browser's
+authenticated Action Cable subscription is authorized, and the relay is not
+exposed through public ingress or Traefik.
+
 **Closed PR resolution** does not blindly treat every closed PR as
 `pr_closed`: merged PRs close as `pr_merged`, and closed unmerged PRs whose
 branch has no unique patches left against the PR base close as `no_changes`.
@@ -847,6 +872,10 @@ app/services/pr_summarizer.rb                # second-shot fallback
 app/jobs/poll_*.rb                           # polling jobs (cron-style; see config/recurring.yml)
 app/jobs/reap_stale_runs_job.rb              # kills zombie Runs every minute
 app/jobs/workflow_workspace_prune_job.rb     # daily sweep of old terminal workspaces
+app/models/terminal_session.rb               # terminal session lifecycle + relay readiness
+app/services/terminal_relay.rb               # terminal relay host discovery
+app/channels/terminal_channel.rb             # Action Cable bridge to terminal relays
+app/jobs/terminal_session_job.rb             # worker-side PTY and relay runner
 app/models/{job,run,workflow,step}.rb        # core models + AASM
 app/models/{repository,user}.rb             # repo + user (user has api_token, cron_templates)
 app/models/{installation,job_dependency}.rb  # GitHub App installs + Job DAG edges

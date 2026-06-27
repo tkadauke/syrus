@@ -3,6 +3,7 @@ require "pty"
 require "socket"
 
 class TerminalRelay
+  DEFAULT_RELAY_HOST = "127.0.0.1".freeze
   POLL_INTERVAL = 5
   READ_SIZE = 4096
 
@@ -10,7 +11,11 @@ class TerminalRelay
     @session = session
     @command = command
     @env = env
-    @relay_host = ENV.fetch("SYRUS_TERMINAL_HOST", "127.0.0.1")
+    @relay_host = relay_host
+  end
+
+  def relay_host
+    ENV["SYRUS_TERMINAL_HOST"].presence || DEFAULT_RELAY_HOST
   end
 
   def run

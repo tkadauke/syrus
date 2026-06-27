@@ -56,6 +56,8 @@ services:
     depends_on:
       setup:
         condition: service_completed_successfully
+    environment:
+      SYRUS_TERMINAL_HOST: worker
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search

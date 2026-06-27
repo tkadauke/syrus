@@ -101,6 +101,28 @@ With cert-manager, the usual shape is:
 Syrus uses browser sessions and live UI updates, so run it behind HTTPS
 for any non-local installation.
 
+## Terminal relay addressing
+
+If you enable the labs terminal feature, each worker pod must advertise a relay
+address that web pods can connect to directly. In k3s, set the worker
+container's `MY_POD_IP` and `SYRUS_TERMINAL_HOST` from the pod IP with the
+Downward API:
+
+```yaml
+env:
+  - name: MY_POD_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: SYRUS_TERMINAL_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+```
+
+This is internal pod-to-pod traffic over the CNI network, such as Flannel in
+k3s. Do not route terminal relay sockets through Traefik or public ingress.
+
 ## Data and backups
 
 Back up three things:

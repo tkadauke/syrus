@@ -160,6 +160,9 @@ and fills the secrets. Notable values:
   chat full-text search database.
 - `SYRUS_APP_HOST=localhost:3000`, `SYRUS_ASSUME_SSL=false`,
   `SYRUS_FORCE_SSL=false` — plain HTTP locally.
+- `SYRUS_TERMINAL_HOST=worker` — set by `docker-compose.yml` on the worker
+  service so terminal relay sockets advertise an address reachable by the web
+  container through Docker's internal DNS. The value stays blank in `.env`.
 - `SYRUS_PORT=3000` — host port mapped to the container.
 - `SECRET_KEY_BASE`, `ACTIVE_RECORD_ENCRYPTION_*` — generated; keep them
   stable across restarts or stored GitHub/agent credentials can't be
