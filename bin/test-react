@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
 # Runs React/TypeScript unit tests for the SPA migration.
-set -e
-exec npm run test:react
+set -euo pipefail
+
+status=0
+
+npm run typecheck &
+typecheck_pid=$!
+
+npx vitest run &
+vitest_pid=$!
+
+wait "$vitest_pid" || status=$?
+wait "$typecheck_pid" || status=$?
+
+exit "$status"
