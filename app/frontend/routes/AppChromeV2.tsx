@@ -5,6 +5,7 @@ import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createChat, fetchChats, fetchMoreChatsForGroup, hideChat, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
+import { fetchTerminalSessions } from "../api/terminal"
 import { BugReportButton } from "../components/BugReportButton"
 import { CloseIcon } from "../components/CloseIcon"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -63,13 +64,21 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     ? <Navigate replace to={`${prefix}/onboarding`} />
     : children ?? <Outlet />
 
-  const navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }> = user ? [
+  const terminalSessionCount = useTerminalSessionCount(Boolean(data?.feature_flags.terminal && user))
+  const navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
     ...(inOnboarding ? [{ label: "Setup", to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
     ...(tabsHidden ? [] : [
       { label: "Dashboard", to: `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
       { label: "Spending", to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
       { label: "Repositories", to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
       { label: "Schedules", to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> },
+      ...(data?.feature_flags.terminal ? [{
+        label: "Terminal",
+        to: `${prefix}/terminal`,
+        active: normalizedPath.startsWith("/terminal"),
+        icon: <TerminalIcon />,
+        badge: terminalSessionCount
+      }] : []),
       ...(data && data.team_user_count > 1 ? [{ label: "Team", to: `${prefix}/profiles`, active: normalizedPath.startsWith("/profiles"), icon: <TeamIcon /> }] : [])
     ])
   ] : []
@@ -373,7 +382,7 @@ function SidebarContent({
   creatingChat: boolean
   csrfToken?: string
   dashboardSubnavEnabled: boolean
-  navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode }>
+  navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
   onCloseDrawer: () => void
   onStartChat: () => void
   prefix: string
@@ -443,6 +452,7 @@ function SidebarContent({
                 <Link className={sidebarLinkClass(item.active)} key={item.label} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
                   {item.icon}
                   <span>{item.label}</span>
+                  {item.badge ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span> : null}
                 </Link>
               )
 
@@ -1135,6 +1145,18 @@ function popupButtonClass() {
   return "block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-200 dark:hover:bg-gray-800"
 }
 
+export function useTerminalSessionCount(enabled: boolean) {
+  const terminalSessions = useQuery({
+    queryKey: ["terminal_sessions"],
+    queryFn: ({ signal }) => fetchTerminalSessions({ signal }),
+    enabled,
+    refetchInterval: enabled ? 10000 : false
+  })
+
+  if (!enabled) return 0
+  return terminalSessions.data?.sessions.filter((session) => !session.finished_at).length ?? 0
+}
+
 function PlusIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
@@ -1187,6 +1209,14 @@ function ScheduleIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
       <path d="M7.75 4v3M16.25 4v3M5.25 8.75h13.5M6.75 5.75h10.5a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H6.75a2 2 0 0 1-2-2v-9.5a2 2 0 0 1 2-2Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
+function TerminalIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path d="m5.75 8.25 4 3.75-4 3.75M12.75 16.25h5.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
     </svg>
   )
 }

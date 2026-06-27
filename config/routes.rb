@@ -42,6 +42,7 @@ Rails.application.routes.draw do
         get "notifications", to: "notifications#index"
         post "notifications/mark_all_read", to: "notifications#mark_all_read"
         patch "notifications/:id/mark_read", to: "notifications#mark_read", constraints: { id: /\d+/ }
+        resources :terminal_sessions, only: %i[ index create destroy ]
         get "notification_preferences", to: "notification_preferences#show"
         patch "notification_preferences", to: "notification_preferences#update"
         resource :credentials, only: %i[ show update ] do
@@ -348,6 +349,7 @@ Rails.application.routes.draw do
   get "dashboard/jobs", to: "spa#show", as: :dashboard_jobs
   get "dashboard/workflows", to: "spa#show", as: :dashboard_workflows
   get "insights/spending", to: "spa#show", as: :insights_spending
+  get "terminal", to: "spa#show", as: :terminal
   get "jobs", to: redirect(status: 302) { |_params, request|
     query = request.query_parameters.except("subject").to_query
     query.present? ? "/dashboard/jobs?#{query}" : "/dashboard/jobs"

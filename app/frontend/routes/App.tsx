@@ -45,6 +45,7 @@ import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex }
 import { SearchRoute } from "./Search"
 import { SpendingInsightsRoute } from "./SpendingInsights"
 import { Tags } from "./Tags"
+import { TerminalRoute } from "./Terminal"
 import { TeamDirectoryRoute, TeamProfileRoute } from "./Profiles"
 
 type AppRouteDefinition = {
@@ -63,6 +64,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
   { path: "/search", element: <SearchRoute /> },
   { path: "/insights/spending", element: <SpendingInsightsRoute /> },
+  { path: "/terminal", element: <TerminalRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
   { path: "/setup", element: <SetupRedirect /> },
   { path: "/admin", element: <AdminOverview /> },

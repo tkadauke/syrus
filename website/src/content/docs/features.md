@@ -41,6 +41,15 @@ supports marking all notifications read.
 On mobile, the bell opens the full `/notifications` page with the same
 recent list and read behavior.
 
+## Terminal
+
+When the `terminal` feature flag is enabled, the V2 sidebar shows a
+Terminal item with a live badge for running sessions. The `/terminal` page
+lists open sessions as tabs, lets operators start a session from recent
+Workflow workspaces or a scratch directory, and keeps the PTY alive while
+the browser navigates away. Returning to the page reconnects the xterm.js
+pane to the existing session; killing a tab ends that session.
+
 ## Epics
 
 Epics group related Jobs inside one repository. They are useful when a

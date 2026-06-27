@@ -12,7 +12,7 @@ describe("subscribeToAppEvents", () => {
       subscriptions: {
         create: vi.fn((_params, mixin) => {
           received = mixin.received
-          return { unsubscribe }
+          return { perform: vi.fn(), unsubscribe }
         })
       }
     }
