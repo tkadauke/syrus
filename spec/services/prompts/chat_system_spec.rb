@@ -198,8 +198,8 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo, chat_session: chat).to_s
 
     expect(out).to include("Recent proposal activity:")
-    expect(out).to include(%(- Epic ##{epic.id} "Chat-driven job feedback loop" confirmed with jobs: ##{child_job.id} "Add trigger" (proposal slug: feedback-loop)))
-    expect(out).to include(%(- Job ##{child_job.id} "Add trigger" confirmed (proposal slug: add-trigger)))
+    expect(out).to include(%(- EPIC-#{epic.id} "Chat-driven job feedback loop" confirmed with jobs: JOB-#{child_job.id} "Add trigger" (proposal slug: feedback-loop)))
+    expect(out).to include(%(- JOB-#{child_job.id} "Add trigger" confirmed (proposal slug: add-trigger)))
     expect(out).to include(%(- Proposal "Some title" was rejected (proposal slug: some-title)))
   end
 
@@ -454,6 +454,8 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("`propose_epic_with_jobs` requires unique, stable, descriptive")
     expect(out).to match(/always\s+use the slug, never the\s+numeric `id`/)
     expect(out).to match(/That `id` is an internal record identifier invisible to the\s+operator\./)
+    expect(out).to include("A proposal's `id` is NOT the future JOB-<id> or EPIC-<id>")
+    expect(out).to match(/Never write `JOB-\{proposal_id\}`\s+or `EPIC-\{proposal_id\}` using a proposal response's `id`\s+field\./)
     expect(out).to include("Express dependencies between proposals when they exist")
     expect(out).to include("Use `propose_job` for direct Syrus Job creation")
     expect(out).to include("Use `schedule_recurring(cron_expression, label, prompt)` only")

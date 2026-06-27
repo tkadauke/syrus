@@ -12,6 +12,10 @@ module SyrusChatMcp
       creates an epicless direct Job.
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again.
+      The `id` in the response is the proposal record ID -- NOT the Job ID.
+      Never write `JOB-{id}` using this number. The actual Job ID is assigned
+      only when the operator confirms, and will appear as `JOB-<id>` in the
+      next turn's system prompt under "Recent proposal activity".
     DESC
 
     input_schema(

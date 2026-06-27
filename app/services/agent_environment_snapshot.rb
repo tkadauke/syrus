@@ -255,15 +255,15 @@ class AgentEnvironmentSnapshot
     when Epic
       jobs = proposal.child_proposals.select { |child| child.job_id.present? }.map { |child| proposal_child_job_label(child.job) }
       suffix = jobs.any? ? " with jobs: #{jobs.join(', ')}" : ""
-      "- Epic ##{proposal.epic.id} #{proposal.epic.title.inspect} confirmed#{suffix} (proposal slug: #{proposal.slug})"
+      "- EPIC-#{proposal.epic.id} #{proposal.epic.title.inspect} confirmed#{suffix} (proposal slug: #{proposal.slug})"
     when Job
-      "- Job ##{proposal.job.id} #{proposal.job.issue_title.inspect} confirmed (proposal slug: #{proposal.slug})"
+      "- JOB-#{proposal.job.id} #{proposal.job.issue_title.inspect} confirmed (proposal slug: #{proposal.slug})"
     else
       "- Proposal #{proposal.title.inspect} was #{proposal.state} (proposal slug: #{proposal.slug})"
     end
   end
 
   def proposal_child_job_label(job)
-    "##{job.id} #{job.issue_title.inspect}"
+    "JOB-#{job.id} #{job.issue_title.inspect}"
   end
 end

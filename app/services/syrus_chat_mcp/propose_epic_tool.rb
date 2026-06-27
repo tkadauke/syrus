@@ -11,6 +11,10 @@ module SyrusChatMcp
       Epic by itself, with no child Jobs.
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again.
+      The `id` in the response is the proposal record ID -- NOT the Epic ID.
+      Never write `EPIC-{id}` using this number. The actual Epic ID is assigned
+      only when the operator confirms, and will appear as `EPIC-<id>` in the
+      next turn's system prompt under "Recent proposal activity".
     DESC
 
     input_schema(

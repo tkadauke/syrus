@@ -58,6 +58,38 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include("whiteboard: read_scene, draw_shape")
       expect(snapshot).to include("save_canvas, clear_canvas")
     end
+
+    it "renders confirmed proposal activity with canonical Syrus IDs" do
+      repo = repository(owner: "rome", name: "forums")
+      chat = ChatSession.create!(user: repo.user, repository: repo)
+      epic = Factories.epic(user: repo.user, repository: repo, title: "Rebuild the forum")
+      child_job = Factories.job_record(user: repo.user, repository: repo, issue_title: "Add arches")
+      epic_proposal = chat.proposals.create!(
+        repository: repo,
+        epic: epic,
+        state: "confirmed",
+        slug: "forum",
+        title: "Rebuild the forum",
+        body: "Do it.",
+        kind: "epic"
+      )
+      chat.proposals.create!(
+        repository: repo,
+        parent_proposal: epic_proposal,
+        job: child_job,
+        state: "confirmed",
+        slug: "add-arches",
+        title: "Add arches",
+        body: "Do it.",
+        kind: "job"
+      )
+
+      snapshot = described_class.for_chat(repository: repo, chat_session: chat)
+
+      expect(snapshot).to include("Recent proposal activity:")
+      expect(snapshot).to include(%(- EPIC-#{epic.id} "Rebuild the forum" confirmed with jobs: JOB-#{child_job.id} "Add arches" (proposal slug: forum)))
+      expect(snapshot).to include(%(- JOB-#{child_job.id} "Add arches" confirmed (proposal slug: add-arches)))
+    end
   end
 
   describe "#apply_to" do

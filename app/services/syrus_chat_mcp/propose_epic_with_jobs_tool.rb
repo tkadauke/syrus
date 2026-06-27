@@ -11,6 +11,11 @@ module SyrusChatMcp
       dependencies in one Syrus transaction.
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again.
+      Any `id` in the response is a proposal record ID -- NOT an Epic or Job
+      ID. Never write `EPIC-{id}` or `JOB-{id}` using these numbers. The actual
+      Epic and Job IDs are assigned only when the operator confirms, and will
+      appear as `EPIC-<id>` and `JOB-<id>` in the next turn's system prompt
+      under "Recent proposal activity".
     DESC
 
     input_schema(

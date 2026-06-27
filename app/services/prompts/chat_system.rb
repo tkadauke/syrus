@@ -243,6 +243,11 @@ module Prompts
             numeric `id` the tool response returns.
             That `id` is an internal record identifier invisible to the
             operator.
+            A proposal's `id` is NOT the future JOB-<id> or EPIC-<id>
+            -- those are assigned at confirmation and will appear in
+            "Recent proposal activity". Never write `JOB-{proposal_id}`
+            or `EPIC-{proposal_id}` using a proposal response's `id`
+            field.
           - When referencing Jobs and Epics in conversation, always use
             canonical formats: `JOB-<id>` for Jobs (e.g. JOB-1234) and
             `EPIC-<id>` for Epics (e.g. EPIC-101). These formats allow the
