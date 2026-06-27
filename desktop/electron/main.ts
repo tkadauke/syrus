@@ -132,6 +132,33 @@ type BootstrapPayload = {
   unread_notifications_count?: number
 }
 
+type NotificationRecord = {
+  id: number
+  kind: string
+  body: string
+  read_at: string | null
+  pr_url: string | null
+  job_id: number | null
+  job_title?: string | null
+  created_at: string
+}
+
+type NotificationsPayload = {
+  notifications: NotificationRecord[]
+  unread_count: number
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+  }
+}
+
+type NotificationPayload = {
+  notification: NotificationRecord
+  unread_count: number
+}
+
 type AdminConsolePayload = {
   settings: {
     polling_paused: boolean
@@ -531,7 +558,7 @@ const syncUnreadCount = async () => {
   const credentials = cachedCredentials ?? (await loadCredentials())
   if (!credentials) {
     setUnreadCount(0)
-    return
+    return 0
   }
 
   const response = await fetch(notificationsUrl(credentials.url), {
@@ -552,7 +579,86 @@ const syncUnreadCount = async () => {
   const count = normalizeUnreadCount(payload.unread_count)
   if (count !== null) {
     setUnreadCount(count)
+    return count
   }
+
+  return unreadCount
+}
+
+const fetchNotificationUnreadCount = async () => syncUnreadCount()
+
+const fetchNotifications = async () => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before loading notifications.")
+  }
+
+  const response = await fetch(notificationsUrl(credentials.url), {
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response, "Could not load notifications."))
+  }
+
+  const payload = (await response.json()) as NotificationsPayload
+  const count = normalizeUnreadCount(payload.unread_count)
+  if (count !== null) {
+    setUnreadCount(count)
+  }
+  return payload
+}
+
+const markNotificationRead = async (id: number) => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before updating notifications.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, `/api/v1/app/notifications/${id}/mark_read`), {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response, "Could not mark notification read."))
+  }
+
+  const payload = (await response.json()) as NotificationPayload
+  const count = normalizeUnreadCount(payload.unread_count)
+  if (count !== null) {
+    setUnreadCount(count)
+  }
+  return payload
+}
+
+const markAllNotificationsRead = async () => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before updating notifications.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, "/api/v1/app/notifications/mark_all_read"), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response, "Could not mark notifications read."))
+  }
+
+  const payload = (await response.json()) as NotificationsPayload
+  const count = normalizeUnreadCount(payload.unread_count)
+  if (count !== null) {
+    setUnreadCount(count)
+  }
+  return payload
 }
 
 const fetchJobList = async (credentials: Credentials, state: string) => {
@@ -1257,6 +1363,10 @@ ipcMain.handle("open-token-docs", async () => {
 })
 ipcMain.handle("fetch-inbox-jobs", async () => fetchInboxJobs())
 ipcMain.handle("fetch-job-detail", async (_event, jobID: number) => fetchJobDetail(jobID))
+ipcMain.handle("fetch-notification-unread-count", async () => fetchNotificationUnreadCount())
+ipcMain.handle("fetch-notifications", async () => fetchNotifications())
+ipcMain.handle("mark-notification-read", async (_event, id: number) => markNotificationRead(id))
+ipcMain.handle("mark-all-notifications-read", async () => markAllNotificationsRead())
 ipcMain.handle("confirm-approve-job", async (event, jobID: number) => confirmApproveJob(event.sender, jobID))
 ipcMain.handle("approve-job", async (_event, jobID: number) => approveJob(jobID))
 ipcMain.handle("retry-job", async (_event, jobID: number) => retryJob(jobID))

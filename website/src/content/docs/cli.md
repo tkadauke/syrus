@@ -71,8 +71,10 @@ compact inbox popover. The shortcut can be changed or cleared from
 Preferences. The popover shows implemented and failed Jobs, refreshes
 every 30 seconds, syncs the unread notification count, and lets you open
 the Job in Syrus or open its pull request in your browser when one
-exists. Selecting a row opens an in-popover Job detail view with back
-navigation, the generated test plan, a copyable
+exists. Its header bell opens an in-popover notifications page with unread
+badges, mark-read actions, Job navigation, and pull request links.
+Selecting a row opens an in-popover Job detail view with back navigation,
+the generated test plan, a copyable
 `syrus checkout JOB-<id>` command, and the same browser, pull request,
 approval, retry, and checkout actions as the inbox row. Implemented rows
 can be approved for landing from the popover after a native confirmation

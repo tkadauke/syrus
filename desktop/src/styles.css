@@ -527,6 +527,10 @@ input:focus {
     @apply grid h-8 w-8 shrink-0 place-items-center rounded-md border border-slate-200 bg-white p-0 text-slate-600 shadow-none hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-50 disabled:text-slate-300 disabled:opacity-100;
   }
 
+  .icon-button--badged {
+    @apply relative;
+  }
+
   .admin-toggle {
     @apply flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold leading-4 text-slate-600 shadow-none hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60;
   }
@@ -542,6 +546,123 @@ input:focus {
   .admin-toggle__state {
     @apply whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500;
   }
+}
+
+.notification-badge {
+  position: absolute;
+  top: -0.3125rem;
+  right: -0.3125rem;
+  min-width: 1.125rem;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  padding: 0 0.25rem;
+  text-align: center;
+  font-size: 0.625rem;
+  font-weight: 800;
+  line-height: 1rem;
+}
+
+.notification-header-action {
+  min-height: 2rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1d4ed8;
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 750;
+  line-height: 1rem;
+  text-align: right;
+}
+
+.notification-header-action:hover {
+  background: #eff6ff;
+}
+
+.notification-header-action:disabled {
+  color: #94a3b8;
+  background: transparent;
+}
+
+.notification-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: transparent;
+  color: #0f172a;
+  padding: 0.75rem 1rem;
+  text-align: left;
+}
+
+.notification-row:hover {
+  background: #ffffff;
+}
+
+.notification-row--unread {
+  background: rgb(239 246 255 / 0.72);
+}
+
+.notification-row--unread:hover {
+  background: #eff6ff;
+}
+
+.notification-kind {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.notification-kind__dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.notification-row__content {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.notification-row__body {
+  color: #0f172a;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.notification-row__body--unread {
+  font-weight: 750;
+}
+
+.notification-row__body--read {
+  color: #334155;
+  font-weight: 500;
+}
+
+.notification-row__time {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
 }
 
 .job-list {

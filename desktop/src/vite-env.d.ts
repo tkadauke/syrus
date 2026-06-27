@@ -81,6 +81,33 @@ type SyrusBootstrapPayload = {
   unread_notifications_count?: number
 }
 
+type SyrusNotificationRecord = {
+  id: number
+  kind: string
+  body: string
+  read_at: string | null
+  job_id: number | null
+  pr_url: string | null
+  job_title?: string | null
+  created_at: string
+}
+
+type SyrusNotificationsPayload = {
+  notifications: SyrusNotificationRecord[]
+  unread_count: number
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+  }
+}
+
+type SyrusNotificationPayload = {
+  notification: SyrusNotificationRecord
+  unread_count: number
+}
+
 type SyrusAdminControls = {
   polling_paused: boolean
   runs_paused: boolean
@@ -113,6 +140,10 @@ interface Window {
     setLastUsedRepo: (repoSlug: string) => Promise<string>
     fetchInboxJobs: () => Promise<SyrusJobItem[]>
     fetchJobDetail: (jobID: number) => Promise<SyrusJobDetail>
+    fetchNotificationUnreadCount: () => Promise<number>
+    fetchNotifications: () => Promise<SyrusNotificationsPayload>
+    markNotificationRead: (id: number) => Promise<SyrusNotificationPayload>
+    markAllNotificationsRead: () => Promise<SyrusNotificationsPayload>
     createDirectJob: (request: SyrusCreateJobRequest) => Promise<SyrusCreateJobResponse>
     confirmApproveJob: (jobID: number) => Promise<boolean>
     approveJob: (jobID: number) => Promise<void>

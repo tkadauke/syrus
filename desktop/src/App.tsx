@@ -6,7 +6,7 @@ import syrusIconUrl from "../assets/syrusIcon.png"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
-type PopoverNavigationState = { view: "inbox" } | { view: "job-detail"; jobId: number }
+type PopoverNavigationState = { view: "inbox" } | { view: "job-detail"; jobId: number } | { view: "notifications" }
 type CheckoutStatusByRepo = Record<string, SyrusCheckoutAvailability>
 type ToastState = {
   kind: "success" | "error"
@@ -40,6 +40,34 @@ const compareInboxJobs = (a: SyrusJobItem, b: SyrusJobItem) => {
   }
 
   return b.id - a.id
+}
+
+const unreadBadgeLabel = (count: number) => count > 9 ? "9+" : String(count)
+
+const relativeTimestamp = (value: string) => {
+  const timestamp = Date.parse(value)
+  if (Number.isNaN(timestamp)) return ""
+
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  if (elapsedSeconds < 60) return "just now"
+
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60)
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60)
+  if (elapsedHours < 24) return `${elapsedHours}h ago`
+
+  const elapsedDays = Math.floor(elapsedHours / 24)
+  if (elapsedDays < 30) return `${elapsedDays}d ago`
+
+  return new Date(timestamp).toLocaleDateString()
+}
+
+const notificationKindIconClass = (kind: string) => {
+  if (kind.includes("failed")) return "bg-red-50 text-red-600"
+  if (kind.includes("merged") || kind.includes("completed")) return "bg-emerald-50 text-emerald-600"
+  if (kind.includes("implemented") || kind.includes("addressed")) return "bg-blue-50 text-blue-600"
+  return "bg-slate-100 text-slate-500"
 }
 
 const groupJobsByRepository = (jobs: SyrusJobItem[]) => {
@@ -214,6 +242,18 @@ function ComposeIcon() {
   )
 }
 
+function BellIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path d="M6.75 10.75a5.25 5.25 0 0 1 10.5 0v3.5l1.5 2.25h-13.5l1.5-2.25v-3.5ZM10 19.25h4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+function NotificationBadge({ children }: { children: string }) {
+  return <span className="notification-badge">{children}</span>
+}
+
 function CheckIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
@@ -328,6 +368,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const [collapsedRepositorySlugs, setCollapsedRepositorySlugs] = useState<Set<string>>(() => new Set())
   const [retryingJobID, setRetryingJobID] = useState<number | null>(null)
   const toastTimerRef = useRef<number | null>(null)
+  const [isMarkingAllNotificationsRead, setIsMarkingAllNotificationsRead] = useState(false)
   const composeRef = useRef<HTMLElement>(null)
   const composeButtonRef = useRef<HTMLButtonElement>(null)
   const inboxQuery = useQuery({
@@ -342,6 +383,12 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const bootstrapQuery = useQuery({
     queryKey: ["bootstrap", instanceUrl],
     queryFn: () => window.syrusDesktop.fetchBootstrap(),
+    staleTime: REFRESH_INTERVAL_MS
+  })
+  const unreadCountQuery = useQuery({
+    queryKey: ["notification-unread-count", instanceUrl],
+    queryFn: () => window.syrusDesktop.fetchNotificationUnreadCount(),
+    refetchInterval: REFRESH_INTERVAL_MS,
     staleTime: REFRESH_INTERVAL_MS
   })
   const isAdmin = bootstrapQuery.data?.current_user?.admin === true
@@ -359,6 +406,17 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     enabled: detailJobId !== null,
     refetchInterval: detailJobId !== null ? REFRESH_INTERVAL_MS : false
   })
+  const notificationsQuery = useQuery({
+    queryKey: ["notifications", instanceUrl],
+    queryFn: () => window.syrusDesktop.fetchNotifications(),
+    enabled: navigation.view === "notifications",
+    refetchOnMount: "always",
+    staleTime: 15_000
+  })
+  const unreadCount = notificationsQuery.data?.unread_count ??
+    unreadCountQuery.data ??
+    bootstrapQuery.data?.unread_notifications_count ??
+    0
 
   const clearToastTimer = () => {
     if (toastTimerRef.current) {
@@ -386,6 +444,24 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   }
 
   useEffect(() => () => clearToastTimer(), [])
+
+  useEffect(() => {
+    const count = notificationsQuery.data?.unread_count
+    if (typeof count === "number") {
+      queryClient.setQueryData(["notification-unread-count", instanceUrl], count)
+    }
+  }, [instanceUrl, notificationsQuery.data?.unread_count, queryClient])
+
+  useEffect(() => {
+    const unsubscribe = window.syrusDesktop.onNotificationEvent(() => {
+      void unreadCountQuery.refetch()
+      if (navigation.view === "notifications") {
+        void notificationsQuery.refetch()
+      }
+    })
+
+    return unsubscribe
+  }, [navigation.view, notificationsQuery, unreadCountQuery])
 
   useEffect(() => {
     if (jobs.length === 0) {
@@ -436,6 +512,12 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     setIsComposeOpen(false)
   }
 
+  const openNotifications = () => {
+    setNavigation({ view: "notifications" })
+    setIsComposeOpen(false)
+    void notificationsQuery.refetch()
+  }
+
   const openPullRequest = (job: SyrusJobItem) => {
     if (job.pr_url) {
       void window.syrusDesktop.openExternal(job.pr_url)
@@ -445,6 +527,52 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const openRepository = (repositoryId?: number) => {
     if (repositoryId) {
       void window.syrusDesktop.openExternal(`${normalizeInstanceUrl(instanceUrl)}/repositories/${repositoryId}`)
+    }
+  }
+
+  const updateNotificationsCache = (payload: SyrusNotificationsPayload) => {
+    queryClient.setQueryData(["notifications", instanceUrl], payload)
+    queryClient.setQueryData(["notification-unread-count", instanceUrl], payload.unread_count)
+  }
+
+  const updateNotificationReadCache = (payload: SyrusNotificationPayload) => {
+    queryClient.setQueryData<SyrusNotificationsPayload>(["notifications", instanceUrl], (current) => {
+      if (!current) return current
+
+      return {
+        ...current,
+        unread_count: payload.unread_count,
+        notifications: current.notifications.map((notification) =>
+          notification.id === payload.notification.id ? payload.notification : notification
+        )
+      }
+    })
+    queryClient.setQueryData(["notification-unread-count", instanceUrl], payload.unread_count)
+  }
+
+  const markAllNotificationsRead = async () => {
+    setIsMarkingAllNotificationsRead(true)
+
+    try {
+      updateNotificationsCache(await window.syrusDesktop.markAllNotificationsRead())
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : "Could not mark notifications read.")
+    } finally {
+      setIsMarkingAllNotificationsRead(false)
+    }
+  }
+
+  const openNotification = async (notification: SyrusNotificationRecord) => {
+    try {
+      updateNotificationReadCache(await window.syrusDesktop.markNotificationRead(notification.id))
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : "Could not mark notification read.")
+    }
+
+    if (notification.job_id) {
+      setNavigation({ view: "job-detail", jobId: notification.job_id })
+    } else if (notification.pr_url) {
+      void window.syrusDesktop.openExternal(notification.pr_url)
     }
   }
 
@@ -590,51 +718,92 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   return (
     <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          {navigation.view === "job-detail" ? (
-            <button
-              type="button"
-              className="icon-button"
-              title="Back"
-              aria-label="Back"
-              onClick={() => setNavigation({ view: "inbox" })}
-            >
-              <BackIcon />
-            </button>
-          ) : null}
-          <HeaderBrand title="Syrus" instanceUrl={instanceUrl} />
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {navigation.view === "inbox" ? (
-            <button
-              type="button"
-              className="icon-button"
-              title={isComposeOpen ? "Close compose" : "Compose job"}
-              aria-label={isComposeOpen ? "Close job compose" : "Compose job"}
-              aria-pressed={isComposeOpen}
-              ref={composeButtonRef}
-              onClick={() => setIsComposeOpen((open) => !open)}
-            >
-              <ComposeIcon />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="icon-button"
-            title={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
-            aria-label={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
-            disabled={navigation.view === "job-detail" ? detailQuery.isFetching : inboxQuery.isFetching}
-            onClick={() => {
-              if (navigation.view === "job-detail") {
-                void detailQuery.refetch()
-              } else {
-                void inboxQuery.refetch()
-              }
-            }}
-          >
-            <RefreshIcon />
-          </button>
-        </div>
+        {navigation.view === "notifications" ? (
+          <>
+            <div className="flex w-24 items-center">
+              <button
+                type="button"
+                className="icon-button"
+                title="Back"
+                aria-label="Back"
+                onClick={() => setNavigation({ view: "inbox" })}
+              >
+                <BackIcon />
+              </button>
+            </div>
+            <h1 className="min-w-0 flex-1 truncate text-center text-sm font-bold leading-5 text-slate-950">Notifications</h1>
+            <div className="flex w-24 justify-end">
+              <button
+                type="button"
+                className="notification-header-action"
+                disabled={isMarkingAllNotificationsRead || unreadCount <= 0 || (notificationsQuery.data?.notifications.length ?? 0) === 0}
+                onClick={() => void markAllNotificationsRead()}
+              >
+                Mark all read
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex min-w-0 items-center gap-2">
+              {navigation.view === "job-detail" ? (
+                <button
+                  type="button"
+                  className="icon-button"
+                  title="Back"
+                  aria-label="Back"
+                  onClick={() => setNavigation({ view: "inbox" })}
+                >
+                  <BackIcon />
+                </button>
+              ) : null}
+              <HeaderBrand title="Syrus" instanceUrl={instanceUrl} />
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {navigation.view === "inbox" ? (
+                <>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title={isComposeOpen ? "Close compose" : "Compose job"}
+                    aria-label={isComposeOpen ? "Close job compose" : "Compose job"}
+                    aria-pressed={isComposeOpen}
+                    ref={composeButtonRef}
+                    onClick={() => setIsComposeOpen((open) => !open)}
+                  >
+                    <ComposeIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button icon-button--badged"
+                    title={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+                    aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+                    onClick={openNotifications}
+                  >
+                    <BellIcon />
+                    {unreadCount > 0 ? <NotificationBadge>{unreadBadgeLabel(unreadCount)}</NotificationBadge> : null}
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                className="icon-button"
+                title={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
+                aria-label={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
+                disabled={navigation.view === "job-detail" ? detailQuery.isFetching : inboxQuery.isFetching}
+                onClick={() => {
+                  if (navigation.view === "job-detail") {
+                    void detailQuery.refetch()
+                  } else {
+                    void inboxQuery.refetch()
+                  }
+                }}
+              >
+                <RefreshIcon />
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       {cliMissing ? (
@@ -690,6 +859,15 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
             onApprove={(job) => void approveJob(job)}
             onRetry={(job) => void retryJob(job)}
             onRetryLoad={() => void detailQuery.refetch()}
+          />
+        ) : navigation.view === "notifications" ? (
+          <NotificationsView
+            error={notificationsQuery.error}
+            isError={notificationsQuery.isError}
+            isLoading={notificationsQuery.isLoading}
+            notifications={notificationsQuery.data?.notifications ?? []}
+            onOpenNotification={(notification) => void openNotification(notification)}
+            onRetryLoad={() => void notificationsQuery.refetch()}
           />
         ) : isComposeOpen ? (
           <ComposePanel
@@ -775,6 +953,77 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         />
       ) : null}
     </main>
+  )
+}
+
+function NotificationsView({
+  error,
+  isError,
+  isLoading,
+  notifications,
+  onOpenNotification,
+  onRetryLoad
+}: {
+  error: unknown
+  isError: boolean
+  isLoading: boolean
+  notifications: SyrusNotificationRecord[]
+  onOpenNotification: (notification: SyrusNotificationRecord) => void
+  onRetryLoad: () => void
+}) {
+  if (isLoading) {
+    return <StatusPanel title="Loading notifications" />
+  }
+
+  if (isError) {
+    return (
+      <StatusPanel
+        title="Could not load notifications"
+        detail={error instanceof Error ? error.message : "Try again in a moment."}
+        actionLabel="Retry"
+        onAction={onRetryLoad}
+      />
+    )
+  }
+
+  if (notifications.length === 0) {
+    return <StatusPanel title="No notifications" />
+  }
+
+  return (
+    <ul className="notification-list">
+      {notifications.map((notification) => (
+        <NotificationRow
+          key={notification.id}
+          notification={notification}
+          onOpen={() => onOpenNotification(notification)}
+        />
+      ))}
+    </ul>
+  )
+}
+
+function NotificationRow({ notification, onOpen }: { notification: SyrusNotificationRecord; onOpen: () => void }) {
+  const read = Boolean(notification.read_at)
+
+  return (
+    <li>
+      <button
+        type="button"
+        className={["notification-row", read ? "" : "notification-row--unread"].filter(Boolean).join(" ")}
+        onClick={onOpen}
+      >
+        <span className={`notification-kind ${notificationKindIconClass(notification.kind)}`} aria-hidden="true">
+          <span className="notification-kind__dot" />
+        </span>
+        <span className="notification-row__content">
+          <span className={["notification-row__body", read ? "notification-row__body--read" : "notification-row__body--unread"].join(" ")}>
+            {notification.body}
+          </span>
+          <span className="notification-row__time">{relativeTimestamp(notification.created_at)}</span>
+        </span>
+      </button>
+    </li>
   )
 }
 

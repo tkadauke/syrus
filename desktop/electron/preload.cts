@@ -81,6 +81,33 @@ type BootstrapPayload = {
   unread_notifications_count?: number
 }
 
+type NotificationRecord = {
+  id: number
+  kind: string
+  body: string
+  read_at: string | null
+  job_id: number | null
+  pr_url: string | null
+  job_title?: string | null
+  created_at: string
+}
+
+type NotificationsPayload = {
+  notifications: NotificationRecord[]
+  unread_count: number
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+  }
+}
+
+type NotificationPayload = {
+  notification: NotificationRecord
+  unread_count: number
+}
+
 type AdminControls = {
   polling_paused: boolean
   runs_paused: boolean
@@ -117,6 +144,13 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   setLastUsedRepo: (repoSlug: string) => ipcRenderer.invoke("set-last-used-repo", repoSlug) as Promise<string>,
   fetchInboxJobs: () => ipcRenderer.invoke("fetch-inbox-jobs") as Promise<JobItem[]>,
   fetchJobDetail: (jobID: number) => ipcRenderer.invoke("fetch-job-detail", jobID) as Promise<JobDetail>,
+  fetchNotificationUnreadCount: () =>
+    ipcRenderer.invoke("fetch-notification-unread-count") as Promise<number>,
+  fetchNotifications: () => ipcRenderer.invoke("fetch-notifications") as Promise<NotificationsPayload>,
+  markNotificationRead: (id: number) =>
+    ipcRenderer.invoke("mark-notification-read", id) as Promise<NotificationPayload>,
+  markAllNotificationsRead: () =>
+    ipcRenderer.invoke("mark-all-notifications-read") as Promise<NotificationsPayload>,
   createDirectJob: (request: CreateJobRequest) =>
     ipcRenderer.invoke("create-direct-job", request) as Promise<CreateJobResponse>,
   confirmApproveJob: (jobID: number) => ipcRenderer.invoke("confirm-approve-job", jobID) as Promise<boolean>,
