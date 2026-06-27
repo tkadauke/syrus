@@ -53,6 +53,19 @@ RSpec.describe ChatMessageSearchIndex do
     expect(results.map { |row| row[:chat_message_id] }).to eq([ own_message.id ])
   end
 
+  it "treats hyphenated queries as FTS literals" do
+    message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "Review JOB-1 search behavior" }
+    )
+    described_class.insert(message)
+
+    results = described_class.search("JOB-1", user_id: user.id)
+
+    expect(results.map { |row| row[:chat_message_id] }).to eq([ message.id ])
+  end
+
   it "orders more relevant matches first using BM25 rank" do
     weaker = ChatMessage.create!(
       chat_session: session,

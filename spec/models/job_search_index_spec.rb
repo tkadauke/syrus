@@ -58,6 +58,15 @@ RSpec.describe JobSearchIndex do
     expect(results.map { |row| row[:job_id] }).to eq([ own_job.id ])
   end
 
+  it "treats hyphenated queries as FTS literals" do
+    job = Factories.job_record(user: user, repository: repo, issue_title: "JOB-1 global search")
+    described_class.upsert(job)
+
+    results = described_class.search("JOB-1", user_id: user.id)
+
+    expect(results.map { |row| row[:job_id] }).to eq([ job.id ])
+  end
+
   it "orders more relevant matches first using BM25 rank" do
     weaker = Factories.job_record(user: user, repository: repo, issue_title: "needle deployment")
     stronger = Factories.job_record(user: user, repository: repo, issue_title: "needle needle needle deployment")

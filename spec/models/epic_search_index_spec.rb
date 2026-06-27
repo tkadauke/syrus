@@ -57,6 +57,15 @@ RSpec.describe EpicSearchIndex do
     expect(results.map { |row| row[:epic_id] }).to eq([ own_epic.id ])
   end
 
+  it "treats hyphenated queries as FTS literals" do
+    epic = Factories.epic(user: user, repository: repo, title: "EPIC-126 global search")
+    described_class.upsert(epic)
+
+    results = described_class.search("EPIC-126", user_id: user.id)
+
+    expect(results.map { |row| row[:epic_id] }).to eq([ epic.id ])
+  end
+
   it "orders more relevant matches first using BM25 rank" do
     weaker = Factories.epic(user: user, repository: repo, title: "needle deployment")
     stronger = Factories.epic(user: user, repository: repo, title: "needle needle needle deployment")

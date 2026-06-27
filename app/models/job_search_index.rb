@@ -40,7 +40,7 @@ class JobSearchIndex < SearchRecord
         bind(snippet_start.to_s),
         bind(snippet_end.to_s),
         bind(snippet_tokens.to_i),
-        bind(query.to_s),
+        bind(fts_literal_query(query)),
         bind(user_id)
       ]
 
@@ -72,6 +72,10 @@ class JobSearchIndex < SearchRecord
 
     def bind(value)
       ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
+    end
+
+    def fts_literal_query(query)
+      %("#{query.to_s.gsub('"', '""')}")
     end
 
     def body_for(job)
