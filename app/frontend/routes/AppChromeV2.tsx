@@ -160,14 +160,21 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       </aside>
 
       {mobileBrandFloating && !drawerOpen ? (
-        <button
-          aria-label="Open sidebar"
-          className="fixed left-3 top-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded border border-gray-200 bg-white text-gray-900 shadow-lg hover:bg-gray-50 hover:text-blue-600 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-900 dark:hover:text-blue-300 lg:hidden"
-          onClick={() => setDrawerOpen(true)}
-          type="button"
-        >
-          <img alt="" aria-hidden="true" className="h-6 w-6 rounded" src="/icon.png" />
-        </button>
+        <>
+          <button
+            aria-label="Open sidebar"
+            className="fixed left-3 top-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded border border-gray-200 bg-white text-gray-900 shadow-lg hover:bg-gray-50 hover:text-blue-600 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-900 dark:hover:text-blue-300 lg:hidden"
+            onClick={() => setDrawerOpen(true)}
+            type="button"
+          >
+            <img alt="" aria-hidden="true" className="h-6 w-6 rounded" src="/icon.png" />
+          </button>
+          {user ? (
+            <div className="fixed right-3 top-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+              <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} />
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {drawerOpen ? (
@@ -188,14 +195,17 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       ) : null}
 
       <main className="min-w-0 flex-1 overflow-auto" onScroll={handleMainScroll} ref={mainRef}>
-        <button
-          aria-label="Open sidebar"
-          className="flex w-full items-center border-b border-gray-200 bg-white px-4 py-3 text-left text-lg font-semibold text-gray-900 hover:bg-gray-50 hover:text-blue-600 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-900 dark:hover:text-blue-300 lg:hidden"
-          onClick={() => setDrawerOpen(true)}
-          type="button"
-        >
-          <SyrusBrand />
-        </button>
+        <div className="flex w-full items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+          <button
+            aria-label="Open sidebar"
+            className="min-w-0 text-left text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-300"
+            onClick={() => setDrawerOpen(true)}
+            type="button"
+          >
+            <SyrusBrand />
+          </button>
+          {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
+        </div>
         {showAdminSubnav ? (
           <div className="min-h-full min-w-0">
             <AdminSubnav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix} />

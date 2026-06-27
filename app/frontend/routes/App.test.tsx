@@ -1133,6 +1133,7 @@ describe("App", () => {
   })
 
   it("uses an anchored v2 mobile brand trigger that floats after scroll", async () => {
+    const restoreMediaQuery = mockMediaQuery(true)
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -1165,10 +1166,13 @@ describe("App", () => {
 
       await screen.findByRole("navigation", { name: "Primary" })
       const anchoredTrigger = screen.getByRole("button", { name: "Open sidebar" })
-      expect(anchoredTrigger).toHaveClass("w-full")
+      const mobileTopBar = anchoredTrigger.closest("div")
+      if (!(mobileTopBar instanceof HTMLElement)) throw new Error("Expected mobile top bar to render")
+      expect(mobileTopBar).toHaveClass("w-full")
       expect(anchoredTrigger).not.toHaveClass("fixed")
       expect(within(anchoredTrigger).getByText("Syrus")).toBeInTheDocument()
       expect(anchoredTrigger.querySelector('img[alt=""][src="/icon.png"]')).not.toBeNull()
+      expect(within(mobileTopBar).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications")
       expect(screen.queryByRole("button", { name: "Open settings" })).not.toBeInTheDocument()
 
       const scrollPane = document.querySelector("main.overflow-auto")
@@ -1181,14 +1185,19 @@ describe("App", () => {
       expect(floatingTrigger).toBeDefined()
       expect(floatingTrigger).toHaveClass("left-3", "top-3")
       expect(floatingTrigger?.querySelector('img[alt=""][src="/icon.png"]')).not.toBeNull()
+      const floatingNotification = screen.getAllByRole("link", { name: "Notifications" }).find((link) => link.parentElement?.classList.contains("fixed"))
+      expect(floatingNotification).toHaveAttribute("href", "/app-shell/notifications")
+      expect(floatingNotification?.parentElement).toHaveClass("right-3", "top-3")
 
       fireEvent.click(floatingTrigger as HTMLButtonElement)
       const drawerPrimaryNav = screen.getAllByRole("navigation", { name: "Primary" }).at(-1) as HTMLElement | undefined
       if (!(drawerPrimaryNav instanceof HTMLElement)) throw new Error("Expected drawer primary navigation to render")
       expect(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
       expect(screen.getAllByRole("button", { name: "Close sidebar" }).length).toBeGreaterThan(0)
+      expect(screen.getAllByRole("link", { name: "Notifications" }).length).toBeGreaterThan(0)
       expect(screen.getAllByRole("separator", { name: "Resize sidebar" })).toHaveLength(1)
     } finally {
+      restoreMediaQuery()
       fetchSpy.mockRestore()
       script.remove()
     }
