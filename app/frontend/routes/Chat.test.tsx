@@ -62,6 +62,36 @@ describe("ChatWorkspace panel collapse", () => {
   })
 })
 
+describe("chat compose drafts", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("restores and persists the saved draft for the current chat", async () => {
+    window.localStorage.setItem("syrus.chat.draft.8", "Please inspect the channel routing.")
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(textarea).toHaveValue("Please inspect the channel routing.")
+
+    fireEvent.change(textarea, { target: { value: "Follow the operator chat draft." } })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Follow the operator chat draft.")
+    })
+  })
+})
+
 describe("chat message image attachments", () => {
   beforeEach(() => {
     window.localStorage.clear()
