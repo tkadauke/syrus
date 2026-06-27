@@ -790,6 +790,10 @@ export function filterTreeFromPayload(filter: Record<string, unknown> | null | u
   return normalizedFilterTree(filter && typeof filter === "object" ? filter as FilterTree : null)
 }
 
+export function filterTreesEqual(left: FilterTree, right: FilterTree) {
+  return stableFilterJson(normalizedFilterTree(left)) === stableFilterJson(normalizedFilterTree(right))
+}
+
 function encodeFilterTree(tree: FilterTree) {
   const json = JSON.stringify(normalizedFilterTree(tree))
   return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
@@ -798,6 +802,21 @@ function encodeFilterTree(tree: FilterTree) {
 function normalizedFilterTree(tree: FilterTree | null): FilterTree {
   const children = topFilterChildren(tree).filter(Boolean)
   return { and: children }
+}
+
+function stableFilterJson(value: unknown): string {
+  return JSON.stringify(stableFilterValue(value))
+}
+
+function stableFilterValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableFilterValue)
+  if (!value || typeof value !== "object") return value
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => [key, stableFilterValue(nested)])
+  )
 }
 
 export function topFilterChildren(tree: FilterTree | FilterNode | null): FilterNode[] {

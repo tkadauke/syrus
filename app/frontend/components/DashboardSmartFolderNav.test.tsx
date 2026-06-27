@@ -11,13 +11,14 @@ vi.mock("../api/smartFolders", () => ({
   updateSmartFolder: vi.fn()
 }))
 
-function renderNav(folders: DashboardSmartFolder[]) {
+function renderNav(folders: DashboardSmartFolder[], options: { payload?: Partial<DashboardPayload>; search?: string } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const renderedPayload = payload({ smart_folders: folders, ...options.payload })
 
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <DashboardSmartFolderNav payload={payload({ smart_folders: folders })} prefix="" search="" />
+        <DashboardSmartFolderNav payload={renderedPayload} prefix="" search={options.search || ""} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -88,6 +89,18 @@ function folder(values: Partial<DashboardSmartFolder>): DashboardSmartFolder {
     path: "/dashboard/jobs?smart_folder_id=101",
     ...values
   }
+}
+
+const savedFilter = {
+  and: [
+    { field: "repository", op: "is", value: "tkadauke/syrus" }
+  ]
+}
+
+const changedFilter = {
+  and: [
+    { field: "repository", op: "is", value: "tkadauke/raytracer" }
+  ]
 }
 
 function showFolderActions(name = "Saved work", count = 3) {
@@ -203,5 +216,67 @@ describe("DashboardSmartFolderNav", () => {
     const foldersNav = screen.getByRole("navigation", { name: "Dashboard smart folders" })
     expect(within(foldersNav).getByRole("link", { name: "Inbox 0" })).toHaveAttribute("draggable", "false")
     expect(screen.getByRole("link", { name: "Saved review 0" }).parentElement).toHaveAttribute("draggable", "true")
+  })
+
+  it("hides folder save controls when the selected user-defined folder has not changed", () => {
+    renderNav([
+      folder({ active: true, filter: savedFilter })
+    ], {
+      payload: { active_smart_folder_id: 101, filter: savedFilter },
+      search: "?smart_folder_id=101"
+    })
+
+    expect(screen.queryByRole("button", { name: "Update Saved work" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+  })
+
+  it("shows update and save controls when a selected user-defined folder filter changes", () => {
+    renderNav([
+      folder({ active: true, filter: savedFilter })
+    ], {
+      payload: { active_smart_folder_id: 101, filter: changedFilter },
+      search: "?smart_folder_id=101&q=changed"
+    })
+
+    expect(screen.getByRole("button", { name: "Update Saved work" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save folder" })).toBeInTheDocument()
+  })
+
+  it("shows only save controls when a selected builtin folder filter changes", () => {
+    renderNav([
+      folder({ id: 7, name: "Inbox", kind: "builtin", active: true, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" })
+    ], {
+      payload: { active_smart_folder_id: 7, filter: changedFilter },
+      search: "?smart_folder_id=7&q=changed"
+    })
+
+    expect(screen.queryByRole("button", { name: "Update Inbox" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save folder" })).toBeInTheDocument()
+  })
+
+  it("hides save controls when filters remain but no folder is selected", () => {
+    renderNav([
+      folder({ filter: savedFilter })
+    ], {
+      payload: { active_smart_folder_id: null, filter: changedFilter },
+      search: "?q=changed"
+    })
+
+    expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+  })
+
+  it("compares selected folder filters independent of object key order", () => {
+    renderNav([
+      folder({
+        active: true,
+        filter: { and: [{ value: "open", op: "is", field: "state" }] }
+      })
+    ], {
+      payload: { active_smart_folder_id: 101, filter: { and: [{ field: "state", op: "is", value: "open" }] } },
+      search: "?smart_folder_id=101&q=unchanged"
+    })
+
+    expect(screen.queryByRole("button", { name: "Update Saved work" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
   })
 })

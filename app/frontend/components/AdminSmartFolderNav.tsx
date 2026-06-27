@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { createSmartFolder, deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
-import { filterTreeFromPayload, topFilterChildren } from "./FilterBar"
+import { filterTreeFromPayload, filterTreesEqual, topFilterChildren } from "./FilterBar"
 
 export function AdminSmartFolderNav({
   activeFolderId,
@@ -17,7 +17,6 @@ export function AdminSmartFolderNav({
   onMutationSuccess,
   prefix,
   queryKey,
-  search,
   subjectType
 }: {
   activeFolderId?: number | null
@@ -45,10 +44,10 @@ export function AdminSmartFolderNav({
   const moreFolders = builtinFolders.filter((folder) => folder.visibility === "on_demand")
   const savedFolders = folders.filter((folder) => folder.kind === "user_defined")
   const activeFolder = savedFolders.find((folder) => folder.id === activeFolderId)
-  const hasUrlFilterOverride = new URLSearchParams(search || "").has("q")
-  const filtersDiffer = Boolean(activeFolder && hasUrlFilterOverride)
   const currentTree = filterTreeFromPayload(currentFilter)
-  const canSaveAsNew = topFilterChildren(currentTree).length > 0 && Boolean(subjectType) && (!activeFolder || filtersDiffer)
+  const selectedFolder = folders.find((folder) => folder.id === activeFolderId)
+  const filtersDiffer = selectedFolder?.filter != null && !filterTreesEqual(currentTree, filterTreeFromPayload(selectedFolder.filter))
+  const canSaveAsNew = topFilterChildren(currentTree).length > 0 && Boolean(subjectType) && filtersDiffer
   const createFolder = useMutation({
     mutationFn: () => {
       if (!currentFilter || !subjectType) throw new Error("No filter to save.")

@@ -89,21 +89,73 @@ describe("AdminSmartFolderNav", () => {
     expect(screen.queryByLabelText("Drag Stuck")).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Manage" })).not.toBeInTheDocument()
   })
+
+  it("hides save controls when the active folder filter has not changed", () => {
+    renderNav({
+      activeFolderId: 10,
+      currentFilter: savedFilter(),
+      search: "?smart_folder_id=10&q=unchanged",
+      subjectType: "admin_queue"
+    })
+
+    expect(screen.queryByRole("button", { name: "Update Saved queue" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
+  })
+
+  it("shows update and save controls when the active saved folder filter changes", () => {
+    renderNav({
+      activeFolderId: 10,
+      currentFilter: changedFilter(),
+      search: "?smart_folder_id=10&q=changed",
+      subjectType: "admin_queue"
+    })
+
+    expect(screen.getByRole("button", { name: "Update Saved queue" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+  })
+
+  it("hides save controls when filters remain but no folder is selected", () => {
+    renderNav({
+      activeFolderId: null,
+      currentFilter: changedFilter(),
+      search: "?q=changed",
+      subjectType: "admin_queue"
+    })
+
+    expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
+  })
 })
 
-function renderNav({ folders = smartFolders(), onMutationSuccess = vi.fn() }: { folders?: AdminSmartFolder[]; onMutationSuccess?: () => void } = {}) {
+function renderNav({
+  activeFolderId = null,
+  currentFilter,
+  folders = smartFolders(),
+  onMutationSuccess = vi.fn(),
+  search,
+  subjectType
+}: {
+  activeFolderId?: number | null
+  currentFilter?: Record<string, unknown>
+  folders?: AdminSmartFolder[]
+  onMutationSuccess?: () => void
+  search?: string
+  subjectType?: string
+} = {}) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
         <AdminSmartFolderNav
-          activeFolderId={null}
+          activeFolderId={activeFolderId}
           allLabel="All queue"
           allPath="/admin/queue/active"
           ariaLabel="Admin queue smart folders"
+          currentFilter={currentFilter}
           folders={folders}
           heading="Queues"
           onMutationSuccess={onMutationSuccess}
           prefix=""
+          search={search}
+          subjectType={subjectType}
         />
       </MemoryRouter>
     </QueryClientProvider>
@@ -132,6 +184,7 @@ function smartFolders(): AdminSmartFolder[] {
       position: 0,
       count: 3,
       active: false,
+      filter: savedFilter(),
       path: "/admin/queue/active?smart_folder_id=10"
     },
     {
@@ -146,6 +199,22 @@ function smartFolders(): AdminSmartFolder[] {
       path: "/admin/queue/active?smart_folder_id=11"
     }
   ]
+}
+
+function savedFilter() {
+  return {
+    and: [
+      { value: "runs", op: "is", field: "queue_name" }
+    ]
+  }
+}
+
+function changedFilter() {
+  return {
+    and: [
+      { field: "queue_name", op: "is", value: "merges" }
+    ]
+  }
 }
 
 function mockSmartFolderFetch() {

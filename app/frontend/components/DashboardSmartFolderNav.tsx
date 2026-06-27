@@ -6,7 +6,7 @@ import { ApiError } from "../api/client"
 import { createDashboardSmartFolder, toggleDashboardLandingPause, updateDashboardPreferences, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject } from "../api/dashboard"
 import { deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { filterTreeFromPayload, smartFolderFiltersFromTree, topFilterChildren, type FilterNode, type FilterTree } from "./FilterBar"
+import { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren, type FilterNode, type FilterTree } from "./FilterBar"
 import { NoticeToast } from "./NoticeToast"
 
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
@@ -39,11 +39,11 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
     </Link>
   )
   const appliedTree = filterTreeFromPayload(payload.filter)
-  const activeFolderTree = filterTreeFromPayload(activeFolder?.filter)
   const hasAppliedFilter = topFilterChildren(appliedTree).length > 0
-  const hasUrlFilterOverride = new URLSearchParams(search).has("q")
-  const canUpdateFilter = activeFolder != null && hasAppliedFilter && JSON.stringify(appliedTree) !== JSON.stringify(activeFolderTree)
-  const canSaveFilter = activeFolder ? canUpdateFilter : hasAppliedFilter && hasUrlFilterOverride
+  const selectedFolder = payload.smart_folders.find((folder) => folder.id === payload.active_smart_folder_id)
+  const filterChangedFromSelectedFolder = selectedFolder?.filter != null && !filterTreesEqual(appliedTree, filterTreeFromPayload(selectedFolder.filter))
+  const canUpdateFilter = activeFolder != null && filterChangedFromSelectedFolder
+  const canSaveFilter = selectedFolder != null && hasAppliedFilter && filterChangedFromSelectedFolder
   const landingPause = useMutation({
     mutationFn: () => toggleDashboardLandingPause(payload.landing_queue.toggle_path),
     onSuccess: () => {
