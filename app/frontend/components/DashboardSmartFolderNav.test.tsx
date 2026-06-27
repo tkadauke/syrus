@@ -169,6 +169,18 @@ describe("DashboardSmartFolderNav", () => {
     })
   })
 
+  it("renders the action menu through a body portal", () => {
+    renderNav([folder({})])
+
+    const savedNav = screen.getByRole("navigation", { name: "Saved smart folders" })
+    showFolderActions()
+    fireEvent.click(screen.getByRole("button", { name: "Actions for Saved work" }))
+
+    const menu = screen.getByRole("menu")
+    expect(menu.parentElement).toBe(document.body)
+    expect(savedNav).not.toContainElement(menu)
+  })
+
   it("patches saved folder positions after drag reordering", async () => {
     renderNav([
       folder({ id: 1, name: "Review", position: 0, count: 0 }),

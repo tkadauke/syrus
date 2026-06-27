@@ -50,6 +50,17 @@ describe("AdminSmartFolderNav", () => {
     })
   })
 
+  it("renders the action menu through a body portal", () => {
+    renderNav()
+
+    const savedNav = screen.getByRole("navigation", { name: "Admin queue smart folders saved" })
+    fireEvent.click(screen.getByRole("button", { name: "Manage Saved queue" }))
+
+    const menu = screen.getByRole("menu")
+    expect(menu.parentElement).toBe(document.body)
+    expect(savedNav).not.toContainElement(menu)
+  })
+
   it("patches positions when user-defined smart folders are reordered by drag and drop", async () => {
     const onMutationSuccess = vi.fn()
     const fetchSpy = mockSmartFolderFetch()

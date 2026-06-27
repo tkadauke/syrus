@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent, FormEvent, KeyboardEvent } from "react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { createSmartFolder, deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
@@ -230,20 +231,52 @@ function SmartFolderLink({
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(folder.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const isUserDefined = folder.kind === "user_defined"
+
+  function closeMenu() {
+    setMenuOpen(false)
+    setConfirmDelete(false)
+    setMenuAnchor(null)
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return
+
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") closeMenu()
+    }
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) return
+
+      closeMenu()
+    }
+
+    window.addEventListener("keydown", closeOnEscape)
+    window.addEventListener("pointerdown", closeOnOutsidePointer)
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape)
+      window.removeEventListener("pointerdown", closeOnOutsidePointer)
+    }
+  }, [menuOpen])
+
   const rename = useMutation({
     mutationFn: () => updateSmartFolder(folder.id, { name: name.trim(), position: folder.position }),
     onSuccess: () => {
       setEditing(false)
-      setMenuOpen(false)
+      closeMenu()
       onMutationSuccess?.()
     }
   })
   const destroy = useMutation({
     mutationFn: () => deleteSmartFolder(folder.id),
     onSuccess: () => {
-      setMenuOpen(false)
-      setConfirmDelete(false)
+      closeMenu()
       onMutationSuccess?.()
     }
   })
@@ -251,7 +284,7 @@ function SmartFolderLink({
   function startRename() {
     setName(folder.name)
     setEditing(true)
-    setMenuOpen(false)
+    closeMenu()
   }
 
   function keyRename(event: KeyboardEvent<HTMLInputElement>) {
@@ -261,6 +294,20 @@ function SmartFolderLink({
     } else if (event.key === "Enter" && name.trim().length > 0) {
       rename.mutate()
     }
+  }
+
+  function toggleMenu() {
+    setConfirmDelete(false)
+    setMenuOpen((open) => {
+      if (open) {
+        setMenuAnchor(null)
+        return false
+      }
+
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (rect) setMenuAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+      return true
+    })
   }
 
   if (!isUserDefined) {
@@ -305,20 +352,23 @@ function SmartFolderLink({
       </Link>
       <FolderCount active={folder.active} count={folder.count} />
       <button
+        ref={buttonRef}
         aria-expanded={menuOpen}
         aria-haspopup="menu"
         aria-label={`Manage ${folder.name}`}
         className="rounded px-1 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-        onClick={() => {
-          setMenuOpen((open) => !open)
-          setConfirmDelete(false)
-        }}
+        onClick={toggleMenu}
         type="button"
       >
         ...
       </button>
-      {menuOpen ? (
-        <div className="absolute right-0 top-8 z-20 min-w-36 rounded border border-gray-200 bg-white p-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
+      {menuOpen && menuAnchor ? createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-50 min-w-36 rounded border border-gray-200 bg-white p-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          role="menu"
+          style={{ top: menuAnchor.top, right: menuAnchor.right }}
+        >
           <button className={menuItemClass()} onClick={startRename} role="menuitem" type="button">Rename</button>
           <button
             className={menuItemClass("text-red-700 dark:text-red-300")}
@@ -329,7 +379,8 @@ function SmartFolderLink({
           >
             {confirmDelete ? "Confirm delete" : "Delete"}
           </button>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   )
