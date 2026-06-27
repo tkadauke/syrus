@@ -112,6 +112,7 @@ module SyrusChatMcp
       DeleteElementTool,
       SaveCanvasTool,
       ClearCanvasTool,
+      LoadCanvasTool,
       UpdateSceneTool,
       ScheduleRecurringTool,
       ScheduleWakeupTool,

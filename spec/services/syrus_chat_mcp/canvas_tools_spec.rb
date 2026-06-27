@@ -22,6 +22,7 @@ RSpec.describe "SyrusChatMcp canvas tools" do
         SyrusChatMcp::DeleteElementTool,
         SyrusChatMcp::SaveCanvasTool,
         SyrusChatMcp::ClearCanvasTool,
+        SyrusChatMcp::LoadCanvasTool,
         SyrusChatMcp::UpdateSceneTool
       ],
       server_context: { chat_session: chat_session }
@@ -277,6 +278,123 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     expect(response[:result][:isError]).to be_falsey
     expect(payload(response)).to include(cleared: true, snapshot_id: nil)
     expect(chat_session.reload.whiteboard.elements).to be_empty
+  end
+
+  it "load_canvas merges snapshot elements with fresh ids and merged files" do
+    existing_id = payload(draw_shape).fetch(:id)
+    snapshot = WhiteboardSnapshot.create_from_scene!(
+      chat_session: chat_session,
+      kind: "manual",
+      scene: {
+        "elements" => [
+          {
+            "id" => "snapshot-box",
+            "type" => "rectangle",
+            "boundElements" => [ { "id" => "snapshot-label", "type" => "text" } ]
+          },
+          {
+            "id" => "snapshot-label",
+            "type" => "text",
+            "containerId" => "snapshot-box",
+            "text" => "Loaded"
+          },
+          {
+            "id" => "snapshot-image",
+            "type" => "image",
+            "fileId" => "snapshot-file"
+          }
+        ],
+        "appState" => { "viewBackgroundColor" => "#fff7ed" },
+        "files" => {
+          "snapshot-file" => { "id" => "snapshot-file", "dataURL" => "data:image/png;base64,snapshot", "mimeType" => "image/png" }
+        }
+      }
+    )
+    expect_canvas_broadcast
+
+    response = call_tool("load_canvas", snapshot_id: snapshot.id)
+
+    whiteboard = chat_session.reload.whiteboard
+    loaded_elements = whiteboard.elements.reject { |element| element.fetch("id") == existing_id }
+    loaded_box = loaded_elements.find { |element| element["type"] == "rectangle" }
+    loaded_label = loaded_elements.find { |element| element["type"] == "text" }
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload(response)).to include(
+      loaded: true,
+      snapshot_id: snapshot.id,
+      mode: "merge",
+      elements_added: 3,
+      auto_saved_snapshot_id: nil
+    )
+    expect(whiteboard.elements.first.fetch("id")).to eq(existing_id)
+    expect(loaded_elements.map { |element| element.fetch("id") }).not_to include("snapshot-box", "snapshot-label", "snapshot-image")
+    expect(loaded_box.fetch("boundElements")).to include("id" => loaded_label.fetch("id"), "type" => "text")
+    expect(loaded_label.fetch("containerId")).to eq(loaded_box.fetch("id"))
+    expect(whiteboard.files).to include("snapshot-file" => include("dataURL" => "data:image/png;base64,snapshot"))
+  end
+
+  it "load_canvas replace mode auto-saves the current canvas and replaces scene and files" do
+    current_element_id = payload(draw_shape(type: "ellipse")).fetch(:id)
+    snapshot = WhiteboardSnapshot.create_from_scene!(
+      chat_session: chat_session,
+      kind: "manual",
+      scene: {
+        "elements" => [ { "id" => "replacement", "type" => "rectangle" } ],
+        "appState" => { "viewBackgroundColor" => "#ecfeff" },
+        "files" => { "replacement-file" => { "id" => "replacement-file", "dataURL" => "data:image/png;base64,replacement" } }
+      }
+    )
+    expect_canvas_broadcast
+
+    response = nil
+    expect {
+      response = call_tool("load_canvas", snapshot_id: snapshot.id, mode: "replace")
+    }.to change(WhiteboardSnapshot, :count).by(1)
+
+    auto_saved_snapshot = WhiteboardSnapshot.where(snapshot_kind: "auto_before_load").first
+    whiteboard = chat_session.reload.whiteboard
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload(response)).to include(
+      loaded: true,
+      snapshot_id: snapshot.id,
+      mode: "replace",
+      elements_added: 1,
+      auto_saved_snapshot_id: auto_saved_snapshot.id
+    )
+    expect(auto_saved_snapshot.scene_json.fetch("elements").map { |element| element.fetch("id") }).to contain_exactly(current_element_id)
+    expect(whiteboard.elements).to eq([ { "id" => "replacement", "type" => "rectangle" } ])
+    expect(whiteboard.app_state).to eq("viewBackgroundColor" => "#ecfeff")
+    expect(whiteboard.files).to eq("replacement-file" => { "id" => "replacement-file", "dataURL" => "data:image/png;base64,replacement" })
+  end
+
+  it "load_canvas enforces the element limit before merging" do
+    chat_session.create_whiteboard!(
+      scene_json: { "elements" => Array.new(Whiteboard::MAX_ELEMENTS) { |index| minimal_element(index) } }
+    )
+    snapshot = WhiteboardSnapshot.create_from_scene!(
+      chat_session: chat_session,
+      kind: "manual",
+      scene: { "elements" => [ { "id" => "extra", "type" => "rectangle" } ] }
+    )
+
+    response = call_tool("load_canvas", snapshot_id: snapshot.id)
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to eq(Whiteboard.element_limit_message)
+    expect(chat_session.reload.whiteboard.elements.size).to eq(Whiteboard::MAX_ELEMENTS)
+  end
+
+  it "load_canvas scopes snapshots to the current chat session" do
+    other_session = ChatSession.create!(user: user, repository: repository)
+    snapshot = WhiteboardSnapshot.create_from_scene!(
+      chat_session: other_session,
+      kind: "manual",
+      scene: { "elements" => [ { "id" => "other", "type" => "rectangle" } ] }
+    )
+
+    expect {
+      SyrusChatMcp::LoadCanvasTool.call(snapshot_id: snapshot.id, server_context: { chat_session: chat_session })
+    }.to raise_error(ActiveRecord::RecordNotFound)
   end
 
   it "update_scene replaces the elements array" do
