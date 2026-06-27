@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent, ReactNode } from "react"
-import { useEffect, useMemo, useState } from "react"
+import { Children, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
+import { CopyableJobSlug } from "../components/CopyableJobSlug"
 import { dashboardApiSearch } from "../api/dashboard"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -1206,16 +1207,16 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
           {job.kind !== "issue" ? <span className="text-xs text-gray-500 dark:text-gray-400">{humanizeOption(job.kind)}</span> : null}
         </div>
-        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+        <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
-          <JobSourceChatLink job={job} prefix={prefix} />
-          <DashboardOwnerLabel job={job} prefix={prefix} quiet />
+          {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
+          {job.claimed_by_user && !job.claimed_by_current_user ? <DashboardOwnerLabel job={job} prefix={prefix} quiet /> : null}
           <span>{approvalLabel}</span>
-          <OwnerBadge badge={job.owner_badge} />
+          {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           <span>{job.workflows_count} {pluralize(job.workflows_count, "workflow")}</span>
           <span>{formatDate(job.started_at || job.created_at)}</span>
-        </div>
+        </MetadataLine>
         {job.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
             {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
@@ -1234,14 +1235,14 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     return (
       <td className="max-w-md px-4 py-3">
         <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
-        <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
+        <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
-          <JobSourceChatLink job={job} prefix={prefix} />
-          <OwnerBadge badge={job.owner_badge} />
+          {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
+          {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
-          <RetryStateInline job={job} />
-        </div>
+          {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
+        </MetadataLine>
       </td>
     )
   }
@@ -1299,9 +1300,10 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
 function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
   if (job.epic) {
     return (
-      <span>
+      <span className="inline-flex items-center">
         <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
-        <span>/JOB-{job.id}</span>
+        <span>/</span>
+        <CopyableJobSlug slug={`JOB-${job.id}`} />
       </span>
     )
   }
@@ -1337,11 +1339,25 @@ function workflowTriggerClassName(triggerKind: string) {
 }
 
 function IssueMetadata({ job }: { job: DashboardJobItem }) {
-  if (!job.issue_number) return <span>JOB-{job.id}</span>
+  if (!job.issue_number) return <CopyableJobSlug slug={`JOB-${job.id}`} />
 
   const label = `#${job.issue_number}`
 
   return <ExternalMetadataLink href={job.issue_url}>{label}</ExternalMetadataLink>
+}
+
+function MetadataLine({ children, className }: { children: ReactNode; className: string }) {
+  const items = Children.toArray(children)
+  return (
+    <div className={className}>
+      {items.map((item, index) => (
+        <span className="inline-flex items-center gap-x-1.5" key={index}>
+          {index > 0 ? <span aria-hidden="true" className="select-none">·</span> : null}
+          {item}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function JobSourceChatLink({ job, prefix }: { job: DashboardJobItem; prefix: string }) {

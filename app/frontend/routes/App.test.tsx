@@ -3124,6 +3124,7 @@ describe("App", () => {
   })
 
   it("disambiguates GitHub issue numbers from Syrus Job ids on the dashboard", async () => {
+    const clipboardWrite = mockClipboardWrite()
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify(
@@ -3164,9 +3165,81 @@ describe("App", () => {
 
     expect(await screen.findByText("Navigate to Epic")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/app-shell/epics/7")
-    expect(screen.getByText("/JOB-594")).toBeInTheDocument()
+    expect(screen.getByText("Navigate to Epic").closest("td")).toHaveTextContent("EPIC-7/JOB-594")
+    const copySlugButton = screen.getByRole("button", { name: "Copy JOB-594 to clipboard" })
+    fireEvent.click(copySlugButton)
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-594"))
     expect(screen.getByRole("link", { name: "#123" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/123")
     expect(screen.queryByText("#594")).not.toBeInTheDocument()
+  })
+
+  it("renders dashboard job metadata with middot separators and copyable direct job slugs", async () => {
+    const clipboardWrite = mockClipboardWrite()
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "job",
+            view: "list",
+            items: [
+              dashboardJobItem({
+                id: 602,
+                kind: "direct",
+                title: "Direct chat repair",
+                issue_number: null,
+                issue_url: null,
+                pr_number: 44,
+                pr_url: "https://github.com/acme/widgets/pull/44",
+                tags: [],
+                source_chat: {
+                  chat_id: 9,
+                  chat_title: "Review",
+                  proposal_id: 6,
+                  proposal_kind: "job",
+                  message_id: 3,
+                  path: "/chats/9",
+                  display_name: "Chat",
+                  profile_path: "/profiles/2"
+                }
+              }),
+              dashboardJobItem({
+                id: 603,
+                kind: "direct",
+                title: "Direct standalone",
+                issue_number: null,
+                issue_url: null,
+                pr_number: null,
+                pr_url: null,
+                tags: [],
+                source_chat: null
+              })
+            ]
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const chatJobCell = (await screen.findByRole("link", { name: "Direct chat repair" })).closest("td")
+    expect(chatJobCell).toHaveTextContent("JOB-602·PR #44·Chat")
+    expect(within(chatJobCell!).getByRole("link", { name: "PR #44" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/44")
+    expect(within(chatJobCell!).getByRole("link", { name: "Chat" })).toHaveAttribute("href", "/app-shell/chats/9")
+
+    const copySlugButton = within(chatJobCell!).getByRole("button", { name: "Copy JOB-602 to clipboard" })
+    fireEvent.click(copySlugButton)
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-602"))
+
+    const standaloneCell = screen.getByRole("link", { name: "Direct standalone" }).closest("td")
+    expect(standaloneCell).toHaveTextContent("JOB-603")
+    expect(within(standaloneCell!).queryByText("·")).not.toBeInTheDocument()
   })
 
   it("surfaces readiness failures on the dashboard", async () => {
