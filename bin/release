@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Build and publish Syrus release artifacts from this checkout.
+#
+# Usage:
+#   bin/release VERSION [--cli] [--desktop] [--image] [--all]
+#                       [--no-upload] [--skip-tests] [--skip-install]
+#                       [--multi-arch]
+#
+# Defaults to --all. With upload enabled, this creates/pushes the git tag,
+# ensures the GitHub release exists, uploads CLI/Desktop artifacts, and
+# publishes the Docker image. Use --no-upload for local artifact builds only.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+. "$ROOT/bin/release-lib"
+
+VERSION=""
+UPLOAD=1
+SKIP_TESTS=0
+SKIP_INSTALL=0
+MULTI_ARCH=0
+SELECTED=()
+UPLOAD_DIRS=()
+IMAGE_SELECTED=0
+
+usage() {
+  awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"
+}
+
+select_component() {
+  local component="${1:?usage: select_component COMPONENT}"
+  local existing
+
+  for existing in "${SELECTED[@]:-}"; do
+    if [ "$existing" = "$component" ]; then
+      return 0
+    fi
+  done
+
+  SELECTED+=("$component")
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --cli) select_component cli ;;
+    --desktop) select_component desktop ;;
+    --image) select_component image ;;
+    --all) SELECTED=(cli desktop image) ;;
+    --no-upload) UPLOAD=0 ;;
+    --skip-tests) SKIP_TESTS=1 ;;
+    --skip-install) SKIP_INSTALL=1 ;;
+    --multi-arch) MULTI_ARCH=1 ;;
+    --help|-h) usage; exit 0 ;;
+    -*) echo "Unknown flag: $arg" >&2; usage >&2; exit 2 ;;
+    *)
+      if [ -n "$VERSION" ]; then
+        echo "Unexpected argument: $arg" >&2
+        usage >&2
+        exit 2
+      fi
+      VERSION="$arg"
+      ;;
+  esac
+done
+
+if [ "${#SELECTED[@]}" -eq 0 ]; then
+  SELECTED=(cli desktop image)
+fi
+
+syrus_release_validate_version "$VERSION"
+
+if [ "$UPLOAD" = 1 ]; then
+  syrus_release_require_clean_tree
+else
+  echo "== Local release build only (--no-upload) =="
+fi
+
+for component in "${SELECTED[@]}"; do
+  case "$component" in
+    cli)
+      args=("$VERSION")
+      [ "$SKIP_TESTS" = 1 ] && args+=(--skip-tests)
+      "$ROOT/bin/release-cli" "${args[@]}"
+      UPLOAD_DIRS+=("$(syrus_release_output_dir "$VERSION" cli)")
+      ;;
+    desktop)
+      args=("$VERSION")
+      [ "$SKIP_TESTS" = 1 ] && args+=(--skip-tests)
+      [ "$SKIP_INSTALL" = 1 ] && args+=(--skip-install)
+      "$ROOT/bin/release-desktop" "${args[@]}"
+      UPLOAD_DIRS+=("$(syrus_release_output_dir "$VERSION" desktop)")
+      ;;
+    image)
+      IMAGE_SELECTED=1
+      ;;
+    *)
+      echo "Unknown component: $component" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ "$UPLOAD" = 1 ]; then
+  syrus_release_ensure_tag "$VERSION"
+  syrus_release_push_tag "$VERSION"
+  syrus_release_ensure_github_release "$VERSION"
+
+  for output_dir in "${UPLOAD_DIRS[@]:-}"; do
+    echo
+    echo "== Uploading artifacts from $output_dir to GitHub release $VERSION =="
+    syrus_release_upload_dir "$VERSION" "$output_dir"
+  done
+fi
+
+if [ "$IMAGE_SELECTED" = 1 ]; then
+  if [ "$UPLOAD" = 1 ]; then
+    args=("$VERSION")
+    [ "$SKIP_TESTS" = 1 ] && args+=(--skip-tests)
+    [ "$MULTI_ARCH" = 1 ] && args+=(--multi-arch)
+    "$ROOT/bin/release-image" "${args[@]}"
+  else
+    echo "== Skipping Docker image publish because --no-upload was provided =="
+  fi
+fi
+
+echo
+echo "Release complete: $VERSION"

@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# Shared helpers for local Syrus release scripts. Source this file; do not
+# execute it directly.
+
+syrus_release_root() {
+  git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+}
+
+syrus_release_semver() {
+  printf '%s' "${1#v}"
+}
+
+syrus_release_validate_version() {
+  local version="${1:-}"
+
+  if [ -z "$version" ]; then
+    echo "Release version is required, for example: v0.4.0" >&2
+    return 2
+  fi
+
+  if [[ ! "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+    echo "Invalid release version: $version" >&2
+    echo "Use a semver tag like v0.4.0 or 0.4.0." >&2
+    return 2
+  fi
+}
+
+syrus_release_require_command() {
+  local command_name="${1:?usage: syrus_release_require_command COMMAND}"
+
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "$command_name not found." >&2
+    return 1
+  fi
+}
+
+syrus_release_output_dir() {
+  local version="${1:?usage: syrus_release_output_dir VERSION COMPONENT}"
+  local component="${2:?usage: syrus_release_output_dir VERSION COMPONENT}"
+  local root
+
+  root="$(syrus_release_root)"
+  printf '%s/dist/releases/%s/%s' "$root" "$version" "$component"
+}
+
+syrus_release_prepare_output_dir() {
+  local output_dir="${1:?usage: syrus_release_prepare_output_dir OUTPUT_DIR}"
+
+  rm -rf "$output_dir"
+  mkdir -p "$output_dir"
+}
+
+syrus_release_checksums() {
+  local output_dir="${1:?usage: syrus_release_checksums OUTPUT_DIR CHECKSUM_FILE}"
+  local checksum_file="${2:?usage: syrus_release_checksums OUTPUT_DIR CHECKSUM_FILE}"
+  local -a files
+  local file
+
+  (
+    cd "$output_dir"
+    rm -f "$checksum_file"
+    files=()
+    while IFS= read -r -d '' file; do
+      files+=("${file#./}")
+    done < <(find . -maxdepth 1 -type f ! -name "$checksum_file" -print0)
+
+    if [ "${#files[@]}" -eq 0 ]; then
+      : > "$checksum_file"
+      return 0
+    fi
+
+    IFS=$'\n' files=($(printf '%s\n' "${files[@]}" | sort))
+    unset IFS
+    shasum -a 256 "${files[@]}" > "$checksum_file"
+  )
+}
+
+syrus_release_upload_dir() {
+  local version="${1:?usage: syrus_release_upload_dir VERSION OUTPUT_DIR}"
+  local output_dir="${2:?usage: syrus_release_upload_dir VERSION OUTPUT_DIR}"
+  local -a assets
+  local asset
+
+  syrus_release_require_command gh
+
+  assets=()
+  while IFS= read -r -d '' asset; do
+    assets+=("$asset")
+  done < <(find "$output_dir" -maxdepth 1 -type f -print0)
+
+  if [ "${#assets[@]}" -eq 0 ]; then
+    echo "No release artifacts found in $output_dir" >&2
+    return 1
+  fi
+
+  IFS=$'\n' assets=($(printf '%s\n' "${assets[@]}" | sort))
+  unset IFS
+
+  gh release upload "$version" "${assets[@]}" --clobber
+}
+
+syrus_release_require_clean_tree() {
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Working tree has uncommitted changes. Commit or stash before releasing." >&2
+    return 1
+  fi
+}
+
+syrus_release_ensure_tag() {
+  local version="${1:?usage: syrus_release_ensure_tag VERSION}"
+
+  if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+    return 0
+  fi
+
+  git tag -a "$version" -m "Release $version"
+}
+
+syrus_release_push_tag() {
+  local version="${1:?usage: syrus_release_push_tag VERSION}"
+
+  git push origin "$version"
+}
+
+syrus_release_ensure_github_release() {
+  local version="${1:?usage: syrus_release_ensure_github_release VERSION}"
+
+  syrus_release_require_command gh
+
+  if gh release view "$version" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  gh release create "$version" \
+    --title "Syrus $version" \
+    --notes "Local Syrus release $version."
+}

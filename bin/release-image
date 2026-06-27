@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Publish the single-host Docker image release.
+#
+# Usage:
+#   bin/release-image VERSION [--multi-arch] [--skip-tests]
+#
+# This intentionally delegates to bin/publish-image so there is one image
+# build/test/push implementation.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+. "$ROOT/bin/release-lib"
+
+VERSION=""
+PASSTHROUGH=()
+
+usage() {
+  awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --multi-arch|--skip-tests) PASSTHROUGH+=("$arg") ;;
+    --help|-h) usage; exit 0 ;;
+    -*) echo "Unknown flag: $arg" >&2; usage >&2; exit 2 ;;
+    *)
+      if [ -n "$VERSION" ]; then
+        echo "Unexpected argument: $arg" >&2
+        usage >&2
+        exit 2
+      fi
+      VERSION="$arg"
+      ;;
+  esac
+done
+
+syrus_release_validate_version "$VERSION"
+
+"$ROOT/bin/publish-image" "$VERSION" "${PASSTHROUGH[@]}"

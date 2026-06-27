@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Build and optionally upload Syrus CLI release artifacts.
+#
+# Usage:
+#   bin/release-cli VERSION [--upload] [--skip-tests]
+#
+# Examples:
+#   bin/release-cli v0.4.0
+#   bin/release-cli v0.4.0 --upload
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+. "$ROOT/bin/release-lib"
+
+VERSION=""
+UPLOAD=0
+SKIP_TESTS=0
+
+usage() {
+  awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --upload) UPLOAD=1 ;;
+    --skip-tests) SKIP_TESTS=1 ;;
+    --help|-h) usage; exit 0 ;;
+    -*) echo "Unknown flag: $arg" >&2; usage >&2; exit 2 ;;
+    *)
+      if [ -n "$VERSION" ]; then
+        echo "Unexpected argument: $arg" >&2
+        usage >&2
+        exit 2
+      fi
+      VERSION="$arg"
+      ;;
+  esac
+done
+
+syrus_release_validate_version "$VERSION"
+syrus_release_require_command go
+syrus_release_require_command tar
+syrus_release_require_command shasum
+
+export GOCACHE="${GOCACHE:-$ROOT/tmp/go-build-cache}"
+mkdir -p "$GOCACHE"
+
+OUT_DIR="$(syrus_release_output_dir "$VERSION" cli)"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+syrus_release_prepare_output_dir "$OUT_DIR"
+
+if [ "$SKIP_TESTS" = 1 ]; then
+  echo "== Skipping CLI tests =="
+else
+  echo "== Testing CLI =="
+  (cd "$ROOT/cli" && go test ./...)
+fi
+
+targets=(
+  darwin/arm64
+  darwin/amd64
+  linux/arm64
+  linux/amd64
+)
+
+for target in "${targets[@]}"; do
+  GOOS="${target%/*}"
+  GOARCH="${target#*/}"
+  NAME="syrus_${VERSION}_${GOOS}_${GOARCH}"
+  STAGING="$TMP_DIR/$NAME"
+
+  echo "== Building CLI: $GOOS/$GOARCH =="
+  mkdir -p "$STAGING"
+  (
+    cd "$ROOT/cli"
+    env CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
+      go build -trimpath -ldflags="-s -w" -o "$STAGING/syrus" .
+  )
+
+  tar -C "$TMP_DIR" -czf "$OUT_DIR/$NAME.tar.gz" "$NAME"
+done
+
+syrus_release_checksums "$OUT_DIR" SHA256SUMS-cli.txt
+
+echo
+echo "CLI release artifacts:"
+find "$OUT_DIR" -maxdepth 1 -type f -print | sort
+
+if [ "$UPLOAD" = 1 ]; then
+  echo
+  echo "== Uploading CLI artifacts to GitHub release $VERSION =="
+  syrus_release_upload_dir "$VERSION" "$OUT_DIR"
+fi

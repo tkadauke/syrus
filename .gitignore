@@ -25,6 +25,9 @@ desktop/out/
 desktop/node_modules/
 .byebug_history
 
+# Local release artifacts
+/dist/releases/
+
 # Go CLI build output
 /cli/bin/
 

@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Build and optionally upload Syrus Desktop release artifacts.
+#
+# Usage:
+#   bin/release-desktop VERSION [--upload] [--skip-tests] [--skip-install]
+#
+# Examples:
+#   bin/release-desktop v0.4.0
+#   bin/release-desktop v0.4.0 --upload
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+. "$ROOT/bin/release-lib"
+
+VERSION=""
+UPLOAD=0
+SKIP_TESTS=0
+SKIP_INSTALL=0
+
+usage() {
+  awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --upload) UPLOAD=1 ;;
+    --skip-tests) SKIP_TESTS=1 ;;
+    --skip-install) SKIP_INSTALL=1 ;;
+    --help|-h) usage; exit 0 ;;
+    -*) echo "Unknown flag: $arg" >&2; usage >&2; exit 2 ;;
+    *)
+      if [ -n "$VERSION" ]; then
+        echo "Unexpected argument: $arg" >&2
+        usage >&2
+        exit 2
+      fi
+      VERSION="$arg"
+      ;;
+  esac
+done
+
+syrus_release_validate_version "$VERSION"
+syrus_release_require_command npm
+syrus_release_require_command shasum
+
+OUT_DIR="$(syrus_release_output_dir "$VERSION" desktop)"
+BUILD_VERSION="$(syrus_release_semver "$VERSION")"
+
+syrus_release_prepare_output_dir "$OUT_DIR"
+
+if [ "$SKIP_INSTALL" = 1 ]; then
+  echo "== Skipping desktop npm ci =="
+else
+  echo "== Installing desktop dependencies =="
+  npm --prefix "$ROOT/desktop" ci
+fi
+
+if [ "$SKIP_TESTS" = 1 ]; then
+  echo "== Skipping desktop typecheck =="
+else
+  echo "== Typechecking desktop =="
+  npm --prefix "$ROOT/desktop" run typecheck
+fi
+
+echo "== Building desktop renderer =="
+npm --prefix "$ROOT/desktop" run build:renderer
+
+echo "== Building desktop main process =="
+npm --prefix "$ROOT/desktop" run build:main
+
+echo "== Packaging desktop app =="
+(
+  cd "$ROOT/desktop"
+  npx electron-builder --config.extraMetadata.version="$BUILD_VERSION"
+)
+
+while IFS= read -r -d '' artifact; do
+  cp "$artifact" "$OUT_DIR/"
+done < <(
+  find "$ROOT/desktop/out" -maxdepth 1 -type f \
+    \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' \) \
+    -print0
+)
+
+if ! find "$OUT_DIR" -maxdepth 1 -type f | grep -q .; then
+  echo "No desktop artifacts were produced in desktop/out." >&2
+  exit 1
+fi
+
+syrus_release_checksums "$OUT_DIR" SHA256SUMS-desktop.txt
+
+echo
+echo "Desktop release artifacts:"
+find "$OUT_DIR" -maxdepth 1 -type f -print | sort
+
+if [ "$UPLOAD" = 1 ]; then
+  echo
+  echo "== Uploading desktop artifacts to GitHub release $VERSION =="
+  syrus_release_upload_dir "$VERSION" "$OUT_DIR"
+fi
