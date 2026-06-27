@@ -1954,7 +1954,9 @@ describe("App", () => {
       )
 
       fireEvent.click(await screen.findByRole("button", { name: "Report a bug" }))
-      expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+      const dialog = await screen.findByRole("dialog", { name: "Report a bug" })
+      expect(dialog).toBeInTheDocument()
+      expect(dialog.parentElement).toHaveAttribute("data-html2canvas-ignore")
       expect(screen.getByLabelText("Title")).toHaveValue("Dashboard bug")
       expect(html2canvasMock).toHaveBeenCalledTimes(1)
       expect(screen.getByRole("radio", { name: "Viewport" })).toBeChecked()
