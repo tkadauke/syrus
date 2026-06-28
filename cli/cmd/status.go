@@ -2,176 +2,125 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tkadauke/syrus/cli/internal/api"
-	"github.com/tkadauke/syrus/cli/internal/config"
 )
 
-const defaultStatusWidth = 80
+var statusRunGit gitRunner = runGit
+var statusBranchPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`^syrus/direct-([0-9]+)$`),
+	regexp.MustCompile(`^syrus/local-([0-9]+)$`),
+	regexp.MustCompile(`^syrus/issue-[0-9]+-([0-9]+)$`),
+	regexp.MustCompile(`^syrus/scheduled-[0-9]+-([0-9]+)$`),
+	regexp.MustCompile(`^syrus/(?:issue|cron|scheduled)-([0-9]+)$`),
+}
 
-type statusOptions struct {
-	repo   string
-	closed bool
+type localStatusOptions struct {
+	json bool
+}
+
+type localStatus struct {
+	JobID  int    `json:"job_id"`
+	Branch string `json:"branch"`
+	Behind int    `json:"behind"`
 }
 
 func NewStatusCommand() *cobra.Command {
-	opts := &statusOptions{}
+	opts := &localStatusOptions{}
 	cmd := &cobra.Command{
 		Use:           "status",
-		Short:         "Show Syrus jobs",
+		Short:         "Show which Syrus job is checked out here",
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(cmd.Context(), cmd.OutOrStdout(), opts, supportsColor(cmd.OutOrStdout()))
+			return runLocalStatus(cmd.Context(), cmd.OutOrStdout(), opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.repo, "repo", "", "Filter by repository owner/name")
-	cmd.Flags().BoolVar(&opts.closed, "closed", false, "Show closed jobs instead of open jobs")
+	cmd.Flags().BoolVar(&opts.json, "json", false, "Print status as JSON")
 	return cmd
 }
 
-func runStatus(ctx context.Context, out io.Writer, opts *statusOptions, color bool) error {
-	creds, err := config.LoadDefaultCredentials()
-	if err != nil {
-		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
-			return errors.New(loginMessage)
-		}
-		return err
-	}
-
-	client, err := api.NewClient(creds.URL, creds.Token)
+func runLocalStatus(ctx context.Context, out io.Writer, opts *localStatusOptions) error {
+	wd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-
-	filters := url.Values{}
-	if opts.closed {
-		filters.Set("state", "closed")
-	} else {
-		filters.Set("state", "open")
-	}
-	if strings.TrimSpace(opts.repo) != "" {
-		filters.Set("repo", strings.TrimSpace(opts.repo))
-	}
-
-	list, err := client.ListJobs(ctx, filters)
+	status, err := localSyrusStatus(ctx, statusRunGit, wd)
 	if err != nil {
 		return err
 	}
-
-	renderStatus(out, list.Jobs, defaultStatusWidth, color)
+	if opts.json {
+		encoder := json.NewEncoder(out)
+		return encoder.Encode(status)
+	}
+	renderLocalStatus(out, status)
 	return nil
 }
 
-func renderStatus(out io.Writer, jobs []api.JobItem, width int, color bool) {
-	if width < 40 {
-		width = defaultStatusWidth
+func localSyrusStatus(ctx context.Context, runner gitRunner, dir string) (localStatus, error) {
+	inside, err := runner(ctx, dir, "rev-parse", "--is-inside-work-tree")
+	if err != nil || strings.TrimSpace(inside) != "true" {
+		return localStatus{}, errors.New("Current directory is not a git repository.")
 	}
 
-	idWidth := 7
-	repoWidth := 21
-	stateWidth := 12
-	prWidth := maxPRWidth(jobs)
-	titleWidth := width - idWidth - repoWidth - stateWidth - prWidth - 8
-	if titleWidth < 10 {
-		titleWidth = 10
-	}
-
-	fmt.Fprintf(out, "%-*s  %-*s  %-*s  %-*s  %s\n",
-		idWidth, "ID",
-		repoWidth, "REPO",
-		titleWidth, "TITLE",
-		stateWidth, "STATE",
-		"PR")
-
-	for _, job := range jobs {
-		state := padRight(fit(job.State, stateWidth), stateWidth)
-		if color {
-			state = colorState(state, job.State)
-		}
-		fmt.Fprintf(out, "%-*s  %-*s  %-*s  %s  %*s\n",
-			idWidth, "JOB-"+strconv.FormatInt(job.ID, 10),
-			repoWidth, fit(job.RepositorySlug, repoWidth),
-			titleWidth, fit(job.Title, titleWidth),
-			state,
-			prWidth, prLabel(job.PRNumber))
-	}
-}
-
-func maxPRWidth(jobs []api.JobItem) int {
-	width := len("PR")
-	for _, job := range jobs {
-		if labelWidth := len(prLabel(job.PRNumber)); labelWidth > width {
-			width = labelWidth
-		}
-	}
-	return width
-}
-
-func prLabel(number int64) string {
-	if number == 0 {
-		return "-"
-	}
-	return "#" + strconv.FormatInt(number, 10)
-}
-
-func fit(value string, width int) string {
-	value = strings.TrimSpace(value)
-	runes := []rune(value)
-	if len(runes) <= width {
-		return value
-	}
-	if width <= 1 {
-		return string(runes[:width])
-	}
-	return string(runes[:width-1]) + "."
-}
-
-func padRight(value string, width int) string {
-	padding := width - len([]rune(value))
-	if padding <= 0 {
-		return value
-	}
-	return value + strings.Repeat(" ", padding)
-}
-
-func colorState(display string, state string) string {
-	color := ""
-	switch state {
-	case "running":
-		color = "\033[33m"
-	case "implemented", "approved":
-		color = "\033[32m"
-	case "failed":
-		color = "\033[31m"
-	case "queued":
-		color = "\033[90m"
-	default:
-		return display
-	}
-	return color + display + "\033[0m"
-}
-
-func supportsColor(out io.Writer) bool {
-	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
-		return false
-	}
-	file, ok := out.(*os.File)
-	if !ok {
-		return false
-	}
-	info, err := file.Stat()
+	branchOutput, err := runner(ctx, dir, "branch", "--show-current")
 	if err != nil {
-		return false
+		return localStatus{}, fmt.Errorf("could not read current git branch: %w", err)
 	}
-	return info.Mode()&os.ModeCharDevice != 0
+	branch := strings.TrimSpace(branchOutput)
+	jobID, ok := statusJobIDFromBranch(branch)
+	if !ok {
+		return localStatus{}, nil
+	}
+
+	remoteRef := "refs/remotes/origin/" + branch
+	if _, err := runner(ctx, dir, "fetch", "origin", "+refs/heads/"+branch+":"+remoteRef); err != nil {
+		return localStatus{}, fmt.Errorf("git fetch failed: %w", err)
+	}
+	behindOutput, err := runner(ctx, dir, "rev-list", "--count", "HEAD.."+remoteRef)
+	if err != nil {
+		return localStatus{}, fmt.Errorf("git rev-list failed: %w", err)
+	}
+	behind, err := strconv.Atoi(strings.TrimSpace(behindOutput))
+	if err != nil {
+		return localStatus{}, fmt.Errorf("could not parse git behind count %q: %w", strings.TrimSpace(behindOutput), err)
+	}
+
+	return localStatus{JobID: jobID, Branch: branch, Behind: behind}, nil
+}
+
+func statusJobIDFromBranch(branch string) (int, bool) {
+	for _, pattern := range statusBranchPatterns {
+		matches := pattern.FindStringSubmatch(branch)
+		if matches == nil {
+			continue
+		}
+		id, err := strconv.Atoi(matches[1])
+		if err != nil {
+			return 0, false
+		}
+		return id, true
+	}
+	return 0, false
+}
+
+func renderLocalStatus(out io.Writer, status localStatus) {
+	if status.JobID == 0 || status.Branch == "" {
+		fmt.Fprintln(out, "Not on a Syrus job branch.")
+		return
+	}
+	if status.Behind == 0 {
+		fmt.Fprintf(out, "JOB-%d (%s) — up to date\n", status.JobID, status.Branch)
+		return
+	}
+	fmt.Fprintf(out, "JOB-%d (%s) — ⚠ %d commit(s) behind remote\n", status.JobID, status.Branch, status.Behind)
 }

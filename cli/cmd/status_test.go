@@ -2,41 +2,41 @@ package cmd
 
 import (
 	"bytes"
-	"net/http"
-	"net/http/httptest"
+	"context"
+	"fmt"
 	"os"
-	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/tkadauke/syrus/cli/internal/api"
 )
 
-func TestStatusCommandListsOpenJobs(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+func TestStatusCommandReportsNotInGitRepository(t *testing.T) {
+	statusRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		if strings.Join(args, " ") != "rev-parse --is-inside-work-tree" {
+			t.Fatalf("unexpected git command: %v", args)
+		}
+		return "", fmt.Errorf("exit status 128")
+	}
+	t.Cleanup(func() { statusRunGit = runGit })
 
-	var gotQuery string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.RawQuery
-		if got := r.Header.Get("Authorization"); got != "Bearer secret-token" {
-			t.Fatalf("Authorization = %q", got)
-		}
-		if r.URL.Path != "/api/v1/app/jobs" {
-			t.Fatalf("path = %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"count": 3,
-			"jobs": [
-				{"id":42,"repository_slug":"tkadauke/myapp","title":"Add avatar upload","state":"implemented","pr_number":98},
-				{"id":43,"repository_slug":"tkadauke/myapp","title":"Fix password reset email","state":"running","pr_number":null},
-				{"id":44,"repository_slug":"tkadauke/other-repo","title":"Upgrade Rails to 8.1","state":"queued","pr_number":null}
-			]
-		}`))
-	}))
-	defer server.Close()
-	writeStatusCredentials(t, home, server.URL)
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"status"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "Current directory is not a git repository." {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestStatusCommandReportsNotOnSyrusBranch(t *testing.T) {
+	var calls [][]string
+	statusRunGit = statusGitStub(t, "main", "0", &calls)
+	t.Cleanup(func() { statusRunGit = runGit })
 
 	output := &bytes.Buffer{}
 	command := NewRootCommand()
@@ -47,88 +47,168 @@ func TestStatusCommandListsOpenJobs(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if gotQuery != "state=open" {
-		t.Fatalf("query = %q", gotQuery)
+	if got := output.String(); got != "Not on a Syrus job branch.\n" {
+		t.Fatalf("output = %q", got)
 	}
-
-	got := output.String()
-	for _, want := range []string{
-		"ID       REPO                   TITLE",
-		"JOB-42   tkadauke/myapp",
-		"Add avatar upload",
-		"implemented",
-		"#98",
-		"JOB-43   tkadauke/myapp",
-		"Fix password reset email",
-		"running",
-		"JOB-44   tkadauke/other-repo",
-		"Upgrade Rails to 8.1",
-		"queued",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("output missing %q:\n%s", want, got)
-		}
+	wantCalls := [][]string{
+		{"rev-parse", "--is-inside-work-tree"},
+		{"branch", "--show-current"},
 	}
-	if strings.Contains(got, "\033[") {
-		t.Fatalf("buffer output should not include color escapes:\n%q", got)
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
 	}
 }
 
-func TestStatusCommandFiltersClosedJobsByRepo(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+func TestStatusCommandReportsUpToDateSyrusBranch(t *testing.T) {
+	var calls [][]string
+	statusRunGit = statusGitStub(t, "syrus/direct-1291", "0", &calls)
+	t.Cleanup(func() { statusRunGit = runGit })
 
-	var gotQuery string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.RawQuery
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"count":0,"jobs":[]}`))
-	}))
-	defer server.Close()
-	writeStatusCredentials(t, home, server.URL)
-
+	output := &bytes.Buffer{}
 	command := NewRootCommand()
-	command.SetOut(&bytes.Buffer{})
+	command.SetOut(output)
 	command.SetErr(&bytes.Buffer{})
-	command.SetArgs([]string{"status", "--closed", "--repo", "tkadauke/myapp"})
+	command.SetArgs([]string{"status"})
 
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if gotQuery != "repo=tkadauke%2Fmyapp&state=closed" {
-		t.Fatalf("query = %q", gotQuery)
+	if got := output.String(); got != "JOB-1291 (syrus/direct-1291) — up to date\n" {
+		t.Fatalf("output = %q", got)
+	}
+	wantCalls := [][]string{
+		{"rev-parse", "--is-inside-work-tree"},
+		{"branch", "--show-current"},
+		{"fetch", "origin", "+refs/heads/syrus/direct-1291:refs/remotes/origin/syrus/direct-1291"},
+		{"rev-list", "--count", "HEAD..refs/remotes/origin/syrus/direct-1291"},
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
 	}
 }
 
-func TestStatusCommandTruncatesLongTitlesForEightyColumns(t *testing.T) {
+func TestStatusCommandReportsBehindSyrusBranch(t *testing.T) {
+	var calls [][]string
+	statusRunGit = statusGitStub(t, "syrus/issue-720-1291", "2", &calls)
+	t.Cleanup(func() { statusRunGit = runGit })
+
 	output := &bytes.Buffer{}
-	renderStatus(output, []api.JobItem{{
-		ID:             77,
-		RepositorySlug: "tkadauke/myapp",
-		Title:          "This title is intentionally far too long for the fixed eighty column status view",
-		State:          "running",
-		PRNumber:       1234,
-	}}, 80, false)
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"status"})
 
-	lines := strings.Split(strings.TrimRight(output.String(), "\n"), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("lines = %d:\n%s", len(lines), output.String())
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
 	}
-	if len(lines[1]) > 80 {
-		t.Fatalf("line length = %d, want <= 80:\n%s", len(lines[1]), lines[1])
-	}
-	if !strings.Contains(lines[1], "This title is intentionall.") {
-		t.Fatalf("title was not truncated as expected:\n%s", lines[1])
+	if got := output.String(); got != "JOB-1291 (syrus/issue-720-1291) — ⚠ 2 commit(s) behind remote\n" {
+		t.Fatalf("output = %q", got)
 	}
 }
 
-func writeStatusCredentials(t *testing.T, home string, serverURL string) {
-	t.Helper()
-	path := filepath.Join(home, ".syrus", "credentials")
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		t.Fatal(err)
+func TestStatusCommandPrintsJSONForSyrusBranch(t *testing.T) {
+	var calls [][]string
+	statusRunGit = statusGitStub(t, "syrus/scheduled-4-99", "3", &calls)
+	t.Cleanup(func() { statusRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"status", "--json"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
 	}
-	if err := os.WriteFile(path, []byte("url="+serverURL+"\ntoken=secret-token\n"), 0600); err != nil {
-		t.Fatal(err)
+	if got := output.String(); got != "{\"job_id\":99,\"branch\":\"syrus/scheduled-4-99\",\"behind\":3}\n" {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestStatusCommandPrintsJSONForUpToDateSyrusBranch(t *testing.T) {
+	var calls [][]string
+	statusRunGit = statusGitStub(t, "syrus/direct-1291", "0", &calls)
+	t.Cleanup(func() { statusRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"status", "--json"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if got := output.String(); got != "{\"job_id\":1291,\"branch\":\"syrus/direct-1291\",\"behind\":0}\n" {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestStatusCommandPrintsJSONWhenNotOnSyrusBranch(t *testing.T) {
+	var calls [][]string
+	statusRunGit = statusGitStub(t, "", "0", &calls)
+	t.Cleanup(func() { statusRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"status", "--json"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if got := output.String(); got != "{\"job_id\":0,\"branch\":\"\",\"behind\":0}\n" {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestStatusJobIDFromBranchRecognizesGeneratedBranchNames(t *testing.T) {
+	cases := map[string]int{
+		"syrus/direct-732":     732,
+		"syrus/local-8":        8,
+		"syrus/issue-720-456":  456,
+		"syrus/scheduled-4-99": 99,
+		"syrus/issue-42":       42,
+		"syrus/scheduled-12":   12,
+		"syrus/cron-77":        77,
+	}
+
+	for branch, want := range cases {
+		got, ok := statusJobIDFromBranch(branch)
+		if !ok {
+			t.Fatalf("statusJobIDFromBranch(%q) did not match", branch)
+		}
+		if got != want {
+			t.Fatalf("statusJobIDFromBranch(%q) = %d, want %d", branch, got, want)
+		}
+	}
+	if _, ok := statusJobIDFromBranch("main"); ok {
+		t.Fatal("main branch should not match")
+	}
+}
+
+func statusGitStub(t *testing.T, branch string, behind string, calls *[][]string) gitRunner {
+	t.Helper()
+	return func(ctx context.Context, dir string, args ...string) (string, error) {
+		if dir == "" {
+			t.Fatalf("git command should run from explicit working directory: %v", args)
+		}
+		if _, err := os.Stat(dir); err != nil {
+			t.Fatalf("git command dir = %q: %v", dir, err)
+		}
+		*calls = append(*calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "branch --show-current":
+			return branch + "\n", nil
+		case "fetch origin +refs/heads/" + branch + ":refs/remotes/origin/" + branch:
+			return "", nil
+		case "rev-list --count HEAD..refs/remotes/origin/" + branch:
+			return behind + "\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
 	}
 }

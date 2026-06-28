@@ -242,6 +242,34 @@ syrus approve JOB-456
 
 On success, Syrus queues the landing workflow.
 
+## Local Status
+
+`syrus status` reports whether the current checkout is on a Syrus Job
+branch and whether that branch is behind `origin`:
+
+```bash
+syrus status
+syrus status --json
+```
+
+On a Job branch, it fetches the matching remote branch before counting
+commits behind:
+
+```text
+JOB-1291 (syrus/direct-1291) — up to date
+JOB-1291 (syrus/direct-1291) — ⚠ 2 commit(s) behind remote
+```
+
+The JSON form is intended for desktop and scripting integrations:
+
+```json
+{"job_id":1291,"branch":"syrus/direct-1291","behind":2}
+```
+
+When the current branch is not a Syrus Job branch, it prints `Not on a
+Syrus job branch.` or returns `{"job_id":0,"branch":"","behind":0}` with
+`--json`.
+
 ## Epics
 
 Use `syrus epic` to inspect and create Epics:
@@ -265,12 +293,12 @@ These commands show the configured account and visible repositories:
 ```bash
 syrus whoami
 syrus repo list
-syrus status
-syrus status --repo acme/widgets
-syrus status --closed
+syrus jobs
+syrus jobs --repo acme/widgets
+syrus jobs --closed
 ```
 
-`status` lists active Jobs across repositories by default and can scope
+`jobs` lists active Jobs across repositories by default and can scope
 to one repository.
 
 ## Schedules
