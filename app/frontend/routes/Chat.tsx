@@ -659,7 +659,10 @@ function messageIdFromHash(hash: string) {
 function countIncomingVisibleMessages(messages: ChatMessageItem[], previousMaxMessageId: number, showSystemMessages: boolean) {
   return messages.filter((message) => {
     if (message.id <= previousMaxMessageId) return false
-    return showSystemMessages || !isLowPrioritySystemMessage(renderMessage(message))
+    const item = renderMessage(message)
+    if (item === null) return false
+
+    return showSystemMessages || !isLowPrioritySystemMessage(item)
   }).length
 }
 
@@ -3177,11 +3180,13 @@ function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
         lastCall.result_summary = toolResultSummary(currentGroup?.tool || "", lastCall.result_body)
       } else {
         currentGroup = null
-        items.push(renderMessage(message))
+        const item = renderMessage(message)
+        if (item) items.push(item)
       }
     } else {
       currentGroup = null
-      items.push(renderMessage(message))
+      const item = renderMessage(message)
+      if (item) items.push(item)
     }
   }
 
@@ -3250,9 +3255,12 @@ function pendingActionCardData(action: ChatPendingAction): ChatPendingActionInli
   }
 }
 
-function renderMessage(message: ChatMessageItem): ChatRenderItem {
+function renderMessage(message: ChatMessageItem): ChatRenderItem | null {
   if (message.role === "system") {
-    return { ...message, system: systemMessage(message) }
+    const system = systemMessage(message)
+    if (system === null) return null
+
+    return { ...message, system }
   }
 
   if (message.role === "tool_use" || message.role === "tool_result") {
@@ -3283,7 +3291,7 @@ function structuredTool(message: ChatMessageItem): ChatStructuredTool {
   }
 }
 
-function systemMessage(message: ChatMessageItem): ChatSystemMessage {
+function systemMessage(message: ChatMessageItem): ChatSystemMessage | null {
   const text = message.text || stringValue(contentRecord(message.content)?.text) || ""
   const mcpHealth = mcpHealthFromContent(message.content)
   if (mcpHealth.length > 0) return structuredMcpMessage(mcpHealth)
@@ -3309,10 +3317,8 @@ function systemMessage(message: ChatMessageItem): ChatSystemMessage {
   return { tone: "neutral", label: "System", body: text }
 }
 
-function structuredMcpMessage(servers: ChatMcpHealth[]): ChatSystemMessage {
-  const pending = servers.filter((server) => server.pending_tools.length > 0)
+function structuredMcpMessage(servers: ChatMcpHealth[]): ChatSystemMessage | null {
   const unavailable = servers.filter((server) => server.unavailable_tools.length > 0)
-  const available = servers.filter((server) => server.available_tools.length > 0)
 
   if (unavailable.length > 0) {
     return {
@@ -3322,23 +3328,7 @@ function structuredMcpMessage(servers: ChatMcpHealth[]): ChatSystemMessage {
     }
   }
 
-  if (pending.length > 0) {
-    return {
-      tone: "warning",
-      label: "MCP pending",
-      body: `MCP still pending: ${serverStatusList(pending)}. Tools pending: ${toolSummary(pending, "pending_tools")}. If this does not clear on the next turn, retry the turn or check worker logs for chat sidecar startup.`
-    }
-  }
-
-  if (available.length > 0) {
-    return {
-      tone: "success",
-      label: "MCP ready",
-      body: `MCP tools available: ${toolSummary(available, "available_tools")}`
-    }
-  }
-
-  return { tone: "neutral", label: "MCP", body: "MCP server status unavailable" }
+  return null
 }
 
 function serverStatusList(servers: ChatMcpHealth[]) {
