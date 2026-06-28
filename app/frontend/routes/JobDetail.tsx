@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent, ReactNode, UIEvent } from "react"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { Dispatch, FormEvent, ReactNode, SetStateAction, UIEvent } from "react"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -1598,11 +1598,13 @@ function SourceTab({ jobId }: { jobId: string }) {
   const [sourcePath, setSourcePath] = useState<string | null>(null)
   const [diffBaseRef, setDiffBaseRef] = useState<string | null>(null)
   const [diffHeadRef, setDiffHeadRef] = useState<string | null>(null)
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const search = sourceSearch(sourceRef, sourcePath)
   const diffSearch = sourceDiffSearch(diffBaseRef, diffHeadRef)
   const source = useQuery({
     queryKey: ["jobs", jobId, "source", search],
-    queryFn: () => fetchJobSource(jobId, search)
+    queryFn: () => fetchJobSource(jobId, search),
+    placeholderData: keepPreviousData
   })
   const sourceDiff = useQuery({
     enabled: mode === "diff",
@@ -1624,7 +1626,7 @@ function SourceTab({ jobId }: { jobId: string }) {
     return <SourceDiffBrowser mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
   }
 
-  return <SourceBrowser mode={mode} onModeChange={setMode} payload={source.data} onSelectPath={(path) => {
+  return <SourceBrowser expandedPaths={expandedPaths} mode={mode} onModeChange={setMode} payload={source.data} setExpandedPaths={setExpandedPaths} onSelectPath={(path) => {
     setSourceRef(source.data.selected_ref)
     setSourcePath(path)
   }} onSelectRef={(ref) => {
@@ -1634,23 +1636,26 @@ function SourceTab({ jobId }: { jobId: string }) {
 }
 
 function SourceBrowser({
+  expandedPaths,
   mode,
   onModeChange,
   payload,
+  setExpandedPaths,
   onSelectPath,
   onSelectRef,
   showDiffToggle
 }: {
+  expandedPaths: Set<string>
   mode: "browse" | "diff"
   onModeChange: (mode: "browse" | "diff") => void
   payload: JobSourcePayload
+  setExpandedPaths: Dispatch<SetStateAction<Set<string>>>
   onSelectPath: (path: string) => void
   onSelectRef: (ref: string) => void
   showDiffToggle: boolean
 }) {
   const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
   const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const refOptions = refOptionsFor(payload, [payload.selected_ref])
 
   if (payload.source_error) return <PanelMessage tone="error">{payload.source_error}</PanelMessage>
@@ -1913,7 +1918,7 @@ function SourceTreeRow({
           title={node.path}
           type="button"
         >
-          <span className="mr-1 inline-block w-3 text-gray-400 dark:text-gray-500">{expandedPaths.has(node.path) ? "-" : "+"}</span>
+          <span aria-hidden="true" className={`mr-1 inline-block w-3 text-gray-400 transition-transform dark:text-gray-500 ${expandedPaths.has(node.path) ? "rotate-90" : ""}`}>{">"}</span>
           {node.name}
         </button>
       )}

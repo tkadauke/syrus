@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { JobDetailPayload, JobWorkflow } from "../api/jobs"
+import type { JobDetailPayload, JobSourcePayload, JobWorkflow } from "../api/jobs"
 import { FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
 
 describe("JobDetailView", () => {
@@ -255,6 +255,38 @@ describe("FeedbackHistoryPanel", () => {
   })
 })
 
+describe("SourceTab", () => {
+  it("keeps expanded directories open after selecting a file", async () => {
+    mockJobSourceRequests()
+    renderJobSource()
+
+    const appButton = await screen.findByRole("button", { name: "app" })
+    fireEvent.click(appButton)
+    fireEvent.click(screen.getByRole("button", { name: "models" }))
+    fireEvent.click(screen.getByRole("button", { name: "user.rb" }))
+
+    expect(await screen.findByText(/class User/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "app" })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: "models" })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: "user.rb" })).toBeInTheDocument()
+  })
+
+  it("uses a rotating chevron for directory toggles", async () => {
+    mockJobSourceRequests()
+    renderJobSource()
+
+    const appButton = await screen.findByRole("button", { name: "app" })
+    const chevron = within(appButton).getByText(">")
+
+    expect(chevron).not.toHaveClass("rotate-90")
+
+    fireEvent.click(appButton)
+
+    expect(chevron).toHaveClass("rotate-90")
+    expect(appButton).toHaveAttribute("aria-expanded", "true")
+  })
+})
+
 function renderFeedbackHistory(workflows: JobWorkflow[]) {
   return render(
     <MemoryRouter>
@@ -285,6 +317,40 @@ function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summ
 function LocationProbe() {
   const location = useLocation()
   return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
+function renderJobSource() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/app-shell/jobs/1?tab=source"]}>
+        <JobDetailView
+          activeTab="source"
+          onSelectTab={() => {}}
+          payload={jobPayload()}
+          prefix="/app-shell"
+          queryKey={["jobs", "1", "detail", ""]}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function mockJobSourceRequests() {
+  return vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const url = requestUrl(input)
+    const withFile = url.includes("path=app%2Fmodels%2Fuser.rb") || url.includes("path=app/models/user.rb")
+
+    return Promise.resolve(jsonResponse(jobSourcePayload({ withFile })))
+  })
+}
+
+function requestUrl(input: Parameters<typeof fetch>[0]) {
+  if (typeof input === "string") return input
+  if (input instanceof Request) return input.url
+  return String(input)
+}
 }
 
 function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
@@ -430,6 +496,34 @@ function baseJob(): JobDetailPayload["job"] {
     updated_at: null,
     started_at: null,
     finished_at: null
+  }
+}
+
+function jobSourcePayload(overrides: { withFile?: boolean } = {}): JobSourcePayload {
+  return {
+    job_id: 1,
+    repository: { id: 2, slug: "acme/widgets", default_branch: "main", repository_path: "/repositories/2" },
+    branch_name: "syrus/direct-1",
+    default_ref: "main",
+    selected_ref: "deadbeef12345678",
+    selected_path: overrides.withFile ? "app/models/user.rb" : null,
+    merge_base_sha: "aabbccdd1234567",
+    branch_commits: [
+      { sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair source browser", date: "2026-06-28T10:00:00Z" }
+    ],
+    tree_items: [
+      { path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby" },
+      { path: "README.md", name: "README.md", size: 128, language: "markdown" }
+    ],
+    tree_truncated: false,
+    file: overrides.withFile ? { path: "app/models/user.rb", name: "user.rb", size: 15, language: "ruby", content: "class User\nend\n" } : null,
+    source_error: null,
+    file_error: null,
+    paths: {
+      job_path: "/jobs/1",
+      source_path: "/jobs/1/source",
+      app_source_path: "/api/v1/app/jobs/1/source"
+    }
   }
 }
 
