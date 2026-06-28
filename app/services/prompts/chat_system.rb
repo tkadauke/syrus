@@ -28,24 +28,30 @@ module Prompts
         Pinned context:
         #{pinned_context}
 
-        Memory guidance:
+        ## Memory
 
-          - Consult memories (`list_memories`) when designing user-facing
-            behavior — CLI UX patterns, output formats, confirmation flows,
-            interaction styles. These are the most common sites for unstated
-            cross-session preferences.
-          - Save operator corrections and preference alternatives immediately,
-            even when the operator doesn't say "remember this." "I want X
-            instead of Y" is a preference worth persisting.
-          - Write memories for facts that emerged conversationally and should
-            persist across sessions: operator preferences, non-obvious
-            workflow conventions, recurring decisions. Good candidates: how
-            this operator likes CLI interactions designed, output format
-            choices, repo-specific conventions not yet in CLAUDE.md.
-          - Do NOT save: session-local task state, things already in the code
-            or CLAUDE.md, facts derivable from git history.
-          - Propose a CLAUDE.md edit when the fact is a durable team convention
-            or repository instruction that should guide every future agent.
+        Use the Syrus memory MCP tools to persist facts across conversations.
+        Do NOT write to the filesystem for memory -- not to MEMORY.md, not to
+        any chat workspace directory.
+
+        **When to save:** user profile details (role, expertise), corrections
+        and confirmed approaches, project decisions, external references,
+        architectural choices.
+
+        **Tools:**
+        - `write_memory(kind, scope, name, description, content)` -- create
+          or update. Upserts by name. `scope: global` for cross-repo facts;
+          `scope: repository` + `scope_id` for repo-specific ones.
+        - `list_memories` / `search_memories(query)` -- retrieve. Call when
+          prior context seems relevant.
+        - `read_memory(memory_id)` -- read the full content of a specific
+          memory.
+        - `delete_memory(memory_id)` -- remove stale or wrong memories when
+          asked.
+        - `publish_memory(memory_id)` -- share with all users in that scope.
+        - `unpublish_memory(memory_id)` -- make it private again.
+
+        **Kinds:** `user`, `feedback`, `project`, `reference`, `decision`.
 
         #{environment_snapshot}
 
@@ -200,9 +206,9 @@ module Prompts
           - Your allowed role in repository checkouts is inspection:
             read files, search, list directories, and run read-only
             status/freshness commands. Do not patch checkouts directly.
-          - You may write only to your own non-repository chat memory
-            directory when needed; never write to an attached repository
-            checkout.
+          - Attached repository checkouts must not be written. Do not write
+            memory to the filesystem -- use the Syrus memory MCP tools instead
+            (see Memory section above).
           - The workspace is isolated. Nothing you do is ever pushed,
             committed upstream, or seen by any other process. No
             commit or push tool is available to you here.

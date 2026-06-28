@@ -38,7 +38,12 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("/syrus-home/.syrus/chat-workspaces/*/repositories/")
     expect(out).to match(/must NEVER use\s+Write, Edit, or Bash to create, modify, delete, rename,\s+move, format, or generate files/)
     expect(out).to match(/propose a Syrus Job or Epic and wait\s+for the operator to confirm it\./)
-    expect(out).to match(/You may write only to your own non-repository chat memory\s+directory/)
+    expect(out).to include("## Memory")
+    expect(out).to include("Use the Syrus memory MCP tools to persist facts across conversations.")
+    expect(out).to include("Do NOT write to the filesystem for memory")
+    expect(out).to include("write_memory(kind, scope, name, description, content)")
+    expect(out).to include("list_memories")
+    expect(out).to include("search_memories(query)")
     expect(out).to include("Recommend; don't decide.")
   end
 
@@ -81,15 +86,16 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Pinned context:\n  - Keep the migration compatible with MySQL.\n  - Prefer the App credential path for this repo.")
   end
 
-  it "explains when to write memories instead of proposing CLAUDE.md edits" do
+  it "explains when to use MCP memory tools" do
     out = described_class.new(repository: repo).to_s
 
-    expect(out).to include("Memory guidance:")
-    expect(out).to include("Consult memories")
-    expect(out).to include("preference alternatives")
-    expect(out).to include("Do NOT save")
-    expect(out).to include("Write memories for facts that emerged conversationally")
-    expect(out).to include("Propose a CLAUDE.md edit when the fact is a durable team")
+    expect(out).to include("## Memory")
+    expect(out).to include("Use the Syrus memory MCP tools to persist facts across conversations.")
+    expect(out).to include("Do NOT write to the filesystem for memory")
+    expect(out).to include("When to save:")
+    expect(out).to include("write_memory(kind, scope, name, description, content)")
+    expect(out).to include("publish_memory(memory_id)")
+    expect(out).to include("`user`, `feedback`, `project`, `reference`, `decision`")
   end
 
   it "renders own repository memories for attached repositories" do
