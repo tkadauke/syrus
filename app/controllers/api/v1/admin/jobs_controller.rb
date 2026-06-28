@@ -79,13 +79,19 @@ module Api
           owner_user = find_owner_user(attrs[:owner_user_id])
           return render_error("validation_failed", "Owner user not found.", status: :unprocessable_content) if attrs[:owner_user_id].present? && !owner_user
 
+          selected_agent_provider = agent_provider || repository.effective_agent_provider
           job = repository.user.jobs.create!(
             repository: repository,
             kind: "direct",
             issue_number: nil,
-            issue_title: attrs[:title].to_s.strip.presence || DirectJobTitleGenerator.call(prompt_text),
+            issue_title: attrs[:title].to_s.strip.presence || DirectJobTitleGenerator.call(
+              prompt_text,
+              user: repository.user,
+              repository: repository,
+              agent_provider: selected_agent_provider
+            ),
             issue_body: prompt_text,
-            agent_provider: agent_provider || repository.effective_agent_provider,
+            agent_provider: selected_agent_provider,
             priority: priority,
             epic: epic,
             owner_user: owner_user

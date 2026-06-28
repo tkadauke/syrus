@@ -4,8 +4,21 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
+  around do |example|
+    old_runner = RunJob.agent_runner
+    RunJob.agent_runner = nil
+    example.run
+  ensure
+    RunJob.agent_runner = old_runner
+  end
+
   def parse_body
     JSON.parse(response.body)
+  end
+
+  def agent_result(final_text, **overrides)
+    defaults = { turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", session_id: nil }
+    AgentInvocation::Result.new(**defaults.merge(overrides), final_text: final_text)
   end
 
   def upload_file(name: "notes.md", content_type: "text/markdown", content: "# Notes")
@@ -85,6 +98,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
 
   it "creates a direct job, starts the workflow, and returns its redirect" do
     sign_in_as(user)
+    RunJob.agent_runner = ->(**_) { raise "explicit direct job titles should not invoke the title agent" }
 
     expect {
       post "/api/v1/app/jobs", params: {
@@ -117,6 +131,8 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
 
   it "generates a title from the prompt when the title is blank" do
     sign_in_as(user)
+    user.update!(claude_oauth_token: "oat-test")
+    RunJob.agent_runner = ->(**_) { agent_result('{"title":"Dashboard Filters"}') }
 
     post "/api/v1/app/jobs", params: {
       repository_id: repository.id,
@@ -126,8 +142,8 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
 
     expect(response).to have_http_status(:created)
     new_job = Job.order(:created_at).last
-    expect(new_job.issue_title).to eq("Tighten the dashboard filters")
-    expect(parse_body.dig("job", "title")).to eq("Tighten the dashboard filters")
+    expect(new_job.issue_title).to eq("Dashboard Filters")
+    expect(parse_body.dig("job", "title")).to eq("Dashboard Filters")
   end
 
   it "uses an explicitly selected configured agent for the job, workflow, and run" do

@@ -9,8 +9,20 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
 
   let(:job) { Factories.job(user: admin) }
 
+  around do |example|
+    old_runner = RunJob.agent_runner
+    RunJob.agent_runner = nil
+    example.run
+  ensure
+    RunJob.agent_runner = old_runner
+  end
+
   def auth(token) = { "Authorization" => "Bearer #{token}" }
   def parse_body  = JSON.parse(response.body)
+  def agent_result(final_text, **overrides)
+    defaults = { turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", session_id: nil }
+    AgentInvocation::Result.new(**defaults.merge(overrides), final_text: final_text)
+  end
 
   describe "auth" do
     it "401s without an Authorization header" do
@@ -101,6 +113,8 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
     end
 
     it "generates a direct job title from the prompt when admin title is blank" do
+      admin.update!(claude_oauth_token: "oat-test")
+      RunJob.agent_runner = ->(**_) { agent_result('{"title":"Checkout Flow Repair"}') }
       repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
 
       post "/api/v1/admin/jobs",
@@ -115,8 +129,8 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
 
       expect(response).to have_http_status(:created)
       created = Job.order(:created_at).last
-      expect(created.issue_title).to eq("Repair the checkout flow")
-      expect(parse_body.dig("job", "issue_title")).to eq("Repair the checkout flow")
+      expect(created.issue_title).to eq("Checkout Flow Repair")
+      expect(parse_body.dig("job", "issue_title")).to eq("Checkout Flow Repair")
     end
 
     it "rejects invalid create requests" do

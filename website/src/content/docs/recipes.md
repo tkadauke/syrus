@@ -191,13 +191,19 @@ repo = user.repositories.active.find_by!(
 )
 
 prompt = ENV.fetch("SYRUS_PROMPT")
+agent_provider = repo.effective_agent_provider
 job = user.jobs.create!(
   repository: repo,
   kind: "direct",
   issue_number: nil,
-  issue_title: ENV["SYRUS_JOB_TITLE"].presence || DirectJobTitleGenerator.call(prompt),
+  issue_title: ENV["SYRUS_JOB_TITLE"].presence || DirectJobTitleGenerator.call(
+    prompt,
+    user: user,
+    repository: repo,
+    agent_provider: agent_provider
+  ),
   issue_body: prompt,
-  agent_provider: repo.effective_agent_provider,
+  agent_provider: agent_provider,
   priority: ENV.fetch("SYRUS_PRIORITY", "medium")
 )
 
