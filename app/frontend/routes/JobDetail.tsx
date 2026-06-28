@@ -10,6 +10,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill } from "../components/StatusPill"
 import { Markdown } from "../lib/Markdown"
 import { workflowSlug } from "../lib/slugs"
+import { highlightCode, type SyntaxLanguage } from "../lib/syntaxHighlight"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   createJobAttachments,
@@ -1657,6 +1658,7 @@ function SourceBrowser({
   const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
   const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
   const refOptions = refOptionsFor(payload, [payload.selected_ref])
+  const fileLanguage = payload.file ? sourceLanguage(payload.file.language) : null
 
   if (payload.source_error) return <PanelMessage tone="error">{payload.source_error}</PanelMessage>
 
@@ -1706,7 +1708,9 @@ function SourceBrowser({
                 <span>{payload.file.language}</span>
                 <span>{formatBytes(payload.file.size)}</span>
               </div>
-              <pre className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100"><code>{payload.file.content}</code></pre>
+              <pre className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100">
+                <code>{fileLanguage ? highlightCode(payload.file.content, fileLanguage) : payload.file.content}</code>
+              </pre>
             </>
           ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">Select a file to view its contents.</div>}
         </div>
@@ -1839,11 +1843,17 @@ function SourceDiffStatusBadge({ status }: { status: string }) {
 }
 
 type SourceTreeFile = JobSourcePayload["tree_items"][number]
+type SourceFile = NonNullable<JobSourcePayload["file"]>
 type SourceTreeNode = {
   path: string
   name: string
   children: SourceTreeNode[]
   file: SourceTreeFile | null
+}
+
+function sourceLanguage(language: SourceFile["language"]): SyntaxLanguage | null {
+  const supported: SyntaxLanguage[] = [ "ruby", "javascript", "typescript", "json", "yaml", "shell", "css", "html" ]
+  return supported.includes(language as SyntaxLanguage) ? (language as SyntaxLanguage) : null
 }
 
 function buildSourceTree(items: SourceTreeFile[]) {

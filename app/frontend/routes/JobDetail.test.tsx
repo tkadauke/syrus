@@ -265,10 +265,35 @@ describe("SourceTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "models" }))
     fireEvent.click(screen.getByRole("button", { name: "user.rb" }))
 
-    expect(await screen.findByText(/class User/)).toBeInTheDocument()
+    const keyword = await screen.findByText("class")
+    expect(keyword.closest("code")).toHaveTextContent("class User")
     expect(screen.getByRole("button", { name: "app" })).toHaveAttribute("aria-expanded", "true")
     expect(screen.getByRole("button", { name: "models" })).toHaveAttribute("aria-expanded", "true")
     expect(screen.getByRole("button", { name: "user.rb" })).toBeInTheDocument()
+  })
+
+  it("highlights supported source file languages", async () => {
+    mockJobSourceRequests()
+    renderJobSource()
+
+    fireEvent.click(await screen.findByRole("button", { name: "app" }))
+    fireEvent.click(screen.getByRole("button", { name: "models" }))
+    fireEvent.click(screen.getByRole("button", { name: "user.rb" }))
+
+    expect(await screen.findByText("class")).toHaveClass("font-semibold", "text-blue-700")
+    expect(screen.getByText("User")).toHaveClass("text-cyan-700")
+  })
+
+  it("falls back to plain source text for unsupported languages", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(jobSourcePayload({
+      file: { path: "README.md", name: "README.md", size: 20, language: "markdown", content: "class User\n" }
+    })))
+    renderJobSource()
+
+    const code = await screen.findByText("class User")
+
+    expect(code.tagName).toBe("CODE")
+    expect(code.querySelector("span")).toBeNull()
   })
 
   it("uses a rotating chevron for directory toggles", async () => {
@@ -498,14 +523,16 @@ function baseJob(): JobDetailPayload["job"] {
   }
 }
 
-function jobSourcePayload(overrides: { withFile?: boolean } = {}): JobSourcePayload {
+function jobSourcePayload(overrides: { withFile?: boolean; file?: NonNullable<JobSourcePayload["file"]> } = {}): JobSourcePayload {
+  const file = overrides.file || (overrides.withFile ? { path: "app/models/user.rb", name: "user.rb", size: 15, language: "ruby", content: "class User\nend\n" } : null)
+
   return {
     job_id: 1,
     repository: { id: 2, slug: "acme/widgets", default_branch: "main", repository_path: "/repositories/2" },
     branch_name: "syrus/direct-1",
     default_ref: "main",
     selected_ref: "deadbeef12345678",
-    selected_path: overrides.withFile ? "app/models/user.rb" : null,
+    selected_path: file?.path || null,
     merge_base_sha: "aabbccdd1234567",
     branch_commits: [
       { sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair source browser", date: "2026-06-28T10:00:00Z" }
@@ -515,7 +542,7 @@ function jobSourcePayload(overrides: { withFile?: boolean } = {}): JobSourcePayl
       { path: "README.md", name: "README.md", size: 128, language: "markdown" }
     ],
     tree_truncated: false,
-    file: overrides.withFile ? { path: "app/models/user.rb", name: "user.rb", size: 15, language: "ruby", content: "class User\nend\n" } : null,
+    file,
     source_error: null,
     file_error: null,
     paths: {

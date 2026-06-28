@@ -9380,7 +9380,8 @@ describe("App", () => {
         expect.objectContaining({ credentials: "same-origin" })
       )
     })
-    expect(await screen.findByText(/class User/)).toBeInTheDocument()
+    const keyword = await screen.findByText("class")
+    expect(keyword.closest("code")).toHaveTextContent("class User")
   })
 
   it("switches the Job source browser into diff mode", async () => {
