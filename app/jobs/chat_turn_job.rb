@@ -173,7 +173,8 @@ class ChatTurnJob < ApplicationJob
           "syrus-chat-deferred-sidecar" => {
             type: "stdio",
             command: Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s,
-            env: sidecar_env(tool_tier: "deferred", server_name: "syrus-chat-deferred-sidecar")
+            env: sidecar_env(tool_tier: "deferred", server_name: "syrus-chat-deferred-sidecar"),
+            alwaysLoad: false
           }
         }
       }.to_json)
@@ -248,8 +249,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def mcp_tool_names_for(name)
-    return SyrusChatMcp::Sidecar.tool_names(@chat, tier: :essential) if name == "syrus-chat-sidecar"
-    return SyrusChatMcp::Sidecar.tool_names(@chat, tier: :deferred) if name == "syrus-chat-deferred-sidecar"
+    return SyrusChatMcp::Sidecar.tool_names(@chat) if name == "syrus-chat-sidecar"
+    return SyrusChatMcp::DeferredSidecar.tool_names(@chat) if name == "syrus-chat-deferred-sidecar"
 
     []
   end

@@ -58,7 +58,7 @@ RSpec.describe ChatTurnJob do
       expect(deferred.dig("env", "SYRUS_CHAT_SESSION_ID")).to eq(chat.id.to_s)
       expect(deferred.dig("env", "SYRUS_CHAT_MCP_TOOL_TIER")).to eq("deferred")
       expect(deferred.dig("env", "SYRUS_CHAT_MCP_SERVER_NAME")).to eq("syrus-chat-deferred-sidecar")
-      expect(deferred).not_to have_key("alwaysLoad")
+      expect(deferred["alwaysLoad"]).to eq(false)
 
       kwargs[:log_sink].call("Here is the shape of it.", kind: "assistant_text")
       kwargs[:log_sink].call(
@@ -442,6 +442,17 @@ RSpec.describe ChatTurnJob do
       "pending_tools" => [],
       "unavailable_tools" => include("draw_shape", "read_workflow")
     )
+  end
+
+  it "maps MCP server names to advertised chat tool names" do
+    job = described_class.new
+    job.instance_variable_set(:@chat, chat)
+
+    expect(job.send(:mcp_tool_names_for, "syrus-chat-sidecar")).to include("propose_job", "repo_info", "rename_chat")
+    expect(job.send(:mcp_tool_names_for, "syrus-chat-sidecar")).not_to include("draw_shape")
+    expect(job.send(:mcp_tool_names_for, "syrus-chat-deferred-sidecar")).to include("draw_shape", "read_workflow", "assign_job_to_epic")
+    expect(job.send(:mcp_tool_names_for, "syrus-chat-deferred-sidecar")).not_to include("repo_info", "rename_chat")
+    expect(job.send(:mcp_tool_names_for, "unknown-sidecar")).to eq([])
   end
 
   it "captures Claude's canonical transcript when the result omits transcript data" do

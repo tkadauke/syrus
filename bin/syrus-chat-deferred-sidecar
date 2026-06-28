@@ -1,5 +1,23 @@
 #!/usr/bin/env ruby
-# Entry point for the deferred per-chat MCP server. The distinct
-# basename keeps Claude Code's resumed MCP tool prefixes aligned with
-# the mcp.json server key while sharing the normal chat sidecar boot.
-require_relative "syrus-chat-sidecar"
+# Entry point for the deferred per-chat MCP server. Spawned by the chat
+# agent over stdio from the mcp.json ChatTurnJob writes.
+#
+# Boots full Rails so the sidecar can read/write chat-adjacent rows.
+# Same Bundler override as bin/syrus-mcp-sidecar: the agent process may
+# inherit a target repository's BUNDLE_GEMFILE, but this binary must boot
+# Syrus's own app bundle.
+ENV["BUNDLE_GEMFILE"] = File.expand_path("../Gemfile", __dir__)
+ENV["SYRUS_CHAT_MCP_SIDECAR"] = "1"
+ENV.delete("SYRUS_ROLE")
+
+begin
+  require_relative "../config/environment"
+
+  SyrusChatMcp::DeferredSidecar.new.run
+rescue Exception => e # rubocop:disable Lint/RescueException
+  session_id = ENV["SYRUS_CHAT_SESSION_ID"].to_s
+  session_id = "(missing)" if session_id.empty?
+  warn "[syrus-chat-deferred-sidecar] failed to start for chat session #{session_id}: #{e.class}: #{e.message}"
+  e.backtrace&.first(12)&.each { |line| warn "[syrus-chat-deferred-sidecar] #{line}" }
+  raise
+end

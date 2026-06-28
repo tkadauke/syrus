@@ -45,36 +45,123 @@ module SyrusChatMcp
   #     }
   #   }
   #
-  # The chat harness registers this binary twice: an essential `alwaysLoad`
-  # server whose schemas are injected at turn start, and a deferred server
-  # whose schemas are resolved through Claude Code ToolSearch on demand.
+  # The chat harness registers two MCP servers: this `alwaysLoad` sidecar
+  # for core tools whose schemas are injected at turn start, and a deferred
+  # sidecar whose schemas are resolved through Claude Code ToolSearch on
+  # demand.
   class Sidecar
-    ESSENTIAL_TOOLS = [
+    ADMIN_TOOLS = [
+      AdminOverviewTool,
+      AdminStuckJobsTool,
+      AdminQueueDetailTool,
+      AdminListProcessesTool,
+      AdminListRunsTool,
+      AdminListUsersTool,
+      AdminVersionTool,
+      AdminKillProcessTool,
+      AdminReapStaleRunsTool,
+      AdminPausePollingTool,
+      AdminUnpausePollingTool,
+      AdminPauseRunsTool,
+      AdminUnpauseRunsTool,
+      AdminClearGithubCacheTool,
+      AdminPauseUserSchedulingTool,
+      AdminUnpauseUserSchedulingTool,
+      AdminRetryStepTool,
+      AdminCleanupWorkspaceTool,
+      AdminRefreshInstallationsTool
+    ].freeze
+
+    TOOLS = [
       AttachRepositoryTool,
       ProposeEpicTool,
       ProposeJobTool,
-      SetBookmarkTool,
       ProposeEpicWithJobsTool,
       ListProposalsTool,
       DeleteProposalTool,
-      ListEpicsTool,
-      ReadEpicTool,
-      ReadJobTool,
+      SetBookmarkTool,
       ListJobsTool,
       SearchJobsTool,
+      ReadJobTool,
+      ListEpicsTool,
+      ReadEpicTool,
       ApproveJobTool,
-      SetJobPriorityTool,
-      AssignJobToEpicTool,
       CancelJobTool,
       RetryJobTool,
-      SubmitChatFeedbackTool,
+      SetJobPriorityTool,
       WriteMemoryTool,
       ReadMemoryTool,
-      RepoInfoTool
+      RepoInfoTool,
+      SubmitChatFeedbackTool,
+      RenameChatTool,
+      *ADMIN_TOOLS
     ].freeze
 
+    def self.tool_names(chat_session = nil, tier: nil)
+      return DeferredSidecar.tool_names(chat_session) if tier.to_s == "deferred"
+
+      tools = chat_session ? tools_for(chat_session) : TOOLS
+      tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
+    end
+
+    def self.tools_for(chat_session, tier: nil)
+      return DeferredSidecar.tools_for(chat_session) if tier.to_s == "deferred"
+
+      tools_for_session(TOOLS, chat_session)
+    end
+
+    def self.tools_for_session(tools, chat_session)
+      tools = tools.select do |tool|
+        !admin_tool?(tool) || chat_session.user.admin?
+      end
+      tools.map { |tool| authorize_tool(tool) }
+    end
+
+    def self.authorize_tool(tool)
+      tool.extend(AuthorizationSupport) unless tool.singleton_class < AuthorizationSupport
+      tool.singleton_class.prepend(AuthorizationSupport::ToolDispatch) unless tool.singleton_class < AuthorizationSupport::ToolDispatch
+      tool
+    end
+
+    def self.admin_tool?(tool)
+      ADMIN_TOOLS.include?(tool)
+    end
+
+    def self.server_name
+      "syrus-chat-sidecar"
+    end
+
+    def initialize(session_id: ENV["SYRUS_CHAT_SESSION_ID"],
+                   current_message_id: ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"],
+                   server_name: ENV.fetch("SYRUS_CHAT_MCP_SERVER_NAME", self.class.server_name),
+                   **)
+      raise KeyError, "SYRUS_CHAT_SESSION_ID is required" if session_id.blank?
+
+      @chat_session = ChatSession.find(session_id)
+      @server_name = server_name
+      @current_message = if current_message_id.present?
+        @chat_session.messages.find_by(id: current_message_id)
+      else
+        CurrentMessage.new(@chat_session)
+      end
+    end
+
+    def run
+      server = MCP::Server.new(
+        name: @server_name,
+        tools: self.class.tools_for(@chat_session),
+        server_context: { chat_session: @chat_session, current_message: @current_message }.compact
+      )
+      transport = MCP::Server::Transports::StdioTransport.new(server)
+
+      Signal.trap("TERM") { transport.close; exit 0 }
+
+      transport.open
+    end
+  end
+
+  class DeferredSidecar < Sidecar
     DEFERRED_TOOLS = [
-      RenameChatTool,
       UpdatePinnedContextTool,
       RemovePinnedContextTool,
       AskUserQuestionTool,
@@ -88,6 +175,7 @@ module SyrusChatMcp
       ListJobWorkflowsTool,
       ReadWorkflowTool,
       ReadRunTranscriptTool,
+      AssignJobToEpicTool,
       ListOpenIssuesTool,
       ListOpenPrsTool,
       SearchChatsTool,
@@ -146,93 +234,20 @@ module SyrusChatMcp
       FireScheduledTaskNowTool,
       PauseLandingQueueTool,
       ResumeLandingQueueTool,
-      ReadQueueTool,
-      AdminOverviewTool,
-      AdminStuckJobsTool,
-      AdminQueueDetailTool,
-      AdminListProcessesTool,
-      AdminListRunsTool,
-      AdminListUsersTool,
-      AdminVersionTool,
-      AdminKillProcessTool,
-      AdminReapStaleRunsTool,
-      AdminPausePollingTool,
-      AdminUnpausePollingTool,
-      AdminPauseRunsTool,
-      AdminUnpauseRunsTool,
-      AdminClearGithubCacheTool,
-      AdminPauseUserSchedulingTool,
-      AdminUnpauseUserSchedulingTool,
-      AdminRetryStepTool,
-      AdminCleanupWorkspaceTool,
-      AdminRefreshInstallationsTool
+      ReadQueueTool
     ].freeze
 
-    TOOLS = (ESSENTIAL_TOOLS + DEFERRED_TOOLS).freeze
-    ADMIN_TOOLS = DEFERRED_TOOLS.select { |tool| tool.name.demodulize.start_with?("Admin") }.freeze
-
-    def self.tool_names(chat_session = nil, tier: :all)
-      tools = chat_session ? tools_for(chat_session, tier: tier) : tools_for_tier(tier)
+    def self.tool_names(chat_session = nil)
+      tools = chat_session ? tools_for(chat_session) : DEFERRED_TOOLS
       tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
     end
 
-    def self.tools_for(chat_session, tier: :all)
-      tools = tools_for_tier(tier).select do |tool|
-        !admin_tool?(tool) || chat_session.user.admin?
-      end
-      tools.map { |tool| authorize_tool(tool) }
+    def self.tools_for(chat_session)
+      tools_for_session(DEFERRED_TOOLS, chat_session)
     end
 
-    def self.authorize_tool(tool)
-      tool.extend(AuthorizationSupport) unless tool.singleton_class < AuthorizationSupport
-      tool.singleton_class.prepend(AuthorizationSupport::ToolDispatch) unless tool.singleton_class < AuthorizationSupport::ToolDispatch
-      tool
-    end
-
-    def self.tools_for_tier(tier)
-      case tier.to_s
-      when "essential"
-        ESSENTIAL_TOOLS
-      when "deferred"
-        DEFERRED_TOOLS
-      when "all"
-        TOOLS
-      else
-        raise ArgumentError, "unknown chat MCP tool tier: #{tier.inspect}"
-      end
-    end
-
-    def self.admin_tool?(tool)
-      ADMIN_TOOLS.include?(tool)
-    end
-
-    def initialize(session_id: ENV["SYRUS_CHAT_SESSION_ID"],
-                   current_message_id: ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"],
-                   tool_tier: ENV.fetch("SYRUS_CHAT_MCP_TOOL_TIER", "all"),
-                   server_name: ENV.fetch("SYRUS_CHAT_MCP_SERVER_NAME", "syrus-chat-sidecar"))
-      raise KeyError, "SYRUS_CHAT_SESSION_ID is required" if session_id.blank?
-
-      @chat_session = ChatSession.find(session_id)
-      @tool_tier = tool_tier
-      @server_name = server_name
-      @current_message = if current_message_id.present?
-        @chat_session.messages.find_by(id: current_message_id)
-      else
-        CurrentMessage.new(@chat_session)
-      end
-    end
-
-    def run
-      server = MCP::Server.new(
-        name: @server_name,
-        tools: self.class.tools_for(@chat_session, tier: @tool_tier),
-        server_context: { chat_session: @chat_session, current_message: @current_message }.compact
-      )
-      transport = MCP::Server::Transports::StdioTransport.new(server)
-
-      Signal.trap("TERM") { transport.close; exit 0 }
-
-      transport.open
+    def self.server_name
+      "syrus-chat-deferred-sidecar"
     end
   end
 end
