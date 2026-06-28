@@ -1016,3 +1016,67 @@ input:focus {
   color: #94a3b8;
   opacity: 0.65;
 }
+
+.feedback-submit-button {
+  min-height: 2rem;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1rem;
+}
+
+.feedback-submit-button:hover {
+  background: #1d4ed8;
+}
+
+.feedback-submit-button:disabled {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.feedback-form {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem 1rem;
+}
+
+.feedback-textarea {
+  min-height: 0;
+  flex: 1;
+  resize: none;
+  border: 1px solid #c8d0da;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #15171a;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.feedback-textarea:focus {
+  border-color: #2663eb;
+  box-shadow: 0 0 0 3px rgb(38 99 235 / 16%);
+  outline: none;
+}
+
+.feedback-textarea::placeholder {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.feedback-error {
+  margin: 0;
+  border-left: 3px solid #c93636;
+  color: #9f2222;
+  padding-left: 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}

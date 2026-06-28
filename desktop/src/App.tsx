@@ -6,7 +6,7 @@ import syrusIconUrl from "../assets/syrusIcon.png"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
-type PopoverNavigationState = { view: "inbox" } | { view: "job-detail"; jobId: number }
+type PopoverNavigationState = { view: "inbox" } | { view: "job-detail"; jobId: number } | { view: "feedback"; jobId: number }
 type CheckoutStatusByRepo = Record<string, SyrusCheckoutAvailability>
 type ToastState = {
   kind: "success" | "error"
@@ -327,9 +327,13 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [collapsedRepositorySlugs, setCollapsedRepositorySlugs] = useState<Set<string>>(() => new Set())
   const [retryingJobID, setRetryingJobID] = useState<number | null>(null)
+  const [feedbackBody, setFeedbackBody] = useState("")
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const toastTimerRef = useRef<number | null>(null)
   const composeRef = useRef<HTMLElement>(null)
   const composeButtonRef = useRef<HTMLButtonElement>(null)
+  const feedbackSubmitButtonRef = useRef<HTMLButtonElement>(null)
   const inboxQuery = useQuery({
     queryKey: ["inbox-jobs", instanceUrl],
     queryFn: () => window.syrusDesktop.fetchInboxJobs(),
@@ -352,7 +356,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     refetchInterval: isAdmin ? REFRESH_INTERVAL_MS : false
   })
   const jobs = inboxQuery.data ?? EMPTY_JOBS
-  const detailJobId = navigation.view === "job-detail" ? navigation.jobId : null
+  const detailJobId = navigation.view === "job-detail" || navigation.view === "feedback" ? navigation.jobId : null
   const detailQuery = useQuery({
     queryKey: ["job-detail", instanceUrl, detailJobId],
     queryFn: () => window.syrusDesktop.fetchJobDetail(detailJobId ?? 0),
@@ -433,6 +437,14 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
   const openJobDetail = (job: SyrusJobItem) => {
     setNavigation({ view: "job-detail", jobId: job.id })
+    setIsComposeOpen(false)
+  }
+
+  const openFeedback = (job: SyrusJobItem) => {
+    clearToast()
+    setFeedbackBody("")
+    setFeedbackError(null)
+    setNavigation({ view: "feedback", jobId: job.id })
     setIsComposeOpen(false)
   }
 
@@ -531,6 +543,36 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     }
   }
 
+  const submitFeedback = async () => {
+    if (navigation.view !== "feedback") {
+      return
+    }
+
+    const jobId = navigation.jobId
+    const body = feedbackBody.trim()
+    if (!body || feedbackSubmitting) {
+      return
+    }
+
+    setFeedbackSubmitting(true)
+    setFeedbackError(null)
+
+    try {
+      await window.syrusDesktop.submitJobFeedback(jobId, body)
+      showToast({ kind: "success", message: "Feedback submitted" }, 1800)
+      setFeedbackBody("")
+      void detailQuery.refetch()
+      void inboxQuery.refetch()
+      window.setTimeout(() => {
+        setNavigation({ view: "job-detail", jobId })
+      }, 800)
+    } catch (submitError) {
+      setFeedbackError(submitError instanceof Error ? submitError.message : "Could not submit feedback.")
+    } finally {
+      setFeedbackSubmitting(false)
+    }
+  }
+
   const copyToastCommand = () => {
     if (toast?.copyCommand) {
       void window.syrusDesktop.copyText(toast.copyCommand)
@@ -589,52 +631,78 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
   return (
     <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          {navigation.view === "job-detail" ? (
+      <header className={navigation.view === "feedback" ? "relative flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3" : "flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3"}>
+        {navigation.view === "feedback" ? (
+          <>
             <button
               type="button"
               className="icon-button"
               title="Back"
               aria-label="Back"
-              onClick={() => setNavigation({ view: "inbox" })}
+              onClick={() => setNavigation({ view: "job-detail", jobId: navigation.jobId })}
             >
               <BackIcon />
             </button>
-          ) : null}
-          <HeaderBrand title="Syrus" instanceUrl={instanceUrl} />
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {navigation.view === "inbox" ? (
+            <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold leading-5 text-slate-900">Feedback</h1>
             <button
               type="button"
-              className="icon-button"
-              title={isComposeOpen ? "Close compose" : "Compose job"}
-              aria-label={isComposeOpen ? "Close job compose" : "Compose job"}
-              aria-pressed={isComposeOpen}
-              ref={composeButtonRef}
-              onClick={() => setIsComposeOpen((open) => !open)}
+              className="feedback-submit-button"
+              disabled={feedbackBody.trim() === "" || feedbackSubmitting}
+              ref={feedbackSubmitButtonRef}
+              onClick={() => void submitFeedback()}
             >
-              <ComposeIcon />
+              {feedbackSubmitting ? "Sending…" : "Submit"}
             </button>
-          ) : null}
-          <button
-            type="button"
-            className="icon-button"
-            title={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
-            aria-label={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
-            disabled={navigation.view === "job-detail" ? detailQuery.isFetching : inboxQuery.isFetching}
-            onClick={() => {
-              if (navigation.view === "job-detail") {
-                void detailQuery.refetch()
-              } else {
-                void inboxQuery.refetch()
-              }
-            }}
-          >
-            <RefreshIcon />
-          </button>
-        </div>
+          </>
+        ) : (
+          <>
+            <div className="flex min-w-0 items-center gap-2">
+              {navigation.view === "job-detail" ? (
+                <button
+                  type="button"
+                  className="icon-button"
+                  title="Back"
+                  aria-label="Back"
+                  onClick={() => setNavigation({ view: "inbox" })}
+                >
+                  <BackIcon />
+                </button>
+              ) : null}
+              <HeaderBrand title="Syrus" instanceUrl={instanceUrl} />
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {navigation.view === "inbox" ? (
+                <button
+                  type="button"
+                  className="icon-button"
+                  title={isComposeOpen ? "Close compose" : "Compose job"}
+                  aria-label={isComposeOpen ? "Close job compose" : "Compose job"}
+                  aria-pressed={isComposeOpen}
+                  ref={composeButtonRef}
+                  onClick={() => setIsComposeOpen((open) => !open)}
+                >
+                  <ComposeIcon />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="icon-button"
+                title={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
+                aria-label={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
+                disabled={navigation.view === "job-detail" ? detailQuery.isFetching : inboxQuery.isFetching}
+                onClick={() => {
+                  if (navigation.view === "job-detail") {
+                    void detailQuery.refetch()
+                  } else {
+                    void inboxQuery.refetch()
+                  }
+                }}
+              >
+                <RefreshIcon />
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       {cliMissing ? (
@@ -672,8 +740,18 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         </div>
       ) : null}
 
-      <section className="min-h-0 flex-1 overflow-y-auto">
-        {navigation.view === "job-detail" ? (
+      <section className={navigation.view === "feedback" ? "min-h-0 flex-1 overflow-hidden" : "min-h-0 flex-1 overflow-y-auto"}>
+        {navigation.view === "feedback" ? (
+          <FeedbackView
+            body={feedbackBody}
+            error={feedbackError}
+            submitButtonRef={feedbackSubmitButtonRef}
+            onBodyChange={(value) => {
+              setFeedbackBody(value)
+              setFeedbackError(null)
+            }}
+          />
+        ) : navigation.view === "job-detail" ? (
           <JobDetailView
             detail={detailQuery.data}
             error={detailQuery.error}
@@ -689,6 +767,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
             onCheckout={(job) => void checkoutJob(job)}
             onApprove={(job) => void approveJob(job)}
             onRetry={(job) => void retryJob(job)}
+            onFeedback={openFeedback}
             onRetryLoad={() => void detailQuery.refetch()}
           />
         ) : isComposeOpen ? (
@@ -793,6 +872,7 @@ function JobDetailView({
   onCheckout,
   onApprove,
   onRetry,
+  onFeedback,
   onRetryLoad
 }: {
   detail?: SyrusJobDetail
@@ -809,6 +889,7 @@ function JobDetailView({
   onCheckout: (job: SyrusJobItem) => void
   onApprove: (job: SyrusJobItem) => void
   onRetry: (job: SyrusJobItem) => void
+  onFeedback: (job: SyrusJobItem) => void
   onRetryLoad: () => void
 }) {
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle")
@@ -908,9 +989,40 @@ function JobDetailView({
           onCheckout={() => onCheckout(job)}
           onApprove={() => onApprove(job)}
           onRetry={() => onRetry(job)}
+          onFeedback={() => onFeedback(job)}
         />
       </section>
     </article>
+  )
+}
+
+function FeedbackView({
+  body,
+  error,
+  submitButtonRef,
+  onBodyChange
+}: {
+  body: string
+  error: string | null
+  submitButtonRef: RefObject<HTMLButtonElement | null>
+  onBodyChange: (value: string) => void
+}) {
+  return (
+    <form className="feedback-form" aria-label="Job feedback">
+      <textarea
+        className="feedback-textarea"
+        value={body}
+        placeholder="What should be changed?"
+        onChange={(event) => onBodyChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Tab" && !event.shiftKey) {
+            event.preventDefault()
+            submitButtonRef.current?.focus()
+          }
+        }}
+      />
+      {error ? <p className="feedback-error" role="alert">{error}</p> : null}
+    </form>
   )
 }
 
@@ -924,7 +1036,8 @@ function JobActionButtons({
   onOpenPullRequest,
   onCheckout,
   onApprove,
-  onRetry
+  onRetry,
+  onFeedback
 }: {
   job: SyrusJobItem
   checkoutStatus?: SyrusCheckoutAvailability
@@ -936,6 +1049,7 @@ function JobActionButtons({
   onCheckout: () => void
   onApprove: () => void
   onRetry: () => void
+  onFeedback: () => void
 }) {
   const isFailed = job.state === "failed"
   const isImplemented = job.state === "implemented"
@@ -956,6 +1070,11 @@ function JobActionButtons({
       {isImplemented ? (
         <button type="button" className="detail-action-button" disabled={approving} onClick={onApprove}>
           {approving ? "Approving" : "Approve"}
+        </button>
+      ) : null}
+      {isImplemented || isFailed ? (
+        <button type="button" className="detail-action-button" onClick={onFeedback}>
+          Give feedback
         </button>
       ) : null}
       <button type="button" className="detail-action-button" onClick={onOpenJob}>

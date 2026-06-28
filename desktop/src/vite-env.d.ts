@@ -117,6 +117,7 @@ interface Window {
     confirmApproveJob: (jobID: number) => Promise<boolean>
     approveJob: (jobID: number) => Promise<void>
     retryJob: (jobID: number) => Promise<void>
+    submitJobFeedback: (jobID: number, body: string) => Promise<void>
     fetchAdminControls: () => Promise<SyrusAdminControls>
     toggleAdminControl: (control: SyrusAdminControl, pause: boolean) => Promise<SyrusToggleAdminControlResult>
     openExternal: (url: string) => Promise<void>

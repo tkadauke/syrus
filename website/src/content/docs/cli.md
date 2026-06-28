@@ -76,7 +76,8 @@ navigation, the generated test plan, a copyable
 `syrus checkout JOB-<id>` command, and the same browser, pull request,
 approval, retry, and checkout actions as the inbox row. Implemented rows
 can be approved for landing from the popover after a native confirmation
-prompt, and failed rows can be queued for retry directly from the row.
+prompt, and implemented or failed Jobs can send follow-up feedback from
+the detail view. Failed rows can be queued for retry directly from the row.
 Local checkout actions require the `syrus` CLI binary on `PATH`; when the
 app cannot find it, the popover shows an install banner and disables
 checkout buttons. Configure a local projects root in Preferences to

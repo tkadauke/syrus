@@ -716,6 +716,26 @@ const retryJob = async (jobID: number) => {
   }
 }
 
+const submitJobFeedback = async (jobID: number, body: string) => {
+  const credentials = cachedCredentials ?? (await loadCredentials())
+  if (!credentials) {
+    throw new Error("Connect Syrus before submitting feedback.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, `/api/v1/app/jobs/${jobID}/chat_feedback`), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ body })
+  })
+
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response, `Could not submit feedback for JOB-${jobID}.`))
+  }
+}
+
 const getDesktopSettings = (): DesktopSettings => ({
   localProjectsRoot: store.get("localProjectsRoot", ""),
   localRepoPaths: store.get("localRepoPaths", {}),
@@ -1260,6 +1280,7 @@ ipcMain.handle("fetch-job-detail", async (_event, jobID: number) => fetchJobDeta
 ipcMain.handle("confirm-approve-job", async (event, jobID: number) => confirmApproveJob(event.sender, jobID))
 ipcMain.handle("approve-job", async (_event, jobID: number) => approveJob(jobID))
 ipcMain.handle("retry-job", async (_event, jobID: number) => retryJob(jobID))
+ipcMain.handle("submit-job-feedback", async (_event, jobID: number, body: string) => submitJobFeedback(jobID, body))
 ipcMain.handle("open-external", async (_event, url: string) => {
   if (!URL.canParse(url)) {
     throw new Error("Invalid URL.")
