@@ -857,7 +857,7 @@ function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectMessage 
   const rejectLabel = actionKey === "schedule_recurring" ? "Cancel" : "Decline"
   const isQueued = pendingAction.state === "queued"
   const isPending = pendingAction.state === "pending"
-  const rejectPath = "app_reject_path" in pendingAction ? pendingAction.app_reject_path : `${pendingAction.app_cancel_path}/reject`
+  const rejectPath = pendingAction.app_reject_path
   const chatMessageId = "chat_message_id" in pendingAction ? pendingAction.chat_message_id : null
   const resourceTitle = pendingActionResourceTitle(pendingAction)
   const resourceUrl = pendingActionResourceUrl(pendingAction)
