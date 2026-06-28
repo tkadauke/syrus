@@ -341,9 +341,9 @@ export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataU
                 aria-label="Annotation text"
                 autoFocus
                 className="absolute min-w-32 -translate-y-1/2 rounded border border-blue-500 bg-white px-2 py-1 text-xl font-bold shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
-                onBlur={commitText}
                 onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
                 onKeyDown={handleTextKeyDown}
+                placeholder="Type, then press Enter"
                 style={inputStyle}
                 value={textPlacement.value}
               />

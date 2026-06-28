@@ -120,6 +120,23 @@ describe("ImageAnnotationModal", () => {
     expect(overlayContext.putImageData).toHaveBeenLastCalledWith(initialSnapshot, 0, 0)
   })
 
+  it("keeps text input visible after placement and commits text on Enter", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+
+    const input = screen.getByPlaceholderText("Type, then press Enter")
+    expect(input).toBeVisible()
+
+    fireEvent.change(input, { target: { value: "Review this" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+
+    expect(screen.queryByPlaceholderText("Type, then press Enter")).not.toBeInTheDocument()
+    expect(contexts[1].fillText).toHaveBeenCalledWith("Review this", 30, 32)
+  })
+
   function renderModal(overrides: Partial<Parameters<typeof ImageAnnotationModal>[0]> = {}) {
     const props = {
       dataUrl: sourceDataUrl,
