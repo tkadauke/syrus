@@ -1082,6 +1082,16 @@ input:focus {
   line-height: 1.25rem;
 }
 
+.test-plan__step code {
+  padding: 0.0625rem 0.25rem;
+  border-radius: 3px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.775rem;
+  font-weight: 600;
+}
+
 .test-plan__checkbox {
   width: 0.875rem;
   height: 0.875rem;

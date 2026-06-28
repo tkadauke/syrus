@@ -1129,6 +1129,35 @@ function NotificationRow({ notification, onOpen }: { notification: SyrusNotifica
   )
 }
 
+function InlineMarkdown({ text }: { text: string }) {
+  const parts: React.ReactNode[] = []
+  let remaining = text
+  let key = 0
+
+  while (remaining.length > 0) {
+    const codeStart = remaining.indexOf("`")
+    if (codeStart === -1) {
+      parts.push(remaining)
+      break
+    }
+
+    if (codeStart > 0) {
+      parts.push(remaining.slice(0, codeStart))
+    }
+
+    const codeEnd = remaining.indexOf("`", codeStart + 1)
+    if (codeEnd === -1) {
+      parts.push(remaining.slice(codeStart))
+      break
+    }
+
+    parts.push(<code key={key++}>{remaining.slice(codeStart + 1, codeEnd)}</code>)
+    remaining = remaining.slice(codeEnd + 1)
+  }
+
+  return <>{parts}</>
+}
+
 function JobDetailView({
   detail,
   fallbackJob,
@@ -1238,7 +1267,7 @@ function JobDetailView({
               {testPlan.steps.map((step, index) => (
                 <li className="test-plan__step" key={`${index}-${step}`}>
                   <span className="test-plan__checkbox" aria-hidden="true" />
-                  <span>{step}</span>
+                  <span><InlineMarkdown text={step} /></span>
                 </li>
               ))}
             </ul>
