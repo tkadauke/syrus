@@ -47,6 +47,7 @@ class ReapStaleRunsJob < ApplicationJob
     reap_orphaned_running_runs        # ~3-min path
     reap_runs_with_stale_heartbeat    # 30-min backstop
     requeue_orphaned_queued_runs      # inline-drive successor never enqueued
+    cancel_unstarted_terminal_queued_steps
     finish_orphaned_terminal_workflows
     reconcile_missed_worker_died_auto_retries
   end
@@ -269,6 +270,32 @@ class ReapStaleRunsJob < ApplicationJob
       next unless latest_failed_run&.agent_outcome == "worker_died"
 
       AutoRetryScheduler.schedule_for_workflow(workflow: workflow)
+    end
+  end
+
+  # Recovery for a worker-death race where a downstream Step's Run was
+  # cancelled before it ever started, but the Step itself stayed queued.
+  # With all Runs terminal, no worker can ever advance that Step; with
+  # the Step still queued, finish_orphaned_terminal_workflows refuses to
+  # close the parent Workflow. Cancel only the impossible Step here, then
+  # let the workflow finisher below infer the Workflow outcome from the
+  # meaningful succeeded/failed Step positions.
+  def cancel_unstarted_terminal_queued_steps
+    Step.where(state: "queued")
+        .joins(:workflow)
+        .where(workflows: { state: "running" })
+        .find_each do |step|
+      runs = step.runs.to_a
+      next if runs.empty?
+      next unless runs.all?(&:terminal?)
+      next if runs.any? { |run| run.started_at.present? }
+      next unless step.may_cancel?
+
+      Rails.logger.info("[ReapStaleRunsJob] Step ##{step.id} cancelled: queued with only unstarted terminal Runs")
+      Step.suppress_cancel_cascade do
+        step.cancel!
+        step.save!
+      end
     end
   end
 

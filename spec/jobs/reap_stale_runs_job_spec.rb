@@ -474,6 +474,30 @@ RSpec.describe ReapStaleRunsJob do
         expect(workflow.reload).to be_failed
       end
 
+      it "cancels queued steps whose only runs were cancelled before starting and finishes the workflow" do
+        workflow = Workflow.create!(job: job, trigger_kind: "initial")
+        workflow.update_columns(
+          state: "running",
+          started_at: (ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD + 30.seconds).ago
+        )
+        summarize = Step.create!(workflow: workflow, kind: "summarize", position: 0)
+        pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
+        summarize.update!(next_step_id: pr_open.id)
+
+        summarize_run = summarize.runs.create!(job: job, trigger_kind: "initial")
+        summarize.update_columns(state: "succeeded", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+        summarize_run.update_columns(state: "succeeded", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+
+        pr_open_run = pr_open.runs.create!(job: job, trigger_kind: "initial")
+        pr_open_run.update_columns(state: "cancelled", started_at: nil, finished_at: 4.minutes.ago)
+        pr_open.update_columns(state: "queued", started_at: nil, finished_at: nil)
+
+        described_class.perform_now
+
+        expect(pr_open.reload).to be_cancelled
+        expect(workflow.reload).to be_succeeded
+      end
+
       it "leaves a running workflow alone while a descendant run is still active" do
         workflow = terminal_rebase_workflow(job: job, step_states: %w[succeeded succeeded succeeded])
         last_run = workflow.steps.order(:position).last.runs.last
