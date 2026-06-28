@@ -1093,6 +1093,17 @@ CLI so the desktop app does not reimplement branch-management semantics.
   flows still share the same helper and can opt into the registry-backed
   BuildKit cache. See CLAUDE.md "Deploy target" for platform-specific
   notes.
+- Local release publishing is orchestrated by `bin/release`, with
+  component scripts for CLI archives (`bin/release-cli`), desktop app
+  packages (`bin/release-desktop`), and the single-host Docker image
+  (`bin/release-image`, delegating to `bin/publish-image`). Shared
+  version, checksum, upload, and duplicate-version guards live in
+  `bin/release-lib`: upload mode requires a clean tree, fetches tags,
+  refuses an already-used local/remote tag or GitHub release, creates and
+  pushes the release tag, uploads CLI/Desktop artifacts to the GitHub
+  release, and publishes the image. Local artifact builds use
+  `--no-upload`, write under `dist/releases/<version>/<component>/`, and
+  keep generated release outputs ignored by git.
 
 ## What's intentionally not here
 
