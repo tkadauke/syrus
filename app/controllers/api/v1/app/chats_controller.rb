@@ -665,7 +665,18 @@ module Api
         end
 
         def message_scope(chat_session)
-          chat_session.messages.includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, :job, dependencies: [] ] ])
+          scope = ChatMessage.where(chat_session_id: chat_session.id)
+          scope = force_chat_message_cursor_index(scope) if mysql_adapter?
+
+          scope.includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, :job, dependencies: [] ] ])
+        end
+
+        def force_chat_message_cursor_index(scope)
+          scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (index_chat_messages_on_session_id_and_id)"))
+        end
+
+        def mysql_adapter?
+          ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
         end
 
         def messages_json(messages, repository:)
