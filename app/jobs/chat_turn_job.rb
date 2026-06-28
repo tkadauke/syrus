@@ -125,7 +125,7 @@ class ChatTurnJob < ApplicationJob
 
       if mime_type.start_with?("image/")
         image_paths << path.to_s
-        attachment_notes << image_attachment_note(attachment, path, workspace_path)
+        attachment_notes << image_attachment_note(attachment, path)
       elsif mime_type == "application/pdf"
         file_flag_supported = self.class.claude_file_flag_supported? if file_flag_supported.nil?
         if file_flag_supported
@@ -143,10 +143,9 @@ class ChatTurnJob < ApplicationJob
     }
   end
 
-  def image_attachment_note(attachment, path, workspace_path)
+  def image_attachment_note(attachment, path)
     name = attachment["name"].to_s.presence || path.basename.to_s
-    relative_path = path.relative_path_from(Pathname(workspace_path)).to_s
-    "[Attached image: #{name} saved at #{relative_path}. Use the Read tool to inspect it.]\n"
+    "[Attached image: #{name} saved at #{path}. Use the Read tool to inspect it.]\n"
   end
 
   def ext_for(mime_type)

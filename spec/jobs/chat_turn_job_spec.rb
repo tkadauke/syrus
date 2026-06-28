@@ -174,7 +174,8 @@ RSpec.describe ChatTurnJob do
     expect(image_path.extname).to eq(".png")
     expect(File.binread(image_path)).to eq(payload)
     expect(received[:prompt]).to include("Attached image: capture.png")
-    expect(received[:prompt]).to include("attachments/#{image_path.basename}")
+    expect(received[:prompt]).to include("saved at #{image_path}")
+    expect(received[:prompt]).not_to include("saved at attachments/#{image_path.basename}")
     expect(received[:prompt]).to include("Use the Read tool to inspect it")
     expect(received[:file_paths]).to eq([])
   end
