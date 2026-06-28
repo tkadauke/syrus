@@ -673,7 +673,10 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
     void fetchMoreChatsForGroup(section.repository_id, beforeChat.id).then((payload) => {
       setLoadedSections((current) => {
         const existing = current[section.key]
-        const existingIds = new Set(existing?.chats.map((chat) => chat.id) || [])
+        const existingIds = new Set([
+          ...section.chats.map((chat) => chat.id),
+          ...(existing?.chats.map((chat) => chat.id) || [])
+        ])
         const nextChats = payload.chats.filter((chat) => !existingIds.has(chat.id))
 
         return {
@@ -1058,10 +1061,18 @@ function titleize(value: string) {
   return value.replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSections: Record<string, { chats: ChatNavRecord[]; has_more: boolean }>) {
+export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSections: Record<string, { chats: ChatNavRecord[]; has_more: boolean }>) {
   return groups.map((group) => {
     const loaded = loadedSections[group.key]
-    const chats = [...group.chats, ...(loaded?.chats || [])].sort(compareChatsByLastMessage)
+    const seen = new Set<number>()
+    const chats = [...group.chats, ...(loaded?.chats || [])]
+      .filter((chat) => {
+        if (seen.has(chat.id)) return false
+
+        seen.add(chat.id)
+        return true
+      })
+      .sort(compareChatsByLastMessage)
     return {
       key: group.key,
       label: group.label,
