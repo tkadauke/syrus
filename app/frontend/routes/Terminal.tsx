@@ -3,6 +3,7 @@ import "xterm/css/xterm.css"
 import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FitAddon } from "@xterm/addon-fit"
+import { SerializeAddon } from "@xterm/addon-serialize"
 import { Terminal } from "xterm"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
@@ -11,6 +12,7 @@ import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type
 import { CloseIcon } from "../components/CloseIcon"
 
 const terminalSessionsQueryKey = ["terminal_sessions"] as const
+const terminalSnapshots = new Map<number, string>()
 
 export function TerminalRoute() {
   const location = useLocation()
@@ -194,6 +196,11 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     terminal.loadAddon(fitAddon)
     terminal.open(containerRef.current)
     fitAddon.fit()
+    const serializeAddon = new SerializeAddon()
+    terminal.loadAddon(serializeAddon)
+
+    const snapshot = terminalSnapshots.get(session.id)
+    if (snapshot) terminal.write(snapshot)
 
     const subscription: Subscription = createConsumer().subscriptions.create(
       { channel: "TerminalChannel", session_id: session.id },
@@ -219,6 +226,7 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     resizeObserver?.observe(containerRef.current)
 
     return () => {
+      terminalSnapshots.set(session.id, serializeAddon.serialize())
       resizeObserver?.disconnect()
       inputDisposable.dispose()
       resizeDisposable.dispose()

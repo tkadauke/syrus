@@ -20,6 +20,7 @@ const xtermMock = vi.hoisted(() => ({
   onData: vi.fn(),
   onResize: vi.fn(),
   loadAddon: vi.fn(),
+  serialize: vi.fn(() => ""),
   fit: vi.fn()
 }))
 
@@ -33,6 +34,8 @@ vi.mock("@rails/actioncable", () => ({
 
 vi.mock("xterm", () => ({
   Terminal: class {
+    element: HTMLElement | null = null
+
     constructor(options: unknown) {
       xtermMock.terminalConstructor(options)
     }
@@ -42,11 +45,16 @@ vi.mock("xterm", () => ({
     }
 
     open(element: HTMLElement) {
+      this.element = element
       xtermMock.open(element)
     }
 
-    write(data: Uint8Array) {
+    write(data: string | Uint8Array) {
       xtermMock.write(data)
+      if (this.element) {
+        const text = typeof data === "string" ? data : new TextDecoder().decode(data)
+        this.element.append(document.createTextNode(text))
+      }
     }
 
     onData(callback: (data: string) => void) {
@@ -73,6 +81,14 @@ vi.mock("@xterm/addon-fit", () => ({
   }
 }))
 
+vi.mock("@xterm/addon-serialize", () => ({
+  SerializeAddon: class {
+    serialize() {
+      return xtermMock.serialize()
+    }
+  }
+}))
+
 describe("TerminalRoute", () => {
   beforeEach(() => {
     actionCable.createSubscription.mockClear()
@@ -83,6 +99,8 @@ describe("TerminalRoute", () => {
     xtermMock.onData.mockClear()
     xtermMock.onResize.mockClear()
     xtermMock.loadAddon.mockClear()
+    xtermMock.serialize.mockReset()
+    xtermMock.serialize.mockReturnValue("")
     xtermMock.fit.mockClear()
   })
 
@@ -187,6 +205,31 @@ describe("TerminalRoute", () => {
     mixin.received({ type: "disconnected" })
     expect(await screen.findByText("Session ended - reload to reconnect")).toBeInTheDocument()
     expect(screen.getByText("○ disconnected")).toBeInTheDocument()
+  })
+
+  it("restores TerminalPane scrollback after remounting the same session", () => {
+    const subscription = { perform: vi.fn(), unsubscribe: vi.fn() }
+    actionCable.createSubscription.mockReturnValue(subscription)
+    xtermMock.serialize.mockReturnValue("hello from history")
+
+    const { unmount } = renderWithClient(
+      <MemoryRouter>
+        <TerminalPane session={terminalSession({ id: 5 })} />
+      </MemoryRouter>
+    )
+    const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { received(data: { type: string; data?: string }): void }])[1]
+
+    mixin.received({ type: "output", data: btoa("hello from history") })
+    unmount()
+
+    renderWithClient(
+      <MemoryRouter>
+        <TerminalPane session={terminalSession({ id: 5 })} />
+      </MemoryRouter>
+    )
+
+    expect(xtermMock.serialize).toHaveBeenCalled()
+    expect(screen.getByText("hello from history")).toBeInTheDocument()
   })
 
   it("renders the sidebar Terminal item and live badge when the feature is enabled", async () => {
