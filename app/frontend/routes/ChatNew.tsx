@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { createChat, fetchNewChat, type NewChatPayload } from "../api/chats"
@@ -32,6 +32,7 @@ function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string
   const queryClient = useQueryClient()
   const [repositoryId, setRepositoryId] = useState("")
   const [text, setText] = useState("")
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const save = useMutation({
     mutationFn: () => createChat({ repositoryId, text }),
     onSuccess: (created) => {
@@ -45,6 +46,10 @@ function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string
     event.preventDefault()
     save.mutate()
   }
+
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
 
   return (
     <form className="space-y-4 rounded border border-gray-200 bg-white p-4" onSubmit={submit}>
@@ -72,6 +77,7 @@ function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string
           name="chat_message[text]"
           onChange={(event) => setText(event.target.value)}
           placeholder="Optional"
+          ref={textareaRef}
           rows={4}
           value={text}
         />

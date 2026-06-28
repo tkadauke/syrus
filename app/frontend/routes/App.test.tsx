@@ -12880,6 +12880,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "New chat" })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText("First message")).toHaveFocus())
     expect(screen.queryByRole("link", { name: "Repositories" })).not.toBeInTheDocument()
     fireEvent.change(await screen.findByLabelText("Repository"), { target: { value: "3" } })
     fireEvent.change(screen.getByLabelText("First message"), { target: { value: "Map the forum" } })
@@ -12906,7 +12907,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/8", chat: chatPayload().chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/8") {
-        return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify(chatFormPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -12934,6 +12935,7 @@ describe("App", () => {
       )
     })
     expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveFocus())
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
   })
 })

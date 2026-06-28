@@ -1098,7 +1098,7 @@ function ProposalChildren({ children, mutation }: { children: ChatProposalChild[
   )
 }
 
-function Compose({ commandHandlers, payload, prefix, queryKey, onNotice, onMessageSent }: { commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+function Compose({ autoFocus = false, commandHandlers, payload, prefix, queryKey, onNotice, onMessageSent }: { autoFocus?: boolean; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [text, setText] = useState("")
@@ -1423,6 +1423,10 @@ function Compose({ commandHandlers, payload, prefix, queryKey, onNotice, onMessa
   useEffect(() => {
     if (activeCommandIndex >= matchingCommands.length) setActiveCommandIndex(0)
   }, [activeCommandIndex, matchingCommands.length])
+
+  useEffect(() => {
+    if (autoFocus) textareaRef.current?.focus()
+  }, [autoFocus, payload.chat.id])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -2047,7 +2051,7 @@ function ChatColumn({ bookmarkTarget, commandHandlers, payload, prefix, queryKey
         <UsageOverlay payload={payload} />
       </div>
       <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : undefined}>
-        <Compose commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+        <Compose autoFocus={landing} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
       </div>
     </section>
   )
