@@ -1150,6 +1150,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       item.type === "message" && item.proposal?.proposed === true
   ), [payload.messages])
   const [jumpIndex, setJumpIndex] = useState(0)
+  const attachedRepositories = payload.attachment_groups.repositories
 
   useEffect(() => {
     if (text.length > 0) {
@@ -1208,6 +1209,13 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       setClearConfirmationOpen(false)
       onNotice(updated.message || null)
       if (action.kind === "attach") commandHandlers.openAttachments()
+    }
+  })
+  const detachRepository = useMutation({
+    mutationFn: (path: string) => deleteChatAttachment(appendSearch(path, search)),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || null)
     }
   })
   const commandPaletteOpen = commandQuery != null
@@ -1604,69 +1612,84 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
           </div>
         ) : null}
         <div className="flex items-end gap-3">
-          <input
-            accept="image/*,application/pdf"
-            aria-label="Chat attachments"
-            className="hidden"
-            disabled={send.isPending || systemAction.isPending}
-            multiple
-            onChange={(event) => handleAttachmentChange(event.target.files)}
-            ref={fileInputRef}
-            type="file"
-          />
-          <button
-            aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
-            aria-expanded={attachmentPopoverOpen}
-            aria-label="Add attachment"
-            aria-haspopup="dialog"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-            disabled={send.isPending || systemAction.isPending}
-            onClick={() => setAttachmentPopoverOpen((open) => !open)}
-            ref={addAttachmentButtonRef}
-            type="button"
-          >
-            +
-          </button>
-          {attachmentPopoverOpen ? (
-            <div
-              aria-label="Add attachment"
-              className="absolute bottom-[4.25rem] left-3 z-20 w-[min(28rem,calc(100%-1.5rem))] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
-              id="chat-attachment-popover"
-              onKeyDown={handleAttachmentPopoverKeyDown}
-              ref={attachmentPopoverRef}
-              role="dialog"
+        <input
+          accept="image/*,application/pdf"
+          aria-label="Chat attachments"
+          className="hidden"
+          disabled={send.isPending || systemAction.isPending}
+          multiple
+          onChange={(event) => handleAttachmentChange(event.target.files)}
+          ref={fileInputRef}
+          type="file"
+        />
+        <button
+          aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
+          aria-expanded={attachmentPopoverOpen}
+          aria-label="Add attachment"
+          aria-haspopup="dialog"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+          disabled={send.isPending || systemAction.isPending}
+          onClick={() => setAttachmentPopoverOpen((open) => !open)}
+          ref={addAttachmentButtonRef}
+          type="button"
+        >
+          +
+        </button>
+        {attachedRepositories.map((repository) => (
+          <span className="flex h-9 max-w-52 shrink-0 items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" key={repository.id}>
+            <span className="truncate" title={repository.label}>{repository.label}</span>
+            <button
+              aria-label={`Detach repository ${repository.label}`}
+              className="rounded-full p-0.5 text-blue-600 hover:bg-blue-100 hover:text-blue-900 disabled:text-blue-300 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-100 dark:disabled:text-blue-700"
+              disabled={detachRepository.isPending}
+              onClick={() => detachRepository.mutate(repository.app_detach_path)}
+              title={`Detach repository ${repository.label}`}
+              type="button"
             >
-              <div className="space-y-3">
-                <section>
-                  <button className={`${secondaryButton()} w-full justify-center`} onClick={openAttachmentFilePicker} type="button">Upload file</button>
-                </section>
-                <section className="border-t border-gray-200 pt-3 dark:border-gray-800">
-                  <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Attach context</h3>
-                  <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
-                </section>
-              </div>
+              <CloseIcon className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        ))}
+        {attachmentPopoverOpen ? (
+          <div
+            aria-label="Add attachment"
+            className="absolute bottom-[4.25rem] left-3 z-20 w-[min(28rem,calc(100%-1.5rem))] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
+            id="chat-attachment-popover"
+            onKeyDown={handleAttachmentPopoverKeyDown}
+            ref={attachmentPopoverRef}
+            role="dialog"
+          >
+            <div className="space-y-3">
+              <section>
+                <button className={`${secondaryButton()} w-full justify-center`} onClick={openAttachmentFilePicker} type="button">Upload file</button>
+              </section>
+              <section className="border-t border-gray-200 pt-3 dark:border-gray-800">
+                <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Attach context</h3>
+                <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
+              </section>
             </div>
-          ) : null}
-          <textarea
-            aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
-            aria-expanded={commandPaletteOpen}
-            aria-haspopup="listbox"
-            className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
-            disabled={send.isPending || systemAction.isPending}
-            onChange={(event) => {
-              updateText(event.target.value)
-              if (clearConfirmationOpen) setClearConfirmationOpen(false)
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
-            ref={textareaRef}
-            required
-            rows={1}
-            value={text}
-          />
-          <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
-          {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
-        </div>
+          </div>
+        ) : null}
+        <textarea
+          aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+          aria-expanded={commandPaletteOpen}
+          aria-haspopup="listbox"
+          className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+          disabled={send.isPending || systemAction.isPending}
+          onChange={(event) => {
+            updateText(event.target.value)
+            if (clearConfirmationOpen) setClearConfirmationOpen(false)
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
+          ref={textareaRef}
+          required
+          rows={1}
+          value={text}
+        />
+        <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
+        {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
+      </div>
       </form>
     </>
   )

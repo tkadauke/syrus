@@ -10480,6 +10480,42 @@ describe("App", () => {
     expect(screen.getByPlaceholderText("Ask about this repository...").closest("form")?.parentElement).toHaveClass("max-w-sm", "sm:max-w-2xl")
   })
 
+  it("shows a removable attached repository chip in the empty chat landing compose area", async () => {
+    const initialPayload = chatPayload({ messages: [] })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/attachments/2" && init?.method === "DELETE") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ...initialPayload,
+          message: "acme/widgets detached.",
+          attachment_groups: { ...initialPayload.attachment_groups, repositories: [] }
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(initialPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+    expect(screen.getByText("acme/widgets")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Detach repository acme/widgets" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/attachments/2",
+        expect.objectContaining({ method: "DELETE" })
+      )
+    })
+    expect(screen.queryByText("acme/widgets")).not.toBeInTheDocument()
+  })
+
   it("moves the empty chat landing into the standard chat layout after the first send succeeds", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
