@@ -184,6 +184,34 @@ describe("chat pending proposal jump banner", () => {
   })
 })
 
+describe("chat compose image attachments", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("shows an edit glyph on the annotate thumbnail affordance", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(screen.getByLabelText("Chat attachments"), { target: { files: [new File(["pixels"], "screen.png", { type: "image/png" })] } })
+
+    const annotateButton = await screen.findByRole("button", { name: "Annotate screen.png" })
+    expect(annotateButton.querySelector("svg")).toBeInTheDocument()
+    expect(annotateButton.querySelector("span")).toHaveClass("group-hover:opacity-100", "group-focus-visible:opacity-100")
+    expect(screen.getByRole("button", { name: "Remove screen.png" }).querySelector("svg")).toBeInTheDocument()
+  })
+})
+
 describe("chat message image attachments", () => {
   beforeEach(() => {
     window.localStorage.clear()

@@ -1607,8 +1607,11 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
               <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
                 {attachment.mimeType.startsWith("image/") ? (
                   <>
-                    <button aria-label={`Annotate ${attachment.name}`} className="rounded focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setAnnotatingIndex(index)} type="button">
+                    <button aria-label={`Annotate ${attachment.name}`} className="group relative rounded focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setAnnotatingIndex(index)} type="button">
                       <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
+                      <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <PencilIcon className="h-4 w-4" />
+                      </span>
                     </button>
                     {annotatingIndex === index ? (
                       <ImageAnnotationModal
@@ -3390,6 +3393,15 @@ function systemDurationLabel(durationMs: string) {
 
 function toolLabel(name: string) {
   return name.startsWith("mcp__") ? name.split("__", 3).at(-1) || name : name
+}
+
+function PencilIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
 }
 
 const WORKSPACE_ROOT_PATTERN = /(?:\/[^\s'"`,:;\])}]+)+\/\.syrus\/(?:chat-workspaces\/\d+\/repositories\/[^/\s'"`,:;\])}]+\/[^/\s'"`,:;\])}]+|workflows\/\d+)\/?/g
