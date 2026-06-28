@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { useEffect } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
-import { createChat, fetchChats } from "../api/chats"
+import { createChat, fetchChats, fetchNewChat } from "../api/chats"
 import { updateRecentChatCache } from "../lib/chatCache"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 
@@ -16,8 +16,12 @@ export function ChatNewRoute() {
     queryKey: ["chats", "recent"],
     queryFn: fetchChats
   })
+  const form = useQuery({
+    queryKey: ["chats", "new"],
+    queryFn: fetchNewChat
+  })
   const save = useMutation({
-    mutationFn: () => createChat({ repositoryId: "", text: "" }),
+    mutationFn: (repositoryId: string) => createChat({ repositoryId, text: "" }),
     onSuccess: (created) => {
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
       navigate(withRoutePrefix(created.redirect_to, prefix))
@@ -26,7 +30,7 @@ export function ChatNewRoute() {
   const { error: saveError, isError: saveIsError, isIdle: saveIsIdle, isPending: saveIsPending, mutate: createUnstartedChat } = save
 
   useEffect(() => {
-    if (!chats.isSuccess || !saveIsIdle) return
+    if (!chats.isSuccess || !form.isSuccess || !saveIsIdle) return
 
     const unstartedChat = firstUnstartedChat(chats.data)
     if (unstartedChat) {
@@ -34,13 +38,14 @@ export function ChatNewRoute() {
       return
     }
 
-    createUnstartedChat()
-  }, [chats.isSuccess, chats.data, createUnstartedChat, navigate, prefix, saveIsIdle])
+    createUnstartedChat(String(form.data.default_repository_id ?? ""))
+  }, [chats.isSuccess, chats.data, createUnstartedChat, form.isSuccess, form.data, navigate, prefix, saveIsIdle])
 
   return (
     <main aria-label="New chat" className="mx-auto max-w-3xl p-6">
-      {chats.isPending || saveIsPending ? <PanelMessage>Opening chat...</PanelMessage> : null}
+      {chats.isPending || form.isPending || saveIsPending ? <PanelMessage>Opening chat...</PanelMessage> : null}
       {chats.isError ? <PanelMessage tone="error">{errorMessage(chats.error, "Unable to load recent chats.")}</PanelMessage> : null}
+      {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, "Unable to load chat form.")}</PanelMessage> : null}
       {saveIsError ? <PanelMessage tone="error">{errorMessage(saveError, "Unable to open chat.")}</PanelMessage> : null}
     </main>
   )

@@ -244,6 +244,7 @@ export type WhiteboardSnapshotsPayload = {
 
 export type NewChatPayload = {
   repositories: ChatRepository[]
+  default_repository_id: number | null
   repositories_path: string
 }
 

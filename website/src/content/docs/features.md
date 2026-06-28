@@ -91,8 +91,9 @@ auto-pause a task until an operator fixes and resumes it.
 ## Chats
 
 Chats are operator conversations that can start with or without repository
-context. Operators can ask immediately, then attach a repository when the
-request needs code context. A chat can attach repositories, Jobs, documents,
+context. New chats default to the operator's most recently used repository
+when one is available, and operators can still choose no repository or attach
+one later. A chat can attach repositories, Jobs, documents,
 memories, whiteboard state, and message-level image or PDF files. The chat
 agent can read selected repository context, propose Jobs, propose Epics,
 read user-visible Epics by id, list and

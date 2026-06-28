@@ -2,18 +2,25 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { createChat, fetchChats } from "../api/chats"
+import { createChat, fetchChats, fetchNewChat } from "../api/chats"
 import { ChatNewRoute } from "./ChatNew"
 
 vi.mock("../api/chats", () => ({
   createChat: vi.fn(),
-  fetchChats: vi.fn()
+  fetchChats: vi.fn(),
+  fetchNewChat: vi.fn()
 }))
 
 describe("ChatNewRoute", () => {
   beforeEach(() => {
     vi.mocked(createChat).mockReset()
     vi.mocked(fetchChats).mockReset()
+    vi.mocked(fetchNewChat).mockReset()
+    vi.mocked(fetchNewChat).mockResolvedValue({
+      repositories: [],
+      default_repository_id: null,
+      repositories_path: "/repositories"
+    })
   })
 
   it("reuses an existing unstarted chat", async () => {
@@ -53,6 +60,26 @@ describe("ChatNewRoute", () => {
     })
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/18")
+    })
+  })
+
+  it("creates an unstarted chat with the default repository", async () => {
+    vi.mocked(fetchChats).mockResolvedValue({ groups: [], repositories: [] })
+    vi.mocked(fetchNewChat).mockResolvedValue({
+      repositories: [{ id: 42, slug: "acme/widgets" }],
+      default_repository_id: 42,
+      repositories_path: "/repositories"
+    })
+    vi.mocked(createChat).mockResolvedValue({
+      message: "Chat created.",
+      redirect_to: "/chats/19",
+      chat: chatRecord({ id: 19 })
+    })
+
+    renderNewChatRoute()
+
+    await waitFor(() => {
+      expect(createChat).toHaveBeenCalledWith({ repositoryId: "42", text: "" })
     })
   })
 })

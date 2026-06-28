@@ -38,7 +38,45 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
     expect(parse_body.to_s).not_to include("old/repo")
     expect(parse_body.to_s).not_to include("other/private")
+    expect(parse_body["default_repository_id"]).to eq(repository.id)
     expect(parse_body["repositories_path"]).to eq(repositories_path)
+  end
+
+  it "defaults the new chat form to the most recent chat repository" do
+    sign_in_as(user)
+    repository
+    recent_repository = Factories.repository(user: user, owner: "acme", name: "api")
+    ChatSession.create!(user: user, repository: repository, created_at: 2.days.ago)
+    ChatSession.create!(user: user, created_at: 1.day.ago)
+    ChatSession.create!(user: user, repository: recent_repository, created_at: 1.hour.ago)
+
+    get "/api/v1/app/chats/new"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["default_repository_id"]).to eq(recent_repository.id)
+  end
+
+  it "defaults the new chat form to the first repository when there are no prior repository chats" do
+    sign_in_as(user)
+    second_repository = Factories.repository(user: user, owner: "acme", name: "zebra")
+    first_repository = Factories.repository(user: user, owner: "acme", name: "api")
+    ChatSession.create!(user: user, created_at: 1.hour.ago)
+
+    get "/api/v1/app/chats/new"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"].map { |repo| repo["id"] }).to eq([ first_repository.id, second_repository.id ])
+    expect(parse_body["default_repository_id"]).to eq(first_repository.id)
+  end
+
+  it "does not default the new chat form when the user has no repositories" do
+    sign_in_as(user)
+
+    get "/api/v1/app/chats/new"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"]).to eq([])
+    expect(parse_body["default_repository_id"]).to be_nil
   end
 
   it "lists recent chat groups and active repositories for CLI session picking" do
