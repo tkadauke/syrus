@@ -48,6 +48,7 @@ type JobOriginChat = {
 }
 
 type FeedbackHistoryItem = {
+  kind: "chat_feedback" | "pr_comment"
   body: string
   created_at: string
   state: string

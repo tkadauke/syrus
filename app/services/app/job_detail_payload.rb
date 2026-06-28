@@ -305,17 +305,36 @@ module App
 
     def feedback_history_json
       @job.workflows
-        .select { |workflow| workflow.trigger_kind == "chat_feedback" }
+        .select { |workflow| workflow.trigger_kind.in?(%w[chat_feedback pr_comment]) }
         .sort_by { |workflow| workflow.created_at || Time.at(0) }
         .filter_map do |workflow|
-          body = workflow.artifacts&.dig("chat_feedback")
-          next unless body.present?
+          case workflow.trigger_kind
+          when "chat_feedback"
+            body = workflow.artifacts&.dig("chat_feedback")
+            next unless body.present?
 
-          {
-            body: body,
-            created_at: iso8601(workflow.created_at),
-            state: workflow.state
-          }
+            {
+              kind: "chat_feedback",
+              body: body,
+              created_at: iso8601(workflow.created_at),
+              state: workflow.state
+            }
+          when "pr_comment"
+            comments = Array(workflow.artifacts&.dig("pr_comments"))
+            next if comments.empty?
+
+            body = comments.map do |comment|
+              author = comment["author"].present? ? "@#{comment["author"]}: " : ""
+              "#{author}#{comment["body"]}"
+            end.join("\n\n")
+
+            {
+              kind: "pr_comment",
+              body: body,
+              created_at: iso8601(workflow.created_at),
+              state: workflow.state
+            }
+          end
         end
     end
 

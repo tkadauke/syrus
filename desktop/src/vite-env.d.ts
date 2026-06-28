@@ -72,6 +72,7 @@ type SyrusJobOriginChat = {
 }
 
 type SyrusFeedbackHistoryItem = {
+  kind: "chat_feedback" | "pr_comment"
   body: string
   created_at: string
   state: string

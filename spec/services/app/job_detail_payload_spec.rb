@@ -233,7 +233,7 @@ RSpec.describe App::JobDetailPayload do
       )
       Workflow.create!(
         job: job,
-        trigger_kind: "pr_comment",
+        trigger_kind: "initial",
         state: "succeeded",
         created_at: 3.hours.ago,
         artifacts: { "chat_feedback" => "PR feedback artifact" }
@@ -248,10 +248,97 @@ RSpec.describe App::JobDetailPayload do
 
       expect(payload_for(job)[:feedback_history]).to eq(
         [
-          { body: "Old feedback", created_at: older.created_at.iso8601, state: "succeeded" },
-          { body: "New feedback", created_at: newer.created_at.iso8601, state: "running" }
+          { kind: "chat_feedback", body: "Old feedback", created_at: older.created_at.iso8601, state: "succeeded" },
+          { kind: "chat_feedback", body: "New feedback", created_at: newer.created_at.iso8601, state: "running" }
         ]
       )
+    end
+
+    it "returns PR comment workflow artifacts with author attribution" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        created_at: 1.hour.ago,
+        artifacts: {
+          "pr_comments" => [
+            { "author" => "alice", "body" => "Please cover the blank state." },
+            { "author" => "bob", "body" => "This should mention review feedback." }
+          ]
+        }
+      )
+
+      expect(payload_for(job)[:feedback_history]).to eq(
+        [
+          {
+            kind: "pr_comment",
+            body: "@alice: Please cover the blank state.\n\n@bob: This should mention review feedback.",
+            created_at: workflow.created_at.iso8601,
+            state: "succeeded"
+          }
+        ]
+      )
+    end
+
+    it "excludes PR comment workflows without comments" do
+      job = Factories.job_record(repository: repo)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        artifacts: { "pr_comments" => [] }
+      )
+      Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        artifacts: {}
+      )
+
+      expect(payload_for(job)[:feedback_history]).to eq([])
+    end
+
+    it "interleaves chat feedback and PR comments chronologically" do
+      job = Factories.job_record(repository: repo)
+      chat_workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "succeeded",
+        created_at: 2.hours.ago,
+        artifacts: { "chat_feedback" => "Chat feedback" }
+      )
+      pr_workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "running",
+        created_at: 1.hour.ago,
+        artifacts: { "pr_comments" => [ { "author" => "reviewer", "body" => "PR feedback" } ] }
+      )
+
+      expect(payload_for(job)[:feedback_history]).to eq(
+        [
+          { kind: "chat_feedback", body: "Chat feedback", created_at: chat_workflow.created_at.iso8601, state: "succeeded" },
+          { kind: "pr_comment", body: "@reviewer: PR feedback", created_at: pr_workflow.created_at.iso8601, state: "running" }
+        ]
+      )
+    end
+
+    it "excludes non feedback workflow trigger kinds" do
+      job = Factories.job_record(repository: repo)
+      %w[initial retry ci_failure].each do |trigger_kind|
+        Workflow.create!(
+          job: job,
+          trigger_kind: trigger_kind,
+          state: "succeeded",
+          artifacts: {
+            "chat_feedback" => "#{trigger_kind} chat feedback",
+            "pr_comments" => [ { "author" => "reviewer", "body" => "#{trigger_kind} PR feedback" } ]
+          }
+        )
+      end
+
+      expect(payload_for(job)[:feedback_history]).to eq([])
     end
   end
 end
