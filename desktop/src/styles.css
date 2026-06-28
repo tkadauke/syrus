@@ -505,14 +505,13 @@ input:focus {
   gap: 0.625rem;
   border: 0;
   background: transparent;
+  outline: none;
   padding: 0;
   text-align: left;
 }
 
 .header-brand:focus-visible {
-  border-radius: 8px;
-  outline: 2px solid #2563eb;
-  outline-offset: 3px;
+  outline: none;
 }
 
 .header-brand__logo {
