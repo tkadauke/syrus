@@ -99,6 +99,39 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(result.epic.reload.depends_on_epics).to contain_exactly(prerequisite.epic)
   end
 
+  it "wires dependent confirmed Epic proposals when the upstream Epic is confirmed later" do
+    dependent = epic_proposal
+    dependent.update!(epic_depends_on_tokens: JSON.generate([ "upstream" ]))
+    dependent.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "dependent-child",
+      title: "Dependent child",
+      body: "Build it.",
+      repository: repository
+    )
+    upstream = chat_session.proposals.create!(
+      slug: "upstream",
+      title: "Upstream",
+      body: "Do this first.",
+      kind: "epic",
+      repository: repository
+    )
+    upstream.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "upstream-child",
+      title: "Upstream child",
+      body: "Build it.",
+      repository: repository
+    )
+
+    materializer = described_class.new(user: user)
+    dependent_result = materializer.file!(dependent)
+    upstream_result = materializer.file!(upstream)
+
+    expect(dependent.reload.epic_depends_on_tokens).to eq(JSON.generate([ "epic:#{upstream_result.epic.id}" ]))
+    expect(dependent_result.epic.reload.depends_on_epics).to contain_exactly(upstream_result.epic)
+  end
+
   it "materializes Epic dependencies from string-encoded Epic ids" do
     prerequisite = Factories.epic(user: user, repository: repository)
     proposal = epic_proposal

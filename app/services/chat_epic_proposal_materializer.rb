@@ -46,6 +46,7 @@ class ChatEpicProposalMaterializer
       wire_sibling_dependencies(job_proposals, job_by_proposal_id)
       wire_epic_dependencies(epic_proposal, epic)
       wire_job_epic_dependencies(job_proposals, job_by_proposal_id)
+      ChatEpicProposalDependencyWirer.new(user: user).resolve_confirmed_proposal!(epic_proposal)
     end
 
     Result.new(epic_proposal: epic_proposal, epic: epic, job_proposals: job_proposals, jobs: jobs)
@@ -121,16 +122,7 @@ class ChatEpicProposalMaterializer
       )
     end
 
-    proposal.epic_dependency_tokens.each do |token|
-      depends_on_epic = resolve_epic_dependency_token(proposal, token)
-      next unless depends_on_epic
-
-      EpicDependency.create!(
-        epic: epic,
-        depends_on_epic: depends_on_epic,
-        derived: false
-      )
-    end
+    ChatEpicProposalDependencyWirer.new(user: user).wire_for!(proposal)
   end
 
   def wire_job_epic_dependencies(job_proposals, job_by_proposal_id)
@@ -150,11 +142,4 @@ class ChatEpicProposalMaterializer
     end
   end
 
-  def resolve_epic_dependency_token(proposal, token)
-    if token.to_s.match?(/\Aepic:\d+\z/)
-      user.epics.find_by(id: token.split(":", 2).last)
-    else
-      proposal.chat_session.proposals.confirmed.find_by(slug: token)&.epic
-    end
-  end
 end

@@ -55,6 +55,7 @@ RSpec.describe SyrusChatMcp::ListProposalsTool do
         dependencies: [],
         depends_on_epic_ids: [],
         depends_on_job_ids: [],
+        depends_on_proposal_slugs: [],
         repository: repository.slug,
         target_epic: nil,
         materialized: nil
@@ -70,6 +71,7 @@ RSpec.describe SyrusChatMcp::ListProposalsTool do
         dependencies: %w[root],
         depends_on_epic_ids: [],
         depends_on_job_ids: [],
+        depends_on_proposal_slugs: [],
         repository: repository.slug,
         target_epic: nil,
         materialized: {

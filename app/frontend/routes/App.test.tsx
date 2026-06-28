@@ -12466,6 +12466,24 @@ describe("App", () => {
             confirmed: false,
             anchor_message_id: null,
             materialized_path: null
+          },
+          {
+            slug: "foundation-epic",
+            title: "foundation-epic",
+            display_label: "foundation-epic",
+            state: "unresolved",
+            confirmed: false,
+            anchor_message_id: null,
+            materialized_path: null
+          },
+          {
+            slug: "epic:42",
+            title: "EPIC-42",
+            display_label: "EPIC-42",
+            state: "ready",
+            confirmed: true,
+            anchor_message_id: null,
+            materialized_path: "/epics/42"
           }
         ],
         has_dependencies: true,
@@ -12491,6 +12509,8 @@ describe("App", () => {
     expect(await screen.findByText("Depends on:")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Chat FTS5 infrastructure ✓" })).toHaveAttribute("href", "#message-9")
     expect(screen.getByText("Agent Memory System ⏳")).toBeInTheDocument()
+    expect(screen.getByText("foundation-epic")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-42" })).toHaveAttribute("href", "/app-shell/epics/42")
   })
 
   it("renders a muted no-dependencies strip on proposal cards", async () => {

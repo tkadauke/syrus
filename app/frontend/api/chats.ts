@@ -85,6 +85,7 @@ export type ChatProposal = {
 export type ChatProposalDependency = {
   slug: string
   title: string
+  display_label?: string
   state: string
   confirmed: boolean
   anchor_message_id?: number | null

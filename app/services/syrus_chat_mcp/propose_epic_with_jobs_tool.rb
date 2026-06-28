@@ -28,6 +28,7 @@ module SyrusChatMcp
             description: { type: "string", description: "Epic description." },
             target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
             depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Epic depends on." },
+            depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Epic proposal slugs in this chat session that this Epic depends on." },
             depends_on: { type: "array", items: { type: "string" }, description: "Proposal slugs or string-encoded Epic ids, for example epic:42, this Epic depends on." }
           },
           required: %w[slug title description]
@@ -111,7 +112,7 @@ module SyrusChatMcp
           description: epic["description"].to_s.strip,
           target_repo: epic["target_repo"].to_s.strip,
           depends_on_job_ids: normalize_integer_list(epic["depends_on_job_ids"]),
-          depends_on: normalize_string_list(epic["depends_on"])
+          depends_on: normalize_string_list(epic["depends_on"]) | normalize_string_list(epic["depends_on_proposal_slugs"])
         }
       end
 
@@ -291,6 +292,7 @@ module SyrusChatMcp
           state: proposal.state,
           kind: proposal.kind,
           depends_on: proposal.epic_dependency_tokens,
+          depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
           child_jobs: proposal.child_proposals.map do |child|
             {
               id: child.id,

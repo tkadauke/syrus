@@ -79,8 +79,11 @@ module App
       materialized = proposal.materialized_record
       materialized_epic = materialized.is_a?(Epic) ? materialized : nil
       scoped_repository = proposal.effective_repository || @repository
-      dependency_records = proposal.dependencies.order(:slug).to_a
-      dependency_slugs = dependency_records.map(&:slug)
+      epic_dependency_tokens = proposal.epic_dependency_tokens
+      dependency_records = proposal.dependencies.order(:slug).reject { |dependency| epic_dependency_tokens.include?(dependency.slug) }
+      epic_dependency_records = epic_dependency_json(proposal)
+      visible_dependencies = dependency_records.map { |dependency| dependency_json(dependency) } + epic_dependency_records
+      dependency_slugs = dependency_records.map(&:slug) + epic_dependency_tokens
       base = {
         id: proposal.id,
         kind: proposal.kind,
@@ -95,8 +98,8 @@ module App
         epic_bundle: proposal.epic_bundle?,
         scoped_repository_slug: scoped_repository&.slug,
         dependency_slugs: dependency_slugs,
-        dependencies: dependency_records.map { |dependency| dependency_json(dependency) },
-        has_dependencies: dependency_records.any?,
+        dependencies: visible_dependencies,
+        has_dependencies: visible_dependencies.any?,
         target_epic_label: proposal.target_epic&.display_number,
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject",
@@ -130,6 +133,48 @@ module App
         anchor_message_id: proposal.messages.order(:id).last&.id,
         materialized_path: materialized_path(proposal.materialized_record)
       }
+    end
+
+    def epic_dependency_json(proposal)
+      proposal.epic_dependency_tokens.filter_map do |token|
+        if token.match?(/\Aepic:\d+\z/)
+          epic = proposal.chat_session.user.epics.find_by(id: token.split(":", 2).last)
+          next unless epic
+
+          {
+            slug: token,
+            title: epic.display_number,
+            display_label: epic.display_number,
+            state: epic.state,
+            confirmed: true,
+            anchor_message_id: nil,
+            materialized_path: epic_path(epic)
+          }
+        else
+          dependency = proposal.chat_session.proposals.find_by(slug: token)
+          if dependency&.confirmed? && dependency.epic
+            {
+              slug: token,
+              title: dependency.epic.display_number,
+              display_label: dependency.epic.display_number,
+              state: dependency.epic.state,
+              confirmed: true,
+              anchor_message_id: dependency.messages.order(:id).last&.id,
+              materialized_path: epic_path(dependency.epic)
+            }
+          else
+            {
+              slug: token,
+              title: token,
+              display_label: token,
+              state: dependency&.state || "unresolved",
+              confirmed: false,
+              anchor_message_id: dependency&.messages&.order(:id)&.last&.id,
+              materialized_path: nil
+            }
+          end
+        end
+      end
     end
 
     def child_proposal_json(proposal, chat_session:)

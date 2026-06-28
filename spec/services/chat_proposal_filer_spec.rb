@@ -151,6 +151,42 @@ RSpec.describe ChatProposalFiler do
       expect(leaf.epic.depends_on_epics).to contain_exactly(root.epic)
     end
 
+    it "wires Epic proposal slug dependencies when the dependent is confirmed first" do
+      upstream = proposal(slug: "upstream-epic", title: "Upstream Epic", kind: "epic")
+      dependent = proposal(
+        slug: "dependent-epic",
+        title: "Dependent Epic",
+        kind: "epic",
+        epic_depends_on_tokens: JSON.generate([ upstream.slug ])
+      )
+      filer = described_class.new(user: user, repository: repository)
+
+      dependent_result = filer.file!([ dependent ])
+      upstream_result = filer.file!([ upstream ])
+
+      dependent_epic = dependent_result.epics.first
+      upstream_epic = upstream_result.epics.first
+      expect(dependent.reload.epic_depends_on_tokens).to eq(JSON.generate([ "epic:#{upstream_epic.id}" ]))
+      expect(dependent_epic.reload.depends_on_epics).to contain_exactly(upstream_epic)
+    end
+
+    it "wires Epic proposal slug dependencies when the upstream is already confirmed" do
+      upstream = proposal(slug: "upstream-epic", title: "Upstream Epic", kind: "epic")
+      dependent = proposal(
+        slug: "dependent-epic",
+        title: "Dependent Epic",
+        kind: "epic",
+        epic_depends_on_tokens: JSON.generate([ upstream.slug ])
+      )
+      filer = described_class.new(user: user, repository: repository)
+
+      upstream_result = filer.file!([ upstream ])
+      dependent_result = filer.file!([ dependent ])
+
+      expect(dependent.reload.epic_depends_on_tokens).to eq(JSON.generate([ "epic:#{upstream_result.epics.first.id}" ]))
+      expect(dependent_result.epics.first.reload.depends_on_epics).to contain_exactly(upstream_result.epics.first)
+    end
+
     it "attaches created Epics to the originating chat session" do
       epic_proposal = proposal(slug: "epic-attachment", title: "Attached Epic", kind: "epic")
 

@@ -986,7 +986,7 @@ function ProposalDependencyStrip({ dependencies, hasDependencies, prefix }: { de
 }
 
 function ProposalDependencyLink({ dependency, prefix }: { dependency: ChatProposalDependency; prefix: string }) {
-  const label = `${dependency.title} ${dependency.confirmed ? "✓" : "⏳"}`
+  const label = dependency.display_label || `${dependency.title} ${dependency.confirmed ? "✓" : "⏳"}`
   const className = "inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"
 
   if (dependency.anchor_message_id) {

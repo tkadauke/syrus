@@ -117,6 +117,37 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(response_payload(response)).to include(depends_on: [ "some-slug" ])
   end
 
+  it "stores Epic-level proposal dependencies from depends_on_proposal_slugs" do
+    prerequisite = chat_session.proposals.create!(
+      repository: repository,
+      slug: "foundation-epic",
+      title: "Foundation",
+      body: "Do this first.",
+      kind: "epic"
+    )
+
+    response = call_tool(
+      epic: {
+        slug: "dependent",
+        title: "Dependent",
+        description: "Depends on another proposal.",
+        target_repo: repository.slug,
+        depends_on_proposal_slugs: [ "foundation-epic" ]
+      },
+      jobs: [
+        { slug: "child", target_repo: repository.slug, title: "Child", description: "Build it." }
+      ]
+    )
+
+    proposal = chat_session.proposals.find_by!(slug: "dependent")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.dependencies).to contain_exactly(prerequisite)
+    expect(proposal.epic_dependency_tokens).to eq([ "foundation-epic" ])
+    expect(response_payload(response)).to include(depends_on_proposal_slugs: [ "foundation-epic" ])
+  end
+
+
   it "stores string-encoded confirmed Epic dependencies" do
     prerequisite = Factories.epic(user: user, repository: repository)
 

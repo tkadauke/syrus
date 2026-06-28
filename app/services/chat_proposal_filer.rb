@@ -48,6 +48,7 @@ class ChatProposalFiler
 
         proposal.update!(proposal_attrs)
         wire_dependencies_for(proposal, materialized, job_by_proposal_id)
+        ChatEpicProposalDependencyWirer.new(user: user).resolve_confirmed_proposal!(proposal) if materialized.is_a?(Epic)
         # Advance the Job out of :triaging AFTER deps are wired so
         # Job#create_initial_run_if_needed's stack_ready_for_execution?
         # check sees the JobDependency rows. Without this ordering,
@@ -216,7 +217,7 @@ class ChatProposalFiler
       depends_on_epic = dependency.epic
       next unless depends_on_epic
 
-      EpicDependency.create!(
+      EpicDependency.find_or_create_by!(
         epic: epic,
         depends_on_epic: depends_on_epic,
         derived: false
@@ -233,6 +234,8 @@ class ChatProposalFiler
         derived: false
       )
     end
+
+    ChatEpicProposalDependencyWirer.new(user: user).wire_for!(proposal)
   end
 
 end

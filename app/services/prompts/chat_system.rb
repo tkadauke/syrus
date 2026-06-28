@@ -118,14 +118,19 @@ module Prompts
           - `propose_epic` — a new Epic on its own. Use when the
             operator should confirm the Epic's framing before you draft
             its child Jobs. Use `depends_on_job_ids` when the new Epic
-            must wait for existing Jobs.
+            must wait for existing Jobs. Use
+            `depends_on_proposal_slugs` when it must wait for another
+            Epic proposal from this chat.
           - `propose_epic_with_jobs` — a new Epic plus its initial set
             of child Jobs in one card. Use when the decomposition is
             tight enough that the operator can review the whole shape
             at once. Express dependencies between the child Jobs (e.g.,
             "schema migration" before "endpoint that uses the column"),
             and use `depends_on_job_ids` / `depends_on_epic_ids` for
-            dependencies on existing work outside the proposed card.
+            dependencies on existing work outside the proposed card. Use
+            the Epic-level `depends_on_proposal_slugs` field when this
+            proposed Epic must wait for another Epic proposal from this
+            chat.
           - `submit_chat_feedback` — operator-agreed feedback on an
             existing implemented or approved Job. Use `list_job_workflows`
             first to confirm no active `chat_feedback` workflow is already
@@ -154,7 +159,11 @@ module Prompts
         Cross-entity dependencies are also runtime-enforced. Use
         `depends_on_epic_ids` when a proposed Job must wait for an
         existing Epic to finish, and `depends_on_job_ids` when a
-        proposed Job or Epic must wait for existing Jobs.
+        proposed Job or Epic must wait for existing Jobs. When a proposed Epic
+        must wait for another proposed Epic in the same chat, use
+        `depends_on_proposal_slugs` with the upstream proposal's slug;
+        Syrus wires the Epic dependency once both proposal cards are
+        confirmed, regardless of confirmation order.
 
         When the operator hands you a planning document ("read
         docs/plans/foo.md and turn it into an epic"), the pattern is:
@@ -266,7 +275,9 @@ module Prompts
             upstream proposals filed in order.
           - Express dependencies on existing work with
             `depends_on_job_ids` for proposed Jobs or Epics, and
-            `depends_on_epic_ids` for proposed Jobs.
+            `depends_on_epic_ids` for proposed Jobs. Express
+            dependencies between proposed Epics with
+            `depends_on_proposal_slugs`.
           - Use `propose_job` for direct Syrus Job creation. Use
             `delegate_issue` only when an existing GitHub issue should be
             handed to Syrus.

@@ -65,6 +65,28 @@ RSpec.describe SyrusChatMcp::ProposeEpicTool do
     expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
   end
 
+  it "persists Epic proposal slug dependencies" do
+    prerequisite = chat_session.proposals.create!(
+      repository: repository,
+      slug: "foundation-epic",
+      title: "Foundation Epic",
+      body: "Do this first.",
+      kind: "epic"
+    )
+
+    response = call_tool(
+      title: "Blocked Epic",
+      description: "Wait for another proposed Epic.",
+      depends_on_proposal_slugs: [ prerequisite.slug ]
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Blocked Epic")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.dependencies).to contain_exactly(prerequisite)
+    expect(proposal.epic_dependency_tokens).to eq([ prerequisite.slug ])
+    expect(response_payload(response)).to include(depends_on_proposal_slugs: [ prerequisite.slug ])
+  end
+
   it "rejects unknown Job dependency IDs" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)
@@ -80,6 +102,6 @@ RSpec.describe SyrusChatMcp::ProposeEpicTool do
     response = call_tool(title: "Leaf", description: "Body.", depends_on: %w[missing])
 
     expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to match(/unknown depends_on slug/)
+    expect(response[:result][:content].first[:text]).to match(/unknown depends_on_proposal_slugs/)
   end
 end

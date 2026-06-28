@@ -184,6 +184,45 @@ RSpec.describe App::ChatMessagePayload do
     ])
   end
 
+  it "returns Epic proposal slug dependencies with unresolved and resolved labels" do
+    resolved_epic = Factories.epic(user: user, repository: repository)
+    proposal = chat.proposals.create!(
+      repository: repository,
+      kind: "epic",
+      state: "proposed",
+      slug: "dependent-epic",
+      title: "Dependent Epic",
+      body: "Wait for upstream work.",
+      epic_depends_on_tokens: JSON.generate([ "foundation-epic", "epic:#{resolved_epic.id}" ])
+    )
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal created." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    expect(payload.fetch(:has_dependencies)).to be(true)
+    expect(payload.fetch(:dependency_slugs)).to eq([ "foundation-epic", "epic:#{resolved_epic.id}" ])
+    expect(payload.fetch(:dependencies)).to include(
+      {
+        slug: "foundation-epic",
+        title: "foundation-epic",
+        display_label: "foundation-epic",
+        state: "unresolved",
+        confirmed: false,
+        anchor_message_id: nil,
+        materialized_path: nil
+      },
+      {
+        slug: "epic:#{resolved_epic.id}",
+        title: resolved_epic.display_number,
+        display_label: resolved_epic.display_number,
+        state: resolved_epic.state,
+        confirmed: true,
+        anchor_message_id: nil,
+        materialized_path: "/epics/#{resolved_epic.id}"
+      }
+    )
+  end
+
   it "returns empty dependency details when a proposal has no dependencies" do
     proposal = chat.proposals.create!(
       repository: repository,

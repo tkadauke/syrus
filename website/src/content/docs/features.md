@@ -68,8 +68,10 @@ dependency by ID or remove an existing dependency from that page; Syrus
 rejects changes that would create a cycle.
 
 Chats can propose Epics or propose an Epic with child Jobs, including
-Epic-level dependencies on existing Epics or other chat Epic proposals. The
-operator confirms the proposal before Syrus creates the real records.
+Epic-level dependencies on existing Epics or other chat Epic proposals. Chat
+Epic proposals can reference each other by proposal slug, so operators can
+review the full plan first; Syrus wires the real Epic dependency once both
+proposal cards are confirmed.
 
 ## Schedules
 
@@ -141,8 +143,8 @@ documents, or pausing and resuming the landing queue, also render as inline
 confirmation cards in the message stream so operators can review the target
 before confirming or rejecting them.
 Proposal cards show dependency status before the title: either dependency
-proposal links with confirmed or pending badges, or an explicit no-dependencies
-note.
+proposal links with confirmed or pending badges, resolved Epic proposal links,
+or an explicit no-dependencies note.
 Confirmed and discarded proposal and action cards are also written back into the chat
 transcript so the next assistant turn can see the created Job, Epic, or
 GitHub issue identifiers without asking the operator to repeat them.

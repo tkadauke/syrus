@@ -87,13 +87,15 @@ class TerminalRelay
   def relay(pty_out, pty_in, conn, pid)
     stop = false
     stop_lock = Mutex.new
-    stop_relay = lambda do
+    stop_relay = lambda do |close_pty:|
       stop_lock.synchronize do
         unless stop
           stop = true
-          close_io(pty_out)
-          close_io(pty_in)
           close_io(conn)
+          if close_pty
+            close_io(pty_out)
+            close_io(pty_in)
+          end
         end
       end
     end
@@ -107,7 +109,7 @@ class TerminalRelay
           conn.write(data)
         end
       rescue EOFError, Errno::EIO, IOError, SystemCallError
-        stop_relay.call
+        stop_relay.call(close_pty: true)
       end
     end
 
@@ -122,18 +124,23 @@ class TerminalRelay
             last_kill_poll = now
             if @session.reload.finished_at.present?
               terminate_pid(pid)
-              stop_relay.call
+              stop_relay.call(close_pty: true)
               next
             end
           end
 
           next unless readable?(conn)
 
-          data = conn.read_nonblock(READ_CHUNK_BYTES)
+          data = read_conn_data(conn)
+          unless data
+            stop_relay.call(close_pty: false)
+            next
+          end
+
           control_buffer = handle_conn_data(data, control_buffer, pty_in)
         end
-      rescue EOFError, Errno::EIO, IOError, SystemCallError
-        stop_relay.call
+      rescue IOError, SystemCallError
+        stop_relay.call(close_pty: true)
       end
     end
 
@@ -160,6 +167,12 @@ class TerminalRelay
     IO.select([ io ], nil, nil, SELECT_TIMEOUT_SECONDS)
   rescue IOError, SystemCallError
     false
+  end
+
+  def read_conn_data(conn)
+    conn.read_nonblock(READ_CHUNK_BYTES)
+  rescue EOFError, Errno::EIO, IOError, SystemCallError
+    nil
   end
 
   def session_finished?
