@@ -64,7 +64,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     ? <Navigate replace to={`${prefix}/onboarding`} />
     : children ?? <Outlet />
 
-  const terminalSessionCount = useTerminalSessionCount(Boolean(data?.feature_flags.terminal && user))
+  const terminalSessionCount = useTerminalSessionCount(Boolean(data?.feature_flags?.terminal && user))
   const navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
     ...(inOnboarding ? [{ label: "Setup", to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
     ...(tabsHidden ? [] : [
@@ -72,7 +72,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       { label: "Spending", to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
       { label: "Repositories", to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
       { label: "Schedules", to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> },
-      ...(data?.feature_flags.terminal ? [{
+      ...(data?.feature_flags?.terminal ? [{
         label: "Terminal",
         to: `${prefix}/terminal`,
         active: normalizedPath.startsWith("/terminal"),
