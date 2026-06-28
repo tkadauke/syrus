@@ -186,6 +186,7 @@ class ChatTurnJob < ApplicationJob
   def sidecar_env(tool_tier:, server_name:)
     ENV.slice(*SIDECAR_ENV_FORWARD).compact.merge(
       "SYRUS_CHAT_SESSION_ID" => @chat.id.to_s,
+      "SYRUS_CHAT_CURRENT_MESSAGE_ID" => @user_message.id.to_s,
       "SYRUS_CHAT_MCP_TOOL_TIER" => tool_tier,
       "SYRUS_CHAT_MCP_SERVER_NAME" => server_name
     )

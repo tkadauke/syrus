@@ -7,16 +7,17 @@ RSpec.describe SyrusChatMcp::SubmitChatFeedbackTool do
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
-  def server
+  def server(current_message: nil)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [ described_class ],
-      server_context: { chat_session: chat_session }
+      server_context: { chat_session: chat_session, current_message: current_message }.compact
     )
   end
 
-  def call_tool(arguments)
-    raw = server.handle_json({
+  def call_tool(arguments = nil, current_message: nil, **keyword_arguments)
+    arguments = (arguments || {}).merge(keyword_arguments)
+    raw = server(current_message: current_message).handle_json({
       jsonrpc: "2.0",
       id: 1,
       method: "tools/call",
@@ -46,6 +47,21 @@ RSpec.describe SyrusChatMcp::SubmitChatFeedbackTool do
     expect(pending_action).to have_attributes(action: "submit_chat_feedback", requested_by: "agent")
     expect(pending_action.payload).to eq("job_id" => job.id, "feedback" => "Please tighten the retry explanation.")
     expect(job.workflows.where(trigger_kind: "chat_feedback")).to be_empty
+  end
+
+  it "anchors feedback confirmations to the supplied current user message" do
+    previous_assistant_message = chat_session.messages.create!(role: "assistant", content: { "text" => "Previous turn." })
+    user_message = chat_session.messages.create!(role: "user", content: { "text" => "Please submit feedback." })
+    job = Factories.job_record(repository: repository, state: "implemented")
+
+    response = call_tool(
+      { job_id: job.id, feedback: "Please tighten the retry explanation." },
+      current_message: user_message
+    )
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+
+    expect(pending_action.message).to eq(user_message)
+    expect(previous_assistant_message.reload.pending_action).to be_nil
   end
 
   it "queues a chat_feedback workflow only after confirmation" do
