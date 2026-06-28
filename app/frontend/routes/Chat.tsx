@@ -59,8 +59,8 @@ import {
   type WhiteboardSnapshot
 } from "../api/chats"
 import { CloseIcon } from "../components/CloseIcon"
+import { ConfirmationCard } from "../components/ConfirmationCard"
 import { StartEpicButton } from "../components/StartEpicButton"
-import { linkifySlugs } from "../lib/linkifySlugs"
 import { Markdown, PlainText } from "../lib/Markdown"
 import {
   filterSlashCommands,
@@ -241,64 +241,23 @@ function ChatView({ payload, prefix, queryKey }: { payload: ChatPayload; prefix:
   )
 }
 
-function PendingActions({ payload, onSelectMessage }: { payload: ChatPayload; onSelectMessage: (messageId: number) => void }) {
-  if (payload.pending_actions.length === 0) return null
+function PendingActions({ payload, queryKey, onNotice, onSelectMessage }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectMessage: (messageId: number) => void }) {
+  const visibleMessageIds = new Set(payload.messages.map((message) => message.id))
+  const standaloneActions = payload.pending_actions.filter((pendingAction) => !pendingAction.chat_message_id || !visibleMessageIds.has(pendingAction.chat_message_id))
+  if (standaloneActions.length === 0) return null
 
   return (
-    <section className="space-y-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/60">
-      <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Pending actions</h2>
-      {payload.pending_actions.map((pendingAction) => (
-        <PendingActionRow action={pendingAction} key={pendingAction.id} onSelectMessage={onSelectMessage} />
+    <div className="space-y-3">
+      {standaloneActions.map((pendingAction) => (
+        <PendingActionCard
+          key={pendingAction.id}
+          pendingAction={pendingAction}
+          queryKey={queryKey}
+          onNotice={onNotice}
+          onSelectMessage={onSelectMessage}
+        />
       ))}
-    </section>
-  )
-}
-
-function PendingActionRow({ action, onSelectMessage }: { action: ChatPendingAction; onSelectMessage: (messageId: number) => void }) {
-  const isQueued = action.state === "queued"
-  const terminalLabel =
-    action.state === "confirmed" ? "Confirmed" :
-      action.state === "rejected" ? "Rejected" :
-        action.state === "cancelled" ? "Cancelled" :
-          null
-  const stateLabel = isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"
-  const chatMessageId = action.chat_message_id
-
-  return (
-    <div className={`flex flex-wrap items-center justify-between gap-2 rounded border bg-white px-3 py-2 text-sm dark:bg-gray-950 ${pendingActionRowClass(action.state)}`}>
-      <div className="flex min-w-0 items-center gap-2">
-        {isQueued ? <WaitingIcon /> : <WarningIcon />}
-        {chatMessageId ? (
-          <a
-            className="truncate font-medium text-blue-700 hover:underline dark:text-blue-300"
-            href={`#message-${chatMessageId}`}
-            onClick={(event) => {
-              event.preventDefault()
-              onSelectMessage(chatMessageId)
-            }}
-          >
-            {linkifySlugs(action.label)}
-          </a>
-        ) : (
-          <span className="truncate font-medium text-gray-900 dark:text-gray-100">{linkifySlugs(action.label)}</span>
-        )}
-      </div>
-      <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{stateLabel}</span>
     </div>
-  )
-}
-
-function pendingActionRowClass(state: ChatPendingAction["state"]) {
-  if (state === "pending") return "border-amber-200 dark:border-amber-800"
-  return "border-gray-200 dark:border-gray-700"
-}
-
-function WaitingIcon() {
-  return (
-    <svg aria-hidden="true" className="h-4 w-4 flex-none text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
-      <path d="M12 7v5l3 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
   )
 }
 
@@ -835,9 +794,10 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
   })
 
   return (
-    <article className={`max-w-4xl rounded border bg-white px-4 py-3 dark:bg-gray-900 ${proposal.resolved ? "border-gray-200 opacity-70 grayscale dark:border-gray-700" : "border-blue-200 dark:border-blue-800"}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+    <ConfirmationCard
+      muted={proposal.resolved}
+      header={
+        <>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
@@ -846,37 +806,45 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
           <ProposalDependencyStrip dependencies={proposal.dependencies} hasDependencies={proposal.has_dependencies} prefix={prefix} />
           <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
           <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{proposal.slug}</p>
-        </div>
-      </div>
-      <Markdown className="chat-prose mt-3 text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
-      {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} /> : <ProposalMeta proposal={proposal} />}
-      <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
-      {proposal.proposed ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            className={primaryButton()}
-            disabled={proposalAction.isPending}
-            onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
-            type="button"
-          >
-            {proposal.epic_bundle ? "Confirm Epic and Jobs" : "Confirm"}
-          </button>
-          <button
-            className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
-            disabled={proposalAction.isPending}
-            onClick={() => proposalAction.mutate({ action: "reject", path: proposal.app_reject_path })}
-            type="button"
-          >
-            Reject
-          </button>
-          {proposalAction.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(proposalAction.error, "Proposal command failed.")}</div> : null}
-        </div>
-      ) : null}
-    </article>
+        </>
+      }
+      body={
+        <>
+          <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
+          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} /> : <ProposalMeta proposal={proposal} />}
+        </>
+      }
+      footer={
+        <>
+          <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
+          {proposal.proposed ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                className={primaryButton()}
+                disabled={proposalAction.isPending}
+                onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
+                type="button"
+              >
+                {proposal.epic_bundle ? "Confirm Epic and Jobs" : "Confirm"}
+              </button>
+              <button
+                className={secondaryButton()}
+                disabled={proposalAction.isPending}
+                onClick={() => proposalAction.mutate({ action: "reject", path: proposal.app_reject_path })}
+                type="button"
+              >
+                Reject
+              </button>
+              {proposalAction.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(proposalAction.error, "Proposal command failed.")}</div> : null}
+            </div>
+          ) : null}
+        </>
+      }
+    />
   )
 }
 
-function PendingActionCard({ pendingAction, queryKey, onNotice }: { pendingAction: ChatPendingActionInline; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectMessage }: { pendingAction: ChatPendingActionInline | ChatPendingAction; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectMessage?: (messageId: number) => void }) {
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const action = useMutation({
@@ -889,50 +857,114 @@ function PendingActionCard({ pendingAction, queryKey, onNotice }: { pendingActio
       onNotice(updated.message || null)
     }
   })
-  const terminalLabel = pendingAction.state === "confirmed" ? "Confirmed" : pendingAction.state === "rejected" ? "Rejected" : null
-  const rejectLabel = pendingAction.action === "schedule_recurring" ? "Cancel" : "Reject"
+  const terminalLabel = pendingActionTerminalLabel(pendingAction.state)
+  const actionKey = pendingActionKey(pendingAction)
+  const rejectLabel = actionKey === "schedule_recurring" ? "Cancel" : "Decline"
+  const isQueued = pendingAction.state === "queued"
+  const isPending = pendingAction.state === "pending"
+  const rejectPath = "app_reject_path" in pendingAction ? pendingAction.app_reject_path : `${pendingAction.app_cancel_path}/reject`
+  const chatMessageId = "chat_message_id" in pendingAction ? pendingAction.chat_message_id : null
+  const resourceTitle = pendingActionResourceTitle(pendingAction)
+  const resourceUrl = pendingActionResourceUrl(pendingAction)
 
   return (
-    <article className={`max-w-4xl rounded border bg-white px-4 py-3 dark:bg-gray-900 ${terminalLabel ? "border-gray-200 opacity-70 grayscale dark:border-gray-700" : "border-amber-200 dark:border-amber-800"}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+    <ConfirmationCard
+      muted={Boolean(terminalLabel)}
+      header={
+        <>
           <div className="flex flex-wrap items-center gap-2">
-            <WarningIcon />
-            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{pendingAction.label}</h3>
+            <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{pendingActionBadgeLabel(pendingAction)}</span>
+            <span className={`rounded px-2 py-0.5 text-xs font-medium ${isPending ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}</span>
           </div>
-          {pendingAction.resource_title && pendingAction.resource_url ? (
-            <a className="mt-2 inline-block break-words text-sm font-medium text-blue-700 hover:underline dark:text-blue-300" href={pendingAction.resource_url}>{pendingAction.resource_title}</a>
-          ) : null}
-          {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
-        </div>
-      </div>
-      {terminalLabel ? (
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
-          <span className={`rounded px-2 py-0.5 font-medium ${pendingAction.state === "confirmed" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{terminalLabel}</span>
-        </div>
-      ) : (
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            className={primaryButton()}
-            disabled={action.isPending}
-            onClick={() => action.mutate({ action: "confirm", path: pendingAction.app_confirm_path })}
-            type="button"
-          >
-            Confirm
-          </button>
-          <button
-            className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
-            disabled={action.isPending}
-            onClick={() => action.mutate({ action: "reject", path: pendingAction.app_reject_path })}
-            type="button"
-          >
-            {rejectLabel}
-          </button>
-          {action.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div> : null}
-        </div>
-      )}
-    </article>
+          {chatMessageId && onSelectMessage ? (
+            <h3 className="mt-2 text-base font-semibold">
+              <a
+                className="break-words text-blue-700 hover:underline dark:text-blue-300"
+                href={`#message-${chatMessageId}`}
+                onClick={(event) => {
+                  event.preventDefault()
+                  onSelectMessage(chatMessageId)
+                }}
+              >
+                {pendingAction.label}
+              </a>
+            </h3>
+          ) : (
+            <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{pendingAction.label}</h3>
+          )}
+        </>
+      }
+      body={
+        resourceTitle || pendingAction.detail ? (
+          <>
+            {resourceTitle && resourceUrl ? (
+              <a className="inline-block break-words text-sm font-medium text-blue-700 hover:underline dark:text-blue-300" href={resourceUrl}>{resourceTitle}</a>
+            ) : resourceTitle ? (
+              <p className="break-words text-sm font-medium text-gray-700 dark:text-gray-300">{resourceTitle}</p>
+            ) : null}
+            {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
+          </>
+        ) : null
+      }
+      footer={
+        terminalLabel ? (
+          <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+            <span className={`rounded px-2 py-0.5 font-medium ${pendingAction.state === "confirmed" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{terminalLabel}</span>
+          </div>
+        ) : isPending ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={primaryButton()}
+              disabled={action.isPending}
+              onClick={() => action.mutate({ action: "confirm", path: pendingAction.app_confirm_path })}
+              type="button"
+            >
+              Confirm
+            </button>
+            <button
+              className={secondaryButton()}
+              disabled={action.isPending}
+              onClick={() => action.mutate({ action: "reject", path: rejectPath })}
+              type="button"
+            >
+              {rejectLabel}
+            </button>
+            {action.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div> : null}
+          </div>
+        ) : null
+      }
+    />
   )
+}
+
+function pendingActionTerminalLabel(state: ChatPendingAction["state"] | ChatPendingActionInline["state"]) {
+  if (state === "confirmed") return "Confirmed"
+  if (state === "rejected") return "Rejected"
+  if (state === "cancelled") return "Cancelled"
+  return null
+}
+
+function pendingActionResourceTitle(pendingAction: ChatPendingActionInline | ChatPendingAction) {
+  return "resource_title" in pendingAction ? pendingAction.resource_title : null
+}
+
+function pendingActionResourceUrl(pendingAction: ChatPendingActionInline | ChatPendingAction) {
+  return "resource_url" in pendingAction ? pendingAction.resource_url : null
+}
+
+function pendingActionKey(pendingAction: ChatPendingActionInline | ChatPendingAction) {
+  return pendingAction.action || ("action_type" in pendingAction ? pendingAction.action_type : null)
+}
+
+function pendingActionBadgeLabel(pendingAction: ChatPendingActionInline | ChatPendingAction) {
+  const actionKey = pendingActionKey(pendingAction)
+  if (actionKey === "submit_chat_feedback") return "Submit feedback"
+  if (actionKey === "cancel_job") return "Cancel"
+  if (actionKey === "retry_job") return "Retry"
+  if (actionKey === "rebase_job") return "Rebase"
+  if (actionKey === "reopen_job") return "Reopen"
+  if ("action_type" in pendingAction && pendingAction.action_type) return pendingAction.action_type.replace(/_/g, " ")
+  return "Action"
 }
 
 function PendingActionDetail({ detail }: { detail: string }) {
@@ -940,14 +972,6 @@ function PendingActionDetail({ detail }: { detail: string }) {
     <div className="mt-2 max-h-40 overflow-y-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-950">
       <Markdown className="chat-prose text-xs text-gray-700 dark:text-gray-300" text={detail} />
     </div>
-  )
-}
-
-function WarningIcon() {
-  return (
-    <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-amber-500 dark:text-amber-300" fill="none" viewBox="0 0 24 24">
-      <path d="M12 9v4m0 4h.01M10.3 4.3 2.8 17.1A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.9L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
   )
 }
 
@@ -2041,7 +2065,7 @@ function ChatColumn({ bookmarkTarget, commandHandlers, payload, prefix, queryKey
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">What would you like to build?</h1>
       ) : (
-        <PendingActions payload={payload} onSelectMessage={onPendingActionSelect} />
+        <PendingActions payload={payload} queryKey={queryKey} onNotice={onNotice} onSelectMessage={onPendingActionSelect} />
       )}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`}>
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />

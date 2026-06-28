@@ -1242,7 +1242,9 @@ module Api
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,
-            cumulative_cost_usd: chat_session.cumulative_cost.to_f
+            cumulative_cost_usd: chat_session.cumulative_cost.to_f,
+            pending_proposal_count: chat_session.proposals.where(state: "proposed").count +
+              chat_session.pending_actions.where(state: "pending").count
           }
         end
 

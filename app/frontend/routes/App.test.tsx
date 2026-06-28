@@ -12310,7 +12310,7 @@ describe("App", () => {
     expect(screen.getByText("Notify reviewers.").tagName).toBe("LI")
     expect(screen.getByRole("link", { name: "Refactor checkout flow" })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Retry job" })).toBeInTheDocument()
     expect(screen.getAllByText("Confirmed").length).toBeGreaterThan(0)
     expect(screen.getByRole("heading", { name: "Submit feedback" })).toBeInTheDocument()
@@ -12318,7 +12318,7 @@ describe("App", () => {
     expect(screen.queryByRole("link", { name: "Submit feedback" })).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+    fireEvent.click(screen.getByRole("button", { name: "Decline" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/chats/8/pending_actions/7/reject",
@@ -12461,12 +12461,7 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
   })
 
-  it("links pending action summaries to their inline confirmation cards", async () => {
-    const scrollIntoView = vi.fn()
-    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView
-    })
+  it("renders pending action confirmations inline without a summary section", async () => {
     const pendingMessage = {
       type: "message",
       id: 12,
@@ -12504,17 +12499,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const summary = await screen.findByRole("heading", { name: "Pending actions" })
-    const summarySection = summary.closest("section")!
-    expect(within(summarySection).getByRole("link", { name: "Send feedback to JOB-44" })).toHaveAttribute("href", "#message-12")
-    expect(within(summarySection).getByText("Needs confirmation")).toBeInTheDocument()
-    expect(within(summarySection).queryByText((_content, element) => element?.tagName === "P" && element.textContent === "Please tighten this implementation.")).not.toBeInTheDocument()
-    expect(within(summarySection).queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
-
-    fireEvent.click(within(summarySection).getByRole("link", { name: "Send feedback to JOB-44" }))
-    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" }))
-
-    expect(screen.getByText("Feedback queued for confirmation.")).toBeInTheDocument()
+    expect(await screen.findByText("Feedback queued for confirmation.")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Send feedback to JOB-44" })).toBeInTheDocument()
     expect(screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === "Please tighten this implementation.")).toBeInTheDocument()
     expect(screen.getByText("tighten").tagName).toBe("STRONG")
@@ -12542,12 +12528,10 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/44")
-    expect(screen.getByRole("link", { name: "JOB-45" })).toHaveAttribute("href", "/jobs/45")
-    expect(screen.getByRole("link", { name: "JOB-46" })).toHaveAttribute("href", "/jobs/46")
-    expect(screen.getByText("Confirmed")).toBeInTheDocument()
-    expect(screen.getByText("Rejected")).toBeInTheDocument()
-    expect(screen.getByText("Cancelled")).toBeInTheDocument()
+    expect(await screen.findByText("Cancel JOB-44")).toBeInTheDocument()
+    expect(screen.getAllByText("Confirmed").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Rejected").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Cancelled").length).toBeGreaterThan(0)
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
   })

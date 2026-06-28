@@ -1329,6 +1329,19 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(workflow.artifact("chat_feedback")).to eq("Please tighten this implementation.")
   end
 
+  it "counts proposed chat proposals and pending actions in the chat header payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    chat.proposals.create!(slug: "map-auth", title: "Map auth", body: "Map it.")
+    chat.proposals.create!(slug: "confirmed-auth", title: "Confirmed auth", body: "Done.", state: "confirmed")
+    chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job(repository: repository).id })
+    chat.pending_actions.create!(action: "retry_job", state: "queued", payload: { "job_id" => Factories.job(repository: repository, issue_number: 44).id })
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body.dig("chat", "pending_proposal_count")).to eq(2)
+  end
+
   it "renders queued pending actions and lets the operator cancel them" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

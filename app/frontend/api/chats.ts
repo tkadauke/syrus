@@ -19,6 +19,7 @@ export type ChatRecord = {
   cumulative_input_tokens: number
   cumulative_output_tokens: number
   cumulative_cost_usd: number
+  pending_proposal_count?: number
 }
 
 export type ChatNavRecord = ChatRecord & {
