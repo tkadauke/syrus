@@ -15,6 +15,7 @@ type CheckoutStatusByRepo = Record<string, SyrusCheckoutAvailability>
 type ToastState = {
   kind: "success" | "error"
   message: string
+  durationMs?: number
   copyCommand?: string
   actionLabel?: string
   actionUrl?: string
@@ -316,6 +317,15 @@ function CopyIcon({ className = "" }: { className?: string }) {
   )
 }
 
+function CloseIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M6 6l12 12" />
+      <path d="M18 6 6 18" />
+    </svg>
+  )
+}
+
 function DisclosureIcon({ collapsed }: { collapsed: boolean }) {
   return (
     <svg
@@ -463,18 +473,26 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
   const showToast = (nextToast: ToastState, durationMs = nextToast.kind === "success" ? 2800 : 5000) => {
     clearToastTimer()
-    setToast(nextToast)
-    toastTimerRef.current = window.setTimeout(() => {
-      toastTimerRef.current = null
-      setToast(null)
-    }, durationMs)
+    setToast({ ...nextToast, durationMs })
   }
 
   const showErrorToast = (message: string) => {
     showToast({ kind: "error", message })
   }
 
-  useEffect(() => () => clearToastTimer(), [])
+  useEffect(() => {
+    if (!toast) {
+      clearToastTimer()
+      return
+    }
+
+    toastTimerRef.current = window.setTimeout(() => {
+      toastTimerRef.current = null
+      setToast(null)
+    }, toast.durationMs ?? (toast.kind === "success" ? 2800 : 5000))
+
+    return clearToastTimer
+  }, [toast])
 
   useEffect(() => {
     try {
@@ -651,7 +669,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         repoSlug: job.repository_slug,
         branchName: job.branch_name
       })
-      showToast({ kind: "success", message: `Checked out ${result.branchName}` })
+      showToast({ kind: "success", message: `Checked out ${result.branchName}` }, 4000)
       setNavigation({ view: "job-detail", jobId: job.id })
     } catch (checkoutError) {
       showToast({
@@ -942,6 +960,9 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                 {toast.actionLabel}
               </button>
             ) : null}
+            <button type="button" className="toast-close-button" aria-label="Dismiss" onClick={clearToast}>
+              <CloseIcon />
+            </button>
           </div>
         </div>
       ) : null}
