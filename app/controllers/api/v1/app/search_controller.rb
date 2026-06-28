@@ -5,6 +5,7 @@ module Api
         TYPES = %w[job epic chat].freeze
         DEFAULT_LIMIT = 30
         MAX_LIMIT = 100
+        CHAT_GROUPED_MATCH_LIMIT = 3
 
         def index
           query = params[:q].to_s.strip
@@ -21,6 +22,7 @@ module Api
 
           limit = search_limit
           rows = selected_types.flat_map { |type| normalized_rows(type, query, limit) }
+          rows = grouped_chat_rows(rows)
           rows.sort_by! { |row| [ row.fetch(:rank), row.fetch(:type_order), row.fetch(:ordinal) ] }
           @search_result_rows = rows
 
@@ -162,7 +164,7 @@ module Api
           return unless message
 
           chat_session = message.chat_session
-          {
+          payload = {
             type: "chat",
             id: message.id,
             title: chat_title(chat_session),
@@ -171,6 +173,24 @@ module Api
             path: chat_path(chat_session, message_id: message.id),
             state: nil,
             repository_slug: nil,
+            created_at: message.created_at&.iso8601
+          }
+          if row.key?(:grouped_matches)
+            payload[:grouped_matches] = row.fetch(:grouped_matches).filter_map { |match_row| chat_grouped_match_json(match_row) }
+            payload[:total_match_count] = row.fetch(:total_match_count)
+            payload[:has_more_matches] = row.fetch(:has_more_matches)
+          end
+          payload
+        end
+
+        def chat_grouped_match_json(row)
+          message = chat_messages_by_id[row.fetch(:chat_message_id).to_i]
+          return unless message
+
+          {
+            id: message.id,
+            snippet: row.fetch(:snippet),
+            path: chat_path(message.chat_session, message_id: message.id),
             created_at: message.created_at&.iso8601
           }
         end
@@ -198,6 +218,10 @@ module Api
             search_result_rows.each do |row|
               value = row[key]
               ids << value.to_i if value.present?
+              row.fetch(:grouped_matches, []).each do |match_row|
+                match_value = match_row[key]
+                ids << match_value.to_i if match_value.present?
+              end
             end
             ids
           end
@@ -209,6 +233,33 @@ module Api
 
         def chat_title(chat_session)
           chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository)
+        end
+
+        def grouped_chat_rows(rows)
+          chat_rows_by_session = {}
+          grouped_session_ids = []
+
+          rows.filter_map do |row|
+            next row unless row.fetch(:type) == "chat"
+
+            chat_session_id = row[:chat_session_id]
+            next row if chat_session_id.blank?
+
+            chat_session_id = chat_session_id.to_i
+            grouped_session_ids << chat_session_id unless chat_rows_by_session.key?(chat_session_id)
+            chat_rows_by_session[chat_session_id] ||= []
+            chat_rows_by_session[chat_session_id] << row
+            nil
+          end + grouped_session_ids.map { |chat_session_id| grouped_chat_row(chat_rows_by_session.fetch(chat_session_id)) }
+        end
+
+        def grouped_chat_row(rows)
+          representative, *additional_matches = rows
+          representative.merge(
+            grouped_matches: additional_matches.first(CHAT_GROUPED_MATCH_LIMIT),
+            total_match_count: rows.length,
+            has_more_matches: additional_matches.length > CHAT_GROUPED_MATCH_LIMIT
+          )
         end
       end
     end

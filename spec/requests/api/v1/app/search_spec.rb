@@ -132,6 +132,34 @@ RSpec.describe "App API unified search", type: :request do
     )
   end
 
+  it "groups chat message matches by chat session" do
+    chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
+    best_message = ChatMessage.create!(chat_session: chat_session, role: "assistant", content: { "text" => "deploy deploy deploy transcript" }, created_at: 5.minutes.ago)
+    grouped_messages = 4.times.map do |index|
+      ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy follow-up #{index}" }, created_at: index.minutes.ago)
+    end
+    other_chat = ChatSession.create!(user: user, repository: repository, title: "Other chat")
+    other_message = ChatMessage.create!(chat_session: other_chat, role: "assistant", content: { "text" => "deploy elsewhere" })
+    ([ best_message, other_message ] + grouped_messages).each { |message| ChatMessageSearchIndex.insert(message) }
+
+    get "/api/v1/app/search", params: { q: "deploy", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    results = parse_body
+    expect(results.length).to eq(2)
+    launch_result = results.find { |result| result["title"] == "Launch chat" }
+    expect(launch_result).to include(
+      "type" => "chat",
+      "id" => best_message.id,
+      "path" => chat_path(chat_session, message_id: best_message.id),
+      "total_match_count" => 5,
+      "has_more_matches" => true
+    )
+    expect(launch_result.fetch("grouped_matches").length).to eq(3)
+    expect(launch_result.fetch("grouped_matches").map { |match| match.fetch("id") }).to match_array(grouped_messages.map(&:id).first(3))
+    expect(results.find { |result| result["title"] == "Other chat" }).to include("total_match_count" => 1, "has_more_matches" => false)
+  end
+
   it "does not leak indexed records that no longer belong to the current user" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "other", name: "private")

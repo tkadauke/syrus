@@ -907,6 +907,55 @@ describe("App", () => {
     }
   })
 
+  it("renders grouped chat matches in v2 unified search results", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+      },
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/search?q=needle") {
+        return Promise.resolve(new Response(JSON.stringify(unifiedSearchPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/search?q=needle"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("link", { name: "Forum planning" })).toHaveAttribute("href", "/app-shell/chats/77?message_id=11")
+      expect(screen.getByText((_content, element) => element?.textContent === "Best needle")).toBeInTheDocument()
+      expect(screen.getByText("3 more matches in this chat")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Show 2 more matches" }))
+
+      expect(await screen.findByText((_content, element) => element?.textContent === "Second needle")).toBeInTheDocument()
+      expect(screen.getByText((_content, element) => element?.textContent === "Third needle")).toBeInTheDocument()
+      expect(screen.getByText("Only the top 2 additional matches are shown.")).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("renders the v2 chat search empty state and all filter fields", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
@@ -15055,6 +15104,28 @@ function chatSearchPayload() {
     page: 1,
     per_page: 20
   }
+}
+
+function unifiedSearchPayload() {
+  return [
+    {
+      type: "chat",
+      id: 11,
+      title: "Forum planning",
+      snippet: "Best <mark>needle</mark>",
+      rank: 0,
+      path: "/chats/77?message_id=11",
+      state: null,
+      repository_slug: null,
+      created_at: "2026-06-20T10:00:00Z",
+      grouped_matches: [
+        { id: 12, snippet: "Second <mark>needle</mark>", path: "/chats/77?message_id=12", created_at: "2026-06-20T10:01:00Z" },
+        { id: 13, snippet: "Third <mark>needle</mark>", path: "/chats/77?message_id=13", created_at: "2026-06-20T10:02:00Z" }
+      ],
+      total_match_count: 4,
+      has_more_matches: true
+    }
+  ]
 }
 
 function chatSearchMatch(overrides: Record<string, unknown> = {}) {

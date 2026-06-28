@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
+import { useState } from "react"
 import { fetchSearch, type SearchResult, type SearchResultType } from "../api/search"
 
 type SearchFilter = SearchResultType | "all"
@@ -80,6 +81,8 @@ function SearchResultRow({ result }: { result: SearchResult }) {
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const styles = typeStyles[result.type]
+  const groupedMatches = result.type === "chat" ? result.grouped_matches || [] : []
+  const hasGroupedMatches = result.type === "chat" && groupedMatches.length > 0
 
   return (
     <article className={`border-l-4 ${styles.border} px-4 py-4`}>
@@ -96,10 +99,44 @@ function SearchResultRow({ result }: { result: SearchResult }) {
             </Link>
           </h2>
           <Snippet html={result.snippet || ""} />
+          {hasGroupedMatches ? <GroupedChatMatches result={result} routePrefix={prefix} /> : null}
         </div>
         {result.created_at ? <time className="shrink-0 text-xs text-gray-500 dark:text-gray-400" dateTime={result.created_at}>{formatDate(result.created_at)}</time> : null}
       </div>
     </article>
+  )
+}
+
+function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchResult, { type: "chat" }>; routePrefix: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const groupedMatches = result.grouped_matches || []
+  const hiddenMatchCount = Math.max((result.total_match_count || groupedMatches.length + 1) - 1, groupedMatches.length)
+  const matchLabel = hiddenMatchCount === 1 ? "match" : "matches"
+
+  return (
+    <div className="mt-3">
+      <button
+        aria-expanded={expanded}
+        className="inline-flex items-center gap-1 rounded text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline dark:text-blue-300 dark:hover:text-blue-200"
+        onClick={() => setExpanded((current) => !current)}
+        type="button"
+      >
+        <span aria-hidden="true" className={`transition-transform ${expanded ? "rotate-90" : ""}`}>{">"}</span>
+        {expanded ? "Hide" : "Show"} {groupedMatches.length} more {groupedMatches.length === 1 ? "match" : "matches"}
+      </button>
+      {!expanded ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{hiddenMatchCount} more {matchLabel} in this chat</span> : null}
+      {expanded ? (
+        <div className="mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
+          {groupedMatches.map((match) => (
+            <Link className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-900" key={match.id} to={withRoutePrefix(match.path, routePrefix)}>
+              <Snippet html={match.snippet || ""} />
+              {match.created_at ? <time className="mt-1 block text-xs text-gray-500 dark:text-gray-400" dateTime={match.created_at}>{formatDate(match.created_at)}</time> : null}
+            </Link>
+          ))}
+          {result.has_more_matches ? <div className="py-3 text-xs text-gray-500 dark:text-gray-400">Only the top {groupedMatches.length} additional matches are shown.</div> : null}
+        </div>
+      ) : null}
+    </div>
   )
 }
 

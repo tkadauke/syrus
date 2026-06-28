@@ -30,9 +30,19 @@ export type ChatSearchResult = BaseSearchResult & {
   type: "chat"
   state: null
   repository_slug: null
+  grouped_matches?: ChatGroupedMatch[]
+  total_match_count?: number
+  has_more_matches?: boolean
 }
 
 export type SearchResult = JobSearchResult | EpicSearchResult | ChatSearchResult
+
+export type ChatGroupedMatch = {
+  id: number
+  snippet: string
+  path: string
+  created_at: string | null
+}
 
 export function fetchSearch(q: string, types: SearchResultType[] = [], signal?: AbortSignal) {
   const params = new URLSearchParams()
