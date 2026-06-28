@@ -1,4 +1,6 @@
 class ChatMessageSearchIndex < SearchRecord
+  include FtsQueryParser
+
   INDEXED_MESSAGE_KEY_PREFIX = "indexed_chat_message:".freeze
 
   class << self
@@ -39,7 +41,7 @@ class ChatMessageSearchIndex < SearchRecord
         bind(snippet_start.to_s),
         bind(snippet_end.to_s),
         bind(snippet_tokens.to_i),
-        bind(fts_literal_query(query)),
+        bind(parse_fts_query(query)),
         bind(user_id)
       ]
 
@@ -92,10 +94,6 @@ class ChatMessageSearchIndex < SearchRecord
 
     def bind(value)
       ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
-    end
-
-    def fts_literal_query(query)
-      %("#{query.to_s.gsub('"', '""')}")
     end
 
     def mark_indexed!(message_id)

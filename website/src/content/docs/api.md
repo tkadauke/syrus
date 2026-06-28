@@ -171,7 +171,9 @@ capped at 100. Results include the result `type`, `id`, `title`, matched
 `snippet`, normalized `rank`, app navigation `path`, state and repository
 context for Jobs and Epics, and `created_at`. Job and Epic slugs such as
 `JOB-123` and `EPIC-456` return the matching record when it belongs to the
-authenticated user.
+authenticated user. Query terms use Google-style matching: `foo bar`
+requires both words in any order, `"foo bar"` searches for the exact phrase,
+and `foo "bar baz"` combines a required word with a required phrase.
 
 ```bash
 curl "https://syrus.example.com/api/v1/app/search?q=deploy&types[]=job&types[]=chat" \

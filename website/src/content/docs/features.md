@@ -113,9 +113,10 @@ wants to fold that section away. Individual chats can be hidden from the
 sidebar and chat search, then restored from the Hidden chats section in user
 settings. In the V2 layout, the sidebar search field opens a dedicated search
 page where operators can search Jobs, Epics, and chat messages from
-one ranked result list, then narrow results to a single type. The older chat
-search page remains available for chat-specific repository, Epic, Job, and
-attachment filters.
+one ranked result list, then narrow results to a single type. Search terms
+use Google-style matching: unquoted words are independent required terms, and
+quoted words search for an exact phrase. The older chat search page remains
+available for chat-specific repository, Epic, Job, and attachment filters.
 The chat composer accepts image and PDF attachments through the plus button
 and sends them with the next message. Image attachments render as inline
 thumbnails in the transcript and open in a full-size preview. The chat

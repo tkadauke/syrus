@@ -58,6 +58,39 @@ RSpec.describe JobSearchIndex do
     expect(results.map { |row| row[:job_id] }).to eq([ own_job.id ])
   end
 
+  it "matches unquoted words as independent AND terms" do
+    matching_job = Factories.job_record(user: user, repository: repo, issue_title: "bar release foo")
+    partial_job = Factories.job_record(user: user, repository: repo, issue_title: "foo only")
+    described_class.upsert(matching_job)
+    described_class.upsert(partial_job)
+
+    results = described_class.search("foo bar", user_id: user.id)
+
+    expect(results.map { |row| row[:job_id] }).to eq([ matching_job.id ])
+  end
+
+  it "preserves quoted phrases" do
+    phrase_job = Factories.job_record(user: user, repository: repo, issue_title: "foo bar release")
+    reordered_job = Factories.job_record(user: user, repository: repo, issue_title: "bar foo release")
+    described_class.upsert(phrase_job)
+    described_class.upsert(reordered_job)
+
+    results = described_class.search('"foo bar"', user_id: user.id)
+
+    expect(results.map { |row| row[:job_id] }).to eq([ phrase_job.id ])
+  end
+
+  it "mixes independent terms with quoted phrases" do
+    matching_job = Factories.job_record(user: user, repository: repo, issue_title: "foo release bar baz")
+    scattered_job = Factories.job_record(user: user, repository: repo, issue_title: "foo bar release baz")
+    described_class.upsert(matching_job)
+    described_class.upsert(scattered_job)
+
+    results = described_class.search('foo "bar baz"', user_id: user.id)
+
+    expect(results.map { |row| row[:job_id] }).to eq([ matching_job.id ])
+  end
+
   it "treats hyphenated queries as FTS literals" do
     job = Factories.job_record(user: user, repository: repo, issue_title: "JOB-1 global search")
     described_class.upsert(job)
@@ -77,6 +110,10 @@ RSpec.describe JobSearchIndex do
 
     expect(results.map { |row| row[:job_id] }).to start_with(stronger.id, weaker.id)
     expect(results.first[:rank]).to be < results.second[:rank]
+  end
+
+  it "parses FTS queries without quoting the whole search string" do
+    expect(described_class.send(:parse_fts_query, 'foo "bar baz" JOB-123')).to eq('foo "bar baz" "JOB-123"')
   end
 
   def prepare_search_tables

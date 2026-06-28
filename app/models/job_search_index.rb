@@ -1,4 +1,6 @@
 class JobSearchIndex < SearchRecord
+  include FtsQueryParser
+
   class << self
     def upsert(job)
       connection.transaction do
@@ -40,7 +42,7 @@ class JobSearchIndex < SearchRecord
         bind(snippet_start.to_s),
         bind(snippet_end.to_s),
         bind(snippet_tokens.to_i),
-        bind(fts_literal_query(query)),
+        bind(parse_fts_query(query)),
         bind(user_id)
       ]
 
@@ -72,10 +74,6 @@ class JobSearchIndex < SearchRecord
 
     def bind(value)
       ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
-    end
-
-    def fts_literal_query(query)
-      %("#{query.to_s.gsub('"', '""')}")
     end
 
     def body_for(job)

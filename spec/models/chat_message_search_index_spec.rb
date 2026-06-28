@@ -53,6 +53,63 @@ RSpec.describe ChatMessageSearchIndex do
     expect(results.map { |row| row[:chat_message_id] }).to eq([ own_message.id ])
   end
 
+  it "matches unquoted words as independent AND terms" do
+    matching_message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "bar release foo" }
+    )
+    partial_message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "foo only" }
+    )
+    described_class.insert(matching_message)
+    described_class.insert(partial_message)
+
+    results = described_class.search("foo bar", user_id: user.id)
+
+    expect(results.map { |row| row[:chat_message_id] }).to eq([ matching_message.id ])
+  end
+
+  it "preserves quoted phrases" do
+    phrase_message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "foo bar release" }
+    )
+    reordered_message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "bar foo release" }
+    )
+    described_class.insert(phrase_message)
+    described_class.insert(reordered_message)
+
+    results = described_class.search('"foo bar"', user_id: user.id)
+
+    expect(results.map { |row| row[:chat_message_id] }).to eq([ phrase_message.id ])
+  end
+
+  it "mixes independent terms with quoted phrases" do
+    matching_message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "foo release bar baz" }
+    )
+    scattered_message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "foo bar release baz" }
+    )
+    described_class.insert(matching_message)
+    described_class.insert(scattered_message)
+
+    results = described_class.search('foo "bar baz"', user_id: user.id)
+
+    expect(results.map { |row| row[:chat_message_id] }).to eq([ matching_message.id ])
+  end
+
   it "treats hyphenated queries as FTS literals" do
     message = ChatMessage.create!(
       chat_session: session,

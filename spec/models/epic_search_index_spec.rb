@@ -57,6 +57,39 @@ RSpec.describe EpicSearchIndex do
     expect(results.map { |row| row[:epic_id] }).to eq([ own_epic.id ])
   end
 
+  it "matches unquoted words as independent AND terms" do
+    matching_epic = Factories.epic(user: user, repository: repo, title: "bar release foo")
+    partial_epic = Factories.epic(user: user, repository: repo, title: "foo only")
+    described_class.upsert(matching_epic)
+    described_class.upsert(partial_epic)
+
+    results = described_class.search("foo bar", user_id: user.id)
+
+    expect(results.map { |row| row[:epic_id] }).to eq([ matching_epic.id ])
+  end
+
+  it "preserves quoted phrases" do
+    phrase_epic = Factories.epic(user: user, repository: repo, title: "foo bar release")
+    reordered_epic = Factories.epic(user: user, repository: repo, title: "bar foo release")
+    described_class.upsert(phrase_epic)
+    described_class.upsert(reordered_epic)
+
+    results = described_class.search('"foo bar"', user_id: user.id)
+
+    expect(results.map { |row| row[:epic_id] }).to eq([ phrase_epic.id ])
+  end
+
+  it "mixes independent terms with quoted phrases" do
+    matching_epic = Factories.epic(user: user, repository: repo, title: "foo release bar baz")
+    scattered_epic = Factories.epic(user: user, repository: repo, title: "foo bar release baz")
+    described_class.upsert(matching_epic)
+    described_class.upsert(scattered_epic)
+
+    results = described_class.search('foo "bar baz"', user_id: user.id)
+
+    expect(results.map { |row| row[:epic_id] }).to eq([ matching_epic.id ])
+  end
+
   it "treats hyphenated queries as FTS literals" do
     epic = Factories.epic(user: user, repository: repo, title: "EPIC-126 global search")
     described_class.upsert(epic)
