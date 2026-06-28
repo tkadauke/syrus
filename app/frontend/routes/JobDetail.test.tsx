@@ -351,7 +351,6 @@ function requestUrl(input: Parameters<typeof fetch>[0]) {
   if (input instanceof Request) return input.url
   return String(input)
 }
-}
 
 function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
   return {
