@@ -20,6 +20,7 @@ import {
   fetchJobTimeline,
   patchJobCommand,
   postJobCommand,
+  submitJobFeedback,
   type JobAttachment,
   type JobDependency,
   type JobDetailPayload,
@@ -115,11 +116,22 @@ function tabFromLocation(pathname: string, search: string): JobTab {
 
 export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
   const location = useLocation()
+  const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
+  const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
   const command = useJobCommand(payload.job.id, queryKey, setNotice)
   const title = payload.job.issue_title || jobSourceLabel(payload)
   const workflowAnchor = location.hash.startsWith("#workflow-") ? location.hash.slice(1) : null
   const renderedWorkflowIds = payload.workflows.map((workflow) => workflow.id).join(",")
+  const feedback = useMutation({
+    mutationFn: (body: string) => submitJobFeedback(payload.job.id, body),
+    onSuccess: () => {
+      setFeedbackPanelOpen(false)
+      setNotice("Feedback submitted — a new workflow will start shortly.")
+      void queryClient.invalidateQueries({ queryKey: ["jobs", String(payload.job.id)] })
+      void queryClient.invalidateQueries({ queryKey })
+    }
+  })
 
   useEffect(() => {
     setNotice(payload.message || null)
@@ -163,12 +175,25 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
               ) : null}
             </div>
           </div>
-          <HeaderActions command={command} payload={payload} />
+          <HeaderActions
+            command={command}
+            feedbackPanelOpen={feedbackPanelOpen}
+            onToggleFeedbackPanel={() => setFeedbackPanelOpen((current) => !current)}
+            payload={payload}
+          />
         </div>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Job command failed.")}</PanelMessage> : null}
+      {feedbackPanelOpen ? (
+        <JobFeedbackPanel
+          error={feedback.error}
+          isPending={feedback.isPending}
+          onCancel={() => setFeedbackPanelOpen(false)}
+          onSubmit={(body) => feedback.mutate(body)}
+        />
+      ) : null}
 
       <TabNav active={activeTab} attachmentsCount={payload.attachments.length} workflowsCount={payload.job.workflows_count} onSelect={onSelectTab} />
 
@@ -200,16 +225,27 @@ function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, onNotice: (me
   })
 }
 
-function HeaderActions({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
+function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFeedbackPanel }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; feedbackPanelOpen: boolean; onToggleFeedbackPanel: () => void }) {
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
   const actions = headerActions(payload)
   const visibleKeys = primaryHeaderActionKeys(payload, actions)
   const visibleActions = visibleKeys.map((key) => actions.find((action) => action.key === key)).filter((action): action is HeaderAction => Boolean(action))
   const overflowActions = actions.filter((action) => !visibleKeys.includes(action.key))
+  const canGiveFeedback = ["implemented", "failed"].includes(payload.job.state)
 
   return (
     <>
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {canGiveFeedback ? (
+          <button
+            aria-expanded={feedbackPanelOpen}
+            className={buttonClass("secondary")}
+            onClick={onToggleFeedbackPanel}
+            type="button"
+          >
+            Give feedback
+          </button>
+        ) : null}
         {visibleActions.map((action) => (
           <CommandButton command={command} input={action.input} key={action.key} tone={action.tone}>{action.label}</CommandButton>
         ))}
@@ -223,6 +259,41 @@ function HeaderActions({ payload, command }: { payload: JobDetailPayload; comman
         />
       ) : null}
     </>
+  )
+}
+
+function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { error: Error | null; isPending: boolean; onCancel: () => void; onSubmit: (body: string) => void }) {
+  const [body, setBody] = useState("")
+  const trimmedBody = body.trim()
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!trimmedBody) return
+
+    onSubmit(trimmedBody)
+  }
+
+  return (
+    <section aria-labelledby="job-feedback-title" className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+      <form className="space-y-3" onSubmit={submit}>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-feedback-title">Give feedback</h2>
+        <textarea
+          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          disabled={isPending}
+          onChange={(event) => setBody(event.target.value)}
+          placeholder="What should be changed?"
+          rows={4}
+          value={body}
+        />
+        {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, "Unable to submit feedback.")}</p> : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">Cancel</button>
+          <button className={buttonClass("primary")} disabled={isPending || !trimmedBody} type="submit">
+            {isPending ? "Submitting..." : "Submit feedback"}
+          </button>
+        </div>
+      </form>
+    </section>
   )
 }
 

@@ -1,11 +1,15 @@
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { JobDetailPayload, JobWorkflow } from "../api/jobs"
 import { FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
 
 describe("JobDetailView", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it("links the origin chat from the job header", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -24,6 +28,72 @@ describe("JobDetailView", () => {
 
     expect(screen.getByRole("link", { name: "Job proposal in Roadmap chat" }))
       .toHaveAttribute("href", "/app-shell/chats/4#message-12")
+  })
+
+  it.each(["implemented", "failed"])("renders the Give feedback button for %s jobs", (state) => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state, summary_state: state }
+    }))
+
+    expect(screen.getByRole("button", { name: "Give feedback" })).toBeInTheDocument()
+  })
+
+  it("hides the Give feedback button for other job states", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "running", summary_state: "running" }
+    }))
+
+    expect(screen.queryByRole("button", { name: "Give feedback" })).not.toBeInTheDocument()
+  })
+
+  it("expands the feedback panel and disables Submit when the body is empty", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+
+    expect(screen.getByPlaceholderText("What should be changed?")).toHaveAttribute("rows", "4")
+    expect(screen.getByRole("button", { name: "Submit feedback" })).toBeDisabled()
+  })
+
+  it("submits feedback, collapses the panel, and shows a success notice", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, { status: 201 }))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Tighten the copy." } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ body: "Tighten the copy." })
+      }))
+    })
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ "Content-Type": "application/json" })
+    }))
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText("What should be changed?")).not.toBeInTheDocument()
+    })
+    expect(screen.getByText("Feedback submitted — a new workflow will start shortly.")).toBeInTheDocument()
+  })
+
+  it("shows an inline error when feedback submission fails", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { message: "Job already has active feedback." } }, { status: 422 }))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "failed", summary_state: "failed" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Try another approach." } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Job already has active feedback.")
+    expect(screen.getByPlaceholderText("What should be changed?")).toBeInTheDocument()
   })
 
   it("renders the issue body as markdown", () => {
@@ -324,4 +394,11 @@ function workflow(overrides: Partial<JobWorkflow>): JobWorkflow {
     steps: [],
     ...overrides
   }
+}
+
+function jsonResponse(payload: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(payload), {
+    status: init.status ?? 200,
+    headers: { "Content-Type": "application/json", ...init.headers }
+  })
 }
