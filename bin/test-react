@@ -2,15 +2,7 @@
 # Runs React/TypeScript unit tests for the SPA migration.
 set -euo pipefail
 
-status=0
+npm run typecheck
 
-npm run typecheck &
-typecheck_pid=$!
-
-npx vitest run &
-vitest_pid=$!
-
-wait "$vitest_pid" || status=$?
-wait "$typecheck_pid" || status=$?
-
-exit "$status"
+vitest_max_workers="${VITEST_MAX_WORKERS:-2}"
+npx vitest run --maxWorkers "$vitest_max_workers"
