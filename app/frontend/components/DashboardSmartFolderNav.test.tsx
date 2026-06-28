@@ -181,6 +181,17 @@ describe("DashboardSmartFolderNav", () => {
     expect(savedNav).not.toContainElement(menu)
   })
 
+  it("keeps saved folder text aligned while floating the drag handle", () => {
+    renderNav([folder({})])
+
+    const savedLink = screen.getByRole("link", { name: "Saved work 3" })
+    const savedRow = savedLink.parentElement
+
+    expect(savedRow).not.toBeNull()
+    expect(savedLink.querySelector("svg")).toBeNull()
+    expect(savedRow!.querySelector("svg")).toHaveClass("absolute", "-left-4")
+  })
+
   it("patches saved folder positions after drag reordering", async () => {
     renderNav([
       folder({ id: 1, name: "Review", position: 0, count: 0 }),

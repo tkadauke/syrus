@@ -392,10 +392,10 @@ function SmartFolderLink({
             </div>
           ) : (
             <Link aria-label={`${folder.name} ${folder.count}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-l px-2 py-1.5 text-sm" onClick={onSelect} to={withRoutePrefix(folder.path, prefix)}>
-              {showDragHandle ? <GripIcon /> : null}
               <span className="truncate">{folder.name}</span>
             </Link>
           )}
+          {showDragHandle ? <GripIcon floating /> : null}
           <div className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center">
             {showActions ? (
               <button
@@ -479,9 +479,9 @@ function reorderFolders(folders: DashboardSmartFolder[], sourceIndex: number, ta
   return reordered
 }
 
-function GripIcon() {
+function GripIcon({ floating = false }: { floating?: boolean }) {
   return (
-    <svg aria-hidden="true" className="-ml-1 size-4 shrink-0 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:text-gray-500" fill="none" viewBox="0 0 16 16">
+    <svg aria-hidden="true" className={`${floating ? "pointer-events-none absolute -left-4 top-1/2 -translate-y-1/2" : "-ml-1 shrink-0"} size-4 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500`} fill="none" viewBox="0 0 16 16">
       <circle cx="6" cy="4" fill="currentColor" r="1" />
       <circle cx="10" cy="4" fill="currentColor" r="1" />
       <circle cx="6" cy="8" fill="currentColor" r="1" />
