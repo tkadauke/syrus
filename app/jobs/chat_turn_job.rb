@@ -3,6 +3,7 @@ require "fileutils"
 require "open3"
 require "securerandom"
 require "tempfile"
+require "tmpdir"
 
 class ChatTurnJob < ApplicationJob
   CONCURRENCY_GROUP = "repository_chat"
@@ -60,21 +61,24 @@ class ChatTurnJob < ApplicationJob
     attachment_context = attachment_context_for(workspace_path)
 
     result = with_chat_mcp_config do |mcp_config|
-      ClaudeInvocation.new(
-        workspace_path,
-        prompt: prompt_for(parent_session_id, user_text: attachment_context.fetch(:user_text)),
-        oauth_token: @chat.user.claude_oauth_token,
-        log_sink: method(:record_agent_event),
-        runner: self.class.agent_runner,
-        max_turns: nil,
-        mcp_config: mcp_config,
-        image_paths: attachment_context.fetch(:image_paths),
-        file_paths: attachment_context.fetch(:file_paths),
-        resume_session_id: parent_session_id,
-        disallowed_tools: DISALLOWED_CLAUDE_TOOLS,
-        stop_requested: method(:stop_requested?),
-        process_started: ->(_process) { @chat.broadcast_controls }
-      ).run
+      with_git_askpass_env do |agent_env|
+        ClaudeInvocation.new(
+          workspace_path,
+          prompt: prompt_for(parent_session_id, user_text: attachment_context.fetch(:user_text)),
+          oauth_token: @chat.user.claude_oauth_token,
+          log_sink: method(:record_agent_event),
+          runner: self.class.agent_runner,
+          max_turns: nil,
+          mcp_config: mcp_config,
+          image_paths: attachment_context.fetch(:image_paths),
+          file_paths: attachment_context.fetch(:file_paths),
+          resume_session_id: parent_session_id,
+          disallowed_tools: DISALLOWED_CLAUDE_TOOLS,
+          env: agent_env,
+          stop_requested: method(:stop_requested?),
+          process_started: ->(_process) { @chat.broadcast_controls }
+        ).run
+      end
     end
 
     capture_session!(result) if result
@@ -189,6 +193,24 @@ class ChatTurnJob < ApplicationJob
       "SYRUS_CHAT_MCP_TOOL_TIER" => tool_tier,
       "SYRUS_CHAT_MCP_SERVER_NAME" => server_name
     )
+  end
+
+  def with_git_askpass_env
+    env = { "GIT_TERMINAL_PROMPT" => "0" }
+    repository = @chat.repository
+    return yield env unless repository
+
+    askpass_path = nil
+    Tempfile.create([ "git-askpass-#{SecureRandom.uuid}-", ".sh" ], Dir.tmpdir) do |file|
+      askpass_path = file.path
+      token = GithubClient.for(repository: repository, user: @chat.user).access_token
+      file.write("#!/bin/sh\necho \"x-access-token:#{token}\"\n")
+      file.flush
+      File.chmod(0o700, askpass_path)
+      yield env.merge("GIT_ASKPASS" => askpass_path)
+    ensure
+      FileUtils.rm_f(askpass_path) if askpass_path
+    end
   end
 
   def record_agent_event(chunk, kind: nil, tool_name: nil, tool_input: nil,

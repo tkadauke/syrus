@@ -11,6 +11,7 @@ class ClaudeInvocation
                  file_paths: nil,
                  resume_session_id: nil,
                  disallowed_tools: nil,
+                 env: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { })
     @workspace_path = workspace_path.to_s
@@ -25,6 +26,7 @@ class ClaudeInvocation
     @file_paths = Array(file_paths).compact
     @resume_session_id = resume_session_id
     @disallowed_tools = Array(disallowed_tools).compact
+    @env = env || {}
     @stop_requested = stop_requested
     @process_started = process_started
   end
@@ -42,6 +44,7 @@ class ClaudeInvocation
       file_paths: @file_paths,
       resume_session_id: @resume_session_id,
       disallowed_tools: @disallowed_tools,
+      env: @env,
       stop_requested: @stop_requested,
       process_started: @process_started
     )
@@ -60,9 +63,10 @@ class ClaudeInvocation
   # trust posture as letting a human dev pair on a branch.
   def default_runner(workspace_path:, prompt:, oauth_token:, log_sink:, timeout:,
                      max_turns:, mcp_config: nil, image_paths: nil, file_paths: nil, resume_session_id: nil,
+                     env: nil,
                      disallowed_tools: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { })
-    env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path)
+    env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path).merge(env || {})
     cmd = [ "claude", "--print" ]
     # `--mcp-config <configs...>` is variadic — claude keeps consuming
     # subsequent positional args as additional configs until it sees

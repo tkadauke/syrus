@@ -230,6 +230,65 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).to include("Use `attach_repository(slug)`")
   end
 
+  it "passes a temporary git askpass helper to Claude for attached repositories and deletes it after success" do
+    allow(GithubClient).to receive(:for)
+      .with(repository: repository, user: user)
+      .and_return(instance_double(GithubClient, access_token: "ghp-chat-token"))
+    askpass_path = nil
+
+    ChatTurnJob.agent_runner = ->(env:, **_) {
+      askpass_path = env.fetch("GIT_ASKPASS")
+      expect(env.fetch("GIT_TERMINAL_PROMPT")).to eq("0")
+      expect(File.exist?(askpass_path)).to eq(true)
+      expect(File.dirname(askpass_path)).to eq(Dir.tmpdir)
+      expect(format("%o", File.stat(askpass_path).mode & 0o777)).to eq("700")
+      expect(File.read(askpass_path)).to eq("#!/bin/sh\necho \"x-access-token:ghp-chat-token\"\n")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(askpass_path).to be_present
+    expect(File.exist?(askpass_path)).to eq(false)
+  end
+
+  it "deletes the temporary git askpass helper when Claude raises" do
+    allow(GithubClient).to receive(:for)
+      .with(repository: repository, user: user)
+      .and_return(instance_double(GithubClient, access_token: "ghp-chat-token"))
+    askpass_path = nil
+
+    ChatTurnJob.agent_runner = ->(env:, **_) {
+      askpass_path = env.fetch("GIT_ASKPASS")
+      expect(File.exist?(askpass_path)).to eq(true)
+      raise "agent failed"
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(askpass_path).to be_present
+    expect(File.exist?(askpass_path)).to eq(false)
+  end
+
+  it "does not pass git askpass to Claude when no repository is attached" do
+    top_level_chat = ChatSession.create!(user: user)
+    message = top_level_chat.messages.create!(role: "user", content: { text: "Inspect tkadauke/syrus" })
+    top_level_path = workspace_root.join("top-level-no-askpass")
+    allow(ChatWorkspace).to receive(:path_for).with(top_level_chat).and_return(top_level_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(top_level_chat).and_return(top_level_path)
+
+    expect(GithubClient).not_to receive(:for)
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(top_level_chat.id, message.id)
+
+    expect(received[:env]).to eq("GIT_TERMINAL_PROMPT" => "0")
+  end
+
   it "preserves existing usage totals when invocation result usage fields are nil" do
     chat.update!(
       cumulative_input_tokens: 10,

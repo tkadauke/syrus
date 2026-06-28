@@ -26,6 +26,7 @@ RSpec.describe ClaudeInvocation do
       expect(received[:image_paths]).to eq([])
       expect(received[:file_paths]).to eq([])
       expect(received[:disallowed_tools]).to eq([])
+      expect(received[:env]).to eq({})
       expect(received[:stop_requested].call).to eq(false)
       expect(received[:process_started]).to respond_to(:call)
       expect(result.turns).to eq(2)
@@ -59,6 +60,23 @@ RSpec.describe ClaudeInvocation do
 
       expect(received[:image_paths]).to eq([ "/tmp/foo.png" ])
       expect(received[:file_paths]).to eq([ "/tmp/bar.pdf" ])
+    end
+
+    it "passes extra environment through to the runner when set" do
+      received = {}
+      runner = ->(**kwargs) {
+        received.merge!(kwargs)
+        result_fixture
+      }
+
+      described_class.new("/tmp/wkt", prompt: "x", oauth_token: "x",
+                          runner: runner,
+                          env: { "GIT_ASKPASS" => "/tmp/askpass.sh", "GIT_TERMINAL_PROMPT" => "0" }).run
+
+      expect(received[:env]).to eq(
+        "GIT_ASKPASS" => "/tmp/askpass.sh",
+        "GIT_TERMINAL_PROMPT" => "0"
+      )
     end
   end
 
