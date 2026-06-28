@@ -87,6 +87,14 @@ class TerminalRelay
   def relay(pty_out, pty_in, conn, pid)
     stop = false
     stop_lock = Mutex.new
+    stop_connection = lambda do
+      stop_lock.synchronize do
+        unless stop
+          stop = true
+          close_io(conn)
+        end
+      end
+    end
     stop_relay = lambda do |close_pty: false|
       stop_lock.synchronize do
         unless stop
@@ -104,6 +112,7 @@ class TerminalRelay
       begin
         until stop
           next unless readable?(pty_out)
+          break if stop
 
           data = begin
             pty_out.read_nonblock(READ_CHUNK_BYTES)
@@ -111,11 +120,12 @@ class TerminalRelay
             stop_relay.call(close_pty: true)
             next
           end
+          break if stop
 
           begin
             conn.write(data)
           rescue IOError, SystemCallError
-            stop_relay.call(close_pty: false)
+            stop_connection.call
           end
         end
       end
@@ -147,8 +157,8 @@ class TerminalRelay
 
           control_buffer = handle_conn_data(data, control_buffer, pty_in)
         end
-      rescue IOError, SystemCallError
-        stop_relay.call(close_pty: true)
+      rescue EOFError, Errno::EIO, IOError, SystemCallError
+        stop_connection.call
       end
     end
 

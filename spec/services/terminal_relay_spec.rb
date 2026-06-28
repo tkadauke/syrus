@@ -138,28 +138,25 @@ RSpec.describe TerminalRelay do
 
   it "allows a second client to reconnect after the first disconnects" do
     relay, child_output_write, pty_input_read, = build_relay
-    pty_alive_calls = 0
-    allow(relay).to receive(:pty_alive?).with(pid) do
-      pty_alive_calls += 1
-      pty_alive_calls == 1
-    end
+    pty_alive = true
+    allow(relay).to receive(:pty_alive?).with(pid) { pty_alive }
     thread = run_relay(relay)
     thread[:terminal_relay_spec] = true
     first_socket = connect_and_auth
 
     first_socket.close
-    Timeout.timeout(2) { sleep 0.01 until pty_alive_calls == 1 }
     second_socket = connect_and_auth
 
     expect(session.reload).to be_running
-
-    child_output_write.write("after reconnect")
-    expect(read_available(second_socket)).to eq("after reconnect")
 
     second_socket.write({ type: "input", data: "from second client" }.to_json)
     second_socket.write("\n")
     expect(read_available(pty_input_read)).to eq("from second client")
 
+    child_output_write.write("after reconnect")
+    expect(read_available(second_socket)).to eq("after reconnect")
+
+    pty_alive = false
     second_socket.close
     thread.join(2)
     expect(session.reload).to be_finished
