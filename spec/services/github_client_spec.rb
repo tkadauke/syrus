@@ -183,6 +183,47 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#compare_files" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+
+    it "extracts changed file metadata and patches from the compare API" do
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/compare/main...syrus/issue-42")
+        .with(query: hash_including("per_page" => "100"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            files: [
+              {
+                filename: "app/models/user.rb",
+                status: "modified",
+                additions: 4,
+                deletions: 1,
+                patch: "@@ -1 +1 @@\n-old\n+new"
+              },
+              {
+                filename: "public/logo.png",
+                status: "added",
+                additions: 0,
+                deletions: 0
+              }
+            ]
+          }.to_json
+        )
+
+      result = client.compare_files("acme/widgets", "main", "syrus/issue-42")
+
+      expect(result).to eq(
+        files: [
+          { path: "app/models/user.rb", status: "modified", additions: 4, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" },
+          { path: "public/logo.png", status: "added", additions: 0, deletions: 0, patch: nil }
+        ],
+        truncated: false
+      )
+      expect(stub).to have_been_requested
+    end
+  end
+
   describe "#merge_pull_request" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 

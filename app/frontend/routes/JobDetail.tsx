@@ -17,6 +17,7 @@ import {
   fetchJobGradeLog,
   fetchJobRunArtifacts,
   fetchJobSource,
+  fetchJobSourceDiff,
   fetchJobTimeline,
   patchJobCommand,
   postJobCommand,
@@ -24,6 +25,7 @@ import {
   type JobDependency,
   type JobDetailPayload,
   type JobRun,
+  type JobSourceDiffPayload,
   type JobSourcePayload,
   type JobStep,
   type JobTestPlan,
@@ -1497,31 +1499,65 @@ function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
 }
 
 function SourceTab({ jobId }: { jobId: string }) {
+  const [mode, setMode] = useState<"browse" | "diff">("browse")
   const [sourceRef, setSourceRef] = useState<string | null>(null)
   const [sourcePath, setSourcePath] = useState<string | null>(null)
+  const [diffBaseRef, setDiffBaseRef] = useState<string | null>(null)
+  const [diffHeadRef, setDiffHeadRef] = useState<string | null>(null)
   const search = sourceSearch(sourceRef, sourcePath)
+  const diffSearch = sourceDiffSearch(diffBaseRef, diffHeadRef)
   const source = useQuery({
     queryKey: ["jobs", jobId, "source", search],
     queryFn: () => fetchJobSource(jobId, search)
+  })
+  const sourceDiff = useQuery({
+    enabled: mode === "diff",
+    queryKey: ["jobs", jobId, "source_diff", diffSearch],
+    queryFn: () => fetchJobSourceDiff(jobId, diffSearch)
   })
 
   if (source.isPending) return <PanelMessage>Loading source browser...</PanelMessage>
   if (source.isError) return <PanelMessage tone="error">{errorMessage(source.error, "Unable to load source browser.")}</PanelMessage>
 
-  return <SourceBrowser payload={source.data} onSelectPath={(path) => {
+  if (mode === "diff") {
+    if (sourceDiff.isPending) {
+      return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage>Loading diff...</PanelMessage></SourceShell>
+    }
+    if (sourceDiff.isError) {
+      return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage tone="error">{errorMessage(sourceDiff.error, "Unable to load diff.")}</PanelMessage></SourceShell>
+    }
+
+    return <SourceDiffBrowser mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
+  }
+
+  return <SourceBrowser mode={mode} onModeChange={setMode} payload={source.data} onSelectPath={(path) => {
     setSourceRef(source.data.selected_ref)
     setSourcePath(path)
   }} onSelectRef={(ref) => {
     setSourceRef(ref)
     setSourcePath(null)
-  }} />
+  }} showDiffToggle={source.data.branch_commits.length > 0} />
 }
 
-function SourceBrowser({ payload, onSelectPath, onSelectRef }: { payload: JobSourcePayload; onSelectPath: (path: string) => void; onSelectRef: (ref: string) => void }) {
+function SourceBrowser({
+  mode,
+  onModeChange,
+  payload,
+  onSelectPath,
+  onSelectRef,
+  showDiffToggle
+}: {
+  mode: "browse" | "diff"
+  onModeChange: (mode: "browse" | "diff") => void
+  payload: JobSourcePayload
+  onSelectPath: (path: string) => void
+  onSelectRef: (ref: string) => void
+  showDiffToggle: boolean
+}) {
   const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
   const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
-  const refOptions = refOptionsFor(payload)
+  const refOptions = refOptionsFor(payload, [payload.selected_ref])
 
   if (payload.source_error) return <PanelMessage tone="error">{payload.source_error}</PanelMessage>
 
@@ -1538,7 +1574,7 @@ function SourceBrowser({ payload, onSelectPath, onSelectRef }: { payload: JobSou
   }
 
   return (
-    <section className="space-y-3">
+    <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="text-sm text-gray-600 dark:text-gray-300">
           Viewing
@@ -1576,8 +1612,131 @@ function SourceBrowser({ payload, onSelectPath, onSelectRef }: { payload: JobSou
           ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">Select a file to view its contents.</div>}
         </div>
       </div>
+    </SourceShell>
+  )
+}
+
+function SourceShell({
+  children,
+  mode,
+  onModeChange,
+  showDiffToggle
+}: {
+  children: ReactNode
+  mode: "browse" | "diff"
+  onModeChange: (mode: "browse" | "diff") => void
+  showDiffToggle: boolean
+}) {
+  return (
+    <section className="space-y-3">
+      {showDiffToggle ? (
+        <div className="inline-flex rounded border border-gray-300 bg-white p-0.5 text-sm dark:border-gray-700 dark:bg-gray-950">
+          {(["browse", "diff"] as const).map((option) => (
+            <button
+              className={`rounded px-3 py-1 ${mode === option ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-900"}`}
+              key={option}
+              onClick={() => onModeChange(option)}
+              type="button"
+            >
+              {option === "browse" ? "Browse" : "Diff"}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {children}
     </section>
   )
+}
+
+function SourceDiffBrowser({
+  mode,
+  onModeChange,
+  onSelectBaseRef,
+  onSelectHeadRef,
+  payload,
+  showDiffToggle
+}: {
+  mode: "browse" | "diff"
+  onModeChange: (mode: "browse" | "diff") => void
+  onSelectBaseRef: (ref: string) => void
+  onSelectHeadRef: (ref: string) => void
+  payload: JobSourceDiffPayload
+  showDiffToggle: boolean
+}) {
+  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
+  const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
+
+  useEffect(() => {
+    if (selectedPath && !payload.files.some((file) => file.path === selectedPath)) setSelectedPath(null)
+  }, [payload.files, selectedPath])
+
+  if (payload.diff_error) return <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}><PanelMessage tone="error">{payload.diff_error}</PanelMessage></SourceShell>
+
+  return (
+    <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm text-gray-600 dark:text-gray-300">
+            From
+            <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectBaseRef(event.target.value)} value={payload.base_ref || ""}>
+              {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="text-sm text-gray-600 dark:text-gray-300">
+            To
+            <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectHeadRef(event.target.value)} value={payload.head_ref || ""}>
+              {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+        </div>
+        {payload.truncated ? <span className="text-xs text-amber-700">Diff truncated by GitHub.</span> : null}
+      </div>
+      <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
+        <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
+          {payload.files.length > 0 ? payload.files.map((file) => (
+            <button
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-blue-50 dark:hover:bg-blue-950/40 ${selectedFile?.path === file.path ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200" : "text-gray-700 dark:text-gray-300"}`}
+              key={file.path}
+              onClick={() => setSelectedPath(file.path)}
+              title={`${file.path} (+${file.additions} -${file.deletions})`}
+              type="button"
+            >
+              <SourceDiffStatusBadge status={file.status} />
+              <span className="min-w-0 flex-1 truncate">{file.path}</span>
+            </button>
+          )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">No changed files found.</p>}
+        </div>
+        <div className="min-w-0 overflow-auto">
+          {selectedFile ? (
+            selectedFile.patch !== null ? (
+              <>
+                <div className="sticky top-0 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+                  <span className="min-w-0 flex-1 truncate">{selectedFile.path}</span>
+                  <span>+{selectedFile.additions}</span>
+                  <span>-{selectedFile.deletions}</span>
+                </div>
+                <AgentDiff diff={selectedFile.patch} />
+              </>
+            ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">Diff not available (binary or very large file).</div>
+          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">Select a file to view its diff.</div>}
+        </div>
+      </div>
+    </SourceShell>
+  )
+}
+
+function SourceDiffStatusBadge({ status }: { status: string }) {
+  const normalized = status.toLowerCase()
+  const styles: Record<string, string> = {
+    added: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",
+    modified: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200",
+    removed: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-200",
+    renamed: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200"
+  }
+  const labels: Record<string, string> = { added: "A", modified: "M", removed: "D", renamed: "R" }
+
+  return <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-semibold ${styles[normalized] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{labels[normalized] || normalized.slice(0, 1).toUpperCase()}</span>
 }
 
 type SourceTreeFile = JobSourcePayload["tree_items"][number]
@@ -1678,11 +1837,15 @@ function SourceTreeRow({
   )
 }
 
-function refOptionsFor(payload: JobSourcePayload) {
+type SourceRefPayload = Pick<JobSourcePayload, "merge_base_sha" | "default_ref" | "branch_commits">
+
+function refOptionsFor(payload: SourceRefPayload, activeRefs: Array<string | null | undefined> = []) {
   const options = new Map<string, string>()
   options.set(payload.merge_base_sha || payload.default_ref, `Merge base (${(payload.merge_base_sha || payload.default_ref).slice(0, 7)})`)
   payload.branch_commits.forEach((commit) => options.set(commit.sha, `${commit.short_sha} ${commit.message}`))
-  if (!options.has(payload.selected_ref)) options.set(payload.selected_ref, payload.selected_ref.slice(0, 12))
+  activeRefs.forEach((ref) => {
+    if (ref && !options.has(ref)) options.set(ref, ref.slice(0, 12))
+  })
 
   return Array.from(options, ([value, label]) => ({ value, label }))
 }
@@ -1691,6 +1854,14 @@ function sourceSearch(ref: string | null, path: string | null) {
   const params = new URLSearchParams()
   if (ref) params.set("ref", ref)
   if (path) params.set("path", path)
+  const value = params.toString()
+  return value ? `?${value}` : ""
+}
+
+function sourceDiffSearch(baseRef: string | null, headRef: string | null) {
+  const params = new URLSearchParams()
+  if (baseRef) params.set("base", baseRef)
+  if (headRef) params.set("head", headRef)
   const value = params.toString()
   return value ? `?${value}` : ""
 }

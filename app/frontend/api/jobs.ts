@@ -397,6 +397,18 @@ export type JobSourcePayload = {
   paths: Pick<JobPaths, "job_path" | "source_path" | "app_source_path">
 }
 
+export type JobSourceDiffPayload = {
+  job_id: number
+  base_ref: string | null
+  head_ref: string | null
+  merge_base_sha: string | null
+  default_ref: string
+  branch_commits: Array<{ sha: string; short_sha: string; message: string; date: string | null }>
+  files: Array<{ path: string; status: string; additions: number; deletions: number; patch: string | null }>
+  truncated: boolean
+  diff_error: string | null
+}
+
 export type JobCommandPayload = {
   message?: string | null
   redirect_to?: string
@@ -434,6 +446,10 @@ export function fetchJobTimeline(id: string) {
 
 export function fetchJobSource(id: string, search = "") {
   return getJson<JobSourcePayload>(`/api/v1/app/jobs/${id}/source${search}`)
+}
+
+export function fetchJobSourceDiff(id: string, search = "") {
+  return getJson<JobSourceDiffPayload>(`/api/v1/app/jobs/${id}/source_diff${search}`)
 }
 
 export function fetchJobGradeLog(path: string) {

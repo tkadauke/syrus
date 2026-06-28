@@ -61,6 +61,7 @@ Rails.application.routes.draw do
         get "jobs", to: "jobs#index"
         post "jobs", to: "direct_jobs#create"
         get "jobs/:id/source", to: "jobs#source", constraints: { id: /\d+/ }
+        get "jobs/:id/source_diff", to: "jobs#source_diff", constraints: { id: /\d+/ }
         get "jobs/:id/timeline", to: "jobs#timeline", constraints: { id: /\d+/ }
         get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /\d+/ }
         get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /\d+/ }

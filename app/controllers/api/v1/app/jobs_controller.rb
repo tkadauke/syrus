@@ -27,6 +27,10 @@ module Api
           render json: ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params)
         end
 
+        def source_diff
+          render json: ::App::JobSourceDiffPayload.build(job: find_job, user: Current.user, params: params)
+        end
+
         def timeline
           unless Current.user&.admin?
             render_error("forbidden", "Admin access required.", status: :forbidden)

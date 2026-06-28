@@ -9383,6 +9383,60 @@ describe("App", () => {
     expect(await screen.findByText(/class User/)).toBeInTheDocument()
   })
 
+  it("switches the Job source browser into diff mode", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/source_diff") {
+        return Promise.resolve(new Response(JSON.stringify(jobSourceDiffPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/jobs/42/source_diff?")) {
+        return Promise.resolve(new Response(JSON.stringify(jobSourceDiffPayload({ baseRef: "deadbeef12345678", headRef: "aabbccdd1234567" })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/jobs/42/source") {
+        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/jobs/42/timeline") {
+        return Promise.resolve(new Response(JSON.stringify(jobTimelinePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(jobDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=source"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "app" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    expect(await screen.findByText("Select a file to view its diff.")).toBeInTheDocument()
+    expect(screen.getByText("app/models/user.rb")).toBeInTheDocument()
+    expect(screen.getByText("public/logo.png")).toBeInTheDocument()
+    expect(screen.queryByText("README.md")).not.toBeInTheDocument()
+    expect(screen.getByText("M")).toBeInTheDocument()
+    expect(screen.getByText("A")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("app/models/user.rb"))
+    expect(await screen.findByTestId("agent-diff-viewer")).toBeInTheDocument()
+    expect(screen.getByText("old")).toBeInTheDocument()
+    expect(screen.getByText("new")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("public/logo.png"))
+    expect(screen.getByText("Diff not available (binary or very large file).")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "deadbeef12345678" } })
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/source_diff?base=deadbeef12345678",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
+    })
+  })
+
   it("dispatches Job header commands through the app API", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)
     const commandPaths = new Map([
@@ -14607,6 +14661,25 @@ function jobSourcePayload(overrides: { withFile?: boolean } = {}) {
       source_path: "/jobs/42/source",
       app_source_path: "/api/v1/app/jobs/42/source"
     }
+  }
+}
+
+function jobSourceDiffPayload(overrides: { baseRef?: string; headRef?: string } = {}) {
+  return {
+    job_id: 42,
+    base_ref: overrides.baseRef || "aabbccdd1234567",
+    head_ref: overrides.headRef || "deadbeef12345678",
+    merge_base_sha: "aabbccdd1234567",
+    default_ref: "main",
+    branch_commits: [
+      { sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair aqueduct", date: "2026-05-30T11:00:00Z" }
+    ],
+    files: [
+      { path: "app/models/user.rb", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" },
+      { path: "public/logo.png", status: "added", additions: 0, deletions: 0, patch: null }
+    ],
+    truncated: false,
+    diff_error: null
   }
 }
 
