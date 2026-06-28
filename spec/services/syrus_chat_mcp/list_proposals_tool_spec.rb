@@ -53,6 +53,8 @@ RSpec.describe SyrusChatMcp::ListProposalsTool do
         state: "proposed",
         labels: %w[syrus],
         dependencies: [],
+        depends_on_epic_ids: [],
+        depends_on_job_ids: [],
         repository: repository.slug,
         target_epic: nil,
         materialized: nil
@@ -66,6 +68,8 @@ RSpec.describe SyrusChatMcp::ListProposalsTool do
         state: "withdrawn",
         labels: [],
         dependencies: %w[root],
+        depends_on_epic_ids: [],
+        depends_on_job_ids: [],
         repository: repository.slug,
         target_epic: nil,
         materialized: {
