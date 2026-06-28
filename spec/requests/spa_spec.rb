@@ -115,6 +115,19 @@ RSpec.describe "SPA shell", type: :request do
     end
   end
 
+  it "serves top-level app routes through the SPA shell" do
+    user = Factories.user
+    sign_in_as(user)
+
+    [ notifications_path, memories_path, search_chats_path ].each do |path|
+      get path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('id="syrus-spa-root"')
+      expect(response.body).to include('id="syrus-bootstrap-data"')
+    end
+  end
+
   it "requires authentication for canonical dashboard routes" do
     Factories.user
 

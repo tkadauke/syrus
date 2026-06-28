@@ -336,10 +336,13 @@ Rails.application.routes.draw do
   get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
 
   get "chats/new", to: "spa#show", as: :new_chat
+  get "chats/search", to: "spa#show", as: :search_chats
   get "chats/:id", to: "spa#show", as: :chat, constraints: { id: /\d+/ }
 
   get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
   get "documents", to: "spa#show", as: :documents
+  get "memories", to: "spa#show", as: :memories
+  get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings
   get "profiles", to: "spa#show", as: :profiles
   get "profiles/:id", to: "spa#show", as: :profile, constraints: { id: /\d+/ }
