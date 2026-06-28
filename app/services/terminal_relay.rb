@@ -6,6 +6,8 @@ require "socket"
 class TerminalRelay
   DEFAULT_RELAY_HOST = "127.0.0.1".freeze
   SELECT_TIMEOUT_SECONDS = 0.1
+  RELAY_ADDRESS_TIMEOUT = 10
+  RECONNECT_TIMEOUT = 120
   KILL_POLL_INTERVAL_SECONDS = 5
   READ_CHUNK_BYTES = 16 * 1024
 
@@ -28,13 +30,29 @@ class TerminalRelay
     @session.update!(relay_address: "#{host}:#{port}")
 
     spawn_pty do |pty_out, pty_in, pid|
-      conn = server.accept
-      server.close
-      server = nil
+      conn = nil
+      first_connection = true
 
-      relay(pty_out, pty_in, conn, pid) if authenticate!(conn)
+      loop do
+        timeout = first_connection ? RELAY_ADDRESS_TIMEOUT : RECONNECT_TIMEOUT
+        break unless wait_for_connection(server, timeout, pid)
+
+        conn = server.accept_nonblock
+        first_connection = false
+
+        break unless authenticate!(conn)
+
+        relay(pty_out, pty_in, conn, pid)
+        close_io(conn)
+        conn = nil
+
+        break if session_finished?
+        break unless pty_alive?(pid)
+      end
     ensure
       close_io(conn)
+      close_io(pty_out)
+      close_io(pty_in)
       terminate_pid(pid) if pid
       wait_pid(pid) if pid
     end
@@ -111,15 +129,31 @@ class TerminalRelay
 
     [ pty_thread, conn_thread ].each(&:join)
   ensure
-    close_io(pty_out)
-    close_io(pty_in)
     close_io(conn)
+  end
+
+  def wait_for_connection(server, timeout, pid)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+
+    loop do
+      remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      return false unless remaining.positive?
+
+      return true if IO.select([ server ], nil, nil, [ SELECT_TIMEOUT_SECONDS, remaining ].min)
+      return false unless pty_alive?(pid)
+    end
+  rescue IOError, SystemCallError
+    false
   end
 
   def readable?(io)
     IO.select([ io ], nil, nil, SELECT_TIMEOUT_SECONDS)
   rescue IOError, SystemCallError
     false
+  end
+
+  def session_finished?
+    @session.reload.finished_at.present?
   end
 
   def handle_conn_data(data, control_buffer, pty_in)
@@ -179,6 +213,12 @@ class TerminalRelay
     Process.wait(pid)
   rescue Errno::ECHILD, Errno::ESRCH
     nil
+  end
+
+  def pty_alive?(pid)
+    Process.waitpid(pid, Process::WNOHANG).nil?
+  rescue Errno::ECHILD, Errno::ESRCH
+    false
   end
 
   def close_io(io)

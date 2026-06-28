@@ -136,6 +136,81 @@ RSpec.describe TerminalRelay do
     pty_input_read&.close unless pty_input_read&.closed?
   end
 
+  it "allows a second client to reconnect after the first disconnects" do
+    relay, child_output_write, pty_input_read, = build_relay
+    pty_alive_calls = 0
+    allow(relay).to receive(:pty_alive?).with(pid) do
+      pty_alive_calls += 1
+      pty_alive_calls == 1
+    end
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    first_socket = connect_and_auth
+
+    first_socket.close
+    Timeout.timeout(2) { sleep 0.01 until pty_alive_calls == 1 }
+    second_socket = connect_and_auth
+
+    expect(session.reload).to be_running
+
+    child_output_write.write("after reconnect")
+    expect(read_available(second_socket)).to eq("after reconnect")
+
+    second_socket.write({ type: "input", data: "from second client" }.to_json)
+    second_socket.write("\n")
+    expect(read_available(pty_input_read)).to eq("from second client")
+
+    second_socket.close
+    thread.join(2)
+    expect(session.reload).to be_finished
+    expect(session.outcome).to eq("exited")
+  ensure
+    first_socket&.close unless first_socket&.closed?
+    second_socket&.close unless second_socket&.closed?
+    child_output_write&.close unless child_output_write&.closed?
+    pty_input_read&.close unless pty_input_read&.closed?
+  end
+
+  it "finalizes the session when the reconnect timeout expires" do
+    stub_const("#{described_class}::RECONNECT_TIMEOUT", 0.05)
+    relay, child_output_write, pty_input_read, = build_relay
+    allow(relay).to receive(:pty_alive?).with(pid).and_return(true)
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    socket = connect_and_auth
+
+    socket.close
+
+    thread.join(2)
+    expect(thread).not_to be_alive
+    expect(session.reload).to be_finished
+    expect(session.outcome).to eq("exited")
+  ensure
+    socket&.close unless socket&.closed?
+    child_output_write&.close unless child_output_write&.closed?
+    pty_input_read&.close unless pty_input_read&.closed?
+  end
+
+  it "finalizes immediately when the PTY exits between connections" do
+    stub_const("#{described_class}::RECONNECT_TIMEOUT", 60)
+    relay, child_output_write, pty_input_read, = build_relay
+    allow(relay).to receive(:pty_alive?).with(pid).and_return(false)
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    socket = connect_and_auth
+
+    socket.close
+
+    thread.join(2)
+    expect(thread).not_to be_alive
+    expect(session.reload).to be_finished
+    expect(session.outcome).to eq("exited")
+  ensure
+    socket&.close unless socket&.closed?
+    child_output_write&.close unless child_output_write&.closed?
+    pty_input_read&.close unless pty_input_read&.closed?
+  end
+
   it "applies resize frames without forwarding them to the PTY input" do
     relay, child_output_write, pty_input_read, pty_in = build_relay
     thread = run_relay(relay)
