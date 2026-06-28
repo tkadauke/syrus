@@ -23,6 +23,23 @@ export type AppEvent = {
   unread_count?: number
 }
 
+type NotificationsCache = {
+  notifications: Array<{ id: number; read_at: string | null }>
+  unread_count: number
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+  }
+}
+
+type NotificationReadPayload = {
+  notification_ids?: number[]
+  all_read?: boolean
+  read_at?: string
+}
+
 export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
   if (event.type === "notification_created") {
     const current = queryClient.getQueryData<{ unread_count: number }>(["notifications"])
@@ -44,6 +61,31 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
     return
   }
 
+  if (event.type === "notification_read") {
+    const payload = notificationReadPayload(event.payload)
+    const readAt = payload?.read_at ?? event.occurred_at ?? new Date().toISOString()
+    queryClient.setQueryData<NotificationsCache>(["notifications"], (current) => {
+      const unreadCount = typeof event.unread_count === "number" ? event.unread_count : current?.unread_count ?? 0
+      if (!current) return emptyNotificationsCache(unreadCount)
+
+      const readIds = new Set(payload?.notification_ids ?? [])
+      return {
+        ...current,
+        unread_count: unreadCount,
+        notifications: current.notifications.map((notification) => {
+          if (!payload?.all_read && !readIds.has(notification.id)) return notification
+
+          return {
+            ...notification,
+            read_at: notification.read_at ?? readAt
+          }
+        })
+      }
+    })
+    void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    return
+  }
+
   if (applyChatPayloadEvent(queryClient, event)) return
 
   let dashboardChanged = false
@@ -56,6 +98,30 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
     void queryClient.invalidateQueries({ queryKey })
   }
   if (dashboardChanged) scheduleDashboardInvalidation(queryClient)
+}
+
+function emptyNotificationsCache(unreadCount: number): NotificationsCache {
+  return {
+    notifications: [],
+    unread_count: unreadCount,
+    pagination: {
+      page: 1,
+      per_page: 20,
+      total: 0,
+      total_pages: 0
+    }
+  }
+}
+
+function notificationReadPayload(payload: unknown): NotificationReadPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as NotificationReadPayload
+  return {
+    notification_ids: Array.isArray(candidate.notification_ids) ? candidate.notification_ids.filter((id) => typeof id === "number") : [],
+    all_read: candidate.all_read === true,
+    read_at: typeof candidate.read_at === "string" ? candidate.read_at : undefined
+  }
 }
 
 export function queryKeysFor(event: AppEvent): QueryKey[] {

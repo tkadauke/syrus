@@ -9,14 +9,19 @@ module Api
         end
 
         def mark_all_read
-          Current.user.notifications.unread.update_all(read_at: Time.current)
+          read_at = Time.current
+          Current.user.notifications.unread.update_all(read_at: read_at)
+          broadcast_read_update(all_read: true, read_at: read_at)
 
           render json: notifications_payload
         end
 
         def mark_read
           notification = Current.user.notifications.find(params[:id])
-          notification.update!(read_at: Time.current) unless notification.read_at?
+          unless notification.read_at?
+            notification.update!(read_at: Time.current)
+            broadcast_read_update(notification_ids: [ notification.id ], read_at: notification.read_at)
+          end
 
           render json: {
             notification: notification_json(notification.reload),
@@ -70,6 +75,21 @@ module Api
 
         def unread_count
           Current.user.notifications.unread.count
+        end
+
+        def broadcast_read_update(notification_ids: [], all_read: false, read_at:)
+          AppUserChannel.broadcast_to(
+            Current.user,
+            {
+              type: "notification_read",
+              unread_count: unread_count,
+              payload: {
+                notification_ids: notification_ids,
+                all_read: all_read,
+                read_at: read_at.iso8601
+              }
+            }.as_json
+          )
         end
 
         def page_param

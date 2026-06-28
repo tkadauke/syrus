@@ -96,6 +96,7 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     unread = notification_for(user)
     already_read = notification_for(user, read_at: 1.day.ago)
     foreign = notification_for(other)
+    allow(AppUserChannel).to receive(:broadcast_to)
 
     post "/api/v1/app/notifications/mark_all_read"
 
@@ -104,11 +105,24 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(already_read.reload.read_at).to be_present
     expect(foreign.reload.read_at).to be_nil
     expect(parse_body["unread_count"]).to eq(0)
+    expect(AppUserChannel).to have_received(:broadcast_to).with(
+      user,
+      hash_including(
+        "type" => "notification_read",
+        "unread_count" => 0,
+        "payload" => hash_including(
+          "notification_ids" => [],
+          "all_read" => true,
+          "read_at" => be_present
+        )
+      )
+    )
   end
 
   it "marks one notification read idempotently" do
     sign_in_as(user)
     notification = notification_for(user)
+    allow(AppUserChannel).to receive(:broadcast_to)
 
     patch "/api/v1/app/notifications/#{notification.id}/mark_read"
 
@@ -117,6 +131,18 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(first_read_at).to be_present
     expect(parse_body["notification"]).to include("id" => notification.id)
     expect(parse_body["unread_count"]).to eq(0)
+    expect(AppUserChannel).to have_received(:broadcast_to).with(
+      user,
+      hash_including(
+        "type" => "notification_read",
+        "unread_count" => 0,
+        "payload" => hash_including(
+          "notification_ids" => [ notification.id ],
+          "all_read" => false,
+          "read_at" => first_read_at.iso8601
+        )
+      )
+    ).once
 
     travel 5.minutes do
       patch "/api/v1/app/notifications/#{notification.id}/mark_read"
@@ -125,6 +151,7 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(response).to have_http_status(:ok)
     expect(notification.reload.read_at.to_i).to eq(first_read_at.to_i)
     expect(parse_body["unread_count"]).to eq(0)
+    expect(AppUserChannel).to have_received(:broadcast_to).once
   end
 
   it "does not allow marking another user's notification read" do

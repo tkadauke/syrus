@@ -40,6 +40,58 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"] })
   })
 
+  it("marks one cached notification read when a notification read event arrives", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["notifications"], notificationsCache([
+      notification(1),
+      notification(2)
+    ], 2))
+
+    applyAppEvent(queryClient, {
+      type: "notification_read",
+      unread_count: 1,
+      payload: {
+        notification_ids: [2],
+        read_at: "2026-06-25T12:01:00Z"
+      }
+    })
+
+    expect(queryClient.getQueryData<ReturnType<typeof notificationsCache>>(["notifications"])).toMatchObject({
+      unread_count: 1,
+      notifications: [
+        { id: 1, read_at: null },
+        { id: 2, read_at: "2026-06-25T12:01:00Z" }
+      ]
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"] })
+  })
+
+  it("marks all cached notifications read when a bulk read event arrives", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["notifications"], notificationsCache([
+      notification(1),
+      notification(2, "2026-06-25T11:00:00Z")
+    ], 1))
+
+    applyAppEvent(queryClient, {
+      type: "notification_read",
+      unread_count: 0,
+      payload: {
+        all_read: true,
+        read_at: "2026-06-25T12:01:00Z"
+      }
+    })
+
+    expect(queryClient.getQueryData<ReturnType<typeof notificationsCache>>(["notifications"])).toMatchObject({
+      unread_count: 0,
+      notifications: [
+        { id: 1, read_at: "2026-06-25T12:01:00Z" },
+        { id: 2, read_at: "2026-06-25T11:00:00Z" }
+      ]
+    })
+  })
+
   it("invalidates non-dashboard query keys immediately", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
@@ -375,6 +427,32 @@ function dashboardInvalidationCount(invalidate: { mock: { calls: unknown[][] } }
       args.queryKey[0] === "dashboard"
     )
   }).length
+}
+
+function notificationsCache(notifications: Array<ReturnType<typeof notification>>, unreadCount: number) {
+  return {
+    notifications,
+    unread_count: unreadCount,
+    pagination: {
+      page: 1,
+      per_page: 20,
+      total: notifications.length,
+      total_pages: notifications.length > 0 ? 1 : 0
+    }
+  }
+}
+
+function notification(id: number, readAt: string | null = null) {
+  return {
+    id,
+    kind: "job_failed",
+    body: `Notification ${id}`,
+    read_at: readAt,
+    pr_url: null,
+    job_id: null,
+    job_title: null,
+    created_at: "2026-06-25T12:00:00Z"
+  }
 }
 
 function message(id: number, role: "user" | "assistant" | "tool_use" | "tool_result" | "system", text: string, overrides: Record<string, unknown> = {}) {
