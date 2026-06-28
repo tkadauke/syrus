@@ -112,8 +112,9 @@ module Prompts
 
           - `propose_job` — one Syrus Job, optionally bound to an
             existing Epic via `epic_id`, and optionally blocked on
-            existing Epics via `depends_on_epic_ids`. Default. Use for
-            "one PR's worth of work."
+            existing Jobs via `depends_on_job_ids` or existing Epics via
+            `depends_on_epic_ids`. Default. Use for "one PR's worth of
+            work."
           - `propose_epic` — a new Epic on its own. Use when the
             operator should confirm the Epic's framing before you draft
             its child Jobs. Use `depends_on_job_ids` when the new Epic
@@ -153,7 +154,7 @@ module Prompts
         Cross-entity dependencies are also runtime-enforced. Use
         `depends_on_epic_ids` when a proposed Job must wait for an
         existing Epic to finish, and `depends_on_job_ids` when a
-        proposed Epic must wait for existing Jobs.
+        proposed Job or Epic must wait for existing Jobs.
 
         When the operator hands you a planning document ("read
         docs/plans/foo.md and turn it into an epic"), the pattern is:
@@ -264,8 +265,8 @@ module Prompts
             operator can cascade-file a proposal and have all its
             upstream proposals filed in order.
           - Express dependencies on existing work with
-            `depends_on_epic_ids` for proposed Jobs and
-            `depends_on_job_ids` for proposed Epics.
+            `depends_on_job_ids` for proposed Jobs or Epics, and
+            `depends_on_epic_ids` for proposed Jobs.
           - Use `propose_job` for direct Syrus Job creation. Use
             `delegate_issue` only when an existing GitHub issue should be
             handed to Syrus.

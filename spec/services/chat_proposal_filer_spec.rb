@@ -61,6 +61,27 @@ RSpec.describe ChatProposalFiler do
       )
     end
 
+    it "wires Job proposal dependencies on existing Jobs" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+      job_proposal = proposal(
+        slug: "job-after-job",
+        title: "Job after Job",
+        depends_on_job_ids: [ prerequisite.id ]
+      )
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      }.to change(JobDependency, :count).by(1)
+
+      dependency = job_proposal.reload.job.dependencies.first
+      expect(dependency).to have_attributes(
+        depends_on_job_id: prerequisite.id,
+        depends_on_epic_id: nil,
+        source: "manual",
+        created_by_user: user
+      )
+    end
+
     it "attaches created Jobs to the originating chat session" do
       job_proposal = proposal(slug: "job-attachment", title: "Attached job")
 

@@ -197,6 +197,18 @@ class ChatProposalFiler
         created_by_user: user
       )
     end
+
+    Array(proposal.depends_on_job_ids).each do |job_id|
+      depends_on_job = user.jobs.find_by(id: job_id)
+      next unless depends_on_job
+
+      JobDependency.create!(
+        job: job,
+        depends_on_job: depends_on_job,
+        source: "manual",
+        created_by_user: user
+      )
+    end
   end
 
   def wire_epic_dependencies_for(proposal, epic)

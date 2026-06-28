@@ -56,6 +56,8 @@ module SyrusChatMcp
       state: proposal.state,
       labels: labels_for(proposal),
       dependencies: proposal.dependencies.order(:slug).pluck(:slug),
+      depends_on_epic_ids: Array(proposal.depends_on_epic_ids),
+      depends_on_job_ids: Array(proposal.depends_on_job_ids),
       repository: proposal.effective_repository&.slug,
       target_epic: target_epic_payload(proposal),
       materialized: materialized_payload(proposal)

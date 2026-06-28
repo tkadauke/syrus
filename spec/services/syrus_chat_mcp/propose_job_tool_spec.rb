@@ -81,6 +81,23 @@ RSpec.describe SyrusChatMcp::ProposeJobTool do
     expect(proposal.depends_on_epic_ids).to eq([ prerequisite.id ])
   end
 
+  it "persists existing Job dependencies and returns them in the proposal payload" do
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Wait for the Job",
+      description: "Do this after the prerequisite Job lands.",
+      depends_on_job_ids: [ prerequisite.id ]
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Wait for the Job")
+    payload = response_payload(response)
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
+    expect(payload[:depends_on_job_ids]).to eq([ prerequisite.id ])
+  end
+
   it "rejects unknown Epic dependency IDs" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)
@@ -96,6 +113,23 @@ RSpec.describe SyrusChatMcp::ProposeJobTool do
     expect(response[:result][:isError]).to be(true)
     expect(response[:result][:content].first[:text]).to include("unknown depends_on_epic_ids")
     expect(chat_session.proposals.find_by(title: "Wrong owner")).to be_nil
+  end
+
+  it "rejects unknown Job dependency IDs" do
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user)
+    foreign_job = Factories.job_record(user: other_user, repository: other_repo)
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Wrong upstream",
+      description: "This should not pass.",
+      depends_on_job_ids: [ foreign_job.id, 123_456 ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("unknown depends_on_job_ids")
+    expect(chat_session.proposals.find_by(title: "Wrong upstream")).to be_nil
   end
 
   it "rejects an Epic from another repository" do
