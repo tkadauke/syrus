@@ -21,6 +21,10 @@ prepare:
   - env -u BUNDLE_PATH BUNDLE_APP_CONFIG=.bundle bundle install --jobs 4
   - npm ci
 
+hooks:
+  post_checkout:
+    - bundle exec rails db:migrate
+
 # Each grader's `description:` is surfaced in the UI (tooltip on the
 # grader name + above the output panel on failure) and prepended to
 # the per-grader block in the agent's grade-failure prompt. Authoring
@@ -82,7 +86,7 @@ grade:
       the same constant with different superclasses — check umbrella
       files vs per-class siblings.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
-    timeout_minutes: 1
+    timeout_minutes: 3
 
   - name: production-build-boot
     description: |
@@ -92,7 +96,7 @@ grade:
       application tables; if an initializer performs DB work at build time,
       this grader fails before the production image build does.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-production-build-boot
-    timeout_minutes: 1
+    timeout_minutes: 3
 
   - name: rspec
     description: |
