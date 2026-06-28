@@ -252,6 +252,14 @@ function TerminalIcon() {
   )
 }
 
+function ChatIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+    </svg>
+  )
+}
+
 function ComposeIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -561,6 +569,12 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     if (job.pr_url) {
       void window.syrusDesktop.openExternal(job.pr_url)
     }
+  }
+
+  const openChat = (originChat: SyrusJobOriginChat) => {
+    void window.syrusDesktop.openExternal(
+      `${normalizeInstanceUrl(instanceUrl)}/app-shell/chats/${originChat.chat_session_id}#message-${originChat.message_id}`
+    )
   }
 
   const openRepository = (repositoryId?: number) => {
@@ -956,6 +970,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
             pendingApprovals={pendingApprovals}
             onOpenJob={openJob}
             onOpenPullRequest={openPullRequest}
+            onOpenChat={openChat}
             onCheckout={(job) => void checkoutJob(job)}
             onApprove={(job) => void approveJob(job)}
             onRetry={(job) => void retryJob(job)}
@@ -1141,6 +1156,7 @@ function JobDetailView({
   pendingApprovals,
   onOpenJob,
   onOpenPullRequest,
+  onOpenChat,
   onCheckout,
   onApprove,
   onRetry,
@@ -1158,6 +1174,7 @@ function JobDetailView({
   pendingApprovals: Set<number>
   onOpenJob: (job: SyrusJobItem) => void
   onOpenPullRequest: (job: SyrusJobItem) => void
+  onOpenChat: (originChat: SyrusJobOriginChat) => void
   onCheckout: (job: SyrusJobItem) => void
   onApprove: (job: SyrusJobItem) => void
   onRetry: (job: SyrusJobItem) => void
@@ -1197,6 +1214,7 @@ function JobDetailView({
 
   const command = `syrus checkout JOB-${job.id}`
   const testPlan = detail?.test_plan ?? null
+  const originChat = detail?.origin_chat ?? null
   const displayState = pendingApprovals.has(job.id) ? "approved" : job.state
 
   const copyCommand = async () => {
@@ -1258,6 +1276,7 @@ function JobDetailView({
           approving={pendingApprovals.has(job.id)}
           onOpenJob={() => onOpenJob(job)}
           onOpenPullRequest={() => onOpenPullRequest(job)}
+          onOpenChat={originChat ? () => onOpenChat(originChat) : undefined}
           onCheckout={() => onCheckout(job)}
           onApprove={() => onApprove(job)}
           onRetry={() => onRetry(job)}
@@ -1306,6 +1325,7 @@ function JobActionButtons({
   approving,
   onOpenJob,
   onOpenPullRequest,
+  onOpenChat,
   onCheckout,
   onApprove,
   onRetry,
@@ -1318,6 +1338,7 @@ function JobActionButtons({
   approving: boolean
   onOpenJob: () => void
   onOpenPullRequest: () => void
+  onOpenChat?: () => void
   onCheckout: () => void
   onApprove: () => void
   onRetry: () => void
@@ -1353,6 +1374,12 @@ function JobActionButtons({
         <ExternalIcon />
         <span>Open in Syrus</span>
       </button>
+      {onOpenChat ? (
+        <button type="button" className="detail-action-button" onClick={onOpenChat}>
+          <ChatIcon />
+          <span>View in chat</span>
+        </button>
+      ) : null}
       <button type="button" className="detail-action-button" disabled={!job.pr_url} onClick={onOpenPullRequest}>
         <GitPullRequestIcon />
         <span>{job.pr_url ? "Open PR" : "No PR"}</span>

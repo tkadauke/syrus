@@ -42,11 +42,17 @@ type JobTestPlan = {
   notes: string | null
 }
 
+type JobOriginChat = {
+  chat_session_id: number
+  message_id: number
+}
+
 type JobDetail = {
   job: JobItem
   repository: {
     slug: string
   }
+  origin_chat: JobOriginChat | null
   test_plan: JobTestPlan | null
 }
 
