@@ -168,6 +168,24 @@ RSpec.describe Job do
     end
   end
 
+  describe ".without_active_workflows" do
+    it "excludes jobs with queued or running workflows" do
+      idle = Factories.job_record(issue_number: 1, issue_title: "Ready")
+      queued = Factories.job_record(repository: idle.repository, issue_number: 2, issue_title: "Queued workflow")
+      running = Factories.job_record(repository: idle.repository, issue_number: 3, issue_title: "Running workflow")
+      terminal = Factories.job_record(repository: idle.repository, issue_number: 4, issue_title: "Done workflow")
+
+      Workflow.create!(job: queued, trigger_kind: "manual", state: "queued")
+      Workflow.create!(job: running, trigger_kind: "manual", state: "running")
+      Workflow.create!(job: terminal, trigger_kind: "manual", state: "succeeded")
+
+      expect(described_class.where(id: [ idle.id, queued.id, running.id, terminal.id ]).without_active_workflows).to contain_exactly(
+        idle,
+        terminal
+      )
+    end
+  end
+
   describe "thread state machine" do
     it "starts as an open thread" do
       job = Factories.job

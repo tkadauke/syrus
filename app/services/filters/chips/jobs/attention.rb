@@ -172,7 +172,7 @@ module Filters
         end
 
         def apply_inbox
-          open = scope.open_threads
+          open = scope.open_threads.without_active_workflows
           open.where(id: actionable_unread_feedback_ids)
               .or(open.where(state: "failed"))
               .or(open.where.not(landing_failure_reason: nil))
@@ -268,13 +268,7 @@ module Filters
         end
 
         def awaiting_approval_ids
-          Job.where(state: "implemented")
-             .where.not(id: active_pr_comment_job_ids)
-             .select(:id)
-        end
-
-        def active_pr_comment_job_ids
-          Workflow.active.where(trigger_kind: "pr_comment").select(:job_id)
+          Job.where(state: "implemented").without_active_workflows.select(:id)
         end
 
         def unread_feedback_ids

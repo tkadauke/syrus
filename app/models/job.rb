@@ -107,6 +107,15 @@ class Job < ApplicationRecord
       "#{latest_workflow_created_at} AS latest_workflow_created_at"
     )
   }
+  scope :without_active_workflows, -> {
+    where(<<~SQL.squish)
+      NOT EXISTS (
+        SELECT 1 FROM workflows
+        WHERE workflows.job_id = jobs.id
+          AND workflows.state IN ('queued', 'running')
+      )
+    SQL
+  }
 
   def issue?
     kind == "issue"

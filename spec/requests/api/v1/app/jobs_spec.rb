@@ -43,6 +43,7 @@ RSpec.describe "App API job detail", type: :request do
     epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct")
     job
     job.update!(epic: epic)
+    job.workflows.update_all(state: "succeeded")
     Factories.job(repository: Factories.repository(user: Factories.user, owner: "other", name: "repo"), issue_title: "Private")
 
     get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "all", limit: 5 },
@@ -61,6 +62,23 @@ RSpec.describe "App API job detail", type: :request do
       "pr_number" => 7
     ))
     expect(body.to_s).not_to include("Private")
+  end
+
+  it "hides jobs with active workflows from the app job list" do
+    user.update!(api_token: "syrus_cli_token")
+    idle = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Ready", state: "implemented")
+    active = Factories.job_record(repository: repo, issue_number: 102, issue_title: "Still running", state: "implemented")
+    finished = Factories.job_record(repository: repo, issue_number: 103, issue_title: "Finished", state: "implemented")
+
+    Workflow.create!(job: active, trigger_kind: "manual", state: "running")
+    Workflow.create!(job: finished, trigger_kind: "manual", state: "succeeded")
+
+    get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "implemented", limit: 10 },
+      headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    ids = parse_body.fetch("jobs").map { |payload| payload.fetch("id") }
+    expect(ids).to contain_exactly(idle.id, finished.id)
   end
 
   it "returns the latest run transcript for CLI clients" do

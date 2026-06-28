@@ -174,6 +174,8 @@ RSpec.describe "Filters::Chips" do
         last_seen_comment_at: 5.minutes.ago,
         last_feedback_addressed_at: 10.minutes.ago
       )
+      active_failed = Factories.job_record(repository: repo, issue_number: 19, state: "failed")
+      active_implemented = Factories.job_record(repository: repo, issue_number: 20, state: "implemented")
       Factories.job_record(repository: repo, issue_number: 15, state: "queued")
       Factories.job_record(
         repository: repo,
@@ -183,6 +185,8 @@ RSpec.describe "Filters::Chips" do
         last_feedback_addressed_at: 10.minutes.ago
       )
       Factories.job_record(repository: repo, issue_number: 17, state: "triaging", triaging_reason: "pending_epic_ref")
+      Workflow.create!(job: active_failed, trigger_kind: "manual", state: "running")
+      Workflow.create!(job: active_implemented, trigger_kind: "manual", state: "queued")
 
       expect(run(field: "attention", op: "is", value: "inbox")).to contain_exactly(
         failed,
@@ -193,14 +197,14 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
-    it "awaiting_approval: excludes jobs with active PR feedback workflows" do
+    it "awaiting_approval: excludes jobs with any active workflows" do
       ready = Factories.job_record(repository: repo, issue_number: 31, state: "implemented")
       queued_feedback = Factories.job_record(repository: repo, issue_number: 32, state: "implemented")
-      running_feedback = Factories.job_record(repository: repo, issue_number: 33, state: "implemented")
+      running_retry = Factories.job_record(repository: repo, issue_number: 33, state: "implemented")
       completed_feedback = Factories.job_record(repository: repo, issue_number: 34, state: "implemented")
 
       Workflow.create!(job: queued_feedback, trigger_kind: "pr_comment", state: "queued")
-      Workflow.create!(job: running_feedback, trigger_kind: "pr_comment", state: "running")
+      Workflow.create!(job: running_retry, trigger_kind: "retry", state: "running")
       Workflow.create!(job: completed_feedback, trigger_kind: "pr_comment", state: "succeeded")
 
       expect(run(field: "attention", op: "is", value: "awaiting_approval")).to contain_exactly(

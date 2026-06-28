@@ -5,7 +5,10 @@ module Api
     module App
       class JobsController < BaseController
         def index
-          jobs = Current.user.jobs.includes(:repository, :runs, workflows: { steps: :runs }).order(updated_at: :desc, id: :desc)
+          jobs = Current.user.jobs
+                             .without_active_workflows
+                             .includes(:repository, :runs, workflows: { steps: :runs })
+                             .order(updated_at: :desc, id: :desc)
           if params[:repo].present?
             owner, name = params[:repo].to_s.split("/", 2)
             jobs = jobs.joins(:repository).where(repositories: { owner: owner, name: name })
