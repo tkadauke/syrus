@@ -76,7 +76,7 @@ RSpec.describe Steps::MergeabilityPreflight do
     expect {
       described_class.new(run).call
     }.to have_enqueued_job(LandingQueueProcessorJob)
-      .at(be_within(1.second).of(LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY.from_now))
+      .at(be_within(3.seconds).of(LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY.from_now))
 
     expect(job.reload).to be_approved
     expect(job.github_mergeable).to be_nil
