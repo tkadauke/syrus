@@ -731,8 +731,8 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                 <BackIcon />
               </button>
             </div>
-            <h1 className="min-w-0 flex-1 truncate text-center text-sm font-bold leading-5 text-slate-950">Notifications</h1>
-            <div className="flex w-24 justify-end">
+            <div className="min-w-0 flex-1 truncate text-center text-sm font-semibold leading-5 text-slate-950">Notifications</div>
+            <div className="flex min-w-24 justify-end">
               <button
                 type="button"
                 className="notification-header-action"
