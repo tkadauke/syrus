@@ -68,7 +68,17 @@ class TerminalRelay
 
   def relay(pty_out, pty_in, conn, pid)
     stop = false
-    stop_relay = -> { stop = true }
+    stop_lock = Mutex.new
+    stop_relay = lambda do
+      stop_lock.synchronize do
+        unless stop
+          stop = true
+          close_io(pty_out)
+          close_io(pty_in)
+          close_io(conn)
+        end
+      end
+    end
 
     pty_thread = Thread.new do
       begin
