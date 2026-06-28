@@ -53,3 +53,7 @@ installs the project's dependencies before invoking the agent each run.
   or duplicate.
 - `bundle install` in a Rails app with a `Gemfile.lock` is always safe and
   idempotent — include it even if no gems seem obviously missing.
+- `prepare` runs in Syrus' server-side agent workspace before each run.
+  `hooks.post_checkout` runs later on a developer's machine through the
+  local `syrus checkout` CLI. Do not use checkout hooks as a substitute for
+  agent-side dependency setup.

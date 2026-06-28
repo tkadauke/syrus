@@ -87,6 +87,27 @@ For cron Jobs, no diff can be a successful result. Scheduled prompts
 should explicitly say what counts as "nothing to do" so the agent can
 close cleanly instead of inventing work.
 
+## `syrus checkout` failed in a post-checkout hook
+
+Post-checkout hooks run after the CLI has already switched to the Syrus
+branch. When a `.syrus.yml` `hooks.post_checkout` command exits non-zero,
+the CLI prints the failed command and exit code, then stops.
+
+Check the command output first. Most failures are local environment
+issues: missing dependencies, a database that is not running, a failed
+migration, or a package-manager lockfile problem. Rerun the printed
+command from the repository root after fixing the local issue.
+
+To inspect the branch without running hooks, bypass them for one
+checkout:
+
+```bash
+syrus checkout --no-hooks JOB-123
+```
+
+The checkout is not rolled back when a hook fails. If you bypass hooks,
+run any required local setup manually before testing the branch.
+
 ## PR creation failed
 
 Common causes:

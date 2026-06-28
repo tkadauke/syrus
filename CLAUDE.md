@@ -111,6 +111,10 @@ Key steps:
   `Repository#prepare_enabled` can disable the step for all workflows on
   that repo; the `syrus-skip-prepare` issue label disables it for that Job.
   Skips are recorded in Workflow artifacts and logged on the first Run.
+  `.syrus.yml` can also contain `hooks.post_checkout`, but those commands
+  are for the local `syrus checkout` CLI on the operator's machine after a
+  branch checkout. They do not run in the agent sandbox and are not a
+  substitute for `prepare`.
 - **`implement`** / **`respond`** / **`analyze_and_fix`** — Agentic steps:
   invoke the Workflow's configured `AgentProviders::*` adapter. Claude uses
   `AgentInvocation`/`claude --print`; Codex uses `CodexInvocation`/`codex exec`.

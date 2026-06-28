@@ -36,6 +36,21 @@ prepare:
   - bin/rails db:prepare
 ```
 
+Example `.syrus.yml` for a Rails app whose checked-out Job branches
+should migrate the local database and refresh frontend dependencies:
+
+```yaml
+prepare:
+  - bundle config set --local path vendor/bundle
+  - bundle install --jobs 4
+  - bin/rails db:prepare
+
+hooks:
+  post_checkout:
+    - bundle exec rails db:migrate
+    - yarn install --frozen-lockfile
+```
+
 Then let Syrus open a PR from a labeled issue. If CI fails on that PR,
 the next PR poll, which runs about every five minutes, inspects the
 failed checks and asks the agent to diagnose and fix them. Syrus pushes

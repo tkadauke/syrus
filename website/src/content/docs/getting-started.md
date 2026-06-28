@@ -174,6 +174,13 @@ from lockfiles such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
 `package-lock.json`, or `package.json`. Use `prepare: []` or
 `prepare: false` only when no setup should run.
 
+:::tip
+Use `.syrus.yml` `hooks.post_checkout` when developers need local
+automation after `syrus checkout`, such as running migrations or
+installing frontend packages. See [Configuration](/docs/configuration)
+for the hook schema and the `--no-hooks` bypass flag.
+:::
+
 ### 4. Meet Syrus in chat and land your first Epic
 
 The final first-run step sends you into a **Syrus chat**. Click **Start
