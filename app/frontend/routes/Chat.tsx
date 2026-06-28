@@ -60,6 +60,7 @@ import {
 } from "../api/chats"
 import { CloseIcon } from "../components/CloseIcon"
 import { ConfirmationCard } from "../components/ConfirmationCard"
+import { ImageAnnotationModal } from "../components/ImageAnnotationModal"
 import { StartEpicButton } from "../components/StartEpicButton"
 import { Markdown, PlainText } from "../lib/Markdown"
 import { linkifySlugs } from "../lib/linkifySlugs"
@@ -1129,6 +1130,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
     }
   })
   const [attachments, setAttachments] = useState<ChatComposeAttachment[]>([])
+  const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingSlashCommandConfirmation | null>(null)
@@ -1392,6 +1394,11 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
 
   function removeAttachment(index: number) {
     setAttachments((current) => current.filter((_, attachmentIndex) => attachmentIndex !== index))
+    setAnnotatingIndex((current) => {
+      if (current == null) return current
+      if (current === index) return null
+      return current > index ? current - 1 : current
+    })
     setAttachmentError(null)
   }
 
@@ -1557,60 +1564,75 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         </div>
       ) : null}
       <form
-      className={`relative rounded border border-gray-200 bg-white p-3 transition-shadow dark:border-gray-700 dark:bg-gray-900 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onSubmit={submit}
-    >
-      {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
-      {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
-      {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
-      {clearConfirmationOpen ? (
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-          <span>Clear this chat's message history?</span>
-          <span className="flex gap-2">
-            <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} type="button">Clear</button>
-            <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} type="button">Cancel</button>
-          </span>
-        </div>
-      ) : null}
-      {queuedMessages.length > 0 ? <QueuedMessages messages={queuedMessages} queryKey={queryKey} /> : null}
-      {pendingConfirmation ? (
-        <SlashCommandConfirmation
-          commandName={pendingConfirmation.commandName}
-          disabled={send.isPending}
-          text={pendingConfirmation.text}
-          onCancel={cancelPendingSlashCommand}
-          onConfirm={confirmPendingSlashCommand}
-        />
-      ) : null}
-      {commandPaletteOpen ? (
-        <SlashCommandPalette
-          activeIndex={activeCommandIndex}
-          commands={matchingCommands}
-          query={commandQuery}
-          onSelect={(command) => completeSlashCommand(command)}
-        />
-      ) : null}
-      {attachments.length > 0 ? (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {attachments.map((attachment, index) => (
-            <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
-              {attachment.mimeType.startsWith("image/") ? (
-                <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
-              ) : (
-                <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
-              )}
-              <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
-              <button aria-label={`Remove ${attachment.name}`} className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
-                <CloseIcon className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
+        className={`relative rounded border border-gray-200 bg-white p-3 transition-shadow dark:border-gray-700 dark:bg-gray-900 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onSubmit={submit}
+      >
+        {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
+        {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
+        {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
+        {clearConfirmationOpen ? (
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+            <span>Clear this chat's message history?</span>
+            <span className="flex gap-2">
+              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} type="button">Clear</button>
+              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} type="button">Cancel</button>
+            </span>
+          </div>
+        ) : null}
+        {queuedMessages.length > 0 ? <QueuedMessages messages={queuedMessages} queryKey={queryKey} /> : null}
+        {pendingConfirmation ? (
+          <SlashCommandConfirmation
+            commandName={pendingConfirmation.commandName}
+            disabled={send.isPending}
+            text={pendingConfirmation.text}
+            onCancel={cancelPendingSlashCommand}
+            onConfirm={confirmPendingSlashCommand}
+          />
+        ) : null}
+        {commandPaletteOpen ? (
+          <SlashCommandPalette
+            activeIndex={activeCommandIndex}
+            commands={matchingCommands}
+            query={commandQuery}
+            onSelect={(command) => completeSlashCommand(command)}
+          />
+        ) : null}
+        {attachments.length > 0 ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {attachments.map((attachment, index) => (
+              <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
+                {attachment.mimeType.startsWith("image/") ? (
+                  <>
+                    <button aria-label={`Annotate ${attachment.name}`} className="rounded focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setAnnotatingIndex(index)} type="button">
+                      <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
+                    </button>
+                    {annotatingIndex === index ? (
+                      <ImageAnnotationModal
+                        dataUrl={attachment.dataUrl}
+                        name={attachment.name}
+                        onClose={() => setAnnotatingIndex(null)}
+                        onDone={(annotatedDataUrl) => {
+                          setAttachments((current) => current.map((item, attachmentIndex) => attachmentIndex === index ? { ...item, dataUrl: annotatedDataUrl, mimeType: "image/png" } : item))
+                          setAnnotatingIndex(null)
+                        }}
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
+                )}
+                <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
+                <button aria-label={`Remove ${attachment.name}`} className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
+                  <CloseIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
       {showAttachedRepositories && attachedRepositories.length > 0 ? (
         <div className="mb-3 flex w-full flex-wrap gap-2">
           {attachedRepositories.map((repository) => (

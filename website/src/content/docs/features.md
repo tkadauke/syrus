@@ -121,12 +121,15 @@ by conversation, with the strongest snippet shown first and additional
 matches expandable inline. The older chat search page remains
 available for chat-specific repository, Epic, Job, and attachment filters.
 The chat composer accepts image and PDF attachments through the plus button
-and sends them with the next message. Image attachments render as inline
-thumbnails in the transcript and open in a full-size preview. The chat
-workspace also includes a Media tab that gathers image attachments into a
-downloadable gallery and lists saved whiteboard snapshots with element counts,
-relative timestamps, and a Load action that merges the snapshot back onto the
-current canvas after preserving existing work. PDFs are passed to the agent
+and sends them with the next message. Before sending, operators can click an
+image thumbnail in the composer to mark it up with basic shapes, arrows,
+freehand strokes, text, and undo; Syrus flattens the result into a PNG
+attachment. Image attachments render as inline thumbnails in the transcript
+and open in a full-size preview. The chat workspace also includes a Media tab
+that gathers image attachments into a downloadable gallery and lists saved
+whiteboard snapshots with element counts, relative timestamps, and a Load
+action that merges the snapshot back onto the current canvas after preserving
+existing work. PDFs are passed to the agent
 without an inline preview.
 Clearing a non-empty canvas automatically saves the previous scene first.
 
