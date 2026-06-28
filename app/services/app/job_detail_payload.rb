@@ -67,6 +67,7 @@ module App
         issue_url: issue_url,
         issue_title: @job.issue_title,
         title: @job.issue_title,
+        title_pending: @job.title_pending?,
         repository_slug: @job.repository.slug,
         issue_body: @job.issue_body,
         branch_name: @job.branch_name,

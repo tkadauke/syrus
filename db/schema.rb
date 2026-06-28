@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_27_191833) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_043340) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -545,6 +545,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_191833) do
     t.string "stack_base", default: "auto", null: false
     t.datetime "started_at"
     t.string "state", default: "triaging", null: false
+    t.boolean "title_pending", default: false, null: false
     t.string "triaging_reason", default: "classifier_pending", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false

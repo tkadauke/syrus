@@ -80,22 +80,20 @@ module Api
           return render_error("validation_failed", "Owner user not found.", status: :unprocessable_content) if attrs[:owner_user_id].present? && !owner_user
 
           selected_agent_provider = agent_provider || repository.effective_agent_provider
+          title = attrs[:title].to_s.strip.presence
           job = repository.user.jobs.create!(
             repository: repository,
             kind: "direct",
             issue_number: nil,
-            issue_title: attrs[:title].to_s.strip.presence || DirectJobTitleGenerator.call(
-              prompt_text,
-              user: repository.user,
-              repository: repository,
-              agent_provider: selected_agent_provider
-            ),
+            issue_title: title || GenerateJobTitleJob::PENDING_TITLE,
+            title_pending: title.blank?,
             issue_body: prompt_text,
             agent_provider: selected_agent_provider,
             priority: priority,
             epic: epic,
             owner_user: owner_user
           )
+          GenerateJobTitleJob.perform_later(job) if job.title_pending?
           job.advance_after_triage! if job.may_advance_after_triage?
 
           render json: {
@@ -179,6 +177,7 @@ module Api
             repository:     job.repository.slug,
             issue_number:   job.issue_number,
             issue_title:    job.issue_title,
+            title_pending:  job.title_pending?,
             pr_number:      job.pr_number,
             branch_name:    job.branch_name,
             pr_mergeable:   job.pr_mergeable,
@@ -239,6 +238,7 @@ module Api
             user: user_github_payload(job.user),
             issue_number: job.issue_number,
             issue_title: job.issue_title,
+            title_pending: job.title_pending?,
             branch_name: job.branch_name,
             pr_number: job.pr_number,
             external_pr_number: job.external_pr_number,

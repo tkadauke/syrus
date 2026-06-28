@@ -57,6 +57,7 @@ export type DirectJobCreatedPayload = {
   job: {
     id: number
     title: string
+    title_pending?: boolean
     state: string
     repository: DirectJobRepository
     job_path: string

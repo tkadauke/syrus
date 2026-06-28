@@ -19,10 +19,6 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
 
   def auth(token) = { "Authorization" => "Bearer #{token}" }
   def parse_body  = JSON.parse(response.body)
-  def agent_result(final_text, **overrides)
-    defaults = { turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", session_id: nil }
-    AgentInvocation::Result.new(**defaults.merge(overrides), final_text: final_text)
-  end
 
   describe "auth" do
     it "401s without an Authorization header" do
@@ -77,14 +73,17 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(created.kind).to eq("direct")
       expect(created.issue_number).to be_nil
       expect(created.issue_title).to eq("Invite the statues to speak")
+      expect(created).not_to be_title_pending
       expect(created.issue_body).to eq("Add a small note to the README.")
       expect(created.priority).to eq("high")
       expect(created.agent_provider).to eq("codex")
       expect(created.runs.first.prompt).to include("Add a small note")
+      expect(ActiveJob::Base.queue_adapter.enqueued_jobs.map { |entry| entry[:job] }).not_to include(GenerateJobTitleJob)
 
       body = parse_body
       expect(body["message"]).to eq("Direct job created.")
       expect(body.dig("job", "id")).to eq(created.id)
+      expect(body.dig("job", "title_pending")).to eq(false)
       expect(body.dig("job", "repository", "slug")).to eq("acme/widgets")
       expect(body.dig("job", "workflows").first["trigger_kind"]).to eq("initial")
     end
@@ -112,25 +111,28 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(created.runs).to be_empty
     end
 
-    it "generates a direct job title from the prompt when admin title is blank" do
-      admin.update!(claude_oauth_token: "oat-test")
-      RunJob.agent_runner = ->(**_) { agent_result('{"title":"Checkout Flow Repair"}') }
+    it "marks the title pending and enqueues title generation when admin title is blank" do
+      RunJob.agent_runner = ->(**_) { raise "blank direct job titles should not invoke the title agent inline" }
       repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
 
-      post "/api/v1/admin/jobs",
-           params: {
-             job: {
-               repository_id: repo.id,
-               title: "",
-               prompt: "### Repair the checkout flow\n\nKeep the existing route."
-             }
-           },
-           headers: auth(admin_token)
+      expect {
+        post "/api/v1/admin/jobs",
+             params: {
+               job: {
+                 repository_id: repo.id,
+                 title: "",
+                 prompt: "### Repair the checkout flow\n\nKeep the existing route."
+               }
+             },
+             headers: auth(admin_token)
+      }.to have_enqueued_job(GenerateJobTitleJob)
 
       expect(response).to have_http_status(:created)
       created = Job.order(:created_at).last
-      expect(created.issue_title).to eq("Checkout Flow Repair")
-      expect(parse_body.dig("job", "issue_title")).to eq("Checkout Flow Repair")
+      expect(created.issue_title).to eq("Generating title...")
+      expect(created).to be_title_pending
+      expect(parse_body.dig("job", "issue_title")).to eq("Generating title...")
+      expect(parse_body.dig("job", "title_pending")).to eq(true)
     end
 
     it "rejects invalid create requests" do

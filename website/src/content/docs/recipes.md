@@ -192,20 +192,18 @@ repo = user.repositories.active.find_by!(
 
 prompt = ENV.fetch("SYRUS_PROMPT")
 agent_provider = repo.effective_agent_provider
+explicit_title = ENV["SYRUS_JOB_TITLE"].presence
 job = user.jobs.create!(
   repository: repo,
   kind: "direct",
   issue_number: nil,
-  issue_title: ENV["SYRUS_JOB_TITLE"].presence || DirectJobTitleGenerator.call(
-    prompt,
-    user: user,
-    repository: repo,
-    agent_provider: agent_provider
-  ),
+  issue_title: explicit_title || GenerateJobTitleJob::PENDING_TITLE,
+  title_pending: explicit_title.blank?,
   issue_body: prompt,
   agent_provider: agent_provider,
   priority: ENV.fetch("SYRUS_PRIORITY", "medium")
 )
+GenerateJobTitleJob.perform_later(job) if job.title_pending?
 
 workflow = Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
 StepDispatcher.start_workflow(workflow, prompt: Prompts::DirectJob.new(prompt: prompt).to_s)

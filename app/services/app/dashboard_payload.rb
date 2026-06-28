@@ -768,6 +768,7 @@ module App
         id: job.id,
         kind: job.kind,
         title: job.issue_title.presence || job.kind.humanize,
+        title_pending: job.title_pending?,
         state: job.state,
         summary_state: summary_state(job),
         validity: job.validity,
@@ -907,6 +908,7 @@ module App
         job: {
           id: job.id,
           title: job.issue_title.presence || job.kind.humanize,
+          title_pending: job.title_pending?,
           state: job.state,
           repository: repository_json(job.repository),
           owner_user: owner_user_json(owner_user),

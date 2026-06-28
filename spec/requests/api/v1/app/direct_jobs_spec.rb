@@ -16,11 +16,6 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     JSON.parse(response.body)
   end
 
-  def agent_result(final_text, **overrides)
-    defaults = { turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", session_id: nil }
-    AgentInvocation::Result.new(**defaults.merge(overrides), final_text: final_text)
-  end
-
   def upload_file(name: "notes.md", content_type: "text/markdown", content: "# Notes")
     file = Tempfile.new([ "direct-job", File.extname(name) ])
     file.binmode
@@ -114,11 +109,13 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     new_job = Job.order(:created_at).last
     expect(new_job.kind).to eq("direct")
     expect(new_job.issue_title).to eq("Bump Ruby version")
+    expect(new_job).not_to be_title_pending
     expect(new_job.issue_body).to eq("Update the Ruby version in .ruby-version to 3.3.0.")
     expect(new_job.priority).to eq("high")
     expect(new_job.issue_number).to be_nil
     expect(new_job.repository).to eq(repository)
     expect(new_job.runs.count).to eq(1)
+    expect(ActiveJob::Base.queue_adapter.enqueued_jobs.map { |entry| entry[:job] }).not_to include(GenerateJobTitleJob)
     expect(new_job.runs.first.trigger_kind).to eq("initial")
     expect(new_job.runs.first.prompt).to include("Update the Ruby version")
     expect(parse_body).to include(
@@ -127,23 +124,27 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
       "redirect_to" => job_path(new_job)
     )
     expect(parse_body.dig("job", "title")).to eq("Bump Ruby version")
+    expect(parse_body.dig("job", "title_pending")).to eq(false)
   end
 
-  it "generates a title from the prompt when the title is blank" do
+  it "marks the title pending and enqueues title generation when the title is blank" do
     sign_in_as(user)
-    user.update!(claude_oauth_token: "oat-test")
-    RunJob.agent_runner = ->(**_) { agent_result('{"title":"Dashboard Filters"}') }
+    RunJob.agent_runner = ->(**_) { raise "blank direct job titles should not invoke the title agent inline" }
 
-    post "/api/v1/app/jobs", params: {
-      repository_id: repository.id,
-      title: " ",
-      prompt: "- `Tighten the dashboard filters`\n\nUse native validity for the form."
-    }
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: " ",
+        prompt: "- `Tighten the dashboard filters`\n\nUse native validity for the form."
+      }
+    }.to have_enqueued_job(GenerateJobTitleJob)
 
     expect(response).to have_http_status(:created)
     new_job = Job.order(:created_at).last
-    expect(new_job.issue_title).to eq("Dashboard Filters")
-    expect(parse_body.dig("job", "title")).to eq("Dashboard Filters")
+    expect(new_job.issue_title).to eq("Generating title...")
+    expect(new_job).to be_title_pending
+    expect(parse_body.dig("job", "title")).to eq("Generating title...")
+    expect(parse_body.dig("job", "title_pending")).to eq(true)
   end
 
   it "uses an explicitly selected configured agent for the job, workflow, and run" do

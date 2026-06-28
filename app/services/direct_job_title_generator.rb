@@ -11,13 +11,24 @@ class DirectJobTitleGenerator
   end
 
   def self.call(prompt, user:, repository:, agent_provider:, runner: RunJob.agent_runner)
+    generated = generate(
+      prompt,
+      user: user,
+      repository: repository,
+      agent_provider: agent_provider,
+      runner: runner
+    )
+    generated.success? ? generated.title : FALLBACK_TITLE
+  end
+
+  def self.generate(prompt, user:, repository:, agent_provider:, runner: RunJob.agent_runner)
     new(
       prompt,
       user: user,
       repository: repository,
       agent_provider: agent_provider,
       runner: runner
-    ).call
+    ).generate
   end
 
   def initialize(prompt, user:, repository:, agent_provider:, runner: RunJob.agent_runner,
@@ -35,8 +46,6 @@ class DirectJobTitleGenerator
     generated.success? ? generated.title : FALLBACK_TITLE
   end
 
-  private
-
   attr_reader :prompt, :user, :repository, :agent_provider, :runner, :timeout
 
   def generate
@@ -52,6 +61,8 @@ class DirectJobTitleGenerator
   rescue StandardError => e
     failure("#{e.class}: #{e.message}")
   end
+
+  private
 
   def invoke_agent
     OneShotAgent.new(user: user, provider: agent_provider, runner: runner).run_once(

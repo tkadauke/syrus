@@ -70,6 +70,7 @@ export type DashboardJobItem = {
   id: number
   kind: string
   title: string
+  title_pending?: boolean
   state: string
   summary_state: string
   validity: string
@@ -163,6 +164,7 @@ export type DashboardWorkflowItem = {
   job: {
     id: number
     title: string
+    title_pending?: boolean
     state: string
     repository: DashboardRepository
     owner_user: DashboardOwnerUser | null

@@ -697,7 +697,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
   if (item.type === "job") {
     return (
       <article className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-        <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}>{item.title}</Link>
+        <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
           <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
@@ -713,7 +713,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
     return (
       <article className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
         <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.path, prefix)}>{slug}</Link>
-        <Link className="mt-1 block text-sm text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.job.path, prefix)}>{item.job.title}</Link>
+        <Link className="mt-1 block text-sm text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.job.path, prefix)}><PendingJobTitle pending={Boolean(item.job.title_pending)} title={item.job.title} /></Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.state} triggerAriaPrefix="Workflow trigger" triggerKind={item.trigger_kind} />
           <OwnerBadge badge={item.job.owner_badge} />
@@ -1202,7 +1202,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           <OwnerBadge badge={job.owner_badge} />
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
+          <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
           {job.kind !== "issue" ? <span className="text-xs text-gray-500 dark:text-gray-400">{humanizeOption(job.kind)}</span> : null}
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1232,7 +1232,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
-        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}>{job.title}</Link>
+        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
@@ -1314,6 +1314,17 @@ function WorkflowBadges({ state, triggerAriaPrefix, triggerKind }: { state: stri
     <span className="inline-flex flex-wrap items-center gap-1">
       {triggerKind ? <WorkflowTriggerPill ariaPrefix={triggerAriaPrefix} triggerKind={triggerKind} /> : null}
       <StatusPill state={state} />
+    </span>
+  )
+}
+
+function PendingJobTitle({ pending, title }: { pending: boolean; title: string }) {
+  if (!pending) return <>{title}</>
+
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1 italic text-gray-500 dark:text-gray-400">
+      <span aria-hidden="true" className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300" />
+      <span>Generating title...</span>
     </span>
   )
 }

@@ -46,6 +46,7 @@ export type JobRecord = {
   issue_number: number | null
   issue_url: string | null
   issue_title: string | null
+  title_pending?: boolean
   issue_body: string | null
   branch_name: string | null
   pr_number: number | null

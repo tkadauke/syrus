@@ -140,7 +140,7 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
       <header className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+            <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100"><PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} /></h1>
             <div className="flex flex-wrap items-center gap-2">
               <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
                 <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
@@ -1757,6 +1757,17 @@ function paginationLinkClass() {
 
 function disabledPaginationClass() {
   return "rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600"
+}
+
+function PendingJobTitle({ pending, title }: { pending: boolean; title: string }) {
+  if (!pending) return <>{title}</>
+
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2 italic text-gray-500 dark:text-gray-400">
+      <span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300" />
+      <span>Generating title...</span>
+    </span>
+  )
 }
 
 function jobSourceLabel(payload: JobDetailPayload) {
