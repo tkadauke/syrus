@@ -1118,7 +1118,7 @@ function ProposalChildren({ children, mutation }: { children: ChatProposalChild[
   )
 }
 
-function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, queryKey, onNotice, onMessageSent }: { autoFocus?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [text, setText] = useState(() => {
@@ -1611,7 +1611,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
           ))}
         </div>
       ) : null}
-      {attachedRepositories.length > 0 ? (
+      {showAttachedRepositories && attachedRepositories.length > 0 ? (
         <div className="mb-3 flex w-full flex-wrap gap-2">
           {attachedRepositories.map((repository) => (
             <span className="flex h-9 max-w-full items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" key={repository.id}>
@@ -1630,23 +1630,6 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
           ))}
         </div>
       ) : null}
-      <textarea
-        aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
-        aria-expanded={commandPaletteOpen}
-        aria-haspopup="listbox"
-        className="mb-3 min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
-        disabled={send.isPending || systemAction.isPending}
-        onChange={(event) => {
-          updateText(event.target.value)
-          if (clearConfirmationOpen) setClearConfirmationOpen(false)
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
-        ref={textareaRef}
-        required
-        rows={1}
-        value={text}
-      />
       <div className="flex items-end justify-between gap-3">
         <input
           accept="image/*,application/pdf"
@@ -1691,6 +1674,23 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             </div>
           </div>
         ) : null}
+        <textarea
+          aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+          aria-expanded={commandPaletteOpen}
+          aria-haspopup="listbox"
+          className="min-h-9 min-w-0 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+          disabled={send.isPending || systemAction.isPending}
+          onChange={(event) => {
+            updateText(event.target.value)
+            if (clearConfirmationOpen) setClearConfirmationOpen(false)
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
+          ref={textareaRef}
+          required
+          rows={1}
+          value={text}
+        />
         <div className="flex items-center gap-2">
           <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
           {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
@@ -2160,7 +2160,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
         <UsageOverlay payload={payload} />
       </div>
       <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : "space-y-3"}>
-        <Compose key={chatId} autoFocus={landing} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+        <Compose key={chatId} autoFocus={landing} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
       </div>
     </section>
   )

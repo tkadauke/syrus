@@ -10506,10 +10506,14 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
     const chip = screen.getByText("acme/widgets")
     const textarea = screen.getByPlaceholderText("Ask about this repository...")
+    const composeForm = textarea.closest("form")
+    const composeRow = textarea.parentElement
     expect(chip).toBeInTheDocument()
     expect(chip.closest("div")).toHaveClass("w-full")
     expect(chip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Send" }).closest("div")).not.toBe(chip.closest("div"))
+    expect(screen.getByRole("button", { name: "Add attachment" }).parentElement).toBe(composeRow)
+    expect(screen.getByRole("button", { name: "Send" }).closest("div")?.parentElement).toBe(composeRow)
+    expect(composeForm).not.toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Detach repository acme/widgets" }))
 
     await waitFor(() => {
@@ -10518,7 +10522,7 @@ describe("App", () => {
         expect.objectContaining({ method: "DELETE" })
       )
     })
-    expect(screen.queryByText("acme/widgets")).not.toBeInTheDocument()
+    expect(within(composeForm as HTMLElement).queryByText("acme/widgets")).not.toBeInTheDocument()
   })
 
   it("moves the empty chat landing into the standard chat layout after the first send succeeds", async () => {
@@ -10567,6 +10571,7 @@ describe("App", () => {
     expect(await screen.findByText("Build a planning console")).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole("heading", { name: "What would you like to build?" })).not.toBeInTheDocument())
     expect(screen.getByTestId("chat-message-stream").parentElement?.parentElement).toHaveClass("flex-1", "opacity-100")
+    expect(within(input.closest("form") as HTMLElement).queryByText("acme/widgets")).not.toBeInTheDocument()
   })
 
   it("renders non-empty chats in the standard layout immediately", async () => {
