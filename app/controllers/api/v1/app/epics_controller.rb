@@ -412,6 +412,8 @@ module Api
               epic.unstart!
             elsif epic.in_progress? && target_state == "done" && epic.may_auto_complete?
               epic.auto_complete!
+            elsif epic.in_progress? && target_state == "done" && epic.all_jobs_closed?
+              epic.override_state!("done")
             elsif target_state == "archived" && epic.may_archive?
               epic.archive!
             elsif Epic::STATES.exclude?(target_state)

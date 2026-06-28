@@ -767,6 +767,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         "owner_status" => "mine",
         "owner_user" => include("id" => user.id, "email_address" => user.email_address),
         "stuck" => false,
+        "all_jobs_closed" => false,
         "jobs_count" => 0,
         "paths" => include(
           "epic_path" => epic_path(ready),
@@ -811,7 +812,8 @@ RSpec.describe "App API dashboard commands", type: :request do
       item = parse_body.fetch("lanes").flat_map { |lane| lane.fetch("items") }.find { |row| row.fetch("id") == epic.id }
       expect(item).to include(
         "jobs_count" => 4,
-        "landed_jobs_count" => 2
+        "landed_jobs_count" => 2,
+        "all_jobs_closed" => false
       )
     end
 

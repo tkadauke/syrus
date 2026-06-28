@@ -189,6 +189,27 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(parse_body.dig("epic", "stuck")).to eq(true)
   end
 
+  it "offers Mark as done for in-progress Epics whose child Jobs are all closed" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Stalled forum", state: "in_progress")
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 12,
+      issue_title: "Cancelled child",
+      state: "closed",
+      closure_reason: "cancelled"
+    )
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["state_transitions"]).to include(
+      include("label" => "Mark as done", "target_state" => "done")
+    )
+  end
+
   it "surfaces Job dependency blocked reasons on the Epic detail payload" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, state: "ready")
@@ -579,6 +600,39 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("epic", "state")).to eq("ready")
     expect(epic.reload).to be_ready
+  end
+
+  it "marks an in-progress Epic as done when all child Jobs are closed" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 34,
+      state: "closed",
+      closure_reason: "cancelled"
+    )
+
+    patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "done" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "state")).to eq("done")
+    expect(epic.reload).to be_done
+    expect(epic.done_at).to be_present
+  end
+
+  it "does not mark an in-progress Epic as done while child Jobs remain open" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 34, state: "closed", closure_reason: "cancelled")
+    Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 35, state: "queued")
+
+    patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "done" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("transition_not_allowed")
+    expect(epic.reload).to be_in_progress
   end
 
   it "rejects unavailable and unknown app API Epic state transitions" do

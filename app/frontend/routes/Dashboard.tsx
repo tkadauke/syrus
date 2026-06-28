@@ -750,6 +750,7 @@ function canMoveEpicToLane(epic: DashboardEpicItem, targetState: string) {
   if (epic.state === "ready" && targetState === "backlog") return true
   if (epic.state === "ready" && targetState === "in_progress") return true
   if (epic.state === "in_progress" && targetState === "ready") return true
+  if (epic.state === "in_progress" && targetState === "done") return epic.all_jobs_closed
   if (epic.state === "backlog" && targetState === "ready") return epic.jobs_count > 0
   return false
 }

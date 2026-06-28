@@ -59,8 +59,10 @@ An Epic has a board state: `backlog`, `ready`, `in_progress`, `done`, or
 `archived`. Child Jobs can be blocked until the Epic starts, and Epics can
 depend on other Epics or Jobs. Jobs can also wait on an Epic to complete.
 Syrus can mark an Epic ready when its dependencies are done and all child
-Jobs are confirmed, then mark it done when all child Jobs close through
-merged PR outcomes.
+Jobs are confirmed, then mark it done automatically when all child Jobs
+close through merged PR or no-change outcomes. When every child Job is
+closed but at least one did not complete successfully, operators can use
+**Mark as done** or drag the Epic to **Done** instead of archiving it.
 
 The Epic detail page shows both sides of the dependency graph: Epics this
 Epic depends on, and Epics that depend on it. Operators can add an Epic

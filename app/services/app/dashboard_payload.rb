@@ -846,6 +846,7 @@ module App
         description: epic.description.to_s,
         state: epic.state,
         stuck: epic.stuck?,
+        all_jobs_closed: epic.all_jobs_closed?,
         owner: owner_json(epic.owner),
         owned_by_current_user: epic.owner_user_id == user.id || epic.claimed_by?(user),
         claimable: epic.claimable?,

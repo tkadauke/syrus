@@ -180,6 +180,26 @@ RSpec.describe Epic do
     end
   end
 
+  describe "#all_jobs_closed?" do
+    it "is true when every child Job is closed" do
+      epic = described_class.create!(user: user, repository: repository, title: "Wrapped train", state: "in_progress")
+      child_job(epic: epic, number: 10, closure_reason: "cancelled")
+      child_job(epic: epic, number: 11, closure_reason: "pr_merged")
+
+      expect(epic.reload).to be_all_jobs_closed
+    end
+
+    it "is false with no child Jobs or an open child Job" do
+      empty = described_class.create!(user: user, repository: repository, title: "Empty train", state: "in_progress")
+      active = described_class.create!(user: user, repository: repository, title: "Active train", state: "in_progress")
+      child_job(epic: active, number: 10, closure_reason: "cancelled")
+      child_job(epic: active, number: 11)
+
+      expect(empty.reload).not_to be_all_jobs_closed
+      expect(active.reload).not_to be_all_jobs_closed
+    end
+  end
+
   it "assigns an immutable display number separate from the editable title" do
     epic = described_class.create!(user: user, repository: repository, title: "First pass")
 

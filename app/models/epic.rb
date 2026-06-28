@@ -184,6 +184,11 @@ class Epic < ApplicationRecord
       !(child_jobs.any? && child_jobs.all? { |job| job.closed? && SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) })
   end
 
+  def all_jobs_closed?
+    child_jobs = jobs.reload
+    child_jobs.any? && child_jobs.all?(&:closed?)
+  end
+
   def all_jobs_approved?
     jobs.where.not(state: "closed").where.not(state: "approved").none?
   end
