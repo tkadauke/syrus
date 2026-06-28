@@ -89,6 +89,7 @@ export type ChatProposalDependency = {
   state: string
   confirmed: boolean
   anchor_message_id?: number | null
+  materialized_label?: string | null
   materialized_path?: string | null
 }
 
@@ -107,7 +108,17 @@ export type ChatProposalChild = {
   proposed: boolean
   repository_slug: string | null
   dependencies: string[]
+  dependency_details?: ChatProposalChildDependency[]
   app_reject_path: string
+}
+
+export type ChatProposalChildDependency = {
+  slug: string
+  title: string
+  scope: "sibling" | "cross_card"
+  confirmed: boolean
+  materialized_label?: string | null
+  materialized_path?: string | null
 }
 
 export type ChatStructuredTool = {

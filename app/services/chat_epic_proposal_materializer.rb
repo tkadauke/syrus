@@ -41,12 +41,14 @@ class ChatEpicProposalMaterializer
         )
         job_by_proposal_id[proposal.id] = job
         jobs << job
+        resolve_pending_proposal_dependencies_for(proposal, job)
       end
 
       wire_sibling_dependencies(job_proposals, job_by_proposal_id)
       wire_epic_dependencies(epic_proposal, epic)
       wire_job_epic_dependencies(job_proposals, job_by_proposal_id)
       ChatEpicProposalDependencyWirer.new(user: user).resolve_confirmed_proposal!(epic_proposal)
+      jobs.each { |job| job.advance_after_triage! if job.may_advance_after_triage? }
     end
 
     Result.new(epic_proposal: epic_proposal, epic: epic, job_proposals: job_proposals, jobs: jobs)
@@ -90,24 +92,65 @@ class ChatEpicProposalMaterializer
       issue_title: proposal.title,
       issue_body: proposal.body,
       agent_provider: repository.effective_agent_provider
-    ).tap(&:advance_after_triage!)
+    )
   end
 
   def wire_sibling_dependencies(job_proposals, job_by_proposal_id)
     job_proposals.each do |proposal|
       job = job_by_proposal_id.fetch(proposal.id)
       proposal.dependencies.each do |dependency|
-        depends_on_job = job_by_proposal_id[dependency.id]
-        next unless depends_on_job
+        depends_on_job = job_by_proposal_id[dependency.id] || dependency.job
+        unless depends_on_job
+          create_pending_proposal_dependency!(job, dependency)
+          next
+        end
 
-        JobDependency.create!(
+        JobDependency.find_or_create_by!(
           job: job,
-          depends_on_job: depends_on_job,
-          source: "manual",
-          created_by_user: user
-        )
+          depends_on_job: depends_on_job
+        ) do |job_dependency|
+          job_dependency.source = "manual"
+          job_dependency.created_by_user = user
+        end
       end
     end
+  end
+
+  def create_pending_proposal_dependency!(job, dependency)
+    return unless dependency.syrus_issue? || dependency.job?
+
+    JobDependency.find_or_create_by!(
+      job: job,
+      unresolved_chat_proposal: dependency
+    ) do |job_dependency|
+      job_dependency.source = "manual"
+      job_dependency.created_by_user = user
+    end
+  end
+
+  def resolve_pending_proposal_dependencies_for(proposal, job)
+    JobDependency.pending.where(unresolved_chat_proposal: proposal).find_each do |dependency|
+      next unless dependency.job.user_id == user.id
+
+      dependency.resolve!(depends_on_job: job)
+      Rails.logger.info(
+        "[JobDependency] resolved pending proposal dep on job ##{dependency.job_id}: " \
+        "#{proposal.slug} -> job ##{job.id}"
+      )
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.warn(
+        "[JobDependency] failed to resolve pending proposal dep on job ##{dependency.job_id}: #{e.message}"
+      )
+    end
+  end
+
+  def create_job_epic_dependency!(job, epic)
+    JobDependency.create!(
+      job: job,
+      depends_on_epic: epic,
+      source: "manual",
+      created_by_user: user
+    )
   end
 
   def wire_epic_dependencies(proposal, epic)
@@ -132,12 +175,7 @@ class ChatEpicProposalMaterializer
         epic = user.epics.find_by(id: epic_id)
         next unless epic
 
-        JobDependency.create!(
-          job: job,
-          depends_on_epic: epic,
-          source: "manual",
-          created_by_user: user
-        )
+        create_job_epic_dependency!(job, epic)
       end
     end
   end

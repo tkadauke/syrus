@@ -70,6 +70,39 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "stores cross-card Job proposal dependencies on child Jobs" do
+    prerequisite = chat_session.proposals.create!(
+      repository: repository,
+      slug: "upstream-job",
+      title: "Upstream",
+      body: "Do this first.",
+      kind: "job"
+    )
+
+    response = call_tool(
+      epic: {
+        slug: "m3-proposals",
+        title: "M3 proposals",
+        description: "Make proposal review atomic.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "ui",
+          target_repo: repository.slug,
+          title: "Render proposal card",
+          description: "Show rows for child jobs.",
+          depends_on: [ "upstream-job" ]
+        }
+      ]
+    )
+
+    ui = chat_session.proposals.find_by!(slug: "ui")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(ui.dependencies).to contain_exactly(prerequisite)
+  end
+
   it "rejects unknown cross-entity dependencies without creating proposals" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)
@@ -180,7 +213,7 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     )
 
     expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to match(/unknown sibling depends_on slug/)
+    expect(response[:result][:content].first[:text]).to match(/unknown depends_on slug/)
     expect(chat_session.proposals.count).to eq(0)
   end
 

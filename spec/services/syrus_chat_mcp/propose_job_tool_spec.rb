@@ -66,6 +66,27 @@ RSpec.describe SyrusChatMcp::ProposeJobTool do
     expect(proposal.dependencies).to contain_exactly(root)
   end
 
+  it "rejects depends_on slugs that do not reference Job proposals" do
+    epic_proposal = chat_session.proposals.create!(
+      repository: repository,
+      slug: "epic-plan",
+      title: "Epic plan",
+      body: "Do this first.",
+      kind: "epic"
+    )
+
+    response = call_tool(
+      repo: repository.name,
+      title: "Follow-up edict",
+      description: "Continue in an orderly fashion.",
+      depends_on: [ epic_proposal.slug ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("depends_on slug must reference a Job proposal")
+    expect(chat_session.proposals.find_by(title: "Follow-up edict")).to be_nil
+  end
+
   it "persists existing Epic dependencies" do
     prerequisite = Factories.epic(user: user, repository: repository)
 

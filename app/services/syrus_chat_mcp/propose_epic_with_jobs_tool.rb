@@ -6,7 +6,8 @@ module SyrusChatMcp
 
     description <<~DESC
       Propose one Epic and its child Syrus Jobs as a single confirmation card.
-      Job depends_on entries reference sibling job slugs in the same call.
+      Job depends_on entries reference sibling job slugs in the same call or
+      Job proposal slugs from other proposal cards in this chat session.
       Confirming the card creates the Epic, child Jobs, and sibling Job
       dependencies in one Syrus transaction.
       Proposals cannot be updated after creation. To revise a proposal,
@@ -43,7 +44,7 @@ module SyrusChatMcp
               title: { type: "string", description: "Child Job title." },
               description: { type: "string", description: "Child Job prompt/body." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job depends on." },
-              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs this child depends on. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when the jobs are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." }
+              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when the jobs are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." }
             },
             required: %w[slug target_repo title description]
           },
@@ -64,7 +65,7 @@ module SyrusChatMcp
 
         normalized_epic = normalize_epic(epic_attrs)
         normalized_jobs = job_attrs.map { |job| normalize_job(job) }
-        validation_error = validate_payload(user, normalized_epic, normalized_jobs)
+        validation_error = validate_payload(chat_session, user, normalized_epic, normalized_jobs)
         return SyrusChatMcp.invalid(validation_error) if validation_error
         dependency_error = validate_epic_dependencies(chat_session, user, normalized_epic[:depends_on])
         return SyrusChatMcp.invalid(dependency_error) if dependency_error
@@ -86,7 +87,7 @@ module SyrusChatMcp
           proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic)
           replace_epic_dependency_edges(proposal, chat_session, normalized_epic[:depends_on])
           child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs)
-          replace_dependency_edges(child_by_slug, normalized_jobs)
+          replace_dependency_edges(chat_session, child_by_slug, normalized_jobs)
           chat_session.messages.create!(
             role: "assistant",
             proposal: proposal,
@@ -135,7 +136,7 @@ module SyrusChatMcp
         Array(value).filter_map { |item| Integer(item, exception: false) }.uniq
       end
 
-      def validate_payload(user, epic, jobs)
+      def validate_payload(chat_session, user, epic, jobs)
         return "epic slug is required" if epic[:slug].empty?
         return "epic title is required" if epic[:title].empty?
         return "epic description is required" if epic[:description].empty?
@@ -153,8 +154,11 @@ module SyrusChatMcp
           return "job #{job[:slug]} cannot depend on itself" if job[:depends_on].include?(job[:slug])
         end
 
-        unknown = jobs.flat_map { |job| job[:depends_on] }.uniq - slugs
-        return "unknown sibling depends_on slug(s): #{unknown.join(', ')}" if unknown.any?
+        dependency_slugs = jobs.flat_map { |job| job[:depends_on] }.uniq
+        cross_card_slugs = dependency_slugs - slugs
+        known_cross_card_slugs = chat_session.proposals.where(slug: cross_card_slugs).where(kind: %w[syrus_issue job]).pluck(:slug)
+        unknown = cross_card_slugs - known_cross_card_slugs
+        return "unknown depends_on slug(s): #{unknown.join(', ')}" if unknown.any?
         unknown_job_ids = epic[:depends_on_job_ids] - user.jobs.where(id: epic[:depends_on_job_ids]).pluck(:id)
         return "unknown epic depends_on_job_ids: #{unknown_job_ids.join(', ')}" if unknown_job_ids.any?
         unknown_epic_ids = jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq
@@ -166,7 +170,8 @@ module SyrusChatMcp
       end
 
       def cyclic?(jobs)
-        dependencies_by_slug = jobs.to_h { |job| [ job[:slug], job[:depends_on] ] }
+        slugs = jobs.map { |job| job[:slug] }
+        dependencies_by_slug = jobs.to_h { |job| [ job[:slug], job[:depends_on] & slugs ] }
         visiting = {}
         visited = {}
 
@@ -262,14 +267,14 @@ module SyrusChatMcp
         child_by_slug
       end
 
-      def replace_dependency_edges(child_by_slug, jobs)
+      def replace_dependency_edges(chat_session, child_by_slug, jobs)
         child_by_slug.each_value { |proposal| proposal.dependency_edges.destroy_all }
         jobs.each do |job|
           proposal = child_by_slug.fetch(job[:slug])
           job[:depends_on].each do |dependency_slug|
             ChatProposalDependency.create!(
               proposal: proposal,
-              depends_on: child_by_slug.fetch(dependency_slug)
+              depends_on: child_by_slug[dependency_slug] || chat_session.proposals.find_by!(slug: dependency_slug)
             )
           end
         end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_043340) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_213305) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -447,6 +447,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_043340) do
     t.integer "depends_on_job_id"
     t.integer "job_id", null: false
     t.string "source", null: false
+    t.integer "unresolved_chat_proposal_id"
     t.integer "unresolved_number"
     t.string "unresolved_owner"
     t.string "unresolved_repo"
@@ -455,8 +456,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_043340) do
     t.index ["depends_on_epic_id"], name: "index_job_dependencies_on_depends_on_epic_id"
     t.index ["depends_on_job_id"], name: "index_job_dependencies_on_depends_on_job_id"
     t.index ["job_id", "depends_on_job_id"], name: "index_job_dependencies_on_job_id_and_depends_on_job_id", unique: true
+    t.index ["job_id", "unresolved_chat_proposal_id"], name: "index_job_deps_on_unresolved_proposal_per_job", unique: true, where: "depends_on_job_id IS NULL AND unresolved_chat_proposal_id IS NOT NULL"
     t.index ["job_id", "unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unique_unresolved_per_job", unique: true, where: "depends_on_job_id IS NULL"
     t.index ["job_id"], name: "index_job_dependencies_on_job_id"
+    t.index ["unresolved_chat_proposal_id"], name: "index_job_dependencies_on_unresolved_chat_proposal_id"
     t.index ["unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unresolved_reference", where: "unresolved_owner IS NOT NULL"
   end
 
@@ -1027,6 +1030,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_043340) do
   add_foreign_key "filter_usages", "users"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
+  add_foreign_key "job_dependencies", "chat_proposals", column: "unresolved_chat_proposal_id"
   add_foreign_key "job_dependencies", "epics", column: "depends_on_epic_id"
   add_foreign_key "job_dependencies", "jobs"
   add_foreign_key "job_dependencies", "jobs", column: "depends_on_job_id"

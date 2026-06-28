@@ -26,7 +26,7 @@ module SyrusChatMcp
         description: { type: "string", description: "Markdown Job description." },
         depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
         depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Job IDs this Job depends on." },
-        depends_on: { type: "array", items: { type: "string" }, description: "Optional proposal slugs that must be confirmed first. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." }
+        depends_on: { type: "array", items: { type: "string" }, description: "Optional Job proposal slugs from this chat session. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." }
       },
       required: %w[repo title description]
     )
@@ -50,6 +50,8 @@ module SyrusChatMcp
 
         dependencies, unknown_slugs = dependency_proposals(chat_session, depends_on)
         return SyrusChatMcp.invalid("unknown depends_on slug(s): #{unknown_slugs.join(', ')}") if unknown_slugs.any?
+        non_job_dependency = dependencies.find { |dependency| !dependency.syrus_issue? && !dependency.job? }
+        return SyrusChatMcp.invalid("depends_on slug must reference a Job proposal: #{non_job_dependency.slug}") if non_job_dependency
         unknown_epic_ids = unknown_epic_dependency_ids(chat_session, depends_on_epic_ids)
         return SyrusChatMcp.invalid("unknown depends_on_epic_ids: #{unknown_epic_ids.join(', ')}") if unknown_epic_ids.any?
         unknown_job_ids = unknown_job_dependency_ids(chat_session, depends_on_job_ids)

@@ -48,6 +48,7 @@ import {
   type ChatPayload,
   type ChatProposal,
   type ChatProposalChild,
+  type ChatProposalChildDependency,
   type ChatProposalDependency,
   type ChatQueuedMessage,
   type ChatRenderItem,
@@ -806,7 +807,7 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       body={
         <>
           <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
-          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} /> : <ProposalMeta proposal={proposal} />}
+          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} prefix={prefix} /> : <ProposalMeta proposal={proposal} />}
         </>
       }
       footer={
@@ -986,7 +987,8 @@ function ProposalDependencyStrip({ dependencies, hasDependencies, prefix }: { de
 }
 
 function ProposalDependencyLink({ dependency, prefix }: { dependency: ChatProposalDependency; prefix: string }) {
-  const label = dependency.display_label || `${dependency.title} ${dependency.confirmed ? "✓" : "⏳"}`
+  const title = dependency.display_label || dependency.materialized_label || dependency.title
+  const label = `${title} ${dependency.confirmed ? "✓" : "⏳"}`
   const className = "inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"
 
   if (dependency.anchor_message_id) {
@@ -1084,7 +1086,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
-function ProposalChildren({ children, mutation }: { children: ChatProposalChild[]; mutation: UseMutationResult<ChatPayload, Error, { action: "confirm" | "reject"; path: string }> }) {
+function ProposalChildren({ children, mutation, prefix }: { children: ChatProposalChild[]; mutation: UseMutationResult<ChatPayload, Error, { action: "confirm" | "reject"; path: string }>; prefix: string }) {
   if (children.length === 0) return null
   return (
     <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
@@ -1093,7 +1095,7 @@ function ProposalChildren({ children, mutation }: { children: ChatProposalChild[
           <summary className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
             <span className="text-gray-400 group-open:rotate-90 dark:text-gray-500">▸</span>
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
-            {child.dependencies.length > 0 ? <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">depends on {child.dependencies.join(", ")}</span> : null}
+            {child.dependencies.length > 0 ? <ChildDependencySummary child={child} prefix={prefix} /> : null}
             <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
           </summary>
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
@@ -1116,6 +1118,37 @@ function ProposalChildren({ children, mutation }: { children: ChatProposalChild[
       ))}
     </div>
   )
+}
+
+function ChildDependencySummary({ child, prefix }: { child: ChatProposalChild; prefix: string }) {
+  const details = child.dependency_details || []
+  if (details.length === 0) {
+    return <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">depends on {child.dependencies.join(", ")}</span>
+  }
+
+  return (
+    <span className="flex shrink-0 flex-wrap items-center justify-end gap-1 text-xs">
+      <span className="text-gray-500 dark:text-gray-400">depends on</span>
+      {details.map((dependency) => (
+        <ChildDependencyPill dependency={dependency} key={dependency.slug} prefix={prefix} />
+      ))}
+    </span>
+  )
+}
+
+function ChildDependencyPill({ dependency, prefix }: { dependency: ChatProposalChildDependency; prefix: string }) {
+  const label = dependency.materialized_label || dependency.slug
+  const scopeLabel = dependency.scope === "cross_card" ? "cross-card" : "sibling"
+  const className = dependency.scope === "cross_card"
+    ? "rounded border border-blue-200 bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
+    : "rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+  const content = <>{label}<span className="ml-1 font-sans text-[10px] uppercase">{scopeLabel}</span></>
+
+  if (dependency.materialized_path) {
+    return <Link className={className} to={withRoutePrefix(dependency.materialized_path, prefix)}>{content}</Link>
+  }
+
+  return <span className={className}>{content}</span>
 }
 
 function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {

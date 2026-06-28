@@ -49,6 +49,7 @@ class ChatProposalFiler
         proposal.update!(proposal_attrs)
         wire_dependencies_for(proposal, materialized, job_by_proposal_id)
         ChatEpicProposalDependencyWirer.new(user: user).resolve_confirmed_proposal!(proposal) if materialized.is_a?(Epic)
+        resolve_pending_proposal_dependencies_for(proposal, materialized) if materialized.is_a?(Job)
         # Advance the Job out of :triaging AFTER deps are wired so
         # Job#create_initial_run_if_needed's stack_ready_for_execution?
         # check sees the JobDependency rows. Without this ordering,
@@ -176,15 +177,19 @@ class ChatProposalFiler
 
   def wire_job_dependencies_for(proposal, job, job_by_proposal_id)
     proposal.dependencies.each do |dependency|
-      depends_on_job = job_by_proposal_id[dependency.id]
-      next unless depends_on_job
+      depends_on_job = job_by_proposal_id[dependency.id] || dependency.job
+      unless depends_on_job
+        create_pending_proposal_dependency!(job, dependency)
+        next
+      end
 
-      JobDependency.create!(
+      JobDependency.find_or_create_by!(
         job: job,
-        depends_on_job: depends_on_job,
-        source: "manual",
-        created_by_user: user
-      )
+        depends_on_job: depends_on_job
+      ) do |job_dependency|
+        job_dependency.source = "manual"
+        job_dependency.created_by_user = user
+      end
     end
 
     Array(proposal.depends_on_epic_ids).each do |epic_id|
@@ -208,6 +213,34 @@ class ChatProposalFiler
         depends_on_job: depends_on_job,
         source: "manual",
         created_by_user: user
+      )
+    end
+  end
+
+  def create_pending_proposal_dependency!(job, dependency)
+    return unless dependency.syrus_issue? || dependency.job?
+
+    JobDependency.find_or_create_by!(
+      job: job,
+      unresolved_chat_proposal: dependency
+    ) do |job_dependency|
+      job_dependency.source = "manual"
+      job_dependency.created_by_user = user
+    end
+  end
+
+  def resolve_pending_proposal_dependencies_for(proposal, job)
+    JobDependency.pending.where(unresolved_chat_proposal: proposal).find_each do |dependency|
+      next unless dependency.job.user_id == user.id
+
+      dependency.resolve!(depends_on_job: job)
+      Rails.logger.info(
+        "[JobDependency] resolved pending proposal dep on job ##{dependency.job_id}: " \
+        "#{proposal.slug} -> job ##{job.id}"
+      )
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.warn(
+        "[JobDependency] failed to resolve pending proposal dep on job ##{dependency.job_id}: #{e.message}"
       )
     end
   end

@@ -136,7 +136,8 @@ Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
 Proposal cards can also declare dependency edges up front, including Jobs
-blocked on existing Epics and Epics blocked on existing Jobs.
+blocked on existing Epics, Epics blocked on existing Jobs, and proposed Jobs
+blocked on specific Job proposals in other cards from the same chat session.
 Actions that need explicit approval, such as
 canceling, retrying, reopening, polling feedback, checking mergeability,
 delegating GitHub issues, firing scheduled tasks, changing repository
@@ -146,6 +147,8 @@ before confirming or rejecting them.
 Proposal cards show dependency status before the title: either dependency
 proposal links with confirmed or pending badges, resolved Epic proposal links,
 or an explicit no-dependencies note.
+Grouped Epic cards also label child Job dependencies as sibling or cross-card
+references, and resolved cross-card Job references link to the created Job.
 Confirmed and discarded proposal and action cards are also written back into the chat
 transcript so the next assistant turn can see the created Job, Epic, or
 GitHub issue identifiers without asking the operator to repeat them.

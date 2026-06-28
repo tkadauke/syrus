@@ -149,6 +149,63 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(result.epic.reload.depends_on_epics).to contain_exactly(prerequisite)
   end
 
+  it "creates pending Job dependencies for unresolved cross-card Job proposal references" do
+    prerequisite = chat_session.proposals.create!(
+      slug: "upstream-job",
+      title: "Upstream",
+      body: "Do this first.",
+      kind: "job",
+      repository: repository
+    )
+    proposal = epic_proposal
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
+    ChatProposalDependency.create!(proposal: child, depends_on: prerequisite)
+
+    result = described_class.new(user: user).file!(proposal)
+
+    dependency = child.reload.job.dependencies.first
+    expect(result.jobs.first.dependencies).to contain_exactly(dependency)
+    expect(dependency).to have_attributes(
+      depends_on_job_id: nil,
+      unresolved_chat_proposal_id: prerequisite.id,
+      source: "manual",
+      created_by_user: user
+    )
+  end
+
+  it "resolves pending cross-card Job proposal dependencies when the upstream proposal is confirmed" do
+    prerequisite = chat_session.proposals.create!(
+      slug: "upstream-job",
+      title: "Upstream",
+      body: "Do this first.",
+      kind: "job",
+      repository: repository
+    )
+    proposal = epic_proposal
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
+    ChatProposalDependency.create!(proposal: child, depends_on: prerequisite)
+
+    described_class.new(user: user).file!(proposal)
+    ChatProposalFiler.new(user: user, repository: repository).file!([ prerequisite ])
+
+    dependency = child.reload.job.dependencies.first
+    expect(dependency).to be_resolved
+    expect(dependency.depends_on_job).to eq(prerequisite.reload.job)
+    expect(dependency.unresolved_chat_proposal_id).to be_nil
+  end
+
   it "excludes rejected child Jobs from materialization" do
     proposal = epic_proposal
     kept = proposal.child_proposals.create!(

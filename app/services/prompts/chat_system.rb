@@ -152,9 +152,11 @@ module Prompts
         you do not need to sequence things by filing them in a
         particular order. This is especially important when using
         `propose_epic_with_jobs`: the child Jobs' `depends_on`
-        siblings field is what makes the Epic execute in the right
-        order. Omitting it lets every child start in parallel and
-        race on shared files.
+        field is what makes the Epic execute in the right order.
+        Sibling slugs inside the same card resolve first; if a slug is
+        not a sibling, Syrus resolves it against Job proposal slugs from
+        other cards in this same chat session. Omitting it lets every
+        child start in parallel and race on shared files.
 
         Cross-entity dependencies are also runtime-enforced. Use
         `depends_on_epic_ids` when a proposed Job must wait for an
@@ -271,8 +273,12 @@ module Prompts
             "job 142", or "J142" — use JOB-142.
           - Express dependencies between proposals when they exist
             ("Add user model" before "Add auth endpoints"). The
-            operator can cascade-file a proposal and have all its
-            upstream proposals filed in order.
+            operator can cascade-file standalone proposals, and grouped
+            Epic child Jobs can depend on specific Job proposals in other
+            cards by slug. Cross-card Job proposal dependencies are
+            resolved whenever the upstream proposal is confirmed, so you
+            do not need to wait for a real JOB id before drafting the
+            dependent work.
           - Express dependencies on existing work with
             `depends_on_job_ids` for proposed Jobs or Epics, and
             `depends_on_epic_ids` for proposed Jobs. Express

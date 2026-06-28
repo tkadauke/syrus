@@ -179,6 +179,7 @@ RSpec.describe App::ChatMessagePayload do
         state: "confirmed",
         confirmed: true,
         anchor_message_id: dependency_message.id,
+        materialized_label: nil,
         materialized_path: nil
       }
     ])
@@ -220,6 +221,53 @@ RSpec.describe App::ChatMessagePayload do
         anchor_message_id: nil,
         materialized_path: "/epics/#{resolved_epic.id}"
       }
+    )
+  end
+
+  it "returns sibling and cross-card dependency details for Epic child proposals" do
+    epic = chat.proposals.create!(
+      repository: repository,
+      kind: "epic",
+      state: "proposed",
+      slug: "epic-card",
+      title: "Epic card",
+      body: "Bundle work."
+    )
+    sibling = chat.proposals.create!(
+      repository: repository,
+      parent_proposal: epic,
+      kind: "job",
+      slug: "schema",
+      title: "Schema",
+      body: "Persist it."
+    )
+    cross_card = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "confirmed",
+      slug: "upstream-job",
+      title: "Upstream",
+      body: "Do this first.",
+      job: Factories.job_record(user: user, repository: repository)
+    )
+    child = chat.proposals.create!(
+      repository: repository,
+      parent_proposal: epic,
+      kind: "job",
+      slug: "ui",
+      title: "UI",
+      body: "Render it."
+    )
+    ChatProposalDependency.create!(proposal: child, depends_on: sibling)
+    ChatProposalDependency.create!(proposal: child, depends_on: cross_card)
+    message = chat.messages.create!(role: "assistant", proposal: epic, content: { "text" => "Proposal created." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+    ui_payload = payload.fetch(:children).find { |candidate| candidate.fetch(:slug) == "ui" }
+
+    expect(ui_payload.fetch(:dependency_details)).to contain_exactly(
+      include(slug: "schema", scope: "sibling", materialized_label: nil, materialized_path: nil),
+      include(slug: "upstream-job", scope: "cross_card", materialized_label: "JOB-#{cross_card.job.id}", materialized_path: "/jobs/#{cross_card.job.id}")
     )
   end
 

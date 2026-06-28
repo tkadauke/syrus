@@ -4,6 +4,7 @@ class JobDependency < ApplicationRecord
   belongs_to :job
   belongs_to :depends_on_job, class_name: "Job", optional: true
   belongs_to :depends_on_epic, class_name: "Epic", optional: true
+  belongs_to :unresolved_chat_proposal, class_name: "ChatProposal", optional: true
   belongs_to :created_by_user, class_name: "User", optional: true
 
   enum :source, { parsed: "parsed", manual: "manual" }, validate: true
@@ -28,6 +29,8 @@ class JobDependency < ApplicationRecord
 
   def unresolved_slug
     return nil unless pending?
+    return unresolved_chat_proposal.slug if unresolved_chat_proposal
+
     "#{unresolved_owner}/#{unresolved_repo}##{unresolved_number}"
   end
 
@@ -57,6 +60,7 @@ class JobDependency < ApplicationRecord
 
     update!(
       depends_on_job: depends_on_job,
+      unresolved_chat_proposal: nil,
       unresolved_owner: nil,
       unresolved_repo: nil,
       unresolved_number: nil
@@ -84,6 +88,7 @@ class JobDependency < ApplicationRecord
     target_count = [
       depends_on_job_id.present?,
       depends_on_epic_id.present?,
+      unresolved_chat_proposal_id.present?,
       unresolved_reference_present?
     ].count(true)
 
@@ -92,6 +97,7 @@ class JobDependency < ApplicationRecord
   end
 
   def pending_fields_consistent
+    return if unresolved_chat_proposal_id.present?
     return unless unresolved_reference_present?
 
     if unresolved_owner.blank? || unresolved_repo.blank? || unresolved_number.blank?

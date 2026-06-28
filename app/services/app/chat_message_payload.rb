@@ -131,6 +131,7 @@ module App
         state: proposal.state,
         confirmed: proposal.confirmed?,
         anchor_message_id: proposal.messages.order(:id).last&.id,
+        materialized_label: proposal.materialized_label,
         materialized_path: materialized_path(proposal.materialized_record)
       }
     end
@@ -178,6 +179,7 @@ module App
     end
 
     def child_proposal_json(proposal, chat_session:)
+      dependency_records = proposal.dependencies.order(:slug).to_a
       {
         id: proposal.id,
         title: proposal.title,
@@ -187,8 +189,20 @@ module App
         state_label: proposal.state.humanize,
         proposed: proposal.proposed?,
         repository_slug: proposal.repository&.slug || @repository&.slug,
-        dependencies: proposal.dependencies.order(:slug).map(&:slug),
+        dependencies: dependency_records.map(&:slug),
+        dependency_details: dependency_records.map { |dependency| child_dependency_json(proposal, dependency) },
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject"
+      }
+    end
+
+    def child_dependency_json(proposal, dependency)
+      {
+        slug: dependency.slug,
+        title: dependency.title,
+        scope: dependency.parent_proposal_id == proposal.parent_proposal_id ? "sibling" : "cross_card",
+        confirmed: dependency.confirmed?,
+        materialized_label: dependency.materialized_label,
+        materialized_path: materialized_path(dependency.materialized_record)
       }
     end
 
