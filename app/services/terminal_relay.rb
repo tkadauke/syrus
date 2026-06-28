@@ -105,11 +105,19 @@ class TerminalRelay
         until stop
           next unless readable?(pty_out)
 
-          data = pty_out.read_nonblock(READ_CHUNK_BYTES)
-          conn.write(data)
+          data = begin
+            pty_out.read_nonblock(READ_CHUNK_BYTES)
+          rescue EOFError, Errno::EIO, IOError, SystemCallError
+            stop_relay.call(close_pty: true)
+            next
+          end
+
+          begin
+            conn.write(data)
+          rescue IOError, SystemCallError
+            stop_relay.call(close_pty: false)
+          end
         end
-      rescue EOFError, Errno::EIO, IOError, SystemCallError
-        stop_relay.call(close_pty: true)
       end
     end
 
