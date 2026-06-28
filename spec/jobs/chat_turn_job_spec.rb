@@ -289,6 +289,45 @@ RSpec.describe ChatTurnJob do
     expect(received[:env]).to eq("GIT_TERMINAL_PROMPT" => "0")
   end
 
+  it "refreshes already-cloned attached repository checkouts at turn start" do
+    attached_repository = Factories.repository(user: user, owner: "acme", name: "toolbox", default_branch: "main")
+    unmaterialized_repository = Factories.repository(user: user, owner: "acme", name: "not-cloned", default_branch: "main")
+    chat.chat_attachments.create!(attachable: attached_repository)
+    chat.chat_attachments.create!(attachable: unmaterialized_repository)
+    FileUtils.mkdir_p(ChatWorkspace.repo_path_for(chat, repository).join(".git"))
+    FileUtils.mkdir_p(ChatWorkspace.repo_path_for(chat, attached_repository).join(".git"))
+
+    refreshed = []
+    allow(ChatWorkspace).to receive(:attach_repository!) { |_chat, repo| refreshed << repo }
+    ChatTurnJob.agent_runner = ->(**_) {
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(refreshed).to contain_exactly(repository, attached_repository)
+  end
+
+  it "logs and continues when an attached repository checkout refresh fails" do
+    FileUtils.mkdir_p(ChatWorkspace.repo_path_for(chat, repository).join(".git"))
+    allow(ChatWorkspace).to receive(:attach_repository!).with(chat, repository).and_raise(StandardError, "network unavailable")
+    allow(Rails.logger).to receive(:warn)
+    ran_agent = false
+    ChatTurnJob.agent_runner = ->(**_) {
+      ran_agent = true
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    expect {
+      described_class.perform_now(chat.id, user_message.id)
+    }.not_to raise_error
+
+    expect(ran_agent).to eq(true)
+    expect(Rails.logger).to have_received(:warn).with(
+      /checkout refresh failed for chat ##{chat.id} #{repository.slug}: StandardError: network unavailable/
+    )
+  end
+
   it "preserves existing usage totals when invocation result usage fields are nil" do
     chat.update!(
       cumulative_input_tokens: 10,

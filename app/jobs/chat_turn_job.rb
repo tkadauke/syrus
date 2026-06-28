@@ -100,7 +100,21 @@ class ChatTurnJob < ApplicationJob
   end
 
   def ensure_workspace!
-    ChatWorkspace.ensure_root!(@chat)
+    workspace_path = ChatWorkspace.ensure_root!(@chat)
+    refresh_attached_repository_checkouts!(workspace_path)
+    workspace_path
+  end
+
+  def refresh_attached_repository_checkouts!(workspace_path)
+    repositories_path = Pathname(workspace_path).join("repositories")
+
+    @chat.attached_repositories.each do |repository|
+      next unless repositories_path.join(repository.owner, repository.name, ".git").directory?
+
+      ChatWorkspace.attach_repository!(@chat, repository)
+    rescue => e
+      Rails.logger.warn("[ChatTurnJob] checkout refresh failed for chat ##{@chat.id} #{repository.slug}: #{e.class}: #{e.message}")
+    end
   end
 
   def prompt_for(parent_session_id, user_text:)
