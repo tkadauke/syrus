@@ -118,7 +118,7 @@ function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNoti
 
 function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: MemoryRow; payload: MemoriesPayload; showOwner: boolean; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
-  const [expanded, setExpanded] = useState(false)
+  const [viewing, setViewing] = useState(false)
   const [editing, setEditing] = useState(false)
   const publish = useMutation({
     mutationFn: () => memory.published ? unpublishMemory(memory.paths.app_publish_path) : publishMemory(memory.paths.app_publish_path),
@@ -141,10 +141,10 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.scope === "global" ? "Global" : memory.repository_name || `Repository #${memory.scope_id}`}</td>
       {showOwner ? <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.owner.name}</td> : null}
       <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
-        <Markdown className={`chat-prose text-sm text-gray-800 break-words dark:text-gray-200 ${expanded ? "" : "line-clamp-2"}`} text={memory.content} />
+        <Markdown className="chat-prose line-clamp-2 text-sm text-gray-800 break-words dark:text-gray-200" text={memory.content} />
         {memory.content.length > 160 ? (
-          <button className="mt-1 block text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setExpanded(!expanded)} type="button">
-            {expanded ? "Collapse" : "Expand"}
+          <button className="mt-1 block text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setViewing(true)} type="button">
+            See more
           </button>
         ) : null}
       </td>
@@ -182,9 +182,47 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
         </div>
         {publish.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(publish.error, "Unable to change publish state.")}</p> : null}
         {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete memory.")}</p> : null}
+        {viewing ? <MemoryContentModal memory={memory} onClose={() => setViewing(false)} /> : null}
         {editing ? <MemoryModal memory={memory} mode="edit" onClose={() => setEditing(false)} onNotice={onNotice} payload={payload} /> : null}
       </td>
     </tr>
+  )
+}
+
+function MemoryContentModal({ memory, onClose }: { memory: MemoryRow; onClose: () => void }) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <section
+        aria-labelledby={`memory-content-modal-title-${memory.id}`}
+        aria-modal="true"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-gray-900"
+        role="dialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="space-y-4 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id={`memory-content-modal-title-${memory.id}`}>Memory content</h2>
+            <button
+              aria-label="Close"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              onClick={onClose}
+              type="button"
+            >
+              <CloseIcon className="h-7 w-7" />
+            </button>
+          </div>
+          <Markdown className="chat-prose text-sm text-gray-800 break-words dark:text-gray-200" text={memory.content} />
+        </div>
+      </section>
+    </div>
   )
 }
 
