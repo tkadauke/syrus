@@ -92,6 +92,98 @@ describe("chat compose drafts", () => {
   })
 })
 
+describe("chat pending proposal jump banner", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn()
+    })
+  })
+
+  it("shows the number of pending proposals above compose", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
+          messageWithProposal(10, proposal({ id: 2, title: "Draft build plan" }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("2 pending proposals")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Jump (1 of 2)" })).toBeInTheDocument()
+  })
+
+  it("jumps through pending proposal messages in order", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
+          messageWithProposal(10, proposal({ id: 2, title: "Draft build plan" }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    const jump = await screen.findByRole("button", { name: "Jump (1 of 2)" })
+    const firstScroll = vi.fn()
+    const secondScroll = vi.fn()
+    Object.defineProperty(document.getElementById("chat_message_9"), "scrollIntoView", {
+      configurable: true,
+      value: firstScroll
+    })
+    Object.defineProperty(document.getElementById("chat_message_10"), "scrollIntoView", {
+      configurable: true,
+      value: secondScroll
+    })
+
+    fireEvent.click(jump)
+
+    expect(firstScroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" })
+    expect(secondScroll).not.toHaveBeenCalled()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Jump (2 of 2)" }))
+
+    expect(secondScroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" })
+  })
+
+  it("does not show the banner for resolved proposals", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss proposal 9.")).toBeInTheDocument()
+    expect(screen.queryByText("1 pending proposal")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Jump ↑" })).not.toBeInTheDocument()
+  })
+})
+
 describe("chat message image attachments", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -374,6 +466,46 @@ function detachRequests(fetchMock: ReturnType<typeof vi.spyOn>) {
     const init = call[1] as RequestInit | undefined
     return String(input) === "/api/v1/app/chats/8/attachments/31" && init?.method === "DELETE"
   })
+}
+
+function messageWithProposal(id: number, chatProposal: Record<string, unknown>) {
+  return {
+    type: "message",
+    id,
+    role: "assistant",
+    tool_name: null,
+    content: { text: `Discuss proposal ${id}.` },
+    text: `Discuss proposal ${id}.`,
+    bookmarkable: true,
+    proposal: chatProposal
+  }
+}
+
+function proposal(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    kind: "job",
+    kind_label: "Job",
+    state: "proposed",
+    state_label: "Pending",
+    title: "Survey aqueduct route",
+    slug: "JOB-DRAFT-1",
+    body: "Inspect the aqueduct route.",
+    proposed: true,
+    resolved: false,
+    epic_bundle: false,
+    scoped_repository_slug: null,
+    dependency_slugs: [],
+    dependencies: [],
+    has_dependencies: false,
+    target_epic_label: null,
+    app_confirm_path: "/api/v1/app/chats/8/proposals/1/confirm",
+    app_reject_path: "/api/v1/app/chats/8/proposals/1/reject",
+    materialized_label: null,
+    materialized_path: null,
+    materialized: null,
+    ...overrides
+  }
 }
 
 function jsonResponse(body: unknown, status = 200) {
