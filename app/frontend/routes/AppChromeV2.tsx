@@ -784,7 +784,6 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                         disabled={hidingChatIds.has(chat.id)}
                         onHide={() => hideRecentChat(chat)}
                         search={location.search}
-                        showBookmarks={active}
                       />
                     </div>
                   )
@@ -840,17 +839,19 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
   return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
 }
 
-function RecentChatActionsMenu({ chat, disabled, onHide, search, showBookmarks }: {
+function RecentChatActionsMenu({ chat, disabled, onHide, search }: {
   chat: ChatNavRecord
   disabled: boolean
   onHide: () => void
   search: string
-  showBookmarks: boolean
 }) {
+  const location = useLocation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
-  const chatData = open && showBookmarks
+  const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
+  const active = chat.current || chat.id === activeChatIdFromPath(location.pathname)
+  const chatData = open
     ? queryClient.getQueryData<ChatPayload>(chatQueryKey(String(chat.id), search))
     : undefined
   const bookmarks = chatData?.bookmarks ?? []
@@ -877,7 +878,7 @@ function RecentChatActionsMenu({ chat, disabled, onHide, search, showBookmarks }
                 return (
                   <a
                     className="block truncate px-3 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200"
-                    href={`#message-${anchorMessageId}`}
+                    href={active ? `#message-${anchorMessageId}` : withRoutePrefix(`${chat.chat_path}#message-${anchorMessageId}`, prefix)}
                     key={bookmark.id}
                     onClick={() => setOpen(false)}
                   >
