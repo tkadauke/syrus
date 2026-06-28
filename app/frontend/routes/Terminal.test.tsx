@@ -147,6 +147,17 @@ describe("TerminalRoute", () => {
     })
   })
 
+  it("does not fetch sessions when the terminal feature is disabled", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(terminalSessionsPayload()))
+
+    renderTerminalRoute("/terminal", bootstrapPayload({ feature_flags: { terminal: false, v2_ui: true } }))
+
+    await waitFor(() => {
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+    expect(screen.getByText("No terminal sessions")).toBeInTheDocument()
+  })
+
   it("subscribes TerminalPane to the TerminalChannel and shows the disconnected overlay", async () => {
     const subscription = { perform: vi.fn(), unsubscribe: vi.fn() }
     actionCable.createSubscription.mockReturnValue(subscription)
@@ -221,17 +232,21 @@ describe("TerminalRoute", () => {
   })
 })
 
-function renderTerminalRoute(path = "/terminal") {
+function renderTerminalRoute(path = "/terminal", bootstrap = bootstrapPayload({ feature_flags: { terminal: true, v2_ui: true } })) {
   return renderWithClient(
     <MemoryRouter initialEntries={[path]}>
       <TerminalRoute />
-    </MemoryRouter>
+    </MemoryRouter>,
+    bootstrap
   )
 }
 
-function renderWithClient(ui: ReactElement) {
+function renderWithClient(ui: ReactElement, bootstrap?: BootstrapPayload) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  if (bootstrap) queryClient.setQueryData(["bootstrap"], bootstrap)
+
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={queryClient}>
       {ui}
     </QueryClientProvider>
   )
