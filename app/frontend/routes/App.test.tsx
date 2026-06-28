@@ -12238,6 +12238,8 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Context" }))
     fireEvent.click(screen.getByTitle("Detach acme/widgets"))
+    expect(screen.getByRole("button", { name: "Detach acme/widgets?" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Detach acme/widgets?" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         `/api/v1/app/chats/8/attachments/2${search}`,

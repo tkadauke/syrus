@@ -2750,6 +2750,7 @@ function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayload; pr
 function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; rows: ChatAttachmentRow[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const search = queryKey[2]
+  const [pendingDetachId, setPendingDetachId] = useState<string | null>(null)
   const detach = useMutation({
     mutationFn: (path: string) => deleteChatAttachment(appendSearch(path, search)),
     onSuccess: (updated) => {
@@ -2763,18 +2764,40 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
       <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</div>
       {rows.length > 0 ? (
         <div className="space-y-1">
-          {rows.map((row) => (
-            <button
-              className="block w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-left text-xs text-gray-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:text-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-red-800 dark:hover:bg-red-950 dark:hover:text-red-300 dark:disabled:text-gray-600"
-              disabled={detach.isPending}
-              key={row.id}
-              onClick={() => detach.mutate(row.app_detach_path)}
-              title={`Detach ${row.label}`}
-              type="button"
-            >
-              {row.label}
-            </button>
-          ))}
+          {rows.map((row) => {
+            const rowId = String(row.id)
+            const pending = pendingDetachId === rowId
+            return (
+              <div className="flex items-center gap-2" key={row.id}>
+                <button
+                  className={`block w-full rounded border px-2 py-1.5 text-left text-xs disabled:text-gray-300 dark:disabled:text-gray-600 ${pending ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300" : "border-gray-200 bg-gray-50 text-gray-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-red-800 dark:hover:bg-red-950 dark:hover:text-red-300"}`}
+                  disabled={detach.isPending}
+                  onClick={() => {
+                    if (pending) {
+                      setPendingDetachId(null)
+                      detach.mutate(row.app_detach_path)
+                    } else {
+                      setPendingDetachId(rowId)
+                    }
+                  }}
+                  title={`Detach ${row.label}`}
+                  type="button"
+                >
+                  {pending ? `Detach ${row.label}?` : row.label}
+                </button>
+                {pending ? (
+                  <button
+                    className="shrink-0 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+                    disabled={detach.isPending}
+                    onClick={() => setPendingDetachId(null)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
       ) : <div className="text-xs text-gray-400 dark:text-gray-500">None</div>}
       {detach.isError ? <div className="mt-1 text-xs text-red-700 dark:text-red-300">{errorMessage(detach.error, "Detach failed.")}</div> : null}

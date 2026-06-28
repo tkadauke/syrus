@@ -203,6 +203,52 @@ describe("chat message image attachments", () => {
   })
 })
 
+describe("chat attachment detach confirmation", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
+    mockDesktopViewport()
+  })
+
+  it("does not detach an attachment on the first click", async () => {
+    const fetchMock = mockChatAttachmentFetch()
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Runbook.md" }))
+
+    expect(screen.getByRole("button", { name: "Detach Runbook.md?" })).toBeInTheDocument()
+    expect(detachRequests(fetchMock)).toHaveLength(0)
+  })
+
+  it("detaches an attachment on the second click of the same button", async () => {
+    const fetchMock = mockChatAttachmentFetch()
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Runbook.md" }))
+    fireEvent.click(screen.getByRole("button", { name: "Detach Runbook.md?" }))
+
+    await waitFor(() => {
+      expect(detachRequests(fetchMock)).toHaveLength(1)
+    })
+  })
+
+  it("cancels a pending detach without calling the API", async () => {
+    const fetchMock = mockChatAttachmentFetch()
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Runbook.md" }))
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.getByRole("button", { name: "Runbook.md" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Detach Runbook.md?" })).not.toBeInTheDocument()
+    expect(detachRequests(fetchMock)).toHaveLength(0)
+  })
+})
+
 describe("repositoryless chat compose", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -275,11 +321,36 @@ function mockMobileViewport() {
   })
 }
 
+function mockChatAttachmentFetch() {
+  return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+    const path = String(input)
+    if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+
+    return Promise.resolve(jsonResponse(chatPayload({
+      attachment_groups: {
+        documents: [
+          { id: 31, label: "Runbook.md", app_detach_path: "/api/v1/app/chats/8/attachments/31" }
+        ]
+      }
+    })))
+  })
+}
+
+function detachRequests(fetchMock: ReturnType<typeof vi.spyOn>) {
+  return fetchMock.mock.calls.filter((call: unknown[]) => {
+    const input = call[0]
+    const init = call[1] as RequestInit | undefined
+    return String(input) === "/api/v1/app/chats/8/attachments/31" && init?.method === "DELETE"
+  })
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>> } = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>> } = {}) {
   return {
     chat: {
       id: 8,
@@ -315,10 +386,10 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     agent_questions: [],
     queued_messages: [],
     attachment_groups: {
-      repositories: [],
-      epics: [],
-      jobs: [],
-      documents: []
+      repositories: overrides.attachment_groups?.repositories || [],
+      epics: overrides.attachment_groups?.epics || [],
+      jobs: overrides.attachment_groups?.jobs || [],
+      documents: overrides.attachment_groups?.documents || []
     },
     documents_in_scope: [],
     attachment_results: [],
