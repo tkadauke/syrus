@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createChat, fetchChats, fetchMoreChatsForGroup, hideChat, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
+import { fetchChats, fetchMoreChatsForGroup, hideChat, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
@@ -12,7 +12,6 @@ import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsBell } from "../components/Notifications"
 import { SyrusBrand } from "../components/SyrusBrand"
-import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { chatQueryKey } from "./Chat"
 
@@ -34,7 +33,6 @@ const PUBLILIUS_SYRUS_QUOTES = [
 export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNode; initialBootstrap: BootstrapPayload | null }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
   const shouldLoadChromeBootstrap = initialBootstrap == null && !isAuthPath(normalizedPath)
@@ -55,7 +53,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
   const tabsHidden = inOnboarding && !onboardingChatStarted
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [creatingChat, setCreatingChat] = useState(false)
   const [mobileBrandFloating, setMobileBrandFloating] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
@@ -84,15 +81,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   ] : []
 
   function startChat() {
-    setCreatingChat(true)
-    void createChat({ repositoryId: "", text: "" }).then((created) => {
-      updateRecentChatCache(queryClient, created.chat, { prepend: true })
-      refreshRecentChats(queryClient)
-      setDrawerOpen(false)
-      navigate(withRoutePrefix(created.redirect_to, prefix))
-    }).finally(() => {
-      setCreatingChat(false)
-    })
+    setDrawerOpen(false)
+    navigate(withRoutePrefix("/chats/new", prefix))
   }
 
   useEffect(() => {
@@ -159,7 +149,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }}>
         <SidebarContent
-          creatingChat={creatingChat}
           csrfToken={data?.csrf_token}
           dashboardSubnavEnabled={true}
           navItems={navItems}
@@ -205,7 +194,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       {drawerOpen ? (
         <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
           <SidebarContent
-            creatingChat={creatingChat}
             csrfToken={data?.csrf_token}
             dashboardSubnavEnabled={false}
             navItems={navItems}
@@ -368,7 +356,6 @@ function hasFeatureFlags(featureFlags: Record<string, boolean>) {
 }
 
 function SidebarContent({
-  creatingChat,
   csrfToken,
   dashboardSubnavEnabled,
   navItems,
@@ -379,7 +366,6 @@ function SidebarContent({
   showTeamProfile,
   user
 }: {
-  creatingChat: boolean
   csrfToken?: string
   dashboardSubnavEnabled: boolean
   navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
@@ -436,12 +422,12 @@ function SidebarContent({
         <div className="sticky top-0 z-20 space-y-3 bg-white px-3 py-4 dark:bg-gray-950">
           <button
             className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300"
-            disabled={!user || creatingChat}
+            disabled={!user}
             onClick={onStartChat}
             type="button"
           >
             <PlusIcon />
-            <span>{creatingChat ? "Creating..." : "New Chat"}</span>
+            <span>New Chat</span>
           </button>
           <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
         </div>

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent, ReactNode } from "react"
+import type { ChangeEvent, FormEvent, ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { createChat, fetchNewChat, type NewChatPayload } from "../api/chats"
 import { upsertRecentChatCache } from "../lib/chatRecentCache"
+
+const NEW_CHAT_DRAFT_KEY = "syrus.chat.draft.new"
 
 export function ChatNewRoute() {
   const location = useLocation()
@@ -27,15 +29,16 @@ export function ChatNewRoute() {
   )
 }
 
-function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string }) {
+export function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [repositoryId, setRepositoryId] = useState("")
-  const [text, setText] = useState("")
+  const [text, setText] = useState(readNewChatDraft)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const save = useMutation({
     mutationFn: () => createChat({ repositoryId, text }),
     onSuccess: (created) => {
+      clearNewChatDraft()
       upsertRecentChatCache(queryClient, created.chat)
       void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
       navigate(withRoutePrefix(created.redirect_to, prefix))
@@ -50,6 +53,12 @@ function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string
   useEffect(() => {
     textareaRef.current?.focus()
   }, [])
+
+  function updateText(event: ChangeEvent<HTMLTextAreaElement>) {
+    const nextText = event.target.value
+    setText(nextText)
+    writeNewChatDraft(nextText)
+  }
 
   return (
     <form className="space-y-4 rounded border border-gray-200 bg-white p-4" onSubmit={submit}>
@@ -75,7 +84,7 @@ function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string
         <textarea
           className={inputClass()}
           name="chat_message[text]"
-          onChange={(event) => setText(event.target.value)}
+          onChange={updateText}
           placeholder="Optional"
           ref={textareaRef}
           rows={4}
@@ -88,6 +97,30 @@ function ChatForm({ payload, prefix }: { payload: NewChatPayload; prefix: string
       </button>
     </form>
   )
+}
+
+function readNewChatDraft() {
+  try {
+    return window.localStorage.getItem(NEW_CHAT_DRAFT_KEY) || ""
+  } catch {
+    return ""
+  }
+}
+
+function writeNewChatDraft(text: string) {
+  try {
+    window.localStorage.setItem(NEW_CHAT_DRAFT_KEY, text)
+  } catch {
+    // Storage can be disabled in private browsing or locked-down embeds.
+  }
+}
+
+function clearNewChatDraft() {
+  try {
+    window.localStorage.removeItem(NEW_CHAT_DRAFT_KEY)
+  } catch {
+    // Storage can be disabled in private browsing or locked-down embeds.
+  }
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {

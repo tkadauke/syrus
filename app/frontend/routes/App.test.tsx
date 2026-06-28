@@ -699,6 +699,9 @@ describe("App", () => {
       if (path === "/api/v1/app/chats" && (init as RequestInit)?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/8", chat: chatPayload().chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
       }
+      if (path === "/api/v1/app/chats/new") {
+        return Promise.resolve(new Response(JSON.stringify(chatFormPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/chats/8") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -744,15 +747,10 @@ describe("App", () => {
       })
 
       fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
-      await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/chats",
-          expect.objectContaining({
-            method: "POST",
-            body: JSON.stringify({ repository_id: "", chat_message: { text: "" } })
-          })
-        )
-      })
+      expect(await screen.findByRole("heading", { name: "New chat" })).toBeInTheDocument()
+      expect(fetchSpy.mock.calls.some(([path, init]) => (
+        String(path) === "/api/v1/app/chats" && (init as RequestInit | undefined)?.method === "POST"
+      ))).toBe(false)
     } finally {
       fetchSpy.mockRestore()
       script.remove()
