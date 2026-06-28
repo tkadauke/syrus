@@ -1507,8 +1507,10 @@ function JobRow({
   optimisticState?: string
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [menuOpensUpward, setMenuOpensUpward] = useState(false)
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle")
   const menuRef = useRef<HTMLDivElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const displayState = optimisticState ?? job.state
   const isFailed = displayState === "failed"
   const isImplemented = job.state === "implemented"
@@ -1556,6 +1558,14 @@ function JobRow({
   const runAction = (action: () => void) => {
     setIsMenuOpen(false)
     action()
+  }
+
+  const openMenu = () => {
+    if (menuButtonRef.current) {
+      const rect = menuButtonRef.current.getBoundingClientRect()
+      setMenuOpensUpward(window.innerHeight - rect.bottom < 180)
+    }
+    setIsMenuOpen(true)
   }
 
   const showCopyFeedback = (nextCopyState: "success" | "error") => {
@@ -1635,16 +1645,23 @@ function JobRow({
         <button
           type="button"
           className="icon-button"
+          ref={menuButtonRef}
           title="Job actions"
           aria-label={`Open actions for JOB-${job.id}`}
           aria-expanded={isMenuOpen}
           aria-haspopup="menu"
-          onClick={() => setIsMenuOpen((open) => !open)}
+          onClick={() => {
+            if (isMenuOpen) {
+              setIsMenuOpen(false)
+            } else {
+              openMenu()
+            }
+          }}
         >
           <MoreIcon />
         </button>
         {isMenuOpen ? (
-          <div className="desktop-menu" role="menu">
+          <div className={`desktop-menu${menuOpensUpward ? " desktop-menu--upward" : ""}`} role="menu">
             {isImplemented ? (
               <MenuAction
                 disabled={approving}

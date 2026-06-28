@@ -964,6 +964,11 @@ input:focus {
   box-shadow: 0 16px 32px rgb(15 23 42 / 14%);
 }
 
+.desktop-menu--upward {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
 .desktop-menu__item {
   display: flex;
   width: 100%;
