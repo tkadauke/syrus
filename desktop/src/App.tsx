@@ -69,20 +69,6 @@ const relativeTimestamp = (value: string) => {
   return new Date(timestamp).toLocaleDateString()
 }
 
-function InlineMarkdown({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(/(`[^`]+`)/g).filter(Boolean).map((part, index) => {
-        if (part.startsWith("`") && part.endsWith("`")) {
-          return <code key={index}>{part.slice(1, -1)}</code>
-        }
-
-        return <span key={index}>{part}</span>
-      })}
-    </>
-  )
-}
-
 function BlockMarkdown({ text }: { text: string }) {
   const paragraphs = text.trim().split(/\n\n+/)
   return (
