@@ -195,12 +195,12 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
     terminal.open(containerRef.current)
-    fitAddon.fit()
     const serializeAddon = new SerializeAddon()
     terminal.loadAddon(serializeAddon)
 
     const snapshot = terminalSnapshots.get(session.id)
     if (snapshot) terminal.write(snapshot)
+    const initialFitFrame = requestAnimationFrame(() => fitAddon.fit())
 
     const subscription: Subscription = createConsumer().subscriptions.create(
       { channel: "TerminalChannel", session_id: session.id },
@@ -227,6 +227,7 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
 
     return () => {
       terminalSnapshots.set(session.id, serializeAddon.serialize())
+      cancelAnimationFrame(initialFitFrame)
       resizeObserver?.disconnect()
       inputDisposable.dispose()
       resizeDisposable.dispose()
