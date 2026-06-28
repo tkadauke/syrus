@@ -33,6 +33,7 @@ module App
         attachments: @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) },
         summary: summary_json,
         test_plan: test_plan_json,
+        feedback_history: feedback_history_json,
         landing_queue_entry: landing_queue_entry_json,
         workflows: workflows_json,
         workflows_pagination: workflows_pagination_json,
@@ -300,6 +301,22 @@ module App
         chat_session_id: proposal.chat_session_id,
         message_id: message.id
       }
+    end
+
+    def feedback_history_json
+      @job.workflows
+        .select { |workflow| workflow.trigger_kind == "chat_feedback" }
+        .sort_by { |workflow| workflow.created_at || Time.at(0) }
+        .filter_map do |workflow|
+          body = workflow.artifacts&.dig("chat_feedback")
+          next unless body.present?
+
+          {
+            body: body,
+            created_at: iso8601(workflow.created_at),
+            state: workflow.state
+          }
+        end
     end
 
     def landing_queue_entry_json

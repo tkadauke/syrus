@@ -71,13 +71,21 @@ type SyrusJobOriginChat = {
   message_id: number
 }
 
+type SyrusFeedbackHistoryItem = {
+  body: string
+  created_at: string
+  state: string
+}
+
 type SyrusJobDetail = {
   job: SyrusJobItem
   repository: {
     slug: string
   }
   origin_chat: SyrusJobOriginChat | null
+  summary: { run_id: number; text: string; finished_at: string } | null
   test_plan: SyrusJobTestPlan | null
+  feedback_history: SyrusFeedbackHistoryItem[]
 }
 
 type SyrusBootstrapPayload = {

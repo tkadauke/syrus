@@ -47,13 +47,21 @@ type JobOriginChat = {
   message_id: number
 }
 
+type FeedbackHistoryItem = {
+  body: string
+  created_at: string
+  state: string
+}
+
 type JobDetail = {
   job: JobItem
   repository: {
     slug: string
   }
   origin_chat: JobOriginChat | null
+  summary: { run_id: number; text: string; finished_at: string } | null
   test_plan: JobTestPlan | null
+  feedback_history: FeedbackHistoryItem[]
 }
 
 type DesktopSettings = {

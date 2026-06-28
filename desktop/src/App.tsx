@@ -6,6 +6,7 @@ import syrusIconUrl from "../assets/syrusIcon.png"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
+type JobDetailTab = "summary" | "test-plan" | "feedback"
 type PopoverNavigationState =
   | { view: "inbox" }
   | { view: "job-detail"; jobId: number }
@@ -66,6 +67,33 @@ const relativeTimestamp = (value: string) => {
   if (elapsedDays < 30) return `${elapsedDays}d ago`
 
   return new Date(timestamp).toLocaleDateString()
+}
+
+function InlineMarkdown({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(`[^`]+`)/g).filter(Boolean).map((part, index) => {
+        if (part.startsWith("`") && part.endsWith("`")) {
+          return <code key={index}>{part.slice(1, -1)}</code>
+        }
+
+        return <span key={index}>{part}</span>
+      })}
+    </>
+  )
+}
+
+function BlockMarkdown({ text }: { text: string }) {
+  const paragraphs = text.trim().split(/\n\n+/)
+  return (
+    <>
+      {paragraphs.map((para, i) => (
+        <p key={i} className="block-markdown__para">
+          <InlineMarkdown text={para.replace(/\n/g, " ")} />
+        </p>
+      ))}
+    </>
+  )
 }
 
 const notificationKindIconClass = (kind: string) => {
@@ -1211,6 +1239,8 @@ function JobDetailView({
   onRetryLoad: () => void
 }) {
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle")
+  const [activeTab, setActiveTab] = useState<JobDetailTab>("summary")
+  const initializedTabJobIdRef = useRef<number | null>(null)
   const job = detail?.job ?? fallbackJob
 
   useEffect(() => {
@@ -1221,6 +1251,15 @@ function JobDetailView({
     const timeout = window.setTimeout(() => setCopyState("idle"), 900)
     return () => window.clearTimeout(timeout)
   }, [copyState])
+
+  useEffect(() => {
+    if (!job || !detail || detail.job.id !== job.id || initializedTabJobIdRef.current === job.id) {
+      return
+    }
+
+    setActiveTab(detail && !detail.summary ? "test-plan" : "summary")
+    initializedTabJobIdRef.current = job.id
+  }, [job, detail])
 
   if (!job && isLoading) {
     return <StatusPanel title="Loading job" />
@@ -1242,8 +1281,10 @@ function JobDetailView({
   }
 
   const command = `syrus checkout JOB-${job.id}`
+  const summary = detail?.summary ?? null
   const testPlan = detail?.test_plan ?? null
   const originChat = detail?.origin_chat ?? null
+  const feedbackHistory = detail?.feedback_history ?? []
   const displayState = pendingApprovals.has(job.id) ? "approved" : job.state
 
   const copyCommand = async () => {
@@ -1265,35 +1306,92 @@ function JobDetailView({
         <StatusPill state={displayState} />
       </section>
 
-      <section className="job-detail__section" aria-label="Test plan">
-        <div className="checkout-command">
-          <code>{command}</code>
-          <button
-            type="button"
-            className="icon-button"
-            title={copyState === "success" ? "Copied" : copyState === "error" ? "Could not copy command" : "Copy checkout command"}
-            aria-label="Copy checkout command"
-            onClick={() => void copyCommand()}
-          >
-            <CopyIcon className="h-4 w-4" />
-          </button>
-        </div>
+      <div className="job-detail__tabs" role="tablist" aria-label="Job detail sections">
+        <button
+          type="button"
+          className={["job-detail__tab", activeTab === "summary" ? "job-detail__tab--active" : ""].join(" ")}
+          role="tab"
+          aria-selected={activeTab === "summary"}
+          onClick={() => setActiveTab("summary")}
+        >
+          Summary
+        </button>
+        <button
+          type="button"
+          className={["job-detail__tab", activeTab === "test-plan" ? "job-detail__tab--active" : ""].join(" ")}
+          role="tab"
+          aria-selected={activeTab === "test-plan"}
+          onClick={() => setActiveTab("test-plan")}
+        >
+          Test Plan
+        </button>
+        <button
+          type="button"
+          className={["job-detail__tab", activeTab === "feedback" ? "job-detail__tab--active" : ""].join(" ")}
+          role="tab"
+          aria-selected={activeTab === "feedback"}
+          onClick={() => setActiveTab("feedback")}
+        >
+          Feedback
+        </button>
+      </div>
 
-        {testPlan ? (
-          <div className="test-plan">
-            <ul className="test-plan__steps">
-              {testPlan.steps.map((step, index) => (
-                <li className="test-plan__step" key={`${index}-${step}`}>
-                  <span className="test-plan__checkbox" aria-hidden="true" />
-                  <span><InlineMarkdown text={step} /></span>
+      <section className="job-detail__tab-content" aria-label={activeTab === "summary" ? "Summary" : activeTab === "test-plan" ? "Test plan" : "Feedback"}>
+        {activeTab === "summary" ? (
+          summary ? (
+            <BlockMarkdown text={summary.text} />
+          ) : (
+            <p className="job-detail__placeholder">{isLoading ? "Loading summary…" : "No summary available yet."}</p>
+          )
+        ) : null}
+
+        {activeTab === "test-plan" ? (
+          <div className="job-detail__section">
+            <div className="checkout-command">
+              <code>{command}</code>
+              <button
+                type="button"
+                className="icon-button"
+                title={copyState === "success" ? "Copied" : copyState === "error" ? "Could not copy command" : "Copy checkout command"}
+                aria-label="Copy checkout command"
+                onClick={() => void copyCommand()}
+              >
+                <CopyIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {testPlan ? (
+              <div className="test-plan">
+                <ul className="test-plan__steps">
+                  {testPlan.steps.map((step, index) => (
+                    <li className="test-plan__step" key={`${index}-${step}`}>
+                      <span className="test-plan__checkbox" aria-hidden="true" />
+                      <span><InlineMarkdown text={step} /></span>
+                    </li>
+                  ))}
+                </ul>
+                {testPlan.notes ? <p className="test-plan__notes">{testPlan.notes}</p> : null}
+              </div>
+            ) : (
+              <p className="job-detail__placeholder">{isLoading ? "Loading test plan..." : "Test plan not yet available"}</p>
+            )}
+          </div>
+        ) : null}
+
+        {activeTab === "feedback" ? (
+          feedbackHistory.length > 0 ? (
+            <ol className="feedback-history">
+              {feedbackHistory.map((item, index) => (
+                <li className="feedback-history__item" key={`${item.created_at}-${index}`}>
+                  <span className="feedback-history__time">{relativeTimestamp(item.created_at)}</span>
+                  <BlockMarkdown text={item.body} />
                 </li>
               ))}
-            </ul>
-            {testPlan.notes ? <p className="test-plan__notes">{testPlan.notes}</p> : null}
-          </div>
-        ) : (
-          <p className="job-detail__placeholder">{isLoading ? "Loading test plan..." : "Test plan not yet available"}</p>
-        )}
+            </ol>
+          ) : (
+            <p className="job-detail__placeholder">No feedback submitted yet.</p>
+          )
+        ) : null}
       </section>
 
       <section className="job-detail__actions" aria-label="Actions">

@@ -74,9 +74,10 @@ the Job in Syrus or open its pull request in your browser when one
 exists. Its header bell opens an in-popover notifications page with unread
 badges, mark-read actions, Job navigation, and pull request links.
 Selecting a row opens an in-popover Job detail view with back navigation,
-the generated test plan, a copyable
-`syrus checkout JOB-<id>` command, and the same browser, pull request,
-approval, retry, and checkout actions as the inbox row. Implemented rows
+tabs for the generated summary, test plan, and submitted feedback. The test
+plan tab includes a copyable `syrus checkout JOB-<id>` command, and the
+same browser, pull request, approval, retry, and checkout actions as the
+inbox row stay visible below the tabs. Implemented rows
 can be approved for landing from the popover after a native confirmation
 prompt, and implemented or failed Jobs can send follow-up feedback from
 the detail view. Failed rows can be queued for retry directly from the row.

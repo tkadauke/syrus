@@ -52,12 +52,20 @@ type JobTestPlan = {
   notes: string | null
 }
 
+type FeedbackHistoryItem = {
+  body: string
+  created_at: string
+  state: string
+}
+
 type JobDetail = {
   job: JobItem
   repository: {
     slug: string
   }
+  summary: { run_id: number; text: string; finished_at: string } | null
   test_plan: JobTestPlan | null
+  feedback_history: FeedbackHistoryItem[]
 }
 
 const compareInboxJobs = (a: JobItem, b: JobItem) => {

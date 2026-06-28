@@ -213,4 +213,45 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job)[:test_plan]).to be_nil
     end
   end
+
+  describe "#feedback_history_json" do
+    it "returns chat feedback workflow artifacts in chronological order" do
+      job = Factories.job_record(repository: repo)
+      newer = Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "running",
+        created_at: 1.hour.ago,
+        artifacts: { "chat_feedback" => "New feedback" }
+      )
+      older = Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "succeeded",
+        created_at: 2.hours.ago,
+        artifacts: { "chat_feedback" => "Old feedback" }
+      )
+      Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        created_at: 3.hours.ago,
+        artifacts: { "chat_feedback" => "PR feedback artifact" }
+      )
+      Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "failed",
+        created_at: 30.minutes.ago,
+        artifacts: { "chat_feedback" => "" }
+      )
+
+      expect(payload_for(job)[:feedback_history]).to eq(
+        [
+          { body: "Old feedback", created_at: older.created_at.iso8601, state: "succeeded" },
+          { body: "New feedback", created_at: newer.created_at.iso8601, state: "running" }
+        ]
+      )
+    end
+  end
 end
