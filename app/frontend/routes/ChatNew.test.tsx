@@ -96,6 +96,7 @@ function chatNavRecord({ id, last_message_at }: { id: number; last_message_at: s
     ...chatRecord({ id }),
     current: false,
     last_message_at,
+    pending_proposal_count: 0,
     unread: false,
     pending_proposal_count: 0,
     created_at: "2026-06-01T00:00:00Z",
