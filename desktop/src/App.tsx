@@ -643,7 +643,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
             >
               <BackIcon />
             </button>
-            <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold leading-5 text-slate-900">Feedback</h1>
+            <div className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold leading-5 text-slate-900">Feedback</div>
             <button
               type="button"
               className="feedback-submit-button"
