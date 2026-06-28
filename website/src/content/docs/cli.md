@@ -209,7 +209,10 @@ credential; if no GitHub token is available, it prints the PR URL.
 repository, fetches the Syrus branch from `origin`, and checks it out. If the
 remote Syrus branch was force-pushed, checkout refreshes the local branch to the
 new remote head; when that branch is already checked out, local changes must be
-committed or stashed first.
+committed or stashed first. After a successful checkout, the CLI runs any
+`.syrus.yml` `hooks.post_checkout` commands from the repository root and
+stops if one fails. Pass `--no-hooks` to skip those commands for one
+checkout.
 
 ## Test Plans
 

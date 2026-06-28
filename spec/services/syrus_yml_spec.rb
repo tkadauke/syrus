@@ -62,6 +62,38 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.first.name).to eq("tests")
   end
 
+  it "parses post-checkout hooks" do
+    config = parse(<<~YAML)
+      hooks:
+        post_checkout:
+          - bundle exec rails db:migrate
+          - bin/yarn install --frozen-lockfile
+    YAML
+
+    expect(config.hooks.post_checkout).to eq([
+      "bundle exec rails db:migrate",
+      "bin/yarn install --frozen-lockfile"
+    ])
+  end
+
+  it "rejects non-mapping hooks" do
+    expect {
+      parse(<<~YAML)
+        hooks:
+          - bundle exec rails db:migrate
+      YAML
+    }.to raise_error(described_class::ParseError, /hooks: must be a mapping/)
+  end
+
+  it "rejects non-array post-checkout hooks" do
+    expect {
+      parse(<<~YAML)
+        hooks:
+          post_checkout: bundle exec rails db:migrate
+      YAML
+    }.to raise_error(described_class::ParseError, /hooks\.post_checkout: must be an array of commands/)
+  end
+
   it "loads .syrus.yml from a repository path" do
     write_config(<<~YAML)
       grade:

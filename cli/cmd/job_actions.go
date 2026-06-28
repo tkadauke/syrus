@@ -51,14 +51,17 @@ func newJobActionCommand(name string, action string, message string) *cobra.Comm
 }
 
 func newJobCheckoutCommand() *cobra.Command {
-	return &cobra.Command{
+	var noHooks bool
+	cmd := &cobra.Command{
 		Use:   "checkout JOB-ID",
 		Short: "Check out a job branch locally",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJobCheckout(cmd, args[0])
+			return runJobCheckout(cmd, args[0], noHooks)
 		},
 	}
+	cmd.Flags().BoolVar(&noHooks, "no-hooks", false, "skip .syrus.yml hooks.post_checkout commands")
+	return cmd
 }
 
 func newJobTestPlanCommand() *cobra.Command {
@@ -196,7 +199,7 @@ func confirm(reader *bufio.Reader, out io.Writer, label string) (bool, error) {
 	return answer == "y" || answer == "yes", nil
 }
 
-func runJobCheckout(cmd *cobra.Command, id string) error {
+func runJobCheckout(cmd *cobra.Command, id string, noHooks bool) error {
 	client, _, err := apiClient()
 	if err != nil {
 		return err
@@ -222,6 +225,11 @@ func runJobCheckout(cmd *cobra.Command, id string) error {
 	}
 	if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, repo, branch); err != nil {
 		return err
+	}
+	if !noHooks {
+		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+			return err
+		}
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s. Run: syrus job test-plan %s\n", branch, id)
 	return nil

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,6 +28,7 @@ func TestCheckoutCommandFetchesAndChecksOutJobBranch(t *testing.T) {
 		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
 
 	var calls [][]string
 	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
@@ -44,6 +46,8 @@ func TestCheckoutCommandFetchesAndChecksOutJobBranch(t *testing.T) {
 			return "", fmt.Errorf("exit status 1")
 		case "checkout --track -b syrus/issue-42-456 refs/remotes/origin/syrus/issue-42-456":
 			return "", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
 		default:
 			return "", fmt.Errorf("unexpected git command: %v", args)
 		}
@@ -67,6 +71,7 @@ func TestCheckoutCommandFetchesAndChecksOutJobBranch(t *testing.T) {
 		{"branch", "--show-current"},
 		{"show-ref", "--verify", "--quiet", "refs/heads/syrus/issue-42-456"},
 		{"checkout", "--track", "-b", "syrus/issue-42-456", "refs/remotes/origin/syrus/issue-42-456"},
+		{"rev-parse", "--show-toplevel"},
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("git calls = %#v", calls)
@@ -77,12 +82,130 @@ func TestCheckoutCommandFetchesAndChecksOutJobBranch(t *testing.T) {
 	}
 }
 
+func TestCheckoutCommandRunsPostCheckoutHooks(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoRoot, ".syrus.yml"), []byte("hooks:\n  post_checkout:\n    - echo first\n    - bin/setup\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	var gitCalls [][]string
+	branchRunner := checkoutGitStub(t, "syrus/issue-42-456", &gitCalls)
+
+	var hookCalls []struct {
+		dir     string
+		command string
+	}
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		hookCalls = append(hookCalls, struct {
+			dir     string
+			command string
+		}{dir: dir, command: command})
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		if strings.Join(args, " ") == "rev-parse --show-toplevel" {
+			gitCalls = append(gitCalls, append([]string{}, args...))
+			return repoRoot + "\n", nil
+		}
+		return branchRunner(ctx, dir, args...)
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "JOB-456"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	wantHooks := []struct {
+		dir     string
+		command string
+	}{
+		{dir: repoRoot, command: "echo first"},
+		{dir: repoRoot, command: "bin/setup"},
+	}
+	if !reflect.DeepEqual(hookCalls, wantHooks) {
+		t.Fatalf("hook calls = %#v", hookCalls)
+	}
+}
+
+func TestCheckoutCommandSkipsPostCheckoutHooksWithNoHooksFlag(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "syrus/issue-42-456", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		t.Fatalf("hook command should not run")
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "--no-hooks", "JOB-456"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	wantCalls := checkoutGitBranchCalls("syrus/issue-42-456")
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+func TestPostCheckoutHooksReportFailingCommandExitStatus(t *testing.T) {
+	repoRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoRoot, ".syrus.yml"), []byte("hooks:\n  post_checkout:\n    - printf hook-output\n    - exit 7\n    - echo skipped\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	var gitCalls [][]string
+	runner := func(ctx context.Context, dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, append([]string{}, args...))
+		if strings.Join(args, " ") == "rev-parse --show-toplevel" {
+			return repoRoot + "\n", nil
+		}
+		return "", fmt.Errorf("unexpected git command: %v", args)
+	}
+
+	stdout := &bytes.Buffer{}
+	err := runPostCheckoutHooks(context.Background(), runner, runHookCommand, stdout, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected hook failure")
+	}
+	want := `post-checkout hook failed: "exit 7" exited with status 7`
+	if err.Error() != want {
+		t.Fatalf("error = %q", err.Error())
+	}
+	if stdout.String() != "hook-output" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
 func TestCheckoutCommandHandlesAlreadyCheckedOutBranch(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
 
 	var calls [][]string
 	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
@@ -104,6 +227,8 @@ func TestCheckoutCommandHandlesAlreadyCheckedOutBranch(t *testing.T) {
 			return "abc123\n", nil
 		case "reset --hard refs/remotes/origin/syrus/issue-42-456":
 			return "", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
 		default:
 			return "", fmt.Errorf("unexpected git command: %v", args)
 		}
@@ -129,6 +254,7 @@ func TestCheckoutCommandHandlesAlreadyCheckedOutBranch(t *testing.T) {
 		{"rev-parse", "--verify", "refs/heads/syrus/issue-42-456"},
 		{"rev-parse", "--verify", "refs/remotes/origin/syrus/issue-42-456"},
 		{"reset", "--hard", "refs/remotes/origin/syrus/issue-42-456"},
+		{"rev-parse", "--show-toplevel"},
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("git calls = %#v", calls)
@@ -141,6 +267,7 @@ func TestCheckoutCommandUpdatesExistingBranchAfterForcePush(t *testing.T) {
 		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
 
 	originalTimestamp := checkoutBackupTimestamp
 	checkoutBackupTimestamp = func() string { return "20260624T120000Z" }
@@ -172,6 +299,8 @@ func TestCheckoutCommandUpdatesExistingBranchAfterForcePush(t *testing.T) {
 			return "", nil
 		case "checkout syrus/issue-42-456":
 			return "", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
 		default:
 			return "", fmt.Errorf("unexpected git command: %v", args)
 		}
@@ -199,6 +328,7 @@ func TestCheckoutCommandUpdatesExistingBranchAfterForcePush(t *testing.T) {
 		{"branch", "syrus/backup/syrus-issue-42-456-20260624T120000Z", "refs/heads/syrus/issue-42-456"},
 		{"branch", "-f", "syrus/issue-42-456", "refs/remotes/origin/syrus/issue-42-456"},
 		{"checkout", "syrus/issue-42-456"},
+		{"rev-parse", "--show-toplevel"},
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("git calls = %#v", calls)
@@ -546,6 +676,7 @@ func writeTestCredentials(t *testing.T, url string) {
 
 func checkoutGitStub(t *testing.T, branch string, calls *[][]string) gitRunner {
 	t.Helper()
+	repoRoot := t.TempDir()
 	return func(ctx context.Context, dir string, args ...string) (string, error) {
 		*calls = append(*calls, append([]string{}, args...))
 		switch strings.Join(args, " ") {
@@ -561,13 +692,15 @@ func checkoutGitStub(t *testing.T, branch string, calls *[][]string) gitRunner {
 			return "", fmt.Errorf("exit status 1")
 		case "checkout --track -b " + branch + " refs/remotes/origin/" + branch:
 			return "", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
 		default:
 			return "", fmt.Errorf("unexpected git command: %v", args)
 		}
 	}
 }
 
-func checkoutGitCalls(branch string) [][]string {
+func checkoutGitBranchCalls(branch string) [][]string {
 	return [][]string{
 		{"rev-parse", "--is-inside-work-tree"},
 		{"remote", "get-url", "origin"},
@@ -576,4 +709,8 @@ func checkoutGitCalls(branch string) [][]string {
 		{"show-ref", "--verify", "--quiet", "refs/heads/" + branch},
 		{"checkout", "--track", "-b", branch, "refs/remotes/origin/" + branch},
 	}
+}
+
+func checkoutGitCalls(branch string) [][]string {
+	return append(checkoutGitBranchCalls(branch), []string{"rev-parse", "--show-toplevel"})
 }

@@ -11,9 +11,10 @@ class SyrusYml
 
   ParseError = Class.new(StandardError)
 
-  Config = Data.define(:prepare, :grade)
+  Config = Data.define(:prepare, :grade, :hooks)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes)
+  HooksConfig = Data.define(:post_checkout)
 
   def self.load_file(path)
     new(Pathname.new(path).read).parse
@@ -35,13 +36,28 @@ class SyrusYml
 
     Config.new(
       prepare: raw["prepare"],
-      grade: parse_grade(raw["grade"])
+      grade: parse_grade(raw["grade"]),
+      hooks: parse_hooks(raw["hooks"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
   end
 
   private
+
+  def parse_hooks(raw)
+    return nil if raw.nil?
+    raise ParseError, "hooks: must be a mapping" unless raw.is_a?(Hash)
+
+    post_checkout = raw["post_checkout"]
+    unless post_checkout.nil? || post_checkout.is_a?(Array)
+      raise ParseError, "hooks.post_checkout: must be an array of commands"
+    end
+
+    HooksConfig.new(
+      post_checkout: Array(post_checkout).map(&:to_s).map(&:strip).reject(&:empty?)
+    )
+  end
 
   def parse_grade(raw)
     return nil if raw.nil?

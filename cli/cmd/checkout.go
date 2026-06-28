@@ -4,18 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/api"
+	"go.yaml.in/yaml/v3"
 )
 
 type gitRunner func(ctx context.Context, dir string, args ...string) (string, error)
+type hookCommandRunner func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error
 
 var checkoutRunGit gitRunner = runGit
+var checkoutRunHookCommand hookCommandRunner = runHookCommand
 var checkoutBackupTimestamp = func() string {
 	return time.Now().UTC().Format("20060102T150405Z")
 }
@@ -32,7 +38,8 @@ var epicPickerFunc = func(epicRef string, candidates []epicCandidate) (*api.JobI
 }
 
 func NewCheckoutCommand() *cobra.Command {
-	return &cobra.Command{
+	var noHooks bool
+	command := &cobra.Command{
 		Use:           "checkout JOB-ID|EPIC-ID",
 		Short:         "Check out a Syrus Job branch",
 		Args:          cobra.ExactArgs(1),
@@ -41,7 +48,7 @@ func NewCheckoutCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			upper := strings.ToUpper(strings.TrimSpace(args[0]))
 			if strings.HasPrefix(upper, "EPIC-") {
-				return runEpicCheckout(cmd, args[0])
+				return runEpicCheckout(cmd, args[0], noHooks)
 			}
 
 			jobRef, jobID, err := parseJobRef(args[0])
@@ -67,13 +74,20 @@ func NewCheckoutCommand() *cobra.Command {
 			if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, job.Repository.Slug, job.Job.BranchName); err != nil {
 				return err
 			}
+			if !noHooks {
+				if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+					return err
+				}
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s — run 'syrus test-plan %s' to see the test plan.\n", job.Job.BranchName, jobRef)
 			return nil
 		},
 	}
+	command.Flags().BoolVar(&noHooks, "no-hooks", false, "skip .syrus.yml hooks.post_checkout commands")
+	return command
 }
 
-func runEpicCheckout(cmd *cobra.Command, input string) error {
+func runEpicCheckout(cmd *cobra.Command, input string, noHooks bool) error {
 	epicRef, epicID, err := parseEpicRef(input)
 	if err != nil {
 		return err
@@ -115,6 +129,11 @@ func runEpicCheckout(cmd *cobra.Command, input string) error {
 
 	if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, selected.BranchName); err != nil {
 		return err
+	}
+	if !noHooks {
+		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+			return err
+		}
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s — run 'syrus test-plan JOB-%d' to see the test plan.\n", selected.BranchName, selected.ID)
 	return nil
@@ -356,6 +375,54 @@ func checkoutJobBranch(ctx context.Context, runner gitRunner, repoSlug string, b
 	return nil
 }
 
+type checkoutSyrusYml struct {
+	Hooks checkoutHooks `yaml:"hooks"`
+}
+
+type checkoutHooks struct {
+	PostCheckout []string `yaml:"post_checkout"`
+}
+
+func runPostCheckoutHooks(ctx context.Context, runner gitRunner, hookRunner hookCommandRunner, stdout io.Writer, stderr io.Writer) error {
+	repoRootOutput, err := runner(ctx, "", "rev-parse", "--show-toplevel")
+	if err != nil {
+		return fmt.Errorf("could not find git repository root for post-checkout hooks: %w", err)
+	}
+	repoRoot := strings.TrimSpace(repoRootOutput)
+	if repoRoot == "" {
+		return errors.New("could not find git repository root for post-checkout hooks")
+	}
+
+	configPath := filepath.Join(repoRoot, ".syrus.yml")
+	contents, err := os.ReadFile(configPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("could not read %s: %w", configPath, err)
+	}
+
+	var config checkoutSyrusYml
+	if err := yaml.Unmarshal(contents, &config); err != nil {
+		return fmt.Errorf("could not parse %s: %w", configPath, err)
+	}
+
+	for _, command := range config.Hooks.PostCheckout {
+		command = strings.TrimSpace(command)
+		if command == "" {
+			continue
+		}
+		if err := hookRunner(ctx, repoRoot, command, stdout, stderr); err != nil {
+			if exitCode, ok := exitCodeFromError(err); ok {
+				return fmt.Errorf("post-checkout hook failed: %q exited with status %d", command, exitCode)
+			}
+			return fmt.Errorf("post-checkout hook failed: %q: %w", command, err)
+		}
+	}
+
+	return nil
+}
+
 func backupLocalBranchIfNeeded(ctx context.Context, runner gitRunner, branchName string, localRef string, remoteRef string) error {
 	localHead, err := runner(ctx, "", "rev-parse", "--verify", localRef)
 	if err != nil {
@@ -411,6 +478,22 @@ func runGit(ctx context.Context, dir string, args ...string) (string, error) {
 		return string(output), err
 	}
 	return string(output), nil
+}
+
+func runHookCommand(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+	shell := exec.CommandContext(ctx, "sh", "-c", command)
+	shell.Dir = dir
+	shell.Stdout = stdout
+	shell.Stderr = stderr
+	return shell.Run()
+}
+
+func exitCodeFromError(err error) (int, bool) {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode(), true
+	}
+	return 0, false
 }
 
 func remoteMatchesSlug(remoteURL string, repoSlug string) bool {
