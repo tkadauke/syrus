@@ -16,7 +16,7 @@ RSpec.describe ChatProposalOutcomeNotification do
     )
 
     expect(described_class.confirmed_message(proposal)).to eq(
-      %(Notification: your proposal "Map auth" was confirmed as JOB-#{job.id} (proposal slug: auth-map).)
+      %(Proposal "Map auth" was confirmed as JOB-#{job.id} (proposal slug: auth-map).)
     )
   end
 
@@ -50,7 +50,7 @@ RSpec.describe ChatProposalOutcomeNotification do
     )
 
     expect(described_class.confirmed_message(proposal)).to eq(
-      "Notification: your proposal \"Ship auth\" was confirmed as EPIC-#{epic.id} " \
+      "Proposal \"Ship auth\" was confirmed as EPIC-#{epic.id} " \
       "with child jobs JOB-#{schema_job.id}, JOB-#{ui_job.id} (proposal slug: ship-auth)."
     )
   end
@@ -65,7 +65,7 @@ RSpec.describe ChatProposalOutcomeNotification do
     )
 
     expect(described_class.confirmed_message(proposal)).to eq(
-      %(Notification: your proposal "Open issue" was confirmed (proposal slug: external-issue).)
+      %(Proposal "Open issue" was confirmed (proposal slug: external-issue).)
     )
   end
 
@@ -78,7 +78,7 @@ RSpec.describe ChatProposalOutcomeNotification do
     )
 
     expect(described_class.rejected_message(proposal)).to eq(
-      %(Notification: your proposal "Clean up" was rejected (proposal slug: cleanup).)
+      %(Proposal "Clean up" was rejected (proposal slug: cleanup).)
     )
   end
 end

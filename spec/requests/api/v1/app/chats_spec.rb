@@ -1208,7 +1208,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     )
     confirmation_notification = chat.messages.where(role: "user").order(:created_at, :id).last
     expect(confirmation_notification.content).to eq(
-      "text" => %(Notification: your proposal "Map auth" was confirmed as JOB-#{confirmed.job.id} (proposal slug: auth-map).),
+      "text" => %(Proposal "Map auth" was confirmed as JOB-#{confirmed.job.id} (proposal slug: auth-map).),
       "source" => "proposal_notification"
     )
 
@@ -1229,7 +1229,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     )
     rejection_notification = chat.messages.where(role: "user").order(:created_at, :id).last
     expect(rejection_notification.content).to eq(
-      "text" => %(Notification: your proposal "Clean up" was rejected (proposal slug: cleanup).),
+      "text" => %(Proposal "Clean up" was rejected (proposal slug: cleanup).),
       "source" => "proposal_notification"
     )
   end
@@ -1273,7 +1273,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     )
     notification = chat.messages.where(role: "user").order(:created_at, :id).last
     expect(notification.content).to eq(
-      "text" => "Notification: your proposal \"Ship auth\" was confirmed as EPIC-#{proposal.epic.id} " \
+      "text" => "Proposal \"Ship auth\" was confirmed as EPIC-#{proposal.epic.id} " \
         "with child jobs JOB-#{schema.job.id}, JOB-#{ui.job.id} (proposal slug: ship-auth).",
       "source" => "proposal_notification"
     )
@@ -1299,7 +1299,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:ok)
     notification = chat.messages.where(role: "user").order(:created_at, :id).last
     expect(notification.content).to include(
-      "text" => %(Notification: your proposal "Clean up" was rejected (proposal slug: cleanup).),
+      "text" => %(Proposal "Clean up" was rejected (proposal slug: cleanup).),
       "source" => "proposal_notification"
     )
   end

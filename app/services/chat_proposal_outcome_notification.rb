@@ -15,7 +15,7 @@ class ChatProposalOutcomeNotification
 
   def confirmed_message
     if proposal.job
-      return "Notification: your proposal \"#{proposal.title}\" was confirmed as JOB-#{proposal.job.id} " \
+      return "Proposal \"#{proposal.title}\" was confirmed as JOB-#{proposal.job.id} " \
         "(proposal slug: #{proposal.slug})."
     end
 
@@ -25,16 +25,16 @@ class ChatProposalOutcomeNotification
       end
 
       if child_job_labels.any?
-        return "Notification: your proposal \"#{proposal.title}\" was confirmed as EPIC-#{proposal.epic.id} " \
+        return "Proposal \"#{proposal.title}\" was confirmed as EPIC-#{proposal.epic.id} " \
           "with child jobs #{child_job_labels.join(", ")} (proposal slug: #{proposal.slug})."
       end
     end
 
-    %(Notification: your proposal "#{proposal.title}" was confirmed (proposal slug: #{proposal.slug}).)
+    %(Proposal "#{proposal.title}" was confirmed (proposal slug: #{proposal.slug}).)
   end
 
   def rejected_message
-    %(Notification: your proposal "#{proposal.title}" was rejected (proposal slug: #{proposal.slug}).)
+    %(Proposal "#{proposal.title}" was rejected (proposal slug: #{proposal.slug}).)
   end
 
   private
