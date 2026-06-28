@@ -12455,7 +12455,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Send feedback to JOB-44")).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByText("Waiting...")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
@@ -12542,7 +12542,9 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Cancel JOB-44")).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/44")
+    expect(screen.getByRole("link", { name: "JOB-45" })).toHaveAttribute("href", "/jobs/45")
+    expect(screen.getByRole("link", { name: "JOB-46" })).toHaveAttribute("href", "/jobs/46")
     expect(screen.getByText("Confirmed")).toBeInTheDocument()
     expect(screen.getByText("Rejected")).toBeInTheDocument()
     expect(screen.getByText("Cancelled")).toBeInTheDocument()

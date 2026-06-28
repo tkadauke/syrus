@@ -1,6 +1,8 @@
-import type { ReactNode } from "react"
+import { Fragment, type ReactNode } from "react"
+import { containsSlug, linkifySlugs } from "./linkifySlugs"
 
 type InlineToken = string | ReactNode
+type RenderInlineOptions = { linkifySlugs?: boolean }
 
 export function Markdown({ className, text }: { className?: string; text: string }) {
   return <div className={className}>{renderBlocks(text)}</div>
@@ -194,7 +196,8 @@ function splitTableRow(line: string) {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim())
 }
 
-function renderInline(text: string): InlineToken[] {
+function renderInline(text: string, options: RenderInlineOptions = {}): InlineToken[] {
+  const shouldLinkifySlugs = options.linkifySlugs !== false
   const tokens: InlineToken[] = []
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\))/g
   let cursor = 0
@@ -202,24 +205,31 @@ function renderInline(text: string): InlineToken[] {
   let match: RegExpExecArray | null
 
   while ((match = pattern.exec(text)) !== null) {
-    if (match.index > cursor) tokens.push(text.slice(cursor, match.index))
-    tokens.push(renderInlineToken(match[0], key++))
+    if (match.index > cursor) tokens.push(renderInlineText(text.slice(cursor, match.index), shouldLinkifySlugs, key++))
+    tokens.push(renderInlineToken(match[0], key++, options))
     cursor = match.index + match[0].length
   }
 
-  if (cursor < text.length) tokens.push(text.slice(cursor))
+  if (cursor < text.length) tokens.push(renderInlineText(text.slice(cursor), shouldLinkifySlugs, key++))
   return tokens
 }
 
-function renderInlineToken(token: string, key: number): ReactNode {
+function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number): InlineToken {
+  if (shouldLinkifySlugs && containsSlug(text)) {
+    return <Fragment key={key}>{linkifySlugs(text)}</Fragment>
+  }
+  return text
+}
+
+function renderInlineToken(token: string, key: number, options: RenderInlineOptions): ReactNode {
   if (token.startsWith("`")) {
     return <code key={key}>{token.slice(1, -1)}</code>
   }
   if (token.startsWith("**")) {
-    return <strong key={key}>{renderInline(token.slice(2, -2))}</strong>
+    return <strong key={key}>{renderInline(token.slice(2, -2), options)}</strong>
   }
   if (token.startsWith("*")) {
-    return <em key={key}>{renderInline(token.slice(1, -1))}</em>
+    return <em key={key}>{renderInline(token.slice(1, -1), options)}</em>
   }
 
   const link = token.match(/^\[([^\]]+)\]\(([^) \n]+)(?:\s+"[^"\n]+")?\)$/)
@@ -228,7 +238,7 @@ function renderInlineToken(token: string, key: number): ReactNode {
     if (href) {
       return (
         <a href={href} key={key} rel="noreferrer" target={externalHref(href) ? "_blank" : undefined}>
-          {renderInline(link[1])}
+          {renderInline(link[1], { ...options, linkifySlugs: false })}
         </a>
       )
     }

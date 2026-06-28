@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it } from "vitest"
 import { Markdown, PlainText } from "./Markdown"
 
@@ -30,6 +31,29 @@ describe("Markdown", () => {
     expect(screen.getByText("First")).toBeInTheDocument()
     expect(screen.getByText("Second")).toBeInTheDocument()
     expect(screen.getByText("Third")).toBeInTheDocument()
+  })
+
+  it("links job and epic slugs in plain text", () => {
+    render(
+      <MemoryRouter>
+        <Markdown text="See JOB-100 and EPIC-5" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/100")
+    expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/5")
+  })
+
+  it("does not linkify slugs inside markdown links", () => {
+    render(
+      <MemoryRouter>
+        <Markdown text="[JOB-100](/custom)" />
+      </MemoryRouter>
+    )
+
+    const links = screen.getAllByRole("link")
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute("href", "/custom")
   })
 
   it("renders plain text without applying markdown semantics", () => {

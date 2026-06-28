@@ -60,6 +60,7 @@ import {
 } from "../api/chats"
 import { CloseIcon } from "../components/CloseIcon"
 import { StartEpicButton } from "../components/StartEpicButton"
+import { linkifySlugs } from "../lib/linkifySlugs"
 import { Markdown, PlainText } from "../lib/Markdown"
 import {
   filterSlashCommands,
@@ -276,10 +277,10 @@ function PendingActionRow({ action, onSelectMessage }: { action: ChatPendingActi
               onSelectMessage(chatMessageId)
             }}
           >
-            {action.label}
+            {linkifySlugs(action.label)}
           </a>
         ) : (
-          <span className="truncate font-medium text-gray-900 dark:text-gray-100">{action.label}</span>
+          <span className="truncate font-medium text-gray-900 dark:text-gray-100">{linkifySlugs(action.label)}</span>
         )}
       </div>
       <span className="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{stateLabel}</span>
