@@ -61,6 +61,73 @@ RSpec.describe App::JobDetailPayload do
     end
   end
 
+  describe "#origin_chat_json" do
+    it "returns the originating chat session and message for a directly proposed job" do
+      chat = ChatSession.create!(user: user, repository: repo, title: "Release planning")
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Map auth")
+      proposal = chat.proposals.create!(
+        slug: "map-auth",
+        title: "Map auth",
+        body: "Trace the auth flow.",
+        job: job,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+      message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+      expect(payload_for(job)[:origin_chat]).to eq(
+        chat_session_id: chat.id,
+        message_id: message.id
+      )
+    end
+
+    it "falls back to the job epic's proposal when the job has no direct proposal" do
+      chat = ChatSession.create!(user: user, repository: repo)
+      epic = Factories.epic(user: user, repository: repo, title: "Auth")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 7)
+      proposal = chat.proposals.create!(
+        slug: "auth",
+        title: "Auth",
+        body: "Group auth work.",
+        kind: "epic",
+        epic: epic,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+      message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Epic proposed." })
+
+      expect(payload_for(job)[:origin_chat]).to eq(
+        chat_session_id: chat.id,
+        message_id: message.id
+      )
+    end
+
+    it "returns nil when neither the job nor its epic has a chat proposal" do
+      epic = Factories.epic(user: user, repository: repo, title: "Auth")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 7)
+
+      expect(payload_for(job)[:origin_chat]).to be_nil
+    end
+
+    it "returns nil when a proposal exists without a linked chat message" do
+      chat = ChatSession.create!(user: user, repository: repo)
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Map auth")
+      chat.proposals.create!(
+        slug: "map-auth",
+        title: "Map auth",
+        body: "Trace the auth flow.",
+        job: job,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+
+      expect(payload_for(job)[:origin_chat]).to be_nil
+    end
+  end
+
   describe "#test_plan_json" do
     it "returns nil when the job has no workflows" do
       job = Factories.job_record(repository: repo)

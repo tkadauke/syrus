@@ -22,6 +22,7 @@ module App
         job: job_json,
         repository: repository_json(@job.repository),
         epic: epic_json(@job.epic),
+        origin_chat: origin_chat_json,
         pinned: @user.job_pins.exists?(job: @job),
         tags: @job.tags.ordered.map { |tag| tag_json(tag) },
         tag_options: @user.tags.ordered.map { |tag| tag_json(tag) },
@@ -283,6 +284,20 @@ module App
         workflow_id: workflow.id,
         steps: steps,
         notes: plan["notes"].presence
+      }
+    end
+
+    def origin_chat_json
+      proposal = ChatProposal.where(job_id: @job.id).first
+      proposal ||= ChatProposal.where(epic_id: @job.epic_id).first if @job.epic_id
+      return unless proposal
+
+      message = ChatMessage.where(proposal_id: proposal.id).first
+      return unless message
+
+      {
+        chat_session_id: proposal.chat_session_id,
+        message_id: message.id
       }
     end
 

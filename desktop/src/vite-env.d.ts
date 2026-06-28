@@ -66,11 +66,17 @@ type SyrusJobTestPlan = {
   notes: string | null
 }
 
+type SyrusJobOriginChat = {
+  chat_session_id: number
+  message_id: number
+}
+
 type SyrusJobDetail = {
   job: SyrusJobItem
   repository: {
     slug: string
   }
+  origin_chat: SyrusJobOriginChat | null
   test_plan: SyrusJobTestPlan | null
 }
 
