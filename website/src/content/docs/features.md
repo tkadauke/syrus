@@ -142,6 +142,9 @@ and unapproves approved Jobs so the follow-up change returns to review before
 landing. If the Job is still queued or running, Syrus stores the feedback as
 a waiting pending action and promotes it for operator confirmation when the
 Job reaches review.
+App surfaces can also submit feedback directly for implemented or failed
+Jobs, bypassing the chat pending-action confirmation while creating the same
+`chat_feedback` Workflow.
 
 Attached repository checkouts are read-only for the chat agent. It may read,
 search, list, and refresh checkouts for context, but code changes must be

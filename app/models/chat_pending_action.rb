@@ -252,21 +252,14 @@ class ChatPendingAction < ApplicationRecord
       nil
     when "submit_chat_feedback"
       job = action_job
-      unless job.implemented? || job.approved?
-        raise ArgumentError, "#{job.state} jobs are not actionable for chat feedback; the job must be implemented or approved."
-      end
-      if job.workflows.where(trigger_kind: "chat_feedback", state: %w[queued running]).exists?
-        raise ArgumentError, "a chat_feedback workflow is already queued or running for this job"
-      end
-
-      workflow = Workflows::ChatFeedback.instantiate(
+      result = ChatFeedbackSubmission.call(
         job: job,
-        artifacts: { "chat_feedback" => payload.fetch("feedback").to_s },
-        agent_provider: job.agent_provider
+        feedback: payload.fetch("feedback"),
+        allowed_states: %w[implemented approved]
       )
-      StepDispatcher.start_workflow(workflow)
-      job.reload.unapprove! if job.may_unapprove?
-      workflow
+      raise ArgumentError, result.error unless result.success?
+
+      result.workflow
     when "reopen_epic_and_attach_job"
       epic = self.repository.epics.where(user: user).find(payload.fetch("epic_id"))
       job = action_job

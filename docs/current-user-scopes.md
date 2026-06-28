@@ -108,7 +108,7 @@ They intentionally use associations such as `Current.user.jobs`,
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_run_commands_controller.rb` | per-user/private | Run commands target jobs found through `Current.user.jobs` and validate agent providers against the current user. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads expose public profile/work summaries through the current user's app session. |
-| `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source use `Current.user.jobs`; timeline is separately admin-only because it exposes run history. |
+| `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source and chat feedback submission use `Current.user.jobs`; timeline is separately admin-only because it exposes run history. |
 | `app/controllers/api/v1/app/memories_controller.rb` | per-user/private and admin gate | Memory listing includes the current user's own memories plus repository-published memories for that user's repositories; writes are owner-only unless the viewer is an admin. |
 | `app/controllers/api/v1/app/notification_preferences_controller.rb` | per-user/private | Reads and updates only `Current.user.notification_preferences`. |
 | `app/controllers/api/v1/app/notifications_controller.rb` | per-user/private | Notification listing and mark-read commands operate only on `Current.user.notifications`. |

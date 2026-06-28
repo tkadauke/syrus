@@ -17,7 +17,7 @@ RSpec.describe "App API job detail", type: :request do
     )
   end
 
-  before { sign_in_as(user) }
+  before { sign_in_as(user) unless RSpec.current_example.metadata[:skip_sign_in] }
 
   around do |example|
     old_data_root = ENV["SYRUS_DATA_ROOT"]
@@ -30,6 +30,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   def parse_body = JSON.parse(response.body)
+  def app_job_chat_feedback_path(job_record) = "/api/v1/app/jobs/#{job_record.id}/chat_feedback"
 
   def write_grade_log(run, name, contents)
     path = WorkflowWorkspace.path_for(run.workflow).join(".syrus", "grade-output", "iteration-#{run.iteration}", "#{name}.log")
@@ -81,6 +82,76 @@ RSpec.describe "App API job detail", type: :request do
       "complete" => true,
       "lines" => [ "digging trench", "water flows" ]
     )
+  end
+
+  it "creates a chat feedback workflow for an implemented job" do
+    job.update!(state: "implemented")
+
+    expect {
+      post app_job_chat_feedback_path(job), params: { body: "Please tighten the copy." }, as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "chat_feedback").count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    workflow = job.workflows.where(trigger_kind: "chat_feedback").last
+    expect(response).to have_http_status(:created)
+    expect(workflow.artifact("chat_feedback")).to eq("Please tighten the copy.")
+    expect(parse_body).to include(
+      "job" => include("id" => job.id, "state" => "implemented"),
+      "workflow" => include("id" => workflow.id, "trigger_kind" => "chat_feedback")
+    )
+  end
+
+  it "creates a chat feedback workflow for a failed job" do
+    job.update!(state: "failed")
+
+    expect {
+      post app_job_chat_feedback_path(job), params: { body: "Recover from the failing run." }, as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "chat_feedback").count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    workflow = job.workflows.where(trigger_kind: "chat_feedback").last
+    expect(response).to have_http_status(:created)
+    expect(workflow.artifact("chat_feedback")).to eq("Recover from the failing run.")
+  end
+
+  it "rejects blank chat feedback bodies" do
+    job.update!(state: "implemented")
+
+    expect {
+      post app_job_chat_feedback_path(job), params: { body: " " }, as: :json
+    }.not_to change { job.reload.workflows.where(trigger_kind: "chat_feedback").count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Feedback body can't be blank")
+  end
+
+  it "rejects chat feedback for jobs in the wrong state" do
+    job.update!(state: "queued")
+
+    expect {
+      post app_job_chat_feedback_path(job), params: { body: "Please adjust this." }, as: :json
+    }.not_to change { job.reload.workflows.where(trigger_kind: "chat_feedback").count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("queued jobs are not actionable")
+  end
+
+  it "requires authentication for chat feedback", :skip_sign_in do
+    post app_job_chat_feedback_path(job), params: { body: "Please adjust this." }, as: :json
+
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it "does not expose another user's job for chat feedback" do
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
+    other_job = Factories.job(repository: other_repo, issue_number: 99)
+    other_job.update!(state: "implemented")
+
+    post app_job_chat_feedback_path(other_job), params: { body: "Please adjust this." }, as: :json
+
+    expect(response).to have_http_status(:not_found)
+    expect(other_job.reload.workflows.where(trigger_kind: "chat_feedback")).to be_empty
   end
 
   it "returns a structured job detail payload for React rendering" do

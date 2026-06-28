@@ -56,6 +56,8 @@ and commits follow-up changes on the existing branch. Submitting feedback
 on an approved Job unapproves it so the updated PR returns to review before
 landing. Feedback proposed while the Job is queued or running is held as a
 queued pending action and becomes confirmable once the Job is implemented.
+The app API can also create this Workflow directly for implemented or failed
+Jobs when an operator submits feedback outside the chat flow.
 
 ### Rebase
 

@@ -87,6 +87,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/approve", to: "job_lifecycle#approve", constraints: { job_id: /\d+/ }
         post "jobs/:job_id/unapprove", to: "job_lifecycle#unapprove", constraints: { job_id: /\d+/ }
         post "jobs/:job_id/reopen", to: "job_lifecycle#reopen", constraints: { job_id: /\d+/ }
+        post "jobs/:id/chat_feedback", to: "jobs#chat_feedback", constraints: { id: /\d+/ }
         post "jobs/:job_id/poll_feedback", to: "job_run_commands#poll_feedback", constraints: { job_id: /\d+/ }
         post "jobs/:job_id/rebase", to: "job_run_commands#rebase", constraints: { job_id: /\d+/ }
         post "jobs/:job_id/check_mergeability", to: "job_run_commands#check_mergeability", constraints: { job_id: /\d+/ }

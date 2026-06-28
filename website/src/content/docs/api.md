@@ -50,6 +50,22 @@ Use either `repository_id` or `repository`/`repo` as `owner/name`.
 Optional fields are `priority` (`high`, `medium`, `low`), `agent_provider`,
 `epic_id`, and `owner_user_id`.
 
+## Submit Job Feedback
+
+`POST /api/v1/app/jobs/:id/chat_feedback` lets the authenticated job owner
+submit follow-up feedback directly, without confirming a chat pending action.
+The Job must belong to the token user and be in `implemented` or `failed`
+state. Syrus creates a `chat_feedback` Workflow on the existing branch.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/jobs/123/chat_feedback \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "body": "Please simplify the settings copy and keep the existing layout." }'
+```
+
+Blank feedback or a non-actionable Job returns `422` with a JSON error.
+
 ## Create an Epic
 
 `POST /api/v1/admin/epics` creates an Epic in a repository owned by the

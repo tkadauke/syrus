@@ -23,6 +23,32 @@ module Api
           render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
         end
 
+        def chat_feedback
+          job = find_job
+          result = ChatFeedbackSubmission.call(
+            job: job,
+            feedback: params[:body],
+            allowed_states: %w[implemented failed]
+          )
+
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          render json: {
+            job: {
+              id: job.reload.id,
+              state: job.state
+            },
+            workflow: {
+              id: result.workflow.id,
+              trigger_kind: result.workflow.trigger_kind,
+              state: result.workflow.state
+            }
+          }, status: :created
+        end
+
         def source
           render json: ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params)
         end
