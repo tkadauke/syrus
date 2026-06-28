@@ -129,7 +129,9 @@ least two characters. Optional `types[]` values are `job`, `epic`, and
 `chat`; omit `types[]` to search all three. `limit` defaults to 30 and is
 capped at 100. Results include the result `type`, `id`, `title`, matched
 `snippet`, normalized `rank`, app navigation `path`, state and repository
-context for Jobs and Epics, and `created_at`.
+context for Jobs and Epics, and `created_at`. Job and Epic slugs such as
+`JOB-123` and `EPIC-456` return the matching record when it belongs to the
+authenticated user.
 
 ```bash
 curl "https://syrus.example.com/api/v1/app/search?q=deploy&types[]=job&types[]=chat" \

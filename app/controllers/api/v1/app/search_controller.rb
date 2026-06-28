@@ -58,11 +58,57 @@ module Api
         def search_rows(type, query, limit)
           case type
           when "job"
-            JobSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+            merge_slug_rows(
+              JobSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+              job_slug_rows(query)
+            ).first(limit)
           when "epic"
-            EpicSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+            merge_slug_rows(
+              EpicSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+              epic_slug_rows(query)
+            ).first(limit)
           when "chat"
             ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+          end
+        end
+
+        def merge_slug_rows(search_rows, slug_rows)
+          return search_rows if slug_rows.empty?
+
+          existing_ids = search_rows.each_with_object([]) do |row, ids|
+            ids << slug_row_id(row)
+          end
+
+          slug_rows.reject { |row| existing_ids.include?(slug_row_id(row)) } + search_rows
+        end
+
+        def slug_row_id(row)
+          (row[:job_id] || row[:epic_id]).to_i
+        end
+
+        def job_slug_rows(query)
+          job_ids = query.scan(/\bJOB-(\d+)\b/i).flatten.map(&:to_i).uniq
+          return [] if job_ids.empty?
+
+          Current.user.jobs.where(id: job_ids).map do |job|
+            {
+              job_id: job.id,
+              rank: -1.0,
+              snippet: "<mark>#{ERB::Util.html_escape(::App::Presentation.job_slug(job))}</mark>"
+            }
+          end
+        end
+
+        def epic_slug_rows(query)
+          epic_numbers = query.scan(/\bEPIC-(\d+)\b/i).flatten.map(&:to_i).uniq
+          return [] if epic_numbers.empty?
+
+          Current.user.epics.where(number: epic_numbers).map do |epic|
+            {
+              epic_id: epic.id,
+              rank: -1.0,
+              snippet: "<mark>#{ERB::Util.html_escape(epic.display_number)}</mark>"
+            }
           end
         end
 

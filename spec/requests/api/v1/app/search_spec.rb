@@ -96,6 +96,42 @@ RSpec.describe "App API unified search", type: :request do
     expect(parse_body).to contain_exactly(include("type" => "job", "id" => job.id))
   end
 
+  it "returns an existing job when searching by JOB slug" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Unindexed slug target")
+
+    get "/api/v1/app/search", params: { q: "JOB-#{job.id}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      include(
+        "type" => "job",
+        "id" => job.id,
+        "title" => "Unindexed slug target",
+        "snippet" => "<mark>JOB-#{job.id}</mark>",
+        "path" => job_path(job),
+        "repository_slug" => "acme/widgets"
+      )
+    )
+  end
+
+  it "returns an existing epic when searching by EPIC slug" do
+    epic = Factories.epic(user: user, repository: repository, title: "Unindexed epic target")
+
+    get "/api/v1/app/search", params: { q: "EPIC-#{epic.number}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      include(
+        "type" => "epic",
+        "id" => epic.id,
+        "title" => "Unindexed epic target",
+        "snippet" => "<mark>EPIC-#{epic.number}</mark>",
+        "path" => epic_path(epic),
+        "repository_slug" => "acme/widgets"
+      )
+    )
+  end
+
   it "does not leak indexed records that no longer belong to the current user" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
