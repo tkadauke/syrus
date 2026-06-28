@@ -176,6 +176,7 @@ export type ChatPendingAction = {
   action_type: string | null
   chat_message_id?: number | null
   app_confirm_path: string
+  app_reject_path: string
   app_cancel_path: string
 }
 

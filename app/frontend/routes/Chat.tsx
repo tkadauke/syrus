@@ -80,6 +80,13 @@ const CHAT_BOTTOM_THRESHOLD_PX = 48
 const CHAT_TOP_LOAD_THRESHOLD_PX = 96
 const CHAT_INITIAL_FILL_MARGIN_PX = 80
 const CHAT_COMPOSE_MAX_ROWS = 5
+
+type ChatPendingActionStreamItem = {
+  type: "pending_action"
+  pendingAction: ChatPendingAction
+}
+
+type ChatStreamItem = ChatRenderItem | ChatPendingActionStreamItem
 const CHAT_WORKSPACE_WIDTH_KEY = "syrus.chat.workspace.width"
 const CHAT_WORKSPACE_TAB_KEY = "syrus.chat.workspace.tab"
 const CHAT_WORKSPACE_COLLAPSED_KEY = "syrus.chat.workspace.collapsed"
@@ -245,26 +252,6 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
   )
 }
 
-function PendingActions({ payload, queryKey, onNotice, onSelectMessage }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectMessage: (messageId: number) => void }) {
-  const visibleMessageIds = new Set(payload.messages.map((message) => message.id))
-  const standaloneActions = payload.pending_actions.filter((pendingAction) => !pendingAction.chat_message_id || !visibleMessageIds.has(pendingAction.chat_message_id))
-  if (standaloneActions.length === 0) return null
-
-  return (
-    <div className="space-y-3">
-      {standaloneActions.map((pendingAction) => (
-        <PendingActionCard
-          key={pendingAction.id}
-          pendingAction={pendingAction}
-          queryKey={queryKey}
-          onNotice={onNotice}
-          onSelectMessage={onSelectMessage}
-        />
-      ))}
-    </div>
-  )
-}
-
 function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const location = useLocation()
   const streamRef = useRef<HTMLDivElement | null>(null)
@@ -283,10 +270,12 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
   const agentQuestions = payload.agent_questions || []
   const hiddenSystemMessageCount = displayedItems.filter(isLowPrioritySystemMessage).length
   const visibleItems = showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item))
+  const pendingActionIds = new Set(payload.pending_actions.map((action) => action.id))
+  const streamItems = buildMessageStreamItems(visibleItems, payload.pending_actions)
   const agentActive = isAgentActive(payload)
   const oldestId = oldestMessageId(displayedMessages)
   const payloadMessageIdsSignature = payload.messages.map((message) => message.id).join("|")
-  const visibleItemsSignature = chatRenderItemsSignature(visibleItems)
+  const visibleItemsSignature = chatStreamItemsSignature(streamItems)
   const loadOlder = useMutation({
     mutationFn: (before: number) => fetchChatMessages(payload.paths.app_messages_path, before),
     onSuccess: (page) => {
@@ -411,7 +400,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
     loadOlder.mutate(oldestId)
   }, [activeBookmarkTarget, hasMoreOlder, loadOlder.isPending, oldestId, visibleItemsSignature])
 
-  if (displayedItems.length === 0) {
+  if (displayedItems.length === 0 && payload.pending_actions.length === 0) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -431,10 +420,12 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
         {hiddenSystemMessageCount > 0 ? (
           <SystemMessagesToggle count={hiddenSystemMessageCount} expanded={showSystemMessages} onToggle={() => setShowSystemMessages((value) => !value)} />
         ) : null}
-        {visibleItems.map((item) => item.type === "tool_group" ? (
+        {streamItems.map((item) => item.type === "pending_action" ? (
+          <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
+        ) : item.type === "tool_group" ? (
           <ToolGroup item={item} key={renderItemKey(item)} />
         ) : (
-          <ChatMessage item={item} key={renderItemKey(item)} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
+          <ChatMessage item={item} key={renderItemKey(item)} payload={payload} pendingActionIds={pendingActionIds} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         ))}
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
         {agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
@@ -512,7 +503,7 @@ function AgentActivityIndicator({ running }: { running: boolean }) {
   )
 }
 
-function ChatMessage({ item, payload, prefix, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function ChatMessage({ item, payload, pendingActionIds, prefix, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   if (item.role === "user") {
     return (
       <article className="group/message relative flex justify-end pt-6" id={`chat_message_${item.id}`}>
@@ -537,7 +528,7 @@ function ChatMessage({ item, payload, prefix, queryKey, onNotice }: { item: Extr
           </div>
           <MessageImageAttachments attachments={item.attachments} />
           {item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
-          {!item.proposal && item.pending_action ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
+          {!item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
         </div>
       </article>
     )
@@ -2007,7 +1998,7 @@ function ChatWorkspace({
         </nav>
         <div className="flex min-h-0 w-full flex-1">
           {activeMobileTab === "chat" ? (
-            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onPendingActionSelect={selectBookmark} />
+            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
           ) : (
             <ChatWorkspacePanel
               activeTab={activeTab}
@@ -2042,7 +2033,7 @@ function ChatWorkspace({
             }
       }
     >
-      {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onPendingActionSelect={selectBookmark} />}
+      {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />}
       {expanded || panelCollapsed ? null : (
         <button
           aria-label="Resize chat workspace"
@@ -2087,9 +2078,9 @@ function ChatWorkspace({
   )
 }
 
-function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice, onPendingActionSelect }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onPendingActionSelect: (messageId: number) => void }) {
+function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
-  const landing = payload.messages.length === 0 && !hasSentFirstMessage
+  const landing = payload.messages.length === 0 && payload.pending_actions.length === 0 && !hasSentFirstMessage
 
   useEffect(() => {
     setHasSentFirstMessage(false)
@@ -2099,9 +2090,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
     <section className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-3"}`}>
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">What would you like to build?</h1>
-      ) : (
-        <PendingActions payload={payload} queryKey={queryKey} onNotice={onNotice} onSelectMessage={onPendingActionSelect} />
-      )}
+      ) : null}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`}>
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
@@ -3054,6 +3043,68 @@ function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
   return items
 }
 
+function buildMessageStreamItems(items: ChatRenderItem[], pendingActions: ChatPendingAction[]): ChatStreamItem[] {
+  if (pendingActions.length === 0) return items
+
+  const actionsByMessageId = new Map<number, ChatPendingAction[]>()
+  const unanchoredActions: ChatPendingAction[] = []
+  const renderedMessageIds = new Set<number>()
+  const result: ChatStreamItem[] = []
+
+  for (const action of pendingActions) {
+    const messageId = action.chat_message_id
+    if (messageId == null) {
+      unanchoredActions.push(action)
+      continue
+    }
+
+    const actions = actionsByMessageId.get(messageId) || []
+    actions.push(action)
+    actionsByMessageId.set(messageId, actions)
+  }
+
+  for (const item of items) {
+    result.push(item)
+
+    const messageIds = streamItemMessageIds(item)
+    for (const messageId of messageIds) {
+      renderedMessageIds.add(messageId)
+      const actions = actionsByMessageId.get(messageId) || []
+      for (const action of actions) {
+        result.push({ type: "pending_action", pendingAction: action })
+      }
+    }
+  }
+
+  for (const [messageId, actions] of actionsByMessageId) {
+    if (renderedMessageIds.has(messageId)) continue
+    unanchoredActions.push(...actions)
+  }
+
+  for (const action of unanchoredActions) {
+    result.push({ type: "pending_action", pendingAction: action })
+  }
+
+  return result
+}
+
+function streamItemMessageIds(item: ChatRenderItem) {
+  if (item.type === "message") return [item.id]
+  return item.calls.map((call) => call.message_id)
+}
+
+function pendingActionCardData(action: ChatPendingAction): ChatPendingActionInline {
+  return {
+    id: action.id,
+    action: action.action || action.action_type,
+    state: action.state,
+    label: action.label,
+    detail: action.detail,
+    app_confirm_path: action.app_confirm_path,
+    app_reject_path: action.app_reject_path
+  }
+}
+
 function renderMessage(message: ChatMessageItem): ChatRenderItem {
   if (message.role === "system") {
     return { ...message, system: systemMessage(message) }
@@ -3369,14 +3420,16 @@ function mergeChatMessages(...groups: ChatMessageItem[][]) {
   return messages
 }
 
-function renderItemKey(item: ChatRenderItem) {
+function renderItemKey(item: ChatStreamItem) {
+  if (item.type === "pending_action") return `pending-action-${item.pendingAction.id}`
   if (item.type === "message") return `message-${item.id}`
 
   return `tool-${item.calls.map((call) => call.message_id).join("-")}`
 }
 
-function chatRenderItemsSignature(items: ChatRenderItem[]) {
+function chatStreamItemsSignature(items: ChatStreamItem[]) {
   return items.map((item) => {
+    if (item.type === "pending_action") return `${renderItemKey(item)}:${item.pendingAction.state}:${item.pendingAction.label.length}:${item.pendingAction.detail?.length || 0}`
     if (item.type === "message") return `${renderItemKey(item)}:${item.text.length}`
 
     return `${renderItemKey(item)}:${item.calls.map((call) => `${call.message_id}:${call.result_body.length}`).join(",")}`

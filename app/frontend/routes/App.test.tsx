@@ -12512,33 +12512,43 @@ describe("App", () => {
 
     expect(await screen.findByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByText("Waiting...")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
   })
 
-  it("renders pending action confirmations inline without a summary section", async () => {
-    const pendingMessage = {
+  it("renders pending actions after their linked message in the stream", async () => {
+    const userMessage = {
+      type: "message",
+      id: 11,
+      role: "user",
+      tool_name: null,
+      content: { text: "Please send this feedback." },
+      text: "Please send this feedback.",
+      bookmarkable: true
+    }
+    const linkedMessage = {
       type: "message",
       id: 12,
       role: "assistant",
       tool_name: null,
       content: { text: "Feedback queued for confirmation." },
       text: "Feedback queued for confirmation.",
-      bookmarkable: true,
-      pending_action: {
-        id: 7,
-        label: "Send feedback to JOB-44",
-        detail: "Please **tighten** this implementation.\n\n- Use focused tests.",
-        action: "submit_chat_feedback",
-        state: "pending",
-        app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
-        app_reject_path: "/api/v1/app/chats/8/pending_actions/7/reject"
-      }
+      bookmarkable: true
+    }
+    const laterMessage = {
+      type: "message",
+      id: 13,
+      role: "assistant",
+      tool_name: null,
+      content: { text: "A later assistant message." },
+      text: "A later assistant message.",
+      bookmarkable: true
     }
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
         ...chatPayload({
-          messages: [pendingMessage],
+          messages: [userMessage, linkedMessage, laterMessage],
           pendingActions: [
             pendingAction({ id: 7, label: "Send feedback to JOB-44", detail: "Please **tighten** this implementation.\n\n- Use focused tests.", chatMessageId: 12 })
           ]
@@ -12554,12 +12564,49 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Feedback queued for confirmation.")).toBeInTheDocument()
+    const linkedText = await screen.findByText("Feedback queued for confirmation.")
+    const actionHeading = screen.getByRole("heading", { name: "Send feedback to JOB-44" })
+    const laterText = screen.getByText("A later assistant message.")
+    const linkedArticle = linkedText.closest("article")!
+    const actionCard = actionHeading.closest("article")!
+    const laterArticle = laterText.closest("article")!
+
     expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Send feedback to JOB-44" })).toBeInTheDocument()
+    expect(linkedArticle.compareDocumentPosition(actionCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(actionCard.compareDocumentPosition(laterArticle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === "Please tighten this implementation.")).toBeInTheDocument()
     expect(screen.getByText("tighten").tagName).toBe("STRONG")
     expect(screen.getByText("Use focused tests.").tagName).toBe("LI")
+  })
+
+  it("renders unanchored pending actions after the last message", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        ...chatPayload({
+          messages: [
+            { ...chatPayload().messages[0], id: 11, text: "First message.", content: { text: "First message." } },
+            { ...chatPayload().messages[0], id: 12, text: "Last message.", content: { text: "Last message." } }
+          ],
+          pendingActions: [
+            pendingAction({ id: 7, label: "Send feedback to JOB-44", chatMessageId: null })
+          ]
+        })
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const lastText = await screen.findByText("Last message.")
+    const actionHeading = screen.getByRole("heading", { name: "Send feedback to JOB-44" })
+    expect(lastText.closest("article")!.compareDocumentPosition(actionHeading.closest("article")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
   })
 
   it("renders terminal pending actions as read-only badges", async () => {
@@ -14859,6 +14906,7 @@ function pendingAction(overrides: {
     action_type: overrides.actionType ?? null,
     chat_message_id: overrides.chatMessageId,
     app_confirm_path: overrides.confirmPath ?? `/api/v1/app/chats/8/pending_actions/${id}/confirm`,
+    app_reject_path: `/api/v1/app/chats/8/pending_actions/${id}/reject`,
     app_cancel_path: overrides.cancelPath ?? `/api/v1/app/chats/8/pending_actions/${id}`
   }
 }
