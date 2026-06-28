@@ -62,6 +62,7 @@ import { CloseIcon } from "../components/CloseIcon"
 import { ConfirmationCard } from "../components/ConfirmationCard"
 import { StartEpicButton } from "../components/StartEpicButton"
 import { Markdown, PlainText } from "../lib/Markdown"
+import { linkifySlugs } from "../lib/linkifySlugs"
 import {
   filterSlashCommands,
   findSlashCommand,
@@ -890,7 +891,7 @@ function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectMessage 
               </a>
             </h3>
           ) : (
-            <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{pendingAction.label}</h3>
+            <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{terminalLabel ? pendingAction.label : linkifySlugs(pendingAction.label)}</h3>
           )}
         </>
       }
