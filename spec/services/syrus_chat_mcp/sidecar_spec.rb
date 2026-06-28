@@ -111,6 +111,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         read_chat_messages
         add_epic_dependency
         remove_epic_dependency
+        add_job_dependency
+        remove_job_dependency
         get_spending
         get_job_diff
         list_tags

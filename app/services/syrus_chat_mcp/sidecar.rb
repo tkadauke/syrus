@@ -199,6 +199,8 @@ module SyrusChatMcp
       UpdateEpicTool,
       AddEpicDependencyTool,
       RemoveEpicDependencyTool,
+      AddJobDependencyTool,
+      RemoveJobDependencyTool,
       SearchMemoriesTool,
       ListMemoriesTool,
       DeleteMemoryTool,
