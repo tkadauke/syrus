@@ -200,7 +200,6 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
 
     const snapshot = terminalSnapshots.get(session.id)
     if (snapshot) terminal.write(snapshot)
-    const initialFitFrame = requestAnimationFrame(() => fitAddon.fit())
 
     const subscription: Subscription = createConsumer().subscriptions.create(
       { channel: "TerminalChannel", session_id: session.id },
@@ -222,12 +221,18 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     const resizeDisposable = terminal.onResize(({ cols, rows }) => {
       subscription.perform("receive", { type: "resize", cols, rows })
     })
-    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => fitAddon.fit())
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver((entries) => {
+            for (const entry of entries) {
+              if (entry.contentRect.height > 0) fitAddon.fit()
+            }
+          })
     resizeObserver?.observe(containerRef.current)
 
     return () => {
       terminalSnapshots.set(session.id, serializeAddon.serialize())
-      cancelAnimationFrame(initialFitFrame)
       resizeObserver?.disconnect()
       inputDisposable.dispose()
       resizeDisposable.dispose()
@@ -238,7 +243,7 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 bg-gray-900 p-2" ref={containerRef} />
+      <div className="min-h-0 flex-1 overflow-hidden bg-gray-900 p-2" ref={containerRef} />
       {ended ? (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-950/60 text-sm text-gray-300">
           Session ended - reload to reconnect
