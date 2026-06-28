@@ -1557,61 +1557,97 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         </div>
       ) : null}
       <form
-        className={`relative rounded border border-gray-200 bg-white p-3 transition-shadow dark:border-gray-700 dark:bg-gray-900 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        onSubmit={submit}
-      >
-        {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
-        {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
-        {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
-        {clearConfirmationOpen ? (
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-            <span>Clear this chat's message history?</span>
-            <span className="flex gap-2">
-              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} type="button">Clear</button>
-              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} type="button">Cancel</button>
+      className={`relative rounded border border-gray-200 bg-white p-3 transition-shadow dark:border-gray-700 dark:bg-gray-900 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onSubmit={submit}
+    >
+      {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
+      {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
+      {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
+      {clearConfirmationOpen ? (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+          <span>Clear this chat's message history?</span>
+          <span className="flex gap-2">
+            <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} type="button">Clear</button>
+            <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} type="button">Cancel</button>
+          </span>
+        </div>
+      ) : null}
+      {queuedMessages.length > 0 ? <QueuedMessages messages={queuedMessages} queryKey={queryKey} /> : null}
+      {pendingConfirmation ? (
+        <SlashCommandConfirmation
+          commandName={pendingConfirmation.commandName}
+          disabled={send.isPending}
+          text={pendingConfirmation.text}
+          onCancel={cancelPendingSlashCommand}
+          onConfirm={confirmPendingSlashCommand}
+        />
+      ) : null}
+      {commandPaletteOpen ? (
+        <SlashCommandPalette
+          activeIndex={activeCommandIndex}
+          commands={matchingCommands}
+          query={commandQuery}
+          onSelect={(command) => completeSlashCommand(command)}
+        />
+      ) : null}
+      {attachments.length > 0 ? (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {attachments.map((attachment, index) => (
+            <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
+              {attachment.mimeType.startsWith("image/") ? (
+                <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
+              ) : (
+                <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
+              )}
+              <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
+              <button aria-label={`Remove ${attachment.name}`} className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
+                <CloseIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {attachedRepositories.length > 0 ? (
+        <div className="mb-3 flex w-full flex-wrap gap-2">
+          {attachedRepositories.map((repository) => (
+            <span className="flex h-9 max-w-full items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" key={repository.id}>
+              <span className="truncate" title={repository.label}>{repository.label}</span>
+              <button
+                aria-label={`Detach repository ${repository.label}`}
+                className="rounded-full p-0.5 text-blue-600 hover:bg-blue-100 hover:text-blue-900 disabled:text-blue-300 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-100 dark:disabled:text-blue-700"
+                disabled={detachRepository.isPending}
+                onClick={() => detachRepository.mutate(repository.app_detach_path)}
+                title={`Detach repository ${repository.label}`}
+                type="button"
+              >
+                <CloseIcon className="h-3.5 w-3.5" />
+              </button>
             </span>
-          </div>
-        ) : null}
-        {queuedMessages.length > 0 ? <QueuedMessages messages={queuedMessages} queryKey={queryKey} /> : null}
-        {pendingConfirmation ? (
-          <SlashCommandConfirmation
-            commandName={pendingConfirmation.commandName}
-            disabled={send.isPending}
-            text={pendingConfirmation.text}
-            onCancel={cancelPendingSlashCommand}
-            onConfirm={confirmPendingSlashCommand}
-          />
-        ) : null}
-        {commandPaletteOpen ? (
-          <SlashCommandPalette
-            activeIndex={activeCommandIndex}
-            commands={matchingCommands}
-            query={commandQuery}
-            onSelect={(command) => completeSlashCommand(command)}
-          />
-        ) : null}
-        {attachments.length > 0 ? (
-          <div className="mb-3 flex flex-wrap gap-2">
-            {attachments.map((attachment, index) => (
-              <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
-                {attachment.mimeType.startsWith("image/") ? (
-                  <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
-                ) : (
-                  <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
-                )}
-                <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
-                <button aria-label={`Remove ${attachment.name}`} className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
-                  <CloseIcon className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        <div className="flex items-end gap-3">
+          ))}
+        </div>
+      ) : null}
+      <textarea
+        aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+        aria-expanded={commandPaletteOpen}
+        aria-haspopup="listbox"
+        className="mb-3 min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+        disabled={send.isPending || systemAction.isPending}
+        onChange={(event) => {
+          updateText(event.target.value)
+          if (clearConfirmationOpen) setClearConfirmationOpen(false)
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
+        ref={textareaRef}
+        required
+        rows={1}
+        value={text}
+      />
+      <div className="flex items-end justify-between gap-3">
         <input
           accept="image/*,application/pdf"
           aria-label="Chat attachments"
@@ -1635,21 +1671,6 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         >
           +
         </button>
-        {attachedRepositories.map((repository) => (
-          <span className="flex h-9 max-w-52 shrink-0 items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" key={repository.id}>
-            <span className="truncate" title={repository.label}>{repository.label}</span>
-            <button
-              aria-label={`Detach repository ${repository.label}`}
-              className="rounded-full p-0.5 text-blue-600 hover:bg-blue-100 hover:text-blue-900 disabled:text-blue-300 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-100 dark:disabled:text-blue-700"
-              disabled={detachRepository.isPending}
-              onClick={() => detachRepository.mutate(repository.app_detach_path)}
-              title={`Detach repository ${repository.label}`}
-              type="button"
-            >
-              <CloseIcon className="h-3.5 w-3.5" />
-            </button>
-          </span>
-        ))}
         {attachmentPopoverOpen ? (
           <div
             aria-label="Add attachment"
@@ -1670,25 +1691,10 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             </div>
           </div>
         ) : null}
-        <textarea
-          aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
-          aria-expanded={commandPaletteOpen}
-          aria-haspopup="listbox"
-          className="min-h-9 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
-          disabled={send.isPending || systemAction.isPending}
-          onChange={(event) => {
-            updateText(event.target.value)
-            if (clearConfirmationOpen) setClearConfirmationOpen(false)
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
-          ref={textareaRef}
-          required
-          rows={1}
-          value={text}
-        />
-        <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
-        {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
+        <div className="flex items-center gap-2">
+          <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
+          {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
+        </div>
       </div>
       </form>
     </>

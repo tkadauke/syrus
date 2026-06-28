@@ -10504,7 +10504,12 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
-    expect(screen.getByText("acme/widgets")).toBeInTheDocument()
+    const chip = screen.getByText("acme/widgets")
+    const textarea = screen.getByPlaceholderText("Ask about this repository...")
+    expect(chip).toBeInTheDocument()
+    expect(chip.closest("div")).toHaveClass("w-full")
+    expect(chip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send" }).closest("div")).not.toBe(chip.closest("div"))
     fireEvent.click(screen.getByRole("button", { name: "Detach repository acme/widgets" }))
 
     await waitFor(() => {
