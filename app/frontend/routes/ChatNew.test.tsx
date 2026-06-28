@@ -86,7 +86,8 @@ function chatRecord({ id }: { id: number }) {
     stop_requested_at: null,
     cumulative_input_tokens: 0,
     cumulative_output_tokens: 0,
-    cumulative_cost_usd: 0
+    cumulative_cost_usd: 0,
+    pending_proposal_count: 0
   }
 }
 
