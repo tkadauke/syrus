@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useMemo, useState, type FormEvent } from "react"
 import { fetchChatSearch, fetchChatSearchMessages, type ChatSearchMatch, type ChatSearchPayload, type ChatSearchResult } from "../api/chats"
 import { getJson } from "../api/client"
+import { ChevronIcon } from "../components/ChevronIcon"
 import { FilterBar, type FilterLinkBuilder, type FilterOption, type FilterSchemaField } from "../components/FilterBar"
 
 type FilterOptionsPayload = {
@@ -106,7 +107,8 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
             title={`${hiddenMatchCount} more ${hiddenMatchCount === 1 ? "match" : "matches"}`}
             type="button"
           >
-            <span aria-hidden="true" className={`text-lg leading-none transition-transform ${expanded ? "rotate-90" : ""}`}>{">"}</span>
+            <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
+            <span className="sr-only">{expanded ? "Hide matches" : "Show matches"}</span>
           </button>
         ) : (
           <span className="h-6 w-6 shrink-0" aria-hidden="true" />

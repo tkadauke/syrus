@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
 import { useState } from "react"
 import { fetchSearch, type SearchResult, type SearchResultType } from "../api/search"
+import { ChevronIcon } from "../components/ChevronIcon"
 
 type SearchFilter = SearchResultType | "all"
 
@@ -121,7 +122,7 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
         onClick={() => setExpanded((current) => !current)}
         type="button"
       >
-        <span aria-hidden="true" className={`transition-transform ${expanded ? "rotate-90" : ""}`}>{">"}</span>
+        <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
         {expanded ? "Hide" : "Show"} {groupedMatches.length} more {groupedMatches.length === 1 ? "match" : "matches"}
       </button>
       {!expanded ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{hiddenMatchCount} more {matchLabel} in this chat</span> : null}
