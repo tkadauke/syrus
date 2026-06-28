@@ -30,6 +30,24 @@ describe("JobDetailView", () => {
       .toHaveAttribute("href", "/app-shell/chats/4#message-12")
   })
 
+  it("links the originating message when origin_chat is present", () => {
+    renderJobDetail(jobPayload({
+      origin_chat: {
+        chat_session_id: 7,
+        message_id: 42
+      }
+    }))
+
+    expect(screen.getByRole("link", { name: "View in chat" }))
+      .toHaveAttribute("href", "/app-shell/chats/7#message-42")
+  })
+
+  it("omits the originating message link when origin_chat is null", () => {
+    renderJobDetail(jobPayload({ origin_chat: null }))
+
+    expect(screen.queryByRole("link", { name: "View in chat" })).not.toBeInTheDocument()
+  })
+
   it.each(["implemented", "failed"])("renders the Give feedback button for %s jobs", (state) => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state, summary_state: state }

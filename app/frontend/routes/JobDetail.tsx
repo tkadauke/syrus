@@ -174,6 +174,14 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
                   · <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
                 </span>
               ) : null}
+              {payload.origin_chat ? (
+                <span>
+                  · <Link className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
+                    <ChatBubbleIcon />
+                    <span>View in chat</span>
+                  </Link>
+                </span>
+              ) : null}
             </div>
           </div>
           <HeaderActions
@@ -203,6 +211,14 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} /> : null}
     </>
+  )
+}
+
+function ChatBubbleIcon() {
+  return (
+    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 17 0Z" />
+    </svg>
   )
 }
 
