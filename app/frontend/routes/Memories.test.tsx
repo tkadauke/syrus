@@ -46,6 +46,24 @@ describe("MemoriesRoute", () => {
     })
   })
 
+  it("renders memory content as markdown", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
+      memories: [
+        memoryRow({
+          content: "## Setup\n\nUse **Rails** and [Vite](/docs/vite).\n\n- Keep tests green"
+        })
+      ]
+    })))
+
+    renderRoute(<MemoriesRoute />, "/app-shell/memories")
+
+    expect(await screen.findByRole("heading", { name: "Setup" })).toBeInTheDocument()
+    expect(screen.getByText("Rails").tagName).toBe("STRONG")
+    expect(screen.getByRole("link", { name: "Vite" })).toHaveAttribute("href", "/docs/vite")
+    expect(screen.getByText("Keep tests green").tagName).toBe("LI")
+    expect(screen.queryByText(/\*\*Rails\*\*/)).not.toBeInTheDocument()
+  })
+
   it("creates, edits, publishes, and deletes through the API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
@@ -108,23 +126,7 @@ function jsonResponse(body: unknown, status = 200) {
 function memoriesPayload(overrides: Record<string, unknown> = {}) {
   return {
     memories: [
-      {
-        id: 10,
-        kind: "project_fact",
-        scope: "repository",
-        scope_id: 3,
-        repository_name: "acme/widgets",
-        content: "Use Rails for the app.",
-        published: false,
-        created_at: "2026-06-23T12:00:00Z",
-        updated_at: "2026-06-23T12:00:00Z",
-        owner: { id: 2, name: "Ada Lovelace" },
-        permissions: { can_manage: true, can_publish: true },
-        paths: {
-          app_memory_path: "/api/v1/app/memories/10",
-          app_publish_path: "/api/v1/app/memories/10/publish"
-        }
-      }
+      memoryRow()
     ],
     kinds: ["user_pref", "project_fact", "feedback", "reference", "decision"],
     scopes: ["global", "repository"],
@@ -141,6 +143,27 @@ function memoriesPayload(overrides: Record<string, unknown> = {}) {
     },
     current_user: { id: 1, admin: false },
     pagination: { page: 1, per_page: 20, total: 1, total_pages: 1 },
+    ...overrides
+  }
+}
+
+function memoryRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 10,
+    kind: "project_fact",
+    scope: "repository",
+    scope_id: 3,
+    repository_name: "acme/widgets",
+    content: "Use Rails for the app.",
+    published: false,
+    created_at: "2026-06-23T12:00:00Z",
+    updated_at: "2026-06-23T12:00:00Z",
+    owner: { id: 2, name: "Ada Lovelace" },
+    permissions: { can_manage: true, can_publish: true },
+    paths: {
+      app_memory_path: "/api/v1/app/memories/10",
+      app_publish_path: "/api/v1/app/memories/10/publish"
+    },
     ...overrides
   }
 }

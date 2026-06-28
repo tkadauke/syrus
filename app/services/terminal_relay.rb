@@ -91,8 +91,6 @@ class TerminalRelay
       stop_lock.synchronize do
         unless stop
           stop = true
-          close_io(pty_out)
-          close_io(pty_in)
           close_io(conn)
         end
       end

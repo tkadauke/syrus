@@ -18,6 +18,7 @@ import {
 import { CloseIcon } from "../components/CloseIcon"
 import { FilterBar } from "../components/FilterBar"
 import { NoticeToast } from "../components/NoticeToast"
+import { Markdown } from "../lib/Markdown"
 
 const kindLabels: Record<string, string> = {
   user_pref: "User pref",
@@ -140,7 +141,7 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.scope === "global" ? "Global" : memory.repository_name || `Repository #${memory.scope_id}`}</td>
       {showOwner ? <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.owner.name}</td> : null}
       <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
-        <span className={expanded ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>{memory.content}</span>
+        <Markdown className={`chat-prose text-sm text-gray-800 break-words dark:text-gray-200 ${expanded ? "" : "line-clamp-2"}`} text={memory.content} />
         {memory.content.length > 160 ? (
           <button className="mt-1 block text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setExpanded(!expanded)} type="button">
             {expanded ? "Collapse" : "Expand"}
