@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/terminal_sessions", type: :request do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
 
   def parse_body
@@ -79,13 +81,15 @@ RSpec.describe "API: /api/v1/app/terminal_sessions", type: :request do
     job = Factories.job(user: user, repository: Factories.repository(user: user), issue_title: "Investigate flakes")
     workflow = job.workflows.first
 
-    post "/api/v1/app/terminal_sessions", params: {
-      terminal_session: {
-        workflow_id: workflow.id,
-        name: "Debug",
-        working_directory: "/ignored"
+    expect {
+      post "/api/v1/app/terminal_sessions", params: {
+        terminal_session: {
+          workflow_id: workflow.id,
+          name: "Debug",
+          working_directory: "/ignored"
+        }
       }
-    }
+    }.to have_enqueued_job(TerminalSessionJob).on_queue("chat")
 
     expect(response).to have_http_status(:created)
     session = TerminalSession.find(parse_body.dig("session", "id"))
@@ -96,6 +100,7 @@ RSpec.describe "API: /api/v1/app/terminal_sessions", type: :request do
       working_directory: WorkflowWorkspace.path_for(workflow).to_s,
       finished_at: nil
     )
+    expect(session.auth_token).to match(/\A\h{64}\z/)
 
     delete "/api/v1/app/terminal_sessions/#{session.id}"
 
