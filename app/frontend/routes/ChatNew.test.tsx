@@ -1,77 +1,102 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter } from "react-router-dom"
-import { createChat } from "../api/chats"
-import { ChatForm } from "./ChatNew"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
+import { createChat, fetchChats } from "../api/chats"
+import { ChatNewRoute } from "./ChatNew"
 
 vi.mock("../api/chats", () => ({
   createChat: vi.fn(),
-  fetchNewChat: vi.fn()
+  fetchChats: vi.fn()
 }))
 
-describe("ChatForm draft persistence", () => {
+describe("ChatNewRoute", () => {
   beforeEach(() => {
-    window.localStorage.clear()
+    vi.mocked(createChat).mockReset()
+    vi.mocked(fetchChats).mockReset()
   })
 
-  it("restores the new chat draft from localStorage", () => {
-    window.localStorage.setItem("syrus.chat.draft.new", "hello")
-
-    renderChatForm()
-
-    expect(screen.getByLabelText("First message")).toHaveValue("hello")
-  })
-
-  it("writes text changes to localStorage", () => {
-    renderChatForm()
-
-    fireEvent.change(screen.getByLabelText("First message"), { target: { value: "Draft a rollout plan" } })
-
-    expect(window.localStorage.getItem("syrus.chat.draft.new")).toBe("Draft a rollout plan")
-  })
-
-  it("clears the draft after creating the chat", async () => {
-    vi.mocked(createChat).mockResolvedValue({
-      message: "Created",
-      redirect_to: "/chats/12",
-      chat: {
-        id: 12,
-        title: "Release planning",
-        title_pending: false,
-        chat_path: "/chats/12",
-        repository: null,
-        pinned_context: null,
-        stop_requested_at: null,
-        cumulative_input_tokens: 0,
-        cumulative_output_tokens: 0,
-        cumulative_cost_usd: 0
-      }
+  it("reuses an existing unstarted chat", async () => {
+    vi.mocked(fetchChats).mockResolvedValue({
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [chatNavRecord({ id: 12, last_message_at: null })],
+          has_more: false
+        }
+      ],
+      repositories: []
     })
-    window.localStorage.setItem("syrus.chat.draft.new", "hello")
-    renderChatForm()
 
-    fireEvent.submit(screen.getByRole("button", { name: "Create chat" }).closest("form")!)
+    renderNewChatRoute()
 
     await waitFor(() => {
-      expect(window.localStorage.getItem("syrus.chat.draft.new")).toBeNull()
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
-    expect(createChat).toHaveBeenCalledWith({ repositoryId: "", text: "hello" })
+    expect(createChat).not.toHaveBeenCalled()
+  })
+
+  it("creates an unstarted chat when none exists", async () => {
+    vi.mocked(fetchChats).mockResolvedValue({ groups: [], repositories: [] })
+    vi.mocked(createChat).mockResolvedValue({
+      message: "Chat created.",
+      redirect_to: "/chats/18",
+      chat: chatRecord({ id: 18 })
+    })
+
+    renderNewChatRoute()
+
+    await waitFor(() => {
+      expect(createChat).toHaveBeenCalledWith({ repositoryId: "", text: "" })
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/18")
+    })
   })
 })
 
-function renderChatForm() {
+function renderNewChatRoute() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter>
-        <ChatForm
-          payload={{
-            repositories: [{ id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }],
-            repositories_path: "/repositories"
-          }}
-          prefix=""
-        />
+      <MemoryRouter initialEntries={["/app-shell/chats/new"]}>
+        <Routes>
+          <Route element={<ChatNewRoute />} path="/app-shell/chats/new" />
+          <Route element={<LocationProbe />} path="*" />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}</div>
+}
+
+function chatRecord({ id }: { id: number }) {
+  return {
+    id,
+    title: null,
+    title_pending: true,
+    pinned_context: null,
+    chat_path: `/chats/${id}`,
+    repository: null,
+    stop_requested_at: null,
+    cumulative_input_tokens: 0,
+    cumulative_output_tokens: 0,
+    cumulative_cost_usd: 0
+  }
+}
+
+function chatNavRecord({ id, last_message_at }: { id: number; last_message_at: string | null }) {
+  return {
+    ...chatRecord({ id }),
+    current: false,
+    last_message_at,
+    unread: false,
+    created_at: "2026-06-01T00:00:00Z",
+    updated_at: "2026-06-01T00:00:00Z"
+  }
 }

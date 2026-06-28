@@ -13,6 +13,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsBell } from "../components/Notifications"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { firstUnstartedChat } from "../lib/unstartedChat"
 import { chatQueryKey } from "./Chat"
 
 const SIDEBAR_WIDTH_KEY = "syrus.sidebar.width"
@@ -33,6 +34,7 @@ const PUBLILIUS_SYRUS_QUOTES = [
 export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNode; initialBootstrap: BootstrapPayload | null }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
   const shouldLoadChromeBootstrap = initialBootstrap == null && !isAuthPath(normalizedPath)
@@ -81,7 +83,15 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   ] : []
 
   function startChat() {
+    if (normalizedPath === "/chats/new") return
+
     setDrawerOpen(false)
+    const unstartedChat = firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"]))
+    if (unstartedChat) {
+      navigate(withRoutePrefix(unstartedChat.chat_path, prefix))
+      return
+    }
+
     navigate(withRoutePrefix("/chats/new", prefix))
   }
 

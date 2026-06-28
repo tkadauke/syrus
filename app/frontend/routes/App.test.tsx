@@ -700,10 +700,10 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/8", chat: chatPayload().chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/new") {
-        return Promise.resolve(new Response(JSON.stringify(chatFormPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/8") {
-        return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -747,10 +747,8 @@ describe("App", () => {
       })
 
       fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
-      expect(await screen.findByRole("heading", { name: "New chat" })).toBeInTheDocument()
-      expect(fetchSpy.mock.calls.some(([path, init]) => (
-        String(path) === "/api/v1/app/chats" && (init as RequestInit | undefined)?.method === "POST"
-      ))).toBe(false)
+      expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
+      expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -12912,59 +12910,20 @@ describe("App", () => {
     }
   })
 
-  it("renders the new chat route and posts to the app API", async () => {
+  it("renders the new chat route through the empty chat compose UI", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats" && init?.method === "POST") {
-        return Promise.resolve(new Response(
-          JSON.stringify({ error: { code: "validation_failed", message: "Repository is not available." } }),
-          { status: 422, headers: { "Content-Type": "application/json" } }
-        ))
+        return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/8", chat: chatPayload({ messages: [] }).chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
       }
-
-      return Promise.resolve(new Response(JSON.stringify(chatFormPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/chats/new"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("main", { name: "New chat" })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByLabelText("First message")).toHaveFocus())
-    expect(screen.queryByRole("link", { name: "Repositories" })).not.toBeInTheDocument()
-    fireEvent.change(await screen.findByLabelText("Repository"), { target: { value: "3" } })
-    fireEvent.change(screen.getByLabelText("First message"), { target: { value: "Map the forum" } })
-    fireEvent.click(screen.getByRole("button", { name: "Create chat" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/chats",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "same-origin",
-          body: JSON.stringify({ repository_id: "3", chat_message: { text: "Map the forum" } })
-        })
-      )
-    })
-    expect(await screen.findByText("Repository is not available.")).toBeInTheDocument()
-  })
-
-  it("creates a new chat and navigates within the React shell", async () => {
-    const invalidateSpy = vi.spyOn(QueryClient.prototype, "invalidateQueries")
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/8", chat: chatPayload().chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/8") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
-      return Promise.resolve(new Response(JSON.stringify(chatFormPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(
@@ -12975,8 +12934,10 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    fireEvent.change(await screen.findByLabelText("Repository"), { target: { value: "3" } })
-    fireEvent.click(screen.getByRole("button", { name: "Create chat" }))
+    expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Repositories" })).not.toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveFocus())
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -12984,13 +12945,41 @@ describe("App", () => {
         expect.objectContaining({
           method: "POST",
           credentials: "same-origin",
-          body: JSON.stringify({ repository_id: "3", chat_message: { text: "" } })
+          body: JSON.stringify({ repository_id: "", chat_message: { text: "" } })
         })
       )
     })
+  })
+
+  it("reuses an existing unstarted chat from the new chat route", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats") {
+        const unstarted = sidebarChat({ id: 8, title: null, title_pending: true, repository: null, last_message_at: null })
+        return Promise.resolve(new Response(JSON.stringify({ groups: sidebarGroups([unstarted]), repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/new"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
     expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
     await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveFocus())
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+
+    expect(fetchSpy.mock.calls.some(([path, init]) => (
+      String(path) === "/api/v1/app/chats" && (init as RequestInit | undefined)?.method === "POST"
+    ))).toBe(false)
   })
 })
 
@@ -15033,18 +15022,6 @@ function stubChatStreamSize(metrics: { scrollHeight: number; clientHeight: numbe
     } else {
       Reflect.deleteProperty(window.HTMLElement.prototype, "clientHeight")
     }
-  }
-}
-
-function chatFormPayload() {
-  return {
-    repositories: [
-      {
-        id: 3,
-        slug: "acme/widgets"
-      }
-    ],
-    repositories_path: "/repositories"
   }
 }
 
