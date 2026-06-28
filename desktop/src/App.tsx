@@ -30,8 +30,57 @@ const EMPTY_JOBS: SyrusJobItem[] = []
 const INBOX_COLLAPSED_REPOS_KEY = "syrus.desktop.inbox.collapsed-repos"
 
 const normalizeInstanceUrl = (url: string) => url.trim().replace(/\/+$/, "")
+const appApiUrl = (baseUrl: string, path: string) => `${normalizeInstanceUrl(baseUrl)}${path}`
 
 const jobTitle = (job: SyrusJobItem) => job.title || job.issue_title || `JOB-${job.id}`
+
+type ApiErrorPayload = {
+  error?: {
+    message?: string
+  } | string
+}
+
+const responseErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const payload = (await response.json()) as ApiErrorPayload
+    if (typeof payload.error === "string") {
+      return payload.error || fallback
+    }
+
+    return payload.error?.message || fallback
+  } catch {
+    return fallback
+  }
+}
+
+const submitJobFeedback = async (jobId: number, body: string) => {
+  const desktopApi = window.syrusDesktop as Window["syrusDesktop"] & {
+    submitJobFeedback?: (jobID: number, body: string) => Promise<void>
+  }
+
+  if (typeof desktopApi.submitJobFeedback === "function") {
+    await desktopApi.submitJobFeedback(jobId, body)
+    return
+  }
+
+  const credentials = await window.syrusDesktop.getCredentials()
+  if (!credentials) {
+    throw new Error("Connect Syrus before submitting feedback.")
+  }
+
+  const response = await fetch(appApiUrl(credentials.url, `/api/v1/app/jobs/${jobId}/chat_feedback`), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.token.trim()}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ body })
+  })
+
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response, `Could not submit feedback for JOB-${jobId}.`))
+  }
+}
 
 const compareInboxJobs = (a: SyrusJobItem, b: SyrusJobItem) => {
   const repositoryComparison = (a.repository_slug || "").localeCompare(b.repository_slug || "")
@@ -713,7 +762,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     setFeedbackError(null)
 
     try {
-      await window.syrusDesktop.submitJobFeedback(jobId, body)
+      await submitJobFeedback(jobId, body)
       showToast({ kind: "success", message: "Feedback submitted" }, 1800)
       setFeedbackBody("")
       void detailQuery.refetch()
