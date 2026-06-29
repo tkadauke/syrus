@@ -245,6 +245,10 @@ from diagnostics, recent logs, spawned process outcomes, and agent outcome.
 or as a fresh retry Workflow. Failed agentic runs with captured sessions can
 resume from the failed Step instead of starting over. `ProviderCircuitBreaker`
 suppresses automatic retries/CI repair during provider-wide transient outages.
+`ReapStaleRunsJob` also repairs worker-death gaps: re-enqueues queued Runs
+whose inline driver disappeared, cancels impossible queued Steps whose Runs
+are all terminal, and finishes running Workflows once every Step/Run is
+terminal.
 
 ### Scheduled tasks
 
@@ -291,6 +295,13 @@ read-only to agents; chat can inspect code and queue/propose Jobs, Epics,
 or issues, but implementation belongs in workflow Runs. While a chat turn
 is busy, follow-up user messages are stored as `ChatQueuedMessage`s and
 delivered sequentially after the current turn finishes.
+
+Chat proposal tools can express runtime dependencies when drafting work:
+`depends_on` for Job proposal slugs in the same chat, `depends_on_job_ids` for
+existing Jobs, `depends_on_epic_ids` for existing Epics, and
+`depends_on_proposal_slugs` for Epic proposal ordering. Chat also has
+`add_job_dependency` / `remove_job_dependency` MCP tools to adjust manual Job
+dependencies after Jobs exist.
 
 Dev and prod use `solid_cable` (NOT `async`) so browser app events work
 across web/worker processes.
