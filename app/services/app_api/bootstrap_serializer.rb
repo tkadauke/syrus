@@ -49,6 +49,9 @@ module AppApi
         locale: user.locale,
         agent_provider: user.agent_provider,
         chat_provider: user.chat_provider,
+        opencode_backend: user.opencode_backend,
+        opencode_model: user.opencode_model,
+        opencode_endpoint_url: user.opencode_endpoint_url,
         agent_max_turns: user.agent_max_turns,
         # Gates the walkthrough-video UI: without a key the composer offers
         # the Gemini setup sheet instead of the recorder/upload.

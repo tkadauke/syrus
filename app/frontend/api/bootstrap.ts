@@ -14,8 +14,11 @@ export type BootstrapPayload = {
     role: string
     scheduling_paused: boolean
     landing_paused: boolean
-    agent_provider: "claude" | "codex"
+    agent_provider: "claude" | "codex" | "opencode"
     chat_provider: "claude" | "codex" | null
+    opencode_backend: string | null
+    opencode_model: string | null
+    opencode_endpoint_url: string | null
     agent_max_turns: number
     gemini_configured: boolean
     theme: "light" | "dark"
@@ -62,7 +65,7 @@ export type BootstrapPayload = {
       github_pat: boolean
       github_app: boolean
       agent: boolean
-      active_agent_provider: "claude" | "codex"
+      active_agent_provider: "claude" | "codex" | "opencode"
     }
     readiness: {
       status: "ok" | "warning" | "error"

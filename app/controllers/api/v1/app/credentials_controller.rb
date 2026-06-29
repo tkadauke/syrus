@@ -226,6 +226,9 @@ module Api
             agent_provider: user.agent_provider,
             chat_provider: user.chat_provider,
             codex_auth_mode: user.codex_auth_mode,
+            opencode_backend: user.opencode_backend,
+            opencode_model: user.opencode_model,
+            opencode_endpoint_url: user.opencode_endpoint_url,
             agent_max_turns: user.agent_max_turns,
             scheduling_paused: user.scheduling_paused,
             auto_approve_mode: user.auto_approve_mode,
@@ -244,6 +247,7 @@ module Api
             codex_api_key: user.codex_api_key.present?,
             codex_auth_json: user.codex_auth_json.present?,
             gemini_api_key: user.gemini_api_key.present?,
+            opencode_api_key: user.opencode_api_key.present?,
             api_token: user.admin? ? user.api_token.present? : nil
           }
         end
@@ -279,6 +283,7 @@ module Api
             chat_providers: User::CHAT_PROVIDERS.select { |provider| user.chat_provider_configured?(provider) },
             roles: User::ROLES,
             codex_auth_modes: User::CODEX_AUTH_MODES,
+            opencode_backends: User::OPENCODE_BACKENDS,
             agent_max_turns: {
               min: User::AGENT_MAX_TURNS_RANGE.first,
               max: User::AGENT_MAX_TURNS_RANGE.last
@@ -302,7 +307,9 @@ module Api
           params.expect(user: [ :name, :first_name, :last_name, :github_handle, :profile_bio, :avatar_url,
                                 :profile_company, :profile_website,
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
-                                :codex_api_key, :codex_auth_json, :gemini_api_key, :github_token,
+                                :codex_api_key, :codex_auth_json, :gemini_api_key,
+                                :opencode_backend, :opencode_model,
+                                :opencode_api_key, :opencode_endpoint_url, :github_token,
                                 :agent_max_turns, :scheduling_paused, :auto_approve_mode, :locale,
                                 { notification_preferences: [ :desktop_job_implemented, :desktop_job_failed ] } ])
         end

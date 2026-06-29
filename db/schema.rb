@@ -1503,6 +1503,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_030000) do
     t.string "locale", null: false
     t.string "name"
     t.json "notification_preferences", null: false
+    t.text "opencode_api_key"
+    t.string "opencode_backend"
+    t.string "opencode_endpoint_url"
+    t.string "opencode_model"
     t.string "password_digest", null: false
     t.text "profile_bio"
     t.string "profile_company"
