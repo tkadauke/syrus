@@ -121,6 +121,16 @@ export type EpicDetailJob = {
   repository_slug: string
 }
 
+export type EpicVersionRecord = {
+  id: number
+  created_at: string
+  actor: EpicOwnerUser | { email_address: string }
+  title_before: string | null
+  title_after: string | null
+  description_before: string | null
+  description_after: string | null
+}
+
 export type EpicDetailPayload = {
   message?: string | null
   epic: EpicDetailRecord
@@ -130,6 +140,7 @@ export type EpicDetailPayload = {
   dependencies: EpicDependencyRecord[]
   dependents: EpicDependencyRecord[]
   jobs: EpicDetailJob[]
+  versions?: EpicVersionRecord[]
   paths: {
     dashboard_epics_path: string
     edit_epic_path: string

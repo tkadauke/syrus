@@ -16,6 +16,7 @@ class Epic < ApplicationRecord
   belongs_to :owner_user, class_name: "User", optional: true, inverse_of: :dashboard_owned_epics
   has_many :jobs, dependent: :nullify
   has_many :chat_proposals, dependent: :nullify
+  has_many :versions, class_name: "EpicVersion", dependent: :destroy, inverse_of: :epic
   has_many :dependencies,
            class_name: "EpicDependency",
            dependent: :destroy,
@@ -41,6 +42,7 @@ class Epic < ApplicationRecord
   after_create_commit :enqueue_search_index_after_create
   after_create_commit :broadcast_app_epic_created
   after_update_commit :sync_job_epic_titles, if: :saved_change_to_title?
+  after_update_commit :record_version, if: :title_or_description_changed?
   after_update_commit :enqueue_search_index_after_update
   after_update_commit :broadcast_app_epic_updated
   after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
@@ -153,6 +155,23 @@ class Epic < ApplicationRecord
 
   def sync_job_epic_titles
     jobs.update_all(epic_title: title)
+  end
+
+  def title_or_description_changed?
+    saved_change_to_title? || saved_change_to_description?
+  end
+
+  def record_version
+    title_change = saved_change_to_title
+    description_change = saved_change_to_description
+
+    versions.create!(
+      user: Current.user,
+      title_before: title_change&.first,
+      title_after: title_change&.last,
+      description_before: description_change&.first,
+      description_after: description_change&.last
+    )
   end
 
   def clear_job_epic_titles

@@ -211,6 +211,7 @@ module Api
               dependency_epic_json(dependency.epic)
             end,
             jobs: jobs.map { |job| job_json(job) },
+            versions: epic.versions.includes(:user).order(created_at: :desc, id: :desc).map { |version| version_json(version) },
             paths: {
               dashboard_epics_path: dashboard_epics_path,
               edit_epic_path: edit_epic_path(epic),
@@ -341,6 +342,18 @@ module Api
             title: epic.title.to_s,
             state: epic.state,
             url: epic_path(epic)
+          }
+        end
+
+        def version_json(version)
+          {
+            id: version.id,
+            created_at: version.created_at.iso8601,
+            actor: owner_user_json(version.user) || { email_address: "System" },
+            title_before: version.title_before,
+            title_after: version.title_after,
+            description_before: version.description_before,
+            description_after: version.description_after
           }
         end
 

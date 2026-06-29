@@ -17,6 +17,7 @@ import {
   type EpicDependencyRecord,
   type EpicDetailJob,
   type EpicDetailPayload,
+  type EpicVersionRecord,
   type EpicGraph,
   type EpicSearchOption,
   type EpicStateTransition
@@ -170,6 +171,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
         </section>
       ) : null}
 
+      <HistorySection versions={payload.versions || []} />
       <JobsSection jobs={payload.jobs} prefix={prefix} />
     </>
   )
@@ -418,6 +420,59 @@ function MermaidGraph({ definition }: { definition: string }) {
   )
 }
 
+function HistorySection({ versions }: { versions: EpicVersionRecord[] }) {
+  return (
+    <details className="group rounded border border-gray-200 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
+      <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
+        <span className="flex items-center gap-2">
+          <span className="text-gray-400 transition-transform group-open:rotate-90 dark:text-gray-500">▶</span>
+          <span className="font-medium">History</span>
+          <span className="text-gray-500 dark:text-gray-400">({versions.length})</span>
+        </span>
+      </summary>
+      <div className="border-t border-gray-100 dark:border-gray-800">
+        {versions.length > 0 ? (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+            {versions.map((version) => (
+              <li className="space-y-3 px-4 py-3" key={version.id}>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="font-medium text-gray-700 dark:text-gray-200">{version.actor.email_address}</span>
+                  <span>{formatDateTime(version.created_at)}</span>
+                </div>
+                {version.title_before !== null || version.title_after !== null ? (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <DiffValue label="Title before" value={version.title_before} />
+                    <DiffValue label="Title after" value={version.title_after} />
+                  </div>
+                ) : null}
+                {version.description_before !== null || version.description_after !== null ? (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <DiffValue label="Description before" value={version.description_before} multiline />
+                    <DiffValue label="Description after" value={version.description_after} multiline />
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">No title or description changes yet.</p>
+        )}
+      </div>
+    </details>
+  )
+}
+
+function DiffValue({ label, multiline = false, value }: { label: string; multiline?: boolean; value: string | null }) {
+  return (
+    <div>
+      <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
+      <pre className={`mt-1 whitespace-pre-wrap break-words rounded border border-gray-200 bg-gray-50 p-2 font-mono text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 ${multiline ? "min-h-20" : ""}`}>
+        {value?.trim() ? value : "(empty)"}
+      </pre>
+    </div>
+  )
+}
+
 function JobsSection({ jobs, prefix }: { jobs: EpicDetailJob[]; prefix: string }) {
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -533,6 +588,10 @@ function formatRelative(value: string) {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
 }
 
 function errorMessage(error: Error, fallback: string) {

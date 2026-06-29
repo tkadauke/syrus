@@ -87,6 +87,13 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     )
     blocker = Factories.epic(user: user, repository: repository, title: "Deliver marble", state: "done")
     EpicDependency.create!(epic: epic, depends_on_epic: blocker, derived: false)
+    epic.versions.create!(
+      user: user,
+      title_before: "Old forum",
+      title_after: "Raise the forum",
+      description_before: "Build columns.",
+      description_after: "Build **columns**."
+    )
     job = Factories.job_record(
       user: user,
       repository: repository,
@@ -157,6 +164,13 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "id" => dependent.id,
       "branch_name" => dependent.branch_name.to_s,
       "depends_on_job_ids" => [ job.id ]
+    ))
+    expect(body["versions"]).to contain_exactly(include(
+      "actor" => include("id" => user.id, "email_address" => user.email_address),
+      "title_before" => "Old forum",
+      "title_after" => "Raise the forum",
+      "description_before" => "Build columns.",
+      "description_after" => "Build **columns**."
     ))
     expect(body["paths"]).to include(
       "dashboard_epics_path" => dashboard_epics_path,

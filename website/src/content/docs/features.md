@@ -67,7 +67,9 @@ closed but at least one did not complete successfully, operators can use
 The Epic detail page shows both sides of the dependency graph: Epics this
 Epic depends on, and Epics that depend on it. Operators can add an Epic
 dependency by ID or remove an existing dependency from that page; Syrus
-rejects changes that would create a cycle.
+rejects changes that would create a cycle. The page also includes a
+collapsible history section that records title and description changes with
+the actor, timestamp, and before/after text.
 
 Chats can propose Epics or propose an Epic with child Jobs, including
 Epic-level dependencies on existing Epics or other chat Epic proposals. Chat

@@ -78,6 +78,49 @@ RSpec.describe Epic do
     expect(job.reload.epic_title).to eq("Landing train")
   end
 
+  it "records title and description versions with the current actor" do
+    actor = Factories.user(email_address: "actor@example.com")
+    epic = Factories.epic(title: "Migration train", description: "Old notes")
+
+    Current.api_user = actor
+
+    expect {
+      epic.update!(title: "Landing train", description: "New notes")
+    }.to change(EpicVersion, :count).by(1)
+
+    version = epic.versions.last
+    expect(version.user).to eq(actor)
+    expect(version.title_before).to eq("Migration train")
+    expect(version.title_after).to eq("Landing train")
+    expect(version.description_before).to eq("Old notes")
+    expect(version.description_after).to eq("New notes")
+  ensure
+    Current.reset
+  end
+
+  it "records system versions when no current actor is present" do
+    epic = Factories.epic(title: "Migration train")
+
+    expect {
+      epic.update!(description: "System note")
+    }.to change(EpicVersion, :count).by(1)
+
+    version = epic.versions.last
+    expect(version.user).to be_nil
+    expect(version.title_before).to be_nil
+    expect(version.title_after).to be_nil
+    expect(version.description_before).to be_nil
+    expect(version.description_after).to eq("System note")
+  end
+
+  it "does not record a version for unrelated updates" do
+    epic = Factories.epic(title: "Migration train", state: "ready")
+
+    expect {
+      epic.update!(claimed_at: Time.current)
+    }.not_to change(EpicVersion, :count)
+  end
+
   it "rejects unknown auto-approval modes" do
     epic = Factories.epic
     epic.auto_approve_mode = "always"

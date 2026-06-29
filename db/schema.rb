@@ -346,6 +346,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_003439) do
     t.index ["epic_id"], name: "index_epic_dependencies_on_epic_id"
   end
 
+  create_table "epic_versions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description_after"
+    t.text "description_before"
+    t.integer "epic_id", null: false
+    t.text "title_after"
+    t.text "title_before"
+    t.integer "user_id"
+    t.index ["epic_id"], name: "index_epic_versions_on_epic_id"
+    t.index ["user_id"], name: "index_epic_versions_on_user_id"
+  end
+
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
@@ -1028,6 +1040,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_003439) do
   add_foreign_key "epic_dependencies", "epics"
   add_foreign_key "epic_dependencies", "epics", column: "depends_on_epic_id"
   add_foreign_key "epic_dependencies", "jobs", column: "depends_on_job_id"
+  add_foreign_key "epic_versions", "epics"
+  add_foreign_key "epic_versions", "users"
   add_foreign_key "epics", "repositories"
   add_foreign_key "epics", "users"
   add_foreign_key "epics", "users", column: "owner_id"
