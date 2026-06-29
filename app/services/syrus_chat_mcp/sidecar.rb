@@ -94,6 +94,7 @@ module SyrusChatMcp
       RepoInfoTool,
       SubmitChatFeedbackTool,
       RenameChatTool,
+      AskUserQuestionTool,
       *ADMIN_TOOLS
     ].freeze
 
@@ -164,7 +165,6 @@ module SyrusChatMcp
     DEFERRED_TOOLS = [
       UpdatePinnedContextTool,
       RemovePinnedContextTool,
-      AskUserQuestionTool,
       ListChatsTool,
       ListRepositoriesTool,
       AddRepoNoteTool,

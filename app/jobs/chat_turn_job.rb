@@ -12,6 +12,7 @@ class ChatTurnJob < ApplicationJob
     Edit
     MultiEdit
     NotebookEdit
+    AskUserQuestion
   ].freeze
 
   queue_as :chat

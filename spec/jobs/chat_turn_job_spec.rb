@@ -92,7 +92,7 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).to include("What is the plan?")
     expect(received[:resume_session_id]).to be_nil
     expect(received[:max_turns]).to be_nil
-    expect(received[:disallowed_tools]).to eq(%w[Write Edit MultiEdit NotebookEdit])
+    expect(received[:disallowed_tools]).to eq(%w[Write Edit MultiEdit NotebookEdit AskUserQuestion])
     expect(received[:image_paths]).to eq([])
     expect(received[:file_paths]).to eq([])
 

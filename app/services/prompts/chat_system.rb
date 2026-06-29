@@ -324,6 +324,10 @@ module Prompts
 
           - Recommend; don't decide. Surface tradeoffs. Ask clarifying
             questions when the operator's intent is ambiguous.
+          - When you need to ask the operator a clarifying question
+            interactively, use the `ask_user_question` MCP tool — not
+            the built-in `AskUserQuestion` tool, which has no effect in
+            this environment.
           - Cite specific files and line numbers. "I saw X at app/
             services/foo.rb:42" beats "there's a thing in services."
           - Inspect prior Jobs (`list_jobs`, `read_job`) when the

@@ -88,8 +88,9 @@ RSpec.describe SyrusChatMcp::Sidecar do
         repo_info
         submit_chat_feedback
         rename_chat
+        ask_user_question
       ])
-      expect(tool_names.size).to eq(21)
+      expect(tool_names.size).to eq(22)
     end
 
     it "advertises specialty tools via the deferred tools/list" do
@@ -103,7 +104,6 @@ RSpec.describe SyrusChatMcp::Sidecar do
         read_scene
         update_pinned_context
         list_chats
-        ask_user_question
         list_memories
         delete_memory
         publish_memory
@@ -170,7 +170,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         "list_repo_documents",
         "read_repo_document"
       )
-      expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "write_memory", "read_memory", "rename_chat")
+      expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "write_memory", "read_memory", "rename_chat", "ask_user_question")
     end
 
     it "assigns every chat MCP tool file to exactly one tier" do
@@ -188,7 +188,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       names = SyrusChatMcp::DeferredSidecar.tool_names(chat_session)
 
       expect(names).to include("draw_shape", "read_workflow", "assign_job_to_epic")
-      expect(names).not_to include("repo_info", "rename_chat", "admin_overview")
+      expect(names).not_to include("repo_info", "rename_chat", "ask_user_question", "admin_overview")
     end
 
     it "keeps deferred tool schemas callable through the deferred server" do

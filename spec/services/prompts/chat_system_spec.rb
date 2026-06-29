@@ -45,6 +45,8 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("list_memories")
     expect(out).to include("search_memories(query)")
     expect(out).to include("Recommend; don't decide.")
+    expect(out).to include("use the `ask_user_question` MCP tool")
+    expect(out).to include("the built-in `AskUserQuestion` tool")
   end
 
   it "instructs chat to use canonical Job and Epic reference formats" do
