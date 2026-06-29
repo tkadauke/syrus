@@ -61,7 +61,9 @@ process keeps a live connection to the user's app events so native
 notifications, tray badge state, and renderer views can react without
 opening separate WebSocket connections. `notification_created` events show
 OS-level banners using the notification body from Syrus; clicking a banner
-opens the matching Job page or pull request in the browser.
+opens the matching Job page or pull request in the browser. Users can turn
+desktop banners for implemented and failed Jobs on or off from account
+preferences in the web UI.
 
 On macOS, Syrus Desktop runs as a menubar app without a Dock icon. The
 tray icon shows an unread notification badge when notifications are

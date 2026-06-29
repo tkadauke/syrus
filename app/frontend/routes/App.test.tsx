@@ -7582,13 +7582,22 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Preferences" })).toBeInTheDocument()
     expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Preferences" })).toHaveClass("bg-blue-50")
     expect(screen.queryByLabelText("Agent provider")).not.toBeInTheDocument()
-    fireEvent.click(await screen.findByLabelText("Pause scheduling"))
+    const pauseScheduling = await screen.findByLabelText("Pause scheduling")
+    expect(screen.getByRole("group", { name: "Desktop Notifications" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Job ready for review")).toBeChecked()
+    expect(screen.getByLabelText("Job failed")).toBeChecked()
+    fireEvent.click(pauseScheduling)
+    fireEvent.click(screen.getByLabelText("Job ready for review"))
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
       const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
       expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
-        scheduling_paused: true
+        scheduling_paused: true,
+        notification_preferences: {
+          desktop_job_implemented: false,
+          desktop_job_failed: true
+        }
       }))
     })
   })
@@ -13484,6 +13493,8 @@ function credentialsPayload(overrides: {
   codexAuthMode?: string
   codexAuthJson?: boolean
   schedulingPaused?: boolean
+  desktopJobImplemented?: boolean
+  desktopJobFailed?: boolean
 } = {}) {
   return {
     user: {
@@ -13503,7 +13514,11 @@ function credentialsPayload(overrides: {
       codex_auth_mode: overrides.codexAuthMode ?? "api_key",
       agent_max_turns: 200,
       scheduling_paused: overrides.schedulingPaused ?? false,
-      auto_approve_mode: "never"
+      auto_approve_mode: "never",
+      notification_preferences: {
+        desktop_job_implemented: overrides.desktopJobImplemented ?? true,
+        desktop_job_failed: overrides.desktopJobFailed ?? true
+      }
     },
     credential_status: {
       github_token: true,

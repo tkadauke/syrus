@@ -391,6 +391,7 @@ RSpec.describe User do
       expect(user.notification_preferences).to eq(User::NOTIFICATION_PREFERENCES_DEFAULTS)
       expect(user.notification_preference_for("job_failed")).to be(true)
       expect(user.notification_preference_for("epic_completed")).to be(false)
+      expect(user.desktop_notification_enabled?("desktop_job_implemented")).to be(true)
     end
 
     it "falls back to defaults for missing stored keys" do
@@ -398,6 +399,14 @@ RSpec.describe User do
 
       expect(user.notification_preference_for("job_failed")).to be(false)
       expect(user.notification_preference_for("job_implemented")).to be(true)
+      expect(user.desktop_notification_enabled?(:desktop_job_failed)).to be(true)
+    end
+
+    it "returns stored desktop notification preferences" do
+      user = User.create!(attrs.merge(notification_preferences: { "desktop_job_implemented" => false }))
+
+      expect(user.desktop_notification_enabled?(:desktop_job_implemented)).to be(false)
+      expect(user.desktop_notification_enabled?(:desktop_job_failed)).to be(true)
     end
 
     it "ignores unknown stored keys and coerces values to booleans" do

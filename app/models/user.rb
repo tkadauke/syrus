@@ -106,6 +106,8 @@ class User < ApplicationRecord
   NOTIFICATION_PREFERENCES_DEFAULTS = {
     "job_failed" => true,
     "job_implemented" => true,
+    "desktop_job_failed" => true,
+    "desktop_job_implemented" => true,
     "pr_comment_addressed" => true,
     "pr_merged" => true,
     "epic_completed" => false
@@ -248,6 +250,10 @@ class User < ApplicationRecord
     raise ArgumentError, "Unknown notification kind: #{kind}" unless NOTIFICATION_PREFERENCES_DEFAULTS.key?(kind)
 
     notification_preferences.fetch(kind)
+  end
+
+  def desktop_notification_enabled?(type)
+    notification_preferences.fetch(type.to_s, true)
   end
 
   def update_dashboard_sort!(subject:, column:, direction:)

@@ -19,6 +19,10 @@ export type CredentialsUser = {
   agent_max_turns: number
   scheduling_paused: boolean
   auto_approve_mode: string
+  notification_preferences: {
+    desktop_job_implemented: boolean
+    desktop_job_failed: boolean
+  }
 }
 
 export type CredentialStatus = {
@@ -115,6 +119,10 @@ export type CredentialsInput = {
   agent_max_turns: number
   scheduling_paused: boolean
   auto_approve_mode: string
+  notification_preferences?: {
+    desktop_job_implemented?: boolean
+    desktop_job_failed?: boolean
+  }
 }
 
 export function fetchCredentials() {
