@@ -5,6 +5,16 @@ type Credentials = {
   token: string
 }
 
+type NotificationPreferences = {
+  desktop_job_implemented: boolean
+  desktop_job_failed: boolean
+}
+
+type CredentialsUser = {
+  admin: boolean
+  notification_preferences?: Partial<NotificationPreferences>
+}
+
 type JobItem = {
   id: number
   epic_id: number | null
@@ -89,10 +99,14 @@ type CheckoutRequest = {
 }
 
 type BootstrapPayload = {
-  current_user: {
-    admin: boolean
-  } | null
+  current_user: CredentialsUser | null
   unread_notifications_count?: number
+}
+
+type DesktopNotificationOptions = {
+  title: string
+  body: string
+  jobId: number
 }
 
 type NotificationRecord = {
@@ -152,6 +166,8 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
     ipcRenderer.invoke("checkout-job", request) as Promise<{ branchName: string }>,
   showPreferences: () => ipcRenderer.invoke("show-preferences") as Promise<void>,
   copyText: (text: string) => ipcRenderer.invoke("copy-text", text) as Promise<void>,
+  showNotification: (opts: DesktopNotificationOptions) =>
+    ipcRenderer.invoke("syrusDesktop:showNotification", opts) as Promise<void>,
   fetchBootstrap: () => ipcRenderer.invoke("fetch-bootstrap") as Promise<BootstrapPayload>,
   fetchRepositories: () => ipcRenderer.invoke("fetch-repositories") as Promise<RepositoryItem[]>,
   getLastUsedRepo: () => ipcRenderer.invoke("get-last-used-repo") as Promise<string>,
@@ -196,5 +212,10 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
     const listener = (_event: Electron.IpcRendererEvent, notificationEvent: unknown) => callback(notificationEvent)
     ipcRenderer.on("notification-event", listener)
     return () => ipcRenderer.removeListener("notification-event", listener)
+  },
+  onNavigateToJob: (callback: (jobId: number) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, jobId: number) => callback(jobId)
+    ipcRenderer.on("syrusDesktop:navigateToJob", listener)
+    return () => ipcRenderer.removeListener("syrusDesktop:navigateToJob", listener)
   }
 })

@@ -35,6 +35,8 @@ const normalizeInstanceUrl = (url: string) => url.trim().replace(/\/+$/, "")
 const appApiUrl = (baseUrl: string, path: string) => `${normalizeInstanceUrl(baseUrl)}${path}`
 
 const jobTitle = (job: SyrusJobItem) => job.title || job.issue_title || `JOB-${job.id}`
+const truncateText = (text: string, maxLength: number) =>
+  text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
 
 type ApiErrorPayload = {
   error?: {
@@ -475,6 +477,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const composeRef = useRef<HTMLElement>(null)
   const composeButtonRef = useRef<HTMLButtonElement>(null)
   const feedbackSubmitButtonRef = useRef<HTMLButtonElement>(null)
+  const prevJobStates = useRef<Map<number, string>>(new Map())
   const inboxQuery = useQuery({
     queryKey: ["inbox-jobs", instanceUrl],
     queryFn: () => window.syrusDesktop.fetchInboxJobs(),
@@ -503,6 +506,9 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     refetchInterval: isAdmin ? REFRESH_INTERVAL_MS : false
   })
   const jobs = inboxQuery.data ?? EMPTY_JOBS
+  const notificationPreferences = bootstrapQuery.data?.current_user?.notification_preferences
+  const desktopJobImplementedNotificationsEnabled = notificationPreferences?.desktop_job_implemented ?? true
+  const desktopJobFailedNotificationsEnabled = notificationPreferences?.desktop_job_failed ?? true
   const detailJobId = navigation.view === "job-detail" || navigation.view === "feedback" ? navigation.jobId : null
   const detailQuery = useQuery({
     queryKey: ["job-detail", instanceUrl, detailJobId],
@@ -582,6 +588,50 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
     return unsubscribe
   }, [navigation.view, notificationsQuery, unreadCountQuery])
+
+  useEffect(() => {
+    return window.syrusDesktop.onNavigateToJob((jobId) => {
+      setNavigation({ view: "job-detail", jobId })
+      setIsComposeOpen(false)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!inboxQuery.isSuccess || !bootstrapQuery.isSuccess) {
+      return
+    }
+
+    const previousStates = prevJobStates.current
+
+    for (const job of jobs) {
+      const previousState = previousStates.get(job.id)
+      if (!previousState || previousState === job.state) {
+        continue
+      }
+
+      if (job.state === "implemented" && desktopJobImplementedNotificationsEnabled) {
+        void window.syrusDesktop.showNotification({
+          title: `JOB-${job.id} ready for review`,
+          body: truncateText(jobTitle(job), 60),
+          jobId: job.id
+        })
+      } else if (job.state === "failed" && desktopJobFailedNotificationsEnabled) {
+        void window.syrusDesktop.showNotification({
+          title: `JOB-${job.id} failed`,
+          body: truncateText(jobTitle(job), 60),
+          jobId: job.id
+        })
+      }
+    }
+
+    prevJobStates.current = new Map(jobs.map((job) => [job.id, job.state]))
+  }, [
+    desktopJobFailedNotificationsEnabled,
+    desktopJobImplementedNotificationsEnabled,
+    bootstrapQuery.isSuccess,
+    inboxQuery.isSuccess,
+    jobs
+  ])
 
   useEffect(() => {
     if (jobs.length === 0) {
