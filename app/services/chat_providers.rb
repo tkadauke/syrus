@@ -2,7 +2,8 @@ module ChatProviders
   class ConfigurationError < StandardError; end
 
   REGISTRY = {
-    "claude" => "ChatProviders::Claude"
+    "claude" => "ChatProviders::Claude",
+    "codex" => "ChatProviders::Codex"
   }.freeze
 
   def self.for(provider)

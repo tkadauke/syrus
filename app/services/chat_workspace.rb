@@ -21,6 +21,10 @@ class ChatWorkspace
     path_for(chat_session).join("repositories", repository.owner, repository.name)
   end
 
+  def self.agent_home_for(chat_session, provider)
+    data_root.join("agent_homes", "chats", chat_session.id.to_s, provider.to_s)
+  end
+
   def self.ensure_root!(chat_session)
     new(chat_session).ensure_root!
   end

@@ -37,6 +37,13 @@ RSpec.describe ChatWorkspace do
     end
   end
 
+  describe ".agent_home_for" do
+    it "is keyed on chat id and provider, outside the chat workspace" do
+      expect(described_class.agent_home_for(chat_session, "codex"))
+        .to eq(Pathname.new(@data_root).join("agent_homes", "chats", chat_session.id.to_s, "codex"))
+    end
+  end
+
   describe ".attach_repository!" do
     it "shallow-clones the repository on first use" do
       path = described_class.attach_repository!(chat_session, repository)

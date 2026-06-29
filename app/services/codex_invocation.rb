@@ -13,9 +13,12 @@ class CodexInvocation
                  timeout: DEFAULT_TIMEOUT_SECONDS,
                  codex_home: nil,
                  mcp_server: nil,
+                 mcp_servers: nil,
                  model: nil,
                  resume_session_id: nil,
-                 resume_transcript_jsonl: nil)
+                 resume_transcript_jsonl: nil,
+                 stop_requested: -> { false },
+                 process_started: ->(_process) { })
     @workspace_path = workspace_path.to_s
     @prompt = prompt
     @api_key = api_key
@@ -24,9 +27,12 @@ class CodexInvocation
     @timeout = timeout
     @codex_home = codex_home&.to_s
     @mcp_server = mcp_server
+    @mcp_servers = mcp_servers
     @model = model.presence || ENV.fetch("SYRUS_CODEX_MODEL", DEFAULT_MODEL).presence
     @resume_session_id = resume_session_id
     @resume_transcript_jsonl = resume_transcript_jsonl
+    @stop_requested = stop_requested
+    @process_started = process_started
   end
 
   def run
@@ -38,20 +44,24 @@ class CodexInvocation
       timeout: @timeout,
       codex_home: @codex_home,
       mcp_server: @mcp_server,
+      mcp_servers: @mcp_servers,
       model: @model,
       resume_session_id: @resume_session_id,
-      resume_transcript_jsonl: @resume_transcript_jsonl
+      resume_transcript_jsonl: @resume_transcript_jsonl,
+      stop_requested: @stop_requested,
+      process_started: @process_started
     )
   end
 
   private
 
   def default_runner(workspace_path:, prompt:, api_key:, log_sink:, timeout:,
-                     codex_home:, mcp_server: nil, model: nil, resume_session_id: nil,
-                     resume_transcript_jsonl: nil)
+                     codex_home:, mcp_server: nil, mcp_servers: nil, model: nil,
+                     resume_session_id: nil, resume_transcript_jsonl: nil,
+                     stop_requested: -> { false }, process_started: ->(_process) { })
     codex_home = codex_home.presence || File.join(Dir.home, ".codex")
     FileUtils.mkdir_p(codex_home)
-    write_config(codex_home, mcp_server, model)
+    write_config(codex_home, mcp_servers || mcp_server, model)
     restore_resume_transcript(codex_home, resume_session_id, resume_transcript_jsonl)
 
     env = codex_env(api_key: api_key, codex_home: codex_home)
@@ -83,6 +93,8 @@ class CodexInvocation
       kind: "agent",
       run: current_run,
       workflow: current_run&.workflow,
+      stop_requested: stop_requested,
+      on_spawned_process: process_started,
       on_output_line: ->(line) do
         update = process_event(line, log_sink)
         metadata.merge!(update.compact) if update
@@ -126,40 +138,51 @@ class CodexInvocation
     )
   end
 
-  def write_config(codex_home, mcp_server, model)
+  def write_config(codex_home, mcp_servers, model)
     FileUtils.mkdir_p(codex_home)
-    File.write(File.join(codex_home, "config.toml"), codex_config_toml(mcp_server, model: model))
+    File.write(File.join(codex_home, "config.toml"), codex_config_toml(mcp_servers, model: model))
   end
 
-  def codex_config_toml(mcp_server, model:)
+  def codex_config_toml(mcp_servers, model:)
     lines = [
       'cli_auth_credentials_store = "file"',
       'approval_policy = "never"'
     ]
     lines << "model = #{toml_string(model)}" if model.present?
 
-    return lines.join("\n") + "\n" unless mcp_server
+    normalized_mcp_servers(mcp_servers).each do |name, server|
+      lines += [
+        "",
+        "[mcp_servers.#{name}]",
+        "command = #{toml_string(server.fetch(:command))}",
+        "args = #{toml_array(server.fetch(:args, []))}",
+        "required = #{server.fetch(:required, true) ? 'true' : 'false'}",
+        "startup_timeout_sec = #{server.fetch(:startup_timeout_sec, MCP_STARTUP_TIMEOUT_SECONDS)}",
+        "tool_timeout_sec = #{server.fetch(:tool_timeout_sec, MCP_TOOL_TIMEOUT_SECONDS)}"
+      ]
 
-    lines += [
-      "",
-      "[mcp_servers.syrus-mcp-sidecar]",
-      "command = #{toml_string(mcp_server.fetch(:command))}",
-      "args = #{toml_array(mcp_server.fetch(:args, []))}",
-      "required = true",
-      "startup_timeout_sec = #{MCP_STARTUP_TIMEOUT_SECONDS}",
-      "tool_timeout_sec = #{MCP_TOOL_TIMEOUT_SECONDS}"
-    ]
-
-    env = mcp_server.fetch(:env, {}).compact
-    if env.any?
-      lines << ""
-      lines << "[mcp_servers.syrus-mcp-sidecar.env]"
-      env.each do |key, value|
-        lines << "#{key} = #{toml_string(value)}"
+      env = server.fetch(:env, {}).compact
+      if env.any?
+        lines << ""
+        lines << "[mcp_servers.#{name}.env]"
+        env.each do |key, value|
+          lines << "#{key} = #{toml_string(value)}"
+        end
       end
     end
 
     lines.join("\n") + "\n"
+  end
+
+  def normalized_mcp_servers(value)
+    return {} unless value
+    if value.key?(:command) || value.key?("command")
+      return { "syrus-mcp-sidecar" => value.transform_keys(&:to_sym) }
+    end
+
+    value.to_h.transform_keys(&:to_s).transform_values do |server|
+      server.transform_keys(&:to_sym)
+    end
   end
 
   def toml_string(value)

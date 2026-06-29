@@ -152,6 +152,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
 | GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories; configured on `/credentials` |
 | Agent provider | Default provider for new Jobs: `claude` or `codex`; configured on `/settings/agent` |
+| Chat provider | Optional provider override for chat turns: `claude` or `codex`; when blank, chat follows the user's default agent provider |
 | Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; configured on `/credentials` |
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag; configured on `/settings/agent` |

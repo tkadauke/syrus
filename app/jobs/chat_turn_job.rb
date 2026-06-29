@@ -53,7 +53,7 @@ class ChatTurnJob < ApplicationJob
     end
 
     workspace_path = ensure_workspace!
-    parent_session_id = @chat.claude_session&.session_id
+    parent_session_id = resume_session_id_for(provider)
     attachment_context = attachment_context_for(workspace_path)
 
     result = with_chat_mcp_config do |mcp_config|
@@ -106,6 +106,13 @@ class ChatTurnJob < ApplicationJob
       file_paths: attachment_context.fetch(:file_paths),
       env: agent_env
     )
+  end
+
+  def resume_session_id_for(provider)
+    session = @chat.claude_session
+    return nil unless session&.provider == provider.provider
+
+    session.session_id
   end
 
   def refresh_attached_repository_checkouts!(workspace_path)

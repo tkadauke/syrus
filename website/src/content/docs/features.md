@@ -171,11 +171,14 @@ App surfaces, including the Job detail page, can also submit feedback directly
 for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.
 
-Attached repository checkouts are read-only for the chat agent. It may read,
-search, list, and refresh checkouts for context, but code changes must be
-drafted as proposals for operator confirmation. Chat turns also deny Claude's
-file-editing tools (`Write`, `Edit`, `MultiEdit`, and `NotebookEdit`) so the
-planning surface does not patch repository files directly.
+Attached repository checkouts are read-only for the chat agent. Chat can run
+through Claude or Codex using the user's chat provider setting, falling back
+to the default agent provider when no chat-specific override is set. It may
+read, search, list, and refresh checkouts for context, but code changes must
+be drafted as proposals for operator confirmation. Claude chat turns also
+deny Claude's file-editing tools (`Write`, `Edit`, `MultiEdit`, and
+`NotebookEdit`) so the planning surface does not patch repository files
+directly.
 
 When the chat agent is already running, operators can queue follow-up
 messages instead of waiting for the turn to finish. Queued messages remain

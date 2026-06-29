@@ -174,6 +174,45 @@ RSpec.describe CodexInvocation do
       end
     end
 
+    it "writes named Codex MCP server blocks for chat sidecars" do
+      Dir.mktmpdir do |home|
+        invocation = described_class.new(
+          "/tmp/wkt",
+          prompt: "P",
+          api_key: "sk-test",
+          codex_home: home,
+          mcp_servers: {
+            "syrus-chat-sidecar" => {
+              command: "/app/bin/syrus-chat-sidecar",
+              args: [],
+              env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "essential" },
+              required: true
+            },
+            "syrus-chat-deferred-sidecar" => {
+              command: "/app/bin/syrus-chat-deferred-sidecar",
+              args: [],
+              env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
+              required: false
+            }
+          }
+        )
+
+        capture_popen(invocation)
+
+        config = File.read(File.join(home, "config.toml"))
+        expect(config).to include("[mcp_servers.syrus-chat-sidecar]")
+        expect(config).to include('command = "/app/bin/syrus-chat-sidecar"')
+        expect(config).to include("required = true")
+        expect(config).to include("[mcp_servers.syrus-chat-sidecar.env]")
+        expect(config).to include('SYRUS_CHAT_MCP_TOOL_TIER = "essential"')
+        expect(config).to include("[mcp_servers.syrus-chat-deferred-sidecar]")
+        expect(config).to include('command = "/app/bin/syrus-chat-deferred-sidecar"')
+        expect(config).to include("required = false")
+        expect(config).to include("[mcp_servers.syrus-chat-deferred-sidecar.env]")
+        expect(config).to include('SYRUS_CHAT_MCP_TOOL_TIER = "deferred"')
+      end
+    end
+
     it "overwrites stale MCP config when no sidecar is requested" do
       Dir.mktmpdir do |home|
         File.write(File.join(home, "config.toml"), "[mcp_servers.syrus-mcp-sidecar]\ncommand = \"stale\"\n")

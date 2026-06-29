@@ -481,6 +481,87 @@ RSpec.describe ChatTurnJob do
     )
   end
 
+  it "runs Codex chat turns with chat MCP servers and captures a Codex session" do
+    codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
+    codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-widgets", default_branch: "main")
+    codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
+    codex_message = codex_chat.messages.create!(role: "user", content: { text: "Use Codex for this" })
+    codex_workspace_path = workspace_root.join("codex-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(codex_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(codex_workspace_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      kwargs[:log_sink].call("Codex response", kind: "assistant_text")
+      result_fixture(session_id: "codex-thread-1", transcript_jsonl: "{\"type\":\"session_meta\"}\n")
+    }
+
+    described_class.perform_now(codex_chat.id, codex_message.id)
+
+    expect(received).to include(
+      workspace_path: codex_workspace_path.to_s,
+      prompt: include("Use Codex for this"),
+      api_key: "sk-test",
+      codex_home: ChatWorkspace.agent_home_for(codex_chat, "codex").to_s,
+      resume_session_id: nil
+    )
+    expect(received[:mcp_servers]).to include(
+      "syrus-chat-sidecar" => include(
+        command: Rails.root.join("bin/syrus-chat-sidecar").to_s,
+        required: true
+      ),
+      "syrus-chat-deferred-sidecar" => include(
+        command: Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s,
+        required: false
+      )
+    )
+    expect(received.dig(:mcp_servers, "syrus-chat-sidecar", :env)).to include(
+      "SYRUS_CHAT_SESSION_ID" => codex_chat.id.to_s,
+      "SYRUS_CHAT_CURRENT_MESSAGE_ID" => codex_message.id.to_s,
+      "SYRUS_CHAT_MCP_SERVER_NAME" => "syrus-chat-sidecar"
+    )
+    expect(codex_chat.messages.order(:created_at).pluck(:role)).to eq([ "user", "assistant" ])
+    expect(codex_chat.reload.claude_session).to have_attributes(
+      provider: "codex",
+      session_id: "codex-thread-1",
+      transcript_jsonl: "{\"type\":\"session_meta\"}\n",
+      raw_provider_transcript: "{\"type\":\"session_meta\"}\n"
+    )
+  end
+
+  it "does not resume a stored session from a different chat provider" do
+    codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
+    codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "mixed-provider", default_branch: "main")
+    codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
+    codex_chat.create_claude_session!(
+      provider: "claude",
+      session_id: "claude-session-1",
+      transcript_jsonl: "old"
+    )
+    codex_message = codex_chat.messages.create!(role: "user", content: { text: "Start fresh in Codex" })
+    codex_workspace_path = workspace_root.join("mixed-provider-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(codex_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(codex_workspace_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "codex-thread-1", transcript_jsonl: "new")
+    }
+
+    described_class.perform_now(codex_chat.id, codex_message.id)
+
+    expect(received[:resume_session_id]).to be_nil
+    expect(received[:resume_transcript_jsonl]).to be_nil
+    expect(received[:prompt]).to include("You are Syrus Chat")
+    expect(codex_chat.reload.claude_session).to have_attributes(
+      provider: "codex",
+      session_id: "codex-thread-1",
+      transcript_jsonl: "new"
+    )
+  end
+
   it "records available and unavailable MCP tools while suppressing pending-only MCP health" do
     ChatTurnJob.agent_runner = ->(log_sink:, **_) {
       log_sink.call(
