@@ -14,7 +14,8 @@ import {
   ClaudeCredentialCard,
   CodexCredentialCard,
   GeminiCredentialCard,
-  GithubCredentialCard
+  GithubCredentialCard,
+  OpenCodeCredentialCard
 } from "../components/credentials/CredentialCard"
 import {
   fetchCredentials,
@@ -113,6 +114,7 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
         <GithubCredentialCard onNotice={onNotice} payload={payload} />
         <ClaudeCredentialCard onNotice={onNotice} payload={payload} />
         <CodexCredentialCard onNotice={onNotice} payload={payload} />
+        <OpenCodeCredentialCard onNotice={onNotice} payload={payload} />
         <GeminiCredentialCard onNotice={onNotice} payload={payload} />
         {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} /> : null}
         {payload.user.admin ? <ApiTokenPanel onNotice={onNotice} payload={payload} /> : null}

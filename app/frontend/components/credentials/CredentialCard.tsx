@@ -40,6 +40,25 @@ type CardProps = {
   onNotice: (message: string | null) => void
 }
 
+type OpenCodeBackend = "openai_api" | "ollama" | "azure_openai"
+
+const OPENCODE_BACKEND_OPTIONS: Record<OpenCodeBackend, { label: string; modelPlaceholder: string; endpointPlaceholder?: string }> = {
+  openai_api: {
+    label: "OpenAI API",
+    modelPlaceholder: "gpt-5.2"
+  },
+  ollama: {
+    label: "Ollama",
+    modelPlaceholder: "qwen3-coder:30b",
+    endpointPlaceholder: "http://localhost:11434/v1"
+  },
+  azure_openai: {
+    label: "Azure OpenAI",
+    modelPlaceholder: "my-gpt-5-deployment",
+    endpointPlaceholder: "https://RESOURCE_NAME.openai.azure.com/openai/v1"
+  }
+}
+
 // Write a mutation's payload snapshot into the credentials cache.
 // - Strips the server's generic `message` ("Credentials updated.") so the
 //   page-level payload-message effect cannot overwrite the card's specific
@@ -794,6 +813,276 @@ function CodexChatGptSection({
       </details>
     </div>
   )
+}
+
+// ---------- OpenCode ----------
+
+export function OpenCodeCredentialCard({ payload, onNotice }: CardProps) {
+  const { t } = useT("settings")
+  const queryClient = useQueryClient()
+  const { headingRef, focusHeading } = useCardFocus()
+  const actions = useCredentialActions(onNotice, focusHeading)
+  const initialBackend = normalizedOpenCodeBackend(payload.user.opencode_backend || "", payload.options.opencode_backends)
+  const [editing, setEditing] = useState(false)
+  const [backend, setBackend] = useState<OpenCodeBackend>(initialBackend)
+  const [model, setModel] = useState(payload.user.opencode_model || "")
+  const [apiKey, setApiKey] = useState("")
+  const [endpointUrl, setEndpointUrl] = useState(payload.user.opencode_endpoint_url || "")
+  const backendOption = OPENCODE_BACKEND_OPTIONS[backend]
+  const needsApiKey = backend === "openai_api" || backend === "azure_openai"
+  const needsEndpoint = backend === "ollama" || backend === "azure_openai"
+  const connected = opencodeConfigured({
+    backend,
+    model,
+    apiKeySet: payload.credential_status.opencode_api_key,
+    endpointUrl
+  })
+  const showEditor = editing || !connected
+
+  useEffect(() => {
+    const nextBackend = normalizedOpenCodeBackend(payload.user.opencode_backend || "", payload.options.opencode_backends)
+    setBackend(nextBackend)
+    setModel(payload.user.opencode_model || "")
+    setEndpointUrl(payload.user.opencode_endpoint_url || "")
+    setApiKey("")
+  }, [payload])
+
+  const save = useMutation({
+    mutationFn: () => savePartialCredentials({
+      opencode_backend: backend,
+      opencode_model: model,
+      opencode_api_key: apiKey.trim(),
+      opencode_endpoint_url: endpointUrl
+    }),
+    onMutate: () => actions.setError(null),
+    onSuccess: (updated) => {
+      cacheCredentials(queryClient, updated)
+      setApiKey("")
+      setEditing(false)
+      onNotice(t('credential_cards.opencode_saved_notice'))
+      focusHeading()
+    },
+    onError: (err) => actions.setError(errorMessage(err, t('credential_cards.save_error')))
+  })
+
+  return (
+    <CredentialCard
+      connected={connected}
+      description={t('credential_cards.opencode_description')}
+      error={actions.error}
+      headingRef={headingRef}
+      testId="credential-card-opencode"
+      title={t('credential_cards.opencode_title')}
+    >
+      {showEditor ? (
+        <div className="space-y-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('credential_cards.opencode_backend')}
+            <select
+              autoFocus={editing}
+              className={`mt-2 ${inputClass()}`}
+              onChange={(event) => setBackend(normalizedOpenCodeBackend(event.target.value, payload.options.opencode_backends))}
+              value={backend}
+            >
+              {payload.options.opencode_backends.map((option) => (
+                <option key={option} value={option}>{openCodeBackendLabel(option)}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('credential_cards.opencode_model')}
+            <input
+              className={`mt-2 ${inputClass()}`}
+              onChange={(event) => setModel(event.target.value)}
+              placeholder={backendOption.modelPlaceholder}
+              type="text"
+              value={model}
+            />
+          </label>
+
+          {needsApiKey ? (
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('credential_cards.opencode_api_key')}
+              <div className="mt-2 flex gap-2">
+                <input
+                  autoComplete="off"
+                  className={inputClass()}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  type="password"
+                  value={apiKey}
+                />
+                {payload.credential_status.opencode_api_key ? <ClearButton actions={actions} credential="opencode_api_key" /> : null}
+              </div>
+            </label>
+          ) : null}
+
+          {needsEndpoint ? (
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('credential_cards.opencode_endpoint_url')}
+              <input
+                className={`mt-2 ${inputClass()}`}
+                onChange={(event) => setEndpointUrl(event.target.value)}
+                placeholder={backendOption.endpointPlaceholder}
+                type="url"
+                value={endpointUrl}
+              />
+            </label>
+          ) : null}
+
+          <OpenCodeConfigPreview
+            apiKeySet={payload.credential_status.opencode_api_key || apiKey.trim().length > 0}
+            backend={backend}
+            endpointUrl={endpointUrl}
+            model={model}
+          />
+
+          <div className="flex flex-wrap gap-2">
+            <button className={primaryButtonClass()} disabled={save.isPending} onClick={() => save.mutate()} type="button">
+              {save.isPending ? t('credential_cards.saving') : t('credential_cards.save')}
+            </button>
+            {connected ? (
+              <button
+                className={secondaryButtonClass()}
+                onClick={() => {
+                  setEditing(false)
+                  focusHeading()
+                }}
+                type="button"
+              >
+                {t('credential_cards.cancel')}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            {t('credential_cards.opencode_summary', { backend: openCodeBackendLabel(backend), model: model || backendOption.modelPlaceholder })}
+          </p>
+          <OpenCodeConfigPreview
+            apiKeySet={payload.credential_status.opencode_api_key}
+            backend={backend}
+            endpointUrl={endpointUrl}
+            model={model}
+          />
+          <div className="flex flex-wrap gap-2">
+            <button className={secondaryButtonClass()} onClick={() => setEditing(true)} type="button">
+              {t('credential_cards.replace')}
+            </button>
+            {payload.credential_status.opencode_api_key ? <ClearButton actions={actions} credential="opencode_api_key" /> : null}
+          </div>
+        </div>
+      )}
+    </CredentialCard>
+  )
+}
+
+function OpenCodeConfigPreview({
+  apiKeySet,
+  backend,
+  endpointUrl,
+  model
+}: {
+  apiKeySet: boolean
+  backend: OpenCodeBackend
+  endpointUrl: string
+  model: string
+}) {
+  const { t } = useT("settings")
+  const config = openCodeConfigPreview({ apiKeySet, backend, endpointUrl, model })
+
+  return (
+    <section aria-label={t('credential_cards.opencode_preview')} className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('credential_cards.opencode_preview')}</h3>
+        <span className="text-xs text-gray-500 dark:text-gray-400">{t('credential_cards.read_only')}</span>
+      </div>
+      <pre className="mt-3 max-h-80 overflow-auto rounded bg-gray-950 p-3 text-xs leading-5 text-gray-100">
+        {JSON.stringify(config, null, 2)}
+      </pre>
+    </section>
+  )
+}
+
+function normalizedOpenCodeBackend(value: string, allowedBackends: string[]): OpenCodeBackend {
+  const fallback = allowedBackends.includes("openai_api") ? "openai_api" : allowedBackends[0]
+  const backend = value || fallback
+  return isOpenCodeBackend(backend) ? backend : "openai_api"
+}
+
+function isOpenCodeBackend(value: string): value is OpenCodeBackend {
+  return Object.prototype.hasOwnProperty.call(OPENCODE_BACKEND_OPTIONS, value)
+}
+
+function openCodeBackendLabel(backend: string) {
+  return isOpenCodeBackend(backend) ? OPENCODE_BACKEND_OPTIONS[backend].label : backend
+}
+
+function opencodeConfigured({
+  backend,
+  model,
+  apiKeySet,
+  endpointUrl
+}: {
+  backend: OpenCodeBackend
+  model: string
+  apiKeySet: boolean
+  endpointUrl: string
+}) {
+  if (model.trim().length === 0) return false
+  if (backend === "ollama") return endpointUrl.trim().length > 0
+  if (backend === "azure_openai") return apiKeySet && endpointUrl.trim().length > 0
+  return apiKeySet
+}
+
+function openCodeConfigPreview({
+  apiKeySet,
+  backend,
+  endpointUrl,
+  model
+}: {
+  apiKeySet: boolean
+  backend: OpenCodeBackend
+  endpointUrl: string
+  model: string
+}) {
+  const modelId = model.trim() || OPENCODE_BACKEND_OPTIONS[backend].modelPlaceholder
+  const providerId = openCodeProviderId(backend)
+  const providerConfig: Record<string, unknown> = {}
+  const providerOptions: Record<string, string> = {}
+
+  if (backend === "ollama") {
+    providerConfig.npm = "@ai-sdk/openai-compatible"
+    providerConfig.name = "Ollama"
+  } else if (backend === "azure_openai") {
+    providerConfig.name = "Azure OpenAI"
+  }
+
+  if (endpointUrl.trim().length > 0) providerOptions.baseURL = endpointUrl.trim()
+  if (apiKeySet && backend !== "ollama") providerOptions.apiKey = "<encrypted>"
+  if (Object.keys(providerOptions).length > 0) providerConfig.options = providerOptions
+
+  return {
+    "$schema": "https://opencode.ai/config.json",
+    model: `${providerId}/${modelId}`,
+    provider: {
+      [providerId]: {
+        ...providerConfig,
+        models: {
+          [modelId]: {
+            name: modelId
+          }
+        }
+      }
+    }
+  }
+}
+
+function openCodeProviderId(backend: OpenCodeBackend) {
+  if (backend === "openai_api") return "openai"
+  if (backend === "azure_openai") return "azure"
+  return "ollama"
 }
 
 // ---------- Gemini ----------

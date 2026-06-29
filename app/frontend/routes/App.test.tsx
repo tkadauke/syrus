@@ -7613,6 +7613,7 @@ describe("App", () => {
     expect(await screen.findByTestId("credential-card-github")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-claude")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-codex")).toBeInTheDocument()
+    expect(screen.getByTestId("credential-card-opencode")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-gemini")).toBeInTheDocument()
     expect(screen.getByText("A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.")).toBeInTheDocument()
 
@@ -7638,6 +7639,37 @@ describe("App", () => {
     // The Codex auth-mode select lives inside its card; the chat provider
     // saves immediately as a partial PATCH — there is no global Save.
     expect(screen.getByLabelText("Codex authentication")).toBeInTheDocument()
+    const openCodeCard = screen.getByTestId("credential-card-opencode")
+    expect(within(openCodeCard).getByLabelText("OpenCode backend")).toHaveValue("openai_api")
+    expect(within(openCodeCard).getByLabelText("OpenCode model")).toHaveAttribute("placeholder", "gpt-5.2")
+    expect(within(openCodeCard).getByLabelText("OpenCode API key")).toBeInTheDocument()
+    expect(within(openCodeCard).queryByLabelText("OpenCode endpoint URL")).not.toBeInTheDocument()
+    expect(within(openCodeCard).getByRole("region", { name: "Generated config preview" })).toHaveTextContent("\"model\": \"openai/gpt-5.2\"")
+    fireEvent.change(within(openCodeCard).getByLabelText("OpenCode backend"), { target: { value: "ollama" } })
+    expect(within(openCodeCard).getByLabelText("OpenCode model")).toHaveAttribute("placeholder", "qwen3-coder:30b")
+    expect(within(openCodeCard).queryByLabelText("OpenCode API key")).not.toBeInTheDocument()
+    fireEvent.change(within(openCodeCard).getByLabelText("OpenCode model"), { target: { value: "qwen3-coder:30b" } })
+    fireEvent.change(within(openCodeCard).getByLabelText("OpenCode endpoint URL"), { target: { value: "http://localhost:11434/v1" } })
+    expect(within(openCodeCard).getByRole("region", { name: "Generated config preview" })).toHaveTextContent("\"model\": \"ollama/qwen3-coder:30b\"")
+    expect(within(openCodeCard).getByRole("region", { name: "Generated config preview" })).toHaveTextContent("\"baseURL\": \"http://localhost:11434/v1\"")
+    fireEvent.click(within(openCodeCard).getByRole("button", { name: "Save" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/credentials",
+        expect.objectContaining({
+          method: "PATCH",
+          credentials: "same-origin",
+          body: JSON.stringify({
+            user: {
+              opencode_backend: "ollama",
+              opencode_model: "qwen3-coder:30b",
+              opencode_api_key: "",
+              opencode_endpoint_url: "http://localhost:11434/v1"
+            }
+          })
+        })
+      )
+    })
     fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -14648,6 +14680,10 @@ function credentialsPayload(overrides: {
   chatProviders?: string[]
   codexAuthMode?: string
   codexAuthJson?: boolean
+  opencodeBackend?: string | null
+  opencodeModel?: string | null
+  opencodeEndpointUrl?: string | null
+  opencodeApiKey?: boolean
   schedulingPaused?: boolean
   desktopJobImplemented?: boolean
   desktopJobFailed?: boolean
@@ -14669,6 +14705,9 @@ function credentialsPayload(overrides: {
       agent_provider: overrides.agentProvider ?? "claude",
       chat_provider: overrides.chatProvider ?? null,
       codex_auth_mode: overrides.codexAuthMode ?? "api_key",
+      opencode_backend: overrides.opencodeBackend ?? "openai_api",
+      opencode_model: overrides.opencodeModel ?? "gpt-5.2",
+      opencode_endpoint_url: overrides.opencodeEndpointUrl ?? null,
       agent_max_turns: 200,
       scheduling_paused: overrides.schedulingPaused ?? false,
       auto_approve_mode: "never",
@@ -14682,6 +14721,7 @@ function credentialsPayload(overrides: {
       claude_oauth_token: true,
       codex_api_key: false,
       codex_auth_json: overrides.codexAuthJson ?? false,
+      opencode_api_key: overrides.opencodeApiKey ?? false,
       api_token: overrides.apiToken ?? false
     },
     github_rate_limit: {
@@ -14692,13 +14732,15 @@ function credentialsPayload(overrides: {
       observed_at: "2026-05-30T12:00:00Z"
     },
     options: {
-      agent_providers: ["claude", "codex"],
+      agent_providers: ["claude", "codex", "opencode"],
       chat_providers: overrides.chatProviders ?? ["claude"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
+      opencode_backends: ["openai_api", "ollama", "azure_openai"],
       agent_max_turns: { min: 0, max: 1000 },
       clearable_credentials: [
         { value: "github_token", label: "GitHub token" },
-        { value: "claude_oauth_token", label: "Claude OAuth token" }
+        { value: "claude_oauth_token", label: "Claude OAuth token" },
+        { value: "opencode_api_key", label: "OpenCode API key" }
       ],
       auto_approve_modes: [
         { value: "never", label: "Never", preview: "No direct rule; Jobs can still inherit a repository or user default." },
