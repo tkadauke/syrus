@@ -5,6 +5,7 @@ RSpec.describe AgentProviders do
     it "returns the registered provider adapter class" do
       expect(described_class.for("claude")).to eq(AgentProviders::Claude)
       expect(described_class.for("codex")).to eq(AgentProviders::Codex)
+      expect(described_class.for("opencode")).to eq(AgentProviders::OpenCode)
     end
 
     it "raises a configuration error for unknown providers" do

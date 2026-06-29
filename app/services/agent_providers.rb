@@ -3,7 +3,8 @@ module AgentProviders
 
   REGISTRY = {
     "claude" => "AgentProviders::Claude",
-    "codex" => "AgentProviders::Codex"
+    "codex" => "AgentProviders::Codex",
+    "opencode" => "AgentProviders::OpenCode"
   }.freeze
 
   def self.for(provider)

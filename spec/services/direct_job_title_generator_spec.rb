@@ -1,4 +1,5 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe DirectJobTitleGenerator do
   let(:user) { Factories.user(claude_oauth_token: "oat-test") }
@@ -76,5 +77,42 @@ RSpec.describe DirectJobTitleGenerator do
 
     expect(title).to eq("Direct job")
     expect(called).to eq(false)
+  end
+
+  it "uses OpenCode for title generation when selected" do
+    old_data_root = ENV["SYRUS_DATA_ROOT"]
+    data_root = Dir.mktmpdir("syrus-direct-title-opencode")
+    ENV["SYRUS_DATA_ROOT"] = data_root
+    user.update!(
+      agent_provider: "opencode",
+      opencode_backend: "openai_api",
+      opencode_model: "gpt-4.1",
+      opencode_api_key: "sk-test"
+    )
+    seen = {}
+    runner = ->(**kwargs) {
+      seen.merge!(kwargs)
+      result('{"title":"OpenCode Direct Job"}')
+    }
+
+    title = described_class.call(
+      "Build a habit tracker",
+      user: user,
+      repository: repository,
+      agent_provider: "opencode",
+      runner: runner
+    )
+
+    expect(title).to eq("OpenCode Direct Job")
+    expect(seen[:backend_config]).to have_attributes(
+      backend: "openai_api",
+      model: "gpt-4.1",
+      api_key: "sk-test",
+      endpoint_url: nil
+    )
+    expect(seen[:opencode_home]).to eq(File.join(data_root, "agent_homes", "direct_job_title", user.id.to_s, "opencode"))
+  ensure
+    ENV["SYRUS_DATA_ROOT"] = old_data_root
+    FileUtils.rm_rf(data_root) if data_root
   end
 end

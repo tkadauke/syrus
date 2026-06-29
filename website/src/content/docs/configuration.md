@@ -151,9 +151,10 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | --- | --- |
 | Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
 | GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories; configured on `/credentials` |
-| Agent provider | Default provider for new Jobs: `claude` or `codex`; configured on `/settings/agent` |
+| Agent provider | Default provider for new Jobs: `claude`, `codex`, or `opencode`; configured on `/settings/agent` |
 | Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; configured on `/credentials` |
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
+| OpenCode backend | Structured OpenCode backend, model, API key, and endpoint URL for `openai_api`, `azure_openai`, or `ollama`; configured on `/credentials` |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag; configured on `/settings/agent` |
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
 | Scheduling paused | Skips scheduled task firing for that user; configured on `/settings/preferences` |
@@ -165,7 +166,9 @@ The **Credentials** page includes a per-credential **Test** action after a
 secret is saved. GitHub PAT tests call GitHub as the user and report the
 authenticated login plus token scopes. Claude and Codex tests run short CLI
 auth probes through the same credential paths used by Jobs, so expired or
-mis-shaped agent credentials surface before a downstream run fails.
+mis-shaped agent credentials surface before a downstream run fails. OpenCode
+configuration is validated structurally in the form and used to generate a
+per-run OpenCode config when a Job starts.
 
 For Claude Code, click **Authorize with Claude** in the credentials form,
 approve access in the Claude tab, then paste the short code Claude shows

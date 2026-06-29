@@ -254,7 +254,7 @@ visible in the repository's ordinary planning flow.
 Each user owns their own profile, credentials, defaults, and preferences:
 
 - **Profile** stores display name, GitHub handle, avatar, bio, and public team profile fields.
-- **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, and the admin API token panel for admins.
+- **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, OpenCode backend config, and the admin API token panel for admins.
 - **Agent Settings** stores the default agent provider, max-turn setting, and auto-approval fallback.
 - **Preferences** stores account-level toggles such as scheduling pause.
 - Light or dark app theme is toggled from the account area.

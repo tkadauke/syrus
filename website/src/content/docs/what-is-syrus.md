@@ -22,8 +22,8 @@ GitHub issue
 ```
 
 Syrus does not try to be the coding model. It runs providers such as
-Claude Code or Codex, gives them a repository workspace and a bounded
-prompt, records what happened, and handles the surrounding lifecycle:
+Claude Code, Codex, or OpenCode, gives them a repository workspace and a
+bounded prompt, records what happened, and handles the surrounding lifecycle:
 clones, branches, setup commands, transcripts, diffs, retries, rebases,
 PR creation, follow-up feedback, and cleanup.
 

@@ -154,6 +154,27 @@ class DirectJobTitleGenerator
               codex_auth.persist_updated_auth_json
             end
           end
+        when "opencode"
+          OpenCodeInvocation.new(
+            workspace_path,
+            prompt: prompt,
+            backend_config: OpenCodeInvocation::BackendConfig.new(
+              backend: @user.opencode_backend,
+              model: @user.opencode_model,
+              api_key: @user.opencode_api_key,
+              endpoint_url: @user.opencode_endpoint_url
+            ),
+            log_sink: log_sink,
+            runner: @runner,
+            timeout: timeout,
+            opencode_home: File.join(
+              WorkflowWorkspace.data_root,
+              "agent_homes",
+              "direct_job_title",
+              @user.id.to_s,
+              "opencode"
+            )
+          ).run
         else
           raise AgentProviders::ConfigurationError, "Unknown agent provider: #{@provider.inspect}"
         end
