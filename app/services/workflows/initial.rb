@@ -1,7 +1,7 @@
 module Workflows
   # Issue → PR.
   #
-  #   prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open
+  #   prepare → [retry_until(implement, adversarial_review) → implement] → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open
   #
   # prepare reads `.syrus.yml` (or auto-detects from lockfiles)
   # and runs deterministic setup like `bundle install` so the
@@ -40,17 +40,25 @@ module Workflows
     def self.trigger_kind = "initial"
 
     def self.steps_for(job)
-      chain = [
-        "prepare",
-        Workflows::RetryUntil.new(
-          max_iterations: AppSetting.grade_max_iterations,
+      chain = [ "prepare" ]
+
+      rounds = AppSetting.adversarial_review_rounds
+      if rounds > 0
+        chain << Workflows::RetryUntil.new(
+          max_iterations: rounds,
           repair: [ :implement ],
-          check: [ :grader_fanout, :grader_collect ]
-        ),
-        "summarize",
-        "test_plan",
-        "pr_open"
-      ]
+          check: [ :adversarial_review ]
+        )
+        chain << "implement"
+      end
+
+      chain << Workflows::RetryUntil.new(
+        max_iterations: AppSetting.grade_max_iterations,
+        repair: [ :implement ],
+        check: [ :grader_fanout, :grader_collect ]
+      )
+      chain += [ "summarize", "test_plan", "pr_open" ]
+
       prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
     end
 

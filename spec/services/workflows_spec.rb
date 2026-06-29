@@ -29,6 +29,8 @@ RSpec.describe Workflows do
 
   describe ".instantiate(job:)" do
     it "creates the workflow + chain for Initial in transaction" do
+      AppSetting.current.update!(adversarial_review_rounds: 0)
+
       wf = Workflows::Initial.instantiate(job: job)
       expect(wf).to be_persisted
       expect(wf.trigger_kind).to eq("initial")
@@ -46,6 +48,48 @@ RSpec.describe Workflows do
           "repair_first" => true
         }
       )
+      expect(wf.steps.pluck(:kind)).not_to include("adversarial_review")
+    end
+
+    it "inserts the adversarial review loop before the grade loop for Initial when enabled" do
+      AppSetting.current.update!(adversarial_review_rounds: 2)
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind, :position)).to eq([
+        [ "prepare", 0 ],
+        [ "implement", 1 ],
+        [ "adversarial_review", 2 ],
+        [ "implement", 3 ],
+        [ "implement", 4 ],
+        [ "grader_fanout", 5 ],
+        [ "grader_collect", 6 ],
+        [ "summarize", 7 ],
+        [ "test_plan", 8 ],
+        [ "pr_open", 9 ]
+      ])
+      expect(wf.chain_template).to eq([
+        { "type" => "step", "kind" => "prepare" },
+        {
+          "type" => "retry_until",
+          "max_iterations" => 2,
+          "repair" => %w[ implement ],
+          "check" => %w[ adversarial_review ],
+          "repair_first" => true
+        },
+        { "type" => "step", "kind" => "implement" },
+        {
+          "type" => "retry_until",
+          "max_iterations" => AppSetting.grade_max_iterations,
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => true
+        },
+        { "type" => "step", "kind" => "summarize" },
+        { "type" => "step", "kind" => "test_plan" },
+        { "type" => "step", "kind" => "pr_open" }
+      ])
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ implement adversarial_review implement grader_fanout grader_collect ])
     end
 
     it "creates the workflow + chain for Retry with test_plan before pr_open" do

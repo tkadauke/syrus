@@ -9,6 +9,11 @@ class AppSetting < ApplicationRecord
     greater_than_or_equal_to: 1,
     less_than_or_equal_to: 10
   }
+  validates :adversarial_review_rounds, numericality: {
+    only_integer: true,
+    greater_than_or_equal_to: 0,
+    less_than_or_equal_to: 10
+  }
 
   encrypts :github_app_private_key_pem
 
@@ -27,6 +32,10 @@ class AppSetting < ApplicationRecord
 
   def self.grade_max_iterations
     current.grade_max_iterations
+  end
+
+  def self.adversarial_review_rounds
+    current.adversarial_review_rounds
   end
 
   # Epic merge-train (see docs/plans/landing-merge-train.md). Default
