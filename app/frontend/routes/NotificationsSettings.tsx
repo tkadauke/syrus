@@ -19,6 +19,19 @@ const notificationPreferenceLabels: Array<{ kind: NotificationPreferenceKind; la
   { kind: "epic_completed", label: "Notify me when an epic completes" }
 ]
 
+const desktopNotificationPreferenceLabels: Array<{ kind: NotificationPreferenceKind; label: string; description: string }> = [
+  {
+    kind: "desktop_job_implemented",
+    label: "Job ready for review",
+    description: "Fires when a job transitions to implemented."
+  },
+  {
+    kind: "desktop_job_failed",
+    label: "Job failed",
+    description: "Fires when a job transitions to failed."
+  }
+]
+
 export function NotificationsSettingsRoute() {
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -85,20 +98,43 @@ function NotificationPreferenceToggles({
   onChange: (kind: NotificationPreferenceKind, enabled: boolean) => void
 }) {
   return (
-    <div className="space-y-3">
-      {notificationPreferenceLabels.map(({ kind, label }) => (
-        <label className="flex items-center justify-between gap-4 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700" key={kind}>
-          <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
-          <input
-            aria-label={label}
-            checked={payload.notification_preferences[kind]}
-            className="h-4 w-4 rounded border-gray-400"
-            disabled={disabled}
-            onChange={(event) => onChange(kind, event.target.checked)}
-            type="checkbox"
-          />
-        </label>
-      ))}
+    <div className="space-y-6">
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">Notifications</legend>
+        {notificationPreferenceLabels.map(({ kind, label }) => (
+          <label className="flex items-center justify-between gap-4 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700" key={kind}>
+            <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
+            <input
+              aria-label={label}
+              checked={payload.notification_preferences[kind]}
+              className="h-4 w-4 rounded border-gray-400"
+              disabled={disabled}
+              onChange={(event) => onChange(kind, event.target.checked)}
+              type="checkbox"
+            />
+          </label>
+        ))}
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">Desktop Notifications</legend>
+        {desktopNotificationPreferenceLabels.map(({ kind, label, description }) => (
+          <label className="flex items-start justify-between gap-4 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700" key={kind}>
+            <span>
+              <span className="block font-medium text-gray-700 dark:text-gray-300">{label}</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{description}</span>
+            </span>
+            <input
+              aria-label={label}
+              checked={payload.notification_preferences[kind]}
+              className="mt-1 h-4 w-4 rounded border-gray-400"
+              disabled={disabled}
+              onChange={(event) => onChange(kind, event.target.checked)}
+              type="checkbox"
+            />
+          </label>
+        ))}
+      </fieldset>
     </div>
   )
 }

@@ -391,49 +391,19 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         ) : null}
 
         {section === "preferences" ? (
-          <>
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                aria-label="Pause scheduling"
-                checked={values.scheduling_paused}
-                className="mt-1 rounded border-gray-400"
-                onChange={(event) => setValues({ ...values, scheduling_paused: event.target.checked })}
-                type="checkbox"
-              />
-              <span>
-                <span className="block font-medium text-gray-700 dark:text-gray-300">Pause scheduling</span>
-                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Prevents your scheduled tasks from firing automatically.</span>
-              </span>
-            </label>
-
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">Desktop Notifications</legend>
-              <DesktopNotificationToggle
-                checked={values.notification_preferences?.desktop_job_implemented ?? true}
-                description="Fires when a job transitions to implemented."
-                label="Job ready for review"
-                onChange={(checked) => setValues({
-                  ...values,
-                  notification_preferences: {
-                    ...values.notification_preferences,
-                    desktop_job_implemented: checked
-                  }
-                })}
-              />
-              <DesktopNotificationToggle
-                checked={values.notification_preferences?.desktop_job_failed ?? true}
-                description="Fires when a job transitions to failed."
-                label="Job failed"
-                onChange={(checked) => setValues({
-                  ...values,
-                  notification_preferences: {
-                    ...values.notification_preferences,
-                    desktop_job_failed: checked
-                  }
-                })}
-              />
-            </fieldset>
-          </>
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              aria-label="Pause scheduling"
+              checked={values.scheduling_paused}
+              className="mt-1 rounded border-gray-400"
+              onChange={(event) => setValues({ ...values, scheduling_paused: event.target.checked })}
+              type="checkbox"
+            />
+            <span>
+              <span className="block font-medium text-gray-700 dark:text-gray-300">Pause scheduling</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Prevents your scheduled tasks from firing automatically.</span>
+            </span>
+          </label>
         ) : null}
 
         {section === "agent" ? (
@@ -724,34 +694,6 @@ function SecretField({
   )
 }
 
-function DesktopNotificationToggle({
-  checked,
-  description,
-  label,
-  onChange
-}: {
-  checked: boolean
-  description: string
-  label: string
-  onChange: (checked: boolean) => void
-}) {
-  return (
-    <label className="flex items-start gap-3 text-sm">
-      <input
-        aria-label={label}
-        checked={checked}
-        className="mt-1 rounded border-gray-400"
-        onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
-      />
-      <span>
-        <span className="block font-medium text-gray-700 dark:text-gray-300">{label}</span>
-        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{description}</span>
-      </span>
-    </label>
-  )
-}
-
 function SecretTextArea({
   label,
   name,
@@ -948,11 +890,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     github_token: "",
     agent_max_turns: payload.user.agent_max_turns,
     scheduling_paused: payload.user.scheduling_paused,
-    auto_approve_mode: payload.user.auto_approve_mode,
-    notification_preferences: {
-      desktop_job_implemented: payload.user.notification_preferences.desktop_job_implemented,
-      desktop_job_failed: payload.user.notification_preferences.desktop_job_failed
-    }
+    auto_approve_mode: payload.user.auto_approve_mode
   }
 }
 

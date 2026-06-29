@@ -7293,6 +7293,7 @@ describe("App", () => {
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveClass("bg-blue-50")
+    expect(screen.getByRole("group", { name: "Desktop Notifications" })).toBeInTheDocument()
     const jobFailedToggle = await screen.findByLabelText("Notify me when a job fails")
     expect(jobFailedToggle).toBeChecked()
     fireEvent.click(jobFailedToggle)
@@ -7304,6 +7305,21 @@ describe("App", () => {
           method: "PATCH",
           credentials: "same-origin",
           body: JSON.stringify({ notification_preferences: { job_failed: false } })
+        })
+      )
+    })
+    const desktopReadyToggle = screen.getByLabelText("Job ready for review")
+    expect(desktopReadyToggle).toBeChecked()
+    expect(screen.getByLabelText("Job failed")).toBeChecked()
+    fireEvent.click(desktopReadyToggle)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/notification_preferences",
+        expect.objectContaining({
+          method: "PATCH",
+          credentials: "same-origin",
+          body: JSON.stringify({ notification_preferences: { desktop_job_implemented: false } })
         })
       )
     })
@@ -7583,22 +7599,18 @@ describe("App", () => {
     expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Preferences" })).toHaveClass("bg-blue-50")
     expect(screen.queryByLabelText("Agent provider")).not.toBeInTheDocument()
     const pauseScheduling = await screen.findByLabelText("Pause scheduling")
-    expect(screen.getByRole("group", { name: "Desktop Notifications" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Job ready for review")).toBeChecked()
-    expect(screen.getByLabelText("Job failed")).toBeChecked()
+    expect(screen.queryByRole("group", { name: "Desktop Notifications" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Job ready for review")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Job failed")).not.toBeInTheDocument()
     fireEvent.click(pauseScheduling)
-    fireEvent.click(screen.getByLabelText("Job ready for review"))
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
       const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
       expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
-        scheduling_paused: true,
-        notification_preferences: {
-          desktop_job_implemented: false,
-          desktop_job_failed: true
-        }
+        scheduling_paused: true
       }))
+      expect(JSON.parse(String(patchCall?.[1]?.body)).user).not.toHaveProperty("notification_preferences")
     })
   })
 
@@ -13552,11 +13564,13 @@ function credentialsPayload(overrides: {
   }
 }
 
-function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed", boolean>> & { message?: string } = {}) {
+function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "desktop_job_failed" | "desktop_job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed", boolean>> & { message?: string } = {}) {
   return {
     notification_preferences: {
       job_failed: overrides.job_failed ?? true,
       job_implemented: overrides.job_implemented ?? true,
+      desktop_job_failed: overrides.desktop_job_failed ?? true,
+      desktop_job_implemented: overrides.desktop_job_implemented ?? true,
       pr_comment_addressed: overrides.pr_comment_addressed ?? true,
       pr_merged: overrides.pr_merged ?? true,
       epic_completed: overrides.epic_completed ?? false

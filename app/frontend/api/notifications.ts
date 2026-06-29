@@ -32,6 +32,8 @@ export type NotificationPayload = {
 export type NotificationPreferenceKind =
   | "job_failed"
   | "job_implemented"
+  | "desktop_job_failed"
+  | "desktop_job_implemented"
   | "pr_comment_addressed"
   | "pr_merged"
   | "epic_completed"
