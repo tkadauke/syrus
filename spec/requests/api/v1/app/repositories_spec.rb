@@ -633,6 +633,66 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(failed_b.reload.workflows.where(trigger_kind: "retry").last.agent_provider).to eq("codex")
   end
 
+  it "lists and releases needs-triage jobs for developers" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    job = user.jobs.create!(
+      repository: repository,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Scope the importer",
+      issue_body: "Make this ready for implementation.",
+      state: "needs_triage"
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["can_release_triage_jobs"]).to eq(true)
+    expect(parse_body["needs_triage_jobs"]).to contain_exactly(include("id" => job.id, "issue_title" => "Scope the importer"))
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job", params: { job_id: job.id }
+    }.to have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_queued
+    expect(parse_body["message"]).to eq("Released JOB-#{job.id} for triage.")
+    transition = StateTransition.for_subject(job).find_by!(event_name: "release_for_triage")
+    expect(transition).to have_attributes(
+      from_state: "needs_triage",
+      to_state: "triaging",
+      event_name: "release_for_triage",
+      source: "operator",
+      user_id: user.id
+    )
+  end
+
+  it "hides and rejects needs-triage release for product owners" do
+    user.update!(role: "product_owner", admin: false)
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    job = user.jobs.create!(
+      repository: repository,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Scope the importer",
+      issue_body: "Make this ready for implementation.",
+      state: "needs_triage"
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["can_release_triage_jobs"]).to eq(false)
+    expect(parse_body["needs_triage_jobs"]).to eq([])
+
+    post "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job", params: { job_id: job.id }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(job.reload).to be_needs_triage
+  end
+
   it "rejects retrying when there are no failed jobs" do
     sign_in_as(user)
     repository = Factories.repository(user: user)

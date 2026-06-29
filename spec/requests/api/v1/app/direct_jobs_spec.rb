@@ -127,6 +127,26 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("job", "title_pending")).to eq(false)
   end
 
+  it "holds product-owner direct jobs before triage release" do
+    user.update!(role: "product_owner")
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: "Draft onboarding copy",
+        prompt: "Turn the onboarding notes into implementation-ready work."
+      }
+    }.to change(Job, :count).by(1)
+    expect(RunJob).not_to have_been_enqueued
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job).to be_needs_triage
+    expect(new_job.runs).to be_empty
+    expect(parse_body.dig("job", "state")).to eq("needs_triage")
+  end
+
   it "marks the title pending and enqueues title generation when the title is blank" do
     sign_in_as(user)
     RunJob.agent_runner = ->(**_) { raise "blank direct job titles should not invoke the title agent inline" }

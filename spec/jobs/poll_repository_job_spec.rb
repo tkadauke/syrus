@@ -7,13 +7,14 @@ RSpec.describe PollRepositoryJob do
     Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus", polling_enabled: true)
   end
 
-  def issue(number: 42, labels: [ "syrus" ], body: "", state: "open")
+  def issue(number: 42, labels: [ "syrus" ], body: "", state: "open", user_login: "reporter")
     OpenStruct.new(
       number: number,
       state: state,
       pull_request: nil,
       title: "Issue #{number}",
       body: body,
+      user: OpenStruct.new(login: user_login),
       labels: labels.map { |name| Struct.new(:name, keyword_init: true).new(name: name) }
     )
   end
@@ -124,6 +125,21 @@ RSpec.describe PollRepositoryJob do
 
       job = Job.find_by!(repository: repository, issue_number: 88)
       expect(ClassifyIssueJob).to have_been_enqueued.with(job.id)
+    end
+
+    it "holds issues created by Syrus product owners before classifier triage" do
+      Factories.user(role: "product_owner", github_handle: "pm")
+      user.update!(claude_oauth_token: "oat-test")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 89, user_login: "PM") ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to have_enqueued_job(ClassifyIssueJob)
+
+      job = Job.find_by!(repository: repository, issue_number: 89)
+      expect(job).to be_needs_triage
+      expect(job.workflows).to be_empty
     end
 
     it "ingests an Epic marker declaration as an Epic without creating a Job" do

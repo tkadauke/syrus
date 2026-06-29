@@ -248,6 +248,11 @@ of a GitHub issue. Choose a repository, title, priority, optional provider,
 prompt, and attachments. Syrus creates a `direct` Job and runs the normal
 Initial workflow.
 
+When the creator is a `product_owner`, Syrus holds the Job in
+`needs_triage` instead of starting implementation. A developer or admin can
+open the repository overview, review Jobs waiting under **Needs triage**,
+and release each one into the normal triage flow.
+
 Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be
 visible in the repository's ordinary planning flow.
@@ -320,6 +325,11 @@ provider override, prepare behavior, PR cost footer, auto-merge settings,
 and approval behavior. The repository issues panel can list GitHub issues
 and delegate work by adding the trigger label through the same credential
 path Syrus uses for polling.
+
+If a labeled GitHub issue was created by a Syrus user whose GitHub handle
+maps to a `product_owner` account, polling creates the Job in
+`needs_triage`. Developers and admins release those held Jobs from the
+repository overview before classifier triage or implementation can start.
 
 For command examples, continue to [Recipes](/docs/recipes). For failure
 paths, use [Troubleshooting](/docs/troubleshooting).

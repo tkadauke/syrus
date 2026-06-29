@@ -18,6 +18,7 @@ import {
   fetchRepositoryDetail,
   fetchRepositoryIssues,
   pollRepositoryDetail,
+  releaseNeedsTriageRepositoryJob,
   retryFailedRepositoryJobs,
   type RepositoryDetailJob,
   type RepositoryDetailPayload,
@@ -102,6 +103,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
         <>
           <RepositorySummary payload={payload} />
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+          <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <CredentialNotice payload={payload} />
           <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
         </>
@@ -500,6 +502,57 @@ function CredentialNotice({ payload }: { payload: RepositoryDetailPayload }) {
   )
 }
 
+function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const search = queryKey[3]
+  const release = useMutation({
+    mutationFn: (jobId: number) => releaseNeedsTriageRepositoryJob(appendSearch(payload.paths.app_release_needs_triage_job_repository_path, search), jobId, payload.pagination.page),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || null)
+    }
+  })
+
+  if (!payload.can_release_triage_jobs) return null
+
+  return (
+    <section>
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Needs triage</h2>
+      <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        {payload.needs_triage_jobs.length > 0 ? (
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+              <tr>
+                <th className="px-4 py-2">Job</th>
+                <th className="hidden px-4 py-2 sm:table-cell">Created</th>
+                <th className="px-4 py-2 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+              {payload.needs_triage_jobs.map((job) => (
+                <tr key={job.id}>
+                  <td className="px-4 py-3">
+                    <SourceLink job={job} prefix={prefix} />
+                    <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title || `JOB-${job.id}`}</Link>
+                    {job.owner_user ? <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Owner: {job.owner_user.display_name || job.owner_user.email_address}</div> : null}
+                  </td>
+                  <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatRelative(job.created_at)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button className={buttonClass("blue")} disabled={release.isPending} onClick={() => { onNotice(null); release.mutate(job.id) }} type="button">Release for triage</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="p-4 text-sm text-gray-600 dark:text-gray-400">No jobs are waiting for triage release.</p>
+        )}
+      </div>
+      {release.isError ? <PanelMessage tone="error">{errorMessage(release.error, "Unable to release job for triage.")}</PanelMessage> : null}
+    </section>
+  )
+}
+
 function PinnedContext({ payload, queryKey, onNotice }: { payload: RepositoryDetailPayload; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const search = queryKey[3]
@@ -648,7 +701,7 @@ function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
   )
 }
 
-function SourceLink({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
+function SourceLink({ job, prefix }: { job: { source: RepositoryDetailJob["source"] }; prefix: string }) {
   if (!job.source.path) return <span className="text-gray-600 dark:text-gray-400">{job.source.label}</span>
   if (!job.source.external) {
     return (

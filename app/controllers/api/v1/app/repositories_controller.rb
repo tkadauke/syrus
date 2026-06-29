@@ -220,6 +220,32 @@ module Api
           )
         end
 
+        def release_needs_triage_job
+          repository = find_repository
+          unless can_release_triage_jobs?
+            render_error("forbidden", "Developer or admin access required.", status: :forbidden)
+            return
+          end
+
+          job = repository.jobs.find(params.require(:job_id))
+          unless job.needs_triage?
+            render_error("validation_failed", "Job is not waiting for triage release.", status: :unprocessable_content)
+            return
+          end
+
+          StateTransition.with_source("operator", user: Current.user) do
+            job.release_for_triage!
+            job.save!
+          end
+          continue_released_job_triage(job)
+
+          render json: repository_detail_payload(
+            repository.reload,
+            page: detail_page,
+            message: "Released JOB-#{job.id} for triage."
+          )
+        end
+
         private
 
         def form_payload(repository)
@@ -256,6 +282,8 @@ module Api
             tabs: repository_tabs_json(repository),
             counts: repository_counts_json(repository),
             retry_failed_jobs: retry_failed_jobs_json(repository),
+            can_release_triage_jobs: can_release_triage_jobs?,
+            needs_triage_jobs: needs_triage_jobs_json(repository),
             credential_status: credential_status_json(repository),
             notes: repository.repository_notes.active.order(created_at: :desc, id: :desc).map { |note| note_json(repository, note) },
             jobs: jobs.map { |job| job_json(job) },
@@ -266,6 +294,7 @@ module Api
               app_poll_repository_path: "/api/v1/app/repositories/#{repository.id}/poll",
               app_archive_repository_path: "/api/v1/app/repositories/#{repository.id}/archive",
               app_retry_failed_jobs_repository_path: "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs",
+              app_release_needs_triage_job_repository_path: "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job",
               app_repository_notes_path: "/api/v1/app/repositories/#{repository.id}/notes",
               repositories_path: repositories_path,
               repository_documents_path: repository_documents_path(repository),
@@ -474,6 +503,40 @@ module Api
             agent_provider_label: agent_provider_label(repository.effective_agent_provider),
             provider_circuit: circuit.as_json
           }
+        end
+
+        def needs_triage_jobs_json(repository)
+          return [] unless can_release_triage_jobs?
+
+          repository.jobs
+            .needs_triage
+            .includes(:owner_user)
+            .order(created_at: :asc)
+            .map { |job| needs_triage_job_json(job) }
+        end
+
+        def needs_triage_job_json(job)
+          {
+            id: job.id,
+            issue_title: job.issue_title.to_s,
+            issue_number: job.issue_number,
+            job_path: job_path(job),
+            source: job_source_json(job),
+            owner_user: job.owner_user ? owner_user_json(job.owner_user) : nil,
+            created_at: job.created_at.iso8601
+          }
+        end
+
+        def can_release_triage_jobs?
+          Current.user&.admin? || Current.user&.developer?
+        end
+
+        def continue_released_job_triage(job)
+          if job.issue? && job.triaging_reason_classifier_pending? && job.user.agent_provider_configured?(job.agent_provider)
+            ClassifyIssueJob.perform_later(job.id)
+          elsif job.may_advance_after_triage?
+            job.advance_after_triage!
+          end
         end
 
         def provider_circuit_message(circuit)

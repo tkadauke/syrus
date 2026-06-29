@@ -175,6 +175,7 @@ Rails.application.routes.draw do
             post :archive
             post :unarchive
             post :retry_failed_jobs
+            post :release_needs_triage_job
           end
         end
         post "repositories/:id/notes", to: "repositories#create_note", constraints: { id: /\d+/ }

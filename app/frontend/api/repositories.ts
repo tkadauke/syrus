@@ -146,6 +146,8 @@ export type RepositoryDetailPayload = {
       signature: string | null
     }
   }
+  can_release_triage_jobs: boolean
+  needs_triage_jobs: RepositoryNeedsTriageJob[]
   credential_status: {
     mode: "app" | "pat"
     label: string
@@ -174,6 +176,7 @@ export type RepositoryDetailPayload = {
     app_poll_repository_path: string
     app_archive_repository_path: string
     app_retry_failed_jobs_repository_path: string
+    app_release_needs_triage_job_repository_path: string
     app_repository_notes_path: string
     repositories_path: string
     repository_documents_path: string
@@ -251,6 +254,20 @@ export type RepositoryDetailJob = {
   retry_state?: JobRetryState
   runs_count: number
   updated_at: string
+}
+
+export type RepositoryNeedsTriageJob = {
+  id: number
+  issue_title: string
+  issue_number: number | null
+  job_path: string
+  source: {
+    label: string
+    path: string | null
+    external: boolean
+  }
+  owner_user: RepositoryOwnerUser | null
+  created_at: string
 }
 
 export type RepositoryIssuesPayload = {
@@ -346,6 +363,10 @@ export function pollRepositoryDetail(path: string, page: number) {
 
 export function retryFailedRepositoryJobs(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { page })
+}
+
+export function releaseNeedsTriageRepositoryJob(path: string, jobId: number, page: number) {
+  return postJson<RepositoryDetailPayload>(path, { job_id: jobId, page })
 }
 
 export function archiveRepositoryFromPath(path: string) {

@@ -134,6 +134,10 @@ class Job < ApplicationRecord
     SQL
   end
 
+  def self.initial_state_for_creator(user)
+    user&.product_owner? ? "needs_triage" : "triaging"
+  end
+
   def cron?
     kind == "cron"
   end
@@ -174,6 +178,7 @@ class Job < ApplicationRecord
   # `from:` reference.
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
+    state :needs_triage
     state :triaging, initial: true
     state :blocked_by_epic
     state :queued
@@ -187,6 +192,10 @@ class Job < ApplicationRecord
     event :advance_after_triage do
       transitions from: :triaging, to: :blocked_by_epic, guard: :blocked_by_epic_before_execution?
       transitions from: :triaging, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_if_needed
+    end
+
+    event :release_for_triage do
+      transitions from: :needs_triage, to: :triaging
     end
 
     event :mark_classifier_uncertain do
@@ -252,7 +261,7 @@ class Job < ApplicationRecord
     # with the after_save callback and just made the wiring harder
     # to read.
     event :close do
-      transitions from: [ :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :approved, :landing ], to: :closed, after: -> {
+      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :approved, :landing ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
         notify_pr_merged
@@ -339,7 +348,7 @@ class Job < ApplicationRecord
   end
 
   def ready_for_execution?
-    validity == "valid" && !blocked_by_epic_before_execution?
+    validity == "valid" && !triaging_reason_pending_epic_ref? && !blocked_by_epic_before_execution?
   end
 
   def blocked_by_epic_before_execution?
@@ -612,6 +621,7 @@ class Job < ApplicationRecord
   end
 
   def start_pending_workflows_if_dependencies_satisfied!
+    return false unless queued? || running? || implemented?
     return false unless stack_ready_for_execution?
     return false unless ready_for_execution?
 

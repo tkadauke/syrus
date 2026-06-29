@@ -125,7 +125,8 @@ class ChatProposalFiler
       issue_number: nil,
       issue_title: proposal.title,
       issue_body: proposal.body,
-      agent_provider: target_repository.effective_agent_provider
+      agent_provider: target_repository.effective_agent_provider,
+      state: Job.initial_state_for_creator(user)
     )
   end
 

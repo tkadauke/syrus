@@ -106,6 +106,7 @@ class PollRepositoryJob < ApplicationJob
       issue_number: issue.number,
       issue_title: issue_title(issue),
       issue_body: issue_body(issue),
+      state: initial_state_for_issue(issue),
       skip_prepare: skip_prepare_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue)
     )
@@ -174,6 +175,7 @@ class PollRepositoryJob < ApplicationJob
       skip_prepare: skip_prepare_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue),
       epic: epic,
+      state: initial_state_for_issue(issue),
       triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
       pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url)
     )
@@ -226,6 +228,17 @@ class PollRepositoryJob < ApplicationJob
 
   def issue_body(issue)
     issue.respond_to?(:body) ? issue.body : nil
+  end
+
+  def initial_state_for_issue(issue)
+    Job.initial_state_for_creator(syrus_issue_creator(issue))
+  end
+
+  def syrus_issue_creator(issue)
+    login = issue.respond_to?(:user) ? issue.user&.login.to_s.strip : ""
+    return if login.blank?
+
+    User.where("LOWER(github_handle) = ?", login.downcase).first
   end
 
   def issue_url(repository, issue_number)

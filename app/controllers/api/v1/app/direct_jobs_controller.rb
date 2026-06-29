@@ -34,7 +34,7 @@ module Api
           end
 
           GenerateJobTitleJob.perform_later(job) if job.title_pending?
-          job.advance_after_triage!
+          job.advance_after_triage! if job.may_advance_after_triage?
 
           render json: {
             message: "Direct job created.",
@@ -75,7 +75,8 @@ module Api
             title_pending: title.blank?,
             issue_body: prompt_text,
             agent_provider: selected_agent_provider,
-            priority: priority
+            priority: priority,
+            state: Job.initial_state_for_creator(Current.user)
           )
         end
 
