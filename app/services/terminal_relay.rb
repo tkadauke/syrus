@@ -27,7 +27,7 @@ class TerminalRelay
     host = relay_host
     server = TCPServer.new(host, 0)
     port = server.addr[1]
-    @session.update!(relay_address: "#{host}:#{port}")
+    record_relay_address!(host, port)
 
     spawn_pty do |pty_out, pty_in, pid|
       conn = nil
@@ -140,7 +140,7 @@ class TerminalRelay
           now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           if now - last_kill_poll >= KILL_POLL_INTERVAL_SECONDS
             last_kill_poll = now
-            if @session.reload.finished_at.present?
+            if session_finished?
               terminate_pid(pid)
               stop_relay.call(close_pty: true)
               next
@@ -194,7 +194,9 @@ class TerminalRelay
   end
 
   def session_finished?
-    @session.reload.finished_at.present?
+    with_connection do
+      @session.reload.finished_at.present?
+    end
   end
 
   def handle_conn_data(data, control_buffer, pty_in)
@@ -271,7 +273,19 @@ class TerminalRelay
   end
 
   def finalize!
-    TerminalSession.where(id: @session.id, finished_at: nil)
-                   .update_all(finished_at: Time.current, outcome: "exited")
+    with_connection do
+      TerminalSession.where(id: @session.id, finished_at: nil)
+                     .update_all(finished_at: Time.current, outcome: "exited")
+    end
+  end
+
+  def record_relay_address!(host, port)
+    with_connection do
+      @session.update!(relay_address: "#{host}:#{port}")
+    end
+  end
+
+  def with_connection(&block)
+    ActiveRecord::Base.connection_pool.with_connection(&block)
   end
 end
