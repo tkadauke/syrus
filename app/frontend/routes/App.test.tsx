@@ -8067,10 +8067,12 @@ describe("App", () => {
       )
     })
     expect(await screen.findByRole("main", { name: "Job" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/jobs/44",
-      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
-    )
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/44",
+        expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+      )
+    })
   })
 
   it("renders repositories and polls one from the app API", async () => {
