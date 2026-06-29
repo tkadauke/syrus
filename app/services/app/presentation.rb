@@ -4,7 +4,8 @@ module App
 
     AGENT_PROVIDER_LABELS = {
       "claude" => "Claude Code",
-      "codex" => "Codex"
+      "codex" => "Codex",
+      "opencode" => "OpenCode"
     }.freeze
 
     module_function

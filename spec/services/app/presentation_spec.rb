@@ -5,6 +5,7 @@ RSpec.describe App::Presentation do
     it "uses product labels for known providers" do
       expect(described_class.agent_provider_label("claude")).to eq("Claude Code")
       expect(described_class.agent_provider_label("codex")).to eq("Codex")
+      expect(described_class.agent_provider_label("opencode")).to eq("OpenCode")
     end
 
     it "humanizes unknown providers" do

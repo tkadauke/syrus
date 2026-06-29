@@ -43,6 +43,9 @@ module AppApi
         landing_paused: user.landing_paused,
         theme: user.theme,
         agent_provider: user.agent_provider,
+        opencode_backend: user.opencode_backend,
+        opencode_model: user.opencode_model,
+        opencode_endpoint_url: user.opencode_endpoint_url,
         agent_max_turns: user.agent_max_turns,
         notification_unread_count: user.notifications.unread.count
       }

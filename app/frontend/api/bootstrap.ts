@@ -12,7 +12,10 @@ export type BootstrapPayload = {
     admin: boolean
     scheduling_paused: boolean
     landing_paused: boolean
-    agent_provider: "claude" | "codex"
+    agent_provider: "claude" | "codex" | "opencode"
+    opencode_backend: string | null
+    opencode_model: string | null
+    opencode_endpoint_url: string | null
     agent_max_turns: number
     theme: "light" | "dark"
     notification_unread_count?: number
@@ -40,7 +43,7 @@ export type BootstrapPayload = {
       github_pat: boolean
       github_app: boolean
       agent: boolean
-      active_agent_provider: "claude" | "codex"
+      active_agent_provider: "claude" | "codex" | "opencode"
     }
     readiness: {
       status: "ok" | "warning" | "error"

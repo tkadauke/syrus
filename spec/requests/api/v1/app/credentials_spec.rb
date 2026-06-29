@@ -6,6 +6,10 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       claude_oauth_token: "sk-existing",
       codex_api_key: "sk-codex-existing",
       codex_auth_json: Factories.codex_auth_json(access_token: "codex-access-existing"),
+      opencode_backend: "openai_api",
+      opencode_model: "gpt-4.1",
+      opencode_api_key: "sk-opencode-existing",
+      opencode_endpoint_url: "https://api.example.com",
       github_token: "ghp_existing"
     )
   end
@@ -38,16 +42,23 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("user", "email_address")).to eq(user.email_address)
+    expect(body["user"]).to include(
+      "opencode_backend" => "openai_api",
+      "opencode_model" => "gpt-4.1",
+      "opencode_endpoint_url" => "https://api.example.com"
+    )
     expect(body["credential_status"]).to include(
       "claude_oauth_token" => true,
       "codex_api_key" => true,
       "codex_auth_json" => true,
+      "opencode_api_key" => true,
       "github_token" => true
     )
     expect(body).not_to have_key("documents")
     expect(response.body).not_to include("sk-existing")
     expect(response.body).not_to include("sk-codex-existing")
     expect(response.body).not_to include("codex-access-existing")
+    expect(response.body).not_to include("sk-opencode-existing")
     expect(response.body).not_to include("ghp_existing")
   end
 
@@ -74,6 +85,10 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
         claude_oauth_token: "sk-new",
         codex_api_key: "",
         codex_auth_json: "",
+        opencode_backend: "ollama",
+        opencode_model: "llama3.2:70b",
+        opencode_api_key: "",
+        opencode_endpoint_url: "http://localhost:11434",
         github_token: "",
         scheduling_paused: false,
         agent_max_turns: "500"
@@ -85,6 +100,10 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.claude_oauth_token).to eq("sk-new")
     expect(user.codex_api_key).to eq("sk-codex-existing")
     expect(user.codex_auth_json).to include("codex-access-existing")
+    expect(user.opencode_backend).to eq("ollama")
+    expect(user.opencode_model).to eq("llama3.2:70b")
+    expect(user.opencode_api_key).to eq("sk-opencode-existing")
+    expect(user.opencode_endpoint_url).to eq("http://localhost:11434")
     expect(user.github_token).to eq("ghp_existing")
     expect(user.scheduling_paused).to be false
     expect(user.agent_max_turns).to eq(500)

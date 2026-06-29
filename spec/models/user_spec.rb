@@ -72,19 +72,21 @@ RSpec.describe User do
     it "stores variable-length encrypted secret payloads in text columns" do
       column_types = User.columns.index_by(&:name).transform_values(&:type)
 
-      expect(column_types.values_at("claude_oauth_token", "codex_api_key", "github_token", "api_token"))
+      expect(column_types.values_at("claude_oauth_token", "codex_api_key", "opencode_api_key", "github_token", "api_token"))
         .to all(eq(:text))
     end
 
-    it "round-trips claude_oauth_token, codex credentials, and github_token" do
+    it "round-trips claude_oauth_token, codex credentials, opencode_api_key, and github_token" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-abc",
                                       codex_api_key: "sk-codex",
                                       codex_auth_json: Factories.codex_auth_json(access_token: "codex-access"),
+                                      opencode_api_key: "sk-opencode",
                                       github_token: "ghp_xyz"))
       reloaded = User.find(user.id)
       expect(reloaded.claude_oauth_token).to eq("oat-abc")
       expect(reloaded.codex_api_key).to eq("sk-codex")
       expect(reloaded.codex_auth_json).to include("codex-access")
+      expect(reloaded.opencode_api_key).to eq("sk-opencode")
       expect(reloaded.github_token).to eq("ghp_xyz")
     end
 
@@ -94,15 +96,23 @@ RSpec.describe User do
       expect(row["claude_oauth_token"]).not_to include("oat-secret")
     end
 
+    it "stores OpenCode API key ciphertext, not plaintext, in the column" do
+      user = User.create!(attrs.merge(opencode_api_key: "sk-opencode-secret"))
+      row = User.connection.select_one("SELECT opencode_api_key FROM users WHERE id = #{user.id}")
+      expect(row["opencode_api_key"]).not_to include("sk-opencode-secret")
+    end
+
     it "round-trips encrypted credential payloads larger than a string column" do
       long_token = "oat-" + ("x" * 1_024)
 
       user = User.create!(attrs.merge(claude_oauth_token: long_token,
                                       codex_api_key: "sk-" + ("y" * 1_024),
+                                      opencode_api_key: "sk-open-" + ("w" * 1_024),
                                       github_token: "ghp_" + ("z" * 1_024)))
 
       expect(user.reload.claude_oauth_token).to eq(long_token)
       expect(user.codex_api_key).to eq("sk-" + ("y" * 1_024))
+      expect(user.opencode_api_key).to eq("sk-open-" + ("w" * 1_024))
       expect(user.github_token).to eq("ghp_" + ("z" * 1_024))
     end
 
@@ -132,6 +142,11 @@ RSpec.describe User do
     it "accepts codex" do
       user = User.create!(attrs.merge(agent_provider: "codex"))
       expect(user.agent_provider).to eq("codex")
+    end
+
+    it "accepts opencode" do
+      user = User.create!(attrs.merge(agent_provider: "opencode"))
+      expect(user.agent_provider).to eq("opencode")
     end
 
     it "rejects unknown providers" do
@@ -189,6 +204,19 @@ RSpec.describe User do
       user = User.new(attrs.merge(codex_auth_mode: "browser_cookie"))
       expect(user).not_to be_valid
       expect(user.errors[:codex_auth_mode]).to be_present
+    end
+  end
+
+  describe "opencode_backend" do
+    it "accepts supported backends" do
+      user = User.create!(attrs.merge(opencode_backend: "azure_openai"))
+      expect(user.opencode_backend).to eq("azure_openai")
+    end
+
+    it "rejects unknown backends" do
+      user = User.new(attrs.merge(opencode_backend: "anthropic"))
+      expect(user).not_to be_valid
+      expect(user.errors[:opencode_backend]).to be_present
     end
   end
 
@@ -482,16 +510,80 @@ RSpec.describe User do
       expect(user.configured_agent_providers).to be_empty
     end
 
+    it "includes OpenCode for OpenAI API backend when model and API key are set" do
+      user = User.create!(
+        attrs.merge(
+          opencode_backend: "openai_api",
+          opencode_model: "gpt-4.1",
+          opencode_api_key: "sk-test"
+        )
+      )
+
+      expect(user.configured_agent_providers).to eq([ "opencode" ])
+      expect(user.agent_provider_configured?("opencode")).to be true
+    end
+
+    it "includes OpenCode for Azure OpenAI backend when model and API key are set" do
+      user = User.create!(
+        attrs.merge(
+          opencode_backend: "azure_openai",
+          opencode_model: "gpt-4.1",
+          opencode_api_key: "sk-test",
+          opencode_endpoint_url: "https://example.openai.azure.com"
+        )
+      )
+
+      expect(user).to be_opencode_configured
+    end
+
+    it "includes OpenCode for Ollama backend when model and endpoint URL are set" do
+      user = User.create!(
+        attrs.merge(
+          opencode_backend: "ollama",
+          opencode_model: "llama3.2:70b",
+          opencode_endpoint_url: "http://localhost:11434"
+        )
+      )
+
+      expect(user.configured_agent_providers).to eq([ "opencode" ])
+    end
+
+    it "requires backend-specific OpenCode credentials and a model" do
+      openai_user = User.create!(attrs.merge(email_address: "openai@example.com",
+                                             opencode_backend: "openai_api",
+                                             opencode_model: "gpt-4.1",
+                                             opencode_endpoint_url: "http://unused.example"))
+      azure_user = User.create!(attrs.merge(email_address: "azure@example.com",
+                                            opencode_backend: "azure_openai",
+                                            opencode_model: "gpt-4.1",
+                                            opencode_api_key: "sk-test"))
+      ollama_user = User.create!(attrs.merge(email_address: "ollama@example.com",
+                                             opencode_backend: "ollama",
+                                             opencode_model: "llama3.2:70b",
+                                             opencode_api_key: "sk-unused"))
+      missing_model = User.create!(attrs.merge(email_address: "missing@example.com",
+                                               opencode_backend: "openai_api",
+                                               opencode_api_key: "sk-test"))
+
+      expect(openai_user).not_to be_opencode_configured
+      expect(azure_user).not_to be_opencode_configured
+      expect(ollama_user).not_to be_opencode_configured
+      expect(missing_model).not_to be_opencode_configured
+    end
+
     it "returns every configured provider in registry order" do
       user = User.create!(
         attrs.merge(
           claude_oauth_token: "oat-test",
           codex_auth_mode: "api_key",
-          codex_api_key: "sk-test"
+          codex_api_key: "sk-test",
+          opencode_backend: "ollama",
+          opencode_model: "llama3.2:70b",
+          opencode_endpoint_url: "http://localhost:11434"
         )
       )
 
-      expect(user.configured_agent_providers).to eq(%w[ claude codex ])
+      expect(user.configured_agent_providers).to eq(%w[ claude codex opencode ])
     end
 
     it "returns configured providers other than the user's default provider" do

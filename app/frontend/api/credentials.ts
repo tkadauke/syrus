@@ -16,6 +16,9 @@ export type CredentialsUser = {
   admin: boolean
   agent_provider: string
   codex_auth_mode: string
+  opencode_backend: string | null
+  opencode_model: string | null
+  opencode_endpoint_url: string | null
   agent_max_turns: number
   scheduling_paused: boolean
   auto_approve_mode: string
@@ -30,6 +33,7 @@ export type CredentialStatus = {
   claude_oauth_token: boolean
   codex_api_key: boolean
   codex_auth_json: boolean
+  opencode_api_key: boolean
   api_token: boolean | null
 }
 
@@ -54,6 +58,7 @@ export type PersonalDocument = {
 export type CredentialsOptions = {
   agent_providers: string[]
   codex_auth_modes: string[]
+  opencode_backends: string[]
   agent_max_turns: {
     min: number
     max: number
@@ -115,6 +120,10 @@ export type CredentialsInput = {
   codex_auth_mode: string
   codex_api_key: string
   codex_auth_json: string
+  opencode_backend: string
+  opencode_model: string
+  opencode_api_key: string
+  opencode_endpoint_url: string
   github_token: string
   agent_max_turns: number
   scheduling_paused: boolean

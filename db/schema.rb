@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_213305) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_160102) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -932,6 +932,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_213305) do
     t.string "last_name"
     t.string "name"
     t.json "notification_preferences", null: false
+    t.text "opencode_api_key"
+    t.string "opencode_backend"
+    t.string "opencode_endpoint_url"
+    t.string "opencode_model"
     t.string "password_digest", null: false
     t.text "profile_bio"
     t.string "profile_company"

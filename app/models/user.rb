@@ -24,14 +24,16 @@ class User < ApplicationRecord
   has_many :cron_templates, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
 
-  AGENT_PROVIDERS = %w[ claude codex ].freeze
+  AGENT_PROVIDERS = %w[ claude codex opencode ].freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
+  OPENCODE_BACKENDS = %w[ openai_api ollama azure_openai ].freeze
   THEMES = %w[ light dark ].freeze
   CLEARABLE_CREDENTIALS = {
     "github_token" => "GitHub token",
     "claude_oauth_token" => "Claude OAuth token",
     "codex_api_key" => "Codex API key",
     "codex_auth_json" => "Codex ChatGPT auth.json",
+    "opencode_api_key" => "OpenCode API key",
     "telegram_chat_id" => "Telegram chat ID"
   }.freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
@@ -117,6 +119,7 @@ class User < ApplicationRecord
   encrypts :claude_oauth_token
   encrypts :codex_api_key
   encrypts :codex_auth_json
+  encrypts :opencode_api_key
   encrypts :github_token
   # `deterministic: true` so we can WHERE on the encrypted column
   # for the API auth lookup. Same plaintext always encrypts to the
@@ -151,6 +154,7 @@ class User < ApplicationRecord
   validates :profile_bio, length: { maximum: 1000 }
   validates :avatar_url, length: { maximum: 500 }
   validates :codex_auth_mode, presence: true, inclusion: { in: CODEX_AUTH_MODES }
+  validates :opencode_backend, inclusion: { in: OPENCODE_BACKENDS }, allow_blank: true
   validates :epic_reopen_window,
             presence: true,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -441,6 +445,23 @@ class User < ApplicationRecord
       claude_oauth_token.present?
     when "codex"
       codex_configured?
+    when "opencode"
+      opencode_configured?
+    else
+      false
+    end
+  end
+
+  def opencode_configured?
+    return false if opencode_backend.blank? || opencode_model.blank?
+
+    case opencode_backend
+    when "openai_api"
+      opencode_api_key.present?
+    when "azure_openai"
+      opencode_api_key.present? && opencode_endpoint_url.present?
+    when "ollama"
+      opencode_endpoint_url.present?
     else
       false
     end
