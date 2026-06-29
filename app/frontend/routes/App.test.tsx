@@ -1600,6 +1600,11 @@ describe("App", () => {
       if (path === "/api/v1/app/chats/10") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload({ id: 10 })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
+      if (path === "/api/v1/app/chats/11") {
+        const payload = chatPayload({ id: 11 })
+        payload.bookmarks = []
+        return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/chats/11/hide" && init?.method === "PATCH") {
         recentChats = recentChats.filter((chat) => chat.id !== 11)
         return Promise.resolve(new Response(JSON.stringify({ message: "Chat hidden.", chat: sidebarChat({ id: 11, title: "Widgets two", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, last_message_at: "2026-06-17T12:00:00Z" }) }), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -1621,7 +1626,7 @@ describe("App", () => {
       expect(await within(recentNav).findByRole("link", { name: "Widgets two" })).toBeInTheDocument()
 
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets two" }))
-      expect(within(recentNav).getByText("No bookmarks yet")).toBeInTheDocument()
+      expect(await within(recentNav).findByText("No bookmarks yet")).toBeInTheDocument()
       fireEvent.click(within(recentNav).getByRole("button", { name: "Hide Chat" }))
 
       expect(within(recentNav).queryByRole("link", { name: "Widgets two" })).not.toBeInTheDocument()
@@ -13083,6 +13088,86 @@ describe("App", () => {
       expect(within(recentNav).getByText("Bookmarks")).toHaveClass("font-semibold")
       expect(within(recentNav).queryByText("No bookmarks yet")).not.toBeInTheDocument()
       expect(within(recentNav).getByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("fetches inactive chat bookmarks from the v2 sidebar menu when uncached", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+      },
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
+    document.body.appendChild(script)
+    const inactivePayload = chatPayload({ id: 11, chatPath: "/chats/11" })
+    inactivePayload.bookmarks = [
+      { id: 12, label: "Inactive aqueduct note", chat_message_id: 13, anchor_message_id: 13 }
+    ]
+    const recentChats = [
+      sidebarChat({
+        id: 8,
+        title: "Aqueduct planning",
+        repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+        last_message_at: "2026-06-18T12:00:00Z"
+      }),
+      sidebarChat({
+        id: 11,
+        title: "Canal follow-up",
+        repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+        last_message_at: "2026-06-17T12:00:00Z"
+      })
+    ]
+    let resolveInactiveChat: (response: Response) => void = () => undefined
+    const inactiveChatRequest = new Promise<Response>((resolve) => {
+      resolveInactiveChat = resolve
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: sidebarGroups(recentChats), repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/11") {
+        return inactiveChatRequest
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
+      fireEvent.click(await within(recentNav).findByRole("button", { name: "Chat actions for Canal follow-up" }))
+      expect(within(recentNav).getByText("Loading bookmarks...")).toBeInTheDocument()
+
+      await act(async () => {
+        resolveInactiveChat(new Response(JSON.stringify(inactivePayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+        await inactiveChatRequest
+      })
+
+      expect(await within(recentNav).findByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
+      expect(within(recentNav).queryByText("Loading bookmarks...")).not.toBeInTheDocument()
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/11",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
     } finally {
       fetchSpy.mockRestore()
       script.remove()

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { fetchChats, fetchMoreChatsForGroup, hideChat, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
+import { fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
@@ -851,10 +851,16 @@ function RecentChatActionsMenu({ chat, disabled, onHide, search }: {
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const active = chat.current || chat.id === activeChatIdFromPath(location.pathname)
-  const chatData = open
-    ? queryClient.getQueryData<ChatPayload>(chatQueryKey(String(chat.id), search))
-    : undefined
+  const queryKey = chatQueryKey(String(chat.id), search)
+  const cachedChatData = queryClient.getQueryData<ChatPayload>(queryKey)
+  const chatBookmarks = useQuery({
+    queryKey,
+    queryFn: () => fetchChat(String(chat.id), search),
+    enabled: open && !cachedChatData
+  })
+  const chatData = open ? cachedChatData ?? chatBookmarks.data : undefined
   const bookmarks = chatData?.bookmarks ?? []
+  const loadingBookmarks = open && !chatData && chatBookmarks.isPending
 
   return (
     <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={menuRef}>
@@ -869,7 +875,9 @@ function RecentChatActionsMenu({ chat, disabled, onHide, search }: {
       </button>
       {open ? (
         <div className="absolute bottom-full right-0 z-20 mb-1 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950">
-          {bookmarks.length > 0 ? (
+          {loadingBookmarks ? (
+            <div className="px-3 py-2 text-gray-400 dark:text-gray-500">Loading bookmarks...</div>
+          ) : bookmarks.length > 0 ? (
             <>
               <div className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Bookmarks</div>
               {bookmarks.map((bookmark) => {
