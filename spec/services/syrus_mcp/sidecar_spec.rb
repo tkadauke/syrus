@@ -11,7 +11,7 @@ RSpec.describe SyrusMcp::Sidecar do
   def server_for(run)
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
-      tools: [ SyrusMcp::ReadLiveStateTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool ],
+      tools: [ SyrusMcp::ReadLiveStateTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitAdversarialReviewTool ],
       server_context: { run_id: run.id }
     )
   end
@@ -33,7 +33,7 @@ RSpec.describe SyrusMcp::Sidecar do
       _ = jsonrpc(server_for(run), "initialize", id: 0)
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
-      expect(tool_names).to eq(%w[read_live_state submit_summary submit_test_plan])
+      expect(tool_names).to eq(%w[read_live_state submit_summary submit_test_plan submit_adversarial_review])
     end
 
     it "exposes read_live_state as a read-only tool without arbitrary job lookup arguments" do
@@ -119,6 +119,27 @@ RSpec.describe SyrusMcp::Sidecar do
         "steps" => [ "Run bin/rspec spec/services/steps/test_plan_spec.rb" ],
         "notes" => "Manual check for PR copy."
       )
+    end
+  end
+
+  describe "tools/call submit_adversarial_review" do
+    it "persists the review findings on the Workflow via the JSON-RPC path" do
+      response = jsonrpc(server_for(run), "tools/call", params: {
+        name: "submit_adversarial_review",
+        arguments: {
+          critique: "No blocking issues found.",
+          verdict: "approved"
+        }
+      })
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(run.workflow.reload.artifact("adversarial_review_iterations")).to eq([
+        {
+          "iteration" => run.step.iteration,
+          "critique" => "No blocking issues found.",
+          "verdict" => "approved"
+        }
+      ])
     end
   end
 

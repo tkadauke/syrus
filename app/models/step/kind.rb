@@ -9,6 +9,7 @@ class Step
     ENTRIES = [
       Entry.new(kind: "prepare", handler: "Prepare", label: "Prepare workspace", style: "bg-gray-100 text-gray-700", agentic: false),
       Entry.new(kind: "implement", handler: "Implement", label: "Implement", style: "bg-blue-100 text-blue-700", agentic: true),
+      Entry.new(kind: "adversarial_review", handler: "AdversarialReview", label: "Adversarial review", style: "bg-rose-100 text-rose-700", agentic: true),
       Entry.new(kind: "summarize", handler: "Summarize", label: "Summarize", style: "bg-indigo-100 text-indigo-700", agentic: true),
       Entry.new(kind: "test_plan", handler: "TestPlan", label: "Test plan", style: "bg-sky-100 text-sky-700", agentic: true),
       Entry.new(kind: "pr_open", handler: "PrOpen", label: "Open PR", style: "bg-emerald-100 text-emerald-700", agentic: false),
