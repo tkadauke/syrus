@@ -747,8 +747,8 @@ describe("App", () => {
       })
 
       fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
-      expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
-      expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "New chat" })).toBeInTheDocument()
+      expect(await screen.findByRole("form", { name: "Start a new chat" })).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -13296,6 +13296,9 @@ describe("App", () => {
       if (path === "/api/v1/app/chats/8") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
+      if (path === "/api/v1/app/chats/new") {
+        return Promise.resolve(new Response(JSON.stringify({ repositories: [], default_repository_id: null, repositories_path: "/repositories" }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -13308,28 +13311,23 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "New chat" })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Repositories" })).not.toBeInTheDocument()
-    expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveFocus())
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/chats",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "same-origin",
-          body: JSON.stringify({ repository_id: "", chat_message: { text: "" } })
-        })
-      )
-    })
+    expect(await screen.findByRole("form", { name: "Start a new chat" })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Ask anything, or attach a screenshot for context...")).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([path, init]) => (
+      String(path) === "/api/v1/app/chats" && (init as RequestInit | undefined)?.method === "POST"
+    ))).toBe(false)
   })
 
-  it("reuses an existing unstarted chat from the new chat route", async () => {
+  it("keeps existing unstarted chats separate from the new chat route", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/new") {
+        return Promise.resolve(new Response(JSON.stringify({ repositories: [], default_repository_id: null, repositories_path: "/repositories" }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats") {
         const unstarted = sidebarChat({ id: 8, title: null, title_pending: true, repository: null, last_message_at: null })
@@ -13347,9 +13345,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveFocus())
-    expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "New chat" })).toBeInTheDocument()
+    expect(await screen.findByRole("form", { name: "Start a new chat" })).toBeInTheDocument()
 
     expect(fetchSpy.mock.calls.some(([path, init]) => (
       String(path) === "/api/v1/app/chats" && (init as RequestInit | undefined)?.method === "POST"

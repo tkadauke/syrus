@@ -30,6 +30,7 @@ export function ChatNewRoute() {
     queryKey: ["chats", "new"],
     queryFn: fetchNewChat
   })
+  const repositories = form.data?.repositories || []
   const save = useMutation({
     mutationFn: () => createChat({ repositoryId, text, attachments }),
     onSuccess: (created) => {
@@ -172,7 +173,7 @@ export function ChatNewRoute() {
                 value={repositoryId}
               >
                 <option value="">General chat</option>
-                {form.data.repositories.map((repository) => (
+                {repositories.map((repository) => (
                   <option key={repository.id} value={repository.id}>{repository.slug}</option>
                 ))}
               </select>
