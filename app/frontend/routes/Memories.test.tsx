@@ -86,6 +86,24 @@ describe("MemoriesRoute", () => {
     expect(screen.queryByRole("button", { name: "Collapse" })).not.toBeInTheDocument()
   })
 
+  it("opens short memory content in a markdown modal", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
+      memories: [
+        memoryRow({
+          content: "## Short memory\n\nUse **Rails**."
+        })
+      ]
+    })))
+
+    renderRoute(<MemoriesRoute />, "/app-shell/memories")
+
+    fireEvent.click(await screen.findByRole("button", { name: "See more" }))
+
+    const dialog = await screen.findByRole("dialog", { name: "Memory content" })
+    expect(within(dialog).getByRole("heading", { name: "Short memory" })).toBeInTheDocument()
+    expect(within(dialog).getByText("Rails").tagName).toBe("STRONG")
+  })
+
   it("creates, edits, publishes, and deletes through the API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)

@@ -142,11 +142,9 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
       {showOwner ? <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.owner.name}</td> : null}
       <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
         <Markdown className="chat-prose line-clamp-2 text-sm text-gray-800 break-words dark:text-gray-200" text={memory.content} />
-        {memory.content.length > 160 ? (
-          <button className="mt-1 block text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setViewing(true)} type="button">
-            See more
-          </button>
-        ) : null}
+        <button className="mt-1 block text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setViewing(true)} type="button">
+          See more
+        </button>
       </td>
       <td className="px-4 py-3">
         <span className={memory.published ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}>{memory.published ? "Published" : "Unpublished"}</span>
