@@ -7,12 +7,6 @@ require "tmpdir"
 
 class ChatTurnJob < ApplicationJob
   CONCURRENCY_GROUP = "repository_chat"
-  DISALLOWED_CLAUDE_TOOLS = %w[
-    Write
-    Edit
-    MultiEdit
-    NotebookEdit
-  ].freeze
 
   queue_as :chat
   discard_on StandardError
@@ -50,8 +44,10 @@ class ChatTurnJob < ApplicationJob
 
     @chat.update!(stop_requested_at: nil)
 
-    if @chat.user.claude_oauth_token.blank?
-      create_message!("system", text: "Claude credentials are missing. Add a Claude OAuth token in Credentials, then send another message.")
+    provider = chat_provider
+
+    if provider.credentials_missing?
+      create_message!("system", text: provider.credentials_missing_message)
       touch_chat!
       return
     end
@@ -62,26 +58,19 @@ class ChatTurnJob < ApplicationJob
 
     result = with_chat_mcp_config do |mcp_config|
       with_git_askpass_env do |agent_env|
-        ClaudeInvocation.new(
-          workspace_path,
+        provider_with_turn_context(provider, attachment_context, agent_env).invoke(
+          workspace_path: workspace_path,
           prompt: prompt_for(parent_session_id, user_text: attachment_context.fetch(:user_text)),
-          oauth_token: @chat.user.claude_oauth_token,
           log_sink: method(:record_agent_event),
-          runner: self.class.agent_runner,
-          max_turns: nil,
           mcp_config: mcp_config,
-          image_paths: attachment_context.fetch(:image_paths),
-          file_paths: attachment_context.fetch(:file_paths),
           resume_session_id: parent_session_id,
-          disallowed_tools: DISALLOWED_CLAUDE_TOOLS,
-          env: agent_env,
           stop_requested: method(:stop_requested?),
           process_started: ->(_process) { @chat.broadcast_controls }
-        ).run
+        )
       end
     end
 
-    capture_session!(result) if result
+    capture_session!(provider, result) if result
     @chat.record_turn_usage!(result) if result
     touch_chat!
     deliver_next_queued_message!
@@ -103,6 +92,20 @@ class ChatTurnJob < ApplicationJob
     workspace_path = ChatWorkspace.ensure_root!(@chat)
     refresh_attached_repository_checkouts!(workspace_path)
     workspace_path
+  end
+
+  def chat_provider
+    ChatProviders.for(@chat.effective_chat_provider).new(chat: @chat, runner: self.class.agent_runner)
+  end
+
+  def provider_with_turn_context(provider, attachment_context, agent_env)
+    provider.class.new(
+      chat: @chat,
+      runner: self.class.agent_runner,
+      image_paths: attachment_context.fetch(:image_paths),
+      file_paths: attachment_context.fetch(:file_paths),
+      env: agent_env
+    )
   end
 
   def refresh_attached_repository_checkouts!(workspace_path)
@@ -318,15 +321,19 @@ class ChatTurnJob < ApplicationJob
     @chat.messages.create!(role: role, content: content.stringify_keys)
   end
 
-  def capture_session!(result)
-    return if result.session_id.blank?
+  def capture_session!(provider, result)
+    capture = provider.session_capture(result)
+    return unless capture
 
-    transcript_jsonl = transcript_jsonl_for(result, workspace_path: ChatWorkspace.path_for(@chat))
     attrs = {
-      provider: "claude",
-      session_id: result.session_id,
-      transcript_jsonl: transcript_jsonl
+      provider: capture.provider,
+      session_id: capture.session_id,
+      transcript_jsonl: capture.transcript_jsonl
     }
+    if claude_session_has_attribute?(:raw_provider_transcript)
+      attrs[:raw_provider_transcript] = capture.raw_provider_transcript
+    end
+    attrs[:normalized_messages] = capture.normalized_messages if claude_session_has_attribute?(:normalized_messages)
 
     if @chat.claude_session
       @chat.claude_session.update!(attrs)
@@ -335,15 +342,8 @@ class ChatTurnJob < ApplicationJob
     end
   end
 
-  def transcript_jsonl_for(result, workspace_path:)
-    return result.transcript_jsonl if result.transcript_jsonl.present?
-    return File.read(result.transcript_path) if result.transcript_path.present? && File.exist?(result.transcript_path)
-
-    ClaudeSession.canonical_transcript_jsonl(
-      home: ENV.fetch("HOME"),
-      cwd: workspace_path,
-      session_id: result.session_id
-    )
+  def claude_session_has_attribute?(attribute)
+    ClaudeSession.attribute_names.include?(attribute.to_s)
   end
 
   def touch_chat!

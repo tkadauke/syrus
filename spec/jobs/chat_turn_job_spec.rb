@@ -109,7 +109,9 @@ RSpec.describe ChatTurnJob do
       resumable: chat,
       provider: "claude",
       session_id: "chat-session-1",
-      transcript_jsonl: "{\"type\":\"system\"}\n"
+      transcript_jsonl: "{\"type\":\"system\"}\n",
+      raw_provider_transcript: "{\"type\":\"system\"}\n",
+      normalized_messages: []
     )
   ensure
     host_env&.keys&.each { |key| ENV.delete(key) }
