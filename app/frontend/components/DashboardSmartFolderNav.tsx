@@ -357,7 +357,7 @@ function SmartFolderLink({
       <div className="space-y-1">
         <div
           ref={popupRef}
-          className={`relative flex min-w-0 items-center gap-1 rounded ${showDragHandle ? "group cursor-grab active:cursor-grabbing" : ""} ${folder.active ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+          className={`relative flex min-w-0 items-center gap-1 rounded ${showDragHandle ? "group -ml-4 cursor-grab pl-4 active:cursor-grabbing" : ""} ${folder.active ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           draggable={draggable}
           onBlur={handleBlur}
           onDragEnd={onDragEnd}
@@ -481,7 +481,7 @@ function reorderFolders(folders: DashboardSmartFolder[], sourceIndex: number, ta
 
 function GripIcon({ floating = false }: { floating?: boolean }) {
   return (
-    <svg aria-hidden="true" className={`${floating ? "pointer-events-none absolute -left-4 top-1/2 -translate-y-1/2" : "-ml-1 shrink-0"} size-4 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500`} fill="none" viewBox="0 0 16 16">
+    <svg aria-hidden="true" className={`${floating ? "pointer-events-none absolute left-0 top-1/2 -translate-y-1/2" : "-ml-1 shrink-0"} size-4 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500`} fill="none" viewBox="0 0 16 16">
       <circle cx="6" cy="4" fill="currentColor" r="1" />
       <circle cx="10" cy="4" fill="currentColor" r="1" />
       <circle cx="6" cy="8" fill="currentColor" r="1" />

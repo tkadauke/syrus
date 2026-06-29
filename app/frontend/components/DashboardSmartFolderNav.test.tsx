@@ -181,7 +181,7 @@ describe("DashboardSmartFolderNav", () => {
     expect(savedNav).not.toContainElement(menu)
   })
 
-  it("keeps saved folder text aligned while floating the drag handle", () => {
+  it("keeps saved folder text aligned while floating the drag handle inside the row target", () => {
     renderNav([folder({})])
 
     const savedLink = screen.getByRole("link", { name: "Saved work 3" })
@@ -189,7 +189,8 @@ describe("DashboardSmartFolderNav", () => {
 
     expect(savedRow).not.toBeNull()
     expect(savedLink.querySelector("svg")).toBeNull()
-    expect(savedRow!.querySelector("svg")).toHaveClass("absolute", "-left-4")
+    expect(savedRow).toHaveClass("-ml-4", "pl-4")
+    expect(savedRow!.querySelector("svg")).toHaveClass("absolute", "left-0")
   })
 
   it("patches saved folder positions after drag reordering", async () => {
