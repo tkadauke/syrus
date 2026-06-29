@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-27._
+_Last reviewed: 2026-06-29._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -173,6 +173,31 @@ event :start_landing / :defer_landing / :fail_landing
 event :close
 event :reopen # clears closure_reason, finished_at, failure_count
 ```
+
+### JobDependency and EpicDependency
+
+`JobDependency` is the execution gate for Jobs. A row can target a
+concrete `depends_on_job`, a concrete `depends_on_epic`, an unresolved
+GitHub issue reference, or an unresolved `ChatProposal` from the same
+operator's chat flow. Parsed issue-body dependencies set `source` to
+`parsed`; operator/chat-authored edges set it to `manual`.
+
+Pending references are first-class rather than lossy. A `Depends-on:
+owner/repo#123` line can sit unresolved until the matching Job exists,
+and a chat proposal can depend on another proposal card before either
+card has been confirmed into a real Job. When the target materializes,
+`JobDependency#resolve!` clears the unresolved fields and reruns the
+cycle checks against the concrete Job. Same-Epic dependencies count as
+satisfied once the upstream Job is `approved` or `landing`; other Job
+dependencies require the normal successful closure states, and direct
+Epic dependencies require the upstream Epic to be `done`.
+
+`EpicDependency` models Epic-level gates. It can point at another Epic
+or at a Job, prevents cycles, and refreshes the dependent Epic's
+auto-state after commits. Job-to-Job dependencies that cross Epic
+boundaries also materialize derived Epic dependencies, so Epic readiness
+and merge-train behavior can see the higher-level ordering implied by
+their child Jobs.
 
 ### Workflow, Step, Run — the *attempt machinery*
 
@@ -454,6 +479,18 @@ the operator confirms it, `ChatPendingAction#apply!` instantiates
 Workflow. The Job must be `implemented` or `approved`; confirming
 feedback on an approved Job unapproves it so the landing queue does not
 merge stale work.
+
+Chat proposals share the same dependency model before and after
+confirmation. `propose_job` can depend on existing Jobs, existing Epics,
+or other Job proposal slugs from the chat session. `propose_epic_with_jobs`
+can chain sibling child Jobs, point child Jobs at existing Epics, and
+point the Epic itself at existing Jobs, existing Epics (`epic:<id>`), or
+other Epic proposal slugs. Confirming an Epic-with-Jobs card runs one
+transaction that topologically creates the Epic and child Jobs, wires
+sibling and cross-card Job dependencies, rewrites resolved Epic proposal
+tokens to stable `epic:<id>` tokens, and resolves any pending
+proposal-backed dependency rows. Jobs are advanced after triage only once
+those gates are in place.
 
 There is no author filter on the PR-comment path today: every Syrus
 deployment runs under a single operator's PAT, so any comment that
@@ -941,7 +978,10 @@ Several layers, each catching different failure modes:
 - **`/notifications`** and **`/notifications/settings`** — app
   notification inbox and per-kind preferences. The API returns unread
   counts, Job ids/titles, PR URLs, and read state; web and desktop
-  clients mark rows read through the app API.
+  clients mark rows read through the app API. Mark-read and
+  mark-all-read actions broadcast compact `notification_read` app events
+  so every open client updates read state and unread counts without
+  waiting for the next full notification refetch.
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
   repository, trigger kind, provider, trend, and top Runs.
 - **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause, and
@@ -978,7 +1018,13 @@ reveals the normal tabs, and points the brand link at that onboarding
 chat. Once the first Epic lands, setup is complete and the Setup tab
 disappears.
 
-Realtime updates use `AppUserChannel` app events consumed by React.
+Realtime updates use `AppUserChannel` app events consumed by React. Most
+events invalidate TanStack Query keys for the affected resource
+(`job`, `workflow`, `epic`, `repository`, `chat`, and admin overview);
+some high-churn surfaces patch cached payloads directly, including chat
+message tails/control state, whiteboard snapshots, notification create
+counts, and notification read state. Dashboard invalidations are
+throttled and deferred while a dashboard fetch is already in flight.
 Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
 between web and worker.
 
@@ -1044,8 +1090,9 @@ and app API as the CLI. The main process owns stored instance/token
 settings, local repository path mappings, app-user Cable connection,
 native notifications, global hotkey registration, checkout/approval
 IPC handlers, and external browser launches. The React renderer shows
-the compact inbox, repository picker, direct-Job form, admin controls,
-and preferences UI. The inbox consumes the app Job payload's
+the compact inbox, Job detail with summary and feedback tabs, repository
+picker, direct-Job form, admin controls, and preferences UI. The inbox
+consumes the app Job payload's
 `repository_id` and `repository_slug` to group rows by repository and
 link back to repository pages; checkout actions delegate to the `syrus`
 CLI so the desktop app does not reimplement branch-management semantics.
