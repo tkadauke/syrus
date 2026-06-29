@@ -26,16 +26,24 @@ export type TerminalSessionPayload = {
   session: TerminalSessionRecord
 }
 
+export type CreateTerminalSessionInput =
+  | TerminalWorkspaceRecord
+  | {
+      workflow_id?: number
+      working_directory?: string
+      name?: string
+    }
+
 export function fetchTerminalSessions(options: { signal?: AbortSignal } = {}) {
   return getJson<TerminalSessionsPayload>("/api/v1/app/terminal_sessions", options)
 }
 
-export function createTerminalSession(workspace: TerminalWorkspaceRecord) {
+export function createTerminalSession(input: CreateTerminalSessionInput) {
   return postJson<TerminalSessionPayload>("/api/v1/app/terminal_sessions", {
     terminal_session: {
-      workflow_id: workspace.kind === "workflow" ? workspace.id : null,
-      working_directory: workspace.working_directory,
-      name: workspace.label
+      workflow_id: "kind" in input ? (input.kind === "workflow" ? input.id : null) : input.workflow_id,
+      working_directory: input.working_directory,
+      name: "kind" in input ? input.label : input.name
     }
   })
 }

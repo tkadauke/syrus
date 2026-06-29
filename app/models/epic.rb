@@ -33,11 +33,6 @@ class Epic < ApplicationRecord
   validates :state, presence: true, inclusion: { in: STATES }
   validate :repository_belongs_to_user
 
-  scope :claimed, -> { where.not(owner_user_id: nil) }
-  scope :unclaimed, -> { where(owner_user_id: nil) }
-  scope :owned_by, ->(user) { where(owner_user_id: user&.id) }
-  scope :other_owned_by, ->(user) { claimed.where.not(owner_user_id: user&.id) }
-
   after_initialize :default_pending_epic_dependency_refs
   before_validation :assign_number, on: :create
   after_create :resolve_pending_child_jobs
@@ -162,10 +157,6 @@ class Epic < ApplicationRecord
 
   def clear_job_epic_titles
     jobs.update_all(epic_title: nil)
-  end
-
-  def in_progress!
-    override_state!("in_progress")
   end
 
   def ready_to_start?

@@ -26,7 +26,6 @@ class Job < ApplicationRecord
   belongs_to :parent_job, class_name: "Job", optional: true
   belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
   belongs_to :approved_by_user, class_name: "User", optional: true
-  belongs_to :owner_user, class_name: "User", optional: true
   belongs_to :claimed_by_user, class_name: "User", optional: true
   has_many :chat_proposals, dependent: :nullify
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy

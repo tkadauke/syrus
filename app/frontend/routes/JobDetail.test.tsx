@@ -141,14 +141,15 @@ describe("JobDetailView", () => {
 
   it("opens a terminal session from a workflow row and navigates to it", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      id: 77,
-      name: "WF-4 workspace",
-      working_directory: "/tmp/workflows/4",
-      relay_address: null,
-      started_at: "2026-06-27T10:00:00Z",
-      finished_at: null,
-      outcome: null,
-      workflow_id: 4
+      session: {
+        id: 77,
+        name: "WF-4 workspace",
+        working_directory: "/tmp/workflows/4",
+        started_at: "2026-06-27T10:00:00Z",
+        finished_at: null,
+        outcome: null,
+        workflow_id: 4
+      }
     }))
 
     renderJobDetail(jobPayload({
@@ -163,7 +164,7 @@ describe("JobDetailView", () => {
       "/api/v1/app/terminal_sessions",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ workflow_id: 4, name: "WF-4 workspace" })
+        body: JSON.stringify({ terminal_session: { workflow_id: 4, name: "WF-4 workspace" } })
       })
     ))
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/terminal?session=77"))

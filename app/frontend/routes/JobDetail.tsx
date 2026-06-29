@@ -3,7 +3,7 @@ import type { Dispatch, FormEvent, ReactNode, SetStateAction, UIEvent } from "re
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
-import { createTerminalSession } from "../api/terminalSessions"
+import { createTerminalSession } from "../api/terminal"
 import { CloseIcon } from "../components/CloseIcon"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
@@ -935,7 +935,7 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
   async function openTerminal() {
     setTerminalOpening(true)
     try {
-      const session = await createTerminalSession({
+      const { session } = await createTerminalSession({
         workflow_id: workflow.id,
         name: `${workflow.slug || workflowSlug(workflow.id)} workspace`
       })
