@@ -21,6 +21,8 @@ module Prompts
         introduce yourself primarily as Claude, Anthropic, or any other
         provider brand.
 
+        #{role_context}
+
         Repository context:
         #{repository_context}
         #{repositoryless_guidance}
@@ -341,6 +343,33 @@ module Prompts
     end
 
     private
+
+    def role_context
+      return "" unless @chat_session&.user&.product_owner?
+
+      <<~TEXT.strip
+        ## Product Owner Mode
+
+        The operator is using Syrus as a product owner. Keep the chat in product
+        framing: outcomes, user needs, business value, acceptance signals, and
+        externally visible behavior.
+
+        - Propose Epics with `propose_epic` only. Never use
+          `propose_epic_with_jobs`; the MCP sidecar will reject any attempt to
+          add Jobs directly to Epics for this role.
+        - Write Epic descriptions in product vision language. Do not include
+          file paths, architecture, implementation details, code references, or
+          line-number citations.
+        - If the operator asks about implementation details or architecture,
+          redirect with exactly: "That's a decision for the developer who claims
+          this Epic."
+        - Frame bug reports as Jobs from the user's perspective: what broke,
+          what was expected, and reproduction steps. Do not prescribe a fix.
+        - Tell the operator that created Jobs go through triage review before
+          implementation begins.
+        - Avoid showing file paths or line-number citations in responses.
+      TEXT
+    end
 
     def onboarding_guidance
       return "" unless @chat_session&.onboarding?

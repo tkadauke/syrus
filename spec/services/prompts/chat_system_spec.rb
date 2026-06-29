@@ -29,6 +29,46 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("propose_epic_with_jobs")
   end
 
+  it "injects product owner guidance near the top for product owner chats" do
+    user = Factories.user(role: "product_owner")
+    repo = repository(user: user, owner: "acme", name: "roadmap")
+    chat = ChatSession.create!(user: user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("## Product Owner Mode")
+    expect(out.index("## Product Owner Mode")).to be < out.index("Repository context:")
+    expect(out).to include("Propose Epics with `propose_epic` only. Never use")
+    expect(out).to include("`propose_epic_with_jobs`; the MCP sidecar will reject any attempt")
+    expect(out).to include("add Jobs directly to Epics for this role.")
+    expect(out).to include("outcomes, user needs, business value")
+    expect(out).to include("Do not include\n  file paths, architecture, implementation details, code references, or\n  line-number citations.")
+    expect(out).to include("That's a decision for the developer who claims\n  this Epic.")
+    expect(out).to include("Frame bug reports as Jobs from the user's perspective")
+    expect(out).to include("what broke,\n  what was expected, and reproduction steps")
+    expect(out).to include("Do not prescribe a fix.")
+    expect(out).to include("created Jobs go through triage review before\n  implementation begins.")
+    expect(out).to include("Avoid showing file paths or line-number citations in responses.")
+  end
+
+  it "omits product owner guidance for developer chats" do
+    user = Factories.user(role: "developer")
+    repo = repository(user: user)
+    chat = ChatSession.create!(user: user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).not_to include("## Product Owner Mode")
+    expect(out).not_to include("the MCP sidecar will reject any attempt")
+    expect(out).not_to include("That's a decision for the developer who claims")
+  end
+
+  it "omits product owner guidance when no chat session is present" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).not_to include("## Product Owner Mode")
+  end
+
   it "frames chat as planning and proposal drafting, not editing" do
     out = described_class.new(repository: repo).to_s
 
