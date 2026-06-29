@@ -25,6 +25,7 @@ export type AdminUserRow = {
   admin: boolean
   scheduling_paused: boolean
   agent_provider: string
+  chat_provider: string | null
   codex_auth_mode: string
   has_github_token: boolean
   has_claude_token: boolean

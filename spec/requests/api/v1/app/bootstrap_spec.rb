@@ -59,6 +59,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       landing_paused: true,
       theme: "dark",
       agent_provider: "codex",
+      chat_provider: "claude",
       agent_max_turns: 123
     )
     sign_in_as(user)
@@ -79,6 +80,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "landing_paused" => true,
       "theme" => "dark",
       "agent_provider" => "codex",
+      "chat_provider" => "claude",
       "agent_max_turns" => 123
     )
     expect(body["team_user_count"]).to eq(1)

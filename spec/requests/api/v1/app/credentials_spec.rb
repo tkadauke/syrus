@@ -38,6 +38,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("user", "email_address")).to eq(user.email_address)
+    expect(body.dig("user", "chat_provider")).to be_nil
+    expect(body.dig("options", "chat_providers")).to eq(%w[claude codex])
     expect(body["credential_status"]).to include(
       "claude_oauth_token" => true,
       "codex_api_key" => true,

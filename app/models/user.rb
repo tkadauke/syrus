@@ -25,6 +25,7 @@ class User < ApplicationRecord
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
 
   AGENT_PROVIDERS = %w[ claude codex ].freeze
+  CHAT_PROVIDERS = %w[ claude codex ].freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
   THEMES = %w[ light dark ].freeze
   CLEARABLE_CREDENTIALS = {
@@ -127,6 +128,7 @@ class User < ApplicationRecord
   normalizes :first_name, :last_name, :profile_location, :profile_company, :profile_website,
              with: ->(value) { value.to_s.strip.presence }
   normalizes :profile_bio, with: ->(value) { value.to_s.strip.presence }
+  normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }
 
   # Per-user ceiling on `claude --max-turns`. The agent is given this
   # many tool-use turns before the run terminates with
@@ -143,6 +145,7 @@ class User < ApplicationRecord
             presence: true,
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
   validates :agent_provider, presence: true, inclusion: { in: AGENT_PROVIDERS }
+  validates :chat_provider, inclusion: { in: CHAT_PROVIDERS }, allow_nil: true
   validates :theme, presence: true, inclusion: { in: THEMES }
   validates :first_name, :last_name, length: { maximum: 80 }
   validates :github_handle, length: { maximum: 100 }
@@ -396,6 +399,10 @@ class User < ApplicationRecord
     configured_agent_providers - [ agent_provider ]
   end
 
+  def effective_chat_provider
+    chat_provider.presence || agent_provider.presence || "claude"
+  end
+
   # Onboarding finishes when the operator's first Epic lands (all its child
   # Jobs merged → Epic `done`). This is the single source of truth for the
   # first-run setup surfaces and the Setup nav tab.
@@ -426,18 +433,15 @@ class User < ApplicationRecord
   end
 
   def chat_available?
-    claude_oauth_token.present?
+    chat_provider_configured?(effective_chat_provider)
   end
 
   def agent_provider_configured?(provider)
-    case provider.to_s
-    when "claude"
-      claude_oauth_token.present?
-    when "codex"
-      codex_configured?
-    else
-      false
-    end
+    provider_configured?(provider)
+  end
+
+  def chat_provider_configured?(provider)
+    provider_configured?(provider)
   end
 
   # Generate (and persist) a fresh API token. Returns the
@@ -486,6 +490,17 @@ class User < ApplicationRecord
   end
 
   private
+
+  def provider_configured?(provider)
+    case provider.to_s
+    when "claude"
+      claude_oauth_token.present?
+    when "codex"
+      codex_configured?
+    else
+      false
+    end
+  end
 
   def codex_configured?
     case codex_auth_mode

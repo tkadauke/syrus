@@ -20,6 +20,35 @@ RSpec.describe ChatSession do
     expect(session).to be_valid
   end
 
+  it "allows a nullable supported chat provider" do
+    session = described_class.new(user: repo.user, chat_provider: "codex")
+
+    expect(session).to be_valid
+  end
+
+  it "normalizes blank chat providers to nil" do
+    session = described_class.create!(user: repo.user, chat_provider: "")
+
+    expect(session.chat_provider).to be_nil
+  end
+
+  it "rejects unknown chat providers" do
+    session = described_class.new(user: repo.user, chat_provider: "oracle")
+
+    expect(session).not_to be_valid
+    expect(session.errors[:chat_provider]).to be_present
+  end
+
+  it "resolves chat provider from the session, user chat provider, then user agent provider" do
+    inherited = described_class.new(user: Factories.user(agent_provider: "codex"))
+    user_override = described_class.new(user: Factories.user(agent_provider: "codex", chat_provider: "claude"))
+    session_override = described_class.new(user: Factories.user(agent_provider: "claude"), chat_provider: "codex")
+
+    expect(inherited.effective_chat_provider).to eq("codex")
+    expect(user_override.effective_chat_provider).to eq("claude")
+    expect(session_override.effective_chat_provider).to eq("codex")
+  end
+
   it "requires a user" do
     session = described_class.new
 

@@ -13,6 +13,7 @@ export type BootstrapPayload = {
     scheduling_paused: boolean
     landing_paused: boolean
     agent_provider: "claude" | "codex"
+    chat_provider: "claude" | "codex" | null
     agent_max_turns: number
     theme: "light" | "dark"
     notification_unread_count?: number

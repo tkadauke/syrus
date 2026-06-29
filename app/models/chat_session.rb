@@ -58,6 +58,9 @@ class ChatSession < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :cumulative_cost_usd,
             numericality: { greater_than_or_equal_to: 0 }
+  validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
+
+  normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }
 
   scope :attached_to_repository, ->(repository) {
     joins(:chat_attachments)
@@ -86,6 +89,10 @@ class ChatSession < ApplicationRecord
 
   def repository_id
     repository&.id
+  end
+
+  def effective_chat_provider
+    chat_provider.presence || user&.effective_chat_provider || "claude"
   end
 
   def workspace_root

@@ -186,6 +186,7 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       scheduling_paused: false,
       landing_paused: false,
       agent_provider: "claude",
+      chat_provider: null,
       agent_max_turns: 200,
       theme: "light",
     },

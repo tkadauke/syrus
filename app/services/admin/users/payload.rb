@@ -88,6 +88,7 @@ module Admin
           admin: user.admin?,
           scheduling_paused: user.scheduling_paused?,
           agent_provider: user.agent_provider,
+          chat_provider: user.chat_provider,
           codex_auth_mode: user.codex_auth_mode,
           has_github_token: user.github_token.present?,
           has_claude_token: user.claude_oauth_token.present?,

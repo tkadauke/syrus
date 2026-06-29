@@ -141,6 +141,36 @@ RSpec.describe User do
     end
   end
 
+  describe "chat_provider" do
+    it "defaults to inheriting the agent provider" do
+      user = User.create!(attrs.merge(agent_provider: "codex"))
+
+      expect(user.chat_provider).to be_nil
+      expect(user.effective_chat_provider).to eq("codex")
+    end
+
+    it "accepts supported chat providers" do
+      user = User.create!(attrs.merge(agent_provider: "codex", chat_provider: "claude"))
+
+      expect(user.chat_provider).to eq("claude")
+      expect(user.effective_chat_provider).to eq("claude")
+    end
+
+    it "normalizes blank chat providers to inheritance" do
+      user = User.create!(attrs.merge(chat_provider: ""))
+
+      expect(user.chat_provider).to be_nil
+      expect(user.effective_chat_provider).to eq("claude")
+    end
+
+    it "rejects unknown chat providers" do
+      user = User.new(attrs.merge(chat_provider: "oracle"))
+
+      expect(user).not_to be_valid
+      expect(user.errors[:chat_provider]).to be_present
+    end
+  end
+
   describe "theme" do
     it "defaults to light" do
       expect(User.create!(attrs).theme).to eq("light")
@@ -506,11 +536,10 @@ RSpec.describe User do
       expect(user).to be_chat_available
     end
 
-    it "is available for a Codex-default user with Claude credentials" do
+    it "is available for a Codex-default user with Codex credentials" do
       user = User.create!(
         attrs.merge(
           agent_provider: "codex",
-          claude_oauth_token: "oat-test",
           codex_auth_mode: "api_key",
           codex_api_key: "sk-test"
         )
@@ -519,12 +548,24 @@ RSpec.describe User do
       expect(user).to be_chat_available
     end
 
-    it "is unavailable without Claude credentials" do
+    it "can override a Codex-default user to require Claude chat credentials" do
       user = User.create!(
         attrs.merge(
           agent_provider: "codex",
+          chat_provider: "claude",
           codex_auth_mode: "api_key",
           codex_api_key: "sk-test"
+        )
+      )
+
+      expect(user).not_to be_chat_available
+    end
+
+    it "is unavailable without the inherited chat provider credentials" do
+      user = User.create!(
+        attrs.merge(
+          agent_provider: "codex",
+          codex_auth_mode: "api_key"
         )
       )
 
