@@ -559,6 +559,36 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "title_pending")).to eq(true)
   end
 
+  it "stores valid file attachments on the first chat message" do
+    sign_in_as(user)
+    attachment = {
+      name: "aqueduct.png",
+      mime_type: "image/png",
+      data: Base64.strict_encode64("image-bytes"),
+      ignored: "drop me"
+    }
+
+    post "/api/v1/app/chats", params: {
+      repository_id: repository.id,
+      chat_message: {
+        text: "Inspect this image",
+        attachments: [ attachment ]
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(ChatSession.last.messages.last.content).to eq(
+      "text" => "Inspect this image",
+      "attachments" => [
+        {
+          "name" => "aqueduct.png",
+          "mime_type" => "image/png",
+          "data" => Base64.strict_encode64("image-bytes")
+        }
+      ]
+    )
+  end
+
   it "starts the first-message chat with a pending generated title" do
     sign_in_as(user)
 

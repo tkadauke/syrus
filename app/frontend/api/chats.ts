@@ -263,6 +263,7 @@ export type NewChatPayload = {
 export type CreateChatInput = {
   repositoryId: string
   text: string
+  attachments?: ChatMessageAttachmentInput[]
 }
 
 export type ChatMessageAttachmentInput = {
@@ -455,7 +456,7 @@ export function fetchNewChat() {
 export function createChat(values: CreateChatInput) {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", {
     repository_id: values.repositoryId,
-    chat_message: { text: values.text }
+    ...chatMessagePayload(values.text, values.attachments || [])
   })
 }
 
