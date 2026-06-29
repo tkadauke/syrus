@@ -207,6 +207,33 @@ describe("TerminalRoute", () => {
     expect(screen.getByText("○ disconnected")).toBeInTheDocument()
   })
 
+  it("defers the initial terminal fit until the pane has measurable dimensions", async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 400,
+      height: 400,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
+
+    try {
+      renderWithClient(
+        <MemoryRouter>
+          <TerminalPane session={terminalSession({ id: 6 })} />
+        </MemoryRouter>
+      )
+
+      expect(xtermMock.fit).not.toHaveBeenCalled()
+      await waitFor(() => expect(xtermMock.fit).toHaveBeenCalled())
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
+
   it("restores TerminalPane scrollback after remounting the same session", () => {
     const subscription = { perform: vi.fn(), unsubscribe: vi.fn() }
     actionCable.createSubscription.mockReturnValue(subscription)

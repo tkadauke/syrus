@@ -201,6 +201,26 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     const snapshot = terminalSnapshots.get(session.id)
     if (snapshot) terminal.write(snapshot)
 
+    let fitFrame: number | null = null
+    let fitAttempts = 0
+    const scheduleFit = () => {
+      if (fitFrame !== null) return
+
+      fitFrame = window.requestAnimationFrame(() => {
+        fitFrame = null
+
+        const rect = containerRef.current?.getBoundingClientRect()
+        if (rect && rect.width > 0 && rect.height > 0) {
+          fitAttempts = 0
+          fitAddon.fit()
+        } else if (fitAttempts < 10) {
+          fitAttempts += 1
+          scheduleFit()
+        }
+      })
+    }
+    scheduleFit()
+
     const subscription: Subscription = createConsumer().subscriptions.create(
       { channel: "TerminalChannel", session_id: session.id },
       {
@@ -226,13 +246,14 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
         ? null
         : new ResizeObserver((entries) => {
             for (const entry of entries) {
-              if (entry.contentRect.height > 0) fitAddon.fit()
+              if (entry.contentRect.width > 0 && entry.contentRect.height > 0) scheduleFit()
             }
           })
     resizeObserver?.observe(containerRef.current)
 
     return () => {
       terminalSnapshots.set(session.id, serializeAddon.serialize())
+      if (fitFrame !== null) window.cancelAnimationFrame(fitFrame)
       resizeObserver?.disconnect()
       inputDisposable.dispose()
       resizeDisposable.dispose()
