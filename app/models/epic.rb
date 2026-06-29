@@ -58,7 +58,7 @@ class Epic < ApplicationRecord
     state :ready, :in_progress, :done, :archived
 
     event :auto_ready do
-      transitions from: :backlog, to: :ready, guard: :ready_to_start?
+      transitions from: :backlog, to: :ready, guards: [ :ready_to_start?, :actor_can_advance? ]
     end
 
     event :move_to_backlog do
@@ -66,9 +66,9 @@ class Epic < ApplicationRecord
     end
 
     event :start do
-      transitions from: :ready, to: :in_progress, after: -> {
+      transitions from: :ready, to: :in_progress, guard: :actor_can_advance?, after: ->(actor: nil, user: nil) {
         self.state = "in_progress"
-        claim!(user, force: true) unless claimed?
+        claim!(actor || user || self.user, force: true) unless claimed?
         unblock_child_jobs!
       }
     end
@@ -81,7 +81,7 @@ class Epic < ApplicationRecord
     end
 
     event :auto_complete do
-      transitions from: :in_progress, to: :done, guard: :complete?, after: -> {
+      transitions from: :in_progress, to: :done, guards: [ :complete?, :actor_can_advance? ], after: -> {
         stamp_done_at
         notify_epic_completed
       }
@@ -163,6 +163,10 @@ class Epic < ApplicationRecord
     jobs.exists? && dependencies_done? && child_jobs_confirmed?
   end
 
+  def actor_can_advance?(actor: nil, user: nil)
+    !epic_advancement_actor(actor || user)&.product_owner?
+  end
+
   def complete?
     child_jobs = jobs.reload
     child_jobs.any? && child_jobs.all? { |job| job.closed? && SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
@@ -196,9 +200,10 @@ class Epic < ApplicationRecord
 
   # Operator escape hatch for the card menu. This intentionally bypasses
   # the AASM graph while preserving side effects that matter to execution.
-  def override_state!(target_state)
+  def override_state!(target_state, actor: nil)
     target_state = target_state.to_s
     raise ArgumentError, "unknown Epic state: #{target_state}" unless STATES.include?(target_state)
+    raise ArgumentError, "Product owners cannot advance Epics beyond backlog." if product_owner_advancement?(target_state, actor)
 
     transaction do
       was_in_progress = in_progress?
@@ -313,6 +318,14 @@ class Epic < ApplicationRecord
 
   def child_jobs_confirmed?
     jobs.where(state: "triaging").none?
+  end
+
+  def product_owner_advancement?(target_state, actor)
+    target_state.in?(%w[ready in_progress done]) && epic_advancement_actor(actor)&.product_owner?
+  end
+
+  def epic_advancement_actor(actor)
+    actor.respond_to?(:user) ? actor.user : actor
   end
 
   def stamp_done_at

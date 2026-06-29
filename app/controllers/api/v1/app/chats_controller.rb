@@ -18,6 +18,8 @@ module Api
           application/pdf
         ].freeze
         CHAT_ATTACHMENT_MAX_BASE64_BYTES = 7.megabytes
+        PRODUCT_OWNER_EPIC_JOB_MESSAGE = "Product owners cannot add Jobs to Epics directly — " \
+          "claim the Epic as a developer to elaborate it.".freeze
 
         def index
           render json: {
@@ -407,6 +409,11 @@ module Api
 
           unless proposal.proposed?
             render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)
+            return
+          end
+
+          if product_owner_proposal_adds_jobs_to_epics?(proposal)
+            render_error("forbidden", PRODUCT_OWNER_EPIC_JOB_MESSAGE, status: :forbidden)
             return
           end
 
@@ -1093,6 +1100,20 @@ module Api
 
         def find_proposal(chat_session)
           chat_session.proposals.find(params[:proposal_id])
+        end
+
+        def product_owner_proposal_adds_jobs_to_epics?(proposal)
+          return false unless Current.user.product_owner?
+
+          if proposal.epic_bundle?
+            return proposal.child_proposals.where(state: "proposed").exists?
+          end
+
+          ChatProposalFiler.ordered_closure([ proposal ]).any? do |candidate|
+            candidate.proposed? &&
+              candidate.target_epic_id.present? &&
+              (candidate.syrus_issue? || candidate.job?)
+          end
         end
 
         def message_text

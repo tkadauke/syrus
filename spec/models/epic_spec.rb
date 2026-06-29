@@ -444,6 +444,25 @@ RSpec.describe Epic do
     expect(job.runs.first.prompt).to include("build the thing")
   end
 
+  it "does not let product owners advance Epics to ready or in-progress through guarded transitions" do
+    product_owner = Factories.user(role: "product_owner")
+    epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
+
+    epic.move_to_backlog!
+
+    expect(epic.auto_ready!(actor: product_owner)).to be false
+    expect(epic.reload).to be_backlog
+
+    expect {
+      epic.override_state!("in_progress", actor: product_owner)
+    }.to raise_error(ArgumentError, "Product owners cannot advance Epics beyond backlog.")
+
+    epic.update!(state: "ready")
+    expect(epic.start!(actor: product_owner)).to be false
+    expect(epic.reload).to be_ready
+  end
+
   it "releases child Jobs from the Epic block without starting them while Job dependencies are unsatisfied" do
     epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
     prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 19, state: "queued")

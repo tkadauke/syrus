@@ -602,6 +602,35 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(epic.reload).to be_ready
   end
 
+  it "rejects product-owner attempts to advance Epics through the app API" do
+    user.update!(role: "product_owner")
+    sign_in_as(user)
+
+    backlog = Factories.epic(user: user, repository: repository, state: "backlog")
+    Factories.job_record(user: user, repository: repository, epic: backlog, state: "blocked_by_epic")
+    backlog.move_to_backlog!
+    patch "/api/v1/app/epics/#{backlog.id}/state", params: { target_state: "ready" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to eq("Product owners cannot advance Epics beyond backlog.")
+    expect(backlog.reload).to be_backlog
+
+    ready = Factories.epic(user: user, repository: repository, state: "ready")
+    patch "/api/v1/app/epics/#{ready.id}/state", params: { target_state: "in_progress" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to eq("Product owners cannot advance Epics beyond backlog.")
+    expect(ready.reload).to be_ready
+
+    in_progress = Factories.epic(user: user, repository: repository, state: "in_progress")
+    Factories.job_record(user: user, repository: repository, epic: in_progress, state: "closed", closure_reason: "pr_merged")
+    patch "/api/v1/app/epics/#{in_progress.id}/state", params: { target_state: "done" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to eq("Product owners cannot advance Epics beyond backlog.")
+    expect(in_progress.reload).to be_in_progress
+  end
+
   it "marks an in-progress Epic as done when all child Jobs are closed" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")

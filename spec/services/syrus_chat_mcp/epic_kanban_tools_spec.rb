@@ -119,6 +119,17 @@ RSpec.describe "SyrusChatMcp epic kanban tools" do
       expect(error_text(response)).to include("epic must be ready to start; current state is backlog")
       expect(epic.reload).to be_backlog
     end
+
+    it "rejects product owners" do
+      user.update!(role: "product_owner")
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
+
+      response = call_tool("start_epic", epic_id: epic.id)
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("Product owners cannot advance Epics beyond backlog.")
+      expect(epic.reload).to be_ready
+    end
   end
 
   describe "move_epic_to_backlog" do

@@ -373,12 +373,17 @@ module Api
         end
 
         def bulk_start_epics(epics)
+          if Current.user.product_owner?
+            render_error("forbidden", "Product owners cannot advance Epics beyond backlog.", status: :forbidden)
+            return
+          end
+
           started_ids = []
           skipped_ids = []
 
           epics.find_each do |epic|
-            if epic.ready? && epic.may_start?
-              epic.start!
+            if epic.ready? && epic.may_start?(actor: Current.user)
+              epic.start!(actor: Current.user)
               started_ids << epic.id
             else
               skipped_ids << epic.id

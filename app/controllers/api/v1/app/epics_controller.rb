@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class EpicsController < BaseController
+        before_action :authorize_epic_action!, only: [ :update_state ]
+
         def index
           epics = Current.user.epics.includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
           if params[:repo].present?
@@ -395,23 +397,36 @@ module Api
           Current.user.epics.includes(:owner_user).find(params[:id])
         end
 
+        def authorize_epic_action!
+          return unless Current.user&.product_owner?
+
+          target_state = params[:target_state].to_s
+          return unless target_state.in?(%w[ready in_progress done])
+
+          render_error(
+            "forbidden",
+            "Product owners cannot advance Epics beyond backlog.",
+            status: :forbidden
+          )
+        end
+
         def transition_epic_state!(epic, target_state, override:)
           Epic.transaction do
             if override
-              epic.override_state!(target_state)
-            elsif epic.backlog? && target_state == "ready" && epic.may_auto_ready?
-              epic.auto_ready!
+              epic.override_state!(target_state, actor: Current.user)
+            elsif epic.backlog? && target_state == "ready" && epic.may_auto_ready?(actor: Current.user)
+              epic.auto_ready!(actor: Current.user)
             elsif epic.ready? && target_state == "backlog" && epic.may_move_to_backlog?
               epic.move_to_backlog!
             elsif epic.ready? && target_state == "in_progress"
               raise UnavailableTransition if epic.owner_id.present? && !epic.claimed_by?(Current.user)
 
               epic.claim!(Current.user) unless epic.claimed?
-              epic.start!
+              epic.start!(actor: Current.user)
             elsif epic.in_progress? && target_state == "ready"
               epic.unstart!
-            elsif epic.in_progress? && target_state == "done" && epic.may_auto_complete?
-              epic.auto_complete!
+            elsif epic.in_progress? && target_state == "done" && epic.may_auto_complete?(actor: Current.user)
+              epic.auto_complete!(actor: Current.user)
             elsif epic.in_progress? && target_state == "done" && epic.all_jobs_closed?
               epic.override_state!("done")
             elsif target_state == "archived" && epic.may_archive?

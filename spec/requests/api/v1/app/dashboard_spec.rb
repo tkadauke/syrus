@@ -1604,6 +1604,19 @@ RSpec.describe "App API dashboard commands", type: :request do
       )
     end
 
+    it "rejects product-owner bulk starts" do
+      user.update!(role: "product_owner")
+      ready = Factories.epic(user: user, repository: repo, title: "Ready aqueduct", state: "ready")
+
+      post "/api/v1/app/dashboard/epics/bulk",
+           params: { epic_ids: [ ready.id ], bulk_action: "start" },
+           as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(ready.reload).to be_ready
+      expect(parse_body.dig("error", "message")).to eq("Product owners cannot advance Epics beyond backlog.")
+    end
+
     it "rejects selections with no ready Epics" do
       done = Factories.epic(user: user, repository: repo, title: "Done forum", state: "done")
 

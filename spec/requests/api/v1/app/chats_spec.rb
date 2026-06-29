@@ -1336,6 +1336,61 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     )
   end
 
+  it "rejects product-owner confirmation of Job proposals targeting an Epic" do
+    user.update!(role: "product_owner")
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    epic = Factories.epic(user: user, repository: repository, state: "backlog")
+    proposal = chat.proposals.create!(
+      slug: "auth-map",
+      title: "Map auth",
+      body: "Map it.",
+      repository: repository,
+      target_epic: epic
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to eq(
+      "Product owners cannot add Jobs to Epics directly — claim the Epic as a developer to elaborate it."
+    )
+    expect(proposal.reload).to be_proposed
+  end
+
+  it "rejects product-owner confirmation of Epic bundles with child Jobs" do
+    user.update!(role: "product_owner")
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository
+    )
+    proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-schema",
+      title: "Auth schema",
+      body: "Add tables.",
+      repository: repository
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to eq(
+      "Product owners cannot add Jobs to Epics directly — claim the Epic as a developer to elaborate it."
+    )
+    expect(proposal.reload).to be_proposed
+    expect(proposal.epic).to be_nil
+  end
+
   it "enqueues proposal outcome notifications while a chat turn is active" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

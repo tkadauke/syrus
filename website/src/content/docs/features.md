@@ -63,6 +63,9 @@ Jobs are confirmed, then mark it done automatically when all child Jobs
 close through merged PR or no-change outcomes. When every child Job is
 closed but at least one did not complete successfully, operators can use
 **Mark as done** or drag the Epic to **Done** instead of archiving it.
+Product owners can create and refine backlog Epics, but developers own
+elaboration: product owners cannot move Epics to `ready`, `in_progress`,
+or `done`, and cannot add Jobs to Epics directly.
 
 The Epic detail page shows both sides of the dependency graph: Epics this
 Epic depends on, and Epics that depend on it. Operators can add an Epic
@@ -140,6 +143,9 @@ Clearing a non-empty canvas automatically saves the previous scene first.
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
+When a product owner confirms proposals, Syrus accepts standalone backlog
+Epics and non-Epic Jobs, but rejects proposals that would create Jobs inside
+an Epic until a developer claims and elaborates that Epic.
 Proposal cards can also declare dependency edges up front, including Jobs
 blocked on existing Epics, Epics blocked on existing Jobs, and proposed Jobs
 blocked on specific Job proposals in other cards from the same chat session.
