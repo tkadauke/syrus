@@ -149,6 +149,7 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
       "id" => target.id,
       "display_name" => "Target User",
       "email_address" => "target@example.com",
+      "role" => "developer",
       "scheduling_paused" => false
     )
     expect(parse_body["github_rate_limit"]).to include(
@@ -195,5 +196,18 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["scheduling_paused"]).to be false
     expect(AdminAction.where(action: "unpause_user_scheduling").count).to eq(1)
+  end
+
+  it "updates a user's role" do
+    sign_in_as(admin)
+    target = Factories.user(email_address: "target@example.com")
+
+    expect {
+      patch "/api/v1/app/admin/users/#{target.id}", params: { user: { role: "product_owner" } }
+    }.to change { target.reload.role }.from("developer").to("product_owner")
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["role"]).to eq("product_owner")
+    expect(AdminAction.where(action: "update_user_role").count).to eq(1)
   end
 end

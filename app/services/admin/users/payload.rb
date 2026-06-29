@@ -41,6 +41,13 @@ module Admin
         serialize_user_detail(user)
       end
 
+      def update(id, attributes)
+        user = User.find(id)
+        user.update!(attributes.to_h.symbolize_keys.slice(:role))
+        AdminAction.log!(user: actor, action: :update_user_role, params: { target_user_id: user.id, role: user.role })
+        serialize_user_detail(user)
+      end
+
       private
 
       attr_reader :params, :actor
@@ -86,6 +93,7 @@ module Admin
           display_name: user.display_name,
           github_handle: user.github_handle,
           admin: user.admin?,
+          role: user.role,
           scheduling_paused: user.scheduling_paused?,
           agent_provider: user.agent_provider,
           chat_provider: user.chat_provider,

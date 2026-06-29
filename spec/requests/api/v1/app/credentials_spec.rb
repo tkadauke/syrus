@@ -40,6 +40,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(body.dig("user", "email_address")).to eq(user.email_address)
     expect(body.dig("user", "chat_provider")).to be_nil
     expect(body.dig("options", "chat_providers")).to eq(%w[claude codex])
+    expect(body.dig("user", "role")).to eq("developer")
+    expect(body.dig("options", "roles")).to eq(%w[ developer product_owner ])
     expect(body["credential_status"]).to include(
       "claude_oauth_token" => true,
       "codex_api_key" => true,
@@ -78,7 +80,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
         codex_auth_json: "",
         github_token: "",
         scheduling_paused: false,
-        agent_max_turns: "500"
+        agent_max_turns: "500",
+        role: "product_owner"
       }
     }
 
@@ -90,6 +93,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.github_token).to eq("ghp_existing")
     expect(user.scheduling_paused).to be false
     expect(user.agent_max_turns).to eq(500)
+    expect(user.role).to eq("product_owner")
     expect(parse_body["message"]).to eq("Credentials updated.")
   end
 

@@ -28,6 +28,7 @@ class User < ApplicationRecord
   CHAT_PROVIDERS = %w[ claude codex ].freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
   THEMES = %w[ light dark ].freeze
+  ROLES = %w[ developer product_owner ].freeze
   CLEARABLE_CREDENTIALS = {
     "github_token" => "GitHub token",
     "claude_oauth_token" => "Claude OAuth token",
@@ -114,6 +115,8 @@ class User < ApplicationRecord
     "epic_completed" => false
   }.freeze
   DASHBOARD_VIEWS = %w[list kanban].freeze
+
+  enum :role, { developer: "developer", product_owner: "product_owner" }
 
   encrypts :claude_oauth_token
   encrypts :codex_api_key

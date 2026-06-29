@@ -11,6 +11,10 @@ module Api
             render json: payload.show(params[:id])
           end
 
+          def update
+            render json: payload.update(params[:id], user_params)
+          end
+
           def pause_scheduling
             render json: payload.pause_scheduling(params[:id])
           end
@@ -23,6 +27,10 @@ module Api
 
           def payload
             ::Admin::Users::Payload.new(params: params, actor: Current.user)
+          end
+
+          def user_params
+            params.expect(user: [ :role ])
           end
         end
       end

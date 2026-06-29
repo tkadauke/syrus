@@ -10,6 +10,7 @@ import {
   fetchAdminUser,
   fetchAdminUsers,
   pauseUserScheduling,
+  updateAdminUserRole,
   unpauseUserScheduling,
   type AdminUserDetail,
   type AdminUserRow
@@ -115,6 +116,7 @@ function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: stri
             <th className="px-4 py-2">User</th>
             <th className="px-4 py-2">GitHub</th>
             <th className="px-4 py-2">Admin</th>
+            <th className="px-4 py-2">Role</th>
             <th className="px-4 py-2">Agent</th>
             <th className="px-4 py-2">Scheduling</th>
             <th className="px-4 py-2">Tokens</th>
@@ -131,6 +133,7 @@ function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: stri
               </td>
               <td className="px-4 py-2">{user.github_handle ? `@${user.github_handle}` : "-"}</td>
               <td className="px-4 py-2">{user.admin ? "yes" : "-"}</td>
+              <td className="px-4 py-2">{roleLabel(user.role)}</td>
               <td className="px-4 py-2">{user.agent_provider}</td>
               <td className="px-4 py-2">{user.scheduling_paused ? "paused" : "active"}</td>
               <td className="px-4 py-2 font-mono text-xs">{tokenSummary(user)}</td>
@@ -152,6 +155,7 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
           <Info label="Email" value={user.email_address} />
           <Info label="GitHub" value={user.github_handle ? `@${user.github_handle}` : "-"} />
           <Info label="Admin" value={user.admin ? "yes" : "no"} />
+          <Info label="Role" value={<RoleOverride user={user} />} />
           <Info label="GitHub API blocked" value={user.github_api_blocked ? user.github_api_blocked_reason || "yes" : "no"} />
           <Info label="Created" value={formatDate(user.created_at)} />
         </InfoPanel>
@@ -175,6 +179,30 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
       <RecentTable title="Recent jobs" rows={user.recent_jobs.map((job) => [`#${job.id}`, job.state, job.kind, formatDate(job.created_at)])} />
       <RecentTable title="Recent runs" rows={user.recent_runs.map((run) => [`#${run.id}`, run.state, run.trigger_kind, formatDate(run.started_at)])} />
     </>
+  )
+}
+
+function RoleOverride({ user }: { user: AdminUserDetail }) {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: (role: string) => updateAdminUserRole(user.id, role),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["admin", "users", String(user.id)], updated)
+      void queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
+    }
+  })
+
+  return (
+    <select
+      aria-label="User role"
+      className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm text-gray-900 dark:text-gray-100"
+      disabled={mutation.isPending}
+      onChange={(event) => mutation.mutate(event.target.value)}
+      value={mutation.data?.role || user.role}
+    >
+      <option value="developer">{roleLabel("developer")}</option>
+      <option value="product_owner">{roleLabel("product_owner")}</option>
+    </select>
   )
 }
 
@@ -263,6 +291,11 @@ function rateLimitLabel(user: AdminUserRow) {
   if (!rate) return "-"
   const percent = rate.percent == null ? null : Math.round(rate.percent * 100)
   return `${rate.remaining} / ${rate.limit}${percent == null ? "" : ` (${percent}%)`}`
+}
+
+function roleLabel(role: string | null | undefined) {
+  if (!role) return "Developer"
+  return role.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
 function formatDate(value: string | null) {

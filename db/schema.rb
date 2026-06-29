@@ -941,6 +941,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_171941) do
     t.string "profile_company"
     t.string "profile_location"
     t.string "profile_website"
+    t.string "role", default: "developer", null: false
     t.boolean "scheduling_paused", default: false, null: false
     t.text "telegram_chat_id"
     t.string "theme", default: "light", null: false

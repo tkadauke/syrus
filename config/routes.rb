@@ -208,7 +208,7 @@ Rails.application.routes.draw do
             end
           end
           get "runs/:run_id/transcript", to: "transcripts#show"
-          resources :users, only: %i[ index show ] do
+          resources :users, only: %i[ index show update ] do
             member do
               post :pause_scheduling
               post :unpause_scheduling

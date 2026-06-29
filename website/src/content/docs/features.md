@@ -256,7 +256,7 @@ visible in the repository's ordinary planning flow.
 
 Each user owns their own profile, credentials, defaults, and preferences:
 
-- **Profile** stores display name, GitHub handle, avatar, bio, and public team profile fields.
+- **Profile** stores display name, role, GitHub handle, avatar, bio, and public team profile fields.
 - **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, and the admin API token panel for admins.
 - **Agent Settings** stores the default agent provider, max-turn setting, and auto-approval fallback.
 - **Preferences** stores account-level toggles such as scheduling pause.
@@ -283,7 +283,7 @@ constructed for the individual push command and are not written into
 
 Syrus works well as a single-user deployment for one operator's own
 repositories, and it can grow into one deployment serving multiple users.
-Users have their own repositories, credentials, provider defaults,
+Users have their own role, repositories, credentials, provider defaults,
 schedules, chats, Epics, Jobs, and admin/API permissions. Repository
 settings can override the user's provider default when a codebase needs a
 specific agent.

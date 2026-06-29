@@ -150,6 +150,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Setting | Purpose |
 | --- | --- |
 | Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
+| Role | User-facing role, either `developer` or `product_owner`; users can set their own role on `/profile`, and admins can override it from `/admin/users` |
 | GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories; configured on `/credentials` |
 | Agent provider | Default provider for new Jobs: `claude` or `codex`; configured on `/settings/agent` |
 | Chat provider | Optional provider override for chat turns: `claude` or `codex`; when blank, chat follows the user's default agent provider |

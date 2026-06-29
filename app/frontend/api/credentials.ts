@@ -14,6 +14,7 @@ export type CredentialsUser = {
   profile_bio: string | null
   avatar_url: string | null
   admin: boolean
+  role: string
   agent_provider: string
   chat_provider: string | null
   codex_auth_mode: string
@@ -55,6 +56,7 @@ export type PersonalDocument = {
 export type CredentialsOptions = {
   agent_providers: string[]
   chat_providers: string[]
+  roles: string[]
   codex_auth_modes: string[]
   agent_max_turns: {
     min: number
@@ -112,6 +114,7 @@ export type CredentialsInput = {
   github_handle: string
   profile_bio: string
   avatar_url: string
+  role: string
   agent_provider: string
   chat_provider: string
   claude_oauth_token: string

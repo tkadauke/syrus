@@ -1,4 +1,4 @@
-import { getJson, postJson } from "./client"
+import { getJson, patchJson, postJson } from "./client"
 import type { AdminFilteredPayload } from "./adminSmartFolders"
 
 export type GithubRateLimit = {
@@ -23,6 +23,7 @@ export type AdminUserRow = {
   display_name: string
   github_handle: string | null
   admin: boolean
+  role: string
   scheduling_paused: boolean
   agent_provider: string
   chat_provider: string | null
@@ -82,6 +83,12 @@ export function fetchAdminUsers(search = "") {
 
 export function fetchAdminUser(id: string) {
   return getJson<AdminUserDetail>(`/api/v1/app/admin/users/${id}`)
+}
+
+export function updateAdminUserRole(id: number, role: string) {
+  return patchJson<AdminUserDetail>(`/api/v1/app/admin/users/${id}`, {
+    user: { role }
+  })
 }
 
 export function pauseUserScheduling(id: number) {

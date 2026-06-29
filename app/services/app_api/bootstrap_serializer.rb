@@ -39,6 +39,7 @@ module AppApi
         last_name: user.last_name,
         display_name: user.display_name,
         admin: user.admin?,
+        role: user.role,
         scheduling_paused: user.scheduling_paused,
         landing_paused: user.landing_paused,
         theme: user.theme,

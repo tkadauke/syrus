@@ -198,6 +198,7 @@ module Api
             profile_bio: user.profile_bio,
             avatar_url: user.avatar_url,
             admin: user.admin?,
+            role: user.role,
             agent_provider: user.agent_provider,
             chat_provider: user.chat_provider,
             codex_auth_mode: user.codex_auth_mode,
@@ -249,6 +250,7 @@ module Api
           {
             agent_providers: User::AGENT_PROVIDERS,
             chat_providers: User::CHAT_PROVIDERS.select { |provider| user.chat_provider_configured?(provider) },
+            roles: User::ROLES,
             codex_auth_modes: User::CODEX_AUTH_MODES,
             agent_max_turns: {
               min: User::AGENT_MAX_TURNS_RANGE.first,
@@ -272,7 +274,7 @@ module Api
         def credentials_params
           params.expect(user: [ :name, :first_name, :last_name, :github_handle, :profile_bio, :avatar_url,
                                 :profile_company, :profile_website,
-                                :profile_location, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
+                                :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :github_token,
                                 :agent_max_turns, :scheduling_paused, :auto_approve_mode,
                                 { notification_preferences: [ :desktop_job_implemented, :desktop_job_failed ] } ])

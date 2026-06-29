@@ -183,6 +183,7 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       last_name: null,
       display_name: "Operator",
       admin: true,
+      role: "developer",
       scheduling_paused: false,
       landing_paused: false,
       agent_provider: "claude",

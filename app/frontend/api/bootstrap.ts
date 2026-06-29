@@ -10,6 +10,7 @@ export type BootstrapPayload = {
     last_name: string | null
     display_name: string
     admin: boolean
+    role: string
     scheduling_paused: boolean
     landing_paused: boolean
     agent_provider: "claude" | "codex"

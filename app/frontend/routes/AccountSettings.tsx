@@ -115,6 +115,7 @@ function GithubCredentialGuide() {
 function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
+  const roleOptions = payload.options.roles || ["developer", "product_owner"]
   const [testResults, setTestResults] = useState<Record<string, CredentialTestResult>>({})
   const [codexOauthCode, setCodexOauthCode] = useState("")
   const [codexOauthStarted, setCodexOauthStarted] = useState(false)
@@ -263,6 +264,12 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
 
             <Field label="GitHub handle">
               <input className={inputClass()} maxLength={100} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
+            </Field>
+
+            <Field label="Role">
+              <select className={inputClass()} onChange={(event) => setValues({ ...values, role: event.target.value })} value={values.role}>
+                {roleOptions.map((role) => <option key={role} value={role}>{titleize(role)}</option>)}
+              </select>
             </Field>
 
             <Field label="Avatar URL">
@@ -893,6 +900,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     github_handle: payload.user.github_handle || "",
     profile_bio: payload.user.profile_bio || "",
     avatar_url: payload.user.avatar_url || "",
+    role: payload.user.role,
     agent_provider: payload.user.agent_provider,
     chat_provider: payload.options.chat_providers.includes(chatProvider) ? chatProvider : "",
     claude_oauth_token: "",
