@@ -481,11 +481,32 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     chat = ChatSession.last
     expect(chat.user).to eq(user)
     expect(chat.chat_provider).to eq("claude")
-    expect(chat.title).to eq("widgets")
+    expect(chat.title).to be_nil
     expect(chat).not_to be_title_pending
     expect(chat.attached_repositories).to contain_exactly(repository)
     expect(parse_body).to include("message" => "Chat created.", "redirect_to" => chat_path(chat))
+    expect(parse_body.dig("chat", "title")).to eq("widgets")
+    expect(parse_body.dig("chat", "title_pending")).to eq(false)
     expect(parse_body.dig("chat", "repository", "slug")).to eq("acme/widgets")
+  end
+
+  it "enqueues title generation when an unstarted chat receives its first message" do
+    sign_in_as(user)
+
+    post "/api/v1/app/chats", params: { repository_id: repository.id }
+    chat = ChatSession.last
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Build the calendar" } }
+    }.to change(ChatMessage, :count).by(1)
+      .and have_enqueued_job(ChatTitleJob).with(chat.id, kind_of(Integer))
+      .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.title).to be_nil
+    expect(chat).to be_title_pending
+    expect(parse_body.dig("chat", "title")).to eq("widgets")
+    expect(parse_body.dig("chat", "title_pending")).to eq(true)
   end
 
   it "creates the onboarding chat attached to the first repository, seeded and flagged" do
@@ -577,7 +598,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     chat = ChatSession.last
     expect(chat.title).to be_nil
     expect(chat).to be_title_pending
-    expect(parse_body.dig("chat", "title")).to be_nil
+    expect(parse_body.dig("chat", "title")).to eq("widgets")
     expect(parse_body.dig("chat", "title_pending")).to eq(true)
     expect(ChatTitleJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
   end

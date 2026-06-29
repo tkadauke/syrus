@@ -977,7 +977,7 @@ module Api
               user: Current.user,
               repository: repository,
               chat_provider: Current.user.effective_chat_provider,
-              title: text.present? ? nil : ChatSession.fallback_title_for(repository),
+              title: nil,
               last_message_at: text.present? ? Time.current : nil
             )
             if text.present?
@@ -1274,7 +1274,7 @@ module Api
           repository = chat_session.repository
           {
             id: chat_session.id,
-            title: chat_session.title,
+            title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,
             pinned_context: chat_session.pinned_context,
             chat_path: chat_path(chat_session),
