@@ -88,10 +88,15 @@ derive `<root>/<repo-name>` paths, or add per-repository absolute path
 overrides for repositories that live elsewhere. Desktop delegates
 checkout to `syrus checkout JOB-<id>` from the resolved local path, so the
 CLI handles branch fetching, dirty working trees, backup branches, and
-repository-origin validation. After a successful checkout, the popover
-automatically navigates to that Job's detail view so the test plan is
-visible immediately. Admin users also see subtle footer toggles for
-pausing or resuming repository polling and new Run starts, with
+repository-origin validation. When the popover opens, Desktop runs
+`syrus status --json` from the last checked-out or configured local
+checkout path. If that checkout is on a Syrus Job branch, the matching
+inbox row gets a local badge; branches behind remote show an amber
+warning, and hidden or filtered Jobs appear as a compact "Checked out"
+status line. After a successful checkout, the popover automatically
+navigates to that Job's detail view so the test plan is visible
+immediately. Admin users also see subtle footer toggles for pausing or
+resuming repository polling and new Run starts, with
 confirmation before either switch changes. Right-click the tray icon to
 open the connected Syrus instance in your browser, open Preferences, or
 quit the app.

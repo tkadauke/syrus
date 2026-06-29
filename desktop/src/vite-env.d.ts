@@ -49,6 +49,12 @@ type SyrusCheckoutRequest = {
   branchName: string
 }
 
+type SyrusLocalStatus = {
+  job_id: number
+  branch: string
+  behind: number
+}
+
 type SyrusCreateJobRequest = {
   repositoryId: number
   prompt: string
@@ -146,6 +152,7 @@ interface Window {
     syrusCliStatus: () => Promise<{ available: boolean }>
     checkoutAvailability: (repoSlug: string) => Promise<SyrusCheckoutAvailability>
     checkoutJob: (request: SyrusCheckoutRequest) => Promise<{ branchName: string }>
+    localStatus: () => Promise<SyrusLocalStatus | null>
     showPreferences: () => Promise<void>
     copyText: (text: string) => Promise<void>
     fetchBootstrap: () => Promise<SyrusBootstrapPayload>

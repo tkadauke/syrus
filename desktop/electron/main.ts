@@ -133,6 +133,12 @@ type CheckoutRequest = {
   branchName: string
 }
 
+type LocalStatus = {
+  job_id: number
+  branch: string
+  behind: number
+}
+
 type BootstrapPayload = {
   current_user: {
     admin: boolean
@@ -949,6 +955,7 @@ const checkoutJob = async ({ jobRef, repoSlug, branchName }: CheckoutRequest) =>
 
   try {
     await execFileAsync("syrus", ["checkout", jobRef], { cwd: localPath })
+    setLastUsedRepo(repoSlug)
     return { branchName }
   } catch (error) {
     const processError = error as NodeJS.ErrnoException & { stderr?: string; stdout?: string }
@@ -956,6 +963,73 @@ const checkoutJob = async ({ jobRef, repoSlug, branchName }: CheckoutRequest) =>
     const stdout = processError.stdout?.trim()
     throw new Error(stderr || stdout || processError.message || "Local checkout failed.")
   }
+}
+
+const localStatusCandidatePaths = () => {
+  const settings = getDesktopSettings()
+  const candidates: string[] = []
+  const lastUsedRepo = settings.lastUsedRepo.trim()
+  const lastUsedRepoPath = lastUsedRepo ? resolveLocalPath(lastUsedRepo) : null
+
+  if (lastUsedRepoPath) {
+    candidates.push(lastUsedRepoPath)
+  }
+
+  for (const localRepoPath of Object.values(settings.localRepoPaths)) {
+    const normalizedPath = localRepoPath.trim()
+    if (normalizedPath) {
+      candidates.push(normalizedPath)
+    }
+  }
+
+  if (settings.localProjectsRoot.trim()) {
+    candidates.push(settings.localProjectsRoot.trim())
+  }
+
+  return Array.from(new Set(candidates))
+}
+
+const parseLocalStatus = (output: string): LocalStatus | null => {
+  const payload = JSON.parse(output) as Partial<LocalStatus>
+
+  if (
+    typeof payload.job_id !== "number" ||
+    typeof payload.branch !== "string" ||
+    typeof payload.behind !== "number"
+  ) {
+    return null
+  }
+
+  return {
+    job_id: payload.job_id,
+    branch: payload.branch,
+    behind: payload.behind
+  }
+}
+
+const localStatus = async (): Promise<LocalStatus | null> => {
+  if (!(await syrusCliAvailable())) {
+    return null
+  }
+
+  for (const localPath of localStatusCandidatePaths()) {
+    try {
+      const stats = await fs.stat(localPath)
+      if (!stats.isDirectory()) {
+        continue
+      }
+
+      const { stdout } = await execFileAsync("syrus", ["status", "--json"], { cwd: localPath })
+      const status = parseLocalStatus(stdout)
+      if (status) {
+        return status
+      }
+    } catch {
+      // Try the next configured checkout path; the tray should fail silently.
+    }
+  }
+
+  return null
 }
 
 const fetchAdminControls = async () => {
@@ -1371,6 +1445,7 @@ ipcMain.handle("choose-local-projects-root", async () => {
 ipcMain.handle("syrus-cli-status", async () => ({ available: await syrusCliAvailable() }))
 ipcMain.handle("checkout-availability", async (_event, repoSlug: string) => checkoutAvailability(repoSlug))
 ipcMain.handle("checkout-job", async (_event, request: CheckoutRequest) => checkoutJob(request))
+ipcMain.handle("syrus:local-status", async () => localStatus())
 ipcMain.handle("show-preferences", async () => {
   await showPreferencesWindow()
 })

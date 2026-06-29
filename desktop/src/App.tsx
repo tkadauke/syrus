@@ -1,5 +1,5 @@
 import "./styles.css"
-import { FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, useEffect, useRef, useState } from "react"
+import { FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RepoPicker } from "./RepoPicker"
 import syrusIconUrl from "../assets/syrusIcon.png"
@@ -341,6 +341,16 @@ function BellIcon() {
   )
 }
 
+function WarningIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
+      <path d="M12 8v5" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+      <path d="M12 17h.01" stroke="currentColor" strokeLinecap="round" strokeWidth="2.5" />
+      <path d="M10.4 4.4 2.9 17.2A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.8L13.7 4.4a1.9 1.9 0 0 0-3.3 0Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
 function NotificationBadge({ children }: { children: string }) {
   return <span className="notification-badge">{children}</span>
 }
@@ -462,6 +472,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const queryClient = useQueryClient()
   const [navigation, setNavigation] = useState<PopoverNavigationState>({ view: "inbox" })
   const [checkoutStatusByRepo, setCheckoutStatusByRepo] = useState<CheckoutStatusByRepo>({})
+  const [localStatus, setLocalStatus] = useState<SyrusLocalStatus | null>(null)
   const [pendingApprovals, setPendingApprovals] = useState<Set<number>>(() => new Set())
   const [toast, setToast] = useState<ToastState | null>(null)
   const [isComposeOpen, setIsComposeOpen] = useState(false)
@@ -543,6 +554,14 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
     showToast({ kind: "error", message })
   }
 
+  const refreshLocalStatus = useCallback(async () => {
+    try {
+      setLocalStatus(await window.syrusDesktop.localStatus())
+    } catch {
+      setLocalStatus(null)
+    }
+  }, [])
+
   useEffect(() => {
     if (!toast) {
       clearToastTimer()
@@ -556,6 +575,17 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
     return clearToastTimer
   }, [toast])
+
+  useEffect(() => {
+    void refreshLocalStatus()
+
+    const refreshOnFocus = () => {
+      void refreshLocalStatus()
+    }
+
+    window.addEventListener("focus", refreshOnFocus)
+    return () => window.removeEventListener("focus", refreshOnFocus)
+  }, [refreshLocalStatus])
 
   useEffect(() => {
     try {
@@ -732,6 +762,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         repoSlug: job.repository_slug,
         branchName: job.branch_name
       })
+      await refreshLocalStatus()
       showToast({ kind: "success", message: `Checked out ${result.branchName}` }, 4000)
       setNavigation({ view: "job-detail", jobId: job.id })
     } catch (checkoutError) {
@@ -878,6 +909,11 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   }
 
   const cliMissing = cliStatusQuery.data?.available === false
+  const checkedOutJobId = localStatus && localStatus.job_id > 0 ? localStatus.job_id : null
+  const checkedOutJob = checkedOutJobId ? jobs.find((job) => job.id === checkedOutJobId) : undefined
+  const checkedOutJobVisible = Boolean(
+    checkedOutJob && !collapsedRepositorySlugs.has(checkedOutJob.repository_slug)
+  )
 
   return (
     <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
@@ -1088,60 +1124,66 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         ) : jobs.length === 0 ? (
           <StatusPanel title="Nothing in your inbox" detail="Implemented and failed jobs will appear here." />
         ) : (
-          <ul className="job-list">
-            {groupJobsByRepository(jobs).map((group) => {
-              const isCollapsed = collapsedRepositorySlugs.has(group.repositorySlug)
-              const jobsId = `repo-group-${group.repositorySlug.replace(/[^a-zA-Z0-9_-]/g, "-")}`
+          <>
+            {localStatus && checkedOutJobId && !checkedOutJobVisible ? (
+              <LocalCheckoutStatusLine status={localStatus} />
+            ) : null}
+            <ul className="job-list">
+              {groupJobsByRepository(jobs).map((group) => {
+                const isCollapsed = collapsedRepositorySlugs.has(group.repositorySlug)
+                const jobsId = `repo-group-${group.repositorySlug.replace(/[^a-zA-Z0-9_-]/g, "-")}`
 
-              return (
-                <li className="job-group" key={group.repositorySlug}>
-                  <div className="job-group__header">
-                    <button
-                      type="button"
-                      className="job-group__toggle"
-                      aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${group.repositorySlug}`}
-                      aria-expanded={!isCollapsed}
-                      aria-controls={jobsId}
-                      onClick={() => toggleRepositoryGroup(group.repositorySlug)}
-                    >
-                      <DisclosureIcon collapsed={isCollapsed} />
-                    </button>
-                    <button
-                      type="button"
-                      className="job-group__repository"
-                      disabled={!group.repositoryId}
-                      title={group.repositoryId ? `Open ${group.repositorySlug} in Syrus` : "Repository page unavailable"}
-                      onClick={() => openRepository(group.repositoryId)}
-                    >
-                      {group.repositorySlug}
-                    </button>
-                    <span className="job-group__count">{group.jobs.length}</span>
-                  </div>
-                  {isCollapsed ? null : (
-                    <ul className="job-group__jobs" id={jobsId}>
-                      {group.jobs.map((job) => (
-                        <JobRow
-                          key={`${job.state}-${job.id}`}
-                          job={job}
-                          checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
-                          cliAvailable={cliStatusQuery.data?.available ?? false}
-                          retrying={retryingJobID === job.id}
-                          onOpenDetail={() => openJobDetail(job)}
-                          onOpenJob={() => openJob(job)}
-                          onOpenPullRequest={() => openPullRequest(job)}
-                          onCheckout={() => void checkoutJob(job)}
-                          onApprove={() => void approveJob(job)}
-                          onRetry={() => void retryJob(job)}
-                          approving={pendingApprovals.has(job.id)}
-                          optimisticState={pendingApprovals.has(job.id) ? "approved" : undefined}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+                return (
+                  <li className="job-group" key={group.repositorySlug}>
+                    <div className="job-group__header">
+                      <button
+                        type="button"
+                        className="job-group__toggle"
+                        aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${group.repositorySlug}`}
+                        aria-expanded={!isCollapsed}
+                        aria-controls={jobsId}
+                        onClick={() => toggleRepositoryGroup(group.repositorySlug)}
+                      >
+                        <DisclosureIcon collapsed={isCollapsed} />
+                      </button>
+                      <button
+                        type="button"
+                        className="job-group__repository"
+                        disabled={!group.repositoryId}
+                        title={group.repositoryId ? `Open ${group.repositorySlug} in Syrus` : "Repository page unavailable"}
+                        onClick={() => openRepository(group.repositoryId)}
+                      >
+                        {group.repositorySlug}
+                      </button>
+                      <span className="job-group__count">{group.jobs.length}</span>
+                    </div>
+                    {isCollapsed ? null : (
+                      <ul className="job-group__jobs" id={jobsId}>
+                        {group.jobs.map((job) => (
+                          <JobRow
+                            key={`${job.state}-${job.id}`}
+                            job={job}
+                            checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
+                            localStatus={localStatus?.job_id === job.id ? localStatus : undefined}
+                            cliAvailable={cliStatusQuery.data?.available ?? false}
+                            retrying={retryingJobID === job.id}
+                            onOpenDetail={() => openJobDetail(job)}
+                            onOpenJob={() => openJob(job)}
+                            onOpenPullRequest={() => openPullRequest(job)}
+                            onCheckout={() => void checkoutJob(job)}
+                            onApprove={() => void approveJob(job)}
+                            onRetry={() => void retryJob(job)}
+                            approving={pendingApprovals.has(job.id)}
+                            optimisticState={pendingApprovals.has(job.id) ? "approved" : undefined}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </>
         )}
       </section>
 
@@ -1693,9 +1735,40 @@ function StatusPanel({
   )
 }
 
+const localStatusWarningTitle = (status: SyrusLocalStatus) =>
+  `Branch is ${status.behind} commit(s) behind remote. Run syrus checkout JOB-${status.job_id} to update.`
+
+function LocalCheckoutStatusLine({ status }: { status: SyrusLocalStatus }) {
+  return (
+    <div className="local-checkout-status">
+      <span>Checked out: JOB-{status.job_id} ({status.branch})</span>
+      {status.behind > 0 ? (
+        <span className="local-checkout-status__warning" title={localStatusWarningTitle(status)}>
+          <WarningIcon className="h-3.5 w-3.5" />
+          <span>{status.behind} behind</span>
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function LocalCheckoutBadge({ status }: { status: SyrusLocalStatus }) {
+  return (
+    <>
+      <span className="local-checkout-badge">local</span>
+      {status.behind > 0 ? (
+        <span className="local-checkout-warning" title={localStatusWarningTitle(status)} aria-label={localStatusWarningTitle(status)}>
+          <WarningIcon className="h-3.5 w-3.5" />
+        </span>
+      ) : null}
+    </>
+  )
+}
+
 function JobRow({
   job,
   checkoutStatus,
+  localStatus,
   cliAvailable,
   retrying,
   onOpenDetail,
@@ -1709,6 +1782,7 @@ function JobRow({
 }: {
   job: SyrusJobItem
   checkoutStatus?: SyrusCheckoutAvailability
+  localStatus?: SyrusLocalStatus
   cliAvailable: boolean
   retrying: boolean
   onOpenDetail: () => void
@@ -1804,7 +1878,7 @@ function JobRow({
 
   return (
     <li
-      className="job-row"
+      className={["job-row", localStatus ? "job-row--local" : ""].filter(Boolean).join(" ")}
       onClick={(event) => {
         if ((event.target as HTMLElement).closest("button")) {
           return
@@ -1847,6 +1921,7 @@ function JobRow({
             </button>
           ) : null}
           <StatusPill state={displayState} className="job-row__state" />
+          {localStatus ? <LocalCheckoutBadge status={localStatus} /> : null}
         </span>
       </div>
 

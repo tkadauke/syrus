@@ -88,6 +88,12 @@ type CheckoutRequest = {
   branchName: string
 }
 
+type LocalStatus = {
+  job_id: number
+  branch: string
+  behind: number
+}
+
 type BootstrapPayload = {
   current_user: {
     admin: boolean
@@ -150,6 +156,7 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
     ipcRenderer.invoke("checkout-availability", repoSlug) as Promise<CheckoutAvailability>,
   checkoutJob: (request: CheckoutRequest) =>
     ipcRenderer.invoke("checkout-job", request) as Promise<{ branchName: string }>,
+  localStatus: () => ipcRenderer.invoke("syrus:local-status") as Promise<LocalStatus | null>,
   showPreferences: () => ipcRenderer.invoke("show-preferences") as Promise<void>,
   copyText: (text: string) => ipcRenderer.invoke("copy-text", text) as Promise<void>,
   fetchBootstrap: () => ipcRenderer.invoke("fetch-bootstrap") as Promise<BootstrapPayload>,
