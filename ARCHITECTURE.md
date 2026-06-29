@@ -975,6 +975,10 @@ Several layers, each catching different failure modes:
 - **`/chats`** — repository-scoped chat sessions, proposal review,
   attached repository/document context, bookmarks, whiteboard state, MCP
   health, and queued follow-up messages.
+- **`/terminal`** — labs terminal surface, gated by the `terminal`
+  feature flag. Sessions can attach to a recent Workflow workspace or a
+  scratch directory and are backed by worker-side PTYs, not browser-side
+  shells.
 - **`/notifications`** and **`/notifications/settings`** — app
   notification inbox and per-kind preferences. The API returns unread
   counts, Job ids/titles, PR URLs, and read state; web and desktop
@@ -1097,6 +1101,18 @@ consumes the app Job payload's
 link back to repository pages; checkout actions delegate to the `syrus`
 CLI so the desktop app does not reimplement branch-management semantics.
 
+Terminal sessions are owned by `User`, optionally linked to a
+`Workflow`, and run on the `chat` queue through `TerminalSessionJob`.
+The app API creates a `TerminalSession` with an auth token and a working
+directory; the worker starts `TerminalRelay`, publishes
+`relay_address`, and spawns `bash` in a PTY. The browser connects
+directly to that relay socket, sends the token as the first frame, and
+then exchanges JSON control frames for input/resize plus raw PTY output.
+Disconnects close only the client socket while the PTY stays alive for a
+short reconnect window; killing the session marks `finished_at`, the
+relay polls that state, terminates the child process, and finalizes the
+session outcome.
+
 ## Deployment topology
 
 - Single-host Docker Compose is the low-friction distribution path for
@@ -1124,6 +1140,12 @@ CLI so the desktop app does not reimplement branch-management semantics.
   `/home/rails/.syrus`) on worker pods, holding active Workflow
   workspaces at `workflows/<workflow_id>/` and provider homes under the
   agent workspace area. Web pods don't need this volume.
+- Terminal relay sockets are advertised from worker-side sessions.
+  Bare-metal/local development can leave `SYRUS_TERMINAL_HOST` unset and
+  the relay uses `127.0.0.1`; Docker Compose points it at the worker
+  service name; Kubernetes workers should advertise their pod IP so the
+  web/browser path can connect to the per-session relay address. The
+  relay is not routed through public ingress.
 - Every web and worker process registers an `InstanceVersion` row on
   boot when `SYRUS_ROLE` is set, heartbeats every 30s, and is finalized
   on graceful exit or by `ReapStaleInstanceVersionsJob`. The admin
