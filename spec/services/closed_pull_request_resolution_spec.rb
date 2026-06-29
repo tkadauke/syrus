@@ -61,9 +61,35 @@ RSpec.describe BranchPatchPresence do
     expect(described_class.no_unique_commits?(job: job, pr: pr, client: client, git: git)).to be(false)
   end
 
+  it "returns false without cloning when the job has no branch name" do
+    allow(git).to receive(:run)
+    job.update_columns(branch_name: nil)
+
+    expect(described_class.no_unique_commits?(job: job, pr: pr, client: client, git: git)).to be(false)
+    expect(git).not_to have_received(:run)
+  end
+
   it "returns false when the git check fails" do
     allow(git).to receive(:run).and_raise(GitRunner::GitError.new(%w[cherry], 1, "boom"))
 
     expect(described_class.no_unique_commits?(job: job, pr: pr, client: client, git: git)).to be(false)
+  end
+
+  it "removes the temporary clone when a later git command fails" do
+    job_id = job.id
+    allow(SecureRandom).to receive(:hex).with(8).and_return("fixed")
+    clone_path = WorkflowWorkspace.data_root.join("closed-pr-checks", "#{job_id}-fixed")
+
+    allow(git).to receive(:run) do |*args|
+      if args.first == "clone"
+        FileUtils.mkdir_p(clone_path)
+        ""
+      else
+        raise GitRunner::GitError.new(args, 1, "fetch failed")
+      end
+    end
+
+    expect(described_class.no_unique_commits?(job: job, pr: pr, client: client, git: git)).to be(false)
+    expect(clone_path).not_to exist
   end
 end
