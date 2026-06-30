@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FitAddon } from "@xterm/addon-fit"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import { Terminal } from "xterm"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
@@ -166,6 +166,7 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
   const queryClient = useQueryClient()
   const [connected, setConnected] = useState(true)
   const [ended, setEnded] = useState(false)
+  const [paneReady, setPaneReady] = useState(false)
   const elapsed = useElapsedTime(session.started_at)
   const killMutation = useMutation({
     mutationFn: () => killTerminalSession(session.id),
@@ -180,8 +181,38 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     }
   })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!containerRef.current) return
+
+    const element = containerRef.current
+    let measureFrame: number | null = null
+    const markReady = (width: number, height: number) => {
+      if (width > 0 && height > 0) setPaneReady(true)
+    }
+    const measure = () => {
+      const rect = element.getBoundingClientRect()
+      markReady(rect.width, rect.height)
+    }
+
+    measureFrame = window.requestAnimationFrame(measure)
+    window.addEventListener("resize", measure)
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver((entries) => {
+            for (const entry of entries) markReady(entry.contentRect.width, entry.contentRect.height)
+          })
+    resizeObserver?.observe(element)
+
+    return () => {
+      if (measureFrame !== null) window.cancelAnimationFrame(measureFrame)
+      window.removeEventListener("resize", measure)
+      resizeObserver?.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!containerRef.current || !paneReady) return
 
     const terminal = new Terminal({
       convertEol: true,
@@ -200,26 +231,7 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
 
     const snapshot = terminalSnapshots.get(session.id)
     if (snapshot) terminal.write(snapshot)
-
-    let fitFrame: number | null = null
-    let fitAttempts = 0
-    const scheduleFit = () => {
-      if (fitFrame !== null) return
-
-      fitFrame = window.requestAnimationFrame(() => {
-        fitFrame = null
-
-        const rect = containerRef.current?.getBoundingClientRect()
-        if (rect && rect.width > 0 && rect.height > 0) {
-          fitAttempts = 0
-          fitAddon.fit()
-        } else if (fitAttempts < 10) {
-          fitAttempts += 1
-          scheduleFit()
-        }
-      })
-    }
-    scheduleFit()
+    fitAddon.fit()
 
     const subscription: Subscription = createConsumer().subscriptions.create(
       { channel: "TerminalChannel", session_id: session.id },
@@ -246,21 +258,20 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
         ? null
         : new ResizeObserver((entries) => {
             for (const entry of entries) {
-              if (entry.contentRect.width > 0 && entry.contentRect.height > 0) scheduleFit()
+              if (entry.contentRect.width > 0 && entry.contentRect.height > 0) fitAddon.fit()
             }
           })
     resizeObserver?.observe(containerRef.current)
 
     return () => {
       terminalSnapshots.set(session.id, serializeAddon.serialize())
-      if (fitFrame !== null) window.cancelAnimationFrame(fitFrame)
       resizeObserver?.disconnect()
       inputDisposable.dispose()
       resizeDisposable.dispose()
       subscription.unsubscribe()
       terminal.dispose()
     }
-  }, [session.id])
+  }, [paneReady, session.id])
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">

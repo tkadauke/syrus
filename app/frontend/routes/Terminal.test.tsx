@@ -90,7 +90,21 @@ vi.mock("@xterm/addon-serialize", () => ({
 }))
 
 describe("TerminalRoute", () => {
+  let rectSpy: ReturnType<typeof vi.spyOn> | undefined
+
   beforeEach(() => {
+    rectSpy?.mockRestore()
+    rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 400,
+      height: 400,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
     actionCable.createSubscription.mockClear()
     xtermMock.terminalConstructor.mockClear()
     xtermMock.open.mockClear()
@@ -186,10 +200,12 @@ describe("TerminalRoute", () => {
       </MemoryRouter>
     )
 
-    expect(actionCable.createSubscription).toHaveBeenCalledWith(
-      { channel: "TerminalChannel", session_id: 4 },
-      expect.objectContaining({ received: expect.any(Function) })
-    )
+    await waitFor(() => {
+      expect(actionCable.createSubscription).toHaveBeenCalledWith(
+        { channel: "TerminalChannel", session_id: 4 },
+        expect.objectContaining({ received: expect.any(Function) })
+      )
+    })
     const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { received(data: { type: string; data?: string }): void }])[1]
     mixin.received({ type: "output", data: btoa("hello") })
     expect(xtermMock.write).toHaveBeenCalledWith(Uint8Array.from([104, 101, 108, 108, 111]))
@@ -207,8 +223,29 @@ describe("TerminalRoute", () => {
     expect(screen.getByText("○ disconnected")).toBeInTheDocument()
   })
 
-  it("defers the initial terminal fit until the pane has measurable dimensions", async () => {
-    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+  it("opens and fits TerminalPane only after the pane has measurable dimensions", async () => {
+    rectSpy?.mockReturnValue({
+      bottom: 0,
+      height: 0,
+      left: 0,
+      right: 0,
+      top: 0,
+      width: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
+
+    renderWithClient(
+      <MemoryRouter>
+        <TerminalPane session={terminalSession({ id: 6 })} />
+      </MemoryRouter>
+    )
+
+    expect(xtermMock.open).not.toHaveBeenCalled()
+    expect(xtermMock.fit).not.toHaveBeenCalled()
+
+    rectSpy?.mockReturnValue({
       bottom: 400,
       height: 400,
       left: 0,
@@ -220,21 +257,12 @@ describe("TerminalRoute", () => {
       toJSON: () => ({})
     })
 
-    try {
-      renderWithClient(
-        <MemoryRouter>
-          <TerminalPane session={terminalSession({ id: 6 })} />
-        </MemoryRouter>
-      )
-
-      expect(xtermMock.fit).not.toHaveBeenCalled()
-      await waitFor(() => expect(xtermMock.fit).toHaveBeenCalled())
-    } finally {
-      rectSpy.mockRestore()
-    }
+    window.dispatchEvent(new Event("resize"))
+    await waitFor(() => expect(xtermMock.open).toHaveBeenCalled())
+    expect(xtermMock.fit).toHaveBeenCalled()
   })
 
-  it("restores TerminalPane scrollback after remounting the same session", () => {
+  it("restores TerminalPane scrollback after remounting the same session", async () => {
     const subscription = { perform: vi.fn(), unsubscribe: vi.fn() }
     actionCable.createSubscription.mockReturnValue(subscription)
     xtermMock.serialize.mockReturnValue("hello from history")
@@ -244,6 +272,7 @@ describe("TerminalRoute", () => {
         <TerminalPane session={terminalSession({ id: 5 })} />
       </MemoryRouter>
     )
+    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalled())
     const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { received(data: { type: string; data?: string }): void }])[1]
 
     mixin.received({ type: "output", data: btoa("hello from history") })
@@ -255,8 +284,8 @@ describe("TerminalRoute", () => {
       </MemoryRouter>
     )
 
-    expect(xtermMock.serialize).toHaveBeenCalled()
-    expect(screen.getByText("hello from history")).toBeInTheDocument()
+    await waitFor(() => expect(xtermMock.serialize).toHaveBeenCalled())
+    expect(await screen.findByText("hello from history")).toBeInTheDocument()
   })
 
   it("renders the sidebar Terminal item and live badge when the feature is enabled", async () => {
