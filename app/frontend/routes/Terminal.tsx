@@ -214,6 +214,13 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
   useEffect(() => {
     if (!containerRef.current || !paneReady) return
 
+    console.log("[terminal] mount: containerRef size", {
+      clientWidth: containerRef.current.clientWidth,
+      clientHeight: containerRef.current.clientHeight,
+      offsetWidth: containerRef.current.offsetWidth,
+      offsetHeight: containerRef.current.offsetHeight
+    })
+
     const terminal = new Terminal({
       convertEol: true,
       theme: {
@@ -226,20 +233,34 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
     terminal.open(containerRef.current)
+    console.log("[terminal] after open: terminal size", { cols: terminal.cols, rows: terminal.rows })
+
     const serializeAddon = new SerializeAddon()
     terminal.loadAddon(serializeAddon)
 
     const snapshot = terminalSnapshots.get(session.id)
     if (snapshot) terminal.write(snapshot)
-    fitAddon.fit()
+
+    const doFit = () => {
+      console.log("[terminal] before fit: containerRef size", {
+        clientHeight: containerRef.current?.clientHeight,
+        clientWidth: containerRef.current?.clientWidth
+      })
+      fitAddon.fit()
+      console.log("[terminal] after fit: terminal size", { cols: terminal.cols, rows: terminal.rows })
+    }
+
+    doFit()
 
     const subscription: Subscription = createConsumer().subscriptions.create(
       { channel: "TerminalChannel", session_id: session.id },
       {
         connected() {
+          console.log("[terminal] connected: sending resize", { cols: terminal.cols, rows: terminal.rows })
           subscription.perform("receive", { type: "resize", cols: terminal.cols, rows: terminal.rows })
         },
         received(data: { type?: string; data?: string }) {
+          console.log("[terminal] received", data.type)
           if (data.type === "output" && data.data) {
             terminal.write(Uint8Array.from(atob(data.data), (character) => character.charCodeAt(0)))
           } else if (data.type === "disconnected") {
@@ -254,6 +275,7 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
       subscription.perform("receive", { type: "input", data })
     })
     const resizeDisposable = terminal.onResize(({ cols, rows }) => {
+      console.log("[terminal] onResize: sending resize to server", { cols, rows })
       subscription.perform("receive", { type: "resize", cols, rows })
     })
     const resizeObserver =
@@ -261,12 +283,17 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
         ? null
         : new ResizeObserver((entries) => {
             for (const entry of entries) {
-              if (entry.contentRect.width > 0 && entry.contentRect.height > 0) fitAddon.fit()
+              console.log("[terminal] ResizeObserver fired", {
+                contentRectHeight: entry.contentRect.height,
+                contentRectWidth: entry.contentRect.width
+              })
+              if (entry.contentRect.width > 0 && entry.contentRect.height > 0) doFit()
             }
           })
     resizeObserver?.observe(containerRef.current)
 
     return () => {
+      console.log("[terminal] cleanup")
       terminalSnapshots.set(session.id, serializeAddon.serialize())
       resizeObserver?.disconnect()
       inputDisposable.dispose()
