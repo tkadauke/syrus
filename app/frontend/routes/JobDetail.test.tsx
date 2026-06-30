@@ -64,6 +64,56 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("button", { name: "Give feedback" })).not.toBeInTheDocument()
   })
 
+  it("renders dependency blockers as linked Job slugs", () => {
+    const parsedDependency = {
+      id: 12,
+      source: "parsed",
+      manual: false,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_job: {
+        id: 1101,
+        kind: "issue",
+        state: "queued",
+        summary_state: "queued",
+        repository_slug: "tkadauke/syrus",
+        issue_number: 1101,
+        issue_title: "First dependency",
+        branch_name: null,
+        pr_number: null,
+        job_path: "/jobs/1101"
+      }
+    }
+    const manualDependency = {
+      id: 13,
+      source: "manual",
+      manual: true,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_job: {
+        ...parsedDependency.depends_on_job,
+        id: 1108,
+        summary_state: "queued",
+        issue_number: null,
+        issue_title: "Direct dependency",
+        job_path: "/jobs/1108"
+      }
+    }
+
+    renderJobDetail(jobPayload({
+      dependencies: [ parsedDependency, manualDependency ],
+      unsatisfied_dependencies: [ parsedDependency, manualDependency ]
+    }))
+
+    expect(screen.getByText("Waiting on 2 dependencies.")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus JOB-1101 (queued)" })).toHaveLength(2)
+    expect(screen.queryByText("tkadauke/syrus #1101 (queued)")).not.toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus JOB-1101 (queued)" })[0])
+      .toHaveAttribute("href", "/app-shell/jobs/1101")
+  })
+
   it("expands the feedback panel and disables Submit when the body is empty", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "implemented", summary_state: "implemented" }

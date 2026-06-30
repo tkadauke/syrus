@@ -9182,7 +9182,7 @@ describe("App", () => {
     expect(screen.getByText("Moved the uphill water simulation.")).toBeInTheDocument()
     expect(screen.getByText(/In landing queue: position #1/)).toHaveTextContent("waiting for epic siblings to be approved")
     expect(screen.getByRole("link", { name: "#43 Approve sibling aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/43")
-    expect(screen.getByRole("link", { name: "acme/widgets #84 (closed)" })).toHaveAttribute("href", "/app-shell/jobs/44")
+    expect(screen.getByRole("link", { name: "acme/widgets JOB-44 (closed)" })).toHaveAttribute("href", "/app-shell/jobs/44")
     expect(screen.queryByRole("button", { name: "Show timeline" })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText("Add tag")).toBeInTheDocument()
     expect(screen.getByText("Unclaimed")).toBeInTheDocument()
@@ -9854,7 +9854,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const dependencyLinks = await screen.findAllByRole("link", { name: "acme/widgets #11 (open)" })
+    const dependencyLinks = await screen.findAllByRole("link", { name: "acme/widgets JOB-41 (open)" })
     expect(dependencyLinks).toHaveLength(2)
     dependencyLinks.forEach((link) => {
       expect(link).toHaveAttribute("href", "/app-shell/jobs/41")

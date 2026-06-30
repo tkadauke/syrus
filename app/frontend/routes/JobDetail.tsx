@@ -2088,8 +2088,7 @@ function dependencyLabel(dependency: JobDependency) {
   if (dependency.pending) return dependency.unresolved_slug || "Unresolved dependency"
   const target = dependency.depends_on_job
   if (!target) return dependency.unresolved_slug || "Missing dependency"
-  const issue = target.issue_number ? `#${target.issue_number}` : jobSlug(target.id)
-  return `${target.repository_slug} ${issue} (${target.summary_state})`
+  return `${target.repository_slug} ${jobSlug(target.id)} (${target.summary_state})`
 }
 
 function DependencyLink({ dependency, prefix }: { dependency: JobDependency; prefix: string }) {
@@ -2120,6 +2119,7 @@ function formatBytes(value: number) {
 }
 
 function plural(count: number, singular: string) {
+  if (count !== 1 && singular.endsWith("y")) return `${singular.slice(0, -1)}ies`
   return count === 1 ? singular : `${singular}s`
 }
 
