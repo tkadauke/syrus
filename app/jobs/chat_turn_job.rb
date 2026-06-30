@@ -129,7 +129,10 @@ class ChatTurnJob < ApplicationJob
 
   def prompt_for(parent_session_id, user_text:)
     snapshot = AgentEnvironmentSnapshot.for_chat(repository: @chat.repository, chat_session: @chat)
-    return [ snapshot, user_text ].join("\n\n---\n\n") if parent_session_id.present?
+    if parent_session_id.present?
+      elaboration_guidance = Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).elaboration_guidance
+      return [ snapshot, elaboration_guidance.presence, user_text ].compact.join("\n\n---\n\n")
+    end
 
     [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, user_text ].join("\n\n")
   end

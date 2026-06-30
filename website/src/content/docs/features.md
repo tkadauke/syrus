@@ -75,6 +75,12 @@ Epic proposals can reference each other by proposal slug, so operators can
 review the full plan first; Syrus wires the real Epic dependency once both
 proposal cards are confirmed.
 
+When a developer opens chat on a backlog Epic with no child Jobs, Syrus treats
+it as product-owner-authored planning input. The chat agent surfaces the
+original description, helps elaborate technical decisions, updates the Epic
+description first so version history preserves that elaboration step, and then
+proposes child Jobs against the existing Epic.
+
 ## Schedules
 
 Scheduled tasks attach a recurring or one-shot prompt to a repository.

@@ -149,6 +149,46 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).to include("Use `read_epic` with id #{epic.id}")
   end
 
+  it "includes elaboration guidance on resumed turns after read_epic activation" do
+    epic = Factories.epic(
+      user: user,
+      repository: repository,
+      title: "PO backlog export",
+      description: "Customers need CSV exports.",
+      state: "backlog"
+    )
+    chat.messages.create!(role: "user", content: { "text" => "Inspect the Epic." })
+    chat.messages.create!(
+      role: "tool_result",
+      tool_name: "read_epic",
+      content: {
+        "result" => [
+          {
+            "type" => "text",
+            "text" => JSON.generate("epic" => { "id" => epic.id, "state" => "backlog" }, "child_jobs" => [])
+          }
+        ]
+      }
+    )
+    chat.create_claude_session!(provider: "claude", session_id: "previous-session", transcript_jsonl: "{}\n")
+    next_message = chat.messages.create!(role: "user", content: { "text" => "What should we ask next?" })
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "previous-session", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, next_message.id)
+
+    expect(received[:resume_session_id]).to eq("previous-session")
+    expect(received[:prompt]).to include("Developer elaboration mode: active for #{epic.display_number}")
+    expect(received[:prompt]).to include("## Developer Epic Elaboration Mode")
+    expect(received[:prompt]).to include("Propose `update_epic` with a technically enriched description before proposing any Jobs")
+    expect(received[:prompt]).to include("referencing the existing Epic with `epic_id: #{epic.id}`")
+    expect(received[:prompt]).to include("What should we ask next?")
+  end
+
   it "writes image attachments into the chat workspace and describes them in the prompt" do
     payload = "png-bytes"
     image_message = chat.messages.create!(

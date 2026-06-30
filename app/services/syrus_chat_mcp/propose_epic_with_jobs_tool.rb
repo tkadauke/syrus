@@ -6,6 +6,8 @@ module SyrusChatMcp
 
     description <<~DESC
       Propose one Epic and its child Syrus Jobs as a single confirmation card.
+      If epic.epic_id is provided, the card proposes child Jobs under that
+      existing Epic instead of creating a new Epic.
       Job depends_on entries reference sibling job slugs in the same call or
       Job proposal slugs from other proposal cards in this chat session.
       Confirming the card creates the Epic, child Jobs, and sibling Job
@@ -25,6 +27,7 @@ module SyrusChatMcp
           type: "object",
           properties: {
             slug: { type: "string", description: "Stable epic proposal slug unique within this chat session." },
+            epic_id: { type: "integer", description: "Optional existing Epic id to receive the proposed child Jobs." },
             title: { type: "string", description: "Epic title." },
             description: { type: "string", description: "Epic description." },
             target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
@@ -32,7 +35,7 @@ module SyrusChatMcp
             depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Epic proposal slugs in this chat session that this Epic depends on." },
             depends_on: { type: "array", items: { type: "string" }, description: "Proposal slugs or string-encoded Epic ids, for example epic:42, this Epic depends on." }
           },
-          required: %w[slug title description]
+          required: %w[slug]
         },
         jobs: {
           type: "array",
@@ -46,7 +49,7 @@ module SyrusChatMcp
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job depends on." },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when the jobs are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." }
             },
-            required: %w[slug target_repo title description]
+            required: %w[slug title description]
           },
           description: "Child Jobs to create if the Epic proposal is confirmed."
         }
@@ -64,14 +67,24 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("jobs must include at least one child Job") if job_attrs.empty?
 
         normalized_epic = normalize_epic(epic_attrs)
-        normalized_jobs = job_attrs.map { |job| normalize_job(job) }
+        target_epic = target_epic_for(user, normalized_epic[:epic_id])
+        return SyrusChatMcp.invalid("unknown epic_id: #{normalized_epic[:epic_id]}") if normalized_epic[:epic_id] && !target_epic
+        return SyrusChatMcp.invalid("archived epics cannot receive child Job proposals") if target_epic&.archived?
+
+        normalized_epic[:title] = target_epic.title if target_epic && normalized_epic[:title].blank?
+        normalized_epic[:description] = target_epic.description.to_s if target_epic && normalized_epic[:description].blank?
+
+        epic_repository = target_epic&.repository || repository_for(user, chat_session, normalized_epic[:target_repo])
+        return SyrusChatMcp.invalid("unknown epic target_repo: #{normalized_epic[:target_repo]}") unless epic_repository
+        if target_epic && normalized_epic[:target_repo].present? && normalized_epic[:target_repo] != epic_repository.slug
+          return SyrusChatMcp.invalid("epic target_repo must match existing Epic repository")
+        end
+
+        normalized_jobs = job_attrs.map { |job| normalize_job(job, default_repo: epic_repository.slug) }
         validation_error = validate_payload(chat_session, user, normalized_epic, normalized_jobs)
         return SyrusChatMcp.invalid(validation_error) if validation_error
         dependency_error = validate_epic_dependencies(chat_session, user, normalized_epic[:depends_on])
         return SyrusChatMcp.invalid(dependency_error) if dependency_error
-
-        epic_repository = repository_for(user, chat_session, normalized_epic[:target_repo])
-        return SyrusChatMcp.invalid("unknown epic target_repo: #{normalized_epic[:target_repo]}") unless epic_repository
 
         job_repositories = {}
         normalized_jobs.each do |job|
@@ -84,7 +97,7 @@ module SyrusChatMcp
 
         proposal = nil
         ApplicationRecord.transaction do
-          proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic)
+          proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic, target_epic)
           replace_epic_dependency_edges(proposal, chat_session, normalized_epic[:depends_on])
           child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs)
           replace_dependency_edges(chat_session, child_by_slug, normalized_jobs)
@@ -109,6 +122,7 @@ module SyrusChatMcp
       def normalize_epic(epic)
         {
           slug: epic["slug"].to_s.strip,
+          epic_id: Integer(epic["epic_id"], exception: false),
           title: epic["title"].to_s.strip,
           description: epic["description"].to_s.strip,
           target_repo: epic["target_repo"].to_s.strip,
@@ -117,12 +131,12 @@ module SyrusChatMcp
         }
       end
 
-      def normalize_job(job)
+      def normalize_job(job, default_repo:)
         {
           slug: job["slug"].to_s.strip,
           title: job["title"].to_s.strip,
           description: job["description"].to_s.strip,
-          target_repo: job["target_repo"].to_s.strip,
+          target_repo: job["target_repo"].to_s.strip.presence || default_repo,
           depends_on_epic_ids: normalize_integer_list(job["depends_on_epic_ids"]),
           depends_on: normalize_string_list(job["depends_on"])
         }
@@ -223,10 +237,17 @@ module SyrusChatMcp
         user.repositories.active.find_by(owner: owner, name: name)
       end
 
-      def upsert_epic_proposal(chat_session, repository, epic)
+      def target_epic_for(user, epic_id)
+        return unless epic_id
+
+        user.epics.includes(:repository).find_by(id: epic_id)
+      end
+
+      def upsert_epic_proposal(chat_session, repository, epic, target_epic)
         proposal = chat_session.proposals.find_or_initialize_by(slug: epic[:slug])
         proposal.assign_attributes(
           repository: repository,
+          target_epic: target_epic,
           parent_proposal: nil,
           title: epic[:title],
           body: epic[:description],
@@ -296,6 +317,7 @@ module SyrusChatMcp
           slug: proposal.slug,
           state: proposal.state,
           kind: proposal.kind,
+          target_epic: SyrusChatMcp.target_epic_payload(proposal),
           depends_on: proposal.epic_dependency_tokens,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
           child_jobs: proposal.child_proposals.map do |child|

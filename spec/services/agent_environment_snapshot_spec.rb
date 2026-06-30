@@ -93,6 +93,49 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include(%(- EPIC-#{epic.id} "Rebuild the forum" confirmed with jobs: JOB-#{child_job.id} "Add arches" (proposal slug: forum)))
       expect(snapshot).to include(%(- JOB-#{child_job.id} "Add arches" confirmed (proposal slug: add-arches)))
     end
+
+    it "renders developer elaboration Epic context for backlog Epics with no Jobs" do
+      repo = repository(owner: "rome", name: "forums")
+      repo.user.update!(role: "developer")
+      epic = Factories.epic(
+        user: repo.user,
+        repository: repo,
+        title: "Plan forum restoration",
+        description: "Restore forum posting without choosing tables yet.",
+        state: "backlog"
+      )
+      chat = ChatSession.create!(user: repo.user, repository: repo)
+      chat.messages.create!(role: "user", content: { "text" => "Elaborate EPIC-#{epic.id}" })
+
+      snapshot = described_class.for_chat(repository: repo, chat_session: chat)
+
+      expect(snapshot).to include("Developer elaboration mode: active for #{epic.display_number}")
+      expect(snapshot).to include("Elaboration Epic title: Plan forum restoration")
+      expect(snapshot).to include("Elaboration Epic description: Restore forum posting")
+    end
+
+    it "activates elaboration from a read_epic result with no child Jobs" do
+      repo = repository(owner: "rome", name: "forums")
+      epic = Factories.epic(user: repo.user, repository: repo, title: "PO backlog", state: "backlog")
+      chat = ChatSession.create!(user: repo.user, repository: repo)
+      chat.messages.create!(role: "user", content: { "text" => "Read this Epic first." })
+      chat.messages.create!(
+        role: "tool_result",
+        tool_name: "read_epic",
+        content: {
+          "result" => [
+            {
+              "type" => "text",
+              "text" => JSON.generate("epic" => { "id" => epic.id, "state" => "backlog" }, "child_jobs" => [])
+            }
+          ]
+        }
+      )
+
+      snapshot = described_class.for_chat(repository: repo, chat_session: chat)
+
+      expect(snapshot).to include("Developer elaboration mode: active for #{epic.display_number}")
+    end
   end
 
   describe "#apply_to" do

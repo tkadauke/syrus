@@ -55,6 +55,8 @@ module Prompts
 
         #{environment_snapshot}
 
+        #{developer_elaboration_guidance}
+
         #{attached_context}
 
         #{documents_hint}
@@ -340,12 +342,39 @@ module Prompts
       PROMPT
     end
 
+    def elaboration_guidance
+      developer_elaboration_guidance
+    end
+
     private
 
     def onboarding_guidance
       return "" unless @chat_session&.onboarding?
 
       "\n" + Prompts::ChatOnboarding.new(repository: @repository).to_s
+    end
+
+    def developer_elaboration_guidance
+      epic = AgentEnvironmentSnapshot.chat_elaboration_epic(@chat_session)
+      return "" unless epic
+
+      <<~TEXT
+        ## Developer Epic Elaboration Mode
+
+        This Epic was written by a product owner. Your role is to elaborate it technically before adding Jobs.
+
+        Starting context:
+        - Epic: #{epic.display_number} (id #{epic.id})
+        - Title: #{epic.title}
+        - Product owner description: #{clip(epic.description.presence || "(blank)", 4.kilobytes)}
+
+        In this mode:
+        - Surface the product owner's Epic description explicitly as the starting context.
+        - Help the developer translate the vision into architecture decisions by asking clarifying questions about constraints, edge cases, data flows, ownership boundaries, rollout, and test strategy.
+        - Propose `update_epic` with a technically enriched description before proposing any Jobs, so Epic version history captures elaboration as a distinct step.
+        - After the Epic description has been updated, propose child Jobs with `propose_epic_with_jobs`, referencing the existing Epic with `epic_id: #{epic.id}` and using proper child Job dependencies.
+        - Remind the developer that the product owner's original description is preserved in Epic version history.
+      TEXT
     end
 
     def chat_scope

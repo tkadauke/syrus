@@ -52,6 +52,30 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "materializes child Jobs under an existing target Epic without creating a new Epic" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "PO-authored backlog", state: "backlog")
+    proposal = epic_proposal
+    proposal.update!(target_epic: target_epic, title: target_epic.title, body: "Technically elaborated.")
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Build first slice",
+      body: "Implement the first technical slice.",
+      repository: repository
+    )
+
+    expect {
+      @result = described_class.new(user: user).file!(proposal)
+    }.not_to change(Epic, :count)
+
+    result = @result
+    expect(result.epic).to eq(target_epic)
+    expect(proposal.reload).to be_confirmed
+    expect(proposal.epic).to eq(target_epic)
+    expect(result.jobs.sole.epic).to eq(target_epic)
+    expect(chat_session.reload.attached_epics).to contain_exactly(target_epic)
+  end
+
   it "does not duplicate attachments when confirmation is retried" do
     proposal = epic_proposal
     proposal.child_proposals.create!(

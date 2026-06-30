@@ -3,6 +3,7 @@ require "json"
 class AgentEnvironmentSnapshot
   MAX_SCRIPT_LINES = 8
   MAX_GRADER_LINES = 8
+  ELABORATION_EPIC_DESCRIPTION_BYTES = 4.kilobytes
 
   CHAT_TOOL_GROUPS = {
     "repository context" => %w[attach_repository repo_info read_repo_document list_repo_documents create_repo_document delete_repo_document read_repo_notes add_repo_note remove_repo_note],
@@ -17,6 +18,12 @@ class AgentEnvironmentSnapshot
 
   def self.for_chat(repository:, chat_session:)
     new(repository: repository, chat_session: chat_session).to_s
+  end
+
+  def self.chat_elaboration_epic(chat_session)
+    return unless chat_session&.user&.developer?
+
+    new(chat_session: chat_session).send(:chat_elaboration_epic)
   end
 
   def initialize(run: nil, workspace_path: nil, repository: nil, chat_session: nil)
@@ -79,6 +86,7 @@ class AgentEnvironmentSnapshot
     ]
 
     lines.concat(chat_repository_lines)
+    lines.concat(chat_elaboration_epic_lines)
     lines.concat(chat_tool_lines)
     lines.concat(recent_proposal_activity_lines)
     lines
@@ -221,6 +229,82 @@ class AgentEnvironmentSnapshot
       lines << "  - #{repo.slug} default=#{repo.default_branch} checkout=#{state}"
     end
     lines
+  end
+
+  def chat_elaboration_epic_lines
+    epic = chat_elaboration_epic
+    return [] unless epic
+
+    description = epic.description.to_s
+    clipped_description = if description.bytesize > ELABORATION_EPIC_DESCRIPTION_BYTES
+      "#{description.safe_byteslice(0, ELABORATION_EPIC_DESCRIPTION_BYTES)}..."
+    else
+      description.presence || "(blank)"
+    end
+
+    [
+      "- Developer elaboration mode: active for #{epic.display_number} (id=#{epic.id}, state=#{epic.state}, child_jobs=0).",
+      "- Elaboration Epic title: #{epic.title}",
+      "- Elaboration Epic description: #{clipped_description}"
+    ]
+  end
+
+  def chat_elaboration_epic
+    return @chat_elaboration_epic if defined?(@chat_elaboration_epic)
+
+    @chat_elaboration_epic = candidate_elaboration_epics.find do |epic|
+      epic.backlog? && !epic.jobs.exists?
+    end
+  end
+
+  def candidate_elaboration_epics
+    return [] unless chat_session
+
+    ids = first_user_message_epic_numbers + read_epic_result_ids
+    ids.uniq.filter_map { |value| find_user_epic(value) }
+  end
+
+  def first_user_message_epic_numbers
+    text = chat_session.messages.where(role: "user").order(:created_at, :id).first&.content&.fetch("text", nil).to_s
+    text.scan(/\bEPIC-(\d+)\b/i).flatten.map(&:to_i)
+  end
+
+  def read_epic_result_ids
+    chat_session.messages
+                .where(role: "tool_result", tool_name: "read_epic")
+                .order(:created_at, :id)
+                .filter_map { |message| read_epic_result_id(message.content) }
+  end
+
+  def read_epic_result_id(content)
+    payload = parse_tool_result_payload(content)
+    epic = payload["epic"]
+    return unless epic.is_a?(Hash)
+    return unless epic["state"] == "backlog"
+    return unless Array(payload["child_jobs"]).empty?
+
+    Integer(epic["id"], exception: false)
+  end
+
+  def parse_tool_result_payload(content)
+    result = content["result"]
+    text = if result.is_a?(Array)
+      result.filter_map { |item| item["text"] if item.is_a?(Hash) }.join
+    else
+      result.to_s
+    end
+    return {} if text.blank?
+
+    JSON.parse(text)
+  rescue JSON::ParserError
+    {}
+  end
+
+  def find_user_epic(value)
+    return unless value
+
+    chat_session.user.epics.includes(:repository).find_by(id: value) ||
+      chat_session.user.epics.includes(:repository).find_by(number: value)
   end
 
   def chat_tool_lines

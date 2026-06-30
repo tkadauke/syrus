@@ -172,6 +172,40 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Agent environment snapshot:")).to be < out.index("Attached context:")
   end
 
+  it "adds developer elaboration guidance for PO-authored backlog Epics without Jobs" do
+    repo.user.update!(role: "developer")
+    epic = Factories.epic(
+      user: repo.user,
+      repository: repo,
+      title: "Launch customer exports",
+      description: "Customers need exports for audit workflows.",
+      state: "backlog"
+    )
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    chat.messages.create!(role: "user", content: { "text" => "Please elaborate EPIC-#{epic.id}." })
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("## Developer Epic Elaboration Mode")
+    expect(out).to include("This Epic was written by a product owner. Your role is to elaborate it technically before adding Jobs.")
+    expect(out).to include("Product owner description: Customers need exports")
+    expect(out).to include("Propose `update_epic` with a technically enriched description before proposing any Jobs")
+    expect(out).to include("referencing the existing Epic with `epic_id: #{epic.id}`")
+    expect(out).to include("product owner's original description is preserved in Epic version history")
+    expect(out.index("Developer Epic Elaboration Mode")).to be < out.index("Attached context:")
+  end
+
+  it "does not add developer elaboration guidance for product owner chats" do
+    repo.user.update!(role: "product_owner")
+    epic = Factories.epic(user: repo.user, repository: repo, state: "backlog")
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    chat.messages.create!(role: "user", content: { "text" => "Please elaborate EPIC-#{epic.id}." })
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).not_to include("Developer Epic Elaboration Mode")
+  end
+
   it "includes recent proposal activity when proposals were resolved recently" do
     chat = ChatSession.create!(user: repo.user, repository: repo)
     epic = Factories.epic(user: repo.user, repository: repo, title: "Chat-driven job feedback loop")

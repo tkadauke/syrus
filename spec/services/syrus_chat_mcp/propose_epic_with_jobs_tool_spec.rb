@@ -70,6 +70,68 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "creates a grouped child Job proposal card for an existing Epic" do
+    target_epic = Factories.epic(
+      user: user,
+      repository: repository,
+      title: "PO-authored exports",
+      description: "Initial product framing.",
+      state: "backlog"
+    )
+
+    response = call_tool(
+      epic: {
+        slug: "exports-elaboration",
+        epic_id: target_epic.id
+      },
+      jobs: [
+        {
+          slug: "export-schema",
+          title: "Add export schema",
+          description: "Persist export requests."
+        },
+        {
+          slug: "export-ui",
+          title: "Add export UI",
+          description: "Let operators request exports.",
+          depends_on: [ "export-schema" ]
+        }
+      ]
+    )
+
+    proposal = chat_session.proposals.find_by!(slug: "exports-elaboration")
+    ui = chat_session.proposals.find_by!(slug: "export-ui")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(response_payload(response)).to include(target_epic: include(id: target_epic.id, label: target_epic.display_number))
+    expect(proposal).to have_attributes(
+      kind: "epic",
+      repository: repository,
+      target_epic: target_epic,
+      title: "PO-authored exports",
+      body: "Initial product framing."
+    )
+    expect(proposal.child_proposals.map(&:repository)).to all(eq(repository))
+    expect(ui.dependencies.pluck(:slug)).to eq([ "export-schema" ])
+  end
+
+  it "rejects existing Epics outside the chat user's scope" do
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user)
+    foreign_epic = Factories.epic(user: other_user, repository: other_repo)
+
+    response = call_tool(
+      epic: { slug: "foreign", epic_id: foreign_epic.id },
+      jobs: [
+        { slug: "child", target_repo: repository.slug, title: "Child", description: "Build it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("unknown epic_id")
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
   it "stores cross-card Job proposal dependencies on child Jobs" do
     prerequisite = chat_session.proposals.create!(
       repository: repository,

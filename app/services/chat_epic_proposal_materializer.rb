@@ -69,6 +69,8 @@ class ChatEpicProposalMaterializer
   end
 
   def create_epic_for(proposal)
+    return proposal.target_epic if proposal.target_epic
+
     repository = proposal.repository || proposal.chat_session.repository
     # Chat-authored Epics are fully-specified by Claude in one shot;
     # land them in :ready so the operator can promote to :in_progress
