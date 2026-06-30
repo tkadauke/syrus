@@ -30,6 +30,7 @@ class ScheduledTask < ApplicationRecord
   validates :cron_expression, presence: true, if: :cron?
   validates :fire_at,         presence: true, if: :one_shot?
   validate  :cron_expression_is_parseable_and_hourly, if: :cron?
+  validate  :cron_dom_and_month_are_valid,             if: :cron?
   validate  :fire_at_is_in_the_future_at_create,      if: -> { one_shot? && new_record? }
 
   before_validation :seed_minute_offset_for_cron, on: :create
@@ -211,12 +212,16 @@ class ScheduledTask < ApplicationRecord
   def cron_expression_is_parseable_and_hourly
     cron = Fugit.parse(cron_expression)
     if cron.nil? || !cron.is_a?(Fugit::Cron)
+      return if cron_dom_or_month_contains_invalid_position_value?
+
       errors.add(:cron_expression, "is not a valid cron expression")
       return
     end
 
     hourly_cron = Fugit.parse(hourly_cron_expression)
     if hourly_cron.nil? || !hourly_cron.is_a?(Fugit::Cron) || next_cron_time(hourly_cron).nil?
+      return if cron_dom_or_month_contains_invalid_position_value?
+
       errors.add(:cron_expression, "does not produce a future scheduled time")
       return
     end
@@ -227,6 +232,39 @@ class ScheduledTask < ApplicationRecord
     end
   rescue ArgumentError => e
     errors.add(:cron_expression, "is not parseable: #{e.message}")
+  end
+
+  def cron_dom_and_month_are_valid
+    return if cron_expression.blank?
+
+    fields = cron_expression.to_s.split(/\s+/)
+    return unless fields.length == 5
+
+    if cron_position_values(fields[2]).any? { |value| value < 1 }
+      errors.add(:cron_expression, "has an invalid day-of-month value (0 is not allowed; use 1–31 or *)")
+    end
+
+    if cron_position_values(fields[3]).any? { |value| value < 1 }
+      errors.add(:cron_expression, "has an invalid month value (0 is not allowed; use 1–12 or *)")
+    end
+  end
+
+  def cron_dom_or_month_contains_invalid_position_value?
+    fields = cron_expression.to_s.split(/\s+/)
+    return false unless fields.length == 5
+
+    [ fields[2], fields[3] ].any? do |field|
+      cron_position_values(field).any? { |value| value < 1 }
+    end
+  end
+
+  def cron_position_values(field)
+    field.to_s.split(",").flat_map do |element|
+      value = element.strip.split("/", 2).first
+      next [] if value.blank? || value == "*"
+
+      value.split("-", 2).filter_map { |part| Integer(part, exception: false) }
+    end
   end
 
   def min_consecutive_gap(cron, samples: 60, from: Time.utc(2026, 1, 1, 0, 0, 0))

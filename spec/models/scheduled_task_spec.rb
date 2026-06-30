@@ -86,10 +86,30 @@ RSpec.describe ScheduledTask do
       expect(task).not_to be_valid
     end
 
+    it "rejects zero in day-of-month and month fields" do
+      task = build_cron(cron_expression: "0 4 0 0 1")
+      expect(task).not_to be_valid
+      expect(task.errors[:cron_expression].join).to include("invalid day-of-month")
+    end
+
+    it "rejects zero in the month field" do
+      task = build_cron(cron_expression: "0 4 * 0 *")
+      expect(task).not_to be_valid
+      expect(task.errors[:cron_expression]).to eq([ "has an invalid month value (0 is not allowed; use 1–12 or *)" ])
+    end
+
+    it "rejects zero in day-of-month lists and ranges" do
+      [ "0 4 0,15 * *", "0 4 0-5 * *" ].each do |expression|
+        task = build_cron(cron_expression: expression)
+        expect(task).not_to be_valid
+        expect(task.errors[:cron_expression].join).to include("invalid day-of-month")
+      end
+    end
+
     it "rejects the parser-invalid cron produced by replacing the minute with 49" do
       task = build_cron(cron_expression: "49 4 0 0 1")
       expect(task).not_to be_valid
-      expect(task.errors[:cron_expression]).to include("is not a valid cron expression")
+      expect(task.errors[:cron_expression].join).to include("invalid day-of-month")
     end
 
     it "rejects a one_shot fire_at in the past" do

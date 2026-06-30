@@ -46,10 +46,30 @@ RSpec.describe CronTemplate do
       expect(build_template(cron_expression: "bogus")).not_to be_valid
     end
 
+    it "rejects zero in day-of-month and month fields" do
+      template = build_template(cron_expression: "0 4 0 0 1")
+      expect(template).not_to be_valid
+      expect(template.errors[:cron_expression].join).to include("invalid day-of-month")
+    end
+
+    it "rejects zero in the month field" do
+      template = build_template(cron_expression: "0 4 * 0 *")
+      expect(template).not_to be_valid
+      expect(template.errors[:cron_expression]).to eq([ "has an invalid month value (0 is not allowed; use 1–12 or *)" ])
+    end
+
+    it "rejects zero in day-of-month lists and ranges" do
+      [ "0 4 0,15 * *", "0 4 0-5 * *" ].each do |expression|
+        template = build_template(cron_expression: expression)
+        expect(template).not_to be_valid
+        expect(template.errors[:cron_expression].join).to include("invalid day-of-month")
+      end
+    end
+
     it "rejects the parser-invalid cron produced by replacing the minute with 49" do
       template = build_template(cron_expression: "49 4 0 0 1")
       expect(template).not_to be_valid
-      expect(template.errors[:cron_expression]).to include("is not a valid cron expression")
+      expect(template.errors[:cron_expression].join).to include("invalid day-of-month")
     end
 
     it "accepts all valid pileup policies" do

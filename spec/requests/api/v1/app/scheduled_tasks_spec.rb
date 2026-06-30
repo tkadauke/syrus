@@ -188,7 +188,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    expect(parse_body.dig("error", "message")).to include("valid cron expression")
+    expect(parse_body.dig("error", "message")).to include("invalid day-of-month")
   end
 
   it "updates a task" do
