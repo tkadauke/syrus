@@ -197,6 +197,11 @@ satisfied once the upstream Job is `approved` or `landing`; other Job
 dependencies require the normal successful closure states, and direct
 Epic dependencies require the upstream Epic to be `done`.
 
+Once resolved, the app treats the Syrus Job as the canonical dependency
+target. Job detail banners and dependency panels link to the target
+Syrus thread with a `JOB-<id>` slug; original GitHub issue numbers stay
+as source/audit context, not as the primary dependency identifier.
+
 `EpicDependency` models Epic-level gates. It can point at another Epic
 or at a Job, prevents cycles, and refreshes the dependent Epic's
 auto-state after commits. Job-to-Job dependencies that cross Epic
