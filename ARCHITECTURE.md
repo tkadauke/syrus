@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-29._
+_Last reviewed: 2026-06-30._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -294,12 +294,18 @@ an explicitly configured provider. `agent_max_turns` is the per-user
 ceiling on Claude `--max-turns`; `0` means "no `--max-turns` flag" —
 the per-Run wall-clock timeout still applies. `theme` is a per-user UI
 preference (`light` or `dark`) returned in the bootstrap payload and
-updated through `PATCH /api/v1/app/theme`. `dashboard_preferences`
-stores subject-level view/sort/column/lane choices plus `folder_prefs`
-slots keyed by active smart folder id, so operators can keep different
-layouts and sort orders for Inbox, Landing Queue, All Epics, and custom
-folders. The first user to sign up is auto-promoted to admin (bootstrap
-convenience, not a core architectural concern).
+updated through `PATCH /api/v1/app/theme`. `notification_preferences`
+stores per-kind app notification toggles plus desktop-native toggles for
+implemented/failed Job state alerts. Preferences are returned in
+bootstrap/current-user payloads, updated through
+`/api/v1/app/notification_preferences`, and the older credentials
+payload still accepts desktop toggles for desktop settings
+compatibility. `dashboard_preferences` stores subject-level
+view/sort/column/lane choices plus `folder_prefs` slots keyed by active
+smart folder id, so operators can keep different layouts and sort orders
+for Inbox, Landing Queue, All Epics, and custom folders. The first user
+to sign up is auto-promoted to admin (bootstrap convenience, not a core
+architectural concern).
 
 First-run setup is also user-scoped. `AppApi::SetupStatus` feeds the
 React `/onboarding` route and root/navigation guards; `App::SetupStatus`
@@ -995,7 +1001,10 @@ Several layers, each catching different failure modes:
   clients mark rows read through the app API. Mark-read and
   mark-all-read actions broadcast compact `notification_read` app events
   so every open client updates read state and unread counts without
-  waiting for the next full notification refetch.
+  waiting for the next full notification refetch. Settings include both
+  app notification kinds (`job_failed`, `job_implemented`,
+  `pr_comment_addressed`, `pr_merged`, `epic_completed`) and
+  desktop-native alert toggles for implemented/failed Jobs.
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
   repository, trigger kind, provider, trend, and top Runs.
 - **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause, and
@@ -1105,11 +1114,16 @@ Job's repository.
 The Electron desktop shell (`desktop/`) uses the same credentials file
 and app API as the CLI. The main process owns stored instance/token
 settings, local repository path mappings, app-user Cable connection,
-native notifications, global hotkey registration, checkout/approval
-IPC handlers, and external browser launches. The React renderer shows
-the compact inbox, Job detail with summary and feedback tabs, repository
-picker, direct-Job form, admin controls, and preferences UI. The inbox
-consumes the app Job payload's
+native notifications, unread-notification count sync, notification
+inbox IPC, global hotkey registration, checkout/approval IPC handlers,
+and external browser launches. It listens for app-event
+`notification_created` payloads, dispatches native notifications using
+the user's desktop notification preferences, and broadcasts the event to
+renderer windows so they can refresh notification lists without polling
+alone. The React renderer shows the compact inbox, notification inbox,
+Job detail with summary and feedback tabs, repository picker, direct-Job
+form, admin controls, and preferences UI. The inbox consumes the app Job
+payload's
 `repository_id` and `repository_slug` to group rows by repository and
 link back to repository pages; checkout actions delegate to the `syrus`
 CLI so the desktop app does not reimplement branch-management semantics.
