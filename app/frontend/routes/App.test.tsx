@@ -12118,6 +12118,15 @@ describe("App", () => {
           },
           {
             type: "message",
+            id: 131,
+            role: "system",
+            tool_name: null,
+            content: { text: "[result] subtype=success, is_error=true, turns=1, duration_ms=800" },
+            text: "[result] subtype=success, is_error=true, turns=1, duration_ms=800",
+            bookmarkable: false
+          },
+          {
+            type: "message",
             id: 14,
             role: "system",
             tool_name: null,
@@ -12230,6 +12239,8 @@ describe("App", () => {
     expect(screen.queryByText(/check worker logs for chat sidecar startup/)).not.toBeInTheDocument()
     expect(screen.queryByText("Cancelled by operator.")).not.toBeInTheDocument()
     expect(screen.getByText(/Agent run failed: Error max turns/)).toBeInTheDocument()
+    expect(screen.getByText(/^Agent run failed · 1 turn · 0\.8s$/)).toBeInTheDocument()
+    expect(screen.queryByText(/Agent run failed: Success/)).not.toBeInTheDocument()
     expect(screen.getByText(/1\.2s/)).toBeInTheDocument()
     expect(screen.getByText(/MCP unavailable: syrus-chat-sidecar failed/)).toBeInTheDocument()
     expect(screen.getByText(/Retry the turn or check the chat sidecar logs/)).toBeInTheDocument()

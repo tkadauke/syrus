@@ -3377,7 +3377,7 @@ function systemResultMessage(fields: Record<string, string>): ChatSystemMessage 
 }
 
 function systemResultTitle(error: boolean, subtype: string) {
-  if (error) return `Agent run failed${subtype ? `: ${humanize(subtype)}` : ""}`
+  if (error) return `Agent run failed${subtype && subtype !== "success" ? `: ${humanize(subtype)}` : ""}`
   if (subtype === "success") return "Agent run succeeded"
 
   return subtype ? `Agent run finished: ${humanize(subtype)}` : "Agent run finished"
