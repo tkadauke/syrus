@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ChatProposal } from "../api/chats"
+import { fetchBootstrap } from "../api/bootstrap"
 import { startEpic } from "../api/epics"
 import { ApiError } from "../api/client"
 
@@ -10,6 +11,8 @@ import { ApiError } from "../api/client"
 const STARTABLE_EPIC_STATES = ["backlog", "ready"]
 
 export function StartEpicButton({ proposal, onNotice }: { proposal: ChatProposal; onNotice: (message: string | null) => void }) {
+  const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
+  const currentUser = bootstrap.data?.current_user
   const statePath = proposal.materialized_epic_state_path
   const [started, setStarted] = useState(false)
   const start = useMutation({
@@ -25,6 +28,7 @@ export function StartEpicButton({ proposal, onNotice }: { proposal: ChatProposal
   if (epicState && !STARTABLE_EPIC_STATES.includes(epicState)) {
     return <span className="text-xs font-medium text-blue-700 dark:text-blue-300">In progress</span>
   }
+  if (!currentUser?.admin && currentUser?.role !== "developer") return null
 
   return (
     <>

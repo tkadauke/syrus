@@ -16,7 +16,25 @@ function proposal(overrides: Partial<ChatProposal> = {}): ChatProposal {
 }
 
 function renderButton(p: ChatProposal, onNotice = vi.fn()) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } } })
+  client.setQueryData(["bootstrap"], {
+    current_user: {
+      id: 1,
+      email_address: "dev@example.com",
+      name: "Developer",
+      first_name: null,
+      last_name: null,
+      display_name: "Developer",
+      admin: false,
+      role: "developer",
+      scheduling_paused: false,
+      landing_paused: false,
+      agent_provider: "claude",
+      chat_provider: "claude",
+      agent_max_turns: 200,
+      theme: "light"
+    }
+  })
   render(
     <QueryClientProvider client={client}>
       <StartEpicButton proposal={p} onNotice={onNotice} />
@@ -59,5 +77,36 @@ describe("StartEpicButton", () => {
     expect(url).toBe("/api/v1/app/epics/3/state")
     expect(init?.method).toBe("PATCH")
     expect(JSON.parse(init?.body as string)).toEqual({ target_state: "in_progress", override: true })
+  })
+
+  it("hides the Start button for product owners", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } } })
+    client.setQueryData(["bootstrap"], {
+      current_user: {
+        id: 1,
+        email_address: "owner@example.com",
+        name: "Owner",
+        first_name: null,
+        last_name: null,
+        display_name: "Owner",
+        admin: false,
+        role: "product_owner",
+        scheduling_paused: false,
+        landing_paused: false,
+        agent_provider: "claude",
+        chat_provider: "claude",
+        agent_max_turns: 200,
+        theme: "light"
+      }
+    })
+
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <StartEpicButton proposal={proposal()} onNotice={vi.fn()} />
+      </QueryClientProvider>
+    )
+
+    expect(container).toBeEmptyDOMElement()
+    expect(screen.queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
   })
 })

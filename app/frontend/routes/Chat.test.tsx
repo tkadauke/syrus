@@ -184,6 +184,82 @@ describe("chat pending proposal jump banner", () => {
   })
 })
 
+describe("chat proposal cards", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("labels Epic confirmation without Jobs when the proposal has no child Jobs", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({
+            kind: "epic",
+            kind_label: "Epic",
+            title: "Plan onboarding",
+            slug: "EPIC-DRAFT-1",
+            epic_bundle: true,
+            active_children_count: 0,
+            children: []
+          }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Confirm Epic" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Confirm Epic and Jobs" })).not.toBeInTheDocument()
+  })
+
+  it("labels Epic confirmation with Jobs when the proposal has child Jobs", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({
+            kind: "epic",
+            kind_label: "Epic",
+            title: "Plan onboarding",
+            slug: "EPIC-DRAFT-1",
+            epic_bundle: true,
+            active_children_count: 1,
+            children: [
+              {
+                id: 11,
+                title: "Build first step",
+                slug: "JOB-DRAFT-1",
+                body: "Create the first onboarding step.",
+                state: "proposed",
+                state_label: "Pending",
+                proposed: true,
+                repository_slug: "acme/widgets",
+                dependencies: [],
+                app_reject_path: "/api/v1/app/chats/8/proposals/1/children/11/reject"
+              }
+            ]
+          }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Confirm Epic and Jobs" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Confirm Epic" })).not.toBeInTheDocument()
+  })
+})
+
 describe("chat compose image attachments", () => {
   beforeEach(() => {
     window.localStorage.clear()

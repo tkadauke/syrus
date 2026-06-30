@@ -782,6 +782,7 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
 function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: ChatProposal; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const search = queryKey[2]
+  const childJobCount = proposal.children?.length || 0
   const proposalAction = useMutation({
     mutationFn: (input: { action: "confirm" | "reject"; path: string }) => {
       const path = appendSearch(input.path, search)
@@ -825,7 +826,7 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
                 onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
                 type="button"
               >
-                {proposal.epic_bundle ? "Confirm Epic and Jobs" : "Confirm"}
+                {proposalConfirmLabel(proposal, childJobCount)}
               </button>
               <button
                 className={secondaryButton()}
@@ -842,6 +843,12 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       }
     />
   )
+}
+
+function proposalConfirmLabel(proposal: ChatProposal, childJobCount: number) {
+  if (!proposal.epic_bundle) return "Confirm"
+
+  return childJobCount > 0 ? "Confirm Epic and Jobs" : "Confirm Epic"
 }
 
 function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectMessage }: { pendingAction: ChatPendingActionInline | ChatPendingAction; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectMessage?: (messageId: number) => void }) {
