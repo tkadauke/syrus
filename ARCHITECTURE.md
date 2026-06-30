@@ -132,11 +132,15 @@ state.
 | `priority` | `high` / `medium` / `low`, mapped to Solid Queue priorities 0 / 10 / 20 |
 | `agent_provider` | provider captured for the Job; Workflows/Runs denormalize the selected provider |
 
-Jobs also have optional `chat_proposals` source links for work created
-from chat. `App::JobSourceChat` uses the direct Job proposal when
-present, or falls back to the Epic proposal for bundled child Jobs, so
-dashboard and Job detail payloads can link back to the originating chat
-message.
+Jobs also own optional operator metadata around the execution thread:
+`job_tags`, `job_pins`, `documents` / `job_attachments`, and
+`notifications`. Attachments are `Document` rows, so uploaded files,
+Google Doc links, and issue/comment image captures all flow through the
+same prompt-context path. Jobs also have optional `chat_proposals`
+source links for work created from chat. `App::JobSourceChat` uses the
+direct Job proposal when present, or falls back to the Epic proposal for
+bundled child Jobs, so dashboard and Job detail payloads can link back
+to the originating chat message.
 
 `closure_reason` values:
 
@@ -148,6 +152,7 @@ message.
 | `replaced_by_scheduled_task` | a cron fire with `pr_pileup_policy=replace` superseded an earlier Job |
 | `too_many_failures` | `failure_count` hit `AppSetting.max_job_failures` |
 | `no_changes` | a cron Run finished with an empty diff and a one-line summary |
+| `issue_closed` | the upstream labeled GitHub issue closed before Syrus opened a PR |
 | `preempted` | the issue already had a human-opened PR when we ingested it |
 | `pr_merged` | Syrus-opened PR merged |
 | `pr_closed` | Syrus-opened PR was closed without merge and its branch still has unique patches |
@@ -413,6 +418,7 @@ deliberately includes preempted Jobs.
 | `SpawnedProcessPruneJob` | daily 3:20am | Deletes old finished subprocess rows |
 | `ClaudeSessionPruneJob` | daily 3:00am | Deletes expired retained provider sessions |
 | `RunDiagnosticPruneJob` | daily 3:10am | Deletes old run diagnostics |
+| `PruneOldNotificationsJob` | daily 3:30am | Deletes app notifications older than 30 days |
 | `WorkflowWorkspacePruneJob` | every 2 hours | Removes old terminal Workflow workspaces |
 | `SyncAgentSkillsJob` | every hour | Synchronizes agent skill metadata |
 | `SyncInstallationsJob` | every 5 min | Refreshes GitHub App installation links |
@@ -429,10 +435,12 @@ job rows in batches.
 ```
 PollRepositoryJob (per repo, serialized via SolidQueue concurrency key)
   → GithubClient.for(repository:, user:).issues_with_label(slug, trigger_label)
+  → close open issue Jobs with no PR when their upstream issue is now closed
   → IngestPolicy filters (skip closed issues, PRs, syrus-skip label)
   → For each surviving issue:
-      Job.find_or_create_by(repository, issue_number, non-closed state)
+      latest Job for repository + issue_number dedups active work
       classifier/dependency/epic gates run
+      issue markdown images are ingested as Job attachments
       if ready:
         Workflows::Initial.instantiate(job:)
         StepDispatcher.start_workflow(workflow)
@@ -448,10 +456,10 @@ a pre-rendered prompt (so `{{date}}` and friends reflect fire time, not
 RunJob start time). Direct Jobs are operator-created free-form prompts
 and use the same Workflow machinery.
 
-The dedup is the `Job.find_or_create_by(repository, issue_number,
-non-closed state)` path backed by a partial unique index — a closed
-thread plus a new active thread for the same issue is allowed
-(retry-after-close).
+Dedup is intentionally "latest Job for this repository + issue" rather
+than "any historical Job": an existing open thread absorbs label and
+external-PR discoveries, while a fully closed thread can be followed by
+a new active thread for the same upstream issue.
 
 ### PR and chat feedback (`pr_comment`, `chat_feedback`, `ci_failure`)
 
@@ -707,10 +715,11 @@ What happens to a single labeled issue, from label to merge:
    - GitHub approvals can mark the Job `approved`; the landing queue
      creates an `auto_merge` Workflow, or a `merge_train` Workflow for
      ready Epics when merge trains are enabled.
-7. **PR is merged or otherwise finalized.** Syrus closes the Job with a
-   terminal `closure_reason` such as `pr_merged`, `pr_closed`,
-   `external_pr_merged`, `external_pr_closed`, `pr_approved`, or
-   `no_changes`. When a Syrus-opened PR is closed without merge,
+7. **PR, issue, or branch work is otherwise finalized.** Syrus closes
+   the Job with a terminal `closure_reason` such as `pr_merged`,
+   `pr_closed`, `external_pr_merged`, `external_pr_closed`,
+   `pr_approved`, `issue_closed`, or `no_changes`. When a Syrus-opened
+   PR is closed without merge,
    `ClosedPullRequestResolution` checks whether the branch patch is
    already present on the base branch with `git cherry`: patch-equivalent
    closures become `no_changes`, while closures with still-unique
@@ -746,6 +755,7 @@ Policy and pipeline glue:
 | Service | Purpose |
 |---|---|
 | `IngestPolicy` | The "should we make a Job for this issue?" filter — skips PRs, closed issues, the `syrus-skip` label, etc. |
+| `IssueImageExtractor` / `IngestIssueImagesJob` / `JobImageAttachmentIngestor` | Pull image URLs from GitHub issue and PR feedback markdown, download supported images with GitHub credentials when needed, and store them as Job `Document` attachments so later agent prompts can inspect them from the workspace. |
 | `PrSummarizer` | Second-shot provider call that takes issue + diff and returns `{title, body}` JSON. Tier 2 fallback when the agent didn't call `submit_summary`. |
 | `ScheduledTaskFire` | Encapsulates the "fire a due ScheduledTask" decision: pile-up policy, prompt rendering, Job + Run creation, watermark bumping. |
 | `ProviderCircuitBreaker` / `AutoRetryScheduler` | Suppress automatic work during provider-wide outages and retry transient failures with bounded backoff. |
@@ -971,8 +981,8 @@ Several layers, each catching different failure modes:
 - **`/scheduled_tasks`** — cron task management.
 - **`/cron_templates`** — reusable schedule templates and links to apply
   them to repositories.
-- **`/direct_jobs/new`** — operator-created free-form Jobs.
-- **`/chats`** — repository-scoped chat sessions, proposal review,
+- **`/jobs/new`** — operator-created free-form Jobs.
+- **`/chats`** — top-level chat sessions, proposal review,
   attached repository/document context, bookmarks, whiteboard state, MCP
   health, and queued follow-up messages.
 - **`/terminal`** — labs terminal surface, gated by the `terminal`
@@ -999,9 +1009,12 @@ Several layers, each catching different failure modes:
   `feature_flags` payload, and toggled by admins at `/admin/features`.
   `v2_sidebar_subject_selector` controls the dashboard subject selector
   inside the V2 sidebar.
-- **`/settings`** — admin console toggles (signups open, max job
+- **`/settings/edit`** — admin settings toggles (signups open, max job
   failures, merge-train enablement, etc.); redirects non-admins to
   credentials.
+- **`/settings`**, **`/profile`**, **`/settings/agent`**, and
+  **`/settings/preferences`** — account profile, credentials, agent
+  defaults, and per-user preferences.
 - **`/invitations`** — admin invite flow.
 - **`/admin/queue`** — admin Solid Queue view for active, pending,
   failed, recurring, and worker tabs. Queue filters support built-in and
