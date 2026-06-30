@@ -96,6 +96,101 @@ RSpec.describe RunJob, "step-dispatch path" do
     expect(s_summarize.reload.runs).to be_empty
   end
 
+  describe "adversarial review loop integration" do
+    it "runs one review round, then resumes the final implement from the implement session" do
+      AppSetting.current.update!(adversarial_review_rounds: 1)
+      review_job = Factories.job_record(issue_number: 77, state: "queued")
+      review_workflow = Workflows::Initial.instantiate(job: review_job)
+      observed_parents = []
+
+      install_adversarial_loop_handlers(observed_parents)
+
+      StepDispatcher.start_workflow(review_workflow)
+      described_class.perform_now(review_workflow.first_step.runs.last.id)
+
+      expect(review_workflow.reload).to be_succeeded
+      expect(review_workflow.steps.order(:position).pluck(:kind)).to eq(%w[
+        prepare implement adversarial_review implement grader_fanout grader_collect summarize test_plan pr_open
+      ])
+      expect(observed_parents).to include(
+        [ "implement_review", 1, nil ],
+        [ "adversarial_review", 1, nil ],
+        [ "implement_final", 1, "implement-1" ]
+      )
+      expect(observed_parents.none? { |role, _, parent| role == "adversarial_review" && parent&.start_with?("implement") }).to be(true)
+    end
+
+    it "runs two review rounds with isolated reviewer session continuity" do
+      AppSetting.current.update!(adversarial_review_rounds: 2)
+      review_job = Factories.job_record(issue_number: 78, state: "queued")
+      review_workflow = Workflows::Initial.instantiate(job: review_job)
+      observed_parents = []
+
+      install_adversarial_loop_handlers(observed_parents)
+
+      StepDispatcher.start_workflow(review_workflow)
+      described_class.perform_now(review_workflow.first_step.runs.last.id)
+
+      expect(review_workflow.reload).to be_succeeded
+      expect(review_workflow.steps.order(:position).pluck(:kind, :iteration)).to eq([
+        [ "prepare", 1 ],
+        [ "implement", 1 ],
+        [ "adversarial_review", 1 ],
+        [ "implement", 2 ],
+        [ "adversarial_review", 2 ],
+        [ "implement", 1 ],
+        [ "grader_fanout", 1 ],
+        [ "grader_collect", 1 ],
+        [ "summarize", 1 ],
+        [ "test_plan", 1 ],
+        [ "pr_open", 1 ]
+      ])
+      expect(observed_parents).to include(
+        [ "implement_review", 1, nil ],
+        [ "adversarial_review", 1, nil ],
+        [ "implement_review", 2, "implement-1" ],
+        [ "adversarial_review", 2, "review-1" ],
+        [ "implement_final", 1, "implement-2" ]
+      )
+      expect(observed_parents).not_to include([ "adversarial_review", 2, "implement-2" ])
+    end
+
+    it "hard-fails when the adversarial reviewer crashes and does not loop" do
+      AppSetting.current.update!(adversarial_review_rounds: 2)
+      review_job = Factories.job_record(issue_number: 79, state: "queued")
+      review_workflow = Workflows::Initial.instantiate(job: review_job)
+      install_adversarial_loop_handlers([], fail_role: "adversarial_review")
+
+      StepDispatcher.start_workflow(review_workflow)
+
+      expect {
+        described_class.perform_now(review_workflow.first_step.runs.last.id)
+      }.to raise_error(Steps::Base::StepFailed, "reviewer crashed")
+
+      expect(review_workflow.reload).to be_failed
+      expect(review_workflow.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 1 ])
+      expect(review_workflow.steps.where(kind: "adversarial_review").pluck(:iteration, :state)).to eq([
+        [ 1, "failed" ]
+      ])
+    end
+
+    it "hard-fails when the implement step inside the review loop fails" do
+      AppSetting.current.update!(adversarial_review_rounds: 2)
+      review_job = Factories.job_record(issue_number: 80, state: "queued")
+      review_workflow = Workflows::Initial.instantiate(job: review_job)
+      install_adversarial_loop_handlers([], fail_role: "implement_review")
+
+      StepDispatcher.start_workflow(review_workflow)
+
+      expect {
+        described_class.perform_now(review_workflow.first_step.runs.last.id)
+      }.to raise_error(Steps::Base::StepFailed, "implement crashed")
+
+      expect(review_workflow.reload).to be_failed
+      expect(review_workflow.steps.where(kind: "adversarial_review").first.runs).to be_empty
+    end
+  end
+
   describe "failure handling" do
     let(:failing_handler_class) do
       Class.new(Steps::Base) do
@@ -258,6 +353,50 @@ RSpec.describe RunJob, "step-dispatch path" do
       expect(run.reload.state).to eq("failed")
       expect(run.agent_outcome).to eq("execution_owner_mismatch")
       expect(Steps).not_to have_received(:handler_for)
+    end
+  end
+
+  def install_adversarial_loop_handlers(observed_parents, fail_role: nil)
+    noop_handler = Class.new(Steps::Base) do
+      def call; nil; end
+    end
+
+    implement_handler = Class.new(Steps::Implement) do
+      define_method(:call) do
+        role = step.next_step&.kind == "adversarial_review" ? "implement_review" : "implement_final"
+        raise Steps::Base::StepFailed, "implement crashed" if fail_role == role
+
+        observed_parents << [ role, step.iteration, parent_session_id ]
+        ClaudeSession.create!(
+          run: run,
+          session_id: role == "implement_review" ? "implement-#{step.iteration}" : "implement-final",
+          transcript_jsonl: "{}\n"
+        )
+      end
+    end
+
+    review_handler = Class.new(Steps::AdversarialReview) do
+      define_method(:call) do
+        raise Steps::Base::StepFailed, "reviewer crashed" if fail_role == "adversarial_review"
+
+        observed_parents << [ "adversarial_review", step.iteration, parent_session_id ]
+        ClaudeSession.create!(
+          run: run,
+          session_id: "review-#{step.iteration}",
+          transcript_jsonl: "{}\n"
+        )
+      end
+    end
+
+    allow(Steps).to receive(:handler_for) do |kind|
+      case kind
+      when "implement"
+        implement_handler
+      when "adversarial_review"
+        review_handler
+      else
+        noop_handler
+      end
     end
   end
 end

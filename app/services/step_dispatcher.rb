@@ -90,6 +90,8 @@ class StepDispatcher
   end
 
   def advance!
+    return if handle_successful_adversarial_loop_iteration
+
     next_step = find_next_runnable
     if next_step
       # Idempotency: cascade_failure_to_step fires fail_from twice
@@ -127,6 +129,22 @@ class StepDispatcher
   end
 
   private
+
+  def handle_successful_adversarial_loop_iteration
+    return false unless @from_step&.kind == "adversarial_review"
+    return false unless @from_step.loop_id.present?
+
+    loop_node = loop_node_for(@from_step)
+    return false unless loop_node&.fetch("type") == "loop"
+    return false unless loop_step_kinds(loop_node).last == "adversarial_review"
+
+    if @from_step.iteration < loop_max_iterations(loop_node)
+      enqueue_next_loop_iteration!(loop_node)
+      true
+    else
+      false
+    end
+  end
 
   def handle_loop_iteration
     loop_node = loop_node_for(@from_step)

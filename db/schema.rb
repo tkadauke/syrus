@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_213305) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_003439) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -51,6 +51,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_213305) do
   end
 
   create_table "app_settings", force: :cascade do |t|
+    t.integer "adversarial_review_rounds", default: 0, null: false
     t.datetime "created_at", null: false
     t.bigint "github_app_id"
     t.text "github_app_private_key_pem"

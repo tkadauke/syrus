@@ -20,6 +20,10 @@ module Steps
 
     private
 
+    def parent_session_id
+      run.parent_session_id.presence || prior_implement_session_id || super
+    end
+
     def persist_prompt_if_needed
       # Cron Jobs arrive with a pre-rendered prompt (variables
       # already expanded at fire time); skip the GitHub round-trip
@@ -86,6 +90,19 @@ module Steps
           iterations: workflow.artifacts.fetch("iterations", [])
         ).to_s
       ].join("\n\n")
+    end
+
+    def prior_implement_session_id
+      cursor = step.previous_step
+      while cursor
+        return nil unless cursor.succeeded?
+
+        session_id = cursor.latest_run&.claude_session&.session_id if cursor.kind == "implement"
+        return session_id if session_id.present?
+
+        cursor = cursor.previous_step
+      end
+      nil
     end
   end
 end

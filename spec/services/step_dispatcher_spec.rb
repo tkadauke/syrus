@@ -380,6 +380,50 @@ RSpec.describe StepDispatcher do
       expect(push.runs.last.iteration).to eq(1)
       expect(retry_workflow.steps.find_by(kind: "landing_fix")).to be_nil
     end
+
+    it "exits an exhausted adversarial review loop to the final implement step" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 1)
+      implement = review_workflow.steps.find_by!(kind: "implement", iteration: 1)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      final_implement = review_workflow.steps.where(kind: "implement").where.not(loop_id: review.loop_id).sole
+      ClaudeSession.create!(
+        run: implement.runs.create!(job: job, trigger_kind: "initial"),
+        session_id: "implement-1",
+        transcript_jsonl: "{}\n"
+      )
+
+      original_step_count = review_workflow.steps.count
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { final_implement.runs.count }.by(1)
+
+      expect(review_workflow.steps.count).to eq(original_step_count)
+      expect(final_implement.runs.last.parent_session_id).to be_nil
+    end
+
+    it "materializes the next adversarial review iteration before the final implement step" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 2)
+      implement = review_workflow.steps.find_by!(kind: "implement", iteration: 1)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      final_implement = review_workflow.steps.where(kind: "implement").where.not(loop_id: review.loop_id).sole
+      ClaudeSession.create!(
+        run: implement.runs.create!(job: job, trigger_kind: "initial"),
+        session_id: "implement-1",
+        transcript_jsonl: "{}\n"
+      )
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { review_workflow.steps.count }.by(2)
+        .and change { Run.count }.by(1)
+
+      new_steps = review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2).order(:position).to_a
+      expect(new_steps.map(&:kind)).to eq(%w[ implement adversarial_review ])
+      expect(review.reload.next_step).to eq(new_steps.first)
+      expect(new_steps.last.next_step).to eq(final_implement)
+      expect(new_steps.first.runs.last.parent_session_id).to eq("implement-1")
+    end
   end
 
   describe "Step#after_update_commit advance integration" do
@@ -433,6 +477,36 @@ RSpec.describe StepDispatcher do
       implement.update!(next_step_id: grade.id)
       grade.update!(next_step_id: summarize.id)
       summarize.update!(next_step_id: pr_open.id)
+    end
+  end
+
+  def workflow_with_adversarial_review_loop(max_iterations:)
+    Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      chain_template: [
+        { "type" => "step", "kind" => "prepare" },
+        { "type" => "loop", "max_iterations" => max_iterations, "steps" => %w[ implement adversarial_review ] },
+        {
+          "type" => "retry_until",
+          "max_iterations" => 1,
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => true
+        }
+      ]
+    ).tap do |wf|
+      prepare = Step.create!(workflow: wf, kind: "prepare", position: 0)
+      implement = Step.create!(workflow: wf, kind: "implement", position: 1, iteration: 1, loop_id: "review-loop")
+      review = Step.create!(workflow: wf, kind: "adversarial_review", position: 2, iteration: 1, loop_id: "review-loop")
+      final_implement = Step.create!(workflow: wf, kind: "implement", position: 3, iteration: 1, loop_id: "grade-loop")
+      grader_fanout = Step.create!(workflow: wf, kind: "grader_fanout", position: 4, iteration: 1, loop_id: "grade-loop")
+      grader_collect = Step.create!(workflow: wf, kind: "grader_collect", position: 5, iteration: 1, loop_id: "grade-loop")
+      prepare.update!(next_step_id: implement.id)
+      implement.update!(next_step_id: review.id)
+      review.update!(next_step_id: final_implement.id)
+      final_implement.update!(next_step_id: grader_fanout.id)
+      grader_fanout.update!(next_step_id: grader_collect.id)
     end
   end
 end

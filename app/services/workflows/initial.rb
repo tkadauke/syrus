@@ -3,6 +3,12 @@ module Workflows
   #
   #   prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open
   #
+  # When adversarial review is enabled, insert a bounded
+  # implement/reviewer loop before the normal grade retry loop:
+  #
+  #   prepare → loop(implement, adversarial_review)
+  #     → retry_until(implement, grader_fanout, grader_collect) → ...
+  #
   # prepare reads `.syrus.yml` (or auto-detects from lockfiles)
   # and runs deterministic setup like `bundle install` so the
   # agent doesn't burn turns watching deps download. implement
@@ -42,6 +48,7 @@ module Workflows
     def self.steps_for(job)
       chain = [
         "prepare",
+        adversarial_review_loop,
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,
           repair: [ :implement ],
@@ -50,12 +57,22 @@ module Workflows
         "summarize",
         "test_plan",
         "pr_open"
-      ]
+      ].compact
       prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
     end
 
     def self.prepare_skipped_for?(job)
       job.skip_prepare?
+    end
+
+    def self.adversarial_review_loop
+      rounds = AppSetting.adversarial_review_rounds
+      return nil unless rounds.positive?
+
+      Workflows::Loop.new(
+        max_iterations: rounds,
+        steps: [ :implement, :adversarial_review ]
+      )
     end
   end
 end
