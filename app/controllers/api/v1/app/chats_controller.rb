@@ -136,6 +136,7 @@ module Api
             chat_session = ChatSession.create!(
               user: Current.user,
               repository: repository,
+              chat_provider: Current.user.effective_chat_provider,
               onboarding: true,
               last_message_at: Time.current
             )
@@ -975,6 +976,7 @@ module Api
             chat_session = ChatSession.create!(
               user: Current.user,
               repository: repository,
+              chat_provider: Current.user.effective_chat_provider,
               title: text.present? ? nil : ChatSession.fallback_title_for(repository),
               last_message_at: text.present? ? Time.current : nil
             )

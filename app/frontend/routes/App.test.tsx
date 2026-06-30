@@ -7269,7 +7269,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/credentials" && init?.method === "PATCH") {
-        return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ name: "Ada Lovelace", message: "Credentials updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ name: "Ada Lovelace", chatProvider: "codex", chatProviders: ["claude", "codex"], message: "Credentials updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/credentials/claude_oauth_start" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({ authorize_url: "https://claude.ai/oauth/authorize?state=abc" }), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -7285,7 +7285,7 @@ describe("App", () => {
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
-      return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ chatProviders: ["claude", "codex"] })), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(
@@ -7319,6 +7319,8 @@ describe("App", () => {
     const exchangeCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials/claude_oauth_exchange")
     expect(JSON.parse(String(exchangeCall?.[1]?.body))).toEqual({ code: "auth-code#state" })
     expect(screen.getByLabelText("Codex authentication")).toBeInTheDocument()
+    expect(screen.getByLabelText("Chat provider")).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
     expect(screen.queryByLabelText("Display name")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Max turns")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Pause scheduling")).not.toBeInTheDocument()
@@ -7342,6 +7344,7 @@ describe("App", () => {
       claude_oauth_token: "",
       codex_api_key: "",
       codex_auth_json: "",
+      chat_provider: "codex",
       github_token: "ghp_new"
     }))
     expect(await screen.findByText("Credentials updated.")).toBeInTheDocument()
@@ -13706,6 +13709,8 @@ function credentialsPayload(overrides: {
   newApiToken?: string
   message?: string
   agentProvider?: string
+  chatProvider?: string | null
+  chatProviders?: string[]
   codexAuthMode?: string
   codexAuthJson?: boolean
   schedulingPaused?: boolean
@@ -13725,6 +13730,7 @@ function credentialsPayload(overrides: {
       github_handle: "operator",
       admin: true,
       agent_provider: overrides.agentProvider ?? "claude",
+      chat_provider: overrides.chatProvider ?? null,
       codex_auth_mode: overrides.codexAuthMode ?? "api_key",
       agent_max_turns: 200,
       scheduling_paused: overrides.schedulingPaused ?? false,
@@ -13746,6 +13752,7 @@ function credentialsPayload(overrides: {
     },
     options: {
       agent_providers: ["claude", "codex"],
+      chat_providers: overrides.chatProviders ?? ["claude"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
       agent_max_turns: { min: 0, max: 1000 },
       clearable_credentials: [

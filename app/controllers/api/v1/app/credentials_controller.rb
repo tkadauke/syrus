@@ -171,7 +171,7 @@ module Api
             user: user_json(user),
             credential_status: credential_status_json(user),
             github_rate_limit: github_rate_limit_json(user),
-            options: credentials_options
+            options: credentials_options(user)
           }
         end
 
@@ -239,10 +239,10 @@ module Api
           }
         end
 
-        def credentials_options
+        def credentials_options(user)
           {
             agent_providers: User::AGENT_PROVIDERS,
-            chat_providers: User::CHAT_PROVIDERS,
+            chat_providers: User::CHAT_PROVIDERS.select { |provider| user.chat_provider_configured?(provider) },
             codex_auth_modes: User::CODEX_AUTH_MODES,
             agent_max_turns: {
               min: User::AGENT_MAX_TURNS_RANGE.first,

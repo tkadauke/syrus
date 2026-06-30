@@ -93,6 +93,28 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body["message"]).to eq("Credentials updated.")
   end
 
+  it "updates the selected chat provider" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/credentials", params: {
+      user: { chat_provider: "codex" }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.chat_provider).to eq("codex")
+    expect(parse_body.dig("user", "chat_provider")).to eq("codex")
+  end
+
+  it "only lists configured chat providers" do
+    user.update!(codex_auth_mode: "api_key", codex_api_key: nil, codex_auth_json: nil)
+    sign_in_as(user)
+
+    get "/api/v1/app/credentials"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("options", "chat_providers")).to eq([ "claude" ])
+  end
+
   it "updates team-visible profile fields" do
     sign_in_as(user)
 

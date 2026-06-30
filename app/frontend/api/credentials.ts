@@ -109,6 +109,7 @@ export type CredentialsInput = {
   profile_bio: string
   avatar_url: string
   agent_provider: string
+  chat_provider: string
   claude_oauth_token: string
   codex_auth_mode: string
   codex_api_key: string

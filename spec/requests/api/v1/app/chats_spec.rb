@@ -471,6 +471,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
   it "creates a fresh chat with an optional repository attachment" do
     sign_in_as(user)
+    user.update!(agent_provider: "codex", chat_provider: "claude")
 
     expect {
       post "/api/v1/app/chats", params: { repository_id: repository.id }
@@ -479,6 +480,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:created)
     chat = ChatSession.last
     expect(chat.user).to eq(user)
+    expect(chat.chat_provider).to eq("claude")
     expect(chat.title).to eq("widgets")
     expect(chat).not_to be_title_pending
     expect(chat.attached_repositories).to contain_exactly(repository)
@@ -488,6 +490,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
   it "creates the onboarding chat attached to the first repository, seeded and flagged" do
     sign_in_as(user)
+    user.update!(agent_provider: "codex", chat_provider: "claude")
     repository
 
     expect {
@@ -499,6 +502,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:created)
     chat = ChatSession.last
     expect(chat.onboarding?).to be true
+    expect(chat.chat_provider).to eq("claude")
     expect(chat.repository).to eq(repository)
     expect(chat.messages.last.role).to eq("user")
     expect(chat.messages.last.content["text"]).to include("setting up Syrus")

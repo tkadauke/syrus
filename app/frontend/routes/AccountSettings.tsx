@@ -308,6 +308,15 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
           </Field>
         ) : null}
 
+        {section === "credentials" && payload.options.chat_providers.length > 0 ? (
+          <Field label="Chat provider">
+            <select className={inputClass()} onChange={(event) => setValues({ ...values, chat_provider: event.target.value })} value={values.chat_provider}>
+              <option disabled value="">Select a configured provider</option>
+              {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
+            </select>
+          </Field>
+        ) : null}
+
         {section === "credentials" && codexApiKeySelected ? (
           <SecretField
             clearPending={clear.isPending}
@@ -872,6 +881,8 @@ function inputClass() {
 }
 
 function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
+  const chatProvider = payload.user.chat_provider || ""
+
   return {
     name: payload.user.name || "",
     first_name: payload.user.first_name || "",
@@ -883,6 +894,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     profile_bio: payload.user.profile_bio || "",
     avatar_url: payload.user.avatar_url || "",
     agent_provider: payload.user.agent_provider,
+    chat_provider: payload.options.chat_providers.includes(chatProvider) ? chatProvider : "",
     claude_oauth_token: "",
     codex_auth_mode: payload.user.codex_auth_mode,
     codex_api_key: "",
