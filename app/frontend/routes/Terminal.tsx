@@ -236,6 +236,9 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     const subscription: Subscription = createConsumer().subscriptions.create(
       { channel: "TerminalChannel", session_id: session.id },
       {
+        connected() {
+          subscription.perform("receive", { type: "resize", cols: terminal.cols, rows: terminal.rows })
+        },
         received(data: { type?: string; data?: string }) {
           if (data.type === "output" && data.data) {
             terminal.write(Uint8Array.from(atob(data.data), (character) => character.charCodeAt(0)))

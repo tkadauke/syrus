@@ -34,7 +34,9 @@ vi.mock("@rails/actioncable", () => ({
 
 vi.mock("xterm", () => ({
   Terminal: class {
+    cols = 132
     element: HTMLElement | null = null
+    rows = 43
 
     constructor(options: unknown) {
       xtermMock.terminalConstructor(options)
@@ -203,10 +205,16 @@ describe("TerminalRoute", () => {
     await waitFor(() => {
       expect(actionCable.createSubscription).toHaveBeenCalledWith(
         { channel: "TerminalChannel", session_id: 4 },
-        expect.objectContaining({ received: expect.any(Function) })
+        expect.objectContaining({ connected: expect.any(Function), received: expect.any(Function) })
       )
     })
-    const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { received(data: { type: string; data?: string }): void }])[1]
+    const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [
+      unknown,
+      { connected(): void; received(data: { type: string; data?: string }): void }
+    ])[1]
+    mixin.connected()
+    expect(subscription.perform).toHaveBeenCalledWith("receive", { type: "resize", cols: 132, rows: 43 })
+
     mixin.received({ type: "output", data: btoa("hello") })
     expect(xtermMock.write).toHaveBeenCalledWith(Uint8Array.from([104, 101, 108, 108, 111]))
 
