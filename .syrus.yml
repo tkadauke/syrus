@@ -24,6 +24,8 @@ prepare:
 hooks:
   post_checkout:
     - bundle exec rails db:migrate
+    - git checkout -- db/schema.rb 2>/dev/null || true
+    - git checkout -- db/structure.sql 2>/dev/null || true
 
 # Each grader's `description:` is surfaced in the UI (tooltip on the
 # grader name + above the output panel on failure) and prepended to

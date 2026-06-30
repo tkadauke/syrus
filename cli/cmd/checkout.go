@@ -420,10 +420,6 @@ func runPostCheckoutHooks(ctx context.Context, runner gitRunner, hookRunner hook
 		}
 	}
 
-	for _, file := range []string{"db/schema.rb", "db/structure.sql"} {
-		_, _ = runner(ctx, repoRoot, "checkout", "--", file)
-	}
-
 	return nil
 }
 

@@ -114,10 +114,6 @@ func TestCheckoutCommandRunsPostCheckoutHooks(t *testing.T) {
 			gitCalls = append(gitCalls, append([]string{}, args...))
 			return repoRoot + "\n", nil
 		}
-		if strings.Join(args, " ") == "checkout -- db/schema.rb" || strings.Join(args, " ") == "checkout -- db/structure.sql" {
-			gitCalls = append(gitCalls, append([]string{}, args...))
-			return "", nil
-		}
 		return branchRunner(ctx, dir, args...)
 	}
 	t.Cleanup(func() { checkoutRunGit = runGit })
@@ -140,43 +136,6 @@ func TestCheckoutCommandRunsPostCheckoutHooks(t *testing.T) {
 	}
 	if !reflect.DeepEqual(hookCalls, wantHooks) {
 		t.Fatalf("hook calls = %#v", hookCalls)
-	}
-}
-
-func TestPostCheckoutHooksRestoreSchemaFilesAfterSuccessfulHooks(t *testing.T) {
-	repoRoot := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repoRoot, ".syrus.yml"), []byte("hooks:\n  post_checkout:\n    - bin/rails db:migrate\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	var events []string
-	runner := func(ctx context.Context, dir string, args ...string) (string, error) {
-		switch strings.Join(args, " ") {
-		case "rev-parse --show-toplevel":
-			return repoRoot + "\n", nil
-		case "checkout -- db/schema.rb", "checkout -- db/structure.sql":
-			events = append(events, fmt.Sprintf("git:%s:%s", dir, strings.Join(args, " ")))
-			return "", nil
-		default:
-			return "", fmt.Errorf("unexpected git command: %v", args)
-		}
-	}
-	hookRunner := func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
-		events = append(events, fmt.Sprintf("hook:%s:%s", dir, command))
-		return nil
-	}
-
-	if err := runPostCheckoutHooks(context.Background(), runner, hookRunner, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
-		t.Fatalf("runPostCheckoutHooks returned error: %v", err)
-	}
-
-	want := []string{
-		"hook:" + repoRoot + ":bin/rails db:migrate",
-		"git:" + repoRoot + ":checkout -- db/schema.rb",
-		"git:" + repoRoot + ":checkout -- db/structure.sql",
-	}
-	if !reflect.DeepEqual(events, want) {
-		t.Fatalf("events = %#v", events)
 	}
 }
 
