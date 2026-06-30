@@ -30,6 +30,25 @@ describe("JobDetailView", () => {
       .toHaveAttribute("href", "/app-shell/chats/4#message-12")
   })
 
+  it("links scheduled jobs back to their scheduled task", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        kind: "cron",
+        issue_title: null,
+        scheduled_task_id: 12,
+        scheduled_task: {
+          id: 12,
+          name: "Update architecture",
+          scheduled_task_path: "/scheduled_tasks/12"
+        }
+      }
+    }))
+
+    expect(screen.getByRole("link", { name: "Scheduled Job" }))
+      .toHaveAttribute("href", "/app-shell/scheduled_tasks/12")
+  })
+
   it("links the originating message when origin_chat is present", () => {
     renderJobDetail(jobPayload({
       origin_chat: {

@@ -294,6 +294,26 @@ RSpec.describe "App API job detail", type: :request do
     expect(parse_body.dig("job", "total_cost_usd")).to eq(0.34)
   end
 
+  it "links cron job details back to their scheduled task" do
+    task = repo.scheduled_tasks.create!(
+      user: user,
+      name: "Update architecture",
+      prompt: "Update ARCHITECTURE.md.",
+      kind: "cron",
+      cron_expression: "0 12 * * *"
+    )
+    cron_job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil, scheduled_task: task)
+
+    get "/api/v1/app/jobs/#{cron_job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("job", "scheduled_task")).to include(
+      "id" => task.id,
+      "name" => "Update architecture",
+      "scheduled_task_path" => "/scheduled_tasks/#{task.id}"
+    )
+  end
+
   it "exposes classified auto-retry state for failed jobs" do
     workflow = job.latest_workflow
     workflow.update!(

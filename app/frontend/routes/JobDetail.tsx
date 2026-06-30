@@ -161,7 +161,7 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
               <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
                 <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
                 <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
-                <JobSourceLink payload={payload} />
+                <JobSourceLink payload={payload} prefix={prefix} />
               </p>
               <StatusPill state={payload.job.summary_state} />
               {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
@@ -2073,8 +2073,15 @@ function jobSourceLabel(payload: JobDetailPayload) {
   return jobSlug(payload.job.id)
 }
 
-function JobSourceLink({ payload }: { payload: JobDetailPayload }) {
+function JobSourceLink({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
   const label = jobSourceLabel(payload)
+  if (payload.job.scheduled_task) {
+    return (
+      <Link className="hover:underline" to={withRoutePrefix(payload.job.scheduled_task.scheduled_task_path, prefix)}>
+        {label}
+      </Link>
+    )
+  }
   if (!payload.job.issue_url) return <span>{label}</span>
 
   return (

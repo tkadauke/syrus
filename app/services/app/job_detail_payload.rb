@@ -105,6 +105,7 @@ module App
         invalidation_reason: @job.invalidation_reason,
         invalidation_evidence: @job.invalidation_evidence,
         scheduled_task_id: @job.scheduled_task_id,
+        scheduled_task: scheduled_task_json(@job.scheduled_task),
         epic_id: @job.epic_id,
         total_cost_usd: @job.display_total_cost_usd&.to_f,
         billed_runs_count: @job.billed_runs_count,
@@ -145,6 +146,16 @@ module App
         title: epic.title,
         state: epic.state,
         epic_path: epic_path(epic)
+      }
+    end
+
+    def scheduled_task_json(task)
+      return unless task
+
+      {
+        id: task.id,
+        name: task.name,
+        scheduled_task_path: scheduled_task_path(task)
       }
     end
 

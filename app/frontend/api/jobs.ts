@@ -65,6 +65,8 @@ export type JobRecord = {
   claimed_at: string | null
   claimed_by_user: JobOwner | null
   claimed_by_current_user: boolean
+  scheduled_task_id?: number | null
+  scheduled_task?: JobScheduledTask | null
   total_cost_usd: number | null
   billed_runs_count: number
   source_chat: JobSourceChat | null
@@ -98,6 +100,12 @@ export type JobSourceChat = {
   message_id: number | null
   path: string
   label: string
+}
+
+export type JobScheduledTask = {
+  id: number
+  name: string
+  scheduled_task_path: string
 }
 
 export type JobOriginChat = {
