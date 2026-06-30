@@ -7,14 +7,17 @@ class SyrusYml
   MAX_GRADE_TIMEOUT_MINUTES = 30
   MIN_GRADE_MAX_ITERATIONS = 1
   MAX_GRADE_MAX_ITERATIONS = 10
+  MIN_ADVERSARIAL_REVIEW_ROUNDS = 0
+  MAX_ADVERSARIAL_REVIEW_ROUNDS = 10
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
 
   ParseError = Class.new(StandardError)
 
-  Config = Data.define(:prepare, :grade, :hooks)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes)
   HooksConfig = Data.define(:post_checkout)
+  AdversarialReviewConfig = Data.define(:rounds)
 
   def self.load_file(path)
     new(Pathname.new(path).read).parse
@@ -37,13 +40,27 @@ class SyrusYml
     Config.new(
       prepare: raw["prepare"],
       grade: parse_grade(raw["grade"]),
-      hooks: parse_hooks(raw["hooks"])
+      hooks: parse_hooks(raw["hooks"]),
+      adversarial_review: parse_adversarial_review(raw["adversarial_review"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
   end
 
   private
+
+  def parse_adversarial_review(raw)
+    return nil if raw.nil?
+    raise ParseError, "adversarial_review: must be a mapping" unless raw.is_a?(Hash)
+
+    unless raw.key?("rounds")
+      raise ParseError, "adversarial_review.rounds: is required"
+    end
+
+    AdversarialReviewConfig.new(
+      rounds: parse_adversarial_review_rounds(raw["rounds"])
+    )
+  end
 
   def parse_hooks(raw)
     return nil if raw.nil?
@@ -130,5 +147,16 @@ class SyrusYml
     clamped
   rescue ArgumentError, TypeError
     raise ParseError, "grade.max_iterations: must be an integer"
+  end
+
+  def parse_adversarial_review_rounds(raw)
+    rounds = Integer(raw)
+    clamped = rounds.clamp(MIN_ADVERSARIAL_REVIEW_ROUNDS, MAX_ADVERSARIAL_REVIEW_ROUNDS)
+    if clamped != rounds
+      Rails.logger.warn("[SyrusYml] adversarial_review.rounds #{rounds} outside #{MIN_ADVERSARIAL_REVIEW_ROUNDS}..#{MAX_ADVERSARIAL_REVIEW_ROUNDS}; clamping")
+    end
+    clamped
+  rescue ArgumentError, TypeError
+    raise ParseError, "adversarial_review.rounds: must be an integer"
   end
 end

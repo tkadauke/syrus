@@ -76,6 +76,43 @@ RSpec.describe SyrusYml do
     ])
   end
 
+  it "parses adversarial review rounds" do
+    config = parse(<<~YAML)
+      adversarial_review:
+        rounds: 2
+    YAML
+
+    expect(config.adversarial_review.rounds).to eq(2)
+  end
+
+  it "clamps adversarial review rounds above the hard ceiling with a warning" do
+    expect(Rails.logger).to receive(:warn).with(/adversarial_review\.rounds 12 outside 0\.\.10; clamping/)
+
+    config = parse(<<~YAML)
+      adversarial_review:
+        rounds: 12
+    YAML
+
+    expect(config.adversarial_review.rounds).to eq(10)
+  end
+
+  it "rejects missing adversarial review rounds" do
+    expect {
+      parse(<<~YAML)
+        adversarial_review: {}
+      YAML
+    }.to raise_error(described_class::ParseError, /adversarial_review\.rounds: is required/)
+  end
+
+  it "rejects non-integer adversarial review rounds" do
+    expect {
+      parse(<<~YAML)
+        adversarial_review:
+          rounds: many
+      YAML
+    }.to raise_error(described_class::ParseError, /adversarial_review\.rounds: must be an integer/)
+  end
+
   it "rejects non-mapping hooks" do
     expect {
       parse(<<~YAML)

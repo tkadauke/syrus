@@ -42,10 +42,10 @@ module Workflows
     def self.steps_for(job)
       chain = [ "prepare" ]
 
-      rounds = AppSetting.adversarial_review_rounds
-      if rounds > 0
+      adversarial_review_plan = RepoAdversarialReviewPlan.for_job(job)
+      if adversarial_review_plan.enabled?
         chain << Workflows::RetryUntil.new(
-          max_iterations: rounds,
+          max_iterations: adversarial_review_plan.rounds,
           repair: [ :implement ],
           check: [ :adversarial_review ]
         )

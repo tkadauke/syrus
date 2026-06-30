@@ -27,28 +27,12 @@ RSpec.describe AppSetting do
     expect(AppSetting.grade_max_iterations).to eq(2)
   end
 
-  it ".adversarial_review_rounds defaults to 0 and reflects the setting" do
-    expect(AppSetting.adversarial_review_rounds).to eq(0)
-
-    AppSetting.current.update!(adversarial_review_rounds: 2)
-
-    expect(AppSetting.adversarial_review_rounds).to eq(2)
-  end
-
   it "rejects grade_max_iterations above 10" do
     setting = AppSetting.current
     setting.grade_max_iterations = 11
 
     expect(setting).not_to be_valid
     expect(setting.errors[:grade_max_iterations]).to include("must be less than or equal to 10")
-  end
-
-  it "rejects negative adversarial_review_rounds" do
-    setting = AppSetting.current
-    setting.adversarial_review_rounds = -1
-
-    expect(setting).not_to be_valid
-    expect(setting.errors[:adversarial_review_rounds]).to include("must be greater than or equal to 0")
   end
 
   it "reports whether a GitHub App has been registered" do

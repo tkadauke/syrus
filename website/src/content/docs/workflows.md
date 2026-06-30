@@ -162,6 +162,7 @@ same Job.
 | --- | --- | --- |
 | `prepare` | No | Run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
 | `implement` | Yes | Make the requested code change for Initial, Retry, cron, and direct work |
+| `adversarial_review` | Yes | Independently review Initial workflow changes when `.syrus.yml` configures review rounds |
 | `respond` | Yes | Address PR review feedback on an existing branch |
 | `analyze_and_fix` | Yes | Diagnose failed CI checks and commit a fix |
 | `landing_fix` | Yes | Make final merge-gate fixes before the landing graders run |

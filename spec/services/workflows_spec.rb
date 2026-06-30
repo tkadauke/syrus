@@ -29,7 +29,9 @@ RSpec.describe Workflows do
 
   describe ".instantiate(job:)" do
     it "creates the workflow + chain for Initial in transaction" do
-      AppSetting.current.update!(adversarial_review_rounds: 0)
+      allow(RepoAdversarialReviewPlan).to receive(:for_job)
+        .with(job)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
 
       wf = Workflows::Initial.instantiate(job: job)
       expect(wf).to be_persisted
@@ -52,7 +54,9 @@ RSpec.describe Workflows do
     end
 
     it "inserts the adversarial review loop before the grade loop for Initial when enabled" do
-      AppSetting.current.update!(adversarial_review_rounds: 2)
+      allow(RepoAdversarialReviewPlan).to receive(:for_job)
+        .with(job)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil))
 
       wf = Workflows::Initial.instantiate(job: job)
 

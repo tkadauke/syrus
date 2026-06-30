@@ -18,14 +18,18 @@ For deployment-specific placement, see [Deployment](/docs/deployment).
 ## `.syrus.yml`
 
 `.syrus.yml` is read from the root of the target repository during the
-`prepare` Step and by local CLI checkout commands. It configures
-deterministic setup commands before the agent runs, plus optional local
-hooks after an operator checks out a Syrus branch.
+workflow and by local CLI checkout commands. It configures deterministic
+setup commands before the agent runs, optional adversarial review rounds
+for Initial workflows, and optional local hooks after an operator checks
+out a Syrus branch.
 
 ```yaml
 prepare:
   - bundle install
   - npm ci
+
+adversarial_review:
+  rounds: 2
 
 hooks:
   post_checkout:
@@ -39,6 +43,7 @@ Schema:
 | `prepare` | Array of strings | Shell commands to run in order before agent work starts |
 | `prepare` | `[]` | Explicitly run no preparation commands |
 | `prepare` | `false` | Opt out of preparation entirely |
+| `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `hooks.post_checkout` | Array of strings | Shell commands the CLI runs after `syrus checkout` succeeds |
 
 ### `prepare`
@@ -78,6 +83,17 @@ hands the workspace to the agent anyway. This keeps a wrong guess from
 wedging onboarding — the very first Job on a repo can still run and add a
 `.syrus.yml` or fix the lockfile. Add an explicit `prepare:` list whenever
 you want setup to be authoritative (and to fail loudly when it breaks).
+
+### `adversarial_review`
+
+`adversarial_review.rounds` is optional and applies only to Initial
+workflows. When it is greater than zero, Syrus runs that many
+implementer/reviewer rounds before the normal grade loop, then runs one
+final `implement` step to address the last review before grading.
+
+The workflow chain is created before the workspace clone exists, so Syrus
+reads this setting from `.syrus.yml` on the repository's default branch. If
+the file or setting is absent, adversarial review is disabled.
 
 ### `hooks.post_checkout`
 
