@@ -18,6 +18,7 @@ RSpec.describe CodexInvocation do
   describe "#run" do
     it "delegates to the injected runner with all kwargs" do
       received = {}
+      startup_timing = described_class::StartupTiming.new(source: "spec", sink: ->(_) {})
       runner = ->(**kwargs) {
         received.merge!(kwargs)
         result_fixture
@@ -30,7 +31,8 @@ RSpec.describe CodexInvocation do
                                    codex_home: "/tmp/codex-home",
                                    mcp_server: { command: "sidecar", args: [] },
                                    resume_session_id: "abc",
-                                   resume_transcript_jsonl: "jsonl").run
+                                   resume_transcript_jsonl: "jsonl",
+                                   startup_timing: startup_timing).run
 
       expect(received).to include(
         workspace_path: "/tmp/wkt",
@@ -39,23 +41,28 @@ RSpec.describe CodexInvocation do
         codex_home: "/tmp/codex-home",
         resume_session_id: "abc",
         resume_transcript_jsonl: "jsonl",
-        model: "gpt-5.5"
+        model: "gpt-5.5",
+        startup_timing: startup_timing
       )
       expect(result).to be_success
     end
   end
 
   describe "default_runner" do
-    def capture_popen(invocation)
+    def capture_popen(invocation, lines: nil)
       captured = { env: nil, cmd: nil, opts: nil }
       allow(Open3).to receive(:popen2e) do |env, *args, **opts, &blk|
         captured[:env] = env
         captured[:cmd] = args
         captured[:opts] = opts
         rd, wr = IO.pipe
-        wr.write({ type: "thread.started", thread_id: "019e-test" }.to_json + "\n")
-        wr.write({ type: "item.completed", item: { type: "agent_message", text: "done" } }.to_json + "\n")
-        wr.write({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2, reasoning_output_tokens: 0, cached_input_tokens: 3 } }.to_json + "\n")
+        (lines || [
+          { type: "thread.started", thread_id: "019e-test" },
+          { type: "item.completed", item: { type: "agent_message", text: "done" } },
+          { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2, reasoning_output_tokens: 0, cached_input_tokens: 3 } }
+        ]).each do |line|
+          wr.write(line.to_json + "\n")
+        end
         wr.close
         fake_wait = Struct.new(:value, :pid).new(Struct.new(:exitstatus).new(0), 0)
         blk.call($stdin, rd, fake_wait)
@@ -226,6 +233,66 @@ RSpec.describe CodexInvocation do
         expect(config).to include('model = "gpt-5.5"')
         expect(config).not_to include("[mcp_servers.syrus-mcp-sidecar]")
         expect(config).not_to include("stale")
+      end
+    end
+
+    it "does not rewrite an unchanged Codex config" do
+      Dir.mktmpdir do |home|
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home)
+        capture_popen(invocation)
+
+        config_path = File.join(home, "config.toml")
+        expect(File).not_to receive(:write).with(config_path, anything)
+
+        capture_popen(invocation)
+      end
+    end
+
+    it "emits startup timing diagnostics for spawn, MCP startup, and first output" do
+      Dir.mktmpdir do |home|
+        events = []
+        timing = described_class::StartupTiming.new(source: "spec", sink: ->(event) { events << event })
+        invocation = described_class.new(
+          "/tmp/wkt",
+          prompt: "P",
+          api_key: "sk-test",
+          codex_home: home,
+          startup_timing: timing,
+          mcp_servers: {
+            "syrus-chat-sidecar" => {
+              command: "/app/bin/syrus-chat-sidecar",
+              args: [],
+              env: {},
+              required: true
+            }
+          }
+        )
+
+        capture_popen(invocation, lines: [
+          { type: "thread.started", thread_id: "019e-test" },
+          {
+            type: "item.started",
+            item: {
+              type: "mcp_tool_call",
+              server: "syrus-chat-sidecar",
+              tool: "repo_info",
+              arguments: {},
+              call_id: "call_1"
+            }
+          },
+          { type: "item.completed", item: { type: "agent_message", text: "done" } },
+          { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2 } }
+        ])
+
+        expect(events.join("\n")).to include(
+          'stage="codex_home_prepare"',
+          'stage="config_write"',
+          'stage="transcript_restore"',
+          'stage="process_spawn"',
+          'stage="first_agent_event"',
+          'stage="mcp_startup"',
+          'stage="first_agent_message"'
+        )
       end
     end
 

@@ -56,6 +56,8 @@ class ChatTurnJob < ApplicationJob
     parent_session_id = resume_session_id_for(provider)
     attachment_context = attachment_context_for(workspace_path)
 
+    @chat.broadcast_controls if provider.provider == "codex"
+
     result = with_chat_mcp_config do |mcp_config|
       with_git_askpass_env do |agent_env|
         provider_with_turn_context(provider, attachment_context, agent_env).invoke(

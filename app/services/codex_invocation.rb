@@ -18,7 +18,8 @@ class CodexInvocation
                  resume_session_id: nil,
                  resume_transcript_jsonl: nil,
                  stop_requested: -> { false },
-                 process_started: ->(_process) { })
+                 process_started: ->(_process) { },
+                 startup_timing: nil)
     @workspace_path = workspace_path.to_s
     @prompt = prompt
     @api_key = api_key
@@ -33,6 +34,7 @@ class CodexInvocation
     @resume_transcript_jsonl = resume_transcript_jsonl
     @stop_requested = stop_requested
     @process_started = process_started
+    @startup_timing = startup_timing || StartupTiming.new(source: "codex")
   end
 
   def run
@@ -49,8 +51,38 @@ class CodexInvocation
       resume_session_id: @resume_session_id,
       resume_transcript_jsonl: @resume_transcript_jsonl,
       stop_requested: @stop_requested,
-      process_started: @process_started
+      process_started: @process_started,
+      startup_timing: @startup_timing
     )
+  end
+
+  class StartupTiming
+    def initialize(source:, sink: nil, clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) })
+      @source = source
+      @sink = sink || ->(event) { Rails.logger.info("[codex startup] #{event}") }
+      @clock = clock
+      @seen = {}
+    end
+
+    def now = @clock.call
+
+    def measure(stage, **metadata)
+      started_at = now
+      result = yield
+      record(stage, started_at: started_at, **metadata)
+      result
+    end
+
+    def record(stage, started_at:, once: false, **metadata)
+      return if once && @seen[stage]
+
+      @seen[stage] = true
+      elapsed_ms = ((now - started_at) * 1000).round(1)
+      fields = { source: @source, stage: stage, elapsed_ms: elapsed_ms }.merge(metadata).compact
+      @sink.call(fields.map { |key, value| "#{key}=#{value.inspect}" }.join(" "))
+    rescue StandardError => e
+      Rails.logger.warn("[codex startup] timing sink failed: #{e.class}: #{e.message}")
+    end
   end
 
   private
@@ -58,11 +90,14 @@ class CodexInvocation
   def default_runner(workspace_path:, prompt:, api_key:, log_sink:, timeout:,
                      codex_home:, mcp_server: nil, mcp_servers: nil, model: nil,
                      resume_session_id: nil, resume_transcript_jsonl: nil,
-                     stop_requested: -> { false }, process_started: ->(_process) { })
+                     stop_requested: -> { false }, process_started: ->(_process) { },
+                     startup_timing: StartupTiming.new(source: "codex"))
     codex_home = codex_home.presence || File.join(Dir.home, ".codex")
-    FileUtils.mkdir_p(codex_home)
-    write_config(codex_home, mcp_servers || mcp_server, model)
-    restore_resume_transcript(codex_home, resume_session_id, resume_transcript_jsonl)
+    startup_timing.measure("codex_home_prepare") { FileUtils.mkdir_p(codex_home) }
+    startup_timing.measure("config_write") { write_config(codex_home, mcp_servers || mcp_server, model) }
+    startup_timing.measure("transcript_restore", resume: resume_session_id.present?) do
+      restore_resume_transcript(codex_home, resume_session_id, resume_transcript_jsonl)
+    end
 
     env = codex_env(api_key: api_key, codex_home: codex_home)
     cmd = codex_command(workspace_path: workspace_path,
@@ -81,6 +116,9 @@ class CodexInvocation
       cache_read_input_tokens: nil
     }
     current_run = Thread.current[:syrus_current_run]
+    process_start_requested_at = startup_timing.now
+    output_start_requested_at = process_start_requested_at
+    mcp_server_names = normalized_mcp_servers(mcp_servers || mcp_server).keys
     runner_result = ProcessRunner.new(
       env: env,
       command: cmd,
@@ -94,9 +132,27 @@ class CodexInvocation
       run: current_run,
       workflow: current_run&.workflow,
       stop_requested: stop_requested,
-      on_spawned_process: process_started,
+      on_spawned_process: ->(process) {
+        startup_timing.record("process_spawn", started_at: process_start_requested_at, pid: process.try(:pid))
+        process_started.call(process)
+      },
       on_output_line: ->(line) do
+        startup_timing.record("first_agent_event", started_at: output_start_requested_at, once: true)
+        if mcp_server_names.any?
+          startup_timing.record(
+            "mcp_startup",
+            started_at: output_start_requested_at,
+            once: true,
+            servers: mcp_server_names.join(",")
+          )
+        end
         update = process_event(line, log_sink)
+        if update&.delete(:assistant_text_seen)
+          startup_timing.record("first_agent_message", started_at: output_start_requested_at, once: true)
+        end
+        if update&.delete(:mcp_seen)
+          startup_timing.record("mcp_startup", started_at: output_start_requested_at, once: true, servers: mcp_server_names.join(","))
+        end
         metadata.merge!(update.compact) if update
       end
     ).run
@@ -140,7 +196,12 @@ class CodexInvocation
 
   def write_config(codex_home, mcp_servers, model)
     FileUtils.mkdir_p(codex_home)
-    File.write(File.join(codex_home, "config.toml"), codex_config_toml(mcp_servers, model: model))
+    path = File.join(codex_home, "config.toml")
+    content = codex_config_toml(mcp_servers, model: model)
+    return :unchanged if File.exist?(path) && File.read(path) == content
+
+    File.write(path, content)
+    :written
   end
 
   def codex_config_toml(mcp_servers, model:)
@@ -236,7 +297,7 @@ class CodexInvocation
     when "agent_message"
       text = item["text"].to_s
       log_sink.call(text, kind: "assistant_text") if text.present?
-      { final_text: text }
+      { final_text: text, assistant_text_seen: text.present? }
     when "mcp_tool_call"
       tool_name = codex_mcp_tool_name(item)
       return nil if tool_name.blank?
@@ -271,7 +332,7 @@ class CodexInvocation
           tool_use_id: tool_use_id
         )
       end
-      nil
+      { mcp_seen: true }
     when "command_execution"
       command = item["command"].to_s
       return nil if command.blank?

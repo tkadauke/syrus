@@ -14,7 +14,13 @@ module ChatProviders
 
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
                stop_requested:, process_started:)
+      timing = CodexInvocation::StartupTiming.new(
+        source: "codex_chat",
+        sink: method(:log_startup_timing)
+      )
+      lock_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       CodexAuth.with_refresh_lock(user: chat.user) do
+        timing.record("auth_refresh_lock", started_at: lock_started_at, mode: chat.user.codex_auth_mode)
         invoke_with_auth(
           workspace_path: workspace_path,
           prompt: prompt,
@@ -22,7 +28,8 @@ module ChatProviders
           mcp_config: mcp_config,
           resume_session_id: resume_session_id,
           stop_requested: stop_requested,
-          process_started: process_started
+          process_started: process_started,
+          startup_timing: timing
         )
       end
     end
@@ -30,10 +37,10 @@ module ChatProviders
     private
 
     def invoke_with_auth(workspace_path:, prompt:, log_sink:, mcp_config:,
-                         resume_session_id:, stop_requested:, process_started:)
+                         resume_session_id:, stop_requested:, process_started:, startup_timing:)
       codex_home = ChatWorkspace.agent_home_for(chat, provider)
       codex_auth = CodexAuth.new(user: chat.user, codex_home: codex_home)
-      auth = codex_auth.prepare!
+      auth = startup_timing.measure("auth_prepare", mode: chat.user.codex_auth_mode) { codex_auth.prepare! }
 
       begin
         CodexInvocation.new(
@@ -47,10 +54,13 @@ module ChatProviders
           resume_session_id: resume_session_id,
           resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id),
           stop_requested: stop_requested,
-          process_started: process_started
+          process_started: process_started,
+          startup_timing: startup_timing
         ).run
       ensure
-        codex_auth.persist_updated_auth_json
+        startup_timing.measure("auth_persist", mode: chat.user.codex_auth_mode) do
+          codex_auth.persist_updated_auth_json
+        end
       end
     end
 
@@ -72,6 +82,10 @@ module ChatProviders
       return nil unless chat.claude_session.session_id == session_id
 
       chat.claude_session.transcript_jsonl
+    end
+
+    def log_startup_timing(event)
+      Rails.logger.info("[codex startup] chat_id=#{chat.id} #{event}")
     end
   end
 end

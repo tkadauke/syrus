@@ -112,6 +112,8 @@ class CodexAuth
   def default_runner(codex_home:, auth_json:)
     FileUtils.mkdir_p(codex_home)
     auth_path = File.join(codex_home, "auth.json")
+    return if File.exist?(auth_path) && File.read(auth_path) == auth_json
+
     File.write(auth_path, auth_json)
     File.chmod(0o600, auth_path)
   end

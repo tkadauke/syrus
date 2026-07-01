@@ -105,6 +105,18 @@ RSpec.describe CodexAuth do
       end
     end
 
+    it "does not rewrite auth.json when the normalized contents are unchanged" do
+      user.update!(codex_auth_mode: "chatgpt_login")
+      Dir.mktmpdir do |home|
+        described_class.new(user: user, codex_home: home).prepare!
+        auth_path = File.join(home, "auth.json")
+
+        expect(File).not_to receive(:write).with(auth_path, anything)
+
+        described_class.new(user: user, codex_home: home).prepare!
+      end
+    end
+
     it "persists refreshed auth.json from CODEX_HOME back to the user" do
       user.update!(codex_auth_mode: "chatgpt_login")
       refreshed = Factories.codex_auth_json(access_token: "new-access-token")

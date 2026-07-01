@@ -56,6 +56,10 @@ RSpec.describe ChatProviders::Codex do
       mcp_config.flush
 
       received = nil
+      timing_events = []
+      allow(Rails.logger).to receive(:info) do |message|
+        timing_events << message if message.include?("[codex startup]")
+      end
       runner = ->(**kwargs) {
         received = kwargs
         result_fixture(session_id: "codex-thread-2", transcript_jsonl: "{\"type\":\"turn\"}\n")
@@ -91,6 +95,11 @@ RSpec.describe ChatProviders::Codex do
           env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
           required: false
         )
+      )
+      expect(timing_events.join("\n")).to include(
+        'stage="auth_refresh_lock"',
+        'stage="auth_prepare"',
+        'stage="auth_persist"'
       )
     ensure
       mcp_config&.close!

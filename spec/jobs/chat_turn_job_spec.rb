@@ -473,11 +473,17 @@ RSpec.describe ChatTurnJob do
     expect(chat.reload.queued_messages).to be_empty
   end
 
-  it "broadcasts chat controls when the agent process starts" do
-    message = user_message
+  it "broadcasts chat controls before Codex pre-spawn work and when the agent process starts" do
+    codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
+    codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "broadcast-widgets", default_branch: "main")
+    codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
+    message = codex_chat.messages.create!(role: "user", content: { text: "Use Codex" })
+    codex_workspace_path = workspace_root.join("codex-broadcast-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(codex_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(codex_workspace_path)
     events = []
     allow(AppEvents).to receive(:broadcast) { |**kwargs| events << kwargs }
-    ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, **_) {
+    ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, log_sink:, **_) {
       process = SpawnedProcess.create!(
         kind: "agent",
         command: "claude --print",
@@ -487,13 +493,15 @@ RSpec.describe ChatTurnJob do
       )
       process_started.call(process)
       process.update!(finished_at: Time.current, outcome: "succeeded")
+      log_sink.call("Codex is ready.", kind: "assistant_text")
       result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
     }
 
-    described_class.perform_now(chat.id, message.id)
+    described_class.perform_now(codex_chat.id, message.id)
 
     control_events = events.select { |event| event[:changed] == [ "controls" ] }
-    expect(control_events.map { |event| event.dig(:payload, :agent_busy) }).to eq([ true, false ])
+    expect(control_events.map { |event| event.dig(:payload, :turn_in_flight) || event.dig(:payload, :agent_busy) }).to eq([ true, true, false ])
+    expect(control_events.first.dig(:payload, :agent_busy)).to eq(false)
   end
 
   it "resumes the existing Claude session with a fresh snapshot and without the full system prompt" do
