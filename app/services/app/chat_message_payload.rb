@@ -25,7 +25,8 @@ module App
         tool_name: message.tool_name,
         content: message.content,
         text: text,
-        bookmarkable: message.bookmarkable?
+        bookmarkable: message.bookmarkable?,
+        created_at: message.created_at.iso8601
       }
 
       payload[:attachments] = message.content["attachments"] if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)

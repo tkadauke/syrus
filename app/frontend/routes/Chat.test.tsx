@@ -140,6 +140,63 @@ describe("chat slash commands", () => {
   }
 })
 
+describe("chat temporal markers", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("renders a timestamp between same-day messages at least five minutes apart", async () => {
+    const firstDate = localDateAt(9, 0)
+    const secondDate = localDateAt(9, 6)
+    mockChatPayload(chatPayload({
+      messages: [
+        chatMessage(9, "assistant", "First update.", firstDate),
+        chatMessage(10, "assistant", "Second update.", secondDate)
+      ]
+    }))
+
+    renderRoute()
+
+    expect(await screen.findByText("First update.")).toBeInTheDocument()
+    expect(screen.getByText(shortTime(secondDate))).toBeInTheDocument()
+    expect(screen.getByText(shortTime(secondDate)).closest("[title]")).toHaveAttribute("title", secondDate.toLocaleString())
+  })
+
+  it("renders a day divider between messages on different local days", async () => {
+    const firstDate = localDateAt(23, 58, -1)
+    const secondDate = localDateAt(0, 3)
+    mockChatPayload(chatPayload({
+      messages: [
+        chatMessage(9, "assistant", "Yesterday's note.", firstDate),
+        chatMessage(10, "user", "Today's note.", secondDate)
+      ]
+    }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Yesterday's note.")).toBeInTheDocument()
+    expect(screen.getByText(dayLabel(secondDate))).toBeInTheDocument()
+  })
+
+  it("does not render an extra timestamp between messages less than five minutes apart", async () => {
+    const firstDate = localDateAt(9, 0)
+    const secondDate = localDateAt(9, 4)
+    mockChatPayload(chatPayload({
+      messages: [
+        chatMessage(9, "assistant", "First nearby update.", firstDate),
+        chatMessage(10, "assistant", "Second nearby update.", secondDate)
+      ]
+    }))
+
+    renderRoute()
+
+    expect(await screen.findByText("First nearby update.")).toBeInTheDocument()
+    expect(screen.getByText(shortTime(firstDate))).toBeInTheDocument()
+    expect(screen.queryByText(shortTime(secondDate))).not.toBeInTheDocument()
+  })
+})
+
 describe("chat pending proposal jump banner", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -599,6 +656,17 @@ function mockChatRouteFetch(payload = chatPayload()) {
   })
 }
 
+function mockChatPayload(payload: unknown) {
+  vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+    const path = String(input)
+    if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+
+    return Promise.resolve(jsonResponse(payload))
+  })
+}
+
 function mockDesktopViewport() {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -669,6 +737,42 @@ function messageWithProposal(id: number, chatProposal: Record<string, unknown>) 
     bookmarkable: true,
     proposal: chatProposal
   }
+}
+
+function chatMessage(id: number, role: "assistant" | "user", text: string, createdAt: Date) {
+  return {
+    type: "message",
+    id,
+    role,
+    tool_name: null,
+    content: { text },
+    text,
+    bookmarkable: true,
+    created_at: createdAt.toISOString()
+  }
+}
+
+function localDateAt(hour: number, minute: number, dayOffset = 0) {
+  const date = new Date()
+  date.setDate(date.getDate() + dayOffset)
+  date.setHours(hour, minute, 0, 0)
+  return date
+}
+
+function shortTime(date: Date) {
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+}
+
+function dayLabel(date: Date) {
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const dayDelta = Math.round((todayStart.getTime() - dateStart.getTime()) / (24 * 60 * 60 * 1000))
+
+  if (dayDelta === 0) return "Today"
+  if (dayDelta === 1) return "Yesterday"
+
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
 }
 
 function proposal(overrides: Record<string, unknown> = {}) {

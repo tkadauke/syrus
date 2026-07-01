@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
 import type { CSSProperties, DragEvent, ErrorInfo, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, UIEvent } from "react"
-import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Component, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
@@ -90,7 +90,9 @@ type ChatPendingActionStreamItem = {
   pendingAction: ChatPendingAction
 }
 
-type ChatStreamItem = ChatRenderItem | ChatPendingActionStreamItem
+type ChatTimestampItem = { type: "timestamp"; time: string; fullDatetime: string }
+type ChatDayDividerItem = { type: "day_divider"; date: string; label: string }
+type ChatStreamItem = ChatRenderItem | ChatPendingActionStreamItem | ChatTimestampItem | ChatDayDividerItem
 const CHAT_WORKSPACE_WIDTH_KEY = "syrus.chat.workspace.width"
 const CHAT_WORKSPACE_TAB_KEY = "syrus.chat.workspace.tab"
 const CHAT_WORKSPACE_COLLAPSED_KEY = "syrus.chat.workspace.collapsed"
@@ -281,7 +283,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
   const hiddenSystemMessageCount = displayedItems.filter(isLowPrioritySystemMessage).length
   const visibleItems = showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item))
   const pendingActionIds = new Set(payload.pending_actions.map((action) => action.id))
-  const streamItems = buildMessageStreamItems(visibleItems, payload.pending_actions)
+  const streamItems = injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions))
   const agentActive = isAgentActive(payload)
   const oldestId = oldestMessageId(displayedMessages)
   const payloadMessageIdsSignature = payload.messages.map((message) => message.id).join("|")
@@ -430,7 +432,11 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
         {hiddenSystemMessageCount > 0 ? (
           <SystemMessagesToggle count={hiddenSystemMessageCount} expanded={showSystemMessages} onToggle={() => setShowSystemMessages((value) => !value)} />
         ) : null}
-        {streamItems.map((item) => item.type === "pending_action" ? (
+        {streamItems.map((item) => item.type === "timestamp" ? (
+          <MessageTimestamp fullDatetime={item.fullDatetime} key={renderItemKey(item)} time={item.time} />
+        ) : item.type === "day_divider" ? (
+          <DayDivider date={item.date} key={renderItemKey(item)} label={item.label} />
+        ) : item.type === "pending_action" ? (
           <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
         ) : item.type === "tool_group" ? (
           <ToolGroup item={item} key={renderItemKey(item)} />
@@ -450,6 +456,39 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
         </button>
       ) : null}
     </div>
+  )
+}
+
+function MessageTimestamp({ time, fullDatetime }: { time: string; fullDatetime: string }) {
+  return (
+    <div className="flex justify-center py-1" title={fullDatetime}>
+      <span className="text-xs text-gray-400 dark:text-gray-500">{time}</span>
+    </div>
+  )
+}
+
+function DayDivider({ date: _date, label }: { date: string; label: string }) {
+  const id = useId()
+
+  return (
+    <div className="flex items-center gap-3 py-3">
+      <WaveLine patternId={`wave-${id}-left`} />
+      <span className="whitespace-nowrap text-xs text-gray-300 dark:text-gray-700">{label}</span>
+      <WaveLine patternId={`wave-${id}-right`} />
+    </div>
+  )
+}
+
+function WaveLine({ patternId }: { patternId: string }) {
+  return (
+    <svg className="h-[8px] flex-1 text-gray-300 dark:text-gray-700" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern height="8" id={patternId} patternUnits="userSpaceOnUse" width="20" x="0" y="0">
+          <path d="M0,4 C5,0 10,8 15,4 C20,0 25,8 30,4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </pattern>
+      </defs>
+      <rect fill={`url(#${patternId})`} height="100%" width="100%" />
+    </svg>
   )
 }
 
@@ -3424,6 +3463,63 @@ function buildMessageStreamItems(items: ChatRenderItem[], pendingActions: ChatPe
   return result
 }
 
+function injectTemporalMarkers(items: ChatStreamItem[]): ChatStreamItem[] {
+  const result: ChatStreamItem[] = []
+  let lastMessageDate: Date | null = null
+
+  for (const item of items) {
+    if (item.type === "message" && temporalAnchorRole(item.role) && item.created_at) {
+      const messageDate = new Date(item.created_at)
+      if (!Number.isNaN(messageDate.getTime())) {
+        if (lastMessageDate === null || !sameLocalDay(messageDate, lastMessageDate)) {
+          result.push({
+            type: "day_divider",
+            date: item.created_at,
+            label: dayDividerLabel(messageDate)
+          })
+        }
+
+        if (lastMessageDate === null || messageDate.getTime() - lastMessageDate.getTime() >= 5 * 60 * 1000) {
+          result.push({
+            type: "timestamp",
+            time: messageDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+            fullDatetime: messageDate.toLocaleString()
+          })
+        }
+
+        lastMessageDate = messageDate
+      }
+    }
+
+    result.push(item)
+  }
+
+  return result
+}
+
+function temporalAnchorRole(role: ChatMessageItem["role"]) {
+  return role === "user" || role === "assistant"
+}
+
+function sameLocalDay(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate()
+}
+
+function dayDividerLabel(date: Date) {
+  const today = startOfLocalDay(new Date())
+  const candidate = startOfLocalDay(date)
+  const dayDelta = Math.round((today.getTime() - candidate.getTime()) / (24 * 60 * 60 * 1000))
+
+  if (dayDelta === 0) return "Today"
+  if (dayDelta === 1) return "Yesterday"
+
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
 function streamItemMessageIds(item: ChatRenderItem) {
   if (item.type === "message") return [item.id]
   return item.calls.map((call) => call.message_id)
@@ -3781,6 +3877,8 @@ function mergeChatMessages(...groups: ChatMessageItem[][]) {
 }
 
 function renderItemKey(item: ChatStreamItem) {
+  if (item.type === "timestamp") return `timestamp-${item.fullDatetime}`
+  if (item.type === "day_divider") return `day-divider-${item.date}`
   if (item.type === "pending_action") return `pending-action-${item.pendingAction.id}`
   if (item.type === "message") return `message-${item.id}`
 
@@ -3789,6 +3887,8 @@ function renderItemKey(item: ChatStreamItem) {
 
 function chatStreamItemsSignature(items: ChatStreamItem[]) {
   return items.map((item) => {
+    if (item.type === "timestamp") return `${renderItemKey(item)}:${item.time}`
+    if (item.type === "day_divider") return `${renderItemKey(item)}:${item.label}`
     if (item.type === "pending_action") return `${renderItemKey(item)}:${item.pendingAction.state}:${item.pendingAction.label.length}:${item.pendingAction.detail?.length || 0}`
     if (item.type === "message") return `${renderItemKey(item)}:${item.text.length}`
 

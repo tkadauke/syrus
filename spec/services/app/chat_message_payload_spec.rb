@@ -14,6 +14,15 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:attachments)).to eq([ attachment ])
   end
 
+  it "includes the message creation timestamp in ISO8601 format" do
+    message = chat.messages.create!(role: "user", content: { "text" => "Inspect this." })
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:created_at)).to eq(message.created_at.iso8601)
+    expect(Time.iso8601(payload.fetch(:created_at))).to be_within(1.second).of(message.created_at)
+  end
+
   it "returns materialized job details for a confirmed job proposal" do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Add inspection tools", state: "open")
     proposal = chat.proposals.create!(
