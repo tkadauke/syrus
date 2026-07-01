@@ -2253,7 +2253,9 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
   useEffect(() => {
     if (!attachmentPopoverOpen) return
 
-    const firstControl = attachmentPopoverRef.current?.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled)")
+    const firstControl =
+      attachmentPopoverRef.current?.querySelector<HTMLElement>("[data-autofocus]") ||
+      attachmentPopoverRef.current?.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled)")
     firstControl?.focus()
   }, [attachmentPopoverOpen])
 
@@ -2405,21 +2407,22 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         {attachmentPopoverOpen ? (
           <div
             aria-label="Add attachment"
-            className="absolute bottom-[4.25rem] left-3 z-20 w-[min(28rem,calc(100%-1.5rem))] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
+            className="absolute bottom-[4.25rem] left-3 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
             id="chat-attachment-popover"
             onKeyDown={handleAttachmentPopoverKeyDown}
             ref={attachmentPopoverRef}
             role="dialog"
           >
-            <div className="space-y-3">
-              <section>
-                <button className={`${secondaryButton()} w-full justify-center`} onClick={openAttachmentFilePicker} type="button">Upload file</button>
-              </section>
-              <section className="border-t border-gray-200 pt-3 dark:border-gray-800">
-                <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Attach context</h3>
-                <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
-              </section>
-            </div>
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              onClick={openAttachmentFilePicker}
+              type="button"
+            >
+              <UploadIcon className="h-4 w-4 shrink-0 text-gray-400" />
+              Upload file
+            </button>
+            <div className="border-t border-gray-100 dark:border-gray-800" />
+            <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
           </div>
         ) : null}
         <textarea
@@ -3776,6 +3779,8 @@ function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice }: { pa
   const params = new URLSearchParams(location.search)
   const [type, setType] = useState(params.get("attachment_type") || "Repository")
   const [query, setQuery] = useState(params.get("attachment_query") || "")
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const submitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const add = useMutation({
     mutationFn: (record: ChatAttachmentResult) => addChatAttachment(appendSearch(payload.paths.app_attachments_path, location.search), record),
     onSuccess: (updated) => {
@@ -3791,36 +3796,88 @@ function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice }: { pa
     setQuery(next.get("attachment_query") || "")
   }, [location.search])
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  useEffect(() => {
+    return () => {
+      if (submitTimer.current) clearTimeout(submitTimer.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    searchInputRef.current?.focus()
+  }, [])
+
+  function submitSearch() {
+    navigateToSearch(type, query)
+  }
+
+  function scheduleSubmit(nextQuery: string) {
+    if (submitTimer.current) clearTimeout(submitTimer.current)
+    submitTimer.current = setTimeout(() => {
+      navigateToSearch(type, nextQuery)
+    }, 200)
+  }
+
+  function submitWithType(nextType: string) {
+    if (submitTimer.current) clearTimeout(submitTimer.current)
+    navigateToSearch(nextType, query)
+  }
+
+  function navigateToSearch(nextType: string, nextQuery: string) {
     const next = new URLSearchParams()
-    next.set("attachment_type", type)
-    if (query.trim()) next.set("attachment_query", query.trim())
+    next.set("attachment_type", nextType)
+    if (nextQuery.trim()) next.set("attachment_query", nextQuery.trim())
     navigate(withRoutePrefix(`${payload.chat.chat_path}?${next.toString()}`, prefix))
   }
 
   return (
     <div>
-      <form className="space-y-3" onSubmit={submit}>
-        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
-          Type
-          <select className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" name="attachment_type" onChange={(event) => setType(event.target.value)} value={type}>
-            <option value="Repository">Repo</option>
-            <option value="Epic">Epic</option>
-            <option value="Job">Job</option>
-            <option value="Document">Document</option>
-          </select>
-        </label>
-        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
-          Search
-          <input className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500" name="attachment_query" onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or id" type="search" value={query} />
-        </label>
-        <button className={secondaryButton()} type="submit">Search</button>
-      </form>
-      <div className="mt-3 space-y-1">
+      <div>
+        <div className="flex gap-1 p-2">
+          {(["Repository", "Epic", "Job", "Document"] as const).map((nextType) => (
+            <button
+              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                type === nextType
+                  ? "bg-blue-600 text-white dark:bg-blue-500"
+                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+              }`}
+              key={nextType}
+              onClick={() => {
+                setType(nextType)
+                submitWithType(nextType)
+              }}
+              type="button"
+            >
+              {nextType === "Repository" ? "Repo" : nextType === "Document" ? "Doc" : nextType}
+            </button>
+          ))}
+        </div>
+        <div className="px-2 pb-2">
+          <input
+            autoFocus
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
+            data-autofocus
+            name="attachment_query"
+            onChange={(event) => {
+              setQuery(event.target.value)
+              scheduleSubmit(event.target.value)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                submitSearch()
+              }
+            }}
+            placeholder="Search by name or id..."
+            ref={searchInputRef}
+            type="search"
+            value={query}
+          />
+        </div>
+      </div>
+      <div className="space-y-0 border-t border-gray-100 dark:border-gray-800">
         {payload.attachment_results.length > 0 ? payload.attachment_results.map((record) => (
           <button
-            className="block w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-left text-xs text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200 dark:disabled:text-gray-600"
+            className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 disabled:text-gray-300 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200 dark:disabled:text-gray-600"
             disabled={add.isPending}
             key={`${record.type}-${record.id}`}
             onClick={() => add.mutate(record)}
@@ -3828,7 +3885,7 @@ function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice }: { pa
           >
             {record.label}
           </button>
-        )) : <div className="text-xs text-gray-500 dark:text-gray-400">No matches.</div>}
+        )) : <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No matches.</div>}
         {add.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(add.error, "Attachment failed.")}</div> : null}
       </div>
     </div>
@@ -4285,6 +4342,16 @@ function PencilIcon({ className = "h-4 w-4" }: { className?: string }) {
     <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
+function UploadIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M12 3v12" />
+      <path d="m7 8 5-5 5 5" />
+      <path d="M5 21h14" />
     </svg>
   )
 }

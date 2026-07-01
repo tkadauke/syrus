@@ -92,6 +92,81 @@ describe("chat compose drafts", () => {
   })
 })
 
+describe("chat attachment popup", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("renders compact attachment type tabs without the select or search submit button", async () => {
+    mockChatRouteFetch()
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Add attachment" })
+    expect(within(dialog).queryByRole("combobox")).not.toBeInTheDocument()
+    for (const label of ["Repo", "Epic", "Job", "Doc"]) {
+      expect(within(dialog).getByRole("button", { name: label })).toBeInTheDocument()
+    }
+    expect(within(dialog).queryByRole("button", { name: "Search" })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(within(dialog).getByPlaceholderText("Search by name or id...")).toHaveFocus()
+    })
+  })
+
+  it("updates the attachment search URL from tabs and debounced input", async () => {
+    mockChatRouteFetch()
+    renderRouteWithLocation()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    fireEvent.click(screen.getByRole("button", { name: "Epic" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/8?attachment_type=Epic")
+    })
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    fireEvent.change(screen.getByPlaceholderText("Search by name or id..."), { target: { value: "roadmap" } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/8?attachment_type=Epic&attachment_query=roadmap")
+    })
+  })
+
+  it("keeps the upload file row wired to the hidden file picker", async () => {
+    mockChatRouteFetch()
+    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => undefined)
+
+    try {
+      renderRoute()
+
+      await screen.findByPlaceholderText("Ask about this repository...")
+      fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+      fireEvent.click(screen.getByRole("button", { name: "Upload file" }))
+
+      expect(inputClickSpy).toHaveBeenCalled()
+    } finally {
+      inputClickSpy.mockRestore()
+    }
+  })
+
+  it("renders attachment results as plain buttons without card borders", async () => {
+    mockChatRouteFetch(chatPayload({
+      attachment_results: [{ type: "Repository", id: 4, label: "acme/tools" }]
+    }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+
+    expect(screen.getByRole("button", { name: "acme/tools" })).not.toHaveClass("border")
+  })
+})
+
 describe("chat slash commands", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -1085,7 +1160,7 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>> } = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>> } = {}) {
   return {
     chat: {
       id: 8,
@@ -1128,7 +1203,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       documents: overrides.attachment_groups?.documents || []
     },
     documents_in_scope: [],
-    attachment_results: [],
+    attachment_results: overrides.attachment_results || [],
     whiteboard: {
       version: 1,
       elements: [],

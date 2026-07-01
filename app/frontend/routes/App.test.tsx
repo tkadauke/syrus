@@ -10716,7 +10716,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
     expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Upload file" })).toBeInTheDocument()
-    expect(screen.getByText("Attach context")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Repo" })).toBeInTheDocument()
 
     fireEvent.keyDown(screen.getByRole("dialog", { name: "Add attachment" }), { key: "Escape" })
     expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
