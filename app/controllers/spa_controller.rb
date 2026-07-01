@@ -6,6 +6,7 @@ class SpaController < ApplicationController
   before_action :require_chat_owner, if: :chat_spa_path?
 
   def show
+    expires_now
     authenticated?
   end
 

@@ -19,6 +19,15 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('"current_user":null')
   end
 
+  it "prevents browser caching of the SPA shell" do
+    Factories.user
+
+    get root_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Cache-Control"]).to include("no-cache")
+  end
+
   it "serves the authenticated app shell at root when signed in" do
     user = Factories.user(email_address: "root-operator@example.com")
     sign_in_as(user)
