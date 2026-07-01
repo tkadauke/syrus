@@ -27,7 +27,7 @@ module SyrusChatMcp
             :repository,
             { depends_on_epics: :repository },
             { dependent_epics: :repository },
-            { jobs: [ :repository, { depends_on_jobs: :repository } ] }
+            { jobs: [ :repository, { dependencies: { depends_on_job: :repository } } ] }
           ]
         )
 
@@ -84,10 +84,22 @@ module SyrusChatMcp
           issue_title: job.issue_title,
           issue_body: SyrusChatMcp.truncate_text(job.issue_body, 16.kilobytes),
           repository: job.repository.slug,
-          depends_on_jobs: job.depends_on_jobs.order(:id).map { |dependency| job_reference(dependency) },
+          depends_on_jobs: job.dependencies.order(:id).filter_map { |dependency| dependency_reference(dependency) },
           created_at: job.created_at&.iso8601,
           updated_at: job.updated_at&.iso8601
         }
+      end
+
+      def dependency_reference(dependency)
+        if dependency.pending?
+          {
+            pending: true,
+            unresolved_ref: dependency.unresolved_slug,
+            source: dependency.source
+          }
+        elsif dependency.depends_on_job
+          job_reference(dependency.depends_on_job)
+        end
       end
 
       def job_reference(job)

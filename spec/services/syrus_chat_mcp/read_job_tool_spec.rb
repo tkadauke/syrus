@@ -24,6 +24,15 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
 
   it "returns metadata, latest workflow summary, and transcript head/tail" do
     job = Factories.job(repository: repository, issue_number: 123, issue_title: "Fix the aqueduct", branch_name: "syrus/issue-123", pr_number: 9)
+    upstream = Factories.job_record(user: user, repository: repository, issue_title: "Survey the aqueduct", state: "closed")
+    JobDependency.create!(job: job, depends_on_job: upstream, source: "manual")
+    JobDependency.create!(
+      job: job,
+      unresolved_owner: repository.owner,
+      unresolved_repo: repository.name,
+      unresolved_number: 456,
+      source: "parsed"
+    )
     workflow = job.latest_workflow
     workflow.set_artifact!("summary", "Raised the aqueduct by one cubit.")
     run = workflow.first_step.latest_run
@@ -35,6 +44,10 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
 
     expect(response[:result][:isError]).to be_falsey
     expect(payload[:job]).to include(id: job.id, issue_number: 123, pr_number: 9, branch_name: "syrus/issue-123", agent_provider: "claude")
+    expect(payload[:job][:dependencies]).to contain_exactly(
+      include(id: upstream.id, issue_title: "Survey the aqueduct"),
+      include(pending: true, unresolved_ref: "#{repository.owner}/#{repository.name}#456", source: "parsed")
+    )
     expect(payload[:workflow_count]).to eq(1)
     expect(payload[:workflows_index]).to contain_exactly(a_hash_including(id: workflow.id, trigger_kind: "initial", summary: "Raised the aqueduct by one cubit.", run_count: 1))
     expect(payload[:latest_workflow]).to include(id: workflow.id, trigger_kind: "initial", summary: "Raised the aqueduct by one cubit.")

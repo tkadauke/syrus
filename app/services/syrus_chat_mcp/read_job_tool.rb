@@ -21,7 +21,13 @@ module SyrusChatMcp
 
     class << self
       def call(job_id:, server_context:)
-        job = find_job!(job_id, includes: { workflows: { steps: { runs: :job_logs } } })
+        job = find_job!(
+          job_id,
+          includes: [
+            { dependencies: [ { depends_on_job: :repository }, :depends_on_epic ] },
+            { workflows: { steps: { runs: :job_logs } } }
+          ]
+        )
 
         workflow = job.latest_workflow
         workflows_index = SyrusChatMcp::ListJobWorkflowsTool.workflow_index_for(job)
@@ -50,8 +56,31 @@ module SyrusChatMcp
           agent_provider: job.agent_provider,
           priority: job.priority,
           issue_title: job.issue_title,
+          dependencies: job.dependencies.order(:id).filter_map { |dependency| dependency_reference(dependency) },
           created_at: job.created_at&.iso8601,
           updated_at: job.updated_at&.iso8601
+        }
+      end
+
+      def dependency_reference(dependency)
+        if dependency.pending?
+          {
+            pending: true,
+            unresolved_ref: dependency.unresolved_slug,
+            source: dependency.source
+          }
+        elsif dependency.depends_on_job
+          job_reference(dependency.depends_on_job)
+        end
+      end
+
+      def job_reference(job)
+        {
+          id: job.id,
+          issue_number: job.issue_number,
+          issue_title: job.issue_title,
+          state: job.state,
+          repository: job.repository.slug
         }
       end
 

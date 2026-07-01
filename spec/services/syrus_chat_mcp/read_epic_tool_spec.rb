@@ -44,6 +44,13 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
       state: "queued"
     )
     JobDependency.create!(job: child, depends_on_job: upstream, source: "manual")
+    JobDependency.create!(
+      job: child,
+      unresolved_owner: "acme",
+      unresolved_repo: "roads",
+      unresolved_number: 456,
+      source: "parsed"
+    )
 
     payload = tool_payload(call_tool(id: epic.id))
 
@@ -65,7 +72,8 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
         issue_title: "Set the new stones",
         issue_body: include(text: "Keep the cart wheels from litigating every mile."),
         depends_on_jobs: [
-          include(id: upstream.id, issue_title: "Survey the old stones")
+          include(id: upstream.id, issue_title: "Survey the old stones"),
+          include(pending: true, unresolved_ref: "acme/roads#456", source: "parsed")
         ]
       )
     )
