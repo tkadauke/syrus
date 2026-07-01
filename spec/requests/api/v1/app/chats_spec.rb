@@ -1402,6 +1402,52 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     )
   end
 
+  it "rejects proposed child proposals when rejecting an Epic proposal" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository
+    )
+    proposed_child = proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-schema",
+      title: "Auth schema",
+      body: "Add tables.",
+      repository: repository
+    )
+    confirmed_child = proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-ui",
+      title: "Auth UI",
+      body: "Add screens.",
+      repository: repository,
+      state: "confirmed"
+    )
+    withdrawn_child = proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-cleanup",
+      title: "Auth cleanup",
+      body: "Remove dead code.",
+      repository: repository,
+      state: "withdrawn"
+    )
+
+    post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/reject"
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload).to be_rejected
+    expect(proposed_child.reload).to be_rejected
+    expect(proposed_child.rejected_at).to be_present
+    expect(confirmed_child.reload).to be_confirmed
+    expect(confirmed_child.rejected_at).to be_nil
+    expect(withdrawn_child.reload).to be_withdrawn
+    expect(withdrawn_child.rejected_at).to be_nil
+  end
+
   it "rejects product-owner confirmation of Job proposals targeting an Epic" do
     user.update!(role: "product_owner")
     sign_in_as(user)

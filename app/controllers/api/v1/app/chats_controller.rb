@@ -448,7 +448,14 @@ module Api
           proposal = find_proposal(chat_session)
 
           if proposal.proposed?
-            proposal.update!(state: "rejected", rejected_at: Time.current)
+            proposal.transaction do
+              now = Time.current
+              proposal.update!(state: "rejected", rejected_at: now)
+              proposal.child_proposals.where(state: "proposed").update_all(
+                state: "rejected",
+                rejected_at: now
+              )
+            end
             chat_session.messages.create!(
               role: "system",
               content: { "text" => proposal_rejection_text(proposal) }
