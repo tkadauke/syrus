@@ -41,6 +41,7 @@ import {
   sendChatMessage,
   shareChat,
   stopChat,
+  updateChatProvider,
   updateChatProposal,
   updateChatPinned,
   updateQueuedChatMessage,
@@ -2898,7 +2899,7 @@ function ChatWorkspace({
             />
           )}
         </div>
-        {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} onClose={() => setSettingsOpen(false)} /> : null}
+        {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => setSettingsOpen(false)} /> : null}
         {bookmarkPickerOpen ? <BookmarkPickerModal bookmarks={payload.bookmarks} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
       </div>
     )
@@ -2958,7 +2959,7 @@ function ChatWorkspace({
           onBookmarkSelect={selectBookmark}
         />
       ) : null}
-      {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => setSettingsOpen(false)} /> : null}
       {bookmarkPickerOpen ? <BookmarkPickerModal bookmarks={payload.bookmarks} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
     </div>
   )
@@ -3353,7 +3354,19 @@ function formatRelativeTime(value: string) {
   return formatter.format(Math.round(seconds / unitSeconds), unit)
 }
 
-function ChatSettingsDialog({ payload, prefix, onClose }: { payload: ChatPayload; prefix: string; onClose: () => void }) {
+function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const providerOptions = payload.chat.chat_provider_options || []
+  const configuredExplicitOptions = providerOptions.filter((option) => option.value && option.configured)
+  const showProviderSelector = configuredExplicitOptions.length > 1
+  const provider = useMutation({
+    mutationFn: (value: string) => updateChatProvider(payload.chat.id, value || null),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      updateRecentChatCache(queryClient, updated.chat)
+    }
+  })
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" role="presentation">
       <section aria-modal="true" aria-labelledby="chat-settings-title" className="w-full max-w-md rounded border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="dialog">
@@ -3366,7 +3379,27 @@ function ChatSettingsDialog({ payload, prefix, onClose }: { payload: ChatPayload
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-2 text-sm">
+        <div className="space-y-3 text-sm">
+          {showProviderSelector ? (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Provider</span>
+              <select
+                aria-label="Chat provider"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:disabled:bg-gray-800"
+                disabled={provider.isPending}
+                onChange={(event) => provider.mutate(event.target.value)}
+                value={payload.chat.chat_provider || ""}
+              >
+                {providerOptions.map((option) => (
+                  <option disabled={!option.configured} key={option.value || "default"} value={option.value || ""}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Effective: {payload.chat.effective_chat_provider_label || "Default"}</span>
+            </label>
+          ) : null}
+          {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, "Provider could not be updated.")}</div> : null}
           {payload.chat.repository?.repository_path ? (
             <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClose} to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}>
               Repository settings

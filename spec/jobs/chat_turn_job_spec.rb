@@ -669,6 +669,65 @@ RSpec.describe ChatTurnJob do
     )
   end
 
+  it "uses the chat-level provider override for a turn" do
+    mixed_user = Factories.user(
+      agent_provider: "claude",
+      chat_provider: nil,
+      claude_oauth_token: "oat-test",
+      codex_api_key: "sk-test",
+      github_token: "ghp-test"
+    )
+    mixed_repository = Factories.repository(user: mixed_user, owner: "acme", name: "provider-override", default_branch: "main")
+    mixed_chat = ChatSession.create!(repository: mixed_repository, user: mixed_user, chat_provider: "codex")
+    mixed_message = mixed_chat.messages.create!(role: "user", content: { text: "Use the chat override" })
+    mixed_workspace_path = workspace_root.join("provider-override-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(mixed_chat).and_return(mixed_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(mixed_chat).and_return(mixed_workspace_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "codex-thread-override", transcript_jsonl: "{\"type\":\"session_meta\"}\n")
+    }
+
+    described_class.perform_now(mixed_chat.id, mixed_message.id)
+
+    expect(received).to include(
+      api_key: "sk-test",
+      codex_home: ChatWorkspace.agent_home_for(mixed_chat, "codex").to_s
+    )
+    expect(mixed_chat.reload.claude_session.provider).to eq("codex")
+  end
+
+  it "uses the user default chat provider when the chat provider is blank" do
+    codex_user = Factories.user(
+      agent_provider: "codex",
+      chat_provider: nil,
+      codex_api_key: "sk-test",
+      github_token: "ghp-test"
+    )
+    codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "default-provider", default_branch: "main")
+    codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user, chat_provider: nil)
+    codex_message = codex_chat.messages.create!(role: "user", content: { text: "Use my default" })
+    codex_workspace_path = workspace_root.join("default-provider-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(codex_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(codex_workspace_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "codex-thread-default", transcript_jsonl: "{\"type\":\"session_meta\"}\n")
+    }
+
+    described_class.perform_now(codex_chat.id, codex_message.id)
+
+    expect(received).to include(
+      api_key: "sk-test",
+      codex_home: ChatWorkspace.agent_home_for(codex_chat, "codex").to_s
+    )
+    expect(codex_chat.reload.claude_session.provider).to eq("codex")
+  end
+
   it "includes compact persisted chat history when resuming a Codex session" do
     codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
     codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-context", default_branch: "main")

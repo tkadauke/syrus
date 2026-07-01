@@ -12,6 +12,10 @@ export type ChatRecord = {
   title_pending: boolean
   pinned: boolean
   pinned_context: string | null
+  chat_provider?: string | null
+  effective_chat_provider?: string
+  effective_chat_provider_label?: string
+  chat_provider_options?: ChatProviderOption[]
   chat_path: string
   repository: ChatRepository | null
   turn_in_flight?: boolean
@@ -21,6 +25,14 @@ export type ChatRecord = {
   cumulative_output_tokens: number
   cumulative_cost_usd: number
   pending_proposal_count?: number
+}
+
+export type ChatProviderOption = {
+  value: string | null
+  label: string
+  configured: boolean
+  effective_provider: string
+  effective_label: string
 }
 
 export type ChatNavRecord = ChatRecord & {
@@ -537,6 +549,10 @@ export function renameChat(path: string, title: string) {
 
 export function updateChatPinned(id: number | string, pinned: boolean) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { pinned } })
+}
+
+export function updateChatProvider(id: number | string, chatProvider: string | null) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_provider: chatProvider } })
 }
 
 export function clearChatHistory(path: string) {

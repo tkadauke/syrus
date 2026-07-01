@@ -63,7 +63,20 @@ module Api
             return
           end
 
-          pinned = if params[:chat].respond_to?(:key?) && params[:chat].key?(:pinned)
+          chat_params = params[:chat]
+          if chat_params.respond_to?(:key?) && chat_params.key?(:chat_provider)
+            provider = normalized_chat_provider_param(chat_params[:chat_provider])
+            unless provider.nil? || Current.user.chat_provider_configured?(provider)
+              render_error("validation_failed", "Chat provider is not configured.", status: :unprocessable_content)
+              return
+            end
+
+            chat_session.update!(chat_provider: provider)
+            render json: chat_payload(chat_session.reload, message: "Chat provider updated.")
+            return
+          end
+
+          pinned = if chat_params.respond_to?(:key?) && chat_params.key?(:pinned)
             params[:chat][:pinned]
           else
             params[:pinned]
@@ -173,7 +186,6 @@ module Api
             chat_session = ChatSession.create!(
               user: Current.user,
               repository: repository,
-              chat_provider: Current.user.effective_chat_provider,
               onboarding: true,
               last_message_at: Time.current
             )
@@ -1136,7 +1148,6 @@ module Api
             chat_session = ChatSession.create!(
               user: Current.user,
               repository: repository,
-              chat_provider: Current.user.effective_chat_provider,
               title: nil,
               last_message_at: text.present? ? Time.current : nil
             )
@@ -1478,6 +1489,10 @@ module Api
             title_pending: chat_session.title_pending?,
             pinned: chat_session.pinned?,
             pinned_context: chat_session.pinned_context,
+            chat_provider: chat_session.chat_provider,
+            effective_chat_provider: chat_session.effective_chat_provider,
+            effective_chat_provider_label: chat_provider_label(chat_session.effective_chat_provider),
+            chat_provider_options: chat_provider_options(chat_session),
             chat_path: chat_path(chat_session),
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
             turn_in_flight: chat_session.turn_in_flight?,
@@ -1497,6 +1512,39 @@ module Api
             id: repository.id,
             slug: repository.slug
           }
+        end
+
+        def normalized_chat_provider_param(value)
+          value.to_s.strip.presence
+        end
+
+        def chat_provider_label(provider)
+          case provider
+          when "claude" then "Claude"
+          when "codex" then "Codex"
+          else provider.to_s.titleize
+          end
+        end
+
+        def chat_provider_options(chat_session)
+          configured = Current.user.configured_agent_providers
+          [
+            {
+              value: nil,
+              label: "Default",
+              configured: Current.user.chat_provider_configured?(chat_session.user.effective_chat_provider),
+              effective_provider: chat_session.user.effective_chat_provider,
+              effective_label: chat_provider_label(chat_session.user.effective_chat_provider)
+            }
+          ] + User::CHAT_PROVIDERS.map do |provider|
+            {
+              value: provider,
+              label: chat_provider_label(provider),
+              configured: configured.include?(provider),
+              effective_provider: provider,
+              effective_label: chat_provider_label(provider)
+            }
+          end
         end
 
         def attachment_label(record)
