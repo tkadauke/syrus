@@ -13,6 +13,7 @@ describe("slashCommands", () => {
     "/jobs",
     "/job",
     "/epic",
+    "/branch",
     "/prs",
     "/issues",
     "/proposals",
@@ -38,6 +39,15 @@ describe("slashCommands", () => {
       expect(command?.kind).toBe("system")
       expect(command).not.toHaveProperty("toPrompt")
     }
+  })
+
+  it("registers /branch as a no-argument system command", () => {
+    const match = findSlashCommand("/branch")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.description).toBe("Start a new chat branched from this point")
+    expect(match?.command.args).toEqual([])
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
 
   it("keeps agent-backed commands as skill commands", () => {

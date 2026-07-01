@@ -144,6 +144,7 @@ Rails.application.routes.draw do
         patch "chats/:id/unhide", to: "chats#unhide", constraints: { id: /\d+/ }
         post "chats/:id/rename", to: "chats#rename", constraints: { id: /\d+/ }
         patch "chats/:id/rename", to: "chats#rename", constraints: { id: /\d+/ }
+        post "chats/:id/branch", to: "chats#branch", constraints: { id: /\d+/ }
         delete "chats/:id/messages", to: "chats#clear_messages", constraints: { id: /\d+/ }
         post "chats/:id/message", to: "chats#message", constraints: { id: /\d+/ }
         post "chats/:id/queued_messages", to: "chats#enqueue_message", constraints: { id: /\d+/ }

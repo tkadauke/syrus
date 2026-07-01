@@ -313,6 +313,11 @@ export type ChatCreatedPayload = {
   chat: ChatRecord
 }
 
+export type ChatBranchPayload = {
+  id: number
+  app_path: string
+}
+
 export type ChatGroupRecord = {
   key: string
   label: string
@@ -374,6 +379,7 @@ export type ChatPayload = {
     app_message_path: string
     app_rename_path: string
     app_clear_path: string
+    app_branch_path: string
     app_enqueue_message_path: string
     app_stop_path: string
     app_bookmarks_path: string
@@ -511,6 +517,10 @@ export function renameChat(path: string, title: string) {
 
 export function clearChatHistory(path: string) {
   return deleteJson<ChatPayload>(path)
+}
+
+export function branchChat(path: string) {
+  return postJson<ChatBranchPayload>(path)
 }
 
 export function enqueueChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = []) {

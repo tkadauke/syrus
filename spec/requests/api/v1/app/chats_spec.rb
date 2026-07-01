@@ -79,6 +79,44 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["default_repository_id"]).to be_nil
   end
 
+  it "branches a chat with copied messages, the same owner, and a derived name" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Release planning", last_message_at: 1.hour.ago)
+    chat.messages.create!(role: "user", content: { "text" => "Plan the launch." }, created_at: 2.hours.ago)
+    chat.messages.create!(role: "assistant", content: { "text" => "Draft milestones." }, created_at: 90.minutes.ago)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/branch"
+    }.to change(ChatSession, :count).by(1)
+      .and change(ChatMessage, :count).by(2)
+
+    expect(response).to have_http_status(:created)
+    branched = ChatSession.find(parse_body["id"])
+    expect(parse_body["app_path"]).to eq(chat_path(branched))
+    expect(branched.user).to eq(user)
+    expect(branched.repository).to eq(repository)
+    expect(branched.title).to eq("Release planning (branch)")
+    expect(branched.messages.count).to eq(chat.messages.count)
+    expect(branched.messages.order(:created_at, :id).pluck(:role)).to eq(%w[user assistant])
+    expect(branched.messages.order(:created_at, :id).map { |message| message.content["text"] })
+      .to eq([ "Plan the launch.", "Draft milestones." ])
+  end
+
+  it "rejects branching another user's chat" do
+    sign_in_as(user)
+    other_user = Factories.user
+    other_repository = Factories.repository(user: other_user, owner: "other", name: "repo")
+    other_chat = ChatSession.create!(user: other_user, repository: other_repository, title: "Private")
+    other_chat.messages.create!(role: "user", content: { "text" => "Private context." })
+
+    expect {
+      post "/api/v1/app/chats/#{other_chat.id}/branch"
+    }.not_to change(ChatSession, :count)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+  end
+
   it "lists recent chat groups and active repositories for CLI session picking" do
     sign_in_as(user)
     repository

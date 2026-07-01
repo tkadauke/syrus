@@ -951,6 +951,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       app_message_path: "/api/v1/app/chats/8/message",
       app_rename_path: "/api/v1/app/chats/8/rename",
       app_clear_path: "/api/v1/app/chats/8/messages",
+      app_branch_path: "/api/v1/app/chats/8/branch",
       app_enqueue_message_path: "/api/v1/app/chats/8/queued_messages",
       app_stop_path: "/api/v1/app/chats/8/stop",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",

@@ -238,6 +238,25 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Chat renamed.")
         end
 
+        def branch
+          source_chat = find_branch_source_chat_session
+          return if performed?
+
+          branched_chat = nil
+          ApplicationRecord.transaction do
+            branched_chat = ChatSession.create!(
+              user: source_chat.user,
+              repository: source_chat.repository,
+              title: "#{source_chat.title.presence || ChatSession.fallback_title_for(source_chat.repository).presence || "New chat"} (branch)",
+              chat_provider: source_chat.chat_provider,
+              last_message_at: Time.current
+            )
+            branch_chat_messages!(source_chat, branched_chat)
+          end
+
+          render json: { id: branched_chat.id, app_path: chat_path(branched_chat) }, status: :created
+        end
+
         def clear_messages
           chat_session = find_chat_session
           ApplicationRecord.transaction do
@@ -761,6 +780,7 @@ module Api
               app_message_path: "/api/v1/app/chats/#{chat_session.id}/message",
               app_rename_path: "/api/v1/app/chats/#{chat_session.id}/rename",
               app_clear_path: "/api/v1/app/chats/#{chat_session.id}/messages",
+              app_branch_path: "/api/v1/app/chats/#{chat_session.id}/branch",
               app_enqueue_message_path: "/api/v1/app/chats/#{chat_session.id}/queued_messages",
               app_rename_path: "/api/v1/app/chats/#{chat_session.id}/rename",
               app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
@@ -1198,6 +1218,32 @@ module Api
 
         def find_chat_session
           Current.user.chat_sessions.find(params[:id])
+        end
+
+        def find_branch_source_chat_session
+          chat_session = ChatSession.find(params[:id])
+          return chat_session if chat_session.user_id == Current.user.id
+
+          render_error("forbidden", "You cannot branch this chat.", status: :forbidden)
+          nil
+        end
+
+        def branch_chat_messages!(source_chat, branched_chat)
+          rows = source_chat.messages.order(:created_at, :id).map do |message|
+            message.attributes.slice(
+              "role",
+              "content",
+              "tool_name",
+              "tool_use_id",
+              "created_at",
+              "updated_at"
+            ).merge(
+              "chat_session_id" => branched_chat.id,
+              "proposal_id" => nil,
+              "pending_action_id" => nil
+            )
+          end
+          ChatMessage.insert_all!(rows) if rows.any?
         end
 
         def find_pending_action(chat_session)

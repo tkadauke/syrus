@@ -13,6 +13,7 @@ import {
   addChatAttachment,
   answerAgentQuestion,
   attachChatRepository,
+  branchChat,
   clearChatHistory,
   confirmChatProposal,
   confirmPendingAction,
@@ -43,6 +44,7 @@ import {
   type ChatAttachmentResult,
   type ChatAttachmentRow,
   type ChatAgentQuestion,
+  type ChatBranchPayload,
   type ChatMessageAttachmentInput,
   type ChatCreatedPayload,
   type ChatMcpHealth,
@@ -205,6 +207,7 @@ type ChatSystemAction =
   | { kind: "rename"; title: string }
   | { kind: "clear" }
   | { kind: "new" }
+  | { kind: "branch" }
   | { kind: "attach"; slug: string }
 
 type ChatSystemCommandAction =
@@ -1546,11 +1549,12 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       onMessageSent?.()
     }
   })
-  const systemAction = useMutation<ChatPayload | ChatCreatedPayload, Error, ChatSystemAction>({
+  const systemAction = useMutation<ChatPayload | ChatCreatedPayload | ChatBranchPayload, Error, ChatSystemAction>({
     mutationFn: (action) => {
       if (action.kind === "rename") return renameChat(appendSearch(payload.paths.app_rename_path, search), action.title)
       if (action.kind === "clear") return clearChatHistory(appendSearch(payload.paths.app_clear_path, search))
       if (action.kind === "new") return createChat({ repositoryId: payload.chat.repository ? String(payload.chat.repository.id) : "", text: "" })
+      if (action.kind === "branch") return branchChat(appendSearch(payload.paths.app_branch_path, search))
       return attachChatRepository(appendSearch(payload.paths.app_attachments_path, search), action.slug)
     },
     onSuccess: (updated, action) => {
@@ -1562,13 +1566,20 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         return
       }
 
+      if (action.kind === "branch") {
+        const branched = updated as ChatBranchPayload
+        refreshRecentChats(queryClient)
+        navigate(withRoutePrefix(branched.app_path, prefix))
+        return
+      }
+
       const chatPayload = updated as ChatPayload
       queryClient.setQueryData(queryKey, chatPayload)
       updateRecentChatCache(queryClient, chatPayload.chat)
       refreshRecentChats(queryClient)
       setText("")
       setClearConfirmationOpen(false)
-      onNotice(updated.message || null)
+      onNotice(chatPayload.message || null)
       if (action.kind === "attach") commandHandlers.openAttachments()
     }
   })
@@ -1709,6 +1720,13 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
 
     if (command.name === "/new") {
       systemAction.mutate({ kind: "new" })
+      return
+    }
+
+    if (command.name === "/branch") {
+      setText("")
+      onNotice("Branching chat…")
+      systemAction.mutate({ kind: "branch" })
       return
     }
 
