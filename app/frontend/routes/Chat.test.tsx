@@ -585,7 +585,7 @@ function LocationProbe() {
 async function submitSlashCommand(command: string) {
   const textarea = await screen.findByPlaceholderText("Ask about this repository...")
   fireEvent.change(textarea, { target: { value: command } })
-  fireEvent.click(screen.getByRole("button", { name: "Send" }))
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 }
 
 function mockChatRouteFetch(payload = chatPayload()) {

@@ -2178,7 +2178,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button aria-label="Stop agent" className="inline-flex items-center justify-center rounded border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+    <button aria-label="Stop agent" className="inline-flex h-9 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
       <StopIcon className={`h-4 w-4 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )
@@ -3253,7 +3253,7 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
 }
 
 function primaryButton() {
-  return "rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
+  return "flex h-9 items-center justify-center rounded bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
 }
 
 function secondaryButton() {
