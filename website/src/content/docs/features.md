@@ -135,6 +135,10 @@ quoted words search for an exact phrase. Matching chat messages are grouped
 by conversation, with the strongest snippet shown first and additional
 matches expandable inline. The older chat search page remains
 available for chat-specific repository, Epic, Job, and attachment filters.
+Operators can also share a chat with teammates on the same Syrus instance:
+the `/share` slash command copies a stable link to a read-only transcript
+view that requires normal Syrus sign-in and does not expose compose controls,
+pending actions, or agent controls.
 The chat composer accepts image and PDF attachments through the plus button
 and sends them with the next message. Before sending, operators can click an
 image thumbnail in the composer to mark it up with basic shapes, arrows,
@@ -216,7 +220,9 @@ commands that are sent through the normal chat message path for the agent to
 interpret. System commands can rename the current chat, clear chat history
 after an inline confirmation, start a fresh chat attached to the same
 repository, open bookmarks, attach another repository by `owner/repo`, and
-open chat settings without sending a message to the agent. Read-only skill
+open chat settings without sending a message to the agent. The `/share`
+system command copies a same-instance read-only chat link to the clipboard.
+Read-only skill
 commands include `/jobs [filter]`, `/job <id>`,
 `/epic <id>`, `/prs`, `/issues`, `/proposals`, `/canvas`, and
 `/bookmark <label>`; Syrus expands each one into a prompt that asks the agent

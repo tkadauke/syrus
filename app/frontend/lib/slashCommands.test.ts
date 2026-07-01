@@ -40,6 +40,16 @@ describe("slashCommands", () => {
     }
   })
 
+  it("registers /share as a no-argument system command", () => {
+    const match = findSlashCommand("/share")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.description).toBe("Copy a shareable link to this chat")
+    expect(match?.command.args).toEqual([])
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
+  })
+  })
+
   it("keeps agent-backed commands as skill commands", () => {
     for (const commandName of ["/propose", "/feedback", "/canvas"]) {
       expect(slashCommands.find((item) => item.name === commandName)?.kind).toBe("skill")

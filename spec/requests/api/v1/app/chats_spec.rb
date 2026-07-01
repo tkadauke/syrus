@@ -42,6 +42,72 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["repositories_path"]).to eq(repositories_path)
   end
 
+  describe "sharing" do
+    let(:chat_session) { ChatSession.create!(user: user, title: "Launch planning") }
+
+    it "generates a stable share token and returns the shared URL" do
+      sign_in_as(user)
+
+      post "/api/v1/app/chats/#{chat_session.id}/share"
+
+      expect(response).to have_http_status(:ok)
+      first_token = chat_session.reload.share_token
+      expect(first_token).to be_present
+      expect(parse_body["share_url"]).to eq(shared_chat_url(token: first_token))
+
+      post "/api/v1/app/chats/#{chat_session.id}/share"
+
+      expect(response).to have_http_status(:ok)
+      expect(chat_session.reload.share_token).to eq(first_token)
+      expect(parse_body["share_url"]).to eq(shared_chat_url(token: first_token))
+    end
+
+    it "does not let another user create a share link for an owned chat" do
+      sign_in_as(Factories.user)
+
+      post "/api/v1/app/chats/#{chat_session.id}/share"
+
+      expect(response).to have_http_status(:not_found)
+      expect(chat_session.reload.share_token).to be_nil
+    end
+
+    it "lets another authenticated user read the shared message payload" do
+      chat_session.update!(share_token: SecureRandom.uuid)
+      chat_session.messages.create!(role: "user", content: { "text" => "Can you review the rollout?" })
+      chat_session.messages.create!(role: "assistant", content: { "text" => "The rollout needs a staged deploy." })
+      sign_in_as(Factories.user)
+
+      get "/api/v1/app/shared_chats/#{chat_session.share_token}"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["chat"]).to include("id" => chat_session.id, "title" => "Launch planning")
+      expect(body["messages"].map { |message| message["text"] }).to eq([
+        "Can you review the rollout?",
+        "The rollout needs a staged deploy."
+      ])
+      expect(body).not_to have_key("pending_actions")
+      expect(body).not_to have_key("queued_messages")
+      expect(body).not_to have_key("agent_questions")
+    end
+
+    it "requires authentication to read a shared chat" do
+      chat_session.update!(share_token: SecureRandom.uuid)
+
+      get "/api/v1/app/shared_chats/#{chat_session.share_token}"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "404s for unknown shared chat tokens" do
+      sign_in_as(user)
+
+      get "/api/v1/app/shared_chats/unknown-token"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   it "defaults the new chat form to the most recent chat repository" do
     sign_in_as(user)
     repository

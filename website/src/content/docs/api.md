@@ -141,6 +141,26 @@ curl -X POST https://syrus.example.com/api/v1/app/chats/123/rename \
   -d '{ "name": "Release planning" }'
 ```
 
+## Share a Chat
+
+`POST /api/v1/app/chats/:id/share` creates a stable same-instance share
+token for one of the authenticated user's chat sessions and returns
+`share_url`. Repeating the request returns the same link.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/chats/123/share \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+`GET /api/v1/app/shared_chats/:token` is available to any authenticated user
+on the same Syrus instance. It returns a read-only transcript payload with
+chat metadata and messages only; unknown tokens return 404.
+
+```bash
+curl https://syrus.example.com/api/v1/app/shared_chats/8b0d6a08-6f8d-4a2e-b2d8-0f2a2a2d8f6f \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
 ## Hide or Restore a Chat
 
 `PATCH /api/v1/app/chats/:id/hide` hides one of the authenticated user's

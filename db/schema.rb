@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_050437) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_01_160428) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -251,11 +251,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_050437) do
     t.datetime "last_read_at"
     t.boolean "onboarding", default: false, null: false
     t.text "pinned_context"
+    t.string "share_token"
     t.datetime "stop_requested_at"
     t.string "title"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.string "workspace_path"
+    t.index ["share_token"], name: "index_chat_sessions_on_share_token", unique: true
     t.index ["user_id", "hidden_at"], name: "index_chat_sessions_on_user_id_and_hidden_at"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_path"], name: "index_chat_sessions_on_workspace_path"

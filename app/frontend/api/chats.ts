@@ -339,6 +339,7 @@ export type ChatPayload = {
     app_message_path: string
     app_rename_path: string
     app_clear_path: string
+    app_share_path: string
     app_enqueue_message_path: string
     app_stop_path: string
     app_bookmarks_path: string
@@ -350,6 +351,18 @@ export type ChatPayload = {
 export type ChatMessagesPayload = {
   has_more_older: boolean
   messages: ChatMessageItem[]
+}
+
+export type SharedChatPayload = {
+  chat: {
+    id: number
+    title: string | null
+  }
+  messages: ChatMessageItem[]
+}
+
+export type ShareChatPayload = {
+  share_url: string
 }
 
 export type ChatSearchMatch = {
@@ -382,6 +395,10 @@ export type ChatSearchMessagesPayload = {
 
 export function fetchChat(id: string, search = "") {
   return getJson<ChatPayload>(`/api/v1/app/chats/${id}${search}`)
+}
+
+export function fetchSharedChat(token: string) {
+  return getJson<SharedChatPayload>(`/api/v1/app/shared_chats/${encodeURIComponent(token)}`)
 }
 
 export function markChatRead(id: string | number) {
@@ -476,6 +493,10 @@ export function renameChat(path: string, title: string) {
 
 export function clearChatHistory(path: string) {
   return deleteJson<ChatPayload>(path)
+}
+
+export function shareChat(path: string) {
+  return postJson<ShareChatPayload>(path)
 }
 
 export function enqueueChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = []) {

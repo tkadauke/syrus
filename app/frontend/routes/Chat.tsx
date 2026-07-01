@@ -25,6 +25,7 @@ import {
   enqueueChatMessage,
   fetchChat,
   fetchChatMessages,
+  fetchSharedChat,
   fetchChatWhiteboard,
   fetchWhiteboardSnapshot,
   fetchWhiteboardSnapshots,
@@ -34,6 +35,7 @@ import {
   rejectPendingAction,
   renameChat,
   sendChatMessage,
+  shareChat,
   stopChat,
   updateQueuedChatMessage,
   type ChatAttachmentResult,
@@ -58,6 +60,8 @@ import {
   type ChatWhiteboardElement,
   type ChatWhiteboardScene,
   type ChatToolGroupItem,
+  type ShareChatPayload,
+  type SharedChatPayload,
   type WhiteboardSnapshot
 } from "../api/chats"
 import { postJobCommand } from "../api/jobs"
@@ -142,6 +146,111 @@ export function ChatRoute() {
   )
 }
 
+export function SharedChatRoute() {
+  const params = useParams()
+  const token = params.token || ""
+  const chat = useQuery({
+    queryKey: ["shared-chat", token],
+    queryFn: () => fetchSharedChat(token),
+    enabled: token.length > 0
+  })
+
+  return (
+    <main
+      aria-label="Shared chat"
+      className="mx-auto flex h-full max-w-[64rem] flex-col gap-4 overflow-hidden p-3 sm:p-6"
+      style={useChatVisualViewportStyle()}
+    >
+      {chat.isPending ? <PanelMessage>Loading shared chat...</PanelMessage> : null}
+      {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, "Unable to load shared chat.")}</PanelMessage> : null}
+      {chat.isSuccess ? <SharedChatView payload={chat.data} /> : null}
+    </main>
+  )
+}
+
+function SharedChatView({ payload }: { payload: SharedChatPayload }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-700">
+        <h1 className="break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.chat.title || "Shared chat"}</h1>
+        <span className="rounded border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">View only</span>
+      </header>
+      <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
+        <ReadOnlyMessageStream payload={payload} />
+      </section>
+    </div>
+  )
+}
+
+function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
+  const items = renderChatMessages(payload.messages)
+  const placeholderPayload = sharedChatRenderPayload(payload)
+
+  if (items.length === 0) {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
+        This shared chat has no messages.
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full min-h-0 space-y-4 overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
+      {items.map((item) => item.type === "tool_group" ? (
+        <ToolGroup item={item} key={renderItemKey(item)} />
+      ) : (
+        <ChatMessage item={item} key={renderItemKey(item)} payload={placeholderPayload} pendingActionIds={new Set()} prefix="" queryKey={chatQueryKey(payload.chat.id, "")} readOnly onNotice={() => undefined} />
+      ))}
+    </div>
+  )
+}
+
+function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
+  return {
+    chat: {
+      id: payload.chat.id,
+      title: payload.chat.title,
+      title_pending: false,
+      pinned_context: null,
+      chat_path: `/chats/shared/${payload.chat.id}`,
+      repository: null,
+      stop_requested_at: null,
+      cumulative_input_tokens: 0,
+      cumulative_output_tokens: 0,
+      cumulative_cost_usd: 0
+    },
+    chat_available: false,
+    turn_in_flight: false,
+    agent_busy: false,
+    has_more_older: false,
+    messages: payload.messages,
+    bookmarks: [],
+    recent_chats: [],
+    pending_actions: [],
+    agent_questions: [],
+    queued_messages: [],
+    attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
+    documents_in_scope: [],
+    attachment_results: [],
+    whiteboard: { version: 1, elements: [], appState: {}, files: {} },
+    paths: {
+      new_chat_path: "/chats/new",
+      credentials_path: "/credentials",
+      repositories_path: "/repositories",
+      app_messages_path: "",
+      app_message_path: "",
+      app_rename_path: "",
+      app_clear_path: "",
+      app_share_path: "",
+      app_enqueue_message_path: "",
+      app_stop_path: "",
+      app_bookmarks_path: "",
+      app_attachments_path: "",
+      app_whiteboard_path: ""
+    }
+  }
+}
+
 function useChatVisualViewportStyle() {
   const [height, setHeight] = useState(visualViewportHeight)
 
@@ -196,6 +305,7 @@ type ChatSystemAction =
   | { kind: "rename"; title: string }
   | { kind: "clear" }
   | { kind: "new" }
+  | { kind: "share" }
   | { kind: "attach"; slug: string }
 
 type ChatSystemCommandAction =
@@ -513,12 +623,12 @@ function AgentActivityIndicator({ running }: { running: boolean }) {
   )
 }
 
-function ChatMessage({ item, payload, pendingActionIds, prefix, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function ChatMessage({ item, payload, pendingActionIds, prefix, queryKey, readOnly = false, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; readOnly?: boolean; onNotice: (message: string | null) => void }) {
   if (item.role === "user") {
     return (
       <article className="group/message relative flex justify-end pt-6" id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
-        <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />
+        {readOnly ? null : <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="max-w-[min(42rem,85%)] space-y-2">
           <PlainText className="whitespace-pre-wrap break-words rounded bg-blue-600 px-4 py-2 text-sm leading-normal text-white dark:bg-blue-500" text={item.text} />
           <MessageImageAttachments attachments={item.attachments} align="end" />
@@ -531,14 +641,14 @@ function ChatMessage({ item, payload, pendingActionIds, prefix, queryKey, onNoti
     return (
       <article className="group/message relative pt-6" id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
-        <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />
+        {readOnly ? null : <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="space-y-3">
           <div className="max-w-3xl rounded border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
             <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} />
           </div>
           <MessageImageAttachments attachments={item.attachments} />
-          {item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
-          {!item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
+          {!readOnly && item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
+          {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
         </div>
       </article>
     )
@@ -1239,19 +1349,27 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       onMessageSent?.()
     }
   })
-  const systemAction = useMutation<ChatPayload | ChatCreatedPayload, Error, ChatSystemAction>({
+  const systemAction = useMutation<ChatPayload | ChatCreatedPayload | ShareChatPayload, Error, ChatSystemAction>({
     mutationFn: (action) => {
       if (action.kind === "rename") return renameChat(appendSearch(payload.paths.app_rename_path, search), action.title)
       if (action.kind === "clear") return clearChatHistory(appendSearch(payload.paths.app_clear_path, search))
       if (action.kind === "new") return createChat({ repositoryId: payload.chat.repository ? String(payload.chat.repository.id) : "", text: "" })
+      if (action.kind === "share") return shareChat(appendSearch(payload.paths.app_share_path, search))
       return attachChatRepository(appendSearch(payload.paths.app_attachments_path, search), action.slug)
     },
-    onSuccess: (updated, action) => {
+    onSuccess: async (updated, action) => {
       if (action.kind === "new") {
         const created = updated as ChatCreatedPayload
         updateRecentChatCache(queryClient, created.chat, { prepend: true })
         refreshRecentChats(queryClient)
         navigate(withRoutePrefix(created.redirect_to, prefix))
+        return
+      }
+
+      if (action.kind === "share") {
+        await navigator.clipboard.writeText((updated as ShareChatPayload).share_url)
+        setText("")
+        onNotice("Share link copied to clipboard")
         return
       }
 
@@ -1261,7 +1379,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       refreshRecentChats(queryClient)
       setText("")
       setClearConfirmationOpen(false)
-      onNotice(updated.message || null)
+      onNotice(chatPayload.message || null)
       if (action.kind === "attach") commandHandlers.openAttachments()
     }
   })
@@ -1523,6 +1641,11 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
 
     if (command.name === "/clear-canvas") {
       systemCommandAction.mutate({ kind: "clear-canvas" })
+      return
+    }
+
+    if (command.name === "/share") {
+      systemAction.mutate({ kind: "share" })
       return
     }
 

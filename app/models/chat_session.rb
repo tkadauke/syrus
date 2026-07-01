@@ -59,6 +59,7 @@ class ChatSession < ApplicationRecord
   validates :cumulative_cost_usd,
             numericality: { greater_than_or_equal_to: 0 }
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
+  validates :share_token, uniqueness: true, allow_nil: true
 
   normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }
 

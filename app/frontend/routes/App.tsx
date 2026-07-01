@@ -20,7 +20,7 @@ import { AgentSettingsRoute } from "./AgentSettings"
 import { PasswordRequestRoute, PasswordResetRoute, SignInRoute, SignUpRoute } from "./Auth"
 import { ChatNewRoute } from "./ChatNew"
 import { ChatSearchRoute } from "./ChatSearch"
-import { ChatRoute } from "./Chat"
+import { ChatRoute, SharedChatRoute } from "./Chat"
 import { CredentialsRoute } from "./Credentials"
 import { CronTemplateDetailRoute, CronTemplateFormRoute, CronTemplatesIndex } from "./CronTemplates"
 import { DashboardRoute } from "./Dashboard"
@@ -120,6 +120,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/epics/:id", element: <EpicDetailRoute /> },
   { path: "/chats/new", element: <ChatNewRoute /> },
   { path: "/chats/search", element: <ChatSearchRoute /> },
+  { path: "/chats/shared/:token", element: <SharedChatRoute /> },
   { path: "/chats/:id", element: <ChatRoute /> }
 ]
 
