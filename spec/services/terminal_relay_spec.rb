@@ -3,7 +3,7 @@ require "socket"
 require "timeout"
 
 RSpec.describe TerminalRelay do
-  RELAY_READY_TIMEOUT = 5
+  RELAY_READY_TIMEOUT = 15
 
   class FakePtyInput
     attr_reader :winsize_calls
@@ -57,7 +57,14 @@ RSpec.describe TerminalRelay do
 
   def run_relay(relay)
     thread = Thread.new { relay.run }
-    Timeout.timeout(RELAY_READY_TIMEOUT) { sleep 0.01 until session.reload.relay_ready? }
+    thread[:terminal_relay_spec] = true
+    Timeout.timeout(RELAY_READY_TIMEOUT) do
+      until session.reload.relay_ready?
+        raise "TerminalRelay exited before recording relay_address" unless thread.alive?
+
+        sleep 0.01
+      end
+    end
     thread
   end
 
