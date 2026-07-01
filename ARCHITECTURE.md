@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-06-30._
+_Last reviewed: 2026-07-01._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -17,8 +17,8 @@ domain concepts. File paths are repo-relative.
 
 - [Stack](#stack)
 - [The big picture](#the-big-picture)
-- [Domain model](#domain-model) — Job, Workflow, Step, Run, JobLog,
-  Repository, User, ScheduledTask, CronTemplate
+- [Domain model](#domain-model) — Job, Epic, Workflow, Step, Run,
+  JobLog, Repository, User, ScheduledTask, CronTemplate
 - [Recurring schedule](#recurring-schedule)
 - [Per-poller flow](#per-poller-flow) — issue ingest, PR/chat feedback, rebase, scheduled tasks, reaping
 - [Per-Workflow pipeline](#per-workflow-pipeline) — materialized step chains and Run execution
@@ -179,6 +179,22 @@ event :close
 event :reopen # clears closure_reason, finished_at, failure_count
 ```
 
+### Epic — coordinated work
+
+Epics group related Jobs under one repository and owner. They have their
+own board lifecycle (`backlog`, `ready`, `in_progress`, `done`,
+`archived`), dependency graph, ownership/claim fields, chat-proposal
+source links, and optional merge-train landing behavior for approved
+child Jobs. Starting an Epic unblocks its child Jobs; moving it back or
+archiving it restores the child Epic block.
+
+`EpicVersion` records title/description changes for audit and for
+product-owner/developer handoff. Product owners can create and refine
+backlog Epics, but developer/admin advancement is the gate that moves
+them toward runnable child Jobs. Developer elaboration chat starts from
+the preserved product-owner description and then materializes Jobs
+through the normal proposal/dependency path.
+
 ### JobDependency and EpicDependency
 
 `JobDependency` is the execution gate for Jobs. A row can target a
@@ -293,7 +309,12 @@ true.
 
 Encrypted attributes include GitHub, Claude, and Codex credentials
 (Active Record Encryption — `RAILS_MASTER_KEY` is required to read
-them). `agent_provider` is the user's default for new Jobs; a
+them). `role` is either `developer` or `product_owner` and is serialized
+into bootstrap/profile/admin-user payloads. Product-owner role limits
+keep planning and backlog refinement separate from developer execution:
+product owners can draft work and refine Epics, while developers/admins
+advance Epics into runnable implementation. `agent_provider` is the
+user's default for new Jobs; a
 Repository can override it and per-Job retry/direct actions can choose
 an explicitly configured provider. `agent_max_turns` is the per-user
 ceiling on Claude `--max-turns`; `0` means "no `--max-turns` flag" —
@@ -612,7 +633,7 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → retry_until(implement → grader_fanout → grader_collect) → summarize → test_plan → pr_open` |
+| `initial` | `prepare → optional loop(implement → adversarial_review) → retry_until(implement → grader_fanout → grader_collect) → summarize → test_plan → pr_open` |
 | `pr_comment` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
 | `chat_feedback` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
 | `ci_failure` | `prepare → analyze_and_fix → summarize_amend → push` |
@@ -632,11 +653,22 @@ per repository or skipped for one Job with the `syrus-skip-prepare`
 label; the skip is recorded in Workflow artifacts and logged on the
 first Run.
 
-Agentic Steps (`implement`, `respond`, `analyze_and_fix`, rebase repair,
-landing repair, summarize, test_plan, and manual) invoke the Workflow's
+Agentic Steps (`implement`, `adversarial_review`, `respond`,
+`analyze_and_fix`, rebase repair, landing repair, summarize, test_plan,
+and manual) invoke the Workflow's
 configured provider through `AgentProviders::*`. Non-agentic Steps run
 service code: graders, git push/force-push, PR opening, mergeability
 gates, merge API calls, and merge-train assembly/landing.
+
+The optional `adversarial_review` loop applies only to Initial
+Workflows. `RepoAdversarialReviewPlan` reads repository configuration
+from `.syrus.yml` and falls back to `AppSetting.adversarial_review_rounds`
+when appropriate. Each loop iteration runs implementation, then an
+independent reviewer prompt over the succeeded diff; the reviewer must
+call `submit_adversarial_review` with `approved` or `needs_work`.
+The verdict is recorded for audit/future control; today
+`StepDispatcher` runs the configured number of review rounds and feeds
+prior findings into each next implementation iteration before advancing.
 
 `respond` is shared by `pr_comment` and `chat_feedback` Workflows. The
 PR-comment path composes `Prompts::PrFeedback` from GitHub comments,
@@ -703,6 +735,9 @@ What happens to a single labeled issue, from label to merge:
    - Invokes the selected provider (Claude Code or Codex) with the MCP
      sidecar attached.
    - Agent works in the `implement` Step: edits files and commits.
+   - If adversarial review is configured, an independent
+     `adversarial_review` Step critiques the diff before the normal
+     grade loop and can request another implementation round.
    - Grader Steps run configured `.syrus.yml` checks; failures append
      another bounded repair/check iteration.
    - The `summarize` Step asks the agent to call `submit_summary`
@@ -746,9 +781,9 @@ Core (the agent loop):
 | `ChatWorkspace` | Persistent per-chat workspace under `$SYRUS_DATA_ROOT/chat-workspaces/<chat_session_id>/`. Repositories are cloned lazily for inspection and fast-forwarded between turns; implementation still belongs to Workflow workspaces. |
 | `AgentProviders::*` | Provider abstraction for Claude and Codex. Selects credentials, prepares provider home/session state, wires MCP, invokes the provider-specific runner, captures transcript/session metadata, and returns a normalized result. |
 | `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
-| `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, and `submit_test_plan`. See [MCP sidecar](#mcp-sidecar). |
+| `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, `submit_test_plan`, and `submit_adversarial_review`. See [MCP sidecar](#mcp-sidecar). |
 | `SyrusChatMcp::Sidecar` | MCP server for chat turns. Exposes repository/job/PR inspection, proposal, scheduling, bookmark, note, and whiteboard tools scoped to the active `ChatSession`. See [Chat sidecar and workspaces](#chat-sidecar-and-workspaces). |
-| `Prompts::*` | One class per prompt surface: `Initial`, `PrFeedback`, `ChatFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `Prompts::*` | One class per prompt surface: `Initial`, `AdversarialReview`, `PrFeedback`, `ChatFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 
 Git and GitHub:
 
@@ -827,6 +862,11 @@ agent at it over stdio. Today's tool surface:
   test steps on Workflow artifacts and appends an audit `JobLog` line.
   `pr_open` reads this artifact and adds a Test Plan section to initial
   PR bodies, headed by a copy-pasteable `syrus checkout JOB-<id>` command.
+- `submit_adversarial_review(critique:, verdict:)` — records one
+  adversarial review iteration on Workflow artifacts. The
+  `adversarial_review` Step requires this tool call; the stored
+  critique is fed into later review-loop iterations, while the verdict
+  is retained for audit/future control.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
 ActiveRecord calls scoped to the active Run. No network, no auth
@@ -908,6 +948,13 @@ automatically. A confirmed Epic proposal whose materialized Epic is still
 calls the Epic state API to move the Epic to `in_progress`, which is the
 point where its child Jobs become runnable.
 
+Role-aware chat guidance keeps product-owner and developer work
+separate. Product-owner chats can shape backlog Epics and preserve
+their vision in Epic version history; developer chats on those Epics
+switch into elaboration mode, pull the original description into the
+agent environment snapshot, and produce the implementation-ready child
+Jobs.
+
 `ChatTurnJob` persists assistant text, tool calls, tool results, and MCP
 health events as `ChatMessage` rows, updates cumulative token/cost
 fields on the `ChatSession`, and retains the provider session for
@@ -987,7 +1034,8 @@ Several layers, each catching different failure modes:
   approval/landing actions, claim/release, dependencies, tags). Job
   detail payloads include `source_chat` links back to the chat proposal
   that created the Job (or the Epic proposal for bundled child Jobs) and
-  the Summary tab renders feedback history from `pr_comment` and
+  `scheduled_task` links back to the recurring task that created a cron
+  Job. The Summary tab renders feedback history from `pr_comment` and
   `chat_feedback` Workflows.
 - **`/scheduled_tasks`** — cron task management.
 - **`/cron_templates`** — reusable schedule templates and links to apply
