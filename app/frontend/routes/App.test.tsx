@@ -11380,7 +11380,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(input, { target: { value: "/pin" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     expect(await screen.findByText("Chat pinned")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8", expect.objectContaining({
@@ -11411,7 +11411,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: "/share" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("http://syrus.test/chats/shared/token-123"))
     expect(await screen.findByText("Share link copied to clipboard")).toBeInTheDocument()
@@ -11628,7 +11628,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(input, { target: { value: "/report" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     const dialog = await screen.findByRole("dialog", { name: "File a GitHub issue about Syrus" })
     const bodyInput = within(dialog).getByLabelText("Body") as HTMLTextAreaElement
