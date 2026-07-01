@@ -144,6 +144,14 @@ module Api
           }
         end
 
+        def new
+          repository = Current.user.repositories.active.order(:owner, :name).first
+
+          render json: {
+            default_repository_id: repository&.id
+          }
+        end
+
         # Create the first-run onboarding chat: attached to the operator's
         # first active repository, flagged onboarding (so the agent gets the
         # onboarding script), and seeded with a kickoff message so the agent

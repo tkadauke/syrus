@@ -25,6 +25,16 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
   end
 
+  it "returns the default repository for a new chat" do
+    sign_in_as(user)
+    repository
+
+    get "/api/v1/app/chats/new"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to eq("default_repository_id" => repository.id)
+  end
+
   describe "sharing" do
     let(:chat_session) { ChatSession.create!(user: user, title: "Launch planning") }
 

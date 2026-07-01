@@ -250,7 +250,6 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     attachment_results: [],
     whiteboard: { version: 1, elements: [], appState: {}, files: {} },
     paths: {
-      new_chat_path: "/chats/new",
       credentials_path: "/credentials",
       repositories_path: "/repositories",
       app_messages_path: "",

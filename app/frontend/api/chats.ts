@@ -296,6 +296,10 @@ export type CreateChatInput = {
   attachments?: ChatMessageAttachmentInput[]
 }
 
+export type NewChatPayload = {
+  default_repository_id: number | null
+}
+
 export type ChatMessageAttachmentInput = {
   name: string
   mimeType: string
@@ -452,6 +456,10 @@ export function fetchChats() {
   return getJson<ChatsIndexPayload>("/api/v1/app/chats")
 }
 
+export function fetchNewChat() {
+  return getJson<NewChatPayload>("/api/v1/app/chats/new")
+}
+
 export function fetchHiddenChats(page = 1) {
   return getJson<HiddenChatsPayload>(`/api/v1/app/settings/hidden_chats?page=${encodeURIComponent(String(page))}`)
 }
@@ -508,8 +516,9 @@ export function createChat(values: CreateChatInput) {
   })
 }
 
-export function createEmptyChat() {
-  return postJson<ChatCreatedPayload>("/api/v1/app/chats")
+export function createEmptyChat(repositoryId?: number | string | null) {
+  const payload = repositoryId == null || repositoryId === "" ? undefined : { repository_id: repositoryId }
+  return postJson<ChatCreatedPayload>("/api/v1/app/chats", payload)
 }
 
 // Create the first-run onboarding chat (seeded so the agent greets the

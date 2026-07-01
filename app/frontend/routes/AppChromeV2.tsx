@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createEmptyChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
+import { createEmptyChat, fetchChat, fetchChats, fetchMoreChatsForGroup, fetchNewChat, hideChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
@@ -96,7 +96,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     }
 
     try {
-      const created = await createEmptyChat()
+      const newChat = await fetchNewChat()
+      const created = await createEmptyChat(newChat.default_repository_id)
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
       navigate(withRoutePrefix(created.redirect_to, prefix))
     } catch (_error) {
