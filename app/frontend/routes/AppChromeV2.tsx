@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
+import { fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
@@ -56,6 +56,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
   const tabsHidden = inOnboarding && !onboardingChatStarted
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [mobileBrandFloating, setMobileBrandFloating] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
@@ -164,6 +165,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           dashboardSubnavEnabled={true}
           navItems={navItems}
           onCloseDrawer={() => setDrawerOpen(false)}
+          onNotice={setNotice}
           onStartChat={startChat}
           prefix={prefix}
           showTeamProfile={(data?.team_user_count || 0) > 1}
@@ -209,6 +211,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             dashboardSubnavEnabled={false}
             navItems={navItems}
             onCloseDrawer={() => setDrawerOpen(false)}
+            onNotice={setNotice}
             onStartChat={startChat}
             prefix={prefix}
             showTeamProfile={(data?.team_user_count || 0) > 1}
@@ -232,6 +235,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         </div>
         <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
         <FlashBanner flash={data?.flash} />
+        <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {showAdminSubnav ? (
           <div className="min-h-full min-w-0">
             <AdminSubnav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix} />
@@ -371,6 +375,7 @@ function SidebarContent({
   dashboardSubnavEnabled,
   navItems,
   onCloseDrawer,
+  onNotice,
   onStartChat,
   prefix,
   showDashboardSidebarSubjects,
@@ -381,6 +386,7 @@ function SidebarContent({
   dashboardSubnavEnabled: boolean
   navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
   onCloseDrawer: () => void
+  onNotice: (message: string | null) => void
   onStartChat: () => void
   prefix: string
   showDashboardSidebarSubjects: boolean
@@ -466,7 +472,7 @@ function SidebarContent({
             })}
           </nav>
         </div>
-        <RecentChatsSidebar onCloseDrawer={onCloseDrawer} prefix={prefix} userPresent={Boolean(user)} />
+        <RecentChatsSidebar onCloseDrawer={onCloseDrawer} onNotice={onNotice} prefix={prefix} userPresent={Boolean(user)} />
       </div>
       <div className="shrink-0 border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
@@ -629,7 +635,7 @@ type ChatSection = {
   has_more: boolean
 }
 
-function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDrawer: () => void; prefix: string; userPresent: boolean }) {
+function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { onCloseDrawer: () => void; onNotice: (message: string | null) => void; prefix: string; userPresent: boolean }) {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -717,6 +723,15 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
     })
   }
 
+  function togglePin(chat: ChatNavRecord) {
+    void updateChatPinned(chat.id, !chat.pinned).then(() => {
+      onNotice(null)
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+    }).catch(() => {
+      onNotice("Unable to update chat pin.")
+    })
+  }
+
   function removeChatFromRecentLists(chatId: number) {
     queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
       if (!current) return current
@@ -787,6 +802,7 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                         chat={chat}
                         disabled={hidingChatIds.has(chat.id)}
                         onHide={() => hideRecentChat(chat)}
+                        onTogglePin={() => togglePin(chat)}
                         search={location.search}
                       />
                     </div>
@@ -843,10 +859,11 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
   return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
 }
 
-function RecentChatActionsMenu({ chat, disabled, onHide, search }: {
+function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: {
   chat: ChatNavRecord
   disabled: boolean
   onHide: () => void
+  onTogglePin: () => void
   search: string
 }) {
   const location = useLocation()
@@ -902,6 +919,17 @@ function RecentChatActionsMenu({ chat, disabled, onHide, search }: {
           ) : (
             <div className="px-3 py-2 text-gray-400 dark:text-gray-500">No bookmarks yet</div>
           )}
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            onClick={() => {
+              onTogglePin()
+              setOpen(false)
+            }}
+            type="button"
+          >
+            <PinIcon className="h-4 w-4 shrink-0" />
+            {chat.pinned ? "Unpin chat" : "Pin chat"}
+          </button>
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"

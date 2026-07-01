@@ -135,6 +135,107 @@ describe("AppChromeV2 recent chats", () => {
     expect(links.map((link) => link.textContent)).toEqual(["Older pinned", "Recent unpinned"])
     expect(within(links[0]).getByText("Older pinned").previousElementSibling?.tagName.toLowerCase()).toBe("svg")
   })
+
+  it("shows pin and unpin actions in each chat context menu", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/chats/1" || String(input) === "/api/v1/app/chats/2") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({ id: 1, title: "Unpinned chat", pinned: false }),
+            chatNav({ id: 2, title: "Pinned chat", pinned: true })
+          ]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Unpinned chat" }))
+    expect(await screen.findByRole("button", { name: "Pin chat" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Unpinned chat" }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Pinned chat" }))
+    expect(await screen.findByRole("button", { name: "Unpin chat" })).toBeInTheDocument()
+  })
+
+  it("pins a chat from the context menu and invalidates recent chats", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/1" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({ message: "Chat pinned", chat: chatNav({ id: 1, title: "Unpinned chat", pinned: true }) }))
+      }
+
+      if (path === "/api/v1/app/chats/1") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({ id: 1, title: "Unpinned chat", pinned: false })
+          ]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Unpinned chat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Pin chat" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1", expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ chat: { pinned: true } })
+      }))
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    })
+  })
+
+  it("keeps Hide Chat below the pin action in the context menu", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/chats/1") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({ id: 1, title: "Menu order chat", pinned: false })
+          ]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Menu order chat" }))
+    const pinButton = await screen.findByRole("button", { name: "Pin chat" })
+    const hideButton = screen.getByRole("button", { name: "Hide Chat" })
+
+    expect(Boolean(pinButton.compareDocumentPosition(hideButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
 })
 
 describe("chatSectionsFromPayload", () => {
