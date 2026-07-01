@@ -77,6 +77,7 @@ import {
   type SlashCommand,
   type SlashCommandMatch
 } from "../lib/slashCommands"
+import { createReportIssue } from "../api/reportIssues"
 
 const WHITEBOARD_SAVE_DEBOUNCE_MS = 500
 const CHAT_ENTER_SUBMIT_MIN_WIDTH = 1024
@@ -1188,6 +1189,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingSlashCommandConfirmation | null>(null)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const [clearConfirmationOpen, setClearConfirmationOpen] = useState(false)
+  const [reportDialogOpen, setReportDialogOpen] = useState(false)
   const [attachmentPopoverOpen, setAttachmentPopoverOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1526,6 +1528,13 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       return
     }
 
+    if (command.name === "/report") {
+      setReportDialogOpen(true)
+      setText("")
+      onNotice(null)
+      return
+    }
+
     setText("")
   }
 
@@ -1785,6 +1794,16 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
           </button>
         </div>
       ) : null}
+      {reportDialogOpen ? (
+        <ReportIssueDialog
+          body={reportIssueBody(payload, prefix)}
+          onClose={() => setReportDialogOpen(false)}
+          onFiled={(issueUrl) => {
+            onNotice(`Issue filed — ${issueUrl}`)
+            setReportDialogOpen(false)
+          }}
+        />
+      ) : null}
       <form
         className={`relative rounded border border-gray-200 bg-white p-3 transition-shadow dark:border-gray-700 dark:bg-gray-900 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
         onDragEnter={handleDragEnter}
@@ -1946,6 +1965,68 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       </form>
     </>
   )
+}
+
+function ReportIssueDialog({ body, onClose, onFiled }: { body: string; onClose: () => void; onFiled: (issueUrl: string) => void }) {
+  const [title, setTitle] = useState("")
+  const [issueBody, setIssueBody] = useState(body)
+  const report = useMutation({
+    mutationFn: () => createReportIssue({ title, body: issueBody }),
+    onSuccess: (result) => onFiled(result.issue_url)
+  })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (title.trim().length === 0 || report.isPending) return
+
+    report.mutate()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
+      <form aria-label="File a GitHub issue about Syrus" aria-modal="true" className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950" onSubmit={submit} role="dialog">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">File a GitHub issue</h2>
+          </div>
+          <button aria-label="Close report dialog" className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" disabled={report.isPending} onClick={onClose} type="button">
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+        <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="report-issue-title">Title</label>
+        <input
+          autoFocus
+          className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          disabled={report.isPending}
+          id="report-issue-title"
+          onChange={(event) => setTitle(event.target.value)}
+          required
+          type="text"
+          value={title}
+        />
+        <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="report-issue-body">Body</label>
+        <textarea
+          className="mt-1 h-40 w-full resize-y rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          disabled={report.isPending}
+          id="report-issue-body"
+          onChange={(event) => setIssueBody(event.target.value)}
+          value={issueBody}
+        />
+        {report.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(report.error, "Issue could not be filed.")}</p> : null}
+        <div className="mt-4 flex justify-end gap-2">
+          <button className={secondaryButton()} disabled={report.isPending} onClick={onClose} type="button">Cancel</button>
+          <button className={primaryButton()} disabled={report.isPending || title.trim().length === 0} type="submit">Submit</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function reportIssueBody(payload: ChatPayload, prefix: string) {
+  const path = withRoutePrefix(payload.chat.chat_path, prefix)
+  const url = typeof window === "undefined" ? path : new URL(path, window.location.origin).toString()
+
+  return `Context:\n- Chat: ${chatDisplayTitle(payload.chat)}\n- URL: ${url}\n\n`
 }
 
 function readAttachmentFile(file: File): Promise<ChatComposeAttachment> {

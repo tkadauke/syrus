@@ -27,6 +27,7 @@ export const slashCommands = [
   { name: "/bookmarks", kind: "system", args: [], description: "Show saved bookmarks in this chat." },
   { name: "/attach", kind: "system", args: [{ name: "owner/repo", required: false }], description: "Attach a repository or open attachment controls." },
   { name: "/settings", kind: "system", args: [], description: "Open chat settings." },
+  { name: "/report", kind: "system", args: [], description: "File a GitHub issue about Syrus" },
   {
     name: "/jobs",
     kind: "system",

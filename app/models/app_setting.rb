@@ -1,4 +1,6 @@
 class AppSetting < ApplicationRecord
+  DEFAULT_REPORT_ISSUE_REPO_SLUG = "tkadauke/syrus".freeze
+
   CLEARABLE_SECRETS = {
     "telegram_bot_token" => "Telegram bot token",
     "telegram_webhook_secret" => "Telegram webhook secret"
@@ -46,6 +48,10 @@ class AppSetting < ApplicationRecord
 
   def self.merge_train_max_size
     current.merge_train_max_size
+  end
+
+  def self.report_issue_repo_slug
+    current.report_issue_repo_slug.presence || DEFAULT_REPORT_ISSUE_REPO_SLUG
   end
 
   # Operator-console kill switches. Polling jobs and RunJob check

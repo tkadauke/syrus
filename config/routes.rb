@@ -27,6 +27,7 @@ Rails.application.routes.draw do
         post "auth/passwords", to: "auth#create_password"
         patch "auth/passwords/:token", to: "auth#update_password"
         post "bug_reports", to: "bug_reports#create"
+        post "report_issue", to: "report_issue#create"
         get "search", to: "search#index"
         post "filters/usage", to: "filters#usage"
         resources :tags, only: %i[ index create update destroy ]

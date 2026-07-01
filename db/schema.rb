@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_050437) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_01_155603) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -62,6 +62,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_050437) do
     t.boolean "merge_train_enabled", default: false, null: false
     t.integer "merge_train_max_size", default: 20, null: false
     t.boolean "polling_paused", default: false, null: false
+    t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
     t.boolean "runs_paused", default: false, null: false
     t.boolean "signups_open", default: false, null: false
     t.text "telegram_bot_token"

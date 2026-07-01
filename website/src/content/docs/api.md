@@ -90,6 +90,23 @@ curl -X POST https://syrus.example.com/api/v1/app/jobs/123/chat_feedback \
 
 Blank feedback or a non-actionable Job returns `422` with a JSON error.
 
+## File a Syrus Report Issue
+
+`POST /api/v1/app/report_issue` lets the authenticated user file a GitHub
+issue against the configured Syrus report repository. The default target is
+`tkadauke/syrus`; operators can change `AppSetting.report_issue_repo_slug`.
+The user must have a connected GitHub token.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/report_issue \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Chat composer bug", "body": "Context and reproduction steps." }'
+```
+
+The response is `{ "issue_url": "https://github.com/..." }`. Missing title
+or GitHub credentials returns `422` with a JSON error.
+
 ## Create an Epic
 
 `POST /api/v1/admin/epics` creates an Epic in a repository owned by the
