@@ -118,6 +118,27 @@ RSpec.describe ProcessRunner do
     expect(spawned_processes.first.reload).to be_finished
   end
 
+  it "reconciles a stopped chat turn when the process exits before output" do
+    user = Factories.user(claude_oauth_token: "oat-test")
+    chat = ChatSession.create!(user: user, workspace_path: @dir, stop_requested_at: Time.current)
+    chat.messages.create!(role: "user", content: { "text" => "Stop before output" })
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "agent"
+    ).run
+
+    expect(result).to be_success
+    expect(chat.reload.stop_requested_at).to be_nil
+    expect(chat).not_to be_turn_in_flight
+    expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Cancelled by operator." } ]
+    )
+  end
+
   it "records truncated command strings without splitting UTF-8 characters" do
     prefix = [ ruby, "-e", "exit 0", "" ].join(" ")
     filler = "a" * (4095 - prefix.bytesize)

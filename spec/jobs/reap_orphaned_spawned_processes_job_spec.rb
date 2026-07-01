@@ -67,4 +67,20 @@ RSpec.describe ReapOrphanedSpawnedProcessesJob do
     sp.reload
     expect(sp.outcome).to eq("succeeded") # conditional update_all returned 0
   end
+
+  it "reconciles stopped chat sessions for cross-host orphaned agent processes" do
+    user = Factories.user(claude_oauth_token: "oat-test")
+    chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-reaper", stop_requested_at: 10.seconds.ago)
+    chat.messages.create!(role: "user", content: { "text" => "Stop this" }, created_at: 20.seconds.ago)
+    fixture(hostname: "dead-pod-xyz", workdir: chat.workspace_root.to_s, started_at: 15.seconds.ago)
+    stub_live_hosts("live-pod")
+
+    described_class.perform_now
+
+    expect(chat.reload.stop_requested_at).to be_nil
+    expect(chat).not_to be_turn_in_flight
+    expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Cancelled by operator." } ]
+    )
+  end
 end

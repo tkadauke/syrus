@@ -100,6 +100,39 @@ RSpec.describe SpawnedProcessSupervisor do
       # ProcessRunner's outcome wins; supervisor's update_all returned 0.
       expect(sp.outcome).to eq("succeeded")
     end
+
+    it "reconciles stopped chat sessions for finalized agent processes" do
+      user = Factories.user(claude_oauth_token: "oat-test")
+      chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-supervisor", stop_requested_at: 10.seconds.ago)
+      chat.messages.create!(role: "user", content: { "text" => "Stop this" }, created_at: 20.seconds.ago)
+      sp = fixture(workdir: chat.workspace_root.to_s, started_at: 15.seconds.ago)
+      allow(Process).to receive(:kill).with(0, sp.pid).and_raise(Errno::ESRCH)
+
+      described_class.tick(now: Time.current)
+
+      expect(chat.reload.stop_requested_at).to be_nil
+      expect(chat).not_to be_turn_in_flight
+      expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
+        [ "system", { "text" => "Cancelled by operator." } ]
+      )
+    end
+
+    it "does not clear a fresh stop request for a newer turn" do
+      user = Factories.user(claude_oauth_token: "oat-test")
+      chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-supervisor-fresh", stop_requested_at: Time.current)
+      chat.messages.create!(role: "user", content: { "text" => "Old turn" }, created_at: 20.seconds.ago)
+      chat.messages.create!(role: "assistant", content: { "text" => "Done" }, created_at: 19.seconds.ago)
+      chat.messages.create!(role: "user", content: { "text" => "New turn" }, created_at: 1.second.ago)
+      sp = fixture(workdir: chat.workspace_root.to_s, started_at: 15.seconds.ago)
+      allow(Process).to receive(:kill).with(0, sp.pid).and_raise(Errno::ESRCH)
+
+      described_class.tick(now: Time.current)
+
+      expect(chat.reload.stop_requested_at).to be_present
+      expect(chat.messages.order(:created_at).pluck(:role, :content)).not_to include(
+        [ "system", { "text" => "Cancelled by operator." } ]
+      )
+    end
   end
 
   describe ".ensure_running" do

@@ -265,14 +265,17 @@ class ProcessRunner
   def finalize_spawned_process!(outcome:, exit_status:)
     return unless @spawned_process
 
+    finished_at = Time.current
     rows = SpawnedProcess.where(id: @spawned_process.id, finished_at: nil)
                          .update_all(
-                           finished_at: Time.current,
+                           finished_at: finished_at,
                            outcome: outcome,
                            exit_status: exit_status
                          )
     if rows.zero?
       Rails.logger.info("[ProcessRunner] SpawnedProcess ##{@spawned_process.id} already finalized (supervisor beat us)")
+    else
+      ChatStopReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
     end
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] finalize failed: #{e.class}: #{e.message}")

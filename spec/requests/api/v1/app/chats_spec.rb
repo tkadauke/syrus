@@ -1474,6 +1474,23 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "stop_requested_at")).to be_present
   end
 
+  it "reconciles a stop immediately when no chat agent process is live" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Already stopped", last_message_at: Time.current)
+    chat.messages.create!(role: "user", content: { "text" => "Please stop" })
+
+    post "/api/v1/app/chats/#{chat.id}/stop"
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.stop_requested_at).to be_nil
+    expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Cancelled by operator." } ]
+    )
+    expect(parse_body["message"]).to eq("Stop requested.")
+    expect(parse_body.dig("chat", "stop_requested_at")).to be_nil
+    expect(parse_body.dig("chat", "turn_in_flight")).to eq(false)
+  end
+
   it "clears chat messages and queued messages through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, title: "Keep title", last_message_at: Time.current, stop_requested_at: Time.current)

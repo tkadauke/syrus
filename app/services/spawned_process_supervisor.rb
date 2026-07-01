@@ -100,6 +100,7 @@ class SpawnedProcessSupervisor
       return if rows.zero?
 
       Rails.logger.info("[SpawnedProcessSupervisor] finalized SpawnedProcess ##{sp.id} (pid #{sp.pid}, kind #{sp.kind}) — pid gone")
+      ChatStopReconciler.reconcile_spawned_process!(sp, finished_at: now)
     end
   end
 end

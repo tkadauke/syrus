@@ -251,7 +251,8 @@ module Api
           chat_session = find_chat_session
           chat_session.update!(stop_requested_at: Time.current)
           request_chat_agent_kill!(chat_session)
-          chat_session.broadcast_controls
+          ChatStopReconciler.reconcile!(chat_session: chat_session)
+          chat_session.reload.broadcast_controls if chat_session.stop_requested_at?
 
           render json: chat_payload(chat_session.reload, message: "Stop requested.")
         end

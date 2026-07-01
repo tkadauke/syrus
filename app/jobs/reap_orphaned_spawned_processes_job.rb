@@ -23,11 +23,13 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
     SpawnedProcess.running
       .where.not(hostname: live_hosts.to_a)
       .find_each do |sp|
+        finished_at = Time.current
         rows = SpawnedProcess.where(id: sp.id, finished_at: nil)
-                             .update_all(finished_at: Time.current, outcome: "orphaned")
+                             .update_all(finished_at: finished_at, outcome: "orphaned")
         next if rows.zero?
 
         Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] finalized SpawnedProcess ##{sp.id} on dead host #{sp.hostname} (pid #{sp.pid}, kind #{sp.kind})")
+        ChatStopReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
       end
   end
 
