@@ -137,7 +137,10 @@ export function ChatRoute() {
   const chat = useQuery({
     queryKey,
     queryFn: () => fetchChat(id, location.search),
-    enabled: id.length > 0
+    enabled: id.length > 0,
+    placeholderData: (previousData, previousQuery) => (
+      previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined
+    )
   })
 
   useEffect(() => {

@@ -128,13 +128,44 @@ describe("chat attachment popup", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/8?attachment_type=Epic")
     })
 
-    await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
     fireEvent.change(screen.getByPlaceholderText("Search by name or id..."), { target: { value: "roadmap" } })
 
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/8?attachment_type=Epic&attachment_query=roadmap")
     })
+  })
+
+  it("keeps the attachment popup open while tab results load", async () => {
+    let resolveEpicSearch: () => void = () => {
+      throw new Error("Epic attachment search was not requested.")
+    }
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8?attachment_type=Epic") {
+        return new Promise((resolve) => {
+          resolveEpicSearch = () => resolve(jsonResponse(chatPayload({
+            attachment_results: [{ type: "Epic", id: 2, label: "Release planning" }]
+          })))
+        })
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRouteWithLocation()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    fireEvent.click(screen.getByRole("button", { name: "Epic" }))
+
+    expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Job" })).toBeInTheDocument()
+
+    resolveEpicSearch()
+    expect(await screen.findByRole("button", { name: "Release planning" })).toBeInTheDocument()
   })
 
   it("keeps the upload file row wired to the hidden file picker", async () => {
