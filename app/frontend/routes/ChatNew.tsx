@@ -147,15 +147,18 @@ export function ChatNewRoute() {
   }
 
   return (
-    <main aria-label="New chat" className="mx-auto flex min-h-[calc(100dvh-6rem)] max-w-3xl items-center p-6">
+    <main aria-label="New chat" className="mx-auto flex min-h-[calc(100dvh-6rem)] max-w-3xl flex-col items-center justify-center p-6">
       <div className="w-full">
+        <h1 className="mb-10 text-center text-4xl font-bold tracking-tight text-gray-950 dark:text-gray-100">
+          What would you like to build?
+        </h1>
         {form.isPending ? <PanelMessage>Loading chat form...</PanelMessage> : null}
         {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, "Unable to load chat form.")}</PanelMessage> : null}
         {save.isError ? <div className="mb-3"><PanelMessage tone="error">{errorMessage(save.error, "Unable to open chat.")}</PanelMessage></div> : null}
         {form.isSuccess ? (
           <form
             aria-label="Start a new chat"
-            className={`rounded border border-gray-200 bg-white p-4 transition-shadow dark:border-gray-700 dark:bg-gray-900 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+            className={isDragOver ? "rounded ring-2 ring-blue-400 dark:ring-blue-500" : ""}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
@@ -163,21 +166,21 @@ export function ChatNewRoute() {
             onPaste={handlePaste}
             onSubmit={submit}
           >
-            <div className="mb-4">
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="new-chat-repository">Repository</label>
-              <select
-                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
-                disabled={save.isPending}
-                id="new-chat-repository"
-                onChange={(event) => setRepositoryId(event.target.value)}
-                value={repositoryId}
-              >
-                <option value="">General chat</option>
-                {repositories.map((repository) => (
-                  <option key={repository.id} value={repository.id}>{repository.slug}</option>
-                ))}
-              </select>
-            </div>
+            {repositoryId ? (
+              <div className="mb-4 flex flex-wrap gap-2">
+                <span className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
+                  {repositories.find((repository) => String(repository.id) === repositoryId)?.slug ?? repositoryId}
+                  <button
+                    aria-label="Remove repository"
+                    className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900"
+                    onClick={() => setRepositoryId("")}
+                    type="button"
+                  >
+                    <CloseIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              </div>
+            ) : null}
             {attachmentError ? <div className="mb-3 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
             {attachments.length > 0 ? (
               <div className="mb-3 flex flex-wrap gap-2">
@@ -236,12 +239,12 @@ export function ChatNewRoute() {
               </button>
               <textarea
                 aria-label="First message"
-                className="min-h-24 min-w-0 flex-1 resize-y rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+                className="min-w-0 flex-1 resize-none rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
                 disabled={save.isPending}
                 onChange={(event) => setText(event.target.value)}
                 placeholder={repositoryId ? "Ask about this repository..." : "Ask anything, or attach a screenshot for context..."}
                 required
-                rows={4}
+                rows={1}
                 value={text}
               />
               <button className={primaryButton()} disabled={save.isPending || text.trim().length === 0 || attachmentError != null} type="submit">{save.isPending ? "Sending..." : "Send"}</button>

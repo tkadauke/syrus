@@ -34,9 +34,23 @@ describe("ChatNewRoute", () => {
     renderNewChatRoute()
 
     expect(await screen.findByRole("form", { name: "Start a new chat" })).toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("42")
+    expect(screen.getByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+    expect(screen.getByText("acme/widgets")).toBeInTheDocument()
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
     expect(screen.getByRole("textbox", { name: "First message" })).toBeInTheDocument()
     expect(createChat).not.toHaveBeenCalled()
+  })
+
+  it("removes the repository chip and switches to general chat mode", async () => {
+    renderNewChatRoute()
+
+    expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove repository" }))
+
+    expect(screen.queryByText("acme/widgets")).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Ask anything, or attach a screenshot for context...")).toBeInTheDocument()
   })
 
   it("shows drag-over state and adds dropped attachments", async () => {
@@ -88,11 +102,7 @@ describe("ChatNewRoute", () => {
   })
 
   it("sends annotated attachments with the first message", async () => {
-    vi.mocked(createChat).mockResolvedValue({
-      message: "Message sent.",
-      redirect_to: "/chats/18",
-      chat: chatRecord({ id: 18 })
-    })
+    vi.mocked(createChat).mockResolvedValue(createdChat({ id: 18 }))
     renderNewChatRoute()
 
     fireEvent.change(await screen.findByLabelText("Chat attachments"), { target: { files: [new File(["pixels"], "screen.png", { type: "image/png" })] } })
@@ -117,6 +127,23 @@ describe("ChatNewRoute", () => {
     })
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/18")
+    })
+  })
+
+  it("sends a general chat when the repository chip is removed", async () => {
+    vi.mocked(createChat).mockResolvedValue(createdChat({ id: 19 }))
+    renderNewChatRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Remove repository" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "First message" }), { target: { value: "Plan without a repo" } })
+    fireEvent.submit(screen.getByRole("form", { name: "Start a new chat" }))
+
+    await waitFor(() => {
+      expect(createChat).toHaveBeenCalledWith({
+        repositoryId: "",
+        text: "Plan without a repo",
+        attachments: []
+      })
     })
   })
 })
@@ -152,5 +179,13 @@ function chatRecord({ id }: { id: number }) {
     cumulative_output_tokens: 0,
     cumulative_cost_usd: 0,
     pending_proposal_count: 0
+  }
+}
+
+function createdChat({ id }: { id: number }) {
+  return {
+    message: "Message sent.",
+    redirect_to: `/chats/${id}`,
+    chat: chatRecord({ id })
   }
 }
