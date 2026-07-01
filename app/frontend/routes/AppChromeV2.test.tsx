@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactElement } from "react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -109,6 +109,32 @@ describe("AppChromeV2 recent chats", () => {
       expect(screen.getAllByText("Main query overlap")).toHaveLength(1)
     })
   })
+
+  it("renders pinned chats before unpinned chats in the sidebar", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload({
+          groups: [
+            chatGroup({
+              chats: [
+                chatNav({ id: 1, title: "Recent unpinned", pinned: false, last_message_at: "2026-06-27T12:02:00Z" }),
+                chatNav({ id: 2, title: "Older pinned", pinned: true, last_message_at: "2026-06-27T12:00:00Z" })
+              ]
+            })
+          ]
+        })))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome()
+
+    const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
+    const links = await within(recentNav).findAllByRole("link")
+    expect(links.map((link) => link.textContent)).toEqual(["Older pinned", "Recent unpinned"])
+    expect(within(links[0]).getByText("Older pinned").previousElementSibling?.tagName.toLowerCase()).toBe("svg")
+  })
 })
 
 describe("chatSectionsFromPayload", () => {
@@ -179,6 +205,7 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     id: 1,
     title: "Chat",
     title_pending: false,
+    pinned: false,
     pinned_context: null,
     chat_path: `/chats/${overrides.id ?? 1}`,
     repository: null,

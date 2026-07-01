@@ -144,6 +144,7 @@ function chatRecord({ id }: { id: number }) {
     id,
     title: null,
     title_pending: true,
+    pinned: false,
     pinned_context: null,
     chat_path: `/chats/${id}`,
     repository: null,

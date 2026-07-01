@@ -141,6 +141,20 @@ curl -X POST https://syrus.example.com/api/v1/app/chats/123/rename \
   -d '{ "name": "Release planning" }'
 ```
 
+## Pin or Unpin a Chat
+
+`PATCH /api/v1/app/chats/:id` accepts `{ "pinned": true }` or
+`{ "chat": { "pinned": true } }` for one of the authenticated user's chat
+sessions. Use `false` to unpin. Pinned chats sort ahead of unpinned chats in
+the sidebar.
+
+```bash
+curl -X PATCH https://syrus.example.com/api/v1/app/chats/123 \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "chat": { "pinned": true } }'
+```
+
 ## Hide or Restore a Chat
 
 `PATCH /api/v1/app/chats/:id/hide` hides one of the authenticated user's

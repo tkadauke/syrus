@@ -10,6 +10,7 @@ export type ChatRecord = {
   id: number
   title: string | null
   title_pending: boolean
+  pinned: boolean
   pinned_context: string | null
   chat_path: string
   repository: ChatRepository | null
@@ -506,6 +507,10 @@ export function sendChatMessage(path: string, text: string, attachments: ChatMes
 
 export function renameChat(path: string, title: string) {
   return patchJson<ChatPayload>(path, { chat: { title } })
+}
+
+export function updateChatPinned(id: number | string, pinned: boolean) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { pinned } })
 }
 
 export function clearChatHistory(path: string) {

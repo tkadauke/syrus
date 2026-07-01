@@ -192,6 +192,42 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["has_more"]).to eq(false)
   end
 
+  it "orders pinned sidebar chats before unpinned chats in each group" do
+    sign_in_as(user)
+    unpinned_recent = ChatSession.create!(user: user, repository: repository, title: "Recent", last_message_at: 1.hour.ago)
+    pinned_older = ChatSession.create!(user: user, repository: repository, title: "Pinned", pinned: true, last_message_at: 2.days.ago)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq([ pinned_older.id, unpinned_recent.id ])
+    expect(group["chats"].first["pinned"]).to eq(true)
+  end
+
+  it "toggles chat pinning for the owner only" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Plan")
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { pinned: true } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.pinned?).to eq(true)
+    expect(parse_body.dig("chat", "pinned")).to eq(true)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { pinned: false }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.pinned?).to eq(false)
+
+    other_user = Factories.user
+    sign_in_as(other_user)
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { pinned: true } }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(chat.reload.pinned?).to eq(false)
+  end
+
   it "does not load hidden chats when paginating one sidebar group" do
     sign_in_as(user)
     chats = 7.times.map do |index|

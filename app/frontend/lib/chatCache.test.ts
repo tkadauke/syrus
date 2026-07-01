@@ -41,6 +41,7 @@ function chatRecord({ id, title, lastMessageAt, updatedAt }: { id: number; title
     id,
     title,
     title_pending: false,
+    pinned: false,
     pinned_context: null,
     chat_path: `/chats/${id}`,
     repository: null,

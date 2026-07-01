@@ -60,6 +60,28 @@ module Api
           render json: chat_payload(find_chat_session)
         end
 
+        def update
+          chat_session = ChatSession.find(params[:id])
+          unless chat_session.user_id == Current.user.id
+            render_error("forbidden", "You do not have permission to update this chat.", status: :forbidden)
+            return
+          end
+
+          pinned = if params[:chat].respond_to?(:key?) && params[:chat].key?(:pinned)
+            params[:chat][:pinned]
+          else
+            params[:pinned]
+          end
+          if pinned.nil?
+            render_error("validation_failed", "pinned is required.", status: :unprocessable_content)
+            return
+          end
+
+          chat_session.update!(pinned: ActiveModel::Type::Boolean.new.cast(pinned))
+
+          render json: chat_payload(chat_session.reload, message: chat_session.pinned? ? "Chat pinned" : "Chat unpinned")
+        end
+
         def search
           query = search_query
           scope = filtered_chat_search_scope
@@ -817,7 +839,7 @@ module Api
         def recent_chats_json(current_chat_session)
           chat_ids = Current.user.chat_sessions
             .visible
-            .order(Arel.sql("#{chat_activity_order_sql} DESC"), id: :desc)
+            .order(Arel.sql("chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC"), id: :desc)
             .limit(20)
             .pluck(:id)
 
@@ -899,7 +921,9 @@ module Api
         def chat_index_before(scope, before_chat)
           timestamp = chat_activity_timestamp(before_chat)
           scope.where(
-            "(#{chat_activity_order_sql}) < ? OR ((#{chat_activity_order_sql}) = ? AND chat_sessions.id < ?)",
+            "chat_sessions.pinned < ? OR (chat_sessions.pinned = ? AND ((#{chat_activity_order_sql}) < ? OR ((#{chat_activity_order_sql}) = ? AND chat_sessions.id < ?)))",
+            before_chat.pinned? ? 1 : 0,
+            before_chat.pinned? ? 1 : 0,
             timestamp,
             timestamp,
             before_chat.id
@@ -910,7 +934,7 @@ module Api
           scope = Current.user.chat_sessions
             .visible
             .left_outer_joins(:repository_attachments)
-            .order(Arel.sql("#{chat_activity_order_sql} DESC, chat_sessions.id DESC"))
+            .order(Arel.sql("chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC, chat_sessions.id DESC"))
 
           if repository_id.present?
             scope.where(chat_attachments: { attachable_type: "Repository", attachable_id: repository_id })
@@ -1403,6 +1427,7 @@ module Api
             id: chat_session.id,
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,
+            pinned: chat_session.pinned?,
             pinned_context: chat_session.pinned_context,
             chat_path: chat_path(chat_session),
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,

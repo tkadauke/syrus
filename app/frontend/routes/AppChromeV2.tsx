@@ -11,6 +11,7 @@ import { CloseIcon } from "../components/CloseIcon"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsBell } from "../components/Notifications"
+import { PinIcon } from "../components/PinIcon"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { firstUnstartedChat } from "../lib/unstartedChat"
@@ -777,6 +778,9 @@ function RecentChatsSidebar({ onCloseDrawer, prefix, userPresent }: { onCloseDra
                         {chat.pending_proposal_count > 0 && (
                           <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
                         )}
+                        {chat.pinned ? (
+                          <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-300" />
+                        ) : null}
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
                       </Link>
                       <RecentChatActionsMenu
@@ -1096,6 +1100,8 @@ export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSection
 }
 
 function compareChatsByLastMessage(left: ChatNavRecord, right: ChatNavRecord) {
+  if (left.pinned !== right.pinned) return left.pinned ? -1 : 1
+
   return chatActivityTime(right) - chatActivityTime(left) || right.id - left.id
 }
 

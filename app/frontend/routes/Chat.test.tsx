@@ -796,6 +796,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       id: 8,
       title: "Aqueduct planning",
       title_pending: false,
+      pinned: false,
       pinned_context: null,
       chat_path: "/chats/8",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },

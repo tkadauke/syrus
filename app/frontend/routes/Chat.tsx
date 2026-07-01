@@ -39,6 +39,7 @@ import {
   sendChatMessage,
   stopChat,
   updateChatProposal,
+  updateChatPinned,
   updateQueuedChatMessage,
   type ChatAttachmentResult,
   type ChatAttachmentRow,
@@ -78,6 +79,7 @@ import { highlightCode, inferToolResultLanguage } from "../lib/syntaxHighlight"
 import {
   filterSlashCommands,
   findSlashCommand,
+  slashCommandDescription,
   slashCommandPrompt,
   slashCommandQuery,
   slashCommandSignature,
@@ -204,6 +206,7 @@ type ChatSystemAction =
   | { kind: "clear" }
   | { kind: "new" }
   | { kind: "attach"; slug: string }
+  | { kind: "pin"; pinned: boolean }
 
 type ChatSystemCommandAction =
   | { kind: "bookmark"; label: string }
@@ -1512,6 +1515,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       if (action.kind === "rename") return renameChat(appendSearch(payload.paths.app_rename_path, search), action.title)
       if (action.kind === "clear") return clearChatHistory(appendSearch(payload.paths.app_clear_path, search))
       if (action.kind === "new") return createChat({ repositoryId: payload.chat.repository ? String(payload.chat.repository.id) : "", text: "" })
+      if (action.kind === "pin") return updateChatPinned(chatId, action.pinned)
       return attachChatRepository(appendSearch(payload.paths.app_attachments_path, search), action.slug)
     },
     onSuccess: (updated, action) => {
@@ -1529,7 +1533,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       refreshRecentChats(queryClient)
       setText("")
       setClearConfirmationOpen(false)
-      onNotice(updated.message || null)
+      onNotice(action.kind === "pin" ? (action.pinned ? "Chat pinned" : "Chat unpinned") : updated.message || null)
       if (action.kind === "attach") commandHandlers.openAttachments()
     }
   })
@@ -1791,6 +1795,11 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
 
     if (command.name === "/clear-canvas") {
       systemCommandAction.mutate({ kind: "clear-canvas" })
+      return
+    }
+
+    if (command.name === "/pin") {
+      systemAction.mutate({ kind: "pin", pinned: !payload.chat.pinned })
       return
     }
 
@@ -2087,6 +2096,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
           <SlashCommandPalette
             activeIndex={activeCommandIndex}
             commands={matchingCommands}
+            context={{ chat: { pinned: payload.chat.pinned } }}
             query={commandQuery}
             onSelect={(command) => completeSlashCommand(command)}
           />
@@ -2249,7 +2259,7 @@ function SlashCommandConfirmation({ commandName, disabled, text, onCancel, onCon
   )
 }
 
-function SlashCommandPalette({ activeIndex, commands, query, onSelect }: { activeIndex: number; commands: SlashCommand[]; query: string; onSelect: (command: SlashCommand) => void }) {
+function SlashCommandPalette({ activeIndex, commands, context, query, onSelect }: { activeIndex: number; commands: SlashCommand[]; context: { chat: { pinned?: boolean } }; query: string; onSelect: (command: SlashCommand) => void }) {
   return (
     <div
       aria-label="Slash commands"
@@ -2276,7 +2286,7 @@ function SlashCommandPalette({ activeIndex, commands, query, onSelect }: { activ
                 <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{highlightSlashCommand(command.name, query)}</span>
                 {signature.length > 0 ? <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{signature}</span> : null}
               </span>
-              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{command.description}</span>
+              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{slashCommandDescription(command, context)}</span>
             </span>
             <span className={`shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase ${command.kind === "system" ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"}`}>{command.kind}</span>
           </button>

@@ -11356,6 +11356,37 @@ describe("App", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
+  it("pins the current chat from the /pin system slash command", async () => {
+    const pinnedPayload = chatPayload({ message: "Chat pinned", pinned: true })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(pinnedPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(input, { target: { value: "/pin" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    expect(await screen.findByText("Chat pinned")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ chat: { pinned: true } })
+    }))
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+  })
+
   it("updates the v2 sidebar immediately after chat slash commands change chats", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
@@ -15097,6 +15128,7 @@ function sidebarChat(overrides: {
   id: number
   title: string | null
   title_pending?: boolean
+  pinned?: boolean
   repository: { id: number; slug: string; repository_path: string } | null
   last_message_at: string | null
   unread?: boolean
@@ -15107,6 +15139,7 @@ function sidebarChat(overrides: {
     id: overrides.id,
     title: overrides.title,
     title_pending: overrides.title_pending ?? false,
+    pinned: overrides.pinned ?? false,
     pinned_context: null,
     chat_path: `/chats/${overrides.id}`,
     repository: overrides.repository,
@@ -15156,6 +15189,7 @@ function chatPayload(overrides: {
   turnInFlight?: boolean
   agentBusy?: boolean
   hasMoreOlder?: boolean
+  pinned?: boolean
 } = {}) {
   return {
     message: overrides.message,
@@ -15163,6 +15197,7 @@ function chatPayload(overrides: {
       id: overrides.id ?? 8,
       title: "Aqueduct planning",
       title_pending: false,
+      pinned: overrides.pinned ?? false,
       pinned_context: null,
       chat_path: overrides.chatPath ?? "/chats/8",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
@@ -15195,6 +15230,7 @@ function chatPayload(overrides: {
         id: 8,
         title: "Aqueduct planning",
         title_pending: false,
+        pinned: overrides.pinned ?? false,
         pinned_context: null,
         chat_path: "/chats/8",
         repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
@@ -15210,6 +15246,7 @@ function chatPayload(overrides: {
         id: 4,
         title: "Road survey",
         title_pending: false,
+        pinned: false,
         pinned_context: null,
         chat_path: "/chats/4",
         repository: { id: 4, slug: "acme/roads", repository_path: "/repositories/4" },

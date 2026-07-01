@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { findSlashCommand, slashCommandPrompt, slashCommandSignature, slashCommands, type SlashCommand } from "./slashCommands"
+import { findSlashCommand, slashCommandDescription, slashCommandPrompt, slashCommandSignature, slashCommands, type SlashCommand } from "./slashCommands"
 
 function promptFor(commandName: string, args = "") {
   const command: SlashCommand | undefined = slashCommands.find((item) => item.name === commandName)
@@ -16,6 +16,7 @@ describe("slashCommands", () => {
     "/prs",
     "/issues",
     "/proposals",
+    "/pin",
     "/bookmark",
     "/discard",
     "/cancel",
@@ -38,6 +39,14 @@ describe("slashCommands", () => {
       expect(command?.kind).toBe("system")
       expect(command).not.toHaveProperty("toPrompt")
     }
+  })
+
+  it("describes /pin from the current chat pinned state", () => {
+    const match = findSlashCommand("/pin")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match ? slashCommandDescription(match.command, { chat: { pinned: false } }) : "missing").toBe("Pin this chat to the top of the sidebar")
+    expect(match ? slashCommandDescription(match.command, { chat: { pinned: true } }) : "missing").toBe("Unpin this chat")
   })
 
   it("keeps agent-backed commands as skill commands", () => {

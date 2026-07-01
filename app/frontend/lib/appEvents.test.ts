@@ -475,6 +475,7 @@ function chatPayload(messages: Array<ReturnType<typeof message>>) {
       id: 9,
       title: "Chat",
       title_pending: true,
+      pinned: false,
       pinned_context: null,
       chat_path: "/chats/9",
       repository: null,
