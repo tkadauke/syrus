@@ -1706,7 +1706,6 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       setText("")
       setClearConfirmationOpen(false)
       onNotice(action.kind === "pin" ? (action.pinned ? "Chat pinned" : "Chat unpinned") : chatPayload.message || null)
-      onNotice(action.kind === "pin" ? (action.pinned ? "Chat pinned" : "Chat unpinned") : chatPayload.message || null)
       if (action.kind === "attach") commandHandlers.openAttachments()
     }
   })
