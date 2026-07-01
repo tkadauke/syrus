@@ -37,4 +37,32 @@ describe("subscribeToAppEvents", () => {
     subscription.unsubscribe()
     expect(unsubscribe).toHaveBeenCalled()
   })
+
+  it("invalidates all queries on reconnect but not initial connect", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    let connected: (() => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          connected = mixin.connected
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    subscribeToAppEvents(queryClient, consumer)
+
+    expect(consumer.subscriptions.create).toHaveBeenCalledWith(
+      { channel: "AppUserChannel" },
+      expect.objectContaining({ connected: expect.any(Function) })
+    )
+
+    connected?.()
+    expect(invalidate).not.toHaveBeenCalled()
+
+    connected?.()
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    expect(invalidate).toHaveBeenCalledWith()
+  })
 })

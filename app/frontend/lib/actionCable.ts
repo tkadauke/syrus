@@ -6,9 +6,17 @@ export function subscribeToAppEvents(
   queryClient: QueryClient,
   consumer: Consumer = createConsumer()
 ): Subscription {
+  let everConnected = false
+
   return consumer.subscriptions.create(
     { channel: "AppUserChannel" },
     {
+      connected() {
+        if (everConnected) {
+          void queryClient.invalidateQueries()
+        }
+        everConnected = true
+      },
       received(data: unknown) {
         applyAppEvent(queryClient, data as AppEvent)
       }
