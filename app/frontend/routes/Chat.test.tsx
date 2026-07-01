@@ -332,7 +332,7 @@ describe("chat bookmark picker command", () => {
 
     const textarea = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(textarea, { target: { value: "/bookmarks" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     const dialog = await screen.findByRole("dialog", { name: "Bookmarks" })
     expect(within(dialog).getByText("Aqueduct marker")).toBeInTheDocument()
@@ -358,7 +358,7 @@ describe("chat bookmark picker command", () => {
 
     const textarea = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(textarea, { target: { value: "/bookmarks" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     const target = await screen.findByText("Aqueduct marker")
     Object.defineProperty(document.getElementById("message-9"), "scrollIntoView", {
@@ -387,7 +387,7 @@ describe("chat bookmark picker command", () => {
 
     const textarea = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(textarea, { target: { value: "/bookmarks" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     expect(await screen.findByRole("dialog", { name: "Bookmarks" })).toBeInTheDocument()
     expect(screen.getByText("No bookmarks yet")).toBeInTheDocument()
@@ -416,14 +416,14 @@ describe("chat bookmark picker command", () => {
 
     const textarea = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(textarea, { target: { value: "/bookmarks" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     const firstDialog = await screen.findByRole("dialog", { name: "Bookmarks" })
     fireEvent.click(firstDialog.parentElement!)
     expect(screen.queryByRole("dialog", { name: "Bookmarks" })).not.toBeInTheDocument()
 
     fireEvent.change(textarea, { target: { value: "/bookmarks" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
     expect(await screen.findByRole("dialog", { name: "Bookmarks" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close bookmarks" }))
 
@@ -983,7 +983,7 @@ describe("chat slash commands", () => {
 
     const textarea = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(textarea, { target: { value: "/copy" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     expect(writeText).toHaveBeenCalledWith("Latest assistant response.")
     expect(await screen.findByText("Copied to clipboard")).toBeInTheDocument()

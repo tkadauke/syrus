@@ -238,18 +238,51 @@ class CodexInvocation
       log_sink.call(text, kind: "assistant_text") if text.present?
       { final_text: text }
     when "mcp_tool_call"
+      tool_name = codex_mcp_tool_name(item)
+      return nil if tool_name.blank?
+
       tool = [ item["server"], item["tool"] ].compact.join(".")
+      tool = tool_name if tool.blank?
+      tool_use_id = item["call_id"] || item["id"]
       if item["error"]
-        log_sink.call("[codex mcp] #{tool} #{status}: #{item['error']['message']}", kind: "tool_result")
-      elsif item["result"]
-        log_sink.call("[codex mcp] #{tool} #{status}", kind: "tool_result")
+        log_sink.call(
+          "[codex mcp] #{tool} #{status}: #{item['error']['message']}",
+          kind: "tool_result",
+          tool_name: tool_name,
+          tool_result_content: item["error"],
+          tool_result_error: true,
+          tool_use_id: tool_use_id
+        )
+      elsif item["result"] || status == "completed"
+        log_sink.call(
+          "[codex mcp] #{tool} #{status}",
+          kind: "tool_result",
+          tool_name: tool_name,
+          tool_result_content: item["result"] || { "status" => status },
+          tool_result_error: false,
+          tool_use_id: tool_use_id
+        )
       else
-        log_sink.call("[codex mcp] #{tool} #{status}", kind: "tool_call")
+        log_sink.call(
+          "[codex mcp] #{tool} #{status}",
+          kind: "tool_call",
+          tool_name: tool_name,
+          tool_input: codex_tool_input(item).merge("status" => status),
+          tool_use_id: tool_use_id
+        )
       end
       nil
     when "command_execution"
       command = item["command"].to_s
-      log_sink.call("[codex command] #{command} #{status}", kind: "tool_call")
+      return nil if command.blank?
+
+      log_sink.call(
+        "[codex command] #{command} #{status}",
+        kind: "tool_call",
+        tool_name: "Command",
+        tool_input: { "command" => command, "status" => status },
+        tool_use_id: item["call_id"] || item["id"]
+      )
       nil
     when "file_change"
       log_sink.call("[codex file] #{item['path']} #{status}", kind: "system")
@@ -257,6 +290,19 @@ class CodexInvocation
     else
       nil
     end
+  end
+
+  def codex_mcp_tool_name(item)
+    server = item["server"].presence
+    tool = item["tool"].presence || item["name"].presence
+    return nil if server.blank? && tool.blank?
+
+    [ "mcp", server, tool ].compact.join("__")
+  end
+
+  def codex_tool_input(item)
+    input = item["arguments"] || item["input"]
+    input.is_a?(Hash) ? input : {}
   end
 
   def rollout_path_for(codex_home, session_id)

@@ -534,6 +534,28 @@ RSpec.describe ChatTurnJob do
     ChatTurnJob.agent_runner = ->(**kwargs) {
       received.merge!(kwargs)
       kwargs[:log_sink].call("Codex response", kind: "assistant_text")
+      kwargs[:log_sink].call(
+        "[codex mcp] syrus-chat-sidecar.repo_info started",
+        kind: "tool_call",
+        tool_name: "mcp__syrus-chat-sidecar__repo_info",
+        tool_input: { "repository_id" => codex_repository.id, "status" => "started" },
+        tool_use_id: "call_1"
+      )
+      kwargs[:log_sink].call(
+        "[codex mcp] syrus-chat-sidecar.repo_info completed",
+        kind: "tool_result",
+        tool_name: "mcp__syrus-chat-sidecar__repo_info",
+        tool_result_content: { "slug" => codex_repository.slug },
+        tool_result_error: false,
+        tool_use_id: "call_1"
+      )
+      kwargs[:log_sink].call(
+        "[codex command] bin/rails test started",
+        kind: "tool_call",
+        tool_name: "Command",
+        tool_input: { "command" => "bin/rails test", "status" => "started" },
+        tool_use_id: "cmd_1"
+      )
       result_fixture(session_id: "codex-thread-1", transcript_jsonl: "{\"type\":\"session_meta\"}\n")
     }
 
@@ -561,7 +583,24 @@ RSpec.describe ChatTurnJob do
       "SYRUS_CHAT_CURRENT_MESSAGE_ID" => codex_message.id.to_s,
       "SYRUS_CHAT_MCP_SERVER_NAME" => "syrus-chat-sidecar"
     )
-    expect(codex_chat.messages.order(:created_at).pluck(:role)).to eq([ "user", "assistant" ])
+    messages = codex_chat.messages.order(:created_at).to_a
+    expect(messages.map(&:role)).to eq([ "user", "assistant", "tool_use", "tool_result", "tool_use" ])
+    expect(messages.third).to have_attributes(
+      tool_name: "mcp__syrus-chat-sidecar__repo_info",
+      content: { "input" => { "repository_id" => codex_repository.id, "status" => "started" } }
+    )
+    expect(messages.fourth).to have_attributes(
+      tool_name: "mcp__syrus-chat-sidecar__repo_info",
+      content: {
+        "result" => { "slug" => codex_repository.slug },
+        "is_error" => false,
+        "tool_use_id" => "call_1"
+      }
+    )
+    expect(messages.fifth).to have_attributes(
+      tool_name: "Command",
+      content: { "input" => { "command" => "bin/rails test", "status" => "started" } }
+    )
     expect(codex_chat.reload.claude_session).to have_attributes(
       provider: "codex",
       session_id: "codex-thread-1",
@@ -600,6 +639,17 @@ RSpec.describe ChatTurnJob do
       session_id: "codex-thread-1",
       transcript_jsonl: "new"
     )
+  end
+
+  it "does not persist nameless tool call events" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("[codex mcp] started", kind: "tool_call", tool_input: { "status" => "started" })
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "{}\n")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(chat.messages.where(role: "tool_use")).to be_empty
   end
 
   it "records available and unavailable MCP tools while suppressing pending-only MCP health" do

@@ -245,6 +245,8 @@ class ChatTurnJob < ApplicationJob
                          tool_use_id: nil, mcp_servers: nil, **)
     case kind.to_s
     when "tool_call"
+      return if tool_name.blank?
+
       # Persist the structured tool invocation. Abbreviation is the
       # presentation layer's job; storing the raw input keeps the data
       # tier honest and lets the view evolve without DB churn.
@@ -254,6 +256,8 @@ class ChatTurnJob < ApplicationJob
         content: { "input" => tool_input || {} }
       )
     when "tool_result"
+      return if tool_name.blank? && tool_use_id.blank? && tool_result_content.blank?
+
       @chat.messages.create!(
         role: "tool_result",
         tool_name: tool_name,

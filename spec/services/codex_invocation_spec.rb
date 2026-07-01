@@ -246,4 +246,96 @@ RSpec.describe CodexInvocation do
       end
     end
   end
+
+  describe "Codex item event logging" do
+    it "passes structured metadata for MCP tool calls and results" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P")
+      events = []
+      log_sink = ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+
+      invocation.send(:process_event, {
+        type: "item.started",
+        item: {
+          type: "mcp_tool_call",
+          server: "syrus-chat-sidecar",
+          tool: "repo_info",
+          arguments: { "repository_id" => 12 },
+          call_id: "call_1"
+        }
+      }.to_json, log_sink)
+      invocation.send(:process_event, {
+        type: "item.completed",
+        item: {
+          type: "mcp_tool_call",
+          server: "syrus-chat-sidecar",
+          tool: "repo_info",
+          result: { "slug" => "acme/widgets" },
+          call_id: "call_1"
+        }
+      }.to_json, log_sink)
+
+      expect(events).to contain_exactly(
+        [
+          "[codex mcp] syrus-chat-sidecar.repo_info started",
+          include(
+            kind: "tool_call",
+            tool_name: "mcp__syrus-chat-sidecar__repo_info",
+            tool_input: { "repository_id" => 12, "status" => "started" },
+            tool_use_id: "call_1"
+          )
+        ],
+        [
+          "[codex mcp] syrus-chat-sidecar.repo_info completed",
+          include(
+            kind: "tool_result",
+            tool_name: "mcp__syrus-chat-sidecar__repo_info",
+            tool_result_content: { "slug" => "acme/widgets" },
+            tool_result_error: false,
+            tool_use_id: "call_1"
+          )
+        ]
+      )
+    end
+
+    it "passes structured metadata for command executions" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P")
+      events = []
+      log_sink = ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+
+      invocation.send(:process_event, {
+        type: "item.started",
+        item: {
+          type: "command_execution",
+          command: "bin/rspec spec/services/codex_invocation_spec.rb",
+          id: "cmd_1"
+        }
+      }.to_json, log_sink)
+
+      expect(events).to eq([
+        [
+          "[codex command] bin/rspec spec/services/codex_invocation_spec.rb started",
+          {
+            kind: "tool_call",
+            tool_name: "Command",
+            tool_input: {
+              "command" => "bin/rspec spec/services/codex_invocation_spec.rb",
+              "status" => "started"
+            },
+            tool_use_id: "cmd_1"
+          }
+        ]
+      ])
+    end
+
+    it "does not log nameless MCP or command tool rows" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P")
+      events = []
+      log_sink = ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+
+      invocation.send(:process_event, { type: "item.started", item: { type: "mcp_tool_call" } }.to_json, log_sink)
+      invocation.send(:process_event, { type: "item.started", item: { type: "command_execution" } }.to_json, log_sink)
+
+      expect(events).to be_empty
+    end
+  end
 end
