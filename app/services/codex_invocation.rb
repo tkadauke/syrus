@@ -62,7 +62,7 @@ class CodexInvocation
     codex_home = codex_home.presence || File.join(Dir.home, ".codex")
     FileUtils.mkdir_p(codex_home)
     write_config(codex_home, mcp_servers || mcp_server, model)
-    restore_resume_transcript(codex_home, resume_session_id, resume_transcript_jsonl)
+    restore_resume_transcript(codex_home, resume_session_id, resume_transcript_jsonl, log_sink)
 
     env = codex_env(api_key: api_key, codex_home: codex_home)
     cmd = codex_command(workspace_path: workspace_path,
@@ -100,6 +100,7 @@ class CodexInvocation
         metadata.merge!(update.compact) if update
       end
     ).run
+    log_codex_resume_failure(resume_session_id, runner_result, metadata, log_sink)
 
     transcript_path = rollout_path_for(codex_home, metadata[:session_id])
     AgentInvocation::Result.new(
@@ -315,12 +316,32 @@ class CodexInvocation
     File.read(path)
   end
 
-  def restore_resume_transcript(codex_home, session_id, jsonl)
-    return if session_id.blank? || jsonl.blank? || rollout_path_for(codex_home, session_id).present?
+  def restore_resume_transcript(codex_home, session_id, jsonl, log_sink)
+    return if session_id.blank?
+    return if rollout_path_for(codex_home, session_id).present?
+
+    if jsonl.blank?
+      log_sink.call(
+        "[codex resume] no stored rollout JSONL for session #{session_id}; provider resume may be rejected or incomplete",
+        kind: "system"
+      )
+      return
+    end
 
     dir = File.join(codex_home, "sessions", Time.now.utc.strftime("%Y/%m/%d"))
     FileUtils.mkdir_p(dir)
     path = File.join(dir, "rollout-restored-#{session_id}.jsonl")
     File.write(path, jsonl)
+  end
+
+  def log_codex_resume_failure(session_id, runner_result, metadata, log_sink)
+    return if session_id.blank?
+    return if runner_result.success? && metadata[:outcome] == "success"
+
+    reason = metadata[:final_text].presence || metadata[:outcome].presence || "codex exited with status #{runner_result.exit_status || 'unknown'}"
+    log_sink.call(
+      "[codex resume] resume for session #{session_id} did not complete successfully: #{reason}",
+      kind: "system"
+    )
   end
 end

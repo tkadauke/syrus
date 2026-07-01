@@ -521,6 +521,66 @@ RSpec.describe ChatTurnJob do
     )
   end
 
+  it "includes compact persisted chat history when resuming a Claude session" do
+    chat.messages.create!(role: "user", content: { text: "Earlier: focus on billing exports." })
+    chat.messages.create!(role: "assistant", content: { text: "I found the CSV exporter and suggested adding filters." })
+    chat.messages.create!(
+      role: "system",
+      content: {
+        text: %(Proposal "Billing export" was confirmed as JOB-123 (proposal slug: billing-export).),
+        source: "proposal_notification"
+      }
+    )
+    chat.create_claude_session!(provider: "claude", session_id: "chat-session-1", transcript_jsonl: "old")
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "chat-session-2", transcript_jsonl: "new")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:resume_session_id]).to eq("chat-session-1")
+    expect(received[:prompt]).to include("Recent persisted chat context fallback:")
+    expect(received[:prompt]).to include("user: Earlier: focus on billing exports.")
+    expect(received[:prompt]).to include("assistant: I found the CSV exporter")
+    expect(received[:prompt]).to include("system: Proposal \"Billing export\" was confirmed as JOB-123")
+    expect(received[:prompt]).to include("What is the plan?")
+    expect(received[:prompt]).not_to include("You are Syrus Chat")
+  end
+
+  it "summarizes tool calls and caps large tool results in resumed chat history" do
+    huge_tool_result = "A" * 2_000
+    chat.messages.create!(role: "user", content: { text: "Please inspect app/jobs/chat_turn_job.rb." })
+    chat.messages.create!(
+      role: "tool_use",
+      tool_name: "Read",
+      content: { input: { "file_path" => "app/jobs/chat_turn_job.rb", "irrelevant" => "x" * 1_500 } }
+    )
+    chat.messages.create!(
+      role: "tool_result",
+      tool_name: "Read",
+      content: { result: [ { type: "text", text: huge_tool_result } ], is_error: false }
+    )
+    chat.create_claude_session!(provider: "claude", session_id: "chat-session-1", transcript_jsonl: "old")
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "chat-session-2", transcript_jsonl: "new")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:prompt]).to include("tool_use: Read")
+    expect(received[:prompt]).to include("app/jobs/chat_turn_job.rb")
+    expect(received[:prompt]).to include("tool_result: Read ok:")
+    expect(received[:prompt]).to include("...[truncated]")
+    expect(received[:prompt]).not_to include("A" * 1_200)
+    expect(received[:prompt]).not_to include("irrelevant")
+  end
+
   it "runs Codex chat turns with chat MCP servers and captures a Codex session" do
     codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
     codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-widgets", default_branch: "main")
@@ -607,6 +667,39 @@ RSpec.describe ChatTurnJob do
       transcript_jsonl: "{\"type\":\"session_meta\"}\n",
       raw_provider_transcript: "{\"type\":\"session_meta\"}\n"
     )
+  end
+
+  it "includes compact persisted chat history when resuming a Codex session" do
+    codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
+    codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-context", default_branch: "main")
+    codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
+    codex_chat.messages.create!(role: "user", content: { text: "Earlier Codex request: inspect the queue filters." })
+    codex_chat.messages.create!(role: "assistant", content: { text: "The queue filters are in Admin::Queue::Filter." })
+    codex_chat.create_claude_session!(
+      provider: "codex",
+      session_id: "codex-thread-1",
+      transcript_jsonl: "{\"type\":\"session_meta\"}\n"
+    )
+    codex_message = codex_chat.messages.create!(role: "user", content: { text: "Continue from there." })
+    codex_workspace_path = workspace_root.join("codex-context-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(codex_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(codex_workspace_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "codex-thread-2", transcript_jsonl: "{\"type\":\"turn\"}\n")
+    }
+
+    described_class.perform_now(codex_chat.id, codex_message.id)
+
+    expect(received[:resume_session_id]).to eq("codex-thread-1")
+    expect(received[:resume_transcript_jsonl]).to include("session_meta")
+    expect(received[:prompt]).to include("Recent persisted chat context fallback:")
+    expect(received[:prompt]).to include("user: Earlier Codex request: inspect the queue filters.")
+    expect(received[:prompt]).to include("assistant: The queue filters are in Admin::Queue::Filter.")
+    expect(received[:prompt]).to include("Continue from there.")
+    expect(received[:prompt]).not_to include("You are Syrus Chat")
   end
 
   it "does not resume a stored session from a different chat provider" do

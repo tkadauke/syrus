@@ -46,18 +46,23 @@ RSpec.describe CodexInvocation do
   end
 
   describe "default_runner" do
-    def capture_popen(invocation)
+    def capture_popen(invocation, lines: nil, exitstatus: 0)
       captured = { env: nil, cmd: nil, opts: nil }
       allow(Open3).to receive(:popen2e) do |env, *args, **opts, &blk|
         captured[:env] = env
         captured[:cmd] = args
         captured[:opts] = opts
         rd, wr = IO.pipe
-        wr.write({ type: "thread.started", thread_id: "019e-test" }.to_json + "\n")
-        wr.write({ type: "item.completed", item: { type: "agent_message", text: "done" } }.to_json + "\n")
-        wr.write({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2, reasoning_output_tokens: 0, cached_input_tokens: 3 } }.to_json + "\n")
+        (lines || [
+          { type: "thread.started", thread_id: "019e-test" },
+          { type: "item.completed", item: { type: "agent_message", text: "done" } },
+          { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2, reasoning_output_tokens: 0, cached_input_tokens: 3 } }
+        ]).each do |line|
+          wr.write(line.is_a?(String) ? line : line.to_json)
+          wr.write("\n")
+        end
         wr.close
-        fake_wait = Struct.new(:value, :pid).new(Struct.new(:exitstatus).new(0), 0)
+        fake_wait = Struct.new(:value, :pid).new(Struct.new(:exitstatus).new(exitstatus), 0)
         blk.call($stdin, rd, fake_wait)
         rd.close
       end
@@ -118,6 +123,53 @@ RSpec.describe CodexInvocation do
         expect(restored.size).to eq(1)
         expect(File.read(restored.first)).to eq(jsonl)
         expect(result.transcript_path).to eq(restored.first)
+      end
+    end
+
+    it "logs when a resumed Codex session has no rollout JSONL to restore" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home,
+                                         resume_session_id: "019e-missing",
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        capture_popen(invocation)
+
+        expect(events).to include([
+          "[codex resume] no stored rollout JSONL for session 019e-missing; provider resume may be rejected or incomplete",
+          { kind: "system" }
+        ])
+      end
+    end
+
+    it "logs when a Codex resume turn fails" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home,
+                                         resume_session_id: "019e-gone",
+                                         resume_transcript_jsonl: "{}\n",
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        _, result = capture_popen(
+          invocation,
+          lines: [
+            { type: "thread.started", thread_id: "019e-gone" },
+            { type: "turn.failed", error: "session not found" }
+          ],
+          exitstatus: 1
+        )
+
+        expect(result).not_to be_success
+        expect(events).to include([
+          "[codex error] session not found",
+          { kind: "system" }
+        ])
+        expect(events).to include([
+          "[codex resume] resume for session 019e-gone did not complete successfully: session not found",
+          { kind: "system" }
+        ])
       end
     end
 
