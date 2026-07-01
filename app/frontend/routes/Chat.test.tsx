@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute, storedWorkspaceCollapsed } from "./Chat"
 
 describe("storedWorkspaceCollapsed", () => {
@@ -90,6 +90,54 @@ describe("chat compose drafts", () => {
       expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Follow the operator chat draft.")
     })
   })
+})
+
+describe("chat slash commands", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("navigates /jobs to the jobs route", async () => {
+    mockChatRouteFetch()
+    renderRouteWithLocation()
+
+    await submitSlashCommand("/jobs stale")
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs?q=stale")
+  })
+
+  it("navigates /job to the Job detail route", async () => {
+    mockChatRouteFetch()
+    renderRouteWithLocation()
+
+    await submitSlashCommand("/job 42")
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/42")
+  })
+
+  it("navigates /epic to the Epic detail route", async () => {
+    mockChatRouteFetch()
+    renderRouteWithLocation()
+
+    await submitSlashCommand("/epic 7")
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/epics/7")
+  })
+
+  for (const command of ["/discard JOB-DRAFT-1", "/cancel 42", "/retry 42", "/clear-canvas"]) {
+    it(`shows confirmation before executing ${command}`, async () => {
+      const fetchMock = mockChatRouteFetch(chatPayload({
+        messages: [messageWithProposal(9, proposal())]
+      }))
+      renderRoute()
+
+      await submitSlashCommand(command)
+
+      expect(screen.getByText(`Confirm ${command.split(" ")[0]}`)).toBeInTheDocument()
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/reject") || String(input).includes("/cancel") || String(input).includes("/run_again") || String(input).includes("/whiteboard"))).toBe(false)
+    })
+  }
 })
 
 describe("chat pending proposal jump banner", () => {
@@ -511,6 +559,44 @@ function renderRoute() {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function renderRouteWithLocation() {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+        <LocationProbe />
+        <Routes>
+          <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          <Route element={<div />} path="/app-shell/jobs" />
+          <Route element={<div />} path="/app-shell/jobs/:id" />
+          <Route element={<div />} path="/app-shell/epics/:id" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
+async function submitSlashCommand(command: string) {
+  const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+  fireEvent.change(textarea, { target: { value: command } })
+  fireEvent.click(screen.getByRole("button", { name: "Send" }))
+}
+
+function mockChatRouteFetch(payload = chatPayload()) {
+  return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+    const path = String(input)
+    if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+
+    return Promise.resolve(jsonResponse(payload))
+  })
 }
 
 function mockDesktopViewport() {

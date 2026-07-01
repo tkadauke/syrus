@@ -18,6 +18,7 @@ import {
   confirmPendingAction,
   createChat,
   createChatBookmark,
+  createChatTopicBookmark,
   createWhiteboardSnapshot,
   deleteQueuedChatMessage,
   deleteChatAttachment,
@@ -59,6 +60,7 @@ import {
   type ChatToolGroupItem,
   type WhiteboardSnapshot
 } from "../api/chats"
+import { postJobCommand } from "../api/jobs"
 import { CloseIcon } from "../components/CloseIcon"
 import { ConfirmationCard } from "../components/ConfirmationCard"
 import { ImageAnnotationModal } from "../components/ImageAnnotationModal"
@@ -195,6 +197,12 @@ type ChatSystemAction =
   | { kind: "clear" }
   | { kind: "new" }
   | { kind: "attach"; slug: string }
+
+type ChatSystemCommandAction =
+  | { kind: "bookmark"; label: string }
+  | { kind: "discard"; path: string }
+  | { kind: "job"; action: "cancel" | "retry"; jobId: string }
+  | { kind: "clear-canvas" }
 
 function appendSearch(path: string, search: string) {
   return search ? `${path}${search}` : path
@@ -797,6 +805,7 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
   return (
     <ConfirmationCard
       muted={proposal.resolved}
+      proposalCard
       header={
         <>
           <div className="flex flex-wrap items-center gap-2">
@@ -1256,6 +1265,73 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       if (action.kind === "attach") commandHandlers.openAttachments()
     }
   })
+  const systemCommandAction = useMutation<{ payload?: ChatPayload; notice: string; jobId?: string }, Error, ChatSystemCommandAction>({
+    mutationFn: async (action) => {
+      if (action.kind === "bookmark") {
+        const updated = await createChatTopicBookmark(appendSearch(payload.paths.app_bookmarks_path, search), action.label)
+        return { payload: updated, notice: `Bookmark saved: ${action.label}` }
+      }
+
+      if (action.kind === "discard") {
+        const updated = await rejectChatProposal(appendSearch(action.path, search))
+        return { payload: updated, notice: "Proposal discarded" }
+      }
+
+      if (action.kind === "job") {
+        const path = `/api/v1/app/jobs/${encodeURIComponent(action.jobId)}/${action.action === "cancel" ? "cancel" : "run_again"}`
+        await postJobCommand(path)
+        return {
+          jobId: action.jobId,
+          notice: action.action === "cancel" ? "Job cancelled" : "Job queued for retry"
+        }
+      }
+
+      const current = await fetchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search))
+      let result = await patchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search), {
+        elements: [],
+        appState: {},
+        files: {},
+        expected_version: current.version
+      })
+      if (result.status === 409) {
+        result = await patchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search), {
+          elements: [],
+          appState: {},
+          files: {},
+          expected_version: result.payload.version
+        })
+      }
+      queryClient.setQueryData(queryKey, (currentPayload: ChatPayload | undefined) => currentPayload ? {
+        ...currentPayload,
+        whiteboard: {
+          version: result.payload.version,
+          elements: result.payload.scene_json.elements,
+          appState: result.payload.scene_json.appState,
+          files: result.payload.scene_json.files
+        }
+      } : currentPayload)
+      return { notice: "Canvas cleared" }
+    },
+    onSuccess: (result, action) => {
+      if (result.payload) {
+        queryClient.setQueryData(queryKey, result.payload)
+        updateRecentChatCache(queryClient, result.payload.chat)
+      }
+      if (action.kind === "discard") {
+        void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      }
+      if (action.kind === "job" && result.jobId) {
+        void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+        void queryClient.invalidateQueries({ queryKey: ["jobs", result.jobId] })
+      }
+      setText("")
+      setPendingConfirmation(null)
+      onNotice(result.notice)
+    },
+    onError: (error) => {
+      onNotice(errorMessage(error, "Command failed."))
+    }
+  })
   const detachRepository = useMutation({
     mutationFn: (path: string) => deleteChatAttachment(appendSearch(path, search)),
     onSuccess: (updated) => {
@@ -1267,26 +1343,27 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
     && matchingCommands.length > 0
     && !send.isPending
     && !systemAction.isPending
+    && !systemCommandAction.isPending
     && pendingConfirmation == null
 
   function submitMessage() {
-    if (send.isPending || systemAction.isPending || text.trim().length === 0) return
+    if (send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0) return
     const attachmentValidationError = attachmentValidationMessage(attachments)
     if (attachmentValidationError) {
       setAttachmentError(attachmentValidationError)
       return
     }
     const commandMatch = findSlashCommand(text)
+    if (commandMatch?.command.requiresConfirmation) {
+      onNotice(null)
+      setPendingConfirmation({ commandName: commandMatch.command.name, text: text.trim() })
+      return
+    }
+
     if (commandMatch?.command.kind === "system") {
       onNotice(null)
       setPendingConfirmation(null)
       handleSystemSlashCommand(commandMatch)
-      return
-    }
-
-    if (commandMatch?.command.requiresConfirmation) {
-      onNotice(null)
-      setPendingConfirmation({ commandName: commandMatch.command.name, text: text.trim() })
       return
     }
 
@@ -1353,13 +1430,115 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       return
     }
 
+    if (command.name === "/jobs") {
+      const path = argsText ? `/jobs?q=${encodeURIComponent(argsText)}` : "/jobs"
+      navigate(withRoutePrefix(path, prefix))
+      setText("")
+      return
+    }
+
+    if (command.name === "/job") {
+      const id = numericArg(argsText)
+      if (!id) {
+        onNotice("Usage: /job <id>")
+        return
+      }
+
+      navigate(withRoutePrefix(`/jobs/${id}`, prefix))
+      setText("")
+      return
+    }
+
+    if (command.name === "/epic") {
+      const id = numericArg(argsText)
+      if (!id) {
+        onNotice("Usage: /epic <id>")
+        return
+      }
+
+      navigate(withRoutePrefix(`/epics/${id}`, prefix))
+      setText("")
+      return
+    }
+
+    if (command.name === "/prs") {
+      if (!payload.chat.repository) {
+        onNotice("Attach a repository to view pull requests.")
+        return
+      }
+
+      navigate(withRoutePrefix(`/repositories/${payload.chat.repository.id}`, prefix))
+      setText("")
+      return
+    }
+
+    if (command.name === "/issues") {
+      if (!payload.chat.repository) {
+        onNotice("Attach a repository to view issues.")
+        return
+      }
+
+      navigate(withRoutePrefix(`/repositories/${payload.chat.repository.id}?tab=github_issues&state=open`, prefix))
+      setText("")
+      return
+    }
+
+    if (command.name === "/proposals") {
+      if (!scrollToLastProposalCard()) onNotice("No proposal cards found.")
+      setText("")
+      return
+    }
+
+    if (command.name === "/bookmark") {
+      if (!argsText) {
+        onNotice("Usage: /bookmark <label>")
+        return
+      }
+
+      systemCommandAction.mutate({ kind: "bookmark", label: argsText })
+      return
+    }
+
+    if (command.name === "/discard") {
+      const proposal = findProposalBySlug(payload, argsText)
+      if (!proposal) {
+        onNotice(`Proposal not found: ${argsText}`)
+        return
+      }
+
+      systemCommandAction.mutate({ kind: "discard", path: proposal.app_reject_path })
+      return
+    }
+
+    if (command.name === "/cancel" || command.name === "/retry") {
+      const id = numericArg(argsText)
+      if (!id) {
+        onNotice(`Usage: ${command.name} <id>`)
+        return
+      }
+
+      systemCommandAction.mutate({ kind: "job", action: command.name === "/cancel" ? "cancel" : "retry", jobId: id })
+      return
+    }
+
+    if (command.name === "/clear-canvas") {
+      systemCommandAction.mutate({ kind: "clear-canvas" })
+      return
+    }
+
     setText("")
   }
 
   function confirmPendingSlashCommand() {
-    if (!pendingConfirmation || send.isPending) return
+    if (!pendingConfirmation || send.isPending || systemCommandAction.isPending) return
 
     onNotice(null)
+    const commandMatch = findSlashCommand(pendingConfirmation.text)
+    if (commandMatch?.command.kind === "system") {
+      handleSystemSlashCommand(commandMatch)
+      return
+    }
+
     send.mutate(pendingConfirmation.text)
   }
 
@@ -1630,7 +1809,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         {pendingConfirmation ? (
           <SlashCommandConfirmation
             commandName={pendingConfirmation.commandName}
-            disabled={send.isPending}
+            disabled={send.isPending || systemCommandAction.isPending}
             text={pendingConfirmation.text}
             onCancel={cancelPendingSlashCommand}
             onConfirm={confirmPendingSlashCommand}
@@ -1760,7 +1939,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
           value={text}
         />
         <div className="flex items-center gap-2">
-          <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
+          <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
           {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
         </div>
       </div>
@@ -3550,6 +3729,36 @@ function withRoutePrefix(path: string, prefix: string) {
   if (!path.startsWith("/")) return path
 
   return `${prefix}${path}`
+}
+
+function numericArg(value: string) {
+  const match = value.trim().match(/^\d+$/)
+  return match ? match[0] : null
+}
+
+function findProposalBySlug(payload: ChatPayload, slug: string): { app_reject_path: string } | null {
+  const normalized = slug.trim().toLowerCase()
+  if (!normalized) return null
+
+  for (const message of payload.messages) {
+    const proposal = message.proposal
+    if (!proposal) continue
+    if (proposal.slug.toLowerCase() === normalized) return proposal
+
+    const child = proposal.children?.find((item) => item.slug.toLowerCase() === normalized)
+    if (child) return child
+  }
+
+  return null
+}
+
+function scrollToLastProposalCard() {
+  const messages = Array.from(document.querySelectorAll<HTMLElement>('[id^="chat_message_"]'))
+  const target = messages.filter((message) => message.querySelector("[data-proposal-card]")).at(-1)
+  if (!target) return false
+
+  target.scrollIntoView({ behavior: "smooth", block: "start" })
+  return true
 }
 
 function isPlainAnchorClick(event: ReactMouseEvent<HTMLAnchorElement>) {

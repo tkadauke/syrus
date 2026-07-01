@@ -11519,7 +11519,7 @@ describe("App", () => {
     )
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.change(input, { target: { value: "/job 1092" } })
+    fireEvent.change(input, { target: { value: "/canvas" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
 
     await waitFor(() => {
@@ -11527,13 +11527,13 @@ describe("App", () => {
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ chat_message: { text: 'Call the `read_job` MCP tool for Job id "1092". Summarize the Job state, PR or issue identifiers, priority, latest workflow state, and any latest workflow summary.' } })
+          body: JSON.stringify({ chat_message: { text: "Call the `read_scene` MCP tool and describe the current whiteboard contents, including notable shapes, text, connections, frames, and empty-state if there is nothing on the canvas." } })
         })
       )
     })
   })
 
-  it("requires inline confirmation before sending mutating skill slash commands", async () => {
+  it("requires inline confirmation before executing mutating system slash commands", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
@@ -11559,15 +11559,15 @@ describe("App", () => {
     expect(confirmation).toBeInTheDocument()
     expect(screen.getAllByText("/cancel 1095").length).toBeGreaterThan(0)
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/jobs/1095/cancel", expect.objectContaining({ method: "POST" }))
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/chats/8/message",
+        "/api/v1/app/jobs/1095/cancel",
         expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ chat_message: { text: "/cancel 1095" } })
+          method: "POST"
         })
       )
     })

@@ -111,6 +111,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/repositories/:id/edit", element: <RepositoryFormRoute mode="edit" /> },
   { path: "/repositories/:id", element: <RepositoryDetailRoute /> },
   { path: "/repositories", element: <RepositoriesIndex /> },
+  { path: "/jobs", element: <DashboardRoute /> },
   { path: "/jobs/new", element: <DirectJobNewRoute /> },
   { path: "/jobs/:id/source", element: <JobDetailRoute /> },
   { path: "/jobs/:id", element: <JobDetailRoute /> },

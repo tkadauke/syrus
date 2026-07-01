@@ -363,8 +363,14 @@ module Api
 
         def create_bookmark
           chat_session = find_chat_session
-          message = chat_session.messages.find(params[:message_id])
-          bookmark = message.bookmarks.create!(label: bookmark_label, kind: "manual")
+          message = params[:message_id].present? ? chat_session.messages.find(params[:message_id]) : chat_session.messages.order(:created_at, :id).last
+          unless message
+            render_error("validation_failed", "Cannot bookmark an empty chat.", status: :unprocessable_content)
+            return
+          end
+
+          kind = params.dig(:chat_bookmark, :kind).presence_in(ChatBookmark::KINDS) || "manual"
+          bookmark = message.bookmarks.create!(label: bookmark_label, kind: kind)
 
           render json: chat_payload(chat_session.reload, message: "Bookmarked #{bookmark.label}.")
         rescue ActiveRecord::RecordInvalid => e

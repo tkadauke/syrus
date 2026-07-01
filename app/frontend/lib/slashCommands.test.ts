@@ -9,6 +9,20 @@ function promptFor(commandName: string, args = "") {
 }
 
 describe("slashCommands", () => {
+  const reclassifiedSystemCommands = [
+    "/jobs",
+    "/job",
+    "/epic",
+    "/prs",
+    "/issues",
+    "/proposals",
+    "/bookmark",
+    "/discard",
+    "/cancel",
+    "/retry",
+    "/clear-canvas"
+  ]
+
   it("registers /propose as a guided wizard skill command", () => {
     const match = findSlashCommand("/propose")
 
@@ -18,22 +32,20 @@ describe("slashCommands", () => {
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
 
-  it("builds read-only MCP prompts for Job and Epic commands", () => {
-    expect(promptFor("/jobs", "open")).toContain("Call the `list_jobs` MCP tool")
-    expect(promptFor("/jobs", "open")).toContain('Pass this operator filter through when choosing tool arguments: "open".')
-    expect(promptFor("/job", "1092")).toContain('Call the `read_job` MCP tool for Job id "1092".')
-    expect(promptFor("/epic", "94")).toContain('Call the `read_epic` MCP tool for Epic id "94".')
+  it("classifies direct client commands as system commands without prompts", () => {
+    for (const commandName of reclassifiedSystemCommands) {
+      const command = slashCommands.find((item) => item.name === commandName)
+      expect(command?.kind).toBe("system")
+      expect(command).not.toHaveProperty("toPrompt")
+    }
   })
 
-  it("builds read-only MCP prompts for repository triage and context commands", () => {
-    expect(promptFor("/prs")).toContain("Call the `list_open_prs` MCP tool")
-    expect(promptFor("/issues")).toContain("Call the `list_open_issues` MCP tool")
-    expect(promptFor("/proposals")).toContain("Call the `list_proposals` MCP tool")
+  it("keeps agent-backed commands as skill commands", () => {
+    for (const commandName of ["/propose", "/feedback", "/canvas"]) {
+      expect(slashCommands.find((item) => item.name === commandName)?.kind).toBe("skill")
+    }
+
     expect(promptFor("/canvas")).toContain("Call the `read_scene` MCP tool")
-  })
-
-  it("builds a topic bookmark prompt with the provided label", () => {
-    expect(promptFor("/bookmark", "Launch plan")).toContain('Call the `set_bookmark` MCP tool with label "Launch plan" and kind "topic".')
   })
 
   it("transforms /propose into the Job proposal wizard prompt", () => {

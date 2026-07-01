@@ -29,49 +29,39 @@ export const slashCommands = [
   { name: "/settings", kind: "system", args: [], description: "Open chat settings." },
   {
     name: "/jobs",
-    kind: "skill",
+    kind: "system",
     args: [{ name: "filter", required: false }],
-    description: "Ask the agent to inspect Jobs.",
-    toPrompt: (args) => withOptionalArg(
-      "Call the `list_jobs` MCP tool and return a compact status table with Job id, state, priority, PR or issue number, and title.",
-      args,
-      "Pass this operator filter through when choosing tool arguments"
-    )
+    description: "Open Jobs."
   },
   {
     name: "/job",
-    kind: "skill",
+    kind: "system",
     args: [{ name: "id", required: true }],
-    description: "Ask the agent about one Job.",
-    toPrompt: (args) => `Call the \`read_job\` MCP tool for Job id ${quotedArg(args)}. Summarize the Job state, PR or issue identifiers, priority, latest workflow state, and any latest workflow summary.`
+    description: "Open a Job."
   },
   {
     name: "/epic",
-    kind: "skill",
+    kind: "system",
     args: [{ name: "id", required: true }],
-    description: "Ask the agent about an Epic.",
-    toPrompt: (args) => `Call the \`read_epic\` MCP tool for Epic id ${quotedArg(args)}. Show the Epic state and a compact table of child Job statuses, including dependencies when present.`
+    description: "Open an Epic."
   },
   {
     name: "/prs",
-    kind: "skill",
+    kind: "system",
     args: [],
-    description: "Ask the agent to review open pull requests.",
-    toPrompt: () => "Call the `list_open_prs` MCP tool and return a compact table of open pull requests with number, title, head branch, base branch, draft state, mergeability, and last update time."
+    description: "Open pull requests for the current repository."
   },
   {
     name: "/issues",
-    kind: "skill",
+    kind: "system",
     args: [],
-    description: "Ask the agent to inspect open GitHub issues.",
-    toPrompt: () => "Call the `list_open_issues` MCP tool and return a compact table of open GitHub issues with number, title, labels, author, creation time, and a short body excerpt when useful."
+    description: "Open GitHub issues for the current repository."
   },
   {
     name: "/proposals",
-    kind: "skill",
+    kind: "system",
     args: [],
-    description: "Ask the agent to summarize proposed work.",
-    toPrompt: () => "Call the `list_proposals` MCP tool and show the drafted proposal cards with status, scope, dependencies, and short summaries."
+    description: "Jump to proposed work in this chat."
   },
   {
     name: "/canvas",
@@ -82,16 +72,15 @@ export const slashCommands = [
   },
   {
     name: "/bookmark",
-    kind: "skill",
+    kind: "system",
     args: [{ name: "label", required: true }],
-    description: "Ask the agent to bookmark context.",
-    toPrompt: (args) => `Call the \`set_bookmark\` MCP tool with label ${quotedArg(args)} and kind "topic". Return a brief confirmation.`
+    description: "Bookmark this chat topic."
   },
-  { name: "/discard", kind: "skill", args: [{ name: "slug", required: true }], description: "Ask the agent to discard proposed work.", requiresConfirmation: true },
-  { name: "/cancel", kind: "skill", args: [{ name: "id", required: true }], description: "Ask the agent to cancel work.", requiresConfirmation: true },
-  { name: "/retry", kind: "skill", args: [{ name: "id", required: true }], description: "Ask the agent to retry failed work.", requiresConfirmation: true },
+  { name: "/discard", kind: "system", args: [{ name: "slug", required: true }], description: "Discard proposed work.", requiresConfirmation: true },
+  { name: "/cancel", kind: "system", args: [{ name: "id", required: true }], description: "Cancel work.", requiresConfirmation: true },
+  { name: "/retry", kind: "system", args: [{ name: "id", required: true }], description: "Retry failed work.", requiresConfirmation: true },
   { name: "/feedback", kind: "skill", args: [{ name: "id", required: true }], description: "Send feedback for the agent to address.", requiresConfirmation: true },
-  { name: "/clear-canvas", kind: "skill", args: [], description: "Ask the agent to clear the whiteboard.", requiresConfirmation: true },
+  { name: "/clear-canvas", kind: "system", args: [], description: "Clear the whiteboard.", requiresConfirmation: true },
   {
     name: "/propose",
     kind: "skill",
@@ -146,13 +135,6 @@ function commandMatchRank(commandName: string, query: string) {
   if (commandName === query) return 0
   if (commandName.startsWith(query)) return 1
   return 2
-}
-
-function withOptionalArg(prompt: string, args: string, label: string) {
-  const trimmed = args.trim()
-  if (!trimmed) return prompt
-
-  return `${prompt} ${label}: ${quotedArg(trimmed)}.`
 }
 
 function quotedArg(value: string) {

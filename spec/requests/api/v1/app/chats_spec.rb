@@ -1173,6 +1173,21 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["bookmarks"]).to contain_exactly(include("label" => "Aqueducts", "chat_message_id" => message.id, "anchor_message_id" => message.id))
   end
 
+  it "creates a topic bookmark on the latest message through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    chat.messages.create!(role: "user", content: { "text" => "Earlier context." })
+    latest = chat.messages.create!(role: "assistant", content: { "text" => "Plan aqueduct arches." })
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/bookmarks", params: { chat_bookmark: { label: "Arch plan", kind: "topic" } }
+    }.to change(ChatBookmark.topic, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Bookmarked Arch plan.")
+    expect(parse_body["bookmarks"]).to contain_exactly(include("label" => "Arch plan", "chat_message_id" => latest.id, "anchor_message_id" => latest.id))
+  end
+
   it "adds and removes attachments through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)

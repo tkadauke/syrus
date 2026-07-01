@@ -518,6 +518,12 @@ export function createChatBookmark(path: string, messageId: number, label: strin
   })
 }
 
+export function createChatTopicBookmark(path: string, label: string) {
+  return postJson<ChatPayload>(path, {
+    chat_bookmark: { label, kind: "topic" }
+  })
+}
+
 export function addChatAttachment(path: string, record: ChatAttachmentResult) {
   return postJson<ChatPayload>(path, {
     attachable_type: record.type,
