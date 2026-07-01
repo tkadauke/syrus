@@ -939,6 +939,8 @@ class Job < ApplicationRecord
   end
 
   def seed_parsed_dependencies
+    return unless issue?
+
     text = issue_body.to_s
     return if text.blank?
 

@@ -829,6 +829,40 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(pending.depends_on_job_id).to be_nil
     end
 
+    it "does not seed parsed dependencies for direct jobs" do
+      Job.create!(
+        user: user,
+        repository: repository,
+        kind: "direct",
+        issue_number: nil,
+        issue_body: "Depends-on: #123"
+      )
+
+      expect(JobDependency.count).to eq(0)
+    end
+
+    it "does not seed parsed dependencies for cron jobs" do
+      task = ScheduledTask.create!(
+        user: user,
+        repository: repository,
+        name: "Hourly maintenance",
+        prompt: "Audit the repository.",
+        kind: "cron",
+        cron_expression: "0 * * * *"
+      )
+
+      Job.create!(
+        user: user,
+        repository: repository,
+        kind: "cron",
+        scheduled_task: task,
+        issue_number: nil,
+        issue_body: "Depends-on: #123"
+      )
+
+      expect(JobDependency.count).to eq(0)
+    end
+
     it "treats pending dependencies as unsatisfied" do
       job = Job.create!(
         user: user,

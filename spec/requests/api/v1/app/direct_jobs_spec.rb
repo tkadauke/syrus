@@ -238,9 +238,9 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(attachments.detect(&:google_doc?)&.google_doc_url).to eq("https://docs.google.com/document/d/context/edit")
   end
 
-  it "parses dependencies from the direct prompt and waits to dispatch" do
+  it "keeps Depends-on text in the direct prompt without parsing dependencies" do
     sign_in_as(user)
-    prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+    Job.create!(user: user, repository: repository, issue_number: 41)
 
     expect {
       post "/api/v1/app/jobs", params: {
@@ -251,8 +251,8 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
 
     new_job = Job.order(:created_at).last
     expect(response).to have_http_status(:created)
-    expect(new_job.dependencies.first.depends_on_job).to eq(prerequisite)
-    expect(new_job.runs).to be_empty
+    expect(new_job.issue_body).to include("Depends-on: #41")
+    expect(new_job.dependencies).to be_empty
   end
 
   it "rejects invalid attachments and destroys the draft job" do
