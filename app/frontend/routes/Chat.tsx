@@ -793,7 +793,14 @@ function imageAttachments(messages: ChatRenderItem[]) {
 }
 
 function isLowPrioritySystemMessage(item: ChatRenderItem) {
-  return item.type === "message" && item.role === "system" && ["neutral", "success"].includes(item.system?.tone || "neutral")
+  return item.type === "message" &&
+    item.role === "system" &&
+    !isProposalOutcomeSystemMessage(item) &&
+    ["neutral", "success"].includes(item.system?.tone || "neutral")
+}
+
+function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
+  return contentRecord(item.content)?.source === "proposal_notification"
 }
 
 function isAgentActive(payload: ChatPayload) {

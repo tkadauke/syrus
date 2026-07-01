@@ -484,11 +484,15 @@ module Api
             ChatProposalFiler.new(user: Current.user, repository: proposal.effective_repository).file!([ proposal ])
           end
 
-          chat_session.messages.create!(
+          confirmation_message = chat_session.messages.create!(
             role: "system",
-            content: { "text" => proposal_confirmation_text(proposal.reload, result) }
+            content: proposal_outcome_control_content(
+              proposal.reload,
+              text: proposal_confirmation_text(proposal, result),
+              outcome: :confirmed
+            )
           )
-          notify_agent_of_proposal_outcome(proposal, outcome: :confirmed)
+          notify_agent_of_proposal_outcome(confirmation_message)
 
           render json: chat_payload(chat_session.reload, message: proposal_confirmed_notice(proposal, result))
         rescue ActiveRecord::RecordInvalid => e
@@ -510,11 +514,15 @@ module Api
                 rejected_at: now
               )
             end
-            chat_session.messages.create!(
+            rejection_message = chat_session.messages.create!(
               role: "system",
-              content: { "text" => proposal_rejection_text(proposal) }
+              content: proposal_outcome_control_content(
+                proposal,
+                text: proposal_rejection_text(proposal),
+                outcome: :rejected
+              )
             )
-            notify_agent_of_proposal_outcome(proposal, outcome: :rejected)
+            notify_agent_of_proposal_outcome(rejection_message)
             render json: chat_payload(chat_session.reload, message: "Proposal rejected.")
           else
             render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)
@@ -1173,32 +1181,27 @@ module Api
           end
         end
 
-        def notify_agent_of_proposal_outcome(proposal, outcome:)
-          chat_session = proposal.chat_session
+        def notify_agent_of_proposal_outcome(message)
+          chat_session = message.chat_session
           return unless chat_session
 
-          text = case outcome
-          when :confirmed
-            ChatProposalOutcomeNotification.confirmed_message(proposal.reload)
-          when :rejected
-            ChatProposalOutcomeNotification.rejected_message(proposal.reload)
-          else
-            raise ArgumentError, "unknown proposal outcome: #{outcome}"
-          end
-
-          notification = nil
           ApplicationRecord.transaction do
-            notification = chat_session.messages.create!(
-              role: "user",
-              content: { "text" => text, "source" => ChatProposalOutcomeNotification::SOURCE }
-            )
             chat_session.update!(
               last_message_at: Time.current,
               title: chat_session.title.presence
             )
           end
 
-          enqueue_chat_turn(chat_session, notification)
+          enqueue_chat_turn(chat_session, message)
+        end
+
+        def proposal_outcome_control_content(proposal, text:, outcome:)
+          {
+            "text" => text,
+            "source" => ChatProposalOutcomeNotification::SOURCE,
+            "outcome" => outcome.to_s,
+            "acknowledgment" => ChatProposalOutcomeNotification.acknowledgment(proposal, outcome: outcome)
+          }
         end
 
         def promote_queued_message(chat_session, queued_message)

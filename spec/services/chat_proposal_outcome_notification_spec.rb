@@ -18,6 +18,7 @@ RSpec.describe ChatProposalOutcomeNotification do
     expect(described_class.confirmed_message(proposal)).to eq(
       %(Proposal "Map auth" was confirmed as JOB-#{job.id} (proposal slug: auth-map).)
     )
+    expect(described_class.acknowledgment(proposal, outcome: :confirmed)).to eq("Confirmed JOB-#{job.id}.")
   end
 
   it "builds a confirmed Epic notification with child Jobs" do
@@ -53,6 +54,7 @@ RSpec.describe ChatProposalOutcomeNotification do
       "Proposal \"Ship auth\" was confirmed as EPIC-#{epic.id} " \
       "with child jobs JOB-#{schema_job.id}, JOB-#{ui_job.id} (proposal slug: ship-auth)."
     )
+    expect(described_class.acknowledgment(proposal, outcome: :confirmed)).to eq("Confirmed EPIC-#{epic.id}.")
   end
 
   it "builds a generic confirmed notification for non-Syrus materializations" do
@@ -67,6 +69,7 @@ RSpec.describe ChatProposalOutcomeNotification do
     expect(described_class.confirmed_message(proposal)).to eq(
       %(Proposal "Open issue" was confirmed (proposal slug: external-issue).)
     )
+    expect(described_class.acknowledgment(proposal, outcome: :confirmed)).to eq("Confirmed proposal external-issue.")
   end
 
   it "builds a rejected notification" do
@@ -80,5 +83,6 @@ RSpec.describe ChatProposalOutcomeNotification do
     expect(described_class.rejected_message(proposal)).to eq(
       %(Proposal "Clean up" was rejected (proposal slug: cleanup).)
     )
+    expect(described_class.acknowledgment(proposal, outcome: :rejected)).to eq("Rejected proposal cleanup.")
   end
 end

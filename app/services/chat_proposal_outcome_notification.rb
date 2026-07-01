@@ -9,6 +9,10 @@ class ChatProposalOutcomeNotification
     new(proposal).rejected_message
   end
 
+  def self.acknowledgment(proposal, outcome:)
+    new(proposal).acknowledgment(outcome: outcome)
+  end
+
   def initialize(proposal)
     @proposal = proposal
   end
@@ -37,7 +41,25 @@ class ChatProposalOutcomeNotification
     %(Proposal "#{proposal.title}" was rejected (proposal slug: #{proposal.slug}).)
   end
 
+  def acknowledgment(outcome:)
+    case outcome.to_sym
+    when :confirmed
+      confirmed_acknowledgment
+    when :rejected
+      "Rejected proposal #{proposal.slug}."
+    else
+      raise ArgumentError, "unknown proposal outcome: #{outcome}"
+    end
+  end
+
   private
 
   attr_reader :proposal
+
+  def confirmed_acknowledgment
+    return "Confirmed JOB-#{proposal.job.id}." if proposal.job
+    return "Confirmed EPIC-#{proposal.epic.id}." if proposal.epic
+
+    "Confirmed proposal #{proposal.slug}."
+  end
 end

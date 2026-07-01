@@ -303,6 +303,38 @@ describe("chat temporal markers", () => {
   })
 })
 
+describe("proposal outcome system events", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("shows proposal confirmations as system events instead of operator bubbles", async () => {
+    mockChatPayload(chatPayload({
+      messages: [
+        {
+          ...chatMessage(9, "system", 'Proposal confirmed. Job #88 "Map auth" was created.', localDateAt(9, 0)),
+          content: {
+            text: 'Proposal confirmed. Job #88 "Map auth" was created.',
+            source: "proposal_notification",
+            outcome: "confirmed",
+            acknowledgment: "Confirmed JOB-88."
+          },
+          bookmarkable: false
+        }
+      ]
+    }))
+
+    renderRoute()
+
+    const notice = await screen.findByText('Proposal confirmed. Job #88 "Map auth" was created.')
+    expect(notice).toBeInTheDocument()
+    expect(notice.closest(".bg-blue-600")).toBeNull()
+    expect(notice.closest(".flex.justify-center")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Show 1 hidden system message" })).not.toBeInTheDocument()
+  })
+})
+
 describe("chat bookmark picker command", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -1123,7 +1155,7 @@ function messageWithProposal(id: number, chatProposal: Record<string, unknown>) 
   }
 }
 
-function chatMessage(id: number, role: "assistant" | "user", text: string, createdAt: Date) {
+function chatMessage(id: number, role: "assistant" | "user" | "system", text: string, createdAt: Date) {
   return {
     type: "message",
     id,

@@ -521,6 +521,34 @@ RSpec.describe ChatTurnJob do
     )
   end
 
+  it "runs proposal outcome control turns with a terse acknowledgment prompt" do
+    control_message = chat.messages.create!(
+      role: "system",
+      content: {
+        "text" => "Proposal confirmed. Job #1416 \"Map auth\" was created.",
+        "source" => "proposal_notification",
+        "outcome" => "confirmed",
+        "acknowledgment" => "Confirmed JOB-1416."
+      }
+    )
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      kwargs[:log_sink].call("Confirmed JOB-1416.", kind: "assistant_text")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "{\"type\":\"system\"}\n")
+    }
+
+    described_class.perform_now(chat.id, control_message.id)
+
+    expect(received[:prompt]).to include("This is a Syrus control event, not an operator-authored chat message.")
+    expect(received[:prompt]).to include("Default behavior: reply with exactly:\nConfirmed JOB-1416.")
+    expect(received[:prompt]).to include("Only do more if this outcome unlocks concrete follow-up automation")
+    expect(received[:prompt]).to include("Do not restate your operating instructions")
+    expect(received[:prompt]).not_to include("You are Syrus Chat")
+    expect(chat.messages.order(:created_at).pluck(:role)).to eq([ "system", "assistant" ])
+    expect(chat.messages.order(:created_at).last.content).to eq("text" => "Confirmed JOB-1416.")
+  end
+
   it "runs Codex chat turns with chat MCP servers and captures a Codex session" do
     codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
     codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-widgets", default_branch: "main")
