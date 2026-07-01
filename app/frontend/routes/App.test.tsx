@@ -10525,7 +10525,7 @@ describe("App", () => {
     expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("dark:bg-gray-950", "dark:text-gray-100")
     fireEvent.change(screen.getByPlaceholderText("Ask about this repository..."), { target: { value: "Now inspect proposals" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -10619,7 +10619,7 @@ describe("App", () => {
     expect(chip.closest("div")).toHaveClass("w-full")
     expect(chip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole("button", { name: "Add attachment" }).parentElement).toBe(composeRow)
-    expect(screen.getByRole("button", { name: "Send" }).closest("div")?.parentElement).toBe(composeRow)
+    expect(screen.getByRole("button", { name: "Send message" }).closest("div")?.parentElement).toBe(composeRow)
     expect(composeForm).not.toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Detach repository acme/widgets" }))
 
@@ -10664,7 +10664,7 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
 
     fireEvent.change(input, { target: { value: "Build a planning console" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -10879,7 +10879,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Chat attachments"), { target: { files: [new File(["chart"], "flow-chart.png", { type: "image/png" })] } })
     expect(await screen.findByText("flow-chart.png")).toBeInTheDocument()
     fireEvent.change(input, { target: { value: "Review this diagram" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -10923,7 +10923,7 @@ describe("App", () => {
     expect(await screen.findByText("Each attachment must be 5 MB or smaller.")).toBeInTheDocument()
 
     fireEvent.change(input, { target: { value: "Try sending this" } })
-    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled()
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
@@ -11349,7 +11349,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(input, { target: { value: "/rename Canal review" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     expect(await screen.findByText("Chat renamed.")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/rename", expect.objectContaining({ method: "PATCH" }))
@@ -11422,11 +11422,11 @@ describe("App", () => {
 
       const input = await screen.findByPlaceholderText("Ask about this repository...")
       fireEvent.change(input, { target: { value: "/rename Canal review" } })
-      fireEvent.click(screen.getByRole("button", { name: "Send" }))
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }))
       expect(await within(recentNav).findByRole("link", { name: "Canal review" })).toBeInTheDocument()
 
       fireEvent.change(input, { target: { value: "/new" } })
-      fireEvent.click(screen.getByRole("button", { name: "Send" }))
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }))
       expect(await within(recentNav).findByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/9")
     } finally {
       fetchSpy.mockRestore()
@@ -11454,7 +11454,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(input, { target: { value: "/clear" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     expect(await screen.findByText("Clear this chat's message history?")).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/messages", expect.objectContaining({ method: "DELETE" }))
@@ -11485,12 +11485,12 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(input, { target: { value: "/settings" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
     expect(await screen.findByRole("dialog", { name: "Chat settings" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close chat settings" }))
 
     fireEvent.change(input, { target: { value: "/attach acme/tools" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
     expect(await screen.findByText("acme/tools attached.")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/attachments", expect.objectContaining({
       method: "POST",
@@ -11520,7 +11520,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(input, { target: { value: "/canvas" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -11553,7 +11553,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(input, { target: { value: "/cancel 1095" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     const confirmation = await screen.findByText("Confirm /cancel")
     expect(confirmation).toBeInTheDocument()
@@ -11588,7 +11588,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: "/discard proposal-17" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     expect(await screen.findByText("Confirm /discard")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
@@ -11618,7 +11618,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(input, { target: { value: "/propose" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -11692,7 +11692,7 @@ describe("App", () => {
 
     const input = await screen.findByPlaceholderText("Queue a follow-up message...")
     fireEvent.change(input, { target: { value: "Check the forum routes" } })
-    fireEvent.click(screen.getByRole("button", { name: "Enqueue" }))
+    fireEvent.click(screen.getByRole("button", { name: "Enqueue message" }))
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/queued_messages", expect.objectContaining({ method: "POST" })))
 
     fireEvent.click(screen.getByText("Already queued"))
@@ -11701,8 +11701,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/queued_messages/14", expect.objectContaining({ method: "PATCH" })))
 
-    const stop = await screen.findByRole("button", { name: "Stop" })
-    expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument()
+    const stop = await screen.findByRole("button", { name: "Stop agent" })
+    expect(screen.queryByRole("button", { name: "Send message" })).not.toBeInTheDocument()
     expect(stop).toHaveClass("px-3", "py-1.5")
     expect(stop).not.toHaveClass("px-4", "py-2")
   })

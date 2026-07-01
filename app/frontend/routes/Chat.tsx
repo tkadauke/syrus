@@ -63,8 +63,11 @@ import {
 import { postJobCommand } from "../api/jobs"
 import { CloseIcon } from "../components/CloseIcon"
 import { ConfirmationCard } from "../components/ConfirmationCard"
+import { EnqueueIcon } from "../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../components/ImageAnnotationModal"
+import { SendIcon } from "../components/SendIcon"
 import { StartEpicButton } from "../components/StartEpicButton"
+import { StopIcon } from "../components/StopIcon"
 import { Markdown, PlainText } from "../lib/Markdown"
 import { linkifySlugs } from "../lib/linkifySlugs"
 import { highlightCode, inferToolResultLanguage } from "../lib/syntaxHighlight"
@@ -1939,7 +1942,9 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
           value={text}
         />
         <div className="flex items-center gap-2">
-          <button className={primaryButton()} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">{agentActive ? "Enqueue" : "Send"}</button>
+          <button aria-label={agentActive ? "Enqueue message" : "Send message"} className={`${primaryButton()} inline-flex items-center justify-center`} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">
+            {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}
+          </button>
           {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
         </div>
       </div>
@@ -2173,8 +2178,8 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button className="rounded border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
-      {payload.chat.stop_requested_at || stop.isPending ? "Stopping..." : "Stop"}
+    <button aria-label="Stop agent" className="inline-flex items-center justify-center rounded border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+      <StopIcon className={`h-4 w-4 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )
 }
