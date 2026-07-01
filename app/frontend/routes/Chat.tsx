@@ -48,6 +48,7 @@ import {
   type ChatAttachmentRow,
   type ChatAgentQuestion,
   type ChatBranchPayload,
+  type ChatBookmark,
   type ChatMessageAttachmentInput,
   type ChatCreatedPayload,
   type ChatMcpHealth,
@@ -2767,6 +2768,7 @@ function ChatWorkspace({
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
   const [panelCollapsed, setPanelCollapsed] = useState(storedWorkspaceCollapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
+  const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const bookmarkRequestIdRef = useRef(0)
   const handledMessageDeepLinkRef = useRef<string | null>(null)
@@ -2844,8 +2846,7 @@ function ChatWorkspace({
   const commandHandlers: ChatSystemCommandHandlers = {
     openBookmarks: () => {
       onWhiteboardFullscreenChange(false)
-      setActiveTab("context")
-      setActiveMobileTab("context")
+      setBookmarkPickerOpen(true)
     },
     openAttachments: () => {
       onWhiteboardFullscreenChange(false)
@@ -2889,6 +2890,7 @@ function ChatWorkspace({
           )}
         </div>
         {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} onClose={() => setSettingsOpen(false)} /> : null}
+        {bookmarkPickerOpen ? <BookmarkPickerModal bookmarks={payload.bookmarks} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
       </div>
     )
   }
@@ -2948,6 +2950,51 @@ function ChatWorkspace({
         />
       ) : null}
       {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} onClose={() => setSettingsOpen(false)} /> : null}
+      {bookmarkPickerOpen ? <BookmarkPickerModal bookmarks={payload.bookmarks} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
+    </div>
+  )
+}
+
+function BookmarkPickerModal({ bookmarks, onClose, onSelect }: { bookmarks: ChatBookmark[]; onClose: () => void; onSelect: (messageId: number) => void }) {
+  function selectBookmark(bookmark: ChatBookmark) {
+    onSelect(bookmark.anchor_message_id ?? bookmark.chat_message_id)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
+      <section aria-labelledby="bookmark-picker-title" aria-modal="true" className="w-full max-w-md rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
+        <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="bookmark-picker-title">Bookmarks</h2>
+          <button
+            aria-label="Close bookmarks"
+            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            onClick={onClose}
+            type="button"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </header>
+        <div className="max-h-[min(24rem,calc(100dvh-10rem))] overflow-y-auto p-2">
+          {bookmarks.length === 0 ? (
+            <div className="px-2 py-6 text-center text-sm text-gray-500 dark:text-gray-400">No bookmarks yet</div>
+          ) : (
+            <div className="space-y-1">
+              {bookmarks.map((bookmark) => (
+                <button
+                  className="flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-100 dark:hover:bg-gray-800"
+                  key={bookmark.id}
+                  onClick={() => selectBookmark(bookmark)}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+                  <span className="min-w-0 break-words">{bookmark.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

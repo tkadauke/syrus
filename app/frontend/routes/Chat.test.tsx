@@ -197,6 +197,135 @@ describe("chat temporal markers", () => {
   })
 })
 
+describe("chat bookmark picker command", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn()
+    })
+  })
+
+  it("opens a bookmark picker from /bookmarks and renders bookmark labels", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        bookmarks: [
+          { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
+          { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "/bookmarks" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    const dialog = await screen.findByRole("dialog", { name: "Bookmarks" })
+    expect(within(dialog).getByText("Aqueduct marker")).toBeInTheDocument()
+    expect(within(dialog).getByText("Canal follow-up")).toBeInTheDocument()
+  })
+
+  it("jumps to the selected bookmark and closes the picker", async () => {
+    const scrollIntoView = vi.fn()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        bookmarks: [
+          { id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "/bookmarks" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    const target = await screen.findByText("Aqueduct marker")
+    Object.defineProperty(document.getElementById("message-9"), "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+    fireEvent.click(target)
+
+    await waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" })
+    })
+    expect(screen.queryByRole("dialog", { name: "Bookmarks" })).not.toBeInTheDocument()
+  })
+
+  it("shows an empty state when the chat has no bookmarks", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "/bookmarks" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    expect(await screen.findByRole("dialog", { name: "Bookmarks" })).toBeInTheDocument()
+    expect(screen.getByText("No bookmarks yet")).toBeInTheDocument()
+  })
+
+  it("closes from the backdrop and close button without navigating", async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        bookmarks: [
+          { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "/bookmarks" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+
+    const firstDialog = await screen.findByRole("dialog", { name: "Bookmarks" })
+    fireEvent.click(firstDialog.parentElement!)
+    expect(screen.queryByRole("dialog", { name: "Bookmarks" })).not.toBeInTheDocument()
+
+    fireEvent.change(textarea, { target: { value: "/bookmarks" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(await screen.findByRole("dialog", { name: "Bookmarks" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close bookmarks" }))
+
+    expect(screen.queryByRole("dialog", { name: "Bookmarks" })).not.toBeInTheDocument()
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+})
+
 describe("chat pending proposal jump banner", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -956,7 +1085,7 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>> } = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>> } = {}) {
   return {
     chat: {
       id: 8,
@@ -987,7 +1116,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
         bookmarkable: true
       }
     ],
-    bookmarks: [],
+    bookmarks: overrides.bookmarks || [],
     recent_chats: [],
     pending_actions: [],
     agent_questions: [],
