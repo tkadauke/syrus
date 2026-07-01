@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { JobDetailPayload, JobSourcePayload, JobWorkflow } from "../api/jobs"
+import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobWorkflow } from "../api/jobs"
 import { FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
 
 describe("JobDetailView", () => {
@@ -239,6 +239,47 @@ describe("JobDetailView", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/terminal?session=77"))
 
     fetchSpy.mockRestore()
+  })
+
+  it("renders ANSI color directives in run transcripts", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job_id: 1,
+      run_id: 22,
+      agent_diff: null,
+      agent_diff_bytes: 0,
+      logs_count: 1,
+      logs: [
+        {
+          id: 1,
+          sequence: 1,
+          kind: "grade_log",
+          chunk: "RUN \u001b[32mpassed\u001b[39m \u001b[33mwarned\u001b[39m",
+          created_at: "2026-07-01T10:00:00Z"
+        }
+      ]
+    }))
+
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 4,
+          steps: [
+            step({
+              id: 9,
+              runs: [ run({ id: 22, job_log_count: 1 }) ]
+            })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Transcript" }))
+
+    expect(await screen.findByText("passed")).toHaveClass("text-emerald-700")
+    expect(screen.getByText("warned")).toHaveClass("text-amber-700")
+    expect(screen.getByTestId("run-transcript-log-stream")).not.toHaveTextContent("\u001b[32m")
   })
 })
 
@@ -662,6 +703,70 @@ function workflow(overrides: Partial<JobWorkflow>): JobWorkflow {
     app_retry_step_path: `/workflows/${id}/retry`,
     app_push_commits_path: `/workflows/${id}/push_commits`,
     steps: [],
+    ...overrides
+  }
+}
+
+function step(overrides: Partial<JobStep>): JobStep {
+  const id = overrides.id ?? 1
+  return {
+    id,
+    kind: "implement",
+    display_name: "Implement",
+    display_status: "succeeded",
+    position: 1,
+    iteration: null,
+    loop_id: null,
+    state: "succeeded",
+    started_at: null,
+    finished_at: null,
+    created_at: null,
+    updated_at: null,
+    details: null,
+    latest: true,
+    runs: [],
+    ...overrides
+  }
+}
+
+function run(overrides: Partial<JobRun>): JobRun {
+  const id = overrides.id ?? 1
+  return {
+    id,
+    state: "succeeded",
+    trigger_kind: "initial",
+    agent_provider: "codex",
+    agent_outcome: "success",
+    agent_turns: 1,
+    agent_pr_title: null,
+    agent_summary: null,
+    parent_session_id: null,
+    head_sha: null,
+    iteration: null,
+    started_at: null,
+    last_heartbeat_at: null,
+    finished_at: null,
+    created_at: null,
+    updated_at: null,
+    cost_usd: null,
+    input_tokens: null,
+    output_tokens: null,
+    agent_diff_present: false,
+    agent_diff_bytes: 0,
+    job_log_count: 0,
+    rate_limited: false,
+    failure_classification: null,
+    run_diagnostic: null,
+    health_snapshots: [],
+    agent_session: null,
+    can_stop: false,
+    can_diagnose: false,
+    can_resume: false,
+    app_artifacts_path: `/api/v1/app/jobs/1/runs/${id}/artifacts`,
+    app_stop_path: `/api/v1/app/jobs/1/runs/${id}/stop`,
+    app_diagnose_path: `/api/v1/app/jobs/1/runs/${id}/diagnose`,
+    app_resume_path: `/api/v1/app/jobs/1/runs/${id}/resume`,
+    app_grade_log_path: null,
     ...overrides
   }
 }

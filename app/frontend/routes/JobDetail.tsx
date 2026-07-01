@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { createTerminalSession } from "../api/terminal"
+import { AnsiText } from "../components/AnsiText"
 import { CloseIcon } from "../components/CloseIcon"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
@@ -1319,7 +1320,7 @@ function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<ty
   return (
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{payload.name || `Run #${payload.run_id}`} grade log</ArtifactPanelHeader>
-      <pre className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950 dark:text-gray-200" data-testid="run-grade-log-stream">{payload.contents}</pre>
+      <pre className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950 dark:text-gray-200" data-testid="run-grade-log-stream"><AnsiText text={payload.contents} /></pre>
     </section>
   )
 }
@@ -1460,7 +1461,7 @@ function RunTranscriptLogs({ logs }: { logs: Awaited<ReturnType<typeof fetchJobR
       {displayLogs.map((log) => (
         <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)] dark:text-gray-200" key={log.id}>
           <span className="text-gray-400 dark:text-gray-500">{transcriptLogKindLabel(log.kind) || `#${log.sequence}`}</span>
-          <pre className="whitespace-pre-wrap break-words">{log.chunk}</pre>
+          <pre className="whitespace-pre-wrap break-words"><AnsiText text={log.chunk} /></pre>
         </li>
       ))}
     </ol>

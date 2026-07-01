@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type UIEvent
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { fetchAdminTranscript, type TranscriptEvent, type TranscriptPayload } from "../api/adminTranscript"
+import { AnsiText } from "../components/AnsiText"
 
 const DEFAULT_PER_PAGE = 100
 const TRANSCRIPT_BOTTOM_THRESHOLD_PX = 48
@@ -219,7 +220,7 @@ function TextEvent({ badge, text, tone = "gray" }: { badge: string; text: string
   return (
     <div className={`rounded border px-3 py-2 ${classes}`}>
       <div className="mb-1 text-xs font-medium uppercase">{badge}</div>
-      <pre className="whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-100">{text}</pre>
+      <pre className="whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-100"><AnsiText text={text} /></pre>
     </div>
   )
 }
@@ -237,7 +238,7 @@ function DetailsEvent({ badge, title, data, tone = "gray" }: { badge: string; ti
         <span className={`rounded px-1.5 py-0.5 font-mono uppercase ${badgeClass}`}>{badge}</span>
         <span className="truncate font-mono text-gray-800 dark:text-gray-100">{title}</span>
       </summary>
-      <pre className="overflow-x-auto whitespace-pre-wrap break-words px-3 pb-3 font-mono text-gray-600 dark:text-gray-300">{pretty(data)}</pre>
+      <pre className="overflow-x-auto whitespace-pre-wrap break-words px-3 pb-3 font-mono text-gray-600 dark:text-gray-300"><AnsiText text={pretty(data)} /></pre>
     </details>
   )
 }
@@ -253,7 +254,7 @@ function ResultEvent({ data }: { data: Record<string, unknown> }) {
         <span>duration={stringValue(data.duration_ms)}ms</span>
         <span>subtype={stringValue(data.subtype)}</span>
       </div>
-      {data.final_text != null && data.final_text !== "" ? <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-100">{stringValue(data.final_text)}</pre> : null}
+      {data.final_text != null && data.final_text !== "" ? <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-100"><AnsiText text={stringValue(data.final_text)} /></pre> : null}
     </div>
   )
 }
