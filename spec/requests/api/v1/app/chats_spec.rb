@@ -1074,6 +1074,83 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(proposal_payload).not_to have_key("body_html")
   end
 
+  it "updates a proposed proposal title, body, and dependencies" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = ChatProposal.create!(chat_session: chat, slug: "build-ui", title: "Build UI", body: "Old body.")
+    old_dependency = ChatProposal.create!(chat_session: chat, slug: "old-api", title: "Old API", body: "Old dependency.")
+    new_dependency = ChatProposal.create!(chat_session: chat, slug: "new-api", title: "New API", body: "New dependency.")
+    ChatProposalDependency.create!(proposal: proposal, depends_on: old_dependency)
+    job_dependency = Factories.job(repository: repository, issue_title: "Existing Job")
+    epic_dependency = Factories.epic(user: user, repository: repository, title: "Existing Epic")
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: {
+        title: "Build better UI",
+        body: "New body.",
+        dependency_slugs: [ new_dependency.slug ],
+        depends_on_job_ids: [ job_dependency.id ],
+        depends_on_epic_ids: [ epic_dependency.id ]
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    proposal.reload
+    expect(proposal.title).to eq("Build better UI")
+    expect(proposal.body).to eq("New body.")
+    expect(proposal.dependencies).to contain_exactly(new_dependency)
+    expect(proposal.depends_on_job_ids).to eq([ job_dependency.id ])
+    expect(proposal.depends_on_epic_ids).to eq([ epic_dependency.id ])
+    expect(proposal.edited_at).to be_present
+    expect(parse_body.dig("proposal", "title")).to eq("Build better UI")
+    expect(parse_body.dig("proposal", "depends_on_job_ids")).to eq([ job_dependency.id ])
+    expect(parse_body.dig("message")).to eq("Proposal updated.")
+  end
+
+  it "rejects updates to confirmed proposals" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = ChatProposal.create!(chat_session: chat, slug: "build-ui", title: "Build UI", body: "Body.", state: "confirmed")
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: { title: "Updated", body: "Body.", dependency_slugs: [] }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Proposal is no longer proposed.")
+    expect(proposal.reload.title).to eq("Build UI")
+  end
+
+  it "does not allow another user to update a proposal" do
+    sign_in_as(Factories.user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = ChatProposal.create!(chat_session: chat, slug: "build-ui", title: "Build UI", body: "Body.")
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: { title: "Updated", body: "Body.", dependency_slugs: [] }
+    }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "searches proposals in the current chat and excludes the edited proposal" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    editing = ChatProposal.create!(chat_session: chat, slug: "api-map", title: "Map API", body: "Editing.")
+    match = ChatProposal.create!(chat_session: chat, slug: "api-build", title: "Build API", body: "Match.")
+    ChatProposal.create!(chat_session: chat, slug: "ui-build", title: "Build UI", body: "No match.")
+    other_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    ChatProposal.create!(chat_session: other_chat, slug: "api-other", title: "Other API", body: "Wrong chat.")
+
+    get "/api/v1/app/chats/#{chat.id}/proposals/search", params: { q: "api", exclude_id: editing.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("proposals")).to contain_exactly(
+      include("id" => match.id, "slug" => "api-build", "title" => "Build API")
+    )
+  end
+
   it "returns tool calls as raw chronological messages for frontend rendering" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

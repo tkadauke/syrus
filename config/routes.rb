@@ -154,6 +154,8 @@ Rails.application.routes.draw do
         post "chats/:id/bookmarks", to: "chats#create_bookmark", constraints: { id: /\d+/ }
         post "chats/:id/attachments", to: "chats#add_attachment", constraints: { id: /\d+/ }
         delete "chats/:id/attachments/:attachment_id", to: "chats#destroy_attachment", constraints: { id: /\d+/, attachment_id: /\d+/ }
+        get "chats/:id/proposals/search", to: "chats#search_proposals", constraints: { id: /\d+/ }
+        patch "chats/:id/proposals/:proposal_id", to: "chats#update_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/proposals/:proposal_id/confirm", to: "chats#confirm_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/proposals/:proposal_id/reject", to: "chats#reject_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/pending_actions/:pending_action_id/confirm", to: "chats#confirm_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }

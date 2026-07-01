@@ -238,6 +238,92 @@ describe("chat proposal cards", () => {
     mockDesktopViewport()
   })
 
+  it("shows an edit button only for proposed proposal cards", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({ slug: "JOB-DRAFT-1" })),
+          messageWithProposal(10, proposal({ id: 2, slug: "JOB-DRAFT-2", proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Edit JOB-DRAFT-1" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Edit JOB-DRAFT-2" })).not.toBeInTheDocument()
+  })
+
+  it("opens the edit modal and saves a title change", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/proposals/1" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(chatPayload({
+          messages: [messageWithProposal(9, proposal({ title: "Survey north aqueduct" }))]
+        })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal())]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit JOB-DRAFT-1" }))
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Survey north aqueduct" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/proposals/1", expect.objectContaining({ method: "PATCH" }))
+    })
+    const patchCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/v1/app/chats/8/proposals/1" && (call[1] as RequestInit | undefined)?.method === "PATCH")
+    expect(JSON.parse(String((patchCall?.[1] as RequestInit).body))).toMatchObject({
+      proposal: { title: "Survey north aqueduct" }
+    })
+    expect(await screen.findByText("Survey north aqueduct")).toBeInTheDocument()
+  })
+
+  it("searches proposal dependencies and adds a selected result as a pill", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/8/proposals/search")) {
+        return Promise.resolve(jsonResponse({
+          proposals: [
+            { id: 2, slug: "api-build", title: "Build API", state: "proposed" }
+          ]
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal())]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit JOB-DRAFT-1" }))
+    fireEvent.change(screen.getByPlaceholderText("Search proposals"), { target: { value: "api" } })
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).startsWith("/api/v1/app/chats/8/proposals/search?q=api"))).toBe(true)
+    })
+    fireEvent.click(await screen.findByRole("button", { name: /api-build/ }))
+
+    expect(screen.getByText("api-build")).toBeInTheDocument()
+  })
+
   it("labels Epic confirmation without Jobs when the proposal has no child Jobs", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -293,6 +379,7 @@ describe("chat proposal cards", () => {
                 proposed: true,
                 repository_slug: "acme/widgets",
                 dependencies: [],
+                app_update_path: "/api/v1/app/chats/8/proposals/11",
                 app_reject_path: "/api/v1/app/chats/8/proposals/1/children/11/reject"
               }
             ]
@@ -689,6 +776,7 @@ function proposal(overrides: Record<string, unknown> = {}) {
     dependencies: [],
     has_dependencies: false,
     target_epic_label: null,
+    app_update_path: "/api/v1/app/chats/8/proposals/1",
     app_confirm_path: "/api/v1/app/chats/8/proposals/1/confirm",
     app_reject_path: "/api/v1/app/chats/8/proposals/1/reject",
     materialized_label: null,

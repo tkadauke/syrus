@@ -10,6 +10,10 @@ module Api
             owner, name = params[:repo].to_s.split("/", 2)
             epics = epics.joins(:repository).where(repositories: { owner: owner, name: name })
           end
+          if params[:q].present?
+            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
+            epics = epics.where("LOWER(title) LIKE :pattern OR CAST(epics.id AS CHAR) LIKE :pattern", pattern: pattern)
+          end
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
 
           render json: {

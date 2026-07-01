@@ -33,8 +33,12 @@ import {
   rejectChatProposal,
   rejectPendingAction,
   renameChat,
+  searchChatEpics,
+  searchChatJobs,
+  searchChatProposals,
   sendChatMessage,
   stopChat,
+  updateChatProposal,
   updateQueuedChatMessage,
   type ChatAttachmentResult,
   type ChatAttachmentRow,
@@ -43,6 +47,8 @@ import {
   type ChatCreatedPayload,
   type ChatMcpHealth,
   type ChatNavRecord,
+  type ChatEpicDependencySearchResult,
+  type ChatJobDependencySearchResult,
   type ChatMessageItem,
   type ChatPendingAction,
   type ChatPendingActionInline,
@@ -51,6 +57,7 @@ import {
   type ChatProposalChild,
   type ChatProposalChildDependency,
   type ChatProposalDependency,
+  type ChatProposalSearchResult,
   type ChatQueuedMessage,
   type ChatRenderItem,
   type ChatStructuredTool,
@@ -787,9 +794,233 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
   )
 }
 
+type EditableProposal = Pick<ChatProposal, "id" | "title" | "slug" | "body" | "proposed" | "app_update_path"> & {
+  dependency_slugs?: string[]
+  dependencies?: ChatProposalDependency[]
+  depends_on_job_ids?: number[]
+  depends_on_epic_ids?: number[]
+}
+
+type DependencyPill = {
+  key: string
+  label: string
+  detail?: string
+}
+
+function ProposalEditModal({ chatId, proposal, search, queryKey, onClose, onNotice }: { chatId: string | number; proposal: EditableProposal; search: string; queryKey: ChatQueryKey; onClose: () => void; onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const [title, setTitle] = useState(proposal.title)
+  const [body, setBody] = useState(proposal.body)
+  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit")
+  const [proposalDeps, setProposalDeps] = useState<DependencyPill[]>(initialProposalDependencyPills(proposal))
+  const [jobDeps, setJobDeps] = useState<DependencyPill[]>((proposal.depends_on_job_ids || []).map((id) => ({ key: String(id), label: `JOB-${id}` })))
+  const [epicDeps, setEpicDeps] = useState<DependencyPill[]>((proposal.depends_on_epic_ids || []).map((id) => ({ key: String(id), label: `EPIC-${id}` })))
+  const [proposalQuery, setProposalQuery] = useState("")
+  const [jobQuery, setJobQuery] = useState("")
+  const [epicQuery, setEpicQuery] = useState("")
+  const [proposalResults, setProposalResults] = useState<ChatProposalSearchResult[]>([])
+  const [jobResults, setJobResults] = useState<ChatJobDependencySearchResult[]>([])
+  const [epicResults, setEpicResults] = useState<ChatEpicDependencySearchResult[]>([])
+  const searchProposals = useCallback((query: string, signal: AbortSignal) => searchChatProposals(chatId, query, proposal.id, { signal }), [chatId, proposal.id])
+  const searchJobs = useCallback((query: string, signal: AbortSignal) => searchChatJobs(query, { signal }), [])
+  const searchEpics = useCallback((query: string, signal: AbortSignal) => searchChatEpics(query, { signal }), [])
+
+  const save = useMutation({
+    mutationFn: () => updateChatProposal(appendSearch(proposal.app_update_path, search), {
+      title: title.trim(),
+      body,
+      dependency_slugs: proposalDeps.map((dep) => dep.key),
+      depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
+      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id))
+    }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || "Proposal updated")
+      onClose()
+    }
+  })
+
+  useDebouncedDependencySearch(proposalQuery, searchProposals, setProposalResults)
+  useDebouncedDependencySearch(jobQuery, searchJobs, setJobResults)
+  useDebouncedDependencySearch(epicQuery, searchEpics, setEpicResults)
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (title.trim().length === 0) return
+    save.mutate()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-3 py-6">
+      <div className="max-h-full w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-gray-950" role="dialog" aria-modal="true" aria-labelledby="proposal-edit-title">
+        <form onSubmit={submit}>
+          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="proposal-edit-title">Edit proposal</h2>
+              <p className="mt-0.5 font-mono text-xs text-gray-500 dark:text-gray-400">{proposal.slug}</p>
+            </div>
+            <button className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button" aria-label="Close proposal editor">
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="space-y-5 px-5 py-4">
+            {save.isError ? <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{errorMessage(save.error, "Proposal update failed.")}</div> : null}
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Title
+              <input
+                className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                onChange={(event) => setTitle(event.target.value)}
+                required
+                type="text"
+                value={title}
+              />
+            </label>
+            <div>
+              <div className="mb-2 flex gap-2 sm:hidden">
+                {(["edit", "preview"] as const).map((tab) => (
+                  <button className={`rounded border px-3 py-1 text-sm ${activeTab === tab ? "border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-950 dark:text-blue-200" : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`} key={tab} onClick={() => setActiveTab(tab)} type="button">
+                    {tab === "edit" ? "Edit" : "Preview"}
+                  </button>
+                ))}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className={`${activeTab === "preview" ? "hidden sm:block" : "block"} text-sm font-medium text-gray-700 dark:text-gray-200`}>
+                  Body
+                  <textarea
+                    className="mt-1 h-72 w-full resize-y rounded border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                    onChange={(event) => setBody(event.target.value)}
+                    value={body}
+                  />
+                </label>
+                <div className={`${activeTab === "edit" ? "hidden sm:block" : "block"}`}>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Preview</div>
+                  <div className="mt-1 h-72 overflow-y-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
+                    <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={body} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <DependencyPicker
+                label="Proposal dependencies"
+                placeholder="Search proposals"
+                query={proposalQuery}
+                results={proposalResults.map((result) => ({ key: result.slug, label: result.slug, detail: result.title }))}
+                selected={proposalDeps}
+                setQuery={setProposalQuery}
+                setSelected={setProposalDeps}
+              />
+              <DependencyPicker
+                label="Job dependencies"
+                placeholder="Search Jobs"
+                query={jobQuery}
+                results={jobResults.map((result) => ({ key: String(result.id), label: `JOB-${result.id}`, detail: result.issue_title || result.title || "" }))}
+                selected={jobDeps}
+                setQuery={setJobQuery}
+                setSelected={setJobDeps}
+              />
+              <DependencyPicker
+                label="Epic dependencies"
+                placeholder="Search Epics"
+                query={epicQuery}
+                results={epicResults.map((result) => ({ key: String(result.id), label: result.display_number || `EPIC-${result.id}`, detail: result.title }))}
+                selected={epicDeps}
+                setQuery={setEpicQuery}
+                setSelected={setEpicDeps}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
+            <button className={secondaryButton()} onClick={onClose} type="button">Cancel</button>
+            <button className={primaryButton()} disabled={save.isPending || title.trim().length === 0} type="submit">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function DependencyPicker({ label, placeholder, query, results, selected, setQuery, setSelected }: { label: string; placeholder: string; query: string; results: DependencyPill[]; selected: DependencyPill[]; setQuery: (query: string) => void; setSelected: (selected: DependencyPill[]) => void }) {
+  const selectedKeys = new Set(selected.map((item) => item.key))
+  const availableResults = results.filter((item) => !selectedKeys.has(item.key))
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+        {label}
+        <input
+          className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={placeholder}
+          type="text"
+          value={query}
+        />
+      </label>
+      {availableResults.length > 0 ? (
+        <div className="mt-1 max-h-36 overflow-y-auto rounded border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          {availableResults.map((result) => (
+            <button
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-950"
+              key={result.key}
+              onClick={() => {
+                setSelected([...selected, result])
+                setQuery("")
+              }}
+              type="button"
+            >
+              <span className="font-medium text-gray-900 dark:text-gray-100">{result.label}</span>
+              {result.detail ? <span className="ml-2 text-gray-500 dark:text-gray-400">{result.detail}</span> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {selected.map((item) => (
+          <span className="inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={item.key}>
+            <span className="min-w-0 truncate font-medium">{item.label}</span>
+            {item.detail ? <span className="min-w-0 truncate text-gray-500 dark:text-gray-400">{item.detail}</span> : null}
+            <button className="ml-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-300" onClick={() => setSelected(selected.filter((selectedItem) => selectedItem.key !== item.key))} type="button" aria-label={`Remove ${item.label}`}>
+              <CloseIcon className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function useDebouncedDependencySearch<T>(query: string, searcher: (query: string, signal: AbortSignal) => Promise<T[]>, setResults: (results: T[]) => void) {
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (trimmed.length === 0) {
+      setResults([])
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      searcher(trimmed, controller.signal)
+        .then(setResults)
+        .catch((error) => {
+          if (error.name !== "AbortError") setResults([])
+        })
+    }, 200)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [query, searcher, setResults])
+}
+
+function initialProposalDependencyPills(proposal: EditableProposal) {
+  const details = new Map((proposal.dependencies || []).map((dependency) => [dependency.slug, dependency.title]))
+  return (proposal.dependency_slugs || []).map((slug) => ({ key: slug, label: slug, detail: details.get(slug) }))
+}
+
 function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: ChatProposal; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const search = queryKey[2]
+  const [editingProposal, setEditingProposal] = useState<EditableProposal | null>(null)
   const childJobCount = proposal.children?.length || 0
   const proposalAction = useMutation({
     mutationFn: (input: { action: "confirm" | "reject"; path: string }) => {
@@ -803,16 +1034,20 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
   })
 
   return (
-    <ConfirmationCard
-      muted={proposal.resolved}
-      proposalCard
-      header={
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
-            <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
-            {proposal.epic_bundle ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{proposal.active_children_count || 0} child Jobs</span> : null}
-          </div>
+    <>
+      <ConfirmationCard
+        muted={proposal.resolved}
+        proposalCard
+        header={
+          <>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
+                <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
+                {proposal.epic_bundle ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{proposal.active_children_count || 0} child Jobs</span> : null}
+              </div>
+              {proposal.proposed ? <ProposalEditButton label={`Edit ${proposal.slug}`} onClick={() => setEditingProposal(proposal)} /> : null}
+            </div>
           <ProposalDependencyStrip dependencies={proposal.dependencies} hasDependencies={proposal.has_dependencies} prefix={prefix} />
           <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
           <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{proposal.slug}</p>
@@ -821,7 +1056,7 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       body={
         <>
           <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
-          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} prefix={prefix} /> : <ProposalMeta proposal={proposal} />}
+          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
         </>
       }
       footer={
@@ -850,8 +1085,40 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
           ) : null}
         </>
       }
-    />
+      />
+      {editingProposal ? <ProposalEditModal chatId={queryKey[1]} proposal={editingProposal} search={search} queryKey={queryKey} onClose={() => setEditingProposal(null)} onNotice={onNotice} /> : null}
+    </>
   )
+}
+
+function ProposalEditButton({ label, onClick }: { label: string; onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
+  return (
+    <button className="shrink-0 rounded border border-gray-200 p-1.5 text-gray-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClick} type="button" aria-label={label}>
+      <PencilIcon className="h-4 w-4" />
+    </button>
+  )
+}
+
+function editableChildProposal(child: ChatProposalChild): EditableProposal {
+  return {
+    id: child.id,
+    title: child.title,
+    slug: child.slug,
+    body: child.body,
+    proposed: child.proposed,
+    app_update_path: child.app_update_path,
+    dependency_slugs: child.dependencies,
+    dependencies: (child.dependency_details || []).map((dependency) => ({
+      slug: dependency.slug,
+      title: dependency.title,
+      state: "",
+      confirmed: dependency.confirmed,
+      materialized_label: dependency.materialized_label,
+      materialized_path: dependency.materialized_path
+    })),
+    depends_on_job_ids: child.depends_on_job_ids || [],
+    depends_on_epic_ids: child.depends_on_epic_ids || []
+  }
 }
 
 function proposalConfirmLabel(proposal: ChatProposal, childJobCount: number) {
@@ -1106,7 +1373,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
-function ProposalChildren({ children, mutation, prefix }: { children: ChatProposalChild[]; mutation: UseMutationResult<ChatPayload, Error, { action: "confirm" | "reject"; path: string }>; prefix: string }) {
+function ProposalChildren({ children, mutation, prefix, onEdit }: { children: ChatProposalChild[]; mutation: UseMutationResult<ChatPayload, Error, { action: "confirm" | "reject"; path: string }>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
   if (children.length === 0) return null
   return (
     <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
@@ -1117,6 +1384,7 @@ function ProposalChildren({ children, mutation, prefix }: { children: ChatPropos
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
             {child.dependencies.length > 0 ? <ChildDependencySummary child={child} prefix={prefix} /> : null}
             <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
+            {child.proposed ? <ProposalEditButton label={`Edit ${child.slug}`} onClick={(event) => { event.stopPropagation(); onEdit(child) }} /> : null}
           </summary>
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>

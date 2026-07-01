@@ -71,8 +71,11 @@ export type ChatProposal = {
   dependencies: ChatProposalDependency[]
   has_dependencies: boolean
   target_epic_label: string | null
+  app_update_path: string
   app_confirm_path: string
   app_reject_path: string
+  depends_on_job_ids?: number[]
+  depends_on_epic_ids?: number[]
   materialized_label: string | null
   materialized_path: string | null
   materialized?: ChatProposalMaterialized | null
@@ -108,8 +111,39 @@ export type ChatProposalChild = {
   proposed: boolean
   repository_slug: string | null
   dependencies: string[]
+  depends_on_job_ids?: number[]
+  depends_on_epic_ids?: number[]
   dependency_details?: ChatProposalChildDependency[]
+  app_update_path: string
   app_reject_path: string
+}
+
+export type ChatProposalUpdateInput = {
+  title: string
+  body: string
+  dependency_slugs: string[]
+  depends_on_job_ids: number[]
+  depends_on_epic_ids: number[]
+}
+
+export type ChatProposalSearchResult = {
+  id: number
+  slug: string
+  title: string
+  state?: string
+}
+
+export type ChatJobDependencySearchResult = {
+  id: number
+  title?: string | null
+  issue_title?: string | null
+}
+
+export type ChatEpicDependencySearchResult = {
+  id: number
+  number?: number
+  title: string
+  display_number?: string
 }
 
 export type ChatProposalChildDependency = {
@@ -548,6 +582,28 @@ export function confirmChatProposal(path: string) {
 
 export function rejectChatProposal(path: string) {
   return postJson<ChatPayload>(path)
+}
+
+export function updateChatProposal(path: string, values: ChatProposalUpdateInput) {
+  return patchJson<ChatPayload>(path, { proposal: values })
+}
+
+export function searchChatProposals(chatId: string | number, query: string, excludeId: number, options: { signal?: AbortSignal } = {}) {
+  const params = new URLSearchParams({ q: query, exclude_id: String(excludeId) })
+  return getJson<{ proposals: ChatProposalSearchResult[] }>(`/api/v1/app/chats/${chatId}/proposals/search?${params}`, options)
+    .then((payload) => payload.proposals || [])
+}
+
+export function searchChatJobs(query: string, options: { signal?: AbortSignal } = {}) {
+  const params = new URLSearchParams({ q: query, limit: "10" })
+  return getJson<{ jobs: ChatJobDependencySearchResult[] }>(`/api/v1/app/jobs?${params}`, options)
+    .then((payload) => payload.jobs || [])
+}
+
+export function searchChatEpics(query: string, options: { signal?: AbortSignal } = {}) {
+  const params = new URLSearchParams({ q: query, limit: "10" })
+  return getJson<{ epics: ChatEpicDependencySearchResult[] }>(`/api/v1/app/epics?${params}`, options)
+    .then((payload) => payload.epics || [])
 }
 
 export function confirmPendingAction(path: string) {

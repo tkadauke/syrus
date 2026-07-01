@@ -6,6 +6,10 @@ module App
       new(repository: repository).messages(messages)
     end
 
+    def self.proposal(proposal, chat_session:, repository:)
+      new(repository: repository).send(:proposal_json, proposal, chat_session: chat_session)
+    end
+
     def initialize(repository:)
       @repository = repository
     end
@@ -98,9 +102,12 @@ module App
         epic_bundle: proposal.epic_bundle?,
         scoped_repository_slug: scoped_repository&.slug,
         dependency_slugs: dependency_slugs,
+        depends_on_job_ids: proposal.depends_on_job_ids || [],
+        depends_on_epic_ids: proposal.depends_on_epic_ids || [],
         dependencies: visible_dependencies,
         has_dependencies: visible_dependencies.any?,
         target_epic_label: proposal.target_epic&.display_number,
+        app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject",
         materialized_label: proposal.materialized_label,
@@ -190,7 +197,10 @@ module App
         proposed: proposal.proposed?,
         repository_slug: proposal.repository&.slug || @repository&.slug,
         dependencies: dependency_records.map(&:slug),
+        depends_on_job_ids: proposal.depends_on_job_ids || [],
+        depends_on_epic_ids: proposal.depends_on_epic_ids || [],
         dependency_details: dependency_records.map { |dependency| child_dependency_json(proposal, dependency) },
+        app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject"
       }
     end

@@ -151,6 +151,10 @@ Clearing a non-empty canvas automatically saves the previous scene first.
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
+Before confirmation, operators can edit a proposal card's title, body, and
+dependencies directly. Epic bundle cards let operators edit the top-level
+Epic proposal, and each proposed child Job in the bundle has its own editor.
+The proposal slug remains stable so dependency references do not break.
 When a product owner confirms proposals, Syrus accepts standalone backlog
 Epics and non-Epic Jobs, but rejects proposals that would create Jobs inside
 an Epic until a developer claims and elaborates that Epic.

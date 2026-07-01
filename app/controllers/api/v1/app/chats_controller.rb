@@ -460,6 +460,54 @@ module Api
           end
         end
 
+        def update_proposal
+          chat_session = find_chat_session
+          proposal = find_proposal(chat_session)
+
+          unless proposal.proposed?
+            render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)
+            return
+          end
+
+          attrs = proposal_update_params
+          ApplicationRecord.transaction do
+            depends_on_job_ids = dependency_ids!(Current.user.jobs, Array(attrs[:depends_on_job_ids]), "depends_on_job_ids")
+            depends_on_epic_ids = dependency_ids!(Current.user.epics, Array(attrs[:depends_on_epic_ids]), "depends_on_epic_ids")
+            proposal.update!(
+              title: attrs[:title],
+              body: attrs[:body],
+              depends_on_job_ids: depends_on_job_ids,
+              depends_on_epic_ids: depends_on_epic_ids
+            )
+            rebuild_proposal_dependencies!(chat_session, proposal, Array(attrs[:dependency_slugs]))
+            proposal.reset_to_proposed_after_edit!
+          end
+
+          broadcast_proposal_updated(chat_session, proposal.reload)
+          render json: chat_payload(chat_session.reload, message: "Proposal updated.").merge(
+            proposal: ::App::ChatMessagePayload.proposal(proposal, chat_session: chat_session, repository: chat_session.repository)
+          )
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
+        end
+
+        def search_proposals
+          chat_session = find_chat_session
+          query = params[:q].to_s.strip
+          scope = chat_session.proposals
+          scope = scope.where.not(id: params[:exclude_id]) if params[:exclude_id].present?
+          if query.present?
+            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query.downcase)}%"
+            scope = scope.where("LOWER(title) LIKE :pattern OR LOWER(slug) LIKE :pattern", pattern: pattern)
+          end
+
+          render json: {
+            proposals: scope.order(:created_at, :id).limit(10).map { |proposal| proposal_search_json(proposal) }
+          }
+        end
+
         private
 
         def form_payload
@@ -566,6 +614,54 @@ module Api
 
         def search_query
           params[:q].to_s.strip
+        end
+
+        def proposal_update_params
+          params.require(:proposal).permit(:title, :body, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [])
+        end
+
+        def rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)
+          slugs = dependency_slugs.map(&:to_s).map(&:strip).reject(&:blank?).uniq
+          dependencies = chat_session.proposals.where(slug: slugs).index_by(&:slug)
+          missing = slugs - dependencies.keys
+          raise ArgumentError, "Unknown proposal dependency: #{missing.first}" if missing.any?
+
+          proposal.dependency_edges.destroy_all
+          slugs.each do |slug|
+            proposal.dependency_edges.create!(depends_on: dependencies.fetch(slug))
+          end
+        end
+
+        def dependency_ids!(scope, raw_ids, name)
+          ids = raw_ids.map(&:to_i).select(&:positive?).uniq
+          found_ids = scope.where(id: ids).pluck(:id)
+          missing = ids - found_ids
+          raise ArgumentError, "Unknown #{name}: #{missing.first}" if missing.any?
+
+          ids
+        end
+
+        def proposal_search_json(proposal)
+          {
+            id: proposal.id,
+            slug: proposal.slug,
+            title: proposal.title,
+            state: proposal.state
+          }
+        end
+
+        def broadcast_proposal_updated(chat_session, proposal)
+          AppEvents.broadcast(
+            user: chat_session.user,
+            type: "updated",
+            resource: "chat",
+            id: chat_session.id,
+            changed: [ "proposal" ],
+            payload: {
+              action: "update_proposal",
+              proposal_id: proposal.id
+            }
+          )
         end
 
         def search_page

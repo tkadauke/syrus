@@ -14,6 +14,10 @@ module Api
             jobs = jobs.joins(:repository).where(repositories: { owner: owner, name: name })
           end
           jobs = jobs.where(state: params[:state]) if params[:state].present? && params[:state] != "all"
+          if params[:q].present?
+            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
+            jobs = jobs.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
+          end
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
 
           render json: {
