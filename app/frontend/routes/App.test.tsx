@@ -11878,6 +11878,59 @@ describe("App", () => {
     expect(screen.getByTitle("girding itself")).toHaveTextContent("Accingitur")
   })
 
+  it("keeps Stop acknowledged until chat controls broadcast completion", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/stop" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({
+          agentBusy: true,
+          stopRequestedAt: "2026-07-01T12:00:00Z"
+        })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({ agentBusy: true })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const stop = await screen.findByRole("button", { name: "Stop agent" })
+    fireEvent.click(stop)
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/stop", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(stop).toBeDisabled())
+
+    const subscriptionCalls = actionCable.createSubscription.mock.calls as unknown[][]
+    const appEventSubscription = subscriptionCalls.at(-1)?.[1] as { received?: (event: unknown) => void } | undefined
+    act(() => {
+      appEventSubscription?.received?.({
+        type: "chat.updated",
+        resource: "chat",
+        id: 8,
+        changed: ["controls"],
+        occurred_at: "2026-07-01T12:00:01.000Z",
+        payload: {
+          action: "update_controls",
+          turn_in_flight: false,
+          agent_busy: false,
+          stop_requested_at: null,
+          queued_messages: []
+        }
+      })
+    })
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Stop agent" })).not.toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Send message" })).toBeInTheDocument()
+  })
+
   it("grows the chat input up to five rows", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -15273,6 +15326,7 @@ function chatPayload(overrides: {
   agentBusy?: boolean
   hasMoreOlder?: boolean
   pinned?: boolean
+  stopRequestedAt?: string | null
 } = {}) {
   return {
     message: overrides.message,
@@ -15284,7 +15338,7 @@ function chatPayload(overrides: {
       pinned_context: null,
       chat_path: overrides.chatPath ?? "/chats/8",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
-      stop_requested_at: null,
+      stop_requested_at: overrides.stopRequestedAt ?? null,
       cumulative_input_tokens: overrides.cumulativeInputTokens ?? 12400,
       cumulative_output_tokens: overrides.cumulativeOutputTokens ?? 3200,
       cumulative_cost_usd: overrides.cumulativeCostUsd ?? 0.0123

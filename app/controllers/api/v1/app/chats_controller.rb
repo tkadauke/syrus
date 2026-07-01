@@ -250,6 +250,7 @@ module Api
         def stop
           chat_session = find_chat_session
           chat_session.update!(stop_requested_at: Time.current)
+          request_chat_agent_kill!(chat_session)
           chat_session.broadcast_controls
 
           render json: chat_payload(chat_session.reload, message: "Stop requested.")
@@ -1490,6 +1491,12 @@ module Api
             pending_proposal_count: chat_session.proposals.where(state: "proposed").count +
               chat_session.pending_actions.where(state: "pending").count
           }
+        end
+
+        def request_chat_agent_kill!(chat_session)
+          SpawnedProcess.running
+                        .where(kind: "agent", workdir: chat_session.workspace_root.to_s)
+                        .find_each { |process| process.request_kill!(user: Current.user) }
         end
 
         def repository_json(repository)

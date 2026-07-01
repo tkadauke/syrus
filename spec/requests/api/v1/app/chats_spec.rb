@@ -1453,6 +1453,27 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "title")).to eq("Canal review")
   end
 
+  it "requests a kill for a running agent process when stopping a chat" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Active turn", last_message_at: Time.current)
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "worker-1",
+      started_at: Time.current
+    )
+
+    post "/api/v1/app/chats/#{chat.id}/stop"
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.stop_requested_at).to be_present
+    expect(process.reload.kill_requested_at).to be_present
+    expect(process.kill_requested_by_user).to eq(user)
+    expect(parse_body["message"]).to eq("Stop requested.")
+    expect(parse_body.dig("chat", "stop_requested_at")).to be_present
+  end
+
   it "clears chat messages and queued messages through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, title: "Keep title", last_message_at: Time.current, stop_requested_at: Time.current)

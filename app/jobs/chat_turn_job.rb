@@ -44,9 +44,11 @@ class ChatTurnJob < ApplicationJob
     ).find(chat_session_id)
     @user_message = @chat.messages.find(user_message_id)
     @turn_started_at = Time.current
+    @stop_request_cutoff_at = @user_message.created_at || @turn_started_at
     @cancelled = false
 
-    @chat.update!(stop_requested_at: nil)
+    clear_stale_stop_request!
+    return if stop_requested?
 
     provider = chat_provider
 
@@ -59,6 +61,7 @@ class ChatTurnJob < ApplicationJob
     workspace_path = ensure_workspace!
     parent_session_id = resume_session_id_for(provider)
     attachment_context = attachment_context_for(workspace_path)
+    return if stop_requested?
 
     result = with_chat_mcp_config do |mcp_config|
       with_git_askpass_env do |agent_env|
@@ -77,12 +80,20 @@ class ChatTurnJob < ApplicationJob
     capture_session!(provider, result) if result
     @chat.record_turn_usage!(result) if result
     touch_chat!
-    deliver_next_queued_message!
+    stop_requested?
+    deliver_next_queued_message! unless @cancelled
   ensure
     clear_stop_request_and_broadcast_controls!
   end
 
   private
+
+  def clear_stale_stop_request!
+    @chat.reload
+    return unless @chat.stop_requested_at && @chat.stop_requested_at <= @stop_request_cutoff_at
+
+    @chat.update!(stop_requested_at: nil)
+  end
 
   def clear_stop_request_and_broadcast_controls!
     return unless @chat
@@ -465,7 +476,7 @@ class ChatTurnJob < ApplicationJob
 
   def stop_requested?
     @chat.reload
-    return false unless @chat.stop_requested_at && @chat.stop_requested_at > @turn_started_at
+    return false unless @chat.stop_requested_at && @chat.stop_requested_at > @stop_request_cutoff_at
 
     unless @cancelled
       @cancelled = true

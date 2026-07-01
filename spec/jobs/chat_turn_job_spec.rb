@@ -473,6 +473,59 @@ RSpec.describe ChatTurnJob do
     expect(chat.reload.queued_messages).to be_empty
   end
 
+  it "cancels without starting the agent when stop was requested before process start" do
+    message = user_message
+    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Do not promote yet" })
+    chat.update!(stop_requested_at: Time.current)
+    called = false
+    ChatTurnJob.agent_runner = ->(**_) {
+      called = true
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    expect {
+      described_class.perform_now(chat.id, message.id)
+    }.not_to have_enqueued_job(described_class)
+
+    expect(called).to eq(false)
+    expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Cancelled by operator." } ]
+    )
+    expect(queued_message.reload.delivered_at).to be_nil
+    expect(chat.reload.queued_messages).to contain_exactly(queued_message)
+    expect(chat.stop_requested_at).to be_nil
+  end
+
+  it "cancels during process start and leaves queued follow-up messages pending" do
+    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Still pending" })
+    ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, stop_requested:, **_) {
+      process = SpawnedProcess.create!(
+        kind: "agent",
+        command: "claude --print",
+        workdir: workspace_path,
+        hostname: "worker-1",
+        started_at: Time.current
+      )
+      process_started.call(process)
+      chat.update!(stop_requested_at: Time.current)
+
+      expect(stop_requested.call).to eq(true)
+      process.update!(finished_at: Time.current, outcome: "stopped")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    expect {
+      described_class.perform_now(chat.id, user_message.id)
+    }.not_to have_enqueued_job(described_class)
+
+    expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Cancelled by operator." } ]
+    )
+    expect(queued_message.reload.delivered_at).to be_nil
+    expect(chat.reload.queued_messages).to contain_exactly(queued_message)
+    expect(chat.stop_requested_at).to be_nil
+  end
+
   it "broadcasts chat controls when the agent process starts" do
     message = user_message
     events = []
