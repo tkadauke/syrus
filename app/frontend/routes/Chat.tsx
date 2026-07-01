@@ -1526,6 +1526,27 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       return
     }
 
+    if (command.name === "/copy") {
+      const lastAssistantMessage = lastAssistantRenderedMessage(payload.messages)
+      if (!lastAssistantMessage) {
+        onNotice("No assistant response to copy")
+        return
+      }
+
+      void navigator.clipboard.writeText(lastAssistantMessage.text)
+      setText("")
+      onNotice("Copied to clipboard")
+      return
+    }
+
+    if (command.name === "/search") {
+      const path = argsText ? `/chats/search?q=${encodeURIComponent(argsText)}` : "/chats/search"
+      navigate(withRoutePrefix(path, prefix))
+      setText("")
+      onNotice(null)
+      return
+    }
+
     setText("")
   }
 
@@ -3377,6 +3398,16 @@ function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
   }
 
   return items
+}
+
+function lastAssistantRenderedMessage(messages: ChatMessageItem[]) {
+  const items = renderChatMessages(messages)
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]
+    if (item.type === "message" && item.role === "assistant") return item
+  }
+
+  return null
 }
 
 function buildMessageStreamItems(items: ChatRenderItem[], pendingActions: ChatPendingAction[]): ChatStreamItem[] {
