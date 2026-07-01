@@ -52,6 +52,29 @@ RSpec.describe StepDispatcher do
       }.not_to change { Run.count }
     end
 
+    it "warns when a non-rebase workflow is left queued by an unresolved stack dependency" do
+      JobDependency.create!(
+        job: job,
+        source: "manual",
+        unresolved_owner: job.repository.owner,
+        unresolved_repo: job.repository.name,
+        unresolved_number: 999
+      )
+
+      expect(Rails.logger).to receive(:warn).with(
+        include(
+          "[StepDispatcher] workflow #{workflow.id} (initial) left queued with 0 runs:",
+          "stack_dependencies_not_ready",
+          "job_id=#{job.id}"
+        )
+      )
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { Run.count }
+      expect(workflow.reload).to be_queued
+    end
+
     it "starts once dependencies are satisfied" do
       prerequisite = Factories.job(repository: job.repository, issue_number: 99)
       JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
@@ -76,6 +99,8 @@ RSpec.describe StepDispatcher do
       rebase = Workflows::Rebase.instantiate(job: blocked_job)
 
       expect(RebaseWorkflowSelector.active_for_stack?(blocked_job)).to be(false)
+
+      expect(Rails.logger).not_to receive(:warn).with(include("stack_dependencies_not_ready", "workflow #{rebase.id}"))
 
       expect {
         described_class.start_workflow(rebase)

@@ -23,11 +23,15 @@ class StepDispatcher
     return if first.runs.any?
 
     unless workflow.job.stack_ready_for_execution?
-      return cancel_unstartable_rebase_workflow!(workflow, "stack_dependencies_not_ready")
+      cancel_unstartable_rebase_workflow!(workflow, "stack_dependencies_not_ready")
+      warn_if_stuck_queued(workflow, "stack_dependencies_not_ready")
+      return
     end
 
     unless workflow.job.ready_for_execution?
-      return cancel_unstartable_rebase_workflow!(workflow, "job_not_ready_for_execution")
+      cancel_unstartable_rebase_workflow!(workflow, "job_not_ready_for_execution")
+      warn_if_stuck_queued(workflow, "job_not_ready_for_execution")
+      return
     end
 
     run = create_run_and_enqueue(first, workflow,
@@ -48,6 +52,16 @@ class StepDispatcher
     workflow.cancel! if workflow.may_cancel?
     workflow.save!
     nil
+  end
+
+  def self.warn_if_stuck_queued(workflow, reason)
+    return if RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
+    return unless workflow.queued?
+
+    Rails.logger.warn(
+      "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) left queued with 0 runs: " \
+      "#{reason} job_id=#{workflow.job_id}"
+    )
   end
 
   # Single point that creates a Run on a Step. Run's
