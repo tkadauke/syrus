@@ -81,9 +81,13 @@ class ChatTurnJob < ApplicationJob
     @chat.record_turn_usage!(result) if result
     touch_chat!
     stop_requested?
-    deliver_next_queued_message! unless @cancelled
+    create_terminal_completion_message! unless @cancelled
+  rescue StandardError
+    stop_requested? || create_terminal_failure_message!
+    touch_chat! if @chat
+    raise
   ensure
-    clear_stop_request_and_broadcast_controls!
+    finalize_turn!
   end
 
   private
@@ -101,6 +105,13 @@ class ChatTurnJob < ApplicationJob
     @chat.reload
     @chat.update!(stop_requested_at: nil) if @chat.stop_requested_at?
     @chat.broadcast_controls
+  end
+
+  def finalize_turn!
+    return unless @chat
+
+    clear_stop_request_and_broadcast_controls!
+    ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat)
   end
 
   def ensure_workspace!
@@ -233,7 +244,7 @@ class ChatTurnJob < ApplicationJob
     content = message.content.is_a?(Hash) ? message.content : {}
     content["source"].to_s == "proposal_notification" ||
       text.match?(/\AProposal .*(confirmed|rejected|withdrawn|created|materialized)/i) ||
-      text.match?(/\A(Cancelled by operator|MCP unavailable|Codex resume)/i)
+      text.match?(/\A(Cancelled by operator|Agent turn failed|Agent turn completed|MCP unavailable|Codex resume)/i)
   end
 
   def proposal_summary(proposal)
@@ -485,6 +496,24 @@ class ChatTurnJob < ApplicationJob
     true
   end
 
+  def create_terminal_failure_message!
+    return unless @chat && @user_message
+
+    @chat.reload
+    return unless @chat.turn_in_flight?
+
+    create_message!("system", text: "Agent turn failed.")
+  end
+
+  def create_terminal_completion_message!
+    return unless @chat && @user_message
+
+    @chat.reload
+    return unless @chat.turn_in_flight?
+
+    create_message!("system", text: "Agent turn completed.")
+  end
+
   def create_message!(role, content)
     @chat.messages.create!(role: role, content: content.stringify_keys)
   end
@@ -520,24 +549,4 @@ class ChatTurnJob < ApplicationJob
     @chat.update!(last_message_at: Time.current)
   end
 
-  def deliver_next_queued_message!
-    user_message = nil
-
-    ApplicationRecord.transaction do
-      locked_chat = ChatSession.lock.find(@chat.id)
-      queued_message = locked_chat.queued_messages.first
-      if queued_message
-        user_message = locked_chat.messages.create!(role: "user", content: queued_message.content)
-        queued_message.update!(delivered_at: Time.current)
-        locked_chat.update!(
-          last_message_at: Time.current,
-          title: locked_chat.title.presence
-        )
-      end
-    end
-    return false unless user_message
-
-    ChatTurnJob.perform_later(@chat.id, user_message.id)
-    true
-  end
 end

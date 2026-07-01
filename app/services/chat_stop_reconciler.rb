@@ -55,6 +55,7 @@ class ChatStopReconciler
     @chat_session.reload
     @chat_session.broadcast_controls
     @chat_session.broadcast_app_header_update
+    ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat_session)
     changed
   end
 

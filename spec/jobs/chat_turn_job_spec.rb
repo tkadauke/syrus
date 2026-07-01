@@ -393,6 +393,7 @@ RSpec.describe ChatTurnJob do
       result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
     }
 
+    allow(AppEvents).to receive(:broadcast)
     expect(AppEvents).to receive(:broadcast).with(
       user: chat.user,
       type: "updated",
@@ -435,11 +436,13 @@ RSpec.describe ChatTurnJob do
 
   it "clears mid-turn stop requests and broadcasts controls when the agent errors" do
     message = user_message
+    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Continue after failure" })
     ChatTurnJob.agent_runner = ->(**_) {
       chat.update!(stop_requested_at: Time.current)
       raise "agent failed"
     }
 
+    allow(AppEvents).to receive(:broadcast)
     expect(AppEvents).to receive(:broadcast).with(
       user: chat.user,
       type: "updated",
@@ -452,9 +455,16 @@ RSpec.describe ChatTurnJob do
       )
     )
 
-    described_class.perform_now(chat.id, message.id)
+    expect {
+      described_class.perform_now(chat.id, message.id)
+    }.to have_enqueued_job(described_class).with(chat.id, kind_of(Integer))
 
     expect(chat.reload.stop_requested_at).to be_nil
+    expect(queued_message.reload.delivered_at).to be_present
+    expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Cancelled by operator." } ],
+      [ "user", { "text" => "Continue after failure" } ]
+    )
   end
 
   it "promotes the next queued message after the agent turn finishes" do
@@ -473,9 +483,25 @@ RSpec.describe ChatTurnJob do
     expect(chat.reload.queued_messages).to be_empty
   end
 
+  it "promotes the next queued message after a provider failure finalizes the turn" do
+    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Recover from the failure" })
+    ChatTurnJob.agent_runner = ->(**_) { raise "provider unavailable" }
+
+    expect {
+      described_class.perform_now(chat.id, user_message.id)
+    }.to have_enqueued_job(described_class).with(chat.id, kind_of(Integer))
+
+    expect(chat.reload.stop_requested_at).to be_nil
+    expect(queued_message.reload.delivered_at).to be_present
+    expect(chat.messages.order(:created_at, :id).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Agent turn failed." } ],
+      [ "user", { "text" => "Recover from the failure" } ]
+    )
+  end
+
   it "cancels without starting the agent when stop was requested before process start" do
     message = user_message
-    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Do not promote yet" })
+    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Promote after cancellation" })
     chat.update!(stop_requested_at: Time.current)
     called = false
     ChatTurnJob.agent_runner = ->(**_) {
@@ -485,19 +511,20 @@ RSpec.describe ChatTurnJob do
 
     expect {
       described_class.perform_now(chat.id, message.id)
-    }.not_to have_enqueued_job(described_class)
+    }.to have_enqueued_job(described_class).with(chat.id, kind_of(Integer))
 
     expect(called).to eq(false)
     expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
-      [ "system", { "text" => "Cancelled by operator." } ]
+      [ "system", { "text" => "Cancelled by operator." } ],
+      [ "user", { "text" => "Promote after cancellation" } ]
     )
-    expect(queued_message.reload.delivered_at).to be_nil
-    expect(chat.reload.queued_messages).to contain_exactly(queued_message)
+    expect(queued_message.reload.delivered_at).to be_present
+    expect(chat.reload.queued_messages).to be_empty
     expect(chat.stop_requested_at).to be_nil
   end
 
-  it "cancels during process start and leaves queued follow-up messages pending" do
-    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Still pending" })
+  it "promotes a queued follow-up after cancellation once the process is terminal" do
+    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Continue after stop" })
     ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, stop_requested:, **_) {
       process = SpawnedProcess.create!(
         kind: "agent",
@@ -516,14 +543,57 @@ RSpec.describe ChatTurnJob do
 
     expect {
       described_class.perform_now(chat.id, user_message.id)
-    }.not_to have_enqueued_job(described_class)
+    }.to have_enqueued_job(described_class).with(chat.id, kind_of(Integer))
 
     expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
-      [ "system", { "text" => "Cancelled by operator." } ]
+      [ "system", { "text" => "Cancelled by operator." } ],
+      [ "user", { "text" => "Continue after stop" } ]
     )
+    expect(queued_message.reload.delivered_at).to be_present
+    expect(chat.reload.queued_messages).to be_empty
+    expect(chat.stop_requested_at).to be_nil
+  end
+
+  it "does not promote a queued follow-up while the agent process is still live" do
+    queued_message = chat.chat_queued_messages.create!(content: { "text" => "Wait for process exit" })
+    ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, stop_requested:, **_) {
+      process = SpawnedProcess.create!(
+        kind: "agent",
+        command: "claude --print",
+        workdir: workspace_path,
+        hostname: "worker-1",
+        started_at: Time.current
+      )
+      process_started.call(process)
+      chat.update!(stop_requested_at: Time.current)
+
+      expect(stop_requested.call).to eq(true)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    expect {
+      described_class.perform_now(chat.id, user_message.id)
+    }.not_to have_enqueued_job(described_class)
+
     expect(queued_message.reload.delivered_at).to be_nil
     expect(chat.reload.queued_messages).to contain_exactly(queued_message)
-    expect(chat.stop_requested_at).to be_nil
+    expect(chat).to be_agent_busy
+  end
+
+  it "delivers one queued message under repeated promotion attempts" do
+    chat.messages.create!(role: "assistant", content: { "text" => "Done" })
+    first = chat.chat_queued_messages.create!(content: { "text" => "First queued" })
+    second = chat.chat_queued_messages.create!(content: { "text" => "Second queued" })
+
+    expect {
+      2.times { ChatQueuedMessagePromoter.deliver_one_if_idle!(chat) }
+    }.to have_enqueued_job(described_class).once
+
+    expect(first.reload.delivered_at).to be_present
+    expect(second.reload.delivered_at).to be_nil
+    user_texts = chat.messages.where(role: "user").map { |message| message.content["text"] }
+    expect(user_texts.count("First queued")).to eq(1)
+    expect(user_texts.count("Second queued")).to eq(0)
   end
 
   it "broadcasts chat controls when the agent process starts" do
