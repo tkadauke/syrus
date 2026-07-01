@@ -11703,8 +11703,8 @@ describe("App", () => {
 
     const stop = await screen.findByRole("button", { name: "Stop agent" })
     expect(screen.queryByRole("button", { name: "Send message" })).not.toBeInTheDocument()
-    expect(stop).toHaveClass("px-3", "py-1.5")
-    expect(stop).not.toHaveClass("px-4", "py-2")
+    expect(stop).toHaveClass("h-9", "px-3")
+    expect(stop).not.toHaveClass("py-1.5", "px-4", "py-2")
   })
 
   it("shows a starting state before the chat agent process is running", async () => {
