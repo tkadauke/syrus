@@ -4,5 +4,5 @@ set -euo pipefail
 
 npm run typecheck
 
-vitest_max_workers="${VITEST_MAX_WORKERS:-2}"
+vitest_max_workers="${VITEST_MAX_WORKERS:-4}"
 npx vitest run --maxWorkers "$vitest_max_workers"
