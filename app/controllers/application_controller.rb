@@ -32,7 +32,7 @@ class ApplicationController < ActionController::Base
       .order(Arel.sql("last_message_at IS NULL ASC"), last_message_at: :desc, created_at: :desc, id: :desc)
       .first
 
-    chat_session ? chat_path(chat_session) : new_chat_path
+    chat_session ? chat_path(chat_session) : dashboard_path
   end
 
 end

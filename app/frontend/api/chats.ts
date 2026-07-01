@@ -290,12 +290,6 @@ export type WhiteboardSnapshotsPayload = {
   whiteboard_snapshots: WhiteboardSnapshot[]
 }
 
-export type NewChatPayload = {
-  repositories: ChatRepository[]
-  default_repository_id: number | null
-  repositories_path: string
-}
-
 export type CreateChatInput = {
   repositoryId: string
   text: string
@@ -373,7 +367,6 @@ export type ChatPayload = {
     files: ChatWhiteboardFiles
   }
   paths: {
-    new_chat_path: string
     credentials_path: string
     repositories_path: string
     app_messages_path: string
@@ -508,15 +501,15 @@ export async function patchChatWhiteboard(path: string, input: ChatWhiteboardSce
   }
 }
 
-export function fetchNewChat() {
-  return getJson<NewChatPayload>("/api/v1/app/chats/new")
-}
-
 export function createChat(values: CreateChatInput) {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", {
     repository_id: values.repositoryId,
     ...chatMessagePayload(values.text, values.attachments || [])
   })
+}
+
+export function createEmptyChat() {
+  return postJson<ChatCreatedPayload>("/api/v1/app/chats")
 }
 
 // Create the first-run onboarding chat (seeded so the agent greets the

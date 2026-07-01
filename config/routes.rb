@@ -125,7 +125,6 @@ Rails.application.routes.draw do
         post "dashboard/jobs/bulk", to: "dashboard#bulk_jobs"
         post "dashboard/epics/bulk", to: "dashboard#bulk_epics"
         patch "dashboard/epics/:id/auto_approval", to: "dashboard#epic_auto_approval", constraints: { id: /\d+/ }
-        get "chats/new", to: "chats#new"
         get "chats", to: "chats#index"
         get "chats/more", to: "chats#more"
         get "chats/search", to: "chats#search"
@@ -336,8 +335,8 @@ Rails.application.routes.draw do
   get "repositories/:id", to: "spa#show", as: :repository, constraints: { id: /\d+/ }
   resources :repositories, only: [] do
     # Repository-scoped chat routes were retired — the chat surface is
-    # the top-level /chats/new and /chats/:id SPA routes, backed by the
-    # /api/v1/app/chats endpoints.
+    # the top-level /chats/:id SPA route, backed by the /api/v1/app/chats
+    # endpoints.
     # The repository chat home (no tab, no UI entry point) is gone;
     # the per-repo controller was pure duplication of the top-level chat flow.
     get "documents", to: "spa#show", as: :documents
@@ -345,7 +344,6 @@ Rails.application.routes.draw do
   end
   get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
 
-  get "chats/new", to: "spa#show", as: :new_chat
   get "chats/search", to: "spa#show", as: :search_chats
   get "chats/shared/:token", to: "spa#show", as: :shared_chat
   get "chats/:id", to: "spa#show", as: :chat, constraints: { id: /\d+/ }

@@ -1136,7 +1136,6 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       files: {}
     },
     paths: {
-      new_chat_path: "/chats/new",
       credentials_path: "/credentials",
       repositories_path: "/repositories",
       app_messages_path: "/api/v1/app/chats/8/messages",

@@ -107,7 +107,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "sign_in_path" => "/session/new"
     )
     expect(body["navigation"]).to include(
-      "default_chat_path" => new_chat_path
+      "default_chat_path" => dashboard_path
     )
     expect(body.dig("setup", "next_step")).to eq("credentials")
     expect(body.dig("setup", "paths", "setup_path")).to eq(setup_path)

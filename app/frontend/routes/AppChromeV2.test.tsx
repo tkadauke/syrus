@@ -4,6 +4,7 @@ import type { ReactElement } from "react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
+import * as chatsApi from "../api/chats"
 import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayload } from "../api/chats"
 import { AppChromeV2, chatSectionsFromPayload } from "./AppChromeV2"
 
@@ -13,7 +14,8 @@ describe("AppChromeV2", () => {
     vi.restoreAllMocks()
   })
 
-  it("navigates to the new chat route without creating a chat", async () => {
+  it("reuses an existing unstarted chat without creating a chat", async () => {
+    const createEmptyChat = vi.spyOn(chatsApi, "createEmptyChat")
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "recent"], {
       groups: [
@@ -46,21 +48,52 @@ describe("AppChromeV2", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
+    expect(createEmptyChat).not.toHaveBeenCalled()
   })
 
-  it("does nothing when already on the new chat route", () => {
+  it("creates an empty chat and navigates to the returned chat path", async () => {
+    vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
+      message: "Chat created.",
+      redirect_to: "/chats/14",
+      chat: chatNav({
+        id: 14,
+        title: null,
+        title_pending: false,
+        chat_path: "/chats/14",
+        last_message_at: null
+      }) as chatsApi.ChatRecord
+    })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "recent"], chatsIndexPayload())
 
     renderAppChrome(<LocationProbe />, {
-      initialEntries: ["/app-shell/chats/new"],
+      initialEntries: ["/app-shell/dashboard/jobs"],
       queryClient,
       routeWrapper: true
     })
 
     fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/new")
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14")
+    })
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledTimes(1)
+    expect(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])?.groups[0].chats[0].id).toBe(14)
+  })
+
+  it("shows a notice when creating an empty chat fails", async () => {
+    vi.spyOn(chatsApi, "createEmptyChat").mockRejectedValue(new Error("boom"))
+
+    renderAppChrome(<LocationProbe />, {
+      initialEntries: ["/app-shell/dashboard/jobs"],
+      queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+      routeWrapper: true
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
+
+    expect(await screen.findByText("Unable to start chat.")).toBeInTheDocument()
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
   })
 })
 
@@ -377,7 +410,7 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       docs_url: "https://syrus.dev/docs/getting-started",
       evaluation_url: "https://syrus.dev/docs/deployment/docker-compose"
     },
-    navigation: { default_chat_path: "/chats/new" },
+    navigation: { default_chat_path: "/dashboard" },
     setup: {
       complete: true,
       chat_started: true,

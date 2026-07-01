@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
+import { createEmptyChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
@@ -14,6 +14,7 @@ import { NotificationsBell } from "../components/Notifications"
 import { PinIcon } from "../components/PinIcon"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { updateRecentChatCache } from "../lib/chatCache"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 import { chatQueryKey } from "./Chat"
 
@@ -56,10 +57,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
   const tabsHidden = inOnboarding && !onboardingChatStarted
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
   const [mobileBrandFloating, setMobileBrandFloating] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement | null>(null)
   const pageContent = redirectsToSetup(data, normalizedPath)
     ? <Navigate replace to={`${prefix}/onboarding`} />
@@ -84,7 +85,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     ])
   ] : []
 
-  function startChat() {
+  async function startChat() {
     if (normalizedPath === "/chats/new") return
 
     setDrawerOpen(false)
@@ -94,7 +95,13 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       return
     }
 
-    navigate(withRoutePrefix("/chats/new", prefix))
+    try {
+      const created = await createEmptyChat()
+      updateRecentChatCache(queryClient, created.chat, { prepend: true })
+      navigate(withRoutePrefix(created.redirect_to, prefix))
+    } catch (_error) {
+      setNotice("Unable to start chat.")
+    }
   }
 
   useEffect(() => {
@@ -248,6 +255,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
+      {notice ? <NoticeToast message={notice} onDismiss={() => setNotice(null)} /> : null}
       {user ? <BugReportButton context={bugReportContext(location.pathname)} position="bottom-right" /> : null}
     </div>
   )
@@ -711,7 +719,7 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
     void hideChat(chat.id).then(() => {
       void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
       void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
-      if (chat.id === activeChatId) navigate(`${prefix}/chats/new`)
+      if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
     }).catch(() => {
       void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
     }).finally(() => {

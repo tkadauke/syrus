@@ -52,10 +52,6 @@ module Api
           }
         end
 
-        def new
-          render json: form_payload
-        end
-
         def show
           render json: chat_payload(find_chat_session)
         end
@@ -567,22 +563,6 @@ module Api
 
         private
 
-        def form_payload
-          repositories = Current.user.repositories.active.order(:owner, :name)
-          last_repository_id = Current.user.chat_sessions
-            .joins(:repository_attachments)
-            .where(chat_attachments: { attachable_id: repositories.select(:id) })
-            .order(created_at: :desc)
-            .limit(1)
-            .pick("chat_attachments.attachable_id")
-
-          {
-            repositories: repositories.map { |repository| repository_json(repository) },
-            default_repository_id: last_repository_id || repositories.first&.id,
-            repositories_path: repositories_path
-          }
-        end
-
         def search_payload_for_query(scope, query, page)
           allowed_session_ids = scope.distinct.pluck(:id).map(&:to_i)
           grouped_matches = []
@@ -811,7 +791,6 @@ module Api
               files: whiteboard_scene.fetch("files")
             },
             paths: {
-              new_chat_path: new_chat_path,
               credentials_path: "/credentials",
               repositories_path: repositories_path,
               app_messages_path: "/api/v1/app/chats/#{chat_session.id}/messages",

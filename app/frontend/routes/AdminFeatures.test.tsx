@@ -206,7 +206,7 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       evaluation_url: "https://syrus.dev/docs/deployment/docker-compose"
     },
     navigation: {
-      default_chat_path: "/chats/new"
+      default_chat_path: "/dashboard"
     },
     setup: null,
     csrf_token: "csrf-token",

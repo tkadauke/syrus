@@ -18,7 +18,6 @@ import { AdminTranscript } from "./AdminTranscript"
 import { AdminUserDetailRoute, AdminUsersIndex } from "./AdminUsers"
 import { AgentSettingsRoute } from "./AgentSettings"
 import { PasswordRequestRoute, PasswordResetRoute, SignInRoute, SignUpRoute } from "./Auth"
-import { ChatNewRoute } from "./ChatNew"
 import { ChatSearchRoute } from "./ChatSearch"
 import { ChatRoute, SharedChatRoute } from "./Chat"
 import { CredentialsRoute } from "./Credentials"
@@ -118,7 +117,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/epics/new", element: <EpicFormRoute mode="new" /> },
   { path: "/epics/:id/edit", element: <EpicFormRoute mode="edit" /> },
   { path: "/epics/:id", element: <EpicDetailRoute /> },
-  { path: "/chats/new", element: <ChatNewRoute /> },
   { path: "/chats/search", element: <ChatSearchRoute /> },
   { path: "/chats/shared/:token", element: <SharedChatRoute /> },
   { path: "/chats/:id", element: <ChatRoute /> }

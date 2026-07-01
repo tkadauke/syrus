@@ -361,7 +361,6 @@ Outcome: the most interactive surface becomes React-native.
 
 Migrate:
 
-- `/chats/new`
 - `/chats/:id`
 - message compose/stop/refresh/reset
 - proposals and pending actions

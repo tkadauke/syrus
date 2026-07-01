@@ -128,7 +128,7 @@ describe("App", () => {
             revision_url: null
           },
           navigation: {
-            default_chat_path: "/chats/new"
+            default_chat_path: "/dashboard"
           },
           csrf_token: "csrf-token",
           feature_flags: {}
@@ -699,9 +699,6 @@ describe("App", () => {
       if (path === "/api/v1/app/chats" && (init as RequestInit)?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/8", chat: chatPayload().chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/chats/new") {
-        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
       if (path === "/api/v1/app/chats/8") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -747,8 +744,12 @@ describe("App", () => {
       })
 
       fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
-      expect(await screen.findByRole("main", { name: "New chat" })).toBeInTheDocument()
-      expect(await screen.findByRole("form", { name: "Start a new chat" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
+      expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats",
+        expect.objectContaining({ method: "POST", body: undefined })
+      )
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -13469,74 +13470,6 @@ describe("App", () => {
     }
   })
 
-  it("renders the new chat route through the empty chat compose UI", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ message: "Chat created.", redirect_to: "/chats/8", chat: chatPayload({ messages: [] }).chat }), { status: 201, headers: { "Content-Type": "application/json" } }))
-      }
-      if (path === "/api/v1/app/chats") {
-        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-      if (path === "/api/v1/app/chats/8") {
-        return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-      if (path === "/api/v1/app/chats/new") {
-        return Promise.resolve(new Response(JSON.stringify({ repositories: [], default_repository_id: null, repositories_path: "/repositories" }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/chats/new"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("main", { name: "New chat" })).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "Repositories" })).not.toBeInTheDocument()
-    expect(await screen.findByRole("form", { name: "Start a new chat" })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText("Ask anything, or attach a screenshot for context...")).toBeInTheDocument()
-    expect(fetchSpy.mock.calls.some(([path, init]) => (
-      String(path) === "/api/v1/app/chats" && (init as RequestInit | undefined)?.method === "POST"
-    ))).toBe(false)
-  })
-
-  it("keeps existing unstarted chats separate from the new chat route", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats/8") {
-        return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-      if (path === "/api/v1/app/chats/new") {
-        return Promise.resolve(new Response(JSON.stringify({ repositories: [], default_repository_id: null, repositories_path: "/repositories" }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-      if (path === "/api/v1/app/chats") {
-        const unstarted = sidebarChat({ id: 8, title: null, title_pending: true, repository: null, last_message_at: null })
-        return Promise.resolve(new Response(JSON.stringify({ groups: sidebarGroups([unstarted]), repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/chats/new"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("main", { name: "New chat" })).toBeInTheDocument()
-    expect(await screen.findByRole("form", { name: "Start a new chat" })).toBeInTheDocument()
-
-    expect(fetchSpy.mock.calls.some(([path, init]) => (
-      String(path) === "/api/v1/app/chats" && (init as RequestInit | undefined)?.method === "POST"
-    ))).toBe(false)
-  })
 })
 
 // A signed-in operator partway through onboarding: credentials + repo done,
@@ -15399,7 +15332,6 @@ function chatPayload(overrides: {
       files: {}
     },
     paths: {
-      new_chat_path: "/chats/new",
       credentials_path: "/credentials",
       repositories_path: "/repositories",
       app_messages_path: "/api/v1/app/chats/8/messages",
