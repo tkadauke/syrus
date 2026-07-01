@@ -350,7 +350,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         issue_title: "First in line",
         state: "approved",
         pr_number: 21,
-        approved_at: 1.hour.ago
+        approved_at: 2.hours.ago
       )
       second = Factories.job_record(
         repository: repo,
@@ -359,8 +359,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         issue_title: "Second in line",
         state: "approved",
         pr_number: 22,
-        approved_at: 2.hours.ago,
-        parent_job: first
+        approved_at: 1.hour.ago
       )
       folder = SmartFolder.create!(
         user: user,
@@ -380,6 +379,44 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body.dig("controls", "sort_columns")).to include("landing_queue_position")
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
       expect(positions).to include(first.id => 1, second.id => 2)
+    end
+
+    it "does not assign landing queue positions to blocked jobs" do
+      repo.update!(auto_merge_enabled: true)
+      blocked = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        issue_number: 21,
+        issue_title: "Missing pull request",
+        state: "approved",
+        pr_number: nil,
+        approved_at: 2.hours.ago
+      )
+      eligible = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        issue_number: 22,
+        issue_title: "Ready to land",
+        state: "approved",
+        pr_number: 22,
+        approved_at: 1.hour.ago
+      )
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Landing queue",
+        kind: "user_defined",
+        filter: SmartFolder.attention_preset_filter("landing_queue")
+      )
+
+      user.update_dashboard_sort!(subject: "job", column: "landing_queue_position", direction: "asc")
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ eligible.id, blocked.id ])
+      positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
+      expect(positions).to include(eligible.id => 1, blocked.id => nil)
     end
 
     it "includes transitive landing queue blockers and dependency edges by group" do
@@ -428,7 +465,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(response).to have_http_status(:ok)
       body = parse_body
       expect(body.fetch("items").find { |item| item.fetch("id") == approved.id }).to include(
-        "landing_queue_position" => 1,
+        "landing_queue_position" => nil,
         "landing_queue_entry_key" => "epic:#{epic.id}"
       )
       entry = body.fetch("landing_queue").fetch("entries").sole
@@ -563,9 +600,9 @@ RSpec.describe "App API dashboard commands", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ epic_parent.id, epic_child.id, loose.id ])
+      expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ epic_parent.id, loose.id, epic_child.id ])
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
-      expect(positions).to include(epic_parent.id => 1, epic_child.id => 2, loose.id => 3)
+      expect(positions).to include(epic_parent.id => 1, loose.id => 2, epic_child.id => nil)
     end
 
     it "sorts by landing queue position when the landing smart folder is active" do
@@ -577,7 +614,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         issue_title: "First in line",
         state: "approved",
         pr_number: 21,
-        approved_at: 1.hour.ago
+        approved_at: 2.hours.ago
       )
       second = Factories.job_record(
         repository: repo,
@@ -586,8 +623,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         issue_title: "Second in line",
         state: "approved",
         pr_number: 22,
-        approved_at: 2.hours.ago,
-        parent_job: first
+        approved_at: 1.hour.ago
       )
       folder = SmartFolder.create!(
         user: user,

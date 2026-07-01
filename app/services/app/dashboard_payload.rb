@@ -1090,11 +1090,11 @@ module App
 
       @landing_queue_positions ||= begin
         position = 0
-        landing_queue_entries.each_with_object({}) do |entry, positions|
-          entry.jobs.each do |job|
-            position += 1
-            positions[job.id] = position
-          end
+        LandingQueueProcessor.entries(jobs_base_scope).each_with_object({}) do |entry, positions|
+          next unless entry.eligible?
+
+          position += 1
+          positions[entry.job_id] = position
         end
       end
     end
