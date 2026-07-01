@@ -67,14 +67,16 @@ RSpec.describe ChatTurnJob do
         "● propose_job(...)",
         kind: "tool_call",
         tool_name: "propose_job",
-        tool_input: { "repo" => repository.slug, "title" => "T", "description" => "b" }
+        tool_input: { "repo" => repository.slug, "title" => "T", "description" => "b" },
+        tool_use_id: "toolu_abc123"
       )
       kwargs[:log_sink].call(
         "  Job drafted",
         kind: "tool_result",
         tool_name: "propose_job",
         tool_result_content: [ { "type" => "text", "text" => "Job drafted" } ],
-        tool_result_error: false
+        tool_result_error: false,
+        tool_use_id: "toolu_abc123"
       )
       result_fixture(
         session_id: "chat-session-1",
@@ -1076,6 +1078,126 @@ RSpec.describe ChatTurnJob do
       role: "system",
       content: include("text" => match(/Claude credentials are missing/))
     )
+  end
+
+  it "stores assistant messages in canonical content-blocks array format" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("Here is the answer.", kind: "assistant_text")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    assistant_msg = chat.messages.find_by(role: "assistant")
+    expect(assistant_msg.content).to eq([ { "type" => "text", "text" => "Here is the answer." } ])
+  end
+
+  it "accumulates thinking blocks and text blocks into one assistant message" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("Reasoning...", kind: "thinking", thinking: "Reasoning...", signature: "sig-xyz")
+      log_sink.call("Conclusion.", kind: "assistant_text")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    assistant_msg = chat.messages.find_by(role: "assistant")
+    expect(assistant_msg.content).to eq([
+      { "type" => "thinking", "thinking" => "Reasoning...", "signature" => "sig-xyz" },
+      { "type" => "text", "text" => "Conclusion." }
+    ])
+    expect(chat.messages.where(role: "assistant").count).to eq(1)
+  end
+
+  it "omits signature from thinking block when it is absent" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("Thinking...", kind: "thinking", thinking: "Thinking...", signature: nil)
+      log_sink.call("Done.", kind: "assistant_text")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    block = chat.messages.find_by(role: "assistant").content.first
+    expect(block).to eq({ "type" => "thinking", "thinking" => "Thinking..." })
+    expect(block).not_to have_key("signature")
+  end
+
+  it "flushes accumulated assistant content before a tool_use message" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("Thinking...", kind: "thinking", thinking: "Thinking...", signature: "s")
+      log_sink.call("Using tool.", kind: "assistant_text")
+      log_sink.call("● Read(...)", kind: "tool_call", tool_name: "Read", tool_input: { "file_path" => "/x" }, tool_use_id: "toolu_1")
+      log_sink.call("content", kind: "tool_result", tool_name: "Read", tool_result_content: "content", tool_result_error: false, tool_use_id: "toolu_1")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    roles = chat.messages.order(:created_at, :id).pluck(:role)
+    expect(roles).to eq(%w[user assistant tool_use tool_result])
+  end
+
+  it "stores tool_use messages in canonical content-blocks format with id, name, and input" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("● propose_job(...)", kind: "tool_call",
+                    tool_name: "propose_job",
+                    tool_input: { "title" => "T" },
+                    tool_use_id: "toolu_abc")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    tool_use_msg = chat.messages.find_by(role: "tool_use")
+    expect(tool_use_msg.content).to eq({
+      "type" => "tool_use",
+      "id" => "toolu_abc",
+      "name" => "propose_job",
+      "input" => { "title" => "T" }
+    })
+    expect(tool_use_msg.tool_use_id).to eq("toolu_abc")
+  end
+
+  it "stores tool_result messages in canonical content-blocks format with type, tool_use_id, content, and is_error" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("● Read(...)", kind: "tool_call", tool_name: "Read",
+                    tool_input: { "file_path" => "/x" }, tool_use_id: "toolu_r1")
+      log_sink.call("file content", kind: "tool_result", tool_name: "Read",
+                    tool_result_content: [ { "type" => "text", "text" => "file content" } ],
+                    tool_result_error: false, tool_use_id: "toolu_r1")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    tool_result_msg = chat.messages.find_by(role: "tool_result")
+    expect(tool_result_msg.content).to eq({
+      "type" => "tool_result",
+      "tool_use_id" => "toolu_r1",
+      "content" => [ { "type" => "text", "text" => "file content" } ],
+      "is_error" => false
+    })
+    expect(tool_result_msg.tool_use_id).to eq("toolu_r1")
+  end
+
+  it "flushes partial assistant content before the cancellation system message on stop" do
+    ChatTurnJob.agent_runner = ->(log_sink:, stop_requested:, **_) {
+      log_sink.call("Working...", kind: "thinking", thinking: "Working...", signature: "s")
+      log_sink.call("In progress.", kind: "assistant_text")
+      chat.update!(stop_requested_at: 1.second.from_now)
+
+      expect(stop_requested.call).to eq(true)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    roles = chat.messages.order(:created_at, :id).pluck(:role)
+    system_idx = roles.index("system")
+    assistant_idx = roles.index("assistant")
+    expect(assistant_idx).to be < system_idx, "assistant message should precede the cancellation system message"
+    expect(chat.messages.find_by(role: "system").content["text"]).to eq("Cancelled by operator.")
   end
 
   it "polls stop_requested_at between stream events and records cancellation" do

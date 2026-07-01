@@ -362,93 +362,141 @@ RSpec.describe CodexInvocation do
     end
   end
 
-  describe "Codex item event logging" do
-    it "passes structured metadata for MCP tool calls and results" do
-      invocation = described_class.new("/tmp/wkt", prompt: "P")
+  describe "process_item_event structured tool wiring" do
+    def invocation_with_sink
       events = []
-      log_sink = ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+      inv = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test")
+      [ inv, events, ->(line, **kwargs) { events << [ line, kwargs ] } ]
+    end
 
-      invocation.send(:process_event, {
-        type: "item.started",
-        item: {
-          type: "mcp_tool_call",
-          server: "syrus-chat-sidecar",
-          tool: "repo_info",
-          arguments: { "repository_id" => 12 },
-          call_id: "call_1"
-        }
-      }.to_json, log_sink)
-      invocation.send(:process_event, {
-        type: "item.completed",
-        item: {
-          type: "mcp_tool_call",
-          server: "syrus-chat-sidecar",
-          tool: "repo_info",
-          result: { "slug" => "acme/widgets" },
-          call_id: "call_1"
-        }
-      }.to_json, log_sink)
+    it "emits tool_call with name, input, and id for mcp_tool_call started event" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.started",
+        "id" => "call-xyz",
+        "item" => { "type" => "mcp_tool_call", "server" => "syrus", "tool" => "propose_job", "arguments" => { "title" => "T" } }
+      }
 
-      expect(events).to contain_exactly(
-        [
-          "[codex mcp] syrus-chat-sidecar.repo_info started",
-          include(
-            kind: "tool_call",
-            tool_name: "mcp__syrus-chat-sidecar__repo_info",
-            tool_input: { "repository_id" => 12, "status" => "started" },
-            tool_use_id: "call_1"
-          )
-        ],
-        [
-          "[codex mcp] syrus-chat-sidecar.repo_info completed",
-          include(
-            kind: "tool_result",
-            tool_name: "mcp__syrus-chat-sidecar__repo_info",
-            tool_result_content: { "slug" => "acme/widgets" },
-            tool_result_error: false,
-            tool_use_id: "call_1"
-          )
-        ]
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.size).to eq(1)
+      expect(events.first.last).to include(
+        kind: "tool_call",
+        tool_name: "syrus.propose_job",
+        tool_input: { "title" => "T" },
+        tool_use_id: "call-xyz"
       )
     end
 
-    it "passes structured metadata for command executions" do
-      invocation = described_class.new("/tmp/wkt", prompt: "P")
-      events = []
-      log_sink = ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    it "emits tool_result with content and tool_use_id for mcp_tool_call completed with result" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.completed",
+        "id" => "call-xyz",
+        "item" => { "type" => "mcp_tool_call", "server" => "syrus", "tool" => "propose_job", "result" => [ { "type" => "text", "text" => "Job drafted" } ] }
+      }
 
-      invocation.send(:process_event, {
-        type: "item.started",
-        item: {
-          type: "command_execution",
-          command: "bin/rspec spec/services/codex_invocation_spec.rb",
-          id: "cmd_1"
-        }
-      }.to_json, log_sink)
+      inv.send(:process_item_event, event, sink)
 
-      expect(events).to eq([
-        [
-          "[codex command] bin/rspec spec/services/codex_invocation_spec.rb started",
-          {
-            kind: "tool_call",
-            tool_name: "Command",
-            tool_input: {
-              "command" => "bin/rspec spec/services/codex_invocation_spec.rb",
-              "status" => "started"
-            },
-            tool_use_id: "cmd_1"
-          }
-        ]
-      ])
+      expect(events.size).to eq(1)
+      expect(events.first.last).to include(
+        kind: "tool_result",
+        tool_name: "syrus.propose_job",
+        tool_result_content: [ { "type" => "text", "text" => "Job drafted" } ],
+        tool_result_error: false,
+        tool_use_id: "call-xyz"
+      )
+    end
+
+    it "emits tool_result with is_error true for mcp_tool_call completed with error" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.completed",
+        "id" => "call-err",
+        "item" => { "type" => "mcp_tool_call", "server" => "syrus", "tool" => "propose_job", "error" => { "message" => "not found" } }
+      }
+
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.first.last).to include(
+        kind: "tool_result",
+        tool_result_content: "not found",
+        tool_result_error: true,
+        tool_use_id: "call-err"
+      )
+    end
+
+    it "emits tool_call with name bash and input command for command_execution started" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.started",
+        "id" => "cmd-1",
+        "item" => { "type" => "command_execution", "command" => "ls -la" }
+      }
+
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.first.last).to include(
+        kind: "tool_call",
+        tool_name: "bash",
+        tool_input: { "command" => "ls -la" },
+        tool_use_id: "cmd-1"
+      )
+    end
+
+    it "emits tool_result for command_execution completed with output" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.completed",
+        "id" => "cmd-1",
+        "item" => { "type" => "command_execution", "command" => "ls -la", "output" => "total 8\ndrwxr-xr-x  2 root root 4096 ..." }
+      }
+
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.first.last).to include(
+        kind: "tool_result",
+        tool_name: "bash",
+        tool_result_content: "total 8\ndrwxr-xr-x  2 root root 4096 ...",
+        tool_result_error: false,
+        tool_use_id: "cmd-1"
+      )
+    end
+
+    it "emits tool_result with is_error true for command_execution completed with error" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.completed",
+        "id" => "cmd-2",
+        "item" => { "type" => "command_execution", "command" => "rm /read-only", "error" => "Permission denied" }
+      }
+
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.first.last).to include(
+        kind: "tool_result",
+        tool_result_error: true,
+        tool_use_id: "cmd-2"
+      )
+    end
+
+    it "falls back to item id when event id is absent" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.started",
+        "item" => { "type" => "mcp_tool_call", "id" => "item-fallback", "server" => "s", "tool" => "t" }
+      }
+
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.first.last[:tool_use_id]).to eq("item-fallback")
     end
 
     it "does not log nameless MCP or command tool rows" do
-      invocation = described_class.new("/tmp/wkt", prompt: "P")
-      events = []
-      log_sink = ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+      inv, events, sink = invocation_with_sink
 
-      invocation.send(:process_event, { type: "item.started", item: { type: "mcp_tool_call" } }.to_json, log_sink)
-      invocation.send(:process_event, { type: "item.started", item: { type: "command_execution" } }.to_json, log_sink)
+      inv.send(:process_item_event, { "type" => "item.started", "item" => { "type" => "mcp_tool_call" } }, sink)
+      inv.send(:process_item_event, { "type" => "item.started", "item" => { "type" => "command_execution" } }, sink)
 
       expect(events).to be_empty
     end

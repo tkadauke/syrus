@@ -113,6 +113,65 @@ RSpec.describe ClaudeInvocation do
       expect(result).to be_nil
     end
 
+    it "emits thinking blocks with kind: thinking, thinking text, and signature" do
+      events = []
+      event = {
+        type: "assistant",
+        message: {
+          content: [
+            { type: "thinking", thinking: "Let me reason through this...", signature: "sig-abc123" },
+            { type: "text", text: "Here is the answer." }
+          ]
+        }
+      }.to_json
+
+      invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(events).to eq([
+        [ "Let me reason through this...", { kind: "thinking", thinking: "Let me reason through this...", signature: "sig-abc123" } ],
+        [ "Here is the answer.", { kind: "assistant_text" } ]
+      ])
+    end
+
+    it "does not emit empty thinking blocks" do
+      events = []
+      event = {
+        type: "assistant",
+        message: {
+          content: [
+            { type: "thinking", thinking: "", signature: "sig-abc123" },
+            { type: "text", text: "Present." }
+          ]
+        }
+      }.to_json
+
+      invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(events.map { |_, kw| kw[:kind] }).to eq([ "assistant_text" ])
+    end
+
+    it "passes tool_use_id from the block id for tool_use events" do
+      events = []
+      event = {
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", id: "toolu_abc123", name: "Read", input: { "file_path" => "/tmp/foo" } }
+          ]
+        }
+      }.to_json
+
+      invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(events.size).to eq(1)
+      expect(events.first.last).to include(
+        kind: "tool_call",
+        tool_name: "Read",
+        tool_input: { "file_path" => "/tmp/foo" },
+        tool_use_id: "toolu_abc123"
+      )
+    end
+
     it "reports Claude API authentication failures as system errors instead of assistant text" do
       events = []
       event = {

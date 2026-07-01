@@ -294,43 +294,41 @@ class CodexInvocation
   def process_item_event(event, log_sink)
     item = event["item"] || {}
     status = item["status"] || event["type"].sub("item.", "")
+    item_id = event["id"].presence || item["id"].presence
     case item["type"]
     when "agent_message"
       text = item["text"].to_s
       log_sink.call(text, kind: "assistant_text") if text.present?
       { final_text: text, assistant_text_seen: text.present? }
     when "mcp_tool_call"
-      tool_name = codex_mcp_tool_name(item)
+      tool_name = [ item["server"], item["tool"] ].compact.join(".")
       return nil if tool_name.blank?
 
-      tool = [ item["server"], item["tool"] ].compact.join(".")
-      tool = tool_name if tool.blank?
-      tool_use_id = item["call_id"] || item["id"]
       if item["error"]
         log_sink.call(
-          "[codex mcp] #{tool} #{status}: #{item['error']['message']}",
+          "[codex mcp] #{tool_name} #{status}: #{item['error']['message']}",
           kind: "tool_result",
           tool_name: tool_name,
-          tool_result_content: item["error"],
+          tool_result_content: item["error"]["message"],
           tool_result_error: true,
-          tool_use_id: tool_use_id
+          tool_use_id: item_id
         )
-      elsif item["result"] || status == "completed"
+      elsif item["result"]
         log_sink.call(
-          "[codex mcp] #{tool} #{status}",
+          "[codex mcp] #{tool_name} #{status}",
           kind: "tool_result",
           tool_name: tool_name,
-          tool_result_content: item["result"] || { "status" => status },
+          tool_result_content: item["result"],
           tool_result_error: false,
-          tool_use_id: tool_use_id
+          tool_use_id: item_id
         )
       else
         log_sink.call(
-          "[codex mcp] #{tool} #{status}",
+          "[codex mcp] #{tool_name} #{status}",
           kind: "tool_call",
           tool_name: tool_name,
-          tool_input: codex_tool_input(item).merge("status" => status),
-          tool_use_id: tool_use_id
+          tool_input: item["arguments"],
+          tool_use_id: item_id
         )
       end
       { mcp_seen: true }
@@ -338,13 +336,24 @@ class CodexInvocation
       command = item["command"].to_s
       return nil if command.blank?
 
-      log_sink.call(
-        "[codex command] #{command} #{status}",
-        kind: "tool_call",
-        tool_name: "Command",
-        tool_input: { "command" => command, "status" => status },
-        tool_use_id: item["call_id"] || item["id"]
-      )
+      if item["output"] || item["error"]
+        log_sink.call(
+          "[codex command] #{command} #{status}",
+          kind: "tool_result",
+          tool_name: "bash",
+          tool_result_content: item["output"] || item["error"],
+          tool_result_error: item["error"].present?,
+          tool_use_id: item_id
+        )
+      else
+        log_sink.call(
+          "[codex command] #{command} #{status}",
+          kind: "tool_call",
+          tool_name: "bash",
+          tool_input: { "command" => command },
+          tool_use_id: item_id
+        )
+      end
       nil
     when "file_change"
       log_sink.call("[codex file] #{item['path']} #{status}", kind: "system")

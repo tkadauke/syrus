@@ -18,6 +18,21 @@ class ChatMessage < ApplicationRecord
     role.in?(%w[user assistant])
   end
 
+  # Returns true when the content column uses the Anthropic messages API
+  # content-blocks format (the canonical representation). Legacy rows use
+  # a flat hash keyed on "text", "input", or "result". Rehydrators and
+  # serializers use this to handle both formats without migrating old rows.
+  def canonical_content_format?
+    case role
+    when "assistant"
+      content.is_a?(Array)
+    when "tool_use", "tool_result"
+      content.is_a?(Hash) && content.key?("type")
+    else
+      true
+    end
+  end
+
   private
 
   def content_is_present

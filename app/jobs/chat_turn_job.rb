@@ -49,6 +49,7 @@ class ChatTurnJob < ApplicationJob
 
     clear_stale_stop_request!
     return if stop_requested?
+    @current_assistant_content = []
 
     provider = chat_provider
 
@@ -79,6 +80,7 @@ class ChatTurnJob < ApplicationJob
       end
     end
 
+    flush_current_assistant_content!
     capture_session!(provider, result) if result
     @chat.record_turn_usage!(result) if result
     touch_chat!
@@ -438,39 +440,60 @@ class ChatTurnJob < ApplicationJob
 
   def record_agent_event(chunk, kind: nil, tool_name: nil, tool_input: nil,
                          tool_result_content: nil, tool_result_error: nil,
-                         tool_use_id: nil, mcp_servers: nil, **)
+                         tool_use_id: nil, thinking: nil, signature: nil,
+                         mcp_servers: nil, **)
     case kind.to_s
+    when "thinking"
+      block = { "type" => "thinking", "thinking" => thinking.to_s }
+      block["signature"] = signature if signature.present?
+      @current_assistant_content << block
+    when "assistant_text"
+      @current_assistant_content << { "type" => "text", "text" => chunk.to_s }
     when "tool_call"
       return if tool_name.blank?
 
-      # Persist the structured tool invocation. Abbreviation is the
-      # presentation layer's job; storing the raw input keeps the data
-      # tier honest and lets the view evolve without DB churn.
+      flush_current_assistant_content!
       @chat.messages.create!(
         role: "tool_use",
         tool_name: tool_name,
-        content: { "input" => tool_input || {} }
+        tool_use_id: tool_use_id,
+        content: {
+          "type" => "tool_use",
+          "id" => tool_use_id.to_s,
+          "name" => tool_name.to_s,
+          "input" => tool_input || {}
+        }
       )
     when "tool_result"
       return if tool_name.blank? && tool_use_id.blank? && tool_result_content.blank?
 
+      flush_current_assistant_content!
       @chat.messages.create!(
         role: "tool_result",
         tool_name: tool_name,
+        tool_use_id: tool_use_id,
         content: {
-          "result" => tool_result_content,
-          "is_error" => tool_result_error,
-          "tool_use_id" => tool_use_id
-        }.compact
+          "type" => "tool_result",
+          "tool_use_id" => tool_use_id.to_s,
+          "content" => tool_result_content,
+          "is_error" => tool_result_error == true
+        }
       )
-    when "assistant_text"
-      create_message!("assistant", text: chunk.to_s)
     else
+      flush_current_assistant_content!
       return if mcp_servers.present? &&
                 mcp_servers.all? { |server| mcp_pending?(server["status"].to_s) }
 
       create_message!("system", system_content_for(chunk, mcp_servers: mcp_servers))
     end
+  end
+
+  def flush_current_assistant_content!
+    return if @current_assistant_content.empty?
+
+    blocks = @current_assistant_content.dup
+    @current_assistant_content = []
+    @chat.messages.create!(role: "assistant", content: blocks)
   end
 
   def system_content_for(chunk, mcp_servers:)
@@ -522,6 +545,7 @@ class ChatTurnJob < ApplicationJob
 
     unless @cancelled
       @cancelled = true
+      flush_current_assistant_content!
       create_message!("system", text: "Cancelled by operator.")
     end
     true

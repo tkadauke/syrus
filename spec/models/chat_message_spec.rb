@@ -112,6 +112,51 @@ RSpec.describe ChatMessage do
     end
   end
 
+  describe "#canonical_content_format?" do
+    it "returns true for assistant messages with content-blocks array" do
+      message = described_class.new(chat_session: session, role: "assistant",
+                                    content: [ { "type" => "text", "text" => "Hi" } ])
+      expect(message.canonical_content_format?).to be true
+    end
+
+    it "returns false for legacy assistant messages with flat text hash" do
+      message = described_class.new(chat_session: session, role: "assistant",
+                                    content: { "text" => "Hi" })
+      expect(message.canonical_content_format?).to be false
+    end
+
+    it "returns true for tool_use messages with type key in content" do
+      message = described_class.new(chat_session: session, role: "tool_use",
+                                    content: { "type" => "tool_use", "id" => "t1", "name" => "Read", "input" => {} })
+      expect(message.canonical_content_format?).to be true
+    end
+
+    it "returns false for legacy tool_use messages with input key" do
+      message = described_class.new(chat_session: session, role: "tool_use",
+                                    content: { "input" => { "file_path" => "/x" } })
+      expect(message.canonical_content_format?).to be false
+    end
+
+    it "returns true for tool_result messages with type key in content" do
+      message = described_class.new(chat_session: session, role: "tool_result",
+                                    content: { "type" => "tool_result", "tool_use_id" => "t1", "content" => "ok", "is_error" => false })
+      expect(message.canonical_content_format?).to be true
+    end
+
+    it "returns false for legacy tool_result messages with result key" do
+      message = described_class.new(chat_session: session, role: "tool_result",
+                                    content: { "result" => "ok", "is_error" => false })
+      expect(message.canonical_content_format?).to be false
+    end
+
+    it "returns true for user and system messages (format unchanged)" do
+      user_msg = described_class.new(chat_session: session, role: "user", content: { "text" => "Hi" })
+      system_msg = described_class.new(chat_session: session, role: "system", content: { "text" => "Info" })
+      expect(user_msg.canonical_content_format?).to be true
+      expect(system_msg.canonical_content_format?).to be true
+    end
+  end
+
   describe "after_create_commit :enqueue_search_index" do
     it "enqueues search indexing for user content" do
       allow(AppEvents).to receive(:broadcast)

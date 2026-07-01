@@ -183,6 +183,13 @@ class ClaudeInvocation
       content = event.dig("message", "content") || []
       content.each do |block|
         case block["type"]
+        when "thinking"
+          log_sink.call(
+            block["thinking"],
+            kind: "thinking",
+            thinking: block["thinking"],
+            signature: block["signature"]
+          ) if block["thinking"].present?
         when "text"
           log_sink.call(block["text"], kind: "assistant_text") if block["text"].present?
         when "tool_use"
@@ -194,7 +201,8 @@ class ClaudeInvocation
             ),
             kind: "tool_call",
             tool_name: block["name"],
-            tool_input: block["input"]
+            tool_input: block["input"],
+            tool_use_id: block["id"]
           )
         end
       end

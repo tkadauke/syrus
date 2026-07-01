@@ -21,7 +21,7 @@ module App
     private
 
     def message_json(message)
-      text = message.content.is_a?(Hash) ? message.content["text"].to_s : message.content.to_s
+      text = text_from_content(message)
       payload = {
         type: "message",
         id: message.id,
@@ -215,6 +215,18 @@ module App
         materialized_label: dependency.materialized_label,
         materialized_path: materialized_path(dependency.materialized_record)
       }
+    end
+
+    def text_from_content(message)
+      content = message.content
+      if content.is_a?(Array)
+        # Canonical format: content-blocks array — extract text blocks only
+        content.filter_map { |b| b["text"] if b.is_a?(Hash) && b["type"] == "text" }.join
+      elsif content.is_a?(Hash)
+        content["text"].to_s
+      else
+        content.to_s
+      end
     end
 
     def materialized_path(record)

@@ -5,6 +5,36 @@ RSpec.describe App::ChatMessagePayload do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat) { ChatSession.create!(user: user, repository: repository) }
 
+  it "extracts text from legacy flat assistant messages for the text field" do
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Hello legacy." })
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:text)).to eq("Hello legacy.")
+    expect(payload.fetch(:content)).to eq({ "text" => "Hello legacy." })
+  end
+
+  it "extracts text from canonical content-blocks assistant messages for the text field" do
+    message = chat.messages.create!(role: "assistant", content: [
+      { "type" => "thinking", "thinking" => "Let me think...", "signature" => "sig" },
+      { "type" => "text", "text" => "Here is the answer." }
+    ])
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:text)).to eq("Here is the answer.")
+    expect(payload.fetch(:content)).to be_an(Array)
+  end
+
+  it "returns empty text for canonical tool_use messages" do
+    message = chat.messages.create!(role: "tool_use", tool_name: "Read",
+                                    content: { "type" => "tool_use", "id" => "t1", "name" => "Read", "input" => {} })
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:text)).to eq("")
+  end
+
   it "includes stored chat message attachments" do
     attachment = { "name" => "diagram.png", "mime_type" => "image/png", "data" => "cGl4ZWxz" }
     message = chat.messages.create!(role: "user", content: { "text" => "Inspect this.", "attachments" => [ attachment ] })
