@@ -256,7 +256,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
-      {notice ? <NoticeToast message={notice} onDismiss={() => setNotice(null)} /> : null}
       {user ? <BugReportButton context={bugReportContext(location.pathname)} position="bottom-right" /> : null}
     </div>
   )
