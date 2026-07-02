@@ -960,6 +960,47 @@ describe("repositoryless chat compose", () => {
   })
 })
 
+describe("chat settings gear button", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("renders a gear button with aria-label 'Chat settings' in the header", async () => {
+    mockChatRouteFetch()
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Chat settings" })).toBeInTheDocument()
+  })
+
+  it("opens the settings dialog when the gear button is clicked", async () => {
+    mockChatRouteFetch()
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat settings" }))
+
+    expect(await screen.findByRole("dialog", { name: "Chat settings" })).toBeInTheDocument()
+  })
+
+  it("does not render the gear button on mobile where the header is hidden", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch()
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Chat settings" })).not.toBeInTheDocument()
+  })
+
+  it("opens the settings dialog from the /settings slash command", async () => {
+    mockChatRouteFetch()
+    renderRoute()
+
+    await submitSlashCommand("/settings")
+
+    expect(await screen.findByRole("dialog", { name: "Chat settings" })).toBeInTheDocument()
+  })
+})
+
 describe("chat slash commands", () => {
   beforeEach(() => {
     window.localStorage.clear()

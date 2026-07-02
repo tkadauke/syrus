@@ -80,6 +80,7 @@ import { postJobCommand } from "../api/jobs"
 import { CloseIcon } from "../components/CloseIcon"
 import { ConfirmationCard } from "../components/ConfirmationCard"
 import { EnqueueIcon } from "../components/EnqueueIcon"
+import { GearIcon } from "../components/GearIcon"
 import { ImageAnnotationModal } from "../components/ImageAnnotationModal"
 import { SendIcon } from "../components/SendIcon"
 import { StartEpicButton } from "../components/StartEpicButton"
@@ -349,6 +350,7 @@ function appendSearch(path: string, search: string) {
 function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey }) {
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [whiteboardFullscreen, setWhiteboardFullscreen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
   const title = chatDisplayTitle(payload.chat)
@@ -375,6 +377,15 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
           <div>
             <h1 className={`break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>{title}</h1>
           </div>
+          <button
+            aria-label="Chat settings"
+            className="rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            onClick={() => setSettingsOpen(true)}
+            title="Chat settings"
+            type="button"
+          >
+            <GearIcon className="h-5 w-5" />
+          </button>
         </header>
       )}
 
@@ -394,6 +405,8 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
           onNotice={setNotice}
           whiteboardFullscreen={whiteboardFullscreen}
           onWhiteboardFullscreenChange={setWhiteboardFullscreen}
+          settingsOpen={settingsOpen}
+          onSettingsOpenChange={setSettingsOpen}
         />
       )}
     </div>
@@ -2793,7 +2806,9 @@ function ChatWorkspace({
   queryKey,
   onNotice,
   whiteboardFullscreen,
-  onWhiteboardFullscreenChange
+  onWhiteboardFullscreenChange,
+  settingsOpen,
+  onSettingsOpenChange
 }: {
   chatId: string
   payload: ChatPayload
@@ -2802,6 +2817,8 @@ function ChatWorkspace({
   onNotice: (message: string | null) => void
   whiteboardFullscreen: boolean
   onWhiteboardFullscreenChange: (fullscreen: boolean) => void
+  settingsOpen: boolean
+  onSettingsOpenChange: (open: boolean) => void
 }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
@@ -2809,7 +2826,6 @@ function ChatWorkspace({
   const [panelCollapsed, setPanelCollapsed] = useState(storedWorkspaceCollapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const bookmarkRequestIdRef = useRef(0)
   const handledMessageDeepLinkRef = useRef<string | null>(null)
   const navigate = useNavigate()
@@ -2893,7 +2909,7 @@ function ChatWorkspace({
       setActiveTab("context")
       setActiveMobileTab("context")
     },
-    openSettings: () => setSettingsOpen(true)
+    openSettings: () => onSettingsOpenChange(true)
   }
 
   if (!isDesktop && !expanded) {
@@ -2929,7 +2945,7 @@ function ChatWorkspace({
             />
           )}
         </div>
-        {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => setSettingsOpen(false)} /> : null}
+        {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => onSettingsOpenChange(false)} /> : null}
         {bookmarkPickerOpen ? <BookmarkPickerModal bookmarks={payload.bookmarks} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
       </div>
     )
@@ -2989,7 +3005,7 @@ function ChatWorkspace({
           onBookmarkSelect={selectBookmark}
         />
       ) : null}
-      {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => onSettingsOpenChange(false)} /> : null}
       {bookmarkPickerOpen ? <BookmarkPickerModal bookmarks={payload.bookmarks} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
     </div>
   )
