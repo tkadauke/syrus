@@ -19,7 +19,6 @@ class Repository < ApplicationRecord
   has_many :scheduled_tasks, dependent: :destroy
   has_many :chat_attachments, as: :attachable, dependent: :destroy
   has_many :chat_sessions, through: :chat_attachments
-  has_many :repository_notes, dependent: :destroy
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :repository_documents, as: :attachable, class_name: "Document", dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy

@@ -461,26 +461,8 @@ module Prompts
       session_context = @chat_session&.pinned_context.to_s.strip
       lines << "  - #{clip(session_context.squish, 2.kilobytes)}" if session_context.present?
 
-      if @repository
-        lines.concat(repository_note_context_lines)
-      end
-
       lines.concat(chat_memory_context_lines)
       lines.presence&.join("\n") || "  - (none)"
-    end
-
-    def repository_note_context_lines
-      notes = @repository.repository_notes.active.order(:created_at, :id)
-      remaining = 2.kilobytes
-      notes.map do |note|
-        body = note.body.to_s.squish
-        next if body.empty? || remaining <= 0
-
-        clipped = body.safe_byteslice(0, remaining)
-        remaining -= clipped.bytesize
-        suffix = clipped.bytesize < body.bytesize ? "..." : ""
-        "  - #{clipped}#{suffix}"
-      end.compact
     end
 
     def chat_memory_context_lines

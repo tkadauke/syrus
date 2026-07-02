@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_02_011906) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_02_022352) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -668,16 +668,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_011906) do
     t.index ["user_id"], name: "index_repositories_on_user_id"
   end
 
-  create_table "repository_notes", force: :cascade do |t|
-    t.string "author", null: false
-    t.text "body", null: false
-    t.datetime "created_at", null: false
-    t.datetime "removed_at"
-    t.integer "repository_id", null: false
-    t.index ["repository_id", "removed_at", "created_at"], name: "index_repo_notes_on_active_order"
-    t.index ["repository_id"], name: "index_repository_notes_on_repository_id"
-  end
-
   create_table "run_diagnostics", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "environment_snapshot"
@@ -1079,7 +1069,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_011906) do
   add_foreign_key "notifications", "users"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "users"
-  add_foreign_key "repository_notes", "repositories"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_failure_classifications", "runs"
   add_foreign_key "run_health_snapshots", "runs"

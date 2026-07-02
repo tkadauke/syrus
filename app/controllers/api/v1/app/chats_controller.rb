@@ -1591,10 +1591,6 @@ module Api
         def pending_action_label(action)
           payload = action.payload || {}
           case action.action
-          when "add_repo_note"
-            "Pin repository note"
-          when "remove_repo_note"
-            "Remove repository note ##{payload['id']}"
           when "cancel_job"
             "Cancel #{::App::Presentation.job_slug(payload['job_id'])}"
           when "retry_job"

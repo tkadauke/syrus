@@ -115,17 +115,16 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Pinned context:")).to be < out.index("Your environment:")
   end
 
-  it "renders chat-session pinned context ahead of repository notes" do
+  it "renders chat-session pinned context" do
     chat = ChatSession.create!(
       user: repo.user,
       repository: repo,
       pinned_context: "Keep the migration compatible with MySQL."
     )
-    repo.repository_notes.create!(body: "Prefer the App credential path for this repo.", author: "operator")
 
     out = described_class.new(repository: repo, chat_session: chat).to_s
 
-    expect(out).to include("Pinned context:\n  - Keep the migration compatible with MySQL.\n  - Prefer the App credential path for this repo.")
+    expect(out).to include("Pinned context:\n  - Keep the migration compatible with MySQL.")
   end
 
   it "explains when to use MCP memory tools" do

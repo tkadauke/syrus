@@ -202,8 +202,6 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       github_owner_id: 100,
       github_repository_id: 200
     )
-    active_note = repository.repository_notes.create!(body: "Use staging for smoke tests.", author: "operator")
-    repository.repository_notes.create!(body: "Removed context.", author: "agent", removed_at: Time.current)
     failed = Factories.job(repository: repository, issue_number: 1, issue_title: "Fix forum")
     failed.current_run.update!(state: "failed", finished_at: Time.current)
     failed.latest_workflow.update!(
@@ -232,7 +230,6 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(body["tabs"]).to include(
       { "key" => "overview", "label" => "Overview", "path" => repository_path(repository) },
       { "key" => "github_issues", "label" => "GitHub Issues", "path" => repository_path(repository, tab: "github_issues") },
-      { "key" => "context", "label" => "Context", "path" => repository_path(repository, tab: "context") },
       { "key" => "documents", "label" => "Documents", "path" => repository_documents_path(repository) },
       { "key" => "scheduled_tasks", "label" => "Scheduled Tasks", "path" => repository_scheduled_tasks_path(repository) }
     )
@@ -245,11 +242,6 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "github_app_registered" => true,
       "install_url" => "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=100&repository_ids[]=200"
     )
-    expect(body["notes"]).to contain_exactly(include(
-      "id" => active_note.id,
-      "body" => "Use staging for smoke tests.",
-      "app_delete_path" => "/api/v1/app/repositories/#{repository.id}/notes/#{active_note.id}"
-    ))
     expect(body["jobs"]).to include(
       include(
         "id" => failed.id,
@@ -271,49 +263,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "edit_repository_path" => edit_repository_path(repository),
       "app_poll_repository_path" => "/api/v1/app/repositories/#{repository.id}/poll",
       "app_archive_repository_path" => "/api/v1/app/repositories/#{repository.id}/archive",
-      "app_retry_failed_jobs_repository_path" => "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs",
-      "app_repository_notes_path" => "/api/v1/app/repositories/#{repository.id}/notes"
+      "app_retry_failed_jobs_repository_path" => "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
     )
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
-  end
-
-  it "creates and removes repository notes through the app API" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-
-    expect {
-      post "/api/v1/app/repositories/#{repository.id}/notes", params: { repository_note: { body: "Use staging for smoke tests." } }
-    }.to change { repository.repository_notes.active.count }.by(1)
-
-    expect(response).to have_http_status(:ok)
-    note = repository.repository_notes.active.sole
-    expect(note.author).to eq("operator")
-    expect(parse_body["message"]).to eq("Repository context pinned.")
-    expect(parse_body["notes"]).to contain_exactly(include(
-      "body" => "Use staging for smoke tests.",
-      "app_delete_path" => "/api/v1/app/repositories/#{repository.id}/notes/#{note.id}"
-    ))
-
-    expect {
-      delete "/api/v1/app/repositories/#{repository.id}/notes/#{note.id}"
-    }.to change { repository.repository_notes.active.count }.from(1).to(0)
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Repository context removed.")
-    expect(parse_body["notes"]).to eq([])
-    expect(note.reload).to be_removed
-  end
-
-  it "rejects blank repository notes through the app API" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user)
-
-    expect {
-      post "/api/v1/app/repositories/#{repository.id}/notes", params: { repository_note: { body: " " } }
-    }.not_to change(RepositoryNote, :count)
-
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Context cannot be blank.")
   end
 
   it "does not expose another user's repository detail" do

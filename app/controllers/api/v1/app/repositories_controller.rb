@@ -86,26 +86,6 @@ module Api
           end
         end
 
-        def create_note
-          repository = find_repository
-          body = params.dig(:repository_note, :body).to_s.strip
-          if body.blank?
-            render_error("validation_failed", "Context cannot be blank.", status: :unprocessable_content)
-            return
-          end
-
-          repository.repository_notes.create!(body: body, author: "operator")
-          render json: repository_detail_payload(repository.reload, page: detail_page, message: "Repository context pinned.")
-        end
-
-        def destroy_note
-          repository = Current.user.repositories.find(params[:repository_id])
-          note = repository.repository_notes.active.find(params[:id])
-          note.remove!
-
-          render json: repository_detail_payload(repository.reload, page: detail_page, message: "Repository context removed.")
-        end
-
         def comment_issue
           repository = find_repository
           issue_number = params.require(:issue_number).to_i
@@ -285,7 +265,6 @@ module Api
             can_release_triage_jobs: can_release_triage_jobs?,
             needs_triage_jobs: needs_triage_jobs_json(repository),
             credential_status: credential_status_json(repository),
-            notes: repository.repository_notes.active.order(created_at: :desc, id: :desc).map { |note| note_json(repository, note) },
             jobs: jobs.map { |job| job_json(job) },
             pagination: pagination_json(page: page, total_jobs: total_jobs, total_pages: total_pages, repository: repository),
             paths: {
@@ -295,7 +274,6 @@ module Api
               app_archive_repository_path: "/api/v1/app/repositories/#{repository.id}/archive",
               app_retry_failed_jobs_repository_path: "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs",
               app_release_needs_triage_job_repository_path: "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job",
-              app_repository_notes_path: "/api/v1/app/repositories/#{repository.id}/notes",
               repositories_path: repositories_path,
               repository_documents_path: repository_documents_path(repository),
               repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository)
@@ -476,7 +454,6 @@ module Api
           [
             { key: "overview", label: "Overview", path: repository_path(repository) },
             { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") },
-            { key: "context", label: "Context", path: repository_path(repository, tab: "context") },
             { key: "documents", label: "Documents", path: repository_documents_path(repository) },
             { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) }
           ]

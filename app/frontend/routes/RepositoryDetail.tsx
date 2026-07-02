@@ -12,8 +12,6 @@ import {
   bulkRepositoryIssues,
   closeRepositoryIssue,
   commentRepositoryIssue,
-  createRepositoryNote,
-  deleteRepositoryNote,
   delegateRepositoryIssue,
   fetchRepositoryDetail,
   fetchRepositoryIssues,
@@ -38,7 +36,7 @@ export function RepositoryDetailRoute() {
   const id = params.id || ""
   const query = new URLSearchParams(location.search)
   const tabParam = query.get("tab")
-  const tab = tabParam === "github_issues" ? "github_issues" : tabParam === "context" || tabParam === "notes" ? "context" : "overview"
+  const tab = tabParam === "github_issues" ? "github_issues" : "overview"
   const state = query.get("state") === "closed" ? "closed" : "open"
   const search = pageSearch(location.search)
   const prefix = routePrefix(location.pathname)
@@ -83,7 +81,7 @@ function appendSearch(path: string, search: string) {
   return search ? `${path}${search}` : path
 }
 
-function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview" | "context"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
+function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview" | "github_issues"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
   const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
 
@@ -97,17 +95,11 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
 
       <Tabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {activeTab === "context" ? (
-        <PinnedContext payload={payload} queryKey={queryKey} onNotice={setNotice} />
-      ) : (
-        <>
-          <RepositorySummary payload={payload} />
-          <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-          <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-          <CredentialNotice payload={payload} />
-          <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
-        </>
-      )}
+      <RepositorySummary payload={payload} />
+      <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+      <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+      <CredentialNotice payload={payload} />
+      <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
     </>
   )
 }
@@ -549,71 +541,6 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
         )}
       </div>
       {release.isError ? <PanelMessage tone="error">{errorMessage(release.error, "Unable to release job for triage.")}</PanelMessage> : null}
-    </section>
-  )
-}
-
-function PinnedContext({ payload, queryKey, onNotice }: { payload: RepositoryDetailPayload; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
-  const queryClient = useQueryClient()
-  const search = queryKey[3]
-  const [body, setBody] = useState("")
-  const create = useMutation({
-    mutationFn: () => createRepositoryNote(appendSearch(payload.paths.app_repository_notes_path, search), body),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      setBody("")
-      onNotice(updated.message || null)
-    }
-  })
-  const remove = useMutation({
-    mutationFn: (path: string) => deleteRepositoryNote(appendSearch(path, search)),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || null)
-    }
-  })
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    create.mutate()
-  }
-
-  return (
-    <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pinned context</h2>
-      </div>
-      <div className="space-y-4 p-4">
-        {payload.notes.length > 0 ? (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-            {payload.notes.map((note) => (
-              <li className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0" key={note.id}>
-                <div className="min-w-0">
-                  <p className="whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-200">{note.body}</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{note.author} · {formatRelative(note.created_at)}</p>
-                </div>
-                <button
-                  className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate(note.app_delete_path)}
-                  type="button"
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="text-sm text-gray-600 dark:text-gray-400">No context pinned yet.</p>}
-
-        <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
-          <textarea className="min-h-20 flex-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" name="repository_note[body]" onChange={(event) => setBody(event.target.value)} placeholder="Pin repository context..." required rows={2} value={body} />
-          <div className="sm:self-end">
-            <button className={buttonClass("blue", "w-full sm:w-auto")} disabled={create.isPending} type="submit">Add note</button>
-          </div>
-        </form>
-        {create.isError ? <div className="text-sm text-red-700 dark:text-red-300">{errorMessage(create.error, "Repository context could not be added.")}</div> : null}
-        {remove.isError ? <div className="text-sm text-red-700 dark:text-red-300">{errorMessage(remove.error, "Repository context could not be removed.")}</div> : null}
-      </div>
     </section>
   )
 }

@@ -65,15 +65,6 @@ module SyrusChatMcp
     }
   end
 
-  def self.repository_note_payload(note)
-    {
-      id: note.id,
-      body: note.body,
-      author: note.author,
-      created_at: note.created_at.iso8601
-    }
-  end
-
   def self.materialized_payload(proposal)
     return { kind: "rejected", reason: proposal.state } if proposal.rejected? || proposal.withdrawn?
 

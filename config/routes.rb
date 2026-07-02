@@ -186,8 +186,6 @@ Rails.application.routes.draw do
             post :release_needs_triage_job
           end
         end
-        post "repositories/:id/notes", to: "repositories#create_note", constraints: { id: /\d+/ }
-        delete "repositories/:repository_id/notes/:id", to: "repositories#destroy_note", constraints: { repository_id: /\d+/, id: /\d+/ }
         get "repositories/:repository_id/documents", to: "repository_documents#index"
         post "repositories/:repository_id/documents", to: "repository_documents#create"
         delete "repository_documents/:id", to: "repository_documents#destroy"

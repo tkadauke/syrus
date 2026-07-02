@@ -1,7 +1,5 @@
 class ChatPendingAction < ApplicationRecord
   ACTIONS = %w[
-    add_repo_note
-    remove_repo_note
     cancel_job
     retry_job
     rebase_job
@@ -158,15 +156,6 @@ class ChatPendingAction < ApplicationRecord
   # on the assigned object).
   def apply!
     case action_key
-    when "add_repo_note"
-      chat_session.repository.repository_notes.create!(
-        body: payload.fetch("body").to_s,
-        author: "agent"
-      )
-    when "remove_repo_note"
-      note = chat_session.repository.repository_notes.active.find(payload.fetch("id"))
-      note.remove!
-      nil
     when "cancel_job"
       action_job.cancel_active_runs_and_close!("cancelled")
       nil
@@ -334,10 +323,6 @@ class ChatPendingAction < ApplicationRecord
 
   def payload_matches_action
     case action_key
-    when "add_repo_note"
-      errors.add(:payload, "body is required") if payload["body"].to_s.strip.blank?
-    when "remove_repo_note"
-      errors.add(:payload, "id is required") unless payload["id"].present?
     when "cancel_job", "retry_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability"
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
     when "fire_scheduled_task_now"

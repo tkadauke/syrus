@@ -148,9 +148,6 @@ RSpec.describe SyrusChatMcp::Sidecar do
         list_repositories
         list_open_issues
         list_open_prs
-        add_repo_note
-        read_repo_notes
-        remove_repo_note
         unapprove_job
         assign_job_to_epic
         remove_job_from_epic

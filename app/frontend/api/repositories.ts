@@ -1,4 +1,4 @@
-import { deleteJson, getJson, patchJson, postJson } from "./client"
+import { getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState } from "./jobs"
 
@@ -158,7 +158,6 @@ export type RepositoryDetailPayload = {
     previous_installation_removed: boolean
     missing_github_ids: boolean
   }
-  notes: RepositoryNote[]
   jobs: RepositoryDetailJob[]
   pagination: {
     page: number
@@ -177,7 +176,6 @@ export type RepositoryDetailPayload = {
     app_archive_repository_path: string
     app_retry_failed_jobs_repository_path: string
     app_release_needs_triage_job_repository_path: string
-    app_repository_notes_path: string
     repositories_path: string
     repository_documents_path: string
     repository_scheduled_tasks_path: string
@@ -224,14 +222,6 @@ export type RepositoryTab = {
   key: string
   label: string
   path: string
-}
-
-export type RepositoryNote = {
-  id: number
-  body: string
-  author: string
-  created_at: string
-  app_delete_path: string
 }
 
 export type RepositoryDetailJob = {
@@ -347,14 +337,6 @@ export function bulkRepositoryIssues(path: string, values: { issueNumbers: numbe
     bulk_action: values.bulkAction,
     state: values.state
   })
-}
-
-export function createRepositoryNote(path: string, body: string) {
-  return postJson<RepositoryDetailPayload>(path, { repository_note: { body } })
-}
-
-export function deleteRepositoryNote(path: string) {
-  return deleteJson<RepositoryDetailPayload>(path)
 }
 
 export function pollRepositoryDetail(path: string, page: number) {
