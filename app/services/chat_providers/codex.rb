@@ -78,10 +78,17 @@ module ChatProviders
 
     def resume_transcript_jsonl(session_id)
       return nil if session_id.blank?
-      return nil unless chat.claude_session&.provider == provider
-      return nil unless chat.claude_session.session_id == session_id
 
-      chat.claude_session.transcript_jsonl
+      # Fast path: provider matches and transcript is cached
+      session = chat.claude_session
+      if session&.provider == provider && session.session_id == session_id && session.transcript_jsonl.present?
+        return session.transcript_jsonl
+      end
+
+      # Rehydrate from ChatMessage rows (cross-provider switch or missing cache)
+      return nil unless chat.messages.exists?
+
+      ChatSessionRehydrator::Codex.new(chat, session_id: session_id).call
     end
 
     def log_startup_timing(event)

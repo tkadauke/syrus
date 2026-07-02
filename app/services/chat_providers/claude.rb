@@ -1,3 +1,5 @@
+require "fileutils"
+
 module ChatProviders
   class Claude < Base
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
@@ -21,6 +23,7 @@ module ChatProviders
 
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
                stop_requested:, process_started:)
+      ensure_claude_session_on_disk!(workspace_path: workspace_path, session_id: resume_session_id)
       ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
@@ -76,6 +79,22 @@ module ChatProviders
     end
 
     private
+
+    def ensure_claude_session_on_disk!(workspace_path:, session_id:)
+      return if session_id.blank?
+
+      path = ClaudeSession.canonical_path_for(
+        home: ENV.fetch("HOME"),
+        cwd: workspace_path,
+        session_id: session_id
+      )
+      return if File.exist?(path)
+      return unless chat.messages.exists?
+
+      jsonl = ChatSessionRehydrator::Claude.new(chat, session_id: session_id, cwd: workspace_path.to_s).call
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, jsonl)
+    end
 
     def normalized_session_id(session_id)
       normalized = session_id.to_s

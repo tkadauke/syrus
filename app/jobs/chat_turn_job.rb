@@ -138,11 +138,8 @@ class ChatTurnJob < ApplicationJob
     )
   end
 
-  def resume_session_id_for(provider)
-    session = @chat.claude_session
-    return nil unless session&.provider == provider.provider
-
-    session.session_id
+  def resume_session_id_for(_provider)
+    @chat.claude_session&.session_id
   end
 
   def refresh_attached_repository_checkouts!(workspace_path)

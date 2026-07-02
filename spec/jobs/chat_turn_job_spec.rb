@@ -922,7 +922,7 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).not_to include("You are Syrus Chat")
   end
 
-  it "does not resume a stored session from a different chat provider" do
+  it "rehydrates a Codex transcript from ChatMessages when the prior session was Claude" do
     codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
     codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "mixed-provider", default_branch: "main")
     codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
@@ -931,7 +931,8 @@ RSpec.describe ChatTurnJob do
       session_id: "claude-session-1",
       transcript_jsonl: "old"
     )
-    codex_message = codex_chat.messages.create!(role: "user", content: { text: "Start fresh in Codex" })
+    codex_chat.messages.create!(role: "assistant", content: [{ "type" => "text", "text" => "Here is what I found." }])
+    codex_message = codex_chat.messages.create!(role: "user", content: { text: "Continue in Codex" })
     codex_workspace_path = workspace_root.join("mixed-provider-chat")
     allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(codex_workspace_path)
     allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(codex_workspace_path)
@@ -944,14 +945,106 @@ RSpec.describe ChatTurnJob do
 
     described_class.perform_now(codex_chat.id, codex_message.id)
 
-    expect(received[:resume_session_id]).to be_nil
-    expect(received[:resume_transcript_jsonl]).to be_nil
-    expect(received[:prompt]).to include("You are Syrus Chat")
+    # Session_id is passed through regardless of provider so rehydration can use it as thread_id
+    expect(received[:resume_session_id]).to eq("claude-session-1")
+    # Rehydrated Codex JSONL from ChatMessage rows
+    expect(received[:resume_transcript_jsonl]).to be_present
+    rehydrated = received[:resume_transcript_jsonl].lines.map { |l| JSON.parse(l) }
+    expect(rehydrated.first).to include("type" => "thread.started", "thread_id" => "claude-session-1")
+    expect(rehydrated.last).to include("type" => "turn.completed")
+    # Elaboration-guidance path instead of full system prompt (we have a session to resume)
+    expect(received[:prompt]).not_to include("You are Syrus Chat")
     expect(codex_chat.reload.claude_session).to have_attributes(
       provider: "codex",
       session_id: "codex-thread-1",
       transcript_jsonl: "new"
     )
+  end
+
+  it "uses the cached Codex transcript directly on same-provider resume" do
+    codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
+    codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-resume", default_branch: "main")
+    codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
+    codex_chat.create_claude_session!(
+      provider: "codex",
+      session_id: "codex-thread-1",
+      transcript_jsonl: "{\"type\":\"thread.started\"}\n"
+    )
+    codex_message = codex_chat.messages.create!(role: "user", content: { text: "Next Codex turn" })
+    codex_workspace_path = workspace_root.join("codex-resume-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(codex_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(codex_workspace_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "codex-thread-1", transcript_jsonl: "updated")
+    }
+
+    described_class.perform_now(codex_chat.id, codex_message.id)
+
+    expect(received[:resume_session_id]).to eq("codex-thread-1")
+    # Uses the cached transcript directly (fast path), not a freshly rehydrated one
+    expect(received[:resume_transcript_jsonl]).to eq("{\"type\":\"thread.started\"}\n")
+  end
+
+  it "writes a rehydrated Claude JSONL to disk when resuming after a Codex session" do
+    Dir.mktmpdir("syrus-claude-home") do |home|
+      saved_home = ENV["HOME"]
+      ENV["HOME"] = home
+
+      codex_chat = ChatSession.create!(repository: repository, user: user)
+      codex_chat.create_claude_session!(provider: "codex", session_id: "codex-thread-1", transcript_jsonl: "codex-data")
+      codex_chat.messages.create!(role: "assistant", content: [{ "type" => "text", "text" => "Codex was here." }])
+      claude_message = codex_chat.messages.create!(role: "user", content: { text: "Now use Claude" })
+      allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(workspace_path)
+      allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(workspace_path)
+
+      written_before_run = nil
+      ChatTurnJob.agent_runner = ->(**kwargs) {
+        path = ClaudeSession.canonical_path_for(home: home, cwd: workspace_path, session_id: "codex-thread-1")
+        written_before_run = File.read(path) if File.exist?(path)
+        result_fixture(session_id: "codex-thread-1", transcript_jsonl: "x")
+      }
+
+      described_class.perform_now(codex_chat.id, claude_message.id)
+
+      # The rehydrated Claude JSONL must be on disk before the runner is called
+      expect(written_before_run).to be_present
+      rehydrated = written_before_run.lines.map { |l| JSON.parse(l) }
+      expect(rehydrated.first).to include("type" => "system", "subtype" => "init", "session_id" => "codex-thread-1")
+    ensure
+      ENV["HOME"] = saved_home
+    end
+  end
+
+  it "writes a rehydrated Claude JSONL to disk when the session file is missing for same-provider resume" do
+    Dir.mktmpdir("syrus-claude-home") do |home|
+      saved_home = ENV["HOME"]
+      ENV["HOME"] = home
+
+      chat.create_claude_session!(provider: "claude", session_id: "missing-session-1", transcript_jsonl: "old-cached")
+      chat.messages.create!(role: "assistant", content: [{ "type" => "text", "text" => "Prior response." }])
+      next_message = chat.messages.create!(role: "user", content: { text: "Resume please" })
+
+      # No JSONL file on disk — simulate a missing disk file (worker restart, etc.)
+      path = ClaudeSession.canonical_path_for(home: home, cwd: workspace_path, session_id: "missing-session-1")
+      expect(File.exist?(path)).to eq(false)
+
+      written_before_run = nil
+      ChatTurnJob.agent_runner = ->(**kwargs) {
+        written_before_run = File.read(path) if File.exist?(path)
+        result_fixture(session_id: "missing-session-1", transcript_jsonl: "x")
+      }
+
+      described_class.perform_now(chat.id, next_message.id)
+
+      expect(written_before_run).to be_present
+      rehydrated = written_before_run.lines.map { |l| JSON.parse(l) }
+      expect(rehydrated.first).to include("type" => "system", "subtype" => "init", "session_id" => "missing-session-1")
+    ensure
+      ENV["HOME"] = saved_home
+    end
   end
 
   it "does not persist nameless tool call events" do
