@@ -20,7 +20,6 @@ const xtermMock = vi.hoisted(() => ({
   onData: vi.fn(),
   onResize: vi.fn(),
   loadAddon: vi.fn(),
-  serialize: vi.fn(() => ""),
   fit: vi.fn()
 }))
 
@@ -83,14 +82,6 @@ vi.mock("@xterm/addon-fit", () => ({
   }
 }))
 
-vi.mock("@xterm/addon-serialize", () => ({
-  SerializeAddon: class {
-    serialize() {
-      return xtermMock.serialize()
-    }
-  }
-}))
-
 describe("TerminalRoute", () => {
   let rectSpy: ReturnType<typeof vi.spyOn> | undefined
 
@@ -115,8 +106,6 @@ describe("TerminalRoute", () => {
     xtermMock.onData.mockClear()
     xtermMock.onResize.mockClear()
     xtermMock.loadAddon.mockClear()
-    xtermMock.serialize.mockReset()
-    xtermMock.serialize.mockReturnValue("")
     xtermMock.fit.mockClear()
   })
 
@@ -270,12 +259,11 @@ describe("TerminalRoute", () => {
     expect(xtermMock.fit).toHaveBeenCalled()
   })
 
-  it("restores TerminalPane scrollback after remounting the same session", async () => {
+  it("writes replay frames to the terminal before live output", async () => {
     const subscription = { perform: vi.fn(), unsubscribe: vi.fn() }
     actionCable.createSubscription.mockReturnValue(subscription)
-    xtermMock.serialize.mockReturnValue("hello from history")
 
-    const { unmount } = renderWithClient(
+    renderWithClient(
       <MemoryRouter>
         <TerminalPane session={terminalSession({ id: 5 })} />
       </MemoryRouter>
@@ -283,17 +271,11 @@ describe("TerminalRoute", () => {
     await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalled())
     const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { received(data: { type: string; data?: string }): void }])[1]
 
-    mixin.received({ type: "output", data: btoa("hello from history") })
-    unmount()
+    mixin.received({ type: "replay", data: btoa("scrollback history") })
+    expect(xtermMock.write).toHaveBeenCalledWith(Uint8Array.from(Array.from("scrollback history", (c) => c.charCodeAt(0))))
 
-    renderWithClient(
-      <MemoryRouter>
-        <TerminalPane session={terminalSession({ id: 5 })} />
-      </MemoryRouter>
-    )
-
-    await waitFor(() => expect(xtermMock.serialize).toHaveBeenCalled())
-    expect(await screen.findByText("hello from history")).toBeInTheDocument()
+    mixin.received({ type: "output", data: btoa("live output") })
+    expect(xtermMock.write).toHaveBeenCalledWith(Uint8Array.from(Array.from("live output", (c) => c.charCodeAt(0))))
   })
 
   it("renders the sidebar Terminal item and live badge when the feature is enabled", async () => {
