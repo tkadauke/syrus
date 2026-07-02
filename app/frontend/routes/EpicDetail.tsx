@@ -161,18 +161,24 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Epic command failed.")}</PanelMessage> : null}
 
-      <DependencyGraph graph={payload.graph} />
-      <DependenciesSection command={dependencyCommand} currentEpicId={payload.epic.id} dependencies={payload.dependencies} dependents={payload.dependents} prefix={prefix} />
+      <div className="grid gap-6 lg:grid-cols-[62%_38%]">
+        <div className="space-y-6">
+          {payload.epic.description.trim() ? (
+            <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Description</h2>
+              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
+            </section>
+          ) : null}
+          <JobsSection jobs={payload.jobs} prefix={prefix} />
+          <DependencyGraph graph={payload.graph} />
+          <HistorySection versions={payload.versions || []} />
+        </div>
 
-      {payload.epic.description.trim() ? (
-        <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Description</h2>
-          <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
-        </section>
-      ) : null}
-
-      <HistorySection versions={payload.versions || []} />
-      <JobsSection jobs={payload.jobs} prefix={prefix} />
+        <div className="space-y-6">
+          <DependenciesSection command={dependencyCommand} currentEpicId={payload.epic.id} dependencies={payload.dependencies} dependents={payload.dependents} prefix={prefix} />
+          <DetailsPanel epic={payload.epic} prefix={prefix} />
+        </div>
+      </div>
     </>
   )
 }
@@ -201,7 +207,7 @@ function DependenciesSection({
   }
 
   return (
-    <section className="grid gap-4 lg:grid-cols-2">
+    <section className="space-y-4">
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
         <h2 className="font-semibold text-gray-900 dark:text-gray-100">Dependencies</h2>
         <h3 className="mt-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Depends on</h3>
@@ -500,6 +506,34 @@ function JobsSection({ jobs, prefix }: { jobs: EpicDetailJob[]; prefix: string }
       ) : (
         <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">No Jobs in this Epic.</p>
       )}
+    </section>
+  )
+}
+
+function DetailsPanel({ epic, prefix }: { epic: EpicDetailPayload["epic"]; prefix: string }) {
+  const owner = epic.owner_user || epic.owner
+
+  return (
+    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Details</h2>
+      <dl className="mt-3 space-y-3">
+        <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Owner</dt>
+          <dd className="mt-0.5 text-gray-700 dark:text-gray-200">{owner ? owner.email_address : "Unclaimed"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Repository</dt>
+          <dd className="mt-0.5">
+            <Link className="font-mono text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(epic.repository.repository_path, prefix)}>
+              {epic.repository.slug}
+            </Link>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Updated</dt>
+          <dd className="mt-0.5 text-gray-700 dark:text-gray-200" title={formatDateTime(epic.updated_at)}>{formatRelative(epic.updated_at)}</dd>
+        </div>
+      </dl>
     </section>
   )
 }

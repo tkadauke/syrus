@@ -8810,7 +8810,7 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: /EPIC-7/ })).toHaveClass("dark:text-gray-100")
     expect(screen.queryByRole("link", { name: "Back to Epics" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/epics/7/edit")
-    expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
+    expect(screen.getAllByRole("link", { name: "acme/widgets" }).every((el) => el.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
     expect(screen.getByRole("link", { name: "Survey forum" })).toHaveAttribute("href", "/app-shell/jobs/42")
     expect(screen.getByRole("button", { name: "Move to backlog" })).toBeInTheDocument()
     expect(screen.getByText("columns")).toBeInTheDocument()
@@ -9041,7 +9041,7 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Epic unclaimed.")).toBeInTheDocument()
-    expect(screen.getByText(/Unclaimed/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Unclaimed/).length).toBeGreaterThan(0)
   })
 
   it("does not show claim controls for an Epic owned by another user", async () => {
