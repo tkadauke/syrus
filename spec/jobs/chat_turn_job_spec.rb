@@ -739,7 +739,7 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).to include("Do not restate your operating instructions")
     expect(received[:prompt]).not_to include("You are Syrus Chat")
     expect(chat.messages.order(:created_at).pluck(:role)).to eq([ "system", "assistant" ])
-    expect(chat.messages.order(:created_at).last.content).to eq("text" => "Confirmed JOB-1416.")
+    expect(chat.messages.order(:created_at).last.content).to eq([ { "type" => "text", "text" => "Confirmed JOB-1416." } ])
   end
 
   it "runs Codex chat turns with chat MCP servers and captures a Codex session" do
@@ -808,19 +808,30 @@ RSpec.describe ChatTurnJob do
     expect(messages.map(&:role)).to eq([ "user", "assistant", "tool_use", "tool_result", "tool_use" ])
     expect(messages.third).to have_attributes(
       tool_name: "mcp__syrus-chat-sidecar__repo_info",
-      content: { "input" => { "repository_id" => codex_repository.id, "status" => "started" } }
+      content: {
+        "type" => "tool_use",
+        "id" => "call_1",
+        "name" => "mcp__syrus-chat-sidecar__repo_info",
+        "input" => { "repository_id" => codex_repository.id, "status" => "started" }
+      }
     )
     expect(messages.fourth).to have_attributes(
       tool_name: "mcp__syrus-chat-sidecar__repo_info",
       content: {
-        "result" => { "slug" => codex_repository.slug },
-        "is_error" => false,
-        "tool_use_id" => "call_1"
+        "type" => "tool_result",
+        "tool_use_id" => "call_1",
+        "content" => { "slug" => codex_repository.slug },
+        "is_error" => false
       }
     )
     expect(messages.fifth).to have_attributes(
       tool_name: "Command",
-      content: { "input" => { "command" => "bin/rails test", "status" => "started" } }
+      content: {
+        "type" => "tool_use",
+        "id" => "cmd_1",
+        "name" => "Command",
+        "input" => { "command" => "bin/rails test", "status" => "started" }
+      }
     )
     expect(codex_chat.reload.claude_session).to have_attributes(
       provider: "codex",

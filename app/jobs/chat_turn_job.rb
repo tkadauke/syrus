@@ -486,7 +486,7 @@ class ChatTurnJob < ApplicationJob
   end
 
   def flush_current_assistant_content!
-    return if @current_assistant_content.empty?
+    return if @current_assistant_content.nil? || @current_assistant_content.empty?
 
     blocks = @current_assistant_content.dup
     @current_assistant_content = []

@@ -566,7 +566,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{payload.chat.repository ? "Start a chat with this repository." : "Ask anything, or attach a repository for code context."}</div>
-          {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+          {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       </div>
@@ -593,7 +593,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
           <ChatMessage item={item} key={renderItemKey(item)} payload={payload} pendingActionIds={pendingActionIds} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         ))}
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
-        {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+        {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
       </div>
       {newMessageCount > 0 ? (
         <button
@@ -2485,7 +2485,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             if (clearConfirmationOpen) setClearConfirmationOpen(false)
           }}
           onKeyDown={handleKeyDown}
-          placeholder={payload.switching_provider ? `Switching to ${providerLabel(payload.chat.chat_provider)}…` : agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
+          placeholder={payload.switching_provider ? `Switching to ${providerLabel(payload.chat.chat_provider ?? "")}…` : agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
           ref={textareaRef}
           required
           rows={1}
