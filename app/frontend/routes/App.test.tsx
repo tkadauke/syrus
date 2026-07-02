@@ -9887,6 +9887,7 @@ describe("App", () => {
       )
     })
 
+    fireEvent.click(screen.getByRole("button", { name: "+ Add dependency" }))
     fireEvent.change(screen.getByLabelText("Dependency"), { target: { value: "issue:3:11" } })
     fireEvent.click(screen.getAllByRole("button", { name: "Add" })[1])
     await waitFor(() => {

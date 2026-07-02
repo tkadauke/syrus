@@ -126,7 +126,7 @@ describe("JobDetailView", () => {
       unsatisfied_dependencies: [ parsedDependency, manualDependency ]
     }))
 
-    expect(screen.getByText("Waiting on 2 dependencies.")).toBeInTheDocument()
+    expect(screen.getByText("Blocked on 2 dependencies:")).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "tkadauke/syrus JOB-1101 (queued)" })).toHaveLength(2)
     expect(screen.queryByText("tkadauke/syrus #1101 (queued)")).not.toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "tkadauke/syrus JOB-1101 (queued)" })[0])
