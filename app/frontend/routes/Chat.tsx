@@ -736,6 +736,7 @@ function ChatMessage({ item, payload, pendingActionIds, prefix, queryKey, readOn
   }
 
   if (item.role === "assistant") {
+    if (!item.text) return null
     return (
       <article className="group/message relative pt-6" id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />

@@ -1093,6 +1093,44 @@ describe("chat slash commands", () => {
     expect(writeText).toHaveBeenCalledWith("Latest assistant response.")
     expect(await screen.findByText("Copied to clipboard")).toBeInTheDocument()
   })
+
+  it("does not render assistant messages with empty text (thinking-only turns)", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "" },
+            text: "",
+            bookmarkable: true
+          },
+          {
+            type: "message",
+            id: 10,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "Here is the answer." },
+            text: "Here is the answer.",
+            bookmarkable: true
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Here is the answer.")).toBeInTheDocument()
+    expect(document.getElementById("chat_message_9")).not.toBeInTheDocument()
+    expect(document.getElementById("chat_message_10")).toBeInTheDocument()
+  })
 })
 
 function renderRoute() {
