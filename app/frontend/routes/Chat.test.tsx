@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { ChatRoute, storedWorkspaceCollapsed } from "./Chat"
+import { ChatRoute, storedWorkspaceCollapsed, asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./Chat"
 
 describe("storedWorkspaceCollapsed", () => {
   beforeEach(() => {
@@ -19,6 +19,38 @@ describe("storedWorkspaceCollapsed", () => {
 
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
     expect(storedWorkspaceCollapsed()).toBe(true)
+  })
+})
+
+describe("asExcalidrawElements", () => {
+  it("filters out elements with an unknown type", () => {
+    const elements = [
+      { id: "r1", type: "rectangle" },
+      { id: "s1", type: "sticky" },
+      { id: "t1", type: "text" },
+      { id: "u1", type: "unknown-future-type" }
+    ]
+
+    const result = asExcalidrawElements(elements)
+    const ids = (result as unknown as Array<{ id: string }>).map(el => el.id)
+
+    expect(ids).toContain("r1")
+    expect(ids).toContain("t1")
+    expect(ids).not.toContain("s1")
+    expect(ids).not.toContain("u1")
+  })
+
+  it("passes through all valid Excalidraw types", () => {
+    const validTypes = [...VALID_EXCALIDRAW_TYPES]
+    const elements = validTypes.map((type, i) => ({ id: `el-${i}`, type }))
+
+    const result = asExcalidrawElements(elements)
+
+    expect(result).toHaveLength(validTypes.length)
+  })
+
+  it("returns an empty array for an empty input", () => {
+    expect(asExcalidrawElements([])).toEqual([])
   })
 })
 

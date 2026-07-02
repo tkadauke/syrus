@@ -86,7 +86,7 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     expect(id).to match(/\A[0-9A-Z_a-z-]{21}\z/)
     expect(whiteboard.version).to eq(1)
     expect(whiteboard.last_edited_at).to be_present
-    expect(shape).to include("id" => id, "type" => "sticky", "backgroundColor" => "#fef08a")
+    expect(shape).to include("id" => id, "type" => "rectangle", "backgroundColor" => "#fef08a", "strokeColor" => "#854d0e")
     expect(shape).not_to have_key("label")
     # Labels are a paired text element bound via containerId; the
     # container's boundElements references it back so Excalidraw
@@ -467,5 +467,39 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     expect(bad_shape[:result][:content].first[:text]).to match(/type must/)
     expect(bad_update[:result][:isError]).to be(true)
     expect(bad_update[:result][:content].first[:text]).to match(/unsupported element type/)
+  end
+
+  it "draws sticky shapes as yellow rectangles" do
+    expect_canvas_broadcast
+
+    response = draw_shape(type: "sticky", x: 50, y: 50, width: 150, height: 100)
+
+    element = chat_session.reload.whiteboard.elements.first
+    expect(response[:result][:isError]).to be_falsey
+    expect(element).to include(
+      "type" => "rectangle",
+      "backgroundColor" => "#fef08a",
+      "strokeColor" => "#854d0e"
+    )
+  end
+
+  describe "SyrusChatMcp::Canvas" do
+    it "ELEMENT_TYPES does not include sticky" do
+      expect(SyrusChatMcp::Canvas::ELEMENT_TYPES).not_to include("sticky")
+    end
+
+    it "validate_elements! raises on a sticky element" do
+      elements = [ { "id" => "s1", "type" => "sticky" } ]
+      expect {
+        SyrusChatMcp::Canvas.validate_elements!(elements)
+      }.to raise_error(ArgumentError, /unsupported element type: sticky/)
+    end
+
+    it "update_scene rejects sticky elements via validate_elements!" do
+      bad_update = call_tool("update_scene", elements: [ { "id" => "sticky-1", "type" => "sticky" } ])
+
+      expect(bad_update[:result][:isError]).to be(true)
+      expect(bad_update[:result][:content].first[:text]).to match(/unsupported element type: sticky/)
+    end
   end
 end

@@ -3,7 +3,7 @@ module SyrusChatMcp
     class ElementLimitExceeded < StandardError; end
 
     SHAPE_TYPES = %w[rectangle ellipse diamond sticky].freeze
-    ELEMENT_TYPES = %w[selection rectangle ellipse diamond text line arrow freedraw image frame magicframe iframe embeddable sticky].freeze
+    ELEMENT_TYPES = %w[selection rectangle ellipse diamond text line arrow freedraw image frame magicframe iframe embeddable].freeze
     DEFAULT_COLOR = "#f8fafc"
     DEFAULT_STROKE = "#1f2937"
     ARROWHEAD_TYPES = %w[
@@ -62,9 +62,18 @@ module SyrusChatMcp
     end
 
     def shape_element(type:, x:, y:, width:, height:, color: nil, **)
-      base_element(type: type, x: x, y: y, width: width, height: height).merge(
-        "backgroundColor" => color.presence || DEFAULT_COLOR,
-        "strokeColor" => DEFAULT_STROKE,
+      if type.to_s == "sticky"
+        effective_type = "rectangle"
+        background = color.presence || "#fef08a"
+        stroke = "#854d0e"
+      else
+        effective_type = type
+        background = color.presence || DEFAULT_COLOR
+        stroke = DEFAULT_STROKE
+      end
+      base_element(type: effective_type, x: x, y: y, width: width, height: height).merge(
+        "backgroundColor" => background,
+        "strokeColor" => stroke,
         "boundElements" => []
       )
     end

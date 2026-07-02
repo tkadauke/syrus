@@ -4,11 +4,11 @@ module SyrusChatMcp
   class DrawShapeTool < MCP::Tool
     tool_name "draw_shape"
 
-    description "Append a rectangle, ellipse, diamond, or sticky shape to the whiteboard scene."
+    description "Append a rectangle, ellipse, diamond, or sticky shape to the whiteboard scene. The sticky type renders as a yellow rectangle."
 
     input_schema(
       properties: {
-        type: { type: "string", description: "One of rectangle, ellipse, diamond, or sticky." },
+        type: { type: "string", description: "One of rectangle, ellipse, diamond, or sticky. sticky renders as a yellow rectangle with amber border." },
         x: { type: "number" },
         y: { type: "number" },
         width: { type: "number" },

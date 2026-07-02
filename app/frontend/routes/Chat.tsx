@@ -3688,8 +3688,15 @@ function signatureForScene(scene: ChatWhiteboardScene) {
   return JSON.stringify(scene)
 }
 
-function asExcalidrawElements(elements: readonly ChatWhiteboardElement[]) {
-  return elements as unknown as readonly ExcalidrawElement[]
+export const VALID_EXCALIDRAW_TYPES = new Set([
+  "selection", "rectangle", "diamond", "ellipse", "embeddable", "iframe",
+  "image", "frame", "magicframe", "text", "line", "arrow", "freedraw"
+])
+
+export function asExcalidrawElements(elements: readonly ChatWhiteboardElement[]) {
+  return elements.filter(
+    el => VALID_EXCALIDRAW_TYPES.has((el as { type?: string }).type ?? "")
+  ) as unknown as readonly ExcalidrawElement[]
 }
 
 function asExcalidrawFiles(files: ChatWhiteboardScene["files"]) {
