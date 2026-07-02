@@ -9190,8 +9190,7 @@ describe("App", () => {
     expect(screen.getByPlaceholderText("Add tag")).toBeInTheDocument()
     expect(screen.getByText("Unclaimed")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "More" }))
-    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Claim" }))
+    fireEvent.click(screen.getByRole("button", { name: "Claim" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/jobs/42/claim",
@@ -9200,7 +9199,7 @@ describe("App", () => {
     })
     expect(await screen.findByText("Job claimed.")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "More" }))
+    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Check feedback" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -9354,7 +9353,7 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Investigate viewport report" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByText("Direct Job")).toBeInTheDocument()
-    expect(screen.getByText("implemented")).toBeInTheDocument()
+    expect(screen.getAllByText("implemented").length).toBeGreaterThan(0)
     expect(screen.getByText("codex")).toBeInTheDocument()
     expect(screen.getByText("pat")).toBeInTheDocument()
   })
@@ -9493,7 +9492,9 @@ describe("App", () => {
     const runningLabels = screen.getAllByText("running")
 
     expect(runningLabels).toHaveLength(3)
-    for (const label of runningLabels) expectRunningPill(label)
+    const pillRunningLabels = runningLabels.filter(l => l.closest("[data-status-pill='true']"))
+    expect(pillRunningLabels).toHaveLength(2)
+    for (const label of pillRunningLabels) expectRunningPill(label)
   })
 
   it("renders the Job source browser from the app source API", async () => {
@@ -9665,14 +9666,14 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Start Run" })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "More" }))
+    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
     expect(screen.getByRole("menu")).toBeInTheDocument()
     expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with feedback" })).toBeInTheDocument()
     fireEvent.keyDown(window, { key: "Escape" })
     await waitFor(() => {
       expect(screen.queryByRole("menu")).not.toBeInTheDocument()
     })
-    fireEvent.click(screen.getByRole("button", { name: "More" }))
+    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
     expect(screen.getByRole("menu")).toBeInTheDocument()
     fireEvent.pointerDown(document.body)
     await waitFor(() => {
@@ -9687,7 +9688,7 @@ describe("App", () => {
     }
 
     for (const [label, method, path] of overflowCommands) {
-      fireEvent.click(screen.getByRole("button", { name: "More" }))
+      fireEvent.click(screen.getByRole("button", { name: "⋯" }))
       fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: label }))
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(path, expect.objectContaining({ method }))
@@ -9752,7 +9753,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("button", { name: "Retry" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "More" }))
+    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with feedback" }))
 
     const dialog = screen.getByRole("dialog", { name: "Retry with feedback" })

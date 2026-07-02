@@ -157,14 +157,16 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
       <header className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100"><PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} /></h1>
+            <div className="flex flex-wrap items-start gap-3">
+              <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100"><PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} /></h1>
+              <div className="mt-1.5 shrink-0"><JobStateBadge state={payload.job.summary_state} /></div>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
                 <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
                 <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
                 <JobSourceLink payload={payload} prefix={prefix} />
               </p>
-              <StatusPill state={payload.job.summary_state} />
               {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
               {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
             </div>
@@ -332,8 +334,6 @@ function headerActions(payload: JobDetailPayload): HeaderAction[] {
   if (actions.can_restart) available.push({ key: "restart", label: "Start over", input: { method: "post", path: paths.app_restart_path, confirm: "Start over with a new Job and abandon this branch?" }, tone: "secondary" })
   if (actions.can_approve) available.push({ key: "approve", label: payload.job.landing_failure_reason ? "Reapprove" : "Approve", input: { method: "post", path: paths.app_approve_path }, tone: "success" })
   if (actions.can_unapprove) available.push({ key: "unapprove", label: "Unapprove", input: { method: "post", path: paths.app_unapprove_path, confirm: "Move this Job back to implemented?" }, tone: "secondary" })
-  if (actions.can_claim) available.push({ key: "claim", label: "Claim", input: { method: "post", path: paths.app_claim_path }, tone: "secondary" })
-  if (actions.can_unclaim) available.push({ key: "unclaim", label: "Release claim", input: { method: "delete", path: paths.app_claim_path }, tone: "secondary" })
   if (actions.can_cancel) available.push({ key: "cancel", label: "Cancel", input: { method: "post", path: paths.app_cancel_path, confirm: "Cancel any running work and close this Job?" }, tone: "danger" })
   if (actions.can_reopen) available.push({ key: "reopen", label: "Reopen", input: { method: "post", path: paths.app_reopen_path }, tone: "success" })
   if (actions.can_mark_valid) available.push({ key: "mark_valid", label: "Mark valid", input: { method: "post", path: paths.app_mark_valid_path }, tone: "secondary" })
@@ -365,14 +365,7 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("retry")
   } else {
     add("start")
-    add("claim")
-    add("unclaim")
     add("mark_valid")
-  }
-
-  if (keys.length < 2) {
-    add("claim")
-    add("unclaim")
   }
 
   return keys
@@ -392,7 +385,7 @@ function HeaderActionsMenu({ actions, command, onRetryFeedback }: { actions: Hea
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
-        More
+        ⋯
       </button>
       {open ? (
         <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
@@ -611,16 +604,17 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
           <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">Details</h2>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-              <KeyValue label="Owner"><JobOwnerLabel payload={payload} prefix={prefix} /></KeyValue>
+              <KeyValue label="State"><StatusPill state={payload.job.summary_state} /></KeyValue>
+              <KeyValue label="Owner"><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
               <KeyValue label="Priority"><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
               <KeyValue label="Validity"><span className="capitalize">{payload.job.validity}</span></KeyValue>
               {payload.epic ? <KeyValue label="Epic"><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
-              <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name || "-"}</code></KeyValue>
+              {payload.job.branch_name ? <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
               <KeyValue label="Stack base"><StackBaseForm command={command} payload={payload} /></KeyValue>
-              <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue>
+              {payload.job.pr_number || payload.job.external_pr_number ? <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue> : null}
               <KeyValue label="Cost">{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} billed)</span></KeyValue>
               <KeyValue label="Started">{formatDate(payload.job.started_at)}</KeyValue>
-              <KeyValue label="Closed">{payload.job.finished_at ? `${formatDate(payload.job.finished_at)} (${payload.job.closure_reason || "unspecified"})` : "still open"}</KeyValue>
+              {payload.job.finished_at ? <KeyValue label="Closed">{formatDate(payload.job.finished_at)} ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
             </div>
             <TagsPanel embedded command={command} payload={payload} />
           </section>
@@ -732,16 +726,27 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
   )
 }
 
-function JobOwnerLabel({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
+function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   const owner = payload.job.claimed_by_user
-  if (!owner) return <span className="text-gray-400 dark:text-gray-500">Unclaimed</span>
 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
-      <Link className="font-medium text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
-        {payload.job.claimed_by_current_user ? "You" : owner.display_name}
-      </Link>
-      {payload.job.claimed_at ? <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(payload.job.claimed_at)}</span> : null}
+      {owner ? (
+        <>
+          <Link className="font-medium text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+            {payload.job.claimed_by_current_user ? "You" : owner.display_name}
+          </Link>
+          {payload.job.claimed_at ? <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(payload.job.claimed_at)}</span> : null}
+        </>
+      ) : (
+        <span className="text-gray-400 dark:text-gray-500">Unclaimed</span>
+      )}
+      {payload.actions.can_claim ? (
+        <button className="text-xs font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: payload.paths.app_claim_path })} type="button">Claim</button>
+      ) : null}
+      {payload.actions.can_unclaim ? (
+        <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: payload.paths.app_claim_path })} type="button">Release</button>
+      ) : null}
     </span>
   )
 }
@@ -2036,6 +2041,36 @@ function SmallPill({ children }: { children: ReactNode }) {
   return <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{children}</span>
 }
 
+function JobStateBadge({ state }: { state: string }) {
+  const normalized = state.toLowerCase()
+  const isFail = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel")
+  const isSuccess = normalized.includes("success") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed")
+  const isActive = normalized.includes("running") || normalized.includes("queued")
+
+  const colors = isFail
+    ? "text-red-700 dark:text-red-300"
+    : isSuccess
+      ? "text-emerald-700 dark:text-emerald-300"
+      : isActive
+        ? "text-blue-700 dark:text-blue-300"
+        : "text-gray-600 dark:text-gray-300"
+
+  const dotColors = isFail
+    ? "bg-red-500 dark:bg-red-400"
+    : isSuccess
+      ? "bg-emerald-500 dark:bg-emerald-400"
+      : isActive
+        ? "bg-blue-500 dark:bg-blue-400"
+        : "bg-gray-400 dark:bg-gray-500"
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${colors}`}>
+      <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${dotColors} ${isActive ? "animate-pulse" : ""}`} />
+      <span className="capitalize">{state.replaceAll("_", " ")}</span>
+    </span>
+  )
+}
+
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
   const colors = {
     error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
@@ -2051,7 +2086,7 @@ function buttonClass(tone: ButtonTone) {
     primary: "bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400",
     secondary: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800",
     success: "bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400",
-    danger: "bg-amber-600 text-white hover:bg-amber-500 dark:bg-amber-500 dark:text-gray-950 dark:hover:bg-amber-400"
+    danger: "bg-red-600 text-white hover:bg-red-500 dark:bg-red-500 dark:hover:bg-red-400"
   }
   return `${base} ${tones[tone]}`
 }
@@ -2061,7 +2096,7 @@ function menuButtonClass(tone: ButtonTone) {
     primary: "text-blue-700 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-950/40",
     secondary: "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
     success: "text-emerald-700 hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950/40",
-    danger: "text-amber-700 hover:bg-amber-50 dark:text-amber-200 dark:hover:bg-amber-950/40"
+    danger: "text-red-700 hover:bg-red-50 dark:text-red-200 dark:hover:bg-red-950/40"
   }
   return `block w-full px-4 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone]}`
 }
@@ -2135,7 +2170,7 @@ function formatDate(value: string | null) {
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(value)
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
 }
 
 function formatBytes(value: number) {
