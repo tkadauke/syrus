@@ -651,7 +651,7 @@ module App
         can_check_mergeability: @job.pr_number.present? || @job.external_pr_number.present?,
         can_retry: @job.open? && !@job.any_active_run?,
         can_retry_from_failed_step: latest_workflow&.retry_available? || false,
-        can_restart: !@job.any_active_run?,
+        can_restart: !@job.any_active_run? && !@job.cron?,
         can_cancel: @job.open?,
         can_approve: @job.may_approve?,
         can_unapprove: @job.may_unapprove?,

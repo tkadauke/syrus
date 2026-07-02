@@ -53,25 +53,40 @@ module Api
 
         def restart
           job = find_job
-          job.cancel_active_runs_and_close!("replaced") if job.open?
-          skip_prepare = job.sync_skip_prepare_from_source!
-          new_job = Current.user.jobs.create!(
-            repository: job.repository,
-            issue_number: job.issue_number,
-            skip_prepare: skip_prepare
-          )
-          new_job.advance_after_triage!
-          broadcast_job_change(job.reload, [ "state" ])
-          broadcast_job_change(new_job.reload, [ "created" ])
+          ApplicationRecord.transaction do
+            job.cancel_active_runs_and_close!("replaced") if job.open?
+            skip_prepare = job.sync_skip_prepare_from_source!
 
-          render json: job_payload(
-            new_job,
-            message: "Started over - new branch and PR will be created.",
-            tab: nil
-          ).merge(
-            old_job: job_json(job.reload),
-            redirect_to: job_path(new_job)
-          ), status: :created
+            attrs = {
+              repository: job.repository,
+              issue_number: job.issue_number,
+              skip_prepare: skip_prepare,
+              kind: job.kind,
+              agent_provider: job.agent_provider
+            }
+
+            if job.direct?
+              attrs.merge!(
+                issue_title: job.issue_title,
+                issue_body: job.issue_body,
+                epic: job.epic
+              )
+            end
+
+            new_job = Current.user.jobs.create!(attrs)
+            new_job.advance_after_triage!
+            broadcast_job_change(job.reload, [ "state" ])
+            broadcast_job_change(new_job.reload, [ "created" ])
+
+            render json: job_payload(
+              new_job,
+              message: "Started over - new branch and PR will be created.",
+              tab: nil
+            ).merge(
+              old_job: job_json(job.reload),
+              redirect_to: job_path(new_job)
+            ), status: :created
+          end
         end
 
         def cancel

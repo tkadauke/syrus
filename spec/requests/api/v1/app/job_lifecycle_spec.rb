@@ -79,6 +79,45 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(parse_body["redirect_to"]).to eq(job_path(new_job))
   end
 
+  it "restarts a direct job preserving kind, title, body, and agent_provider" do
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Tighten the bolts",
+      issue_body: "Please tighten all the bolts.",
+      agent_provider: "claude"
+    )
+
+    expect {
+      post app_job_path(direct, "restart"), as: :json
+    }.to change(Job, :count).by(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:created)
+    expect(direct.reload).to be_closed
+    expect(direct.closure_reason).to eq("replaced")
+
+    new_job = Job.order(:created_at).last
+    expect(new_job.kind).to eq("direct")
+    expect(new_job.issue_title).to eq("Tighten the bolts")
+    expect(new_job.issue_body).to eq("Please tighten all the bolts.")
+    expect(new_job.agent_provider).to eq("claude")
+    expect(new_job.issue_number).to be_nil
+  end
+
+  it "rolls back the original job close when replacement creation fails" do
+    # Corrupt the kind via update_columns (bypasses validations) so the replacement
+    # job creation fails with RecordInvalid, exercising the transaction rollback path.
+    job.update_columns(kind: "invalid_kind")
+
+    post app_job_path(job, "restart"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(job.reload).to be_open
+  end
+
   it "cancels active runs and closes the job" do
     run = job.initial_run
     run.start!

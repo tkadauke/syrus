@@ -341,4 +341,35 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job)[:feedback_history]).to eq([])
     end
   end
+
+  describe "#actions_json can_restart" do
+    it "is true for an issue job with no active runs" do
+      job = Factories.job_record(repository: repo, issue_number: 5)
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(true)
+    end
+
+    it "is false for a cron job even with no active runs" do
+      scheduled_task = ScheduledTask.create!(
+        user: user,
+        repository: repo,
+        name: "Nightly check",
+        cron_expression: "0 3 * * *",
+        prompt: "Check the repo.",
+        kind: "cron",
+        pr_pileup_policy: "skip"
+      )
+      job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil,
+                                 scheduled_task: scheduled_task)
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
+    end
+
+    it "is true for a direct job with no active runs" do
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil,
+                                 issue_title: "Fix it")
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(true)
+    end
+  end
 end
