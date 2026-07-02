@@ -154,8 +154,8 @@ class ChatSession < ApplicationRecord
   # Chat controls are rendered by React from typed app-event payloads.
   # ChatMessage tail events already carry the active-turn state, so
   # callers can suppress this duplicate event when appropriate.
-  def broadcast_controls(app_event: true)
-    broadcast_app_controls_update if app_event
+  def broadcast_controls(app_event: true, switching_provider: false)
+    broadcast_app_controls_update(switching_provider: switching_provider) if app_event
   end
 
   def queued_messages_payload
@@ -196,6 +196,7 @@ class ChatSession < ApplicationRecord
           title: title,
           title_pending: title_pending?,
           pinned_context: pinned_context,
+          chat_provider: effective_chat_provider,
           repository: repository ? { id: repository.id, slug: repository.slug } : nil,
           stop_requested_at: stop_requested_at&.iso8601,
           cumulative_input_tokens: cumulative_input_tokens.to_i,
@@ -206,7 +207,7 @@ class ChatSession < ApplicationRecord
     )
   end
 
-  def broadcast_app_controls_update
+  def broadcast_app_controls_update(switching_provider: false)
     AppEvents.broadcast(
       user: user,
       type: "updated",
@@ -218,6 +219,7 @@ class ChatSession < ApplicationRecord
         turn_in_flight: turn_in_flight?,
         agent_busy: agent_busy?,
         stop_requested_at: stop_requested_at&.iso8601,
+        switching_provider: switching_provider,
         queued_messages: queued_messages_payload
       }
     )
@@ -228,6 +230,7 @@ class ChatSession < ApplicationRecord
   def header_previously_changed?
     saved_change_to_title? ||
       saved_change_to_pinned_context? ||
+      saved_change_to_chat_provider? ||
       saved_change_to_cumulative_input_tokens? ||
       saved_change_to_cumulative_output_tokens? ||
       saved_change_to_cumulative_cost_usd?

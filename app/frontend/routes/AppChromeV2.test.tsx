@@ -347,6 +347,7 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     title_pending: false,
     pinned: false,
     pinned_context: null,
+    chat_provider: "claude",
     chat_path: `/chats/${overrides.id ?? 1}`,
     repository: null,
     stop_requested_at: null,

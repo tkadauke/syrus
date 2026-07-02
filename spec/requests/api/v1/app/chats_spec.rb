@@ -2082,6 +2082,56 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  describe "POST /api/v1/app/chats/:id/switch_provider" do
+    let(:chat) { ChatSession.create!(user: user) }
+
+    it "returns 401 when not signed in" do
+      post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "codex" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "enqueues SwitchChatProviderJob with the target provider" do
+      sign_in_as(user)
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "codex" }
+      }.to have_enqueued_job(SwitchChatProviderJob).with(chat.id, "codex")
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["message"]).to eq("Switching to codex.")
+    end
+
+    it "returns 422 for an invalid provider" do
+      sign_in_as(user)
+
+      post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "unknown" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
+    it "returns 422 when a turn is in-flight" do
+      sign_in_as(user)
+      chat.messages.create!(role: "user", content: { "text" => "hello" })
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "codex" }
+      }.not_to have_enqueued_job(SwitchChatProviderJob)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("turn_in_flight")
+    end
+
+    it "returns 404 when the chat belongs to another user" do
+      sign_in_as(Factories.user)
+
+      post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "claude" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   def create_indexed_message(chat_session, text:, role: "assistant")
     message = chat_session.messages.create!(role: role, content: { "text" => text })
     ChatMessageSearchIndex.insert(message)

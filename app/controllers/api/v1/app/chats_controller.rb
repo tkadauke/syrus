@@ -269,6 +269,25 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Stop requested.")
         end
 
+        def switch_provider
+          chat_session = find_chat_session
+          provider = params[:provider].to_s.strip
+
+          unless User::CHAT_PROVIDERS.include?(provider)
+            render_error("validation_failed", "Invalid provider. Must be one of: #{User::CHAT_PROVIDERS.join(", ")}.", status: :unprocessable_content)
+            return
+          end
+
+          if chat_session.turn_in_flight? || chat_session.agent_busy?
+            render_error("turn_in_flight", "Cannot switch provider while a turn is in progress.", status: :unprocessable_content)
+            return
+          end
+
+          SwitchChatProviderJob.perform_later(chat_session.id, provider)
+
+          render json: { message: "Switching to #{provider}." }
+        end
+
         def rename
           chat_session = find_chat_session
           name = chat_name
@@ -804,6 +823,7 @@ module Api
             chat_available: Current.user.chat_available?,
             turn_in_flight: chat_session.turn_in_flight?,
             agent_busy: chat_session.agent_busy?,
+            switching_provider: false,
             has_more_older: has_more_older,
             messages: messages_json(messages, repository: repository),
             bookmarks: chat_session.bookmarks.includes(:chat_message).map { |bookmark| bookmark_json(bookmark) },
@@ -833,7 +853,8 @@ module Api
               app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
               app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
               app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
-              app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard"
+              app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard",
+              app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider"
             }
           }
         end
@@ -1502,7 +1523,6 @@ module Api
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
             turn_in_flight: chat_session.turn_in_flight?,
             agent_busy: chat_session.agent_busy?,
-            pending_proposal_count: chat_session.proposals.where(state: "proposed").count,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,

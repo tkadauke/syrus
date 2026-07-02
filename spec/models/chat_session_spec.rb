@@ -286,6 +286,7 @@ RSpec.describe ChatSession do
         payload: {
           action: "update_header",
           chat: {
+            chat_provider: "claude",
             title: "Updated chat",
             title_pending: false,
             pinned_context: nil,
@@ -317,6 +318,7 @@ RSpec.describe ChatSession do
           action: "update_controls",
           turn_in_flight: false,
           agent_busy: false,
+          switching_provider: false,
           stop_requested_at: stopped_at.iso8601,
           queued_messages: []
         }

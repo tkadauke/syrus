@@ -361,6 +361,7 @@ export type ChatPayload = {
   chat_available: boolean
   turn_in_flight: boolean
   agent_busy: boolean
+  switching_provider: boolean
   has_more_older: boolean
   messages: ChatMessageItem[]
   bookmarks: ChatBookmark[]
@@ -396,6 +397,7 @@ export type ChatPayload = {
     app_bookmarks_path: string
     app_attachments_path: string
     app_whiteboard_path: string
+    app_switch_provider_path: string
   }
 }
 
@@ -581,6 +583,10 @@ export function deleteQueuedChatMessage(path: string) {
 
 export function stopChat(path: string) {
   return postJson<ChatPayload>(path)
+}
+
+export function switchChatProvider(path: string, provider: string) {
+  return postJson<{ message: string }>(path, { provider })
 }
 
 function chatMessagePayload(text: string, attachments: ChatMessageAttachmentInput[]) {

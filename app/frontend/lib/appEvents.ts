@@ -229,6 +229,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
           ...current,
           turn_in_flight: controls.turn_in_flight,
           agent_busy: controls.agent_busy ?? current.agent_busy,
+          switching_provider: controls.switching_provider ?? current.switching_provider,
           queued_messages: controls.queued_messages ?? current.queued_messages,
           chat: {
             ...current.chat,
@@ -313,12 +314,13 @@ type ChatControlsPayload = {
   turn_in_flight: boolean
   agent_busy?: boolean
   stop_requested_at: string | null
+  switching_provider?: boolean
   queued_messages?: ChatQueuedMessage[]
 }
 
 type ChatHeaderPayload = {
   action: "update_header"
-  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd">>
+  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "chat_provider" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd">>
 }
 
 type ChatBookmarkPayload = {
@@ -370,6 +372,7 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
     turn_in_flight: candidate.turn_in_flight,
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
     stop_requested_at: candidate.stop_requested_at,
+    switching_provider: typeof candidate.switching_provider === "boolean" ? candidate.switching_provider : undefined,
     queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
   }
 }
@@ -386,6 +389,7 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   if (typeof chat.title === "string" || chat.title === null) updates.title = chat.title
   if (typeof chat.title_pending === "boolean") updates.title_pending = chat.title_pending
   if (typeof chat.pinned_context === "string" || chat.pinned_context === null) updates.pinned_context = chat.pinned_context
+  if (typeof chat.chat_provider === "string") updates.chat_provider = chat.chat_provider
   if (isChatRepository(chat.repository) || chat.repository === null) updates.repository = chat.repository
   if (typeof chat.stop_requested_at === "string" || chat.stop_requested_at === null) updates.stop_requested_at = chat.stop_requested_at
   if (typeof chat.cumulative_input_tokens === "number") updates.cumulative_input_tokens = chat.cumulative_input_tokens

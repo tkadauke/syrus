@@ -235,6 +235,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       title_pending: false,
       pinned: false,
       pinned_context: null,
+      chat_provider: "claude",
       chat_path: `/chats/shared/${payload.chat.id}`,
       repository: null,
       stop_requested_at: null,
@@ -245,6 +246,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     chat_available: false,
     turn_in_flight: false,
     agent_busy: false,
+    switching_provider: false,
     has_more_older: false,
     messages: payload.messages,
     bookmarks: [],
@@ -269,7 +271,8 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_stop_path: "",
       app_bookmarks_path: "",
       app_attachments_path: "",
-      app_whiteboard_path: ""
+      app_whiteboard_path: "",
+      app_switch_provider_path: ""
     }
   }
 }
@@ -550,7 +553,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{payload.chat.repository ? "Start a chat with this repository." : "Ask anything, or attach a repository for code context."}</div>
-          {agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+          {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       </div>
@@ -577,7 +580,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
           <ChatMessage item={item} key={renderItemKey(item)} payload={payload} pendingActionIds={pendingActionIds} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         ))}
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
-        {agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+        {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
       </div>
       {newMessageCount > 0 ? (
         <button
@@ -680,6 +683,26 @@ function AgentActivityIndicator({ running }: { running: boolean }) {
           ))}
         </span>
         <span title={phrase.english}>{phrase.latin}</span>
+      </div>
+    </div>
+  )
+}
+
+function SwitchingProviderIndicator({ provider }: { provider: string }) {
+  const label = `Switching to ${providerLabel(provider)}…`
+  return (
+    <div aria-label={label} aria-live="polite" className="flex justify-start" role="status">
+      <div className="inline-flex items-center gap-2 rounded-full border border-amber-100 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <span aria-hidden="true" className="inline-flex items-center gap-1">
+          {[0, 1, 2].map((index) => (
+            <span
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-500 dark:bg-amber-300"
+              key={index}
+              style={{ animationDelay: `${index * 140}ms` }}
+            />
+          ))}
+        </span>
+        <span>{label}</span>
       </div>
     </div>
   )
@@ -805,7 +828,7 @@ function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { type: "m
 }
 
 function isAgentActive(payload: ChatPayload) {
-  return payload.agent_busy || payload.turn_in_flight
+  return payload.agent_busy || payload.turn_in_flight || payload.switching_provider
 }
 
 function isMessageStreamAtBottom(element: HTMLElement) {
@@ -2449,7 +2472,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             if (clearConfirmationOpen) setClearConfirmationOpen(false)
           }}
           onKeyDown={handleKeyDown}
-          placeholder={agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
+          placeholder={payload.switching_provider ? `Switching to ${providerLabel(payload.chat.chat_provider)}…` : agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
           ref={textareaRef}
           required
           rows={1}
@@ -2459,7 +2482,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
           <button aria-label={agentActive ? "Enqueue message" : "Send message"} className={`${primaryButton()} inline-flex items-center justify-center`} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">
             {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}
           </button>
-          {agentActive ? <StopButton payload={payload} queryKey={queryKey} /> : null}
+          {agentActive && !payload.switching_provider ? <StopButton payload={payload} queryKey={queryKey} /> : null}
         </div>
       </div>
       </form>
@@ -3374,6 +3397,7 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
     }
   })
 
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" role="presentation">
       <section aria-modal="true" aria-labelledby="chat-settings-title" className="w-full max-w-md rounded border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="dialog">
@@ -3419,6 +3443,12 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
       </section>
     </div>
   )
+}
+
+function providerLabel(provider: string) {
+  if (provider === "claude") return "Claude"
+  if (provider === "codex") return "Codex"
+  return provider
 }
 
 type WhiteboardBoundaryState = {
