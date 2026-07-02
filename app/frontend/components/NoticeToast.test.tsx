@@ -33,4 +33,26 @@ describe("NoticeToast", () => {
 
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
+
+  it("does not auto-dismiss when persistent", () => {
+    vi.useFakeTimers()
+    const onDismiss = vi.fn()
+    render(<NoticeToast persistent message="Connection lost — updates paused" onDismiss={onDismiss} />)
+
+    expect(screen.getByRole("status")).toHaveTextContent("Connection lost — updates paused")
+
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(onDismiss).not.toHaveBeenCalled()
+  })
+
+  it("still allows manual dismissal when persistent", () => {
+    const onDismiss = vi.fn()
+    render(<NoticeToast persistent message="Connection lost — updates paused" onDismiss={onDismiss} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }))
+
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
 })

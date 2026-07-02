@@ -65,4 +65,53 @@ describe("subscribeToAppEvents", () => {
     expect(invalidate).toHaveBeenCalledTimes(1)
     expect(invalidate).toHaveBeenCalledWith()
   })
+
+  it("calls onConnectionChange(false) on disconnect after first connect, not before", () => {
+    const queryClient = new QueryClient()
+    const onConnectionChange = vi.fn()
+    let connected: (() => void) | undefined
+    let disconnected: (() => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          connected = mixin.connected
+          disconnected = mixin.disconnected
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    subscribeToAppEvents(queryClient, consumer, onConnectionChange)
+
+    disconnected?.()
+    expect(onConnectionChange).not.toHaveBeenCalled()
+
+    connected?.()
+    disconnected?.()
+    expect(onConnectionChange).toHaveBeenCalledTimes(1)
+    expect(onConnectionChange).toHaveBeenCalledWith(false)
+  })
+
+  it("calls onConnectionChange(true) on reconnect but not initial connect", () => {
+    const queryClient = new QueryClient()
+    const onConnectionChange = vi.fn()
+    let connected: (() => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          connected = mixin.connected
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    subscribeToAppEvents(queryClient, consumer, onConnectionChange)
+
+    connected?.()
+    expect(onConnectionChange).not.toHaveBeenCalled()
+
+    connected?.()
+    expect(onConnectionChange).toHaveBeenCalledTimes(1)
+    expect(onConnectionChange).toHaveBeenCalledWith(true)
+  })
 })

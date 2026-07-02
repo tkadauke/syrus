@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsRoute } from "../components/Notifications"
 import { useAppEvents } from "../lib/useAppEvents"
 import { AdminConsole } from "./AdminConsole"
@@ -123,10 +124,30 @@ const appRouteDefinitions: AppRouteDefinition[] = [
 ]
 
 export function App() {
-  useAppEvents()
+  const { isDisconnected, justReconnected, clearReconnected } = useAppEvents()
   const initialBootstrap = readInitialBootstrap()
 
-  return <AppShell initialBootstrap={initialBootstrap} />
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+  useEffect(() => {
+    if (isDisconnected) setBannerDismissed(false)
+  }, [isDisconnected])
+
+  return (
+    <>
+      <AppShell initialBootstrap={initialBootstrap} />
+      {isDisconnected && !bannerDismissed ? (
+        <NoticeToast persistent onDismiss={() => setBannerDismissed(true)}>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+            Connection lost — updates paused
+          </span>
+        </NoticeToast>
+      ) : null}
+      {justReconnected ? (
+        <NoticeToast onDismiss={clearReconnected} message="Reconnected — data refreshed" />
+      ) : null}
+    </>
+  )
 }
 
 function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {

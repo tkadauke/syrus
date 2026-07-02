@@ -3,14 +3,14 @@ import { CloseIcon } from "./CloseIcon"
 
 const AUTO_DISMISS_DELAY_MS = 10_000
 
-export function NoticeToast({ children, message, onDismiss }: { children?: ReactNode; message?: ReactNode | null; onDismiss: () => void }) {
+export function NoticeToast({ children, message, onDismiss, persistent }: { children?: ReactNode; message?: ReactNode | null; onDismiss: () => void; persistent?: boolean }) {
   const content = children ?? message
   useEffect(() => {
-    if (!content) return
+    if (!content || persistent) return
 
     const timeout = window.setTimeout(onDismiss, AUTO_DISMISS_DELAY_MS)
     return () => window.clearTimeout(timeout)
-  }, [content, onDismiss])
+  }, [content, onDismiss, persistent])
 
   if (!content) return null
 

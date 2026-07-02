@@ -4,7 +4,8 @@ import { applyAppEvent, type AppEvent } from "./appEvents"
 
 export function subscribeToAppEvents(
   queryClient: QueryClient,
-  consumer: Consumer = createConsumer()
+  consumer: Consumer = createConsumer(),
+  onConnectionChange?: (connected: boolean) => void
 ): Subscription {
   let everConnected = false
 
@@ -12,10 +13,17 @@ export function subscribeToAppEvents(
     { channel: "AppUserChannel" },
     {
       connected() {
-        if (everConnected) {
+        const wasConnected = everConnected
+        if (wasConnected) {
           void queryClient.invalidateQueries()
+          onConnectionChange?.(true)
         }
         everConnected = true
+      },
+      disconnected() {
+        if (everConnected) {
+          onConnectionChange?.(false)
+        }
       },
       received(data: unknown) {
         applyAppEvent(queryClient, data as AppEvent)
