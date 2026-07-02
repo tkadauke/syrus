@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
-import { Fragment, type FormEvent, type ReactNode } from "react"
+import { type FormEvent, type ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
+import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { CloseIcon } from "../components/CloseIcon"
@@ -107,7 +108,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
           <span> · updated {formatRelative(payload.epic.updated_at)}</span>
         </p>
 
-        {payload.state_transitions.length > 0 || payload.epic.claimable ? (
+        {(payload.state_transitions.length > 0 || payload.epic.claimable || !payload.epic.archived) ? (
           <div className="flex flex-wrap items-center gap-2">
             {payload.epic.claimable && payload.epic.owner_status === "unclaimed" ? (
               <button
@@ -129,21 +130,12 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
                 Unclaim
               </button>
             ) : null}
-            {payload.state_transitions.map((transition) => (
-              <Fragment key={transition.target_state}>
-                {transition.target_state === "archived" && !payload.epic.archived ? (
-                  <Link className={secondaryButton()} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>Edit</Link>
-                ) : null}
-                <button
-                  className={secondaryButton()}
-                  disabled={command.isPending}
-                  onClick={() => runTransition(transition)}
-                  type="button"
-                >
-                  {transition.label}
-                </button>
-              </Fragment>
-            ))}
+            {!payload.epic.archived ? (
+              <Link className={primaryButton()} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>Edit</Link>
+            ) : null}
+            {payload.state_transitions.length > 0 ? (
+              <EpicActionsMenu disabled={command.isPending} onTransition={runTransition} transitions={payload.state_transitions} />
+            ) : null}
           </div>
         ) : null}
 
@@ -657,8 +649,60 @@ function PanelMessage({ children, tone = "success" }: { children: ReactNode; ton
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
+function primaryButton() {
+  return "rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500"
+}
+
 function secondaryButton() {
   return "rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+}
+
+function EpicActionsMenu({
+  disabled,
+  onTransition,
+  transitions
+}: {
+  disabled: boolean
+  onTransition: (transition: EpicStateTransition) => void
+  transitions: EpicStateTransition[]
+}) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="More actions"
+        className={secondaryButton()}
+        disabled={disabled}
+        onClick={() => setOpen((prev) => !prev)}
+        type="button"
+      >
+        ⋯
+      </button>
+      {open ? (
+        <div className="absolute left-0 z-20 mt-2 w-48 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
+          {transitions.map((transition) => (
+            <button
+              className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
+              disabled={disabled}
+              key={transition.target_state}
+              onClick={() => {
+                setOpen(false)
+                onTransition(transition)
+              }}
+              role="menuitem"
+              type="button"
+            >
+              {transition.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function humanize(value: string) {
