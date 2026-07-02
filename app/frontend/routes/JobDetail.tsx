@@ -485,7 +485,7 @@ function CommandButton({ children, command, input, tone = "primary" }: { childre
   )
 }
 
-function TagsPanel({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
+function TagsPanel({ payload, command, embedded = false }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; embedded?: boolean }) {
   const [tagName, setTagName] = useState("")
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -493,35 +493,47 @@ function TagsPanel({ payload, command }: { payload: JobDetailPayload; command: R
     command.mutate({ method: "post", path: payload.paths.app_tags_path, body: { tag_name: tagName } }, { onSuccess: () => setTagName("") })
   }
 
+  const content = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Tags</h2>
+        {payload.tags.length > 0 ? payload.tags.map((tag) => (
+          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
+            {tag.name}
+            <button
+              aria-label={`Remove ${tag.name}`}
+              className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300"
+              disabled={command.isPending}
+              onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_tags_path}/${tag.id}` })}
+              title={`Remove ${tag.name}`}
+              type="button"
+            >
+              <CloseIcon className="h-3 w-3" />
+            </button>
+          </span>
+        )) : <span className="text-sm text-gray-400 dark:text-gray-500">No tags yet.</span>}
+      </div>
+      <form className="flex items-center gap-2" onSubmit={submit}>
+        <input className="w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder="Add tag" required value={tagName} />
+        <datalist id="job-tag-options">
+          {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
+        </datalist>
+        <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
+      </form>
+    </div>
+  )
+
+  if (embedded) {
+    return (
+      <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+        {content}
+      </div>
+    )
+  }
+
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Tags</h2>
-          {payload.tags.length > 0 ? payload.tags.map((tag) => (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
-              {tag.name}
-              <button
-                aria-label={`Remove ${tag.name}`}
-                className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300"
-                disabled={command.isPending}
-                onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_tags_path}/${tag.id}` })}
-                title={`Remove ${tag.name}`}
-                type="button"
-              >
-                <CloseIcon className="h-3 w-3" />
-              </button>
-            </span>
-          )) : <span className="text-sm text-gray-400 dark:text-gray-500">No tags yet.</span>}
-        </div>
-        <form className="flex items-center gap-2" onSubmit={submit}>
-          <input className="w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder="Add tag" required value={tagName} />
-          <datalist id="job-tag-options">
-            {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
-          </datalist>
-          <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
-        </form>
-      </div>
+      {content}
     </section>
   )
 }
@@ -576,40 +588,48 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
       <RetryStatePanel payload={payload} />
       {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} prefix={prefix} /> : null}
 
-      <section className="grid gap-4 rounded border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4 dark:border-gray-700 dark:bg-gray-900">
-        <KeyValue label="Owner"><JobOwnerLabel payload={payload} prefix={prefix} /></KeyValue>
-        <KeyValue label="Priority"><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
-        <KeyValue label="Validity"><span className="capitalize">{payload.job.validity}</span></KeyValue>
-        {payload.epic ? <KeyValue label="Epic"><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
-        <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name || "-"}</code></KeyValue>
-        <KeyValue label="Stack base"><StackBaseForm command={command} payload={payload} /></KeyValue>
-        <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue>
-        <KeyValue label="Cost">{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} billed)</span></KeyValue>
-        <KeyValue label="Started">{formatDate(payload.job.started_at)}</KeyValue>
-        <KeyValue label="Closed">{payload.job.finished_at ? `${formatDate(payload.job.finished_at)} (${payload.job.closure_reason || "unspecified"})` : "still open"}</KeyValue>
-      </section>
+      <div className="grid gap-4 lg:grid-cols-[62%_38%]">
+        <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Issue</h2>
+              {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No issue body.</p>}
+            </section>
+            <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent summary</h2>
+              {payload.summary ? <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{payload.summary.text}</p> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No summary yet.</p>}
+            </section>
+          </div>
 
-      <TagsPanel command={command} payload={payload} />
+          <TestPlanPanel testPlan={payload.test_plan} />
 
-      <DependenciesPanel command={command} payload={payload} prefix={prefix} />
+          <FeedbackHistoryPanel prefix={prefix} workflows={payload.workflows} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Issue</h2>
-          {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No issue body.</p>}
-        </section>
-        <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent summary</h2>
-          {payload.summary ? <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{payload.summary.text}</p> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No summary yet.</p>}
-        </section>
+          <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} />
+          <AttachmentPreview attachments={payload.attachments} />
+        </div>
+
+        <div className="space-y-4">
+          <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Details</h2>
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+              <KeyValue label="Owner"><JobOwnerLabel payload={payload} prefix={prefix} /></KeyValue>
+              <KeyValue label="Priority"><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
+              <KeyValue label="Validity"><span className="capitalize">{payload.job.validity}</span></KeyValue>
+              {payload.epic ? <KeyValue label="Epic"><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
+              <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name || "-"}</code></KeyValue>
+              <KeyValue label="Stack base"><StackBaseForm command={command} payload={payload} /></KeyValue>
+              <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue>
+              <KeyValue label="Cost">{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} billed)</span></KeyValue>
+              <KeyValue label="Started">{formatDate(payload.job.started_at)}</KeyValue>
+              <KeyValue label="Closed">{payload.job.finished_at ? `${formatDate(payload.job.finished_at)} (${payload.job.closure_reason || "unspecified"})` : "still open"}</KeyValue>
+            </div>
+            <TagsPanel embedded command={command} payload={payload} />
+          </section>
+
+          <DependenciesPanel command={command} payload={payload} prefix={prefix} />
+        </div>
       </div>
-
-      <TestPlanPanel testPlan={payload.test_plan} />
-
-      <FeedbackHistoryPanel prefix={prefix} workflows={payload.workflows} />
-
-      <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} />
-      <AttachmentPreview attachments={payload.attachments} />
     </div>
   )
 }
@@ -793,7 +813,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
   }
 
   return (
-    <section className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
         <h2 className="font-semibold text-gray-900 dark:text-gray-100">Dependencies</h2>
         {payload.dependencies.length > 0 ? (
@@ -830,7 +850,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
           </ul>
         ) : <p className="mt-2 text-gray-400 dark:text-gray-500">No dependent Jobs.</p>}
       </div>
-    </section>
+    </div>
   )
 }
 
