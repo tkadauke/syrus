@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 import type { EpicDetailJob } from "../api/epics"
-import { ProgressBar, StateChips } from "./EpicDetail"
+import { JobsSection, ProgressBar, StateChips } from "./EpicDetail"
 
 function job(state: string): EpicDetailJob {
   return { id: Math.random(), label: "JOB-1", title: "A job", path: "/jobs/1", state, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" }
@@ -69,5 +70,49 @@ describe("StateChips", () => {
     render(<StateChips jobs={[job("merged")]} />)
     expect(screen.queryByText(/open/i)).not.toBeInTheDocument()
     expect(screen.getByText("1 Merged")).toBeInTheDocument()
+  })
+})
+
+describe("JobsSection", () => {
+  it("renders an Add Job link in the header pointing to the new-job form", () => {
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={[]} newJobPath="/jobs/new?repository_id=42" prefix="" />
+      </MemoryRouter>
+    )
+    const link = screen.getByRole("link", { name: "+ Add Job" })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute("href", "/jobs/new?repository_id=42")
+  })
+
+  it("prefixes the Add Job link when inside app-shell", () => {
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={[]} newJobPath="/jobs/new?repository_id=7" prefix="/app-shell" />
+      </MemoryRouter>
+    )
+    const link = screen.getByRole("link", { name: "+ Add Job" })
+    expect(link).toHaveAttribute("href", "/app-shell/jobs/new?repository_id=7")
+  })
+
+  it("renders a state pill for each job row", () => {
+    const jobs = [job("open"), job("merged"), job("approved")]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+    expect(screen.getByText("Open")).toBeInTheDocument()
+    expect(screen.getByText("Merged")).toBeInTheDocument()
+    expect(screen.getByText("Approved")).toBeInTheDocument()
+  })
+
+  it("shows the empty state when there are no jobs", () => {
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={[]} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+    expect(screen.getByText("No Jobs in this Epic.")).toBeInTheDocument()
   })
 })

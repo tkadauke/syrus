@@ -164,7 +164,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
             </section>
           ) : null}
-          <JobsSection jobs={payload.jobs} prefix={prefix} />
+          <JobsSection jobs={payload.jobs} newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}`} prefix={prefix} />
           <DependencyGraph graph={payload.graph} />
           <HistorySection versions={payload.versions || []} />
         </div>
@@ -474,14 +474,15 @@ function DiffValue({ label, multiline = false, value }: { label: string; multili
   )
 }
 
-function JobsSection({ jobs, prefix }: { jobs: EpicDetailJob[]; prefix: string }) {
+export function JobsSection({ jobs, newJobPath, prefix }: { jobs: EpicDetailJob[]; newJobPath: string; prefix: string }) {
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <h2 className="font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
+        <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(newJobPath, prefix)}>+ Add Job</Link>
       </div>
       {jobs.length > 0 ? (
-        <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
+        <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-700">
           {jobs.map((job) => (
             <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={job.id}>
               <div className="min-w-0">
