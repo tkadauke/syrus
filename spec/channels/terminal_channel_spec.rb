@@ -126,17 +126,18 @@ RSpec.describe TerminalChannel, type: :channel do
     expect(transmissions).to include({ "type" => "disconnected" })
   end
 
-  it "base64-encodes relay output for the browser" do
+  it "forwards output frames from the relay to the browser" do
     enable_terminal
     session = terminal_session
     reader_socket = double("reader socket", puts: nil, close: nil)
 
+    frame = { type: "output", data: Base64.strict_encode64("hello\x00".b) }.to_json + "\n"
     reads = 0
     allow(reader_socket).to receive(:read_nonblock).with(4096) do
       reads += 1
       raise EOFError if reads > 1
 
-      "hello\x00".b
+      frame
     end
     allow(TCPSocket).to receive(:new).and_return(reader_socket)
 
@@ -145,6 +146,30 @@ RSpec.describe TerminalChannel, type: :channel do
 
     expect(transmissions).to include(
       { "type" => "output", "data" => Base64.strict_encode64("hello\x00".b) },
+      { "type" => "disconnected" }
+    )
+  end
+
+  it "forwards replay frames from the relay to the browser" do
+    enable_terminal
+    session = terminal_session
+    reader_socket = double("reader socket", puts: nil, close: nil)
+
+    frame = { type: "replay", data: Base64.strict_encode64("scrollback".b) }.to_json + "\n"
+    reads = 0
+    allow(reader_socket).to receive(:read_nonblock).with(4096) do
+      reads += 1
+      raise EOFError if reads > 1
+
+      frame
+    end
+    allow(TCPSocket).to receive(:new).and_return(reader_socket)
+
+    subscribe(session_id: session.id)
+    subscription.instance_variable_get(:@relay_thread).join(1)
+
+    expect(transmissions).to include(
+      { "type" => "replay", "data" => Base64.strict_encode64("scrollback".b) },
       { "type" => "disconnected" }
     )
   end

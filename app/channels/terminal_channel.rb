@@ -53,9 +53,19 @@ class TerminalChannel < ApplicationCable::Channel
 
   def stream_from_relay
     @relay_thread = Thread.new do
+      buffer = +""
       loop do
         chunk = @relay_socket.read_nonblock(RELAY_READ_SIZE)
-        transmit({ type: "output", data: Base64.strict_encode64(chunk) })
+        buffer << chunk
+        while (idx = buffer.index("\n"))
+          line = buffer.slice!(0, idx + 1).chomp
+          next if line.empty?
+          begin
+            transmit(JSON.parse(line))
+          rescue JSON::ParserError
+            next
+          end
+        end
       rescue IO::WaitReadable
         IO.select([ @relay_socket ], nil, nil, RELAY_SELECT_TIMEOUT)
         retry

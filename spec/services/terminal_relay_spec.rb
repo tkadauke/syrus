@@ -1,6 +1,7 @@
 require "rails_helper"
 require "socket"
 require "timeout"
+require "base64"
 
 RSpec.describe TerminalRelay do
   RELAY_READY_TIMEOUT = 15
@@ -85,6 +86,22 @@ RSpec.describe TerminalRelay do
     end
   end
 
+  def read_json_frame(io)
+    buffer = +""
+    Timeout.timeout(2) do
+      loop do
+        ready = IO.select([ io ], nil, nil, 0.05)
+        if ready
+          chunk = io.read_nonblock(16 * 1024)
+          buffer << chunk
+          if (idx = buffer.index("\n"))
+            return JSON.parse(buffer[0..idx])
+          end
+        end
+      end
+    end
+  end
+
   def relay_for_host
     described_class.new(session: session, command: [ "bash" ], env: {})
   end
@@ -107,18 +124,23 @@ RSpec.describe TerminalRelay do
     end
   end
 
-  it "accepts the auth token and relays bytes bidirectionally" do
+  it "accepts the auth token and relays output as JSON frames" do
     relay, child_output_write, pty_input_read, = build_relay
     thread = run_relay(relay)
     thread[:terminal_relay_spec] = true
     socket = connect_and_auth
 
-    child_output_write.write("from pty")
-    expect(read_available(socket)).to eq("from pty")
-
+    # Sync: send input and wait for it to reach pty_input_read, confirming
+    # the connection thread has joined @connections and any subsequent PTY
+    # output will arrive as a live "output" frame rather than a replay frame.
     socket.write({ type: "input", data: "from tcp" }.to_json)
     socket.write("\n")
     expect(read_available(pty_input_read)).to eq("from tcp")
+
+    child_output_write.write("from pty")
+    frame = read_json_frame(socket)
+    expect(frame["type"]).to eq("output")
+    expect(Base64.decode64(frame["data"])).to eq("from pty")
 
     socket.close
     thread.join(2)
@@ -163,7 +185,9 @@ RSpec.describe TerminalRelay do
     expect(read_available(pty_input_read)).to eq("from second client")
 
     child_output_write.write("after reconnect")
-    expect(read_available(second_socket)).to eq("after reconnect")
+    frame = read_json_frame(second_socket)
+    expect(frame["type"]).to eq("output")
+    expect(Base64.decode64(frame["data"])).to eq("after reconnect")
 
     pty_alive = false
     second_socket.close
@@ -261,6 +285,178 @@ RSpec.describe TerminalRelay do
     socket&.close unless socket&.closed?
     child_output_write&.close unless child_output_write&.closed?
     pty_input_read&.close unless pty_input_read&.closed?
+  end
+
+  it "broadcasts PTY output to all simultaneous clients" do
+    relay, child_output_write, pty_input_read, = build_relay
+    allow(relay).to receive(:pty_alive?).with(pid).and_return(true)
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    socket1 = connect_and_auth
+    socket2 = connect_and_auth
+
+    # Sync: confirm both sockets are in @connections before writing PTY output,
+    # so both receive "output" frames rather than replay frames.
+    socket1.write({ type: "input", data: "s1" }.to_json + "\n")
+    socket2.write({ type: "input", data: "s2" }.to_json + "\n")
+    Timeout.timeout(2) do
+      buf = +""
+      until buf.include?("s1") && buf.include?("s2")
+        ready = IO.select([ pty_input_read ], nil, nil, 0.05)
+        buf << pty_input_read.read_nonblock(16 * 1024) if ready
+      end
+    end
+
+    child_output_write.write("broadcast")
+    frame1 = read_json_frame(socket1)
+    frame2 = read_json_frame(socket2)
+
+    expect(frame1["type"]).to eq("output")
+    expect(Base64.decode64(frame1["data"])).to eq("broadcast")
+    expect(frame2["type"]).to eq("output")
+    expect(Base64.decode64(frame2["data"])).to eq("broadcast")
+
+    socket1.close
+    socket2.close
+    thread.join(2)
+  ensure
+    socket1&.close unless socket1&.closed?
+    socket2&.close unless socket2&.closed?
+    child_output_write&.close unless child_output_write&.closed?
+    pty_input_read&.close unless pty_input_read&.closed?
+  end
+
+  it "sends the scrollback buffer as a replay frame to a late-joining client" do
+    relay, child_output_write, _, = build_relay
+    allow(relay).to receive(:pty_alive?).with(pid).and_return(true)
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    socket1 = connect_and_auth
+
+    child_output_write.write("scrollback data")
+    read_json_frame(socket1)  # Drain socket1 so scrollback is appended
+
+    socket2 = connect_and_auth
+    replay = read_json_frame(socket2)
+
+    expect(replay["type"]).to eq("replay")
+    expect(Base64.decode64(replay["data"])).to eq("scrollback data")
+
+    socket1.close
+    socket2.close
+    thread.join(2)
+  ensure
+    socket1&.close unless socket1&.closed?
+    socket2&.close unless socket2&.closed?
+    child_output_write&.close unless child_output_write&.closed?
+  end
+
+  it "routes input from any connected client to the PTY" do
+    relay, _, pty_input_read, = build_relay
+    allow(relay).to receive(:pty_alive?).with(pid).and_return(true)
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    socket1 = connect_and_auth
+    socket2 = connect_and_auth
+
+    socket1.write({ type: "input", data: "from socket1" }.to_json)
+    socket1.write("\n")
+    expect(read_available(pty_input_read)).to eq("from socket1")
+
+    socket2.write({ type: "input", data: "from socket2" }.to_json)
+    socket2.write("\n")
+    expect(read_available(pty_input_read)).to eq("from socket2")
+
+    socket1.close
+    socket2.close
+    thread.join(2)
+  ensure
+    socket1&.close unless socket1&.closed?
+    socket2&.close unless socket2&.closed?
+    pty_input_read&.close unless pty_input_read&.closed?
+  end
+
+  it "applies the minimum of all connected clients' sizes when resizing" do
+    relay, _, _, pty_in = build_relay
+    allow(relay).to receive(:pty_alive?).with(pid).and_return(true)
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    socket1 = connect_and_auth
+    socket2 = connect_and_auth
+
+    socket1.write({ type: "resize", cols: 100, rows: 30 }.to_json)
+    socket1.write("\n")
+    Timeout.timeout(2) { sleep 0.01 until pty_in.winsize_calls.any? }
+    expect(pty_in.winsize_calls.last).to eq([ 30, 100 ])
+
+    socket2.write({ type: "resize", cols: 80, rows: 24 }.to_json)
+    socket2.write("\n")
+    Timeout.timeout(2) { sleep 0.01 until pty_in.winsize_calls.size >= 2 }
+    expect(pty_in.winsize_calls.last).to eq([ 24, 80 ])
+
+    socket1.close
+    socket2.close
+    thread.join(2)
+  ensure
+    socket1&.close unless socket1&.closed?
+    socket2&.close unless socket2&.closed?
+  end
+
+  it "recomputes minimum terminal size when a client disconnects" do
+    relay, child_output_write, _, pty_in = build_relay
+    pty_alive = true
+    allow(relay).to receive(:pty_alive?).with(pid) { pty_alive }
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    socket1 = connect_and_auth
+    socket2 = connect_and_auth
+
+    socket1.write({ type: "resize", cols: 80, rows: 24 }.to_json)
+    socket1.write("\n")
+    socket2.write({ type: "resize", cols: 100, rows: 30 }.to_json)
+    socket2.write("\n")
+    Timeout.timeout(2) { sleep 0.01 until pty_in.winsize_calls.size >= 2 }
+
+    socket1.close
+    Timeout.timeout(2) { sleep 0.01 until pty_in.winsize_calls.size >= 3 }
+    expect(pty_in.winsize_calls.last).to eq([ 30, 100 ])
+
+    child_output_write.write("after disconnect")
+    frame = read_json_frame(socket2)
+    expect(frame["type"]).to eq("output")
+    expect(Base64.decode64(frame["data"])).to eq("after disconnect")
+
+    pty_alive = false
+    socket2.close
+    thread.join(2)
+    expect(session.reload).to be_finished
+  ensure
+    socket1&.close unless socket1&.closed?
+    socket2&.close unless socket2&.closed?
+    child_output_write&.close unless child_output_write&.closed?
+  end
+
+  it "waits for all clients to disconnect before applying the reconnect timeout" do
+    stub_const("#{described_class}::RECONNECT_TIMEOUT", 0.1)
+    relay, _, _, = build_relay
+    allow(relay).to receive(:pty_alive?).with(pid).and_return(true)
+    thread = run_relay(relay)
+    thread[:terminal_relay_spec] = true
+    socket1 = connect_and_auth
+    socket2 = connect_and_auth
+
+    socket1.close
+    sleep 0.05
+    expect(thread).to be_alive
+
+    socket2.close
+    thread.join(2)
+    expect(thread).not_to be_alive
+    expect(session.reload).to be_finished
+    expect(session.outcome).to eq("exited")
+  ensure
+    socket1&.close unless socket1&.closed?
+    socket2&.close unless socket2&.closed?
   end
 
   it "uses SYRUS_TERMINAL_HOST when set" do
