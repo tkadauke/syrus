@@ -22,16 +22,6 @@ const SIDEBAR_WIDTH_KEY = "syrus.sidebar.width"
 const SIDEBAR_DEFAULT_WIDTH = 240
 const SIDEBAR_MIN_WIDTH = 208
 const SIDEBAR_MAX_WIDTH = 420
-const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
-const PUBLILIUS_SYRUS_QUOTES = [
-  "A rolling stone gathers no moss.",
-  "A good reputation is more valuable than money.",
-  "It is a bad plan that admits of no modification.",
-  "No one knows what he can do until he tries.",
-  "Practice is the best of all instructors.",
-  "The fear of death is more to be dreaded than death itself.",
-  "Where there is unity there is always victory."
-]
 
 export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNode; initialBootstrap: BootstrapPayload | null }) {
   const location = useLocation()
@@ -50,8 +40,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
-  const quote = useMemo(randomPubliliusSyrusQuote, [])
-  const showQuote = !normalizedPath.startsWith("/chats") && !normalizedPath.startsWith("/terminal")
   const showDashboardSidebarSubjects = Boolean(data?.feature_flags?.v2_sidebar_subject_selector)
   const inOnboarding = Boolean(data?.setup && !data.setup.complete)
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
@@ -254,24 +242,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         ) : (
           pageContent
         )}
-        {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
       {user ? <BugReportButton context={bugReportContext(location.pathname)} position="bottom-right" /> : null}
     </div>
-  )
-}
-
-function randomPubliliusSyrusQuote() {
-  return PUBLILIUS_SYRUS_QUOTES[Math.floor(Math.random() * PUBLILIUS_SYRUS_QUOTES.length)]
-}
-
-function PubliliusSyrusFooter({ quote }: { quote: string }) {
-  return (
-    <footer className="mx-auto hidden max-w-[96rem] px-6 py-8 text-center text-xs text-gray-500 dark:text-gray-400 lg:block">
-      <a className="hover:text-blue-600 hover:underline dark:hover:text-blue-300" href={PUBLILIUS_SYRUS_WIKIPEDIA_URL} rel="noopener" target="_blank">
-        {quote}
-      </a>
-    </footer>
   )
 }
 

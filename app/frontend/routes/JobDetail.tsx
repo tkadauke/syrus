@@ -478,41 +478,56 @@ function CommandButton({ children, command, input, tone = "primary" }: { childre
   )
 }
 
-function TagsPanel({ payload, command, embedded = false }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; embedded?: boolean }) {
+function TagsPanel({ payload, command, embedded = false, canManageTags }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; embedded?: boolean; canManageTags: boolean }) {
   const [tagName, setTagName] = useState("")
+  const [addingTag, setAddingTag] = useState(false)
+
+  if (payload.tags.length === 0 && !canManageTags) return null
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    command.mutate({ method: "post", path: payload.paths.app_tags_path, body: { tag_name: tagName } }, { onSuccess: () => setTagName("") })
+    command.mutate(
+      { method: "post", path: payload.paths.app_tags_path, body: { tag_name: tagName } },
+      { onSuccess: () => { setTagName(""); setAddingTag(false) } }
+    )
   }
 
   const content = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-2">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Tags</h2>
-        {payload.tags.length > 0 ? payload.tags.map((tag) => (
+        {payload.tags.map((tag) => (
           <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
             {tag.name}
-            <button
-              aria-label={`Remove ${tag.name}`}
-              className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300"
-              disabled={command.isPending}
-              onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_tags_path}/${tag.id}` })}
-              title={`Remove ${tag.name}`}
-              type="button"
-            >
-              <CloseIcon className="h-3 w-3" />
-            </button>
+            {canManageTags ? (
+              <button
+                aria-label={`Remove ${tag.name}`}
+                className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300"
+                disabled={command.isPending}
+                onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_tags_path}/${tag.id}` })}
+                title={`Remove ${tag.name}`}
+                type="button"
+              >
+                <CloseIcon className="h-3 w-3" />
+              </button>
+            ) : null}
           </span>
-        )) : <span className="text-sm text-gray-400 dark:text-gray-500">No tags yet.</span>}
+        ))}
       </div>
-      <form className="flex items-center gap-2" onSubmit={submit}>
-        <input className="w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder="Add tag" required value={tagName} />
-        <datalist id="job-tag-options">
-          {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
-        </datalist>
-        <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
-      </form>
+      {canManageTags ? (
+        addingTag ? (
+          <form className="flex items-center gap-2" onSubmit={submit}>
+            <input className="w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder="Add tag" required value={tagName} />
+            <datalist id="job-tag-options">
+              {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
+            </datalist>
+            <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
+            <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingTag(false)} type="button">Cancel</button>
+          </form>
+        ) : (
+          <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingTag(true)} type="button">+ Add tag</button>
+        )
+      ) : null}
     </div>
   )
 
@@ -596,7 +611,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
 
           <FeedbackHistoryPanel prefix={prefix} workflows={payload.workflows} />
 
-          <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} />
+          <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} runsCount={payload.job.runs_count} />
           <AttachmentPreview attachments={payload.attachments} />
         </div>
 
@@ -616,7 +631,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
               <KeyValue label="Started">{formatDate(payload.job.started_at)}</KeyValue>
               {payload.job.finished_at ? <KeyValue label="Closed">{formatDate(payload.job.finished_at)} ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
             </div>
-            <TagsPanel embedded command={command} payload={payload} />
+            <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </section>
 
           <DependenciesPanel command={command} payload={payload} prefix={prefix} />
@@ -627,19 +642,15 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
 }
 
 export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
+  if (!testPlan || (testPlan.steps.length === 0 && !testPlan.notes)) return null
+
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Test plan</h2>
-      {testPlan ? (
-        <>
-          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
-            {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
-          </ol>
-          {testPlan.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{testPlan.notes}</p> : null}
-        </>
-      ) : (
-        <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No test plan yet.</p>
-      )}
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
+        {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+      </ol>
+      {testPlan.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{testPlan.notes}</p> : null}
     </section>
   )
 }
@@ -903,7 +914,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
   )
 }
 
-function TimelinePanel({ canView, jobId, prefix }: { canView: boolean; jobId: number; prefix: string }) {
+function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: boolean; jobId: number; prefix: string; runsCount: number }) {
   const [expanded, setExpanded] = useState(false)
   const timeline = useQuery({
     queryKey: ["jobs", String(jobId), "timeline"],
@@ -914,44 +925,48 @@ function TimelinePanel({ canView, jobId, prefix }: { canView: boolean; jobId: nu
   if (!canView) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Timeline</h2>
-        <button
-          aria-expanded={expanded}
-          className="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-          onClick={() => setExpanded((value) => !value)}
-          type="button"
-        >
-          {expanded ? "Hide timeline" : "Show timeline"}
-        </button>
-      </div>
-      {expanded && timeline.isPending ? <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">Loading timeline...</p> : null}
-      {expanded && timeline.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), "Unable to load timeline.")}</p> : null}
-      {expanded && timeline.data && timeline.data.events.length > 0 ? (
-        <ol className="mt-3 space-y-3">
-          {timeline.data.events.map((event, index) => (
-            <li className="border-l border-gray-200 pl-3 text-sm dark:border-gray-700" key={`${event.at}-${event.title}-${index}`}>
-              <div className="font-medium text-gray-900 dark:text-gray-100">
-                {event.workflow_path ? (
-                  <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
-                ) : event.title}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {formatDate(event.at)} · {event.source}
-                {event.ref_label ? (
-                  <>
-                    {" · "}
+    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <button
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-2 p-4 text-left text-sm font-semibold text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+        onClick={() => setExpanded((value) => !value)}
+        type="button"
+      >
+        <svg aria-hidden="true" className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
+          <path clipRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 0 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" fillRule="evenodd" />
+        </svg>
+        Timeline <span className="font-normal text-gray-500 dark:text-gray-400">({runsCount} {plural(runsCount, "run")})</span>
+      </button>
+      {expanded ? (
+        <div className="border-t border-gray-100 px-4 pb-4 dark:border-gray-800">
+          {timeline.isPending ? <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">Loading timeline...</p> : null}
+          {timeline.isError ? <p className="mt-3 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), "Unable to load timeline.")}</p> : null}
+          {timeline.data && timeline.data.events.length > 0 ? (
+            <ol className="mt-3 space-y-3">
+              {timeline.data.events.map((event, index) => (
+                <li className="border-l border-gray-200 pl-3 text-sm dark:border-gray-700" key={`${event.at}-${event.title}-${index}`}>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">
                     {event.workflow_path ? (
-                      <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.ref_label}</Link>
-                    ) : event.ref_label}
-                  </>
-                ) : null}
-              </div>
-              {event.detail ? <div className="mt-1 text-gray-600 dark:text-gray-300">{event.detail}</div> : null}
-            </li>
-          ))}
-        </ol>
+                      <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
+                    ) : event.title}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {formatDate(event.at)} · {event.source}
+                    {event.ref_label ? (
+                      <>
+                        {" · "}
+                        {event.workflow_path ? (
+                          <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.ref_label}</Link>
+                        ) : event.ref_label}
+                      </>
+                    ) : null}
+                  </div>
+                  {event.detail ? <div className="mt-1 text-gray-600 dark:text-gray-300">{event.detail}</div> : null}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
       ) : null}
     </section>
   )

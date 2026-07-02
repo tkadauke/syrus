@@ -659,6 +659,7 @@ module App
         can_unclaim: @job.claimed_by_user_id == @user.id,
         can_override_dependencies: @user.admin?,
         can_view_timeline: @user.admin?,
+        can_manage_tags: @job.user_id == @user.id,
         feedback_agent_options: @job.alternate_configured_agent_providers,
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers

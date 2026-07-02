@@ -325,6 +325,7 @@ export type JobActions = {
   can_unclaim: boolean
   can_override_dependencies: boolean
   can_view_timeline: boolean
+  can_manage_tags: boolean
   feedback_agent_options: string[]
   rebase_agent_options: string[]
   retry_agent_options: string[]

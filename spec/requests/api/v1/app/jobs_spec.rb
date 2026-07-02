@@ -251,6 +251,7 @@ RSpec.describe "App API job detail", type: :request do
     expect(body.dig("actions", "can_claim")).to eq(true)
     expect(body.dig("actions", "can_unclaim")).to eq(false)
     expect(body.dig("actions", "can_view_timeline")).to eq(false)
+    expect(body.dig("actions", "can_manage_tags")).to eq(true)
     expect(body.dig("paths", "app_poll_feedback_path")).to eq("/api/v1/app/jobs/#{job.id}/poll_feedback")
     expect(body.dig("paths", "app_claim_path")).to eq("/api/v1/app/jobs/#{job.id}/claim")
     expect(body.dig("paths", "app_source_path")).to eq("/api/v1/app/jobs/#{job.id}/source")

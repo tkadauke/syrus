@@ -555,7 +555,6 @@ describe("App", () => {
     script.textContent = JSON.stringify(payload)
     document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockRejectedValue(new Error("unexpected fetch"))
-    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0)
 
     try {
       render(
@@ -582,18 +581,11 @@ describe("App", () => {
       expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(accountNav).getByRole("button", { name: "Sign out" })).toBeInTheDocument()
-      const footer = screen.getByRole("contentinfo")
-      const quoteLink = within(footer).getByRole("link", { name: "A rolling stone gathers no moss." })
-      expect(footer).toHaveClass("hidden", "lg:block")
-      expect(quoteLink).toHaveAttribute("href", "https://en.wikipedia.org/wiki/Publilius_Syrus")
-      expect(quoteLink).toHaveAttribute("target", "_blank")
-      expect(quoteLink).toHaveAttribute("rel", "noopener")
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/chats",
         expect.objectContaining({ credentials: "same-origin" })
       )
     } finally {
-      randomSpy.mockRestore()
       script.remove()
     }
   })
@@ -1922,7 +1914,7 @@ describe("App", () => {
     }
   })
 
-  it("omits the quote footer on chat routes", async () => {
+  it("renders the chat route", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -1942,7 +1934,6 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
-      expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/chats/8",
         expect.objectContaining({
@@ -9186,8 +9177,9 @@ describe("App", () => {
     expect(screen.getByText(/In landing queue: position #1/)).toHaveTextContent("waiting for epic siblings to be approved")
     expect(screen.getByRole("link", { name: "#43 Approve sibling aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/43")
     expect(screen.getByRole("link", { name: "acme/widgets JOB-44 (closed)" })).toHaveAttribute("href", "/app-shell/jobs/44")
-    expect(screen.queryByRole("button", { name: "Show timeline" })).not.toBeInTheDocument()
-    expect(screen.getByPlaceholderText("Add tag")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Timeline/ })).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("Add tag")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "+ Add tag" })).toBeInTheDocument()
     expect(screen.getByText("Unclaimed")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Claim" }))
@@ -9403,19 +9395,19 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("button", { name: "Show timeline" })).toHaveAttribute("aria-expanded", "false")
+    expect(await screen.findByRole("button", { name: "Timeline (1 run)" })).toHaveAttribute("aria-expanded", "false")
     expect(screen.queryByText("Workflow created")).not.toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalledWith(
       "/api/v1/app/jobs/42/timeline",
       expect.objectContaining({ credentials: "same-origin" })
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Show timeline" }))
+    fireEvent.click(screen.getByRole("button", { name: "Timeline (1 run)" }))
 
     expect(await screen.findByText("Workflow created")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Workflow created" })).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-5")
     expect(screen.getByRole("link", { name: "WF-5" })).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-5")
-    expect(screen.getByRole("button", { name: "Hide timeline" })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: "Timeline (1 run)" })).toHaveAttribute("aria-expanded", "true")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/jobs/42/timeline",
       expect.objectContaining({ credentials: "same-origin" })
@@ -9864,7 +9856,8 @@ describe("App", () => {
       expect(link).toHaveAttribute("href", "/app-shell/jobs/41")
     })
 
-    fireEvent.change(await screen.findByPlaceholderText("Add tag"), { target: { value: "urgent" } })
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add tag" }))
+    fireEvent.change(screen.getByPlaceholderText("Add tag"), { target: { value: "urgent" } })
     fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0])
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -15191,6 +15184,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       can_unclaim: false,
       can_override_dependencies: false,
       can_view_timeline: false,
+      can_manage_tags: true,
       feedback_agent_options: [],
       rebase_agent_options: [],
       retry_agent_options: []
