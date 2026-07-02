@@ -8819,7 +8819,8 @@ describe("App", () => {
     expect(screen.getByText("Dependency graph").closest("details")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
     expect(document.querySelector("[data-controller='mermaid-graph']")).toBeNull()
     expect(screen.getByText("Survey forum")).toBeInTheDocument()
-    expect(screen.getByText("1/1 done")).toBeInTheDocument()
+    expect(screen.getByRole("progressbar")).toBeInTheDocument()
+    expect(screen.getByText("1 Closed")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }))
 

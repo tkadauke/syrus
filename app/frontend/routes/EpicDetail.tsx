@@ -147,14 +147,17 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-            {payload.summary.done_jobs_count}/{payload.summary.total_jobs_count} done
-          </span>
-          <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
-            {payload.summary.dependency_edge_count} {payload.summary.dependency_edge_count === 1 ? "dep" : "deps"}
-          </span>
-          {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason || "Blocked"}</span> : null}
+        <div className="space-y-2">
+          <ProgressBar jobs={payload.jobs} totalCount={payload.summary.total_jobs_count} />
+          <div className="flex flex-wrap items-center gap-2">
+            <StateChips jobs={payload.jobs} />
+            {payload.summary.dependency_edge_count > 0 ? (
+              <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
+                {payload.summary.dependency_edge_count} {payload.summary.dependency_edge_count === 1 ? "dep" : "deps"}
+              </span>
+            ) : null}
+            {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason || "Blocked"}</span> : null}
+          </div>
         </div>
       </header>
 
@@ -507,6 +510,60 @@ function JobsSection({ jobs, prefix }: { jobs: EpicDetailJob[]; prefix: string }
         <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">No Jobs in this Epic.</p>
       )}
     </section>
+  )
+}
+
+export function ProgressBar({ jobs, totalCount }: { jobs: EpicDetailJob[]; totalCount: number }) {
+  const doneCount = jobs.filter((job) => job.state === "merged" || job.state === "approved").length
+  const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
+
+  return (
+    <div aria-label={`${doneCount} of ${totalCount} jobs done`} aria-valuemax={totalCount} aria-valuemin={0} aria-valuenow={doneCount} className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar">
+      <div className="h-2 rounded-full bg-blue-500 transition-[width]" style={{ width: `${percent}%` }} />
+    </div>
+  )
+}
+
+const STATE_CHIP_ORDER = ["open", "triaging", "implemented", "approved", "landing", "merged", "blocked_by_epic", "landing_failed", "closed", "preempted", "pending"]
+
+const STATE_CHIP_STYLES: Record<string, string> = {
+  open: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
+  triaging: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-200",
+  implemented: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-200",
+  approved: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200",
+  landing: "bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-200",
+  merged: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
+  blocked_by_epic: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200",
+  landing_failed: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-200",
+  closed: "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100",
+  preempted: "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-200",
+  pending: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+}
+
+export function StateChips({ jobs }: { jobs: EpicDetailJob[] }) {
+  const counts = new Map<string, number>()
+  for (const job of jobs) {
+    counts.set(job.state, (counts.get(job.state) || 0) + 1)
+  }
+  if (counts.size === 0) return null
+
+  const sortedStates = [...counts.keys()].sort((a, b) => {
+    const ai = STATE_CHIP_ORDER.indexOf(a)
+    const bi = STATE_CHIP_ORDER.indexOf(b)
+    if (ai === -1 && bi === -1) return a.localeCompare(b)
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+
+  return (
+    <>
+      {sortedStates.map((state) => (
+        <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATE_CHIP_STYLES[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`} key={state}>
+          {counts.get(state)} {humanize(state)}
+        </span>
+      ))}
+    </>
   )
 }
 
