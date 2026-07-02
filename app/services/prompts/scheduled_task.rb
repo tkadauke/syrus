@@ -40,7 +40,7 @@ module Prompts
     end
 
     def to_s
-      [ preamble, interpolated_user_prompt, footer, GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].join("\n\n")
+      [ preamble, interpolated_user_prompt, footer, memory_context, GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].compact_blank.join("\n\n")
     end
 
     private
@@ -74,6 +74,10 @@ module Prompts
         - Last successful fire: #{@task.last_successful_fire_at&.utc&.iso8601 || 'never'}
         - Last PR: #{last_pr_summary}
       TXT
+    end
+
+    def memory_context
+      Prompts::MemoryContext.new(user: @task.user, repository_ids: [ @task.repository_id ]).to_s.presence
     end
 
     def interpolated_user_prompt

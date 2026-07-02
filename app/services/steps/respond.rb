@@ -42,7 +42,9 @@ module Steps
         cutoff: cutoff,
         prior_summaries: prior_feedback_summaries(%w[pr_comment]),
         recent_commits: recent_branch_commits,
-        epic: job.epic
+        epic: job.epic,
+        user: job.user,
+        repository_ids: [ job.repository_id ]
       ).to_s
     end
 

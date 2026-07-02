@@ -23,7 +23,12 @@ module Api
 
           workflow = job.workflows.where(state: "queued", trigger_kind: "initial").order(:created_at).first ||
                      Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
-          rendered_prompt = Prompts::DirectJob.new(prompt: job.issue_body.to_s).to_s
+          rendered_prompt = Prompts::DirectJob.new(
+            prompt: job.issue_body.to_s,
+            epic: job.epic,
+            user: job.user,
+            repository_ids: [ job.repository_id ]
+          ).to_s
           StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
 
           render_job(job.reload, message: "Initial workflow enqueued.", changed: [ "workflows", "runs" ], tab: "workflows")
