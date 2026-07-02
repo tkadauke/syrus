@@ -42,7 +42,7 @@ type CommandInput =
   | { method: "post"; path: string; body?: unknown; confirm?: string }
   | { method: "patch"; path: string; body?: unknown; confirm?: string }
   | { method: "delete"; path: string; confirm?: string }
-type ButtonTone = "primary" | "secondary" | "success" | "danger"
+type ButtonTone = "primary" | "secondary" | "success" | "danger" | "danger-outline"
 type HeaderAction = {
   key: string
   label: string
@@ -752,11 +752,12 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
 }
 
 function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+  const count = payload.unsatisfied_dependencies.length
   return (
     <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <span className="font-medium">Waiting on {payload.unsatisfied_dependencies.length} {plural(payload.unsatisfied_dependencies.length, "dependency")}.</span>
+          <span className="font-medium">Blocked on {count > 1 ? `${count} dependencies` : ""}:</span>
           <span className="ml-2 inline-flex flex-wrap gap-x-2 gap-y-1">
             {payload.unsatisfied_dependencies.map((dependency, index) => (
               <span key={dependency.id}>
@@ -765,9 +766,10 @@ function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDet
               </span>
             ))}
           </span>
+          <span className="ml-1">— this job will start automatically once {count === 1 ? "that PR merges" : "those PRs merge"}.</span>
         </div>
         {payload.actions.can_override_dependencies ? (
-          <CommandButton command={command} input={{ method: "post", path: payload.paths.app_dependency_override_path, confirm: "Bypass dependency checks for this Job?" }} tone="secondary">
+          <CommandButton command={command} input={{ method: "post", path: payload.paths.app_dependency_override_path, confirm: "Bypass dependency checks for this Job?" }} tone="danger-outline">
             Override and force-run
           </CommandButton>
         ) : null}
@@ -809,10 +811,14 @@ function PullRequestSummary({ payload }: { payload: JobDetailPayload }) {
 
 function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   const [target, setTarget] = useState("")
+  const [addingDependency, setAddingDependency] = useState(false)
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    command.mutate({ method: "post", path: payload.paths.app_dependencies_path, body: { dependency_target: target } }, { onSuccess: () => setTarget("") })
+    command.mutate({ method: "post", path: payload.paths.app_dependencies_path, body: { dependency_target: target } }, { onSuccess: () => {
+      setTarget("")
+      setAddingDependency(false)
+    }})
   }
 
   return (
@@ -829,20 +835,27 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
             ))}
           </ul>
         ) : <p className="mt-2 text-gray-400 dark:text-gray-500">No dependencies.</p>}
-        <form className="mt-3 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800" onSubmit={submit}>
-          <label className="min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            Dependency
-            <select className="mt-1 w-full min-w-64 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setTarget(event.target.value)} required value={target}>
-              <option value="">Select a Job or issue</option>
-              {payload.dependency_target_options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
-        </form>
+        {addingDependency ? (
+          <form className="mt-3 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800" onSubmit={submit}>
+            <label className="min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              Dependency
+              <select className="mt-1 w-full min-w-64 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setTarget(event.target.value)} required value={target}>
+                <option value="">Select a Job or issue</option>
+                {payload.dependency_target_options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
+            <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingDependency(false)} type="button">Cancel</button>
+          </form>
+        ) : (
+          <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingDependency(true)} type="button">+ Add dependency</button>
+          </div>
+        )}
       </div>
-      <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{payload.dependents.length} other {plural(payload.dependents.length, "Job")} depend on this one</h2>
-        {payload.dependents.length > 0 ? (
+      {payload.dependents.length > 0 ? (
+        <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+          <h2 className="font-semibold text-gray-900 dark:text-gray-100">{payload.dependents.length} other {plural(payload.dependents.length, "Job")} depend on this one</h2>
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependents.map((dependent) => (
               <li className="flex flex-wrap items-center gap-2 py-2" key={dependent.id}>
@@ -851,8 +864,8 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
               </li>
             ))}
           </ul>
-        ) : <p className="mt-2 text-gray-400 dark:text-gray-500">No dependent Jobs.</p>}
-      </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -2086,7 +2099,8 @@ function buttonClass(tone: ButtonTone) {
     primary: "bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400",
     secondary: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800",
     success: "bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400",
-    danger: "bg-red-600 text-white hover:bg-red-500 dark:bg-red-500 dark:hover:bg-red-400"
+    danger: "bg-red-600 text-white hover:bg-red-500 dark:bg-red-500 dark:hover:bg-red-400",
+    "danger-outline": "border border-red-300 bg-white text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/30"
   }
   return `${base} ${tones[tone]}`
 }
@@ -2096,7 +2110,8 @@ function menuButtonClass(tone: ButtonTone) {
     primary: "text-blue-700 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-950/40",
     secondary: "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
     success: "text-emerald-700 hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950/40",
-    danger: "text-red-700 hover:bg-red-50 dark:text-red-200 dark:hover:bg-red-950/40"
+    danger: "text-red-700 hover:bg-red-50 dark:text-red-200 dark:hover:bg-red-950/40",
+    "danger-outline": "text-red-700 hover:bg-red-50 dark:text-red-200 dark:hover:bg-red-950/40"
   }
   return `block w-full px-4 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone]}`
 }
