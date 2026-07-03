@@ -9888,8 +9888,7 @@ describe("App", () => {
     })
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add dependency" }))
-    fireEvent.change(screen.getByLabelText("Dependency"), { target: { value: "issue:3:11" } })
-    fireEvent.click(screen.getAllByRole("button", { name: "Add" })[1])
+    fireEvent.click(screen.getByRole("button", { name: "acme/widgets #11 - Build hill (JOB-41)" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/jobs/42/dependencies",

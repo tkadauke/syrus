@@ -810,15 +810,24 @@ function PullRequestSummary({ payload }: { payload: JobDetailPayload }) {
 }
 
 function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
-  const [target, setTarget] = useState("")
+  const [query, setQuery] = useState("")
   const [addingDependency, setAddingDependency] = useState(false)
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    command.mutate({ method: "post", path: payload.paths.app_dependencies_path, body: { dependency_target: target } }, { onSuccess: () => {
-      setTarget("")
+  const trimmedQuery = query.trim()
+  const filteredOptions = trimmedQuery.length > 0
+    ? payload.dependency_target_options.filter((option) => option.label.toLowerCase().includes(trimmedQuery.toLowerCase()))
+    : payload.dependency_target_options
+
+  function choose(value: string) {
+    command.mutate({ method: "post", path: payload.paths.app_dependencies_path, body: { dependency_target: value } }, { onSuccess: () => {
+      setQuery("")
       setAddingDependency(false)
     }})
+  }
+
+  function cancelAdding() {
+    setQuery("")
+    setAddingDependency(false)
   }
 
   return (
@@ -836,17 +845,41 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
           </ul>
         ) : <p className="mt-2 text-gray-400 dark:text-gray-500">No dependencies.</p>}
         {addingDependency ? (
-          <form className="mt-3 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800" onSubmit={submit}>
-            <label className="min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              Dependency
-              <select className="mt-1 w-full min-w-64 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setTarget(event.target.value)} required value={target}>
-                <option value="">Select a Job or issue</option>
-                {payload.dependency_target_options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+          <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              Search Jobs or issues
+              <div className="relative mt-1">
+                <input
+                  aria-autocomplete="list"
+                  autoFocus
+                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                  disabled={command.isPending}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Type to search..."
+                  type="search"
+                  value={query}
+                />
+                {filteredOptions.length > 0 ? (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {filteredOptions.map((option) => (
+                      <button
+                        className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                        disabled={command.isPending}
+                        key={option.value}
+                        onClick={() => choose(option.value)}
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : trimmedQuery.length > 0 ? (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">No matches</div>
+                ) : null}
+              </div>
             </label>
-            <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
-            <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingDependency(false)} type="button">Cancel</button>
-          </form>
+            <button className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={cancelAdding} type="button">Cancel</button>
+          </div>
         ) : (
           <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
             <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingDependency(true)} type="button">+ Add dependency</button>
