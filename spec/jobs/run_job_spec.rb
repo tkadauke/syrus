@@ -859,6 +859,9 @@ RSpec.describe RunJob do
         headers: { "Content-Type" => "application/json" },
         body: { id: 1 }.to_json
       )
+      stub_request(:delete, "https://api.github.com/repos/acme/widgets/git/refs/heads/#{branch_name}").to_return(
+        status: 204, body: ""
+      )
 
       RunJob.agent_runner = ->(workspace_path:, **_) {
         current = Run.last
