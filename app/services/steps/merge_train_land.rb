@@ -31,6 +31,7 @@ module Steps
       merged = merge.respond_to?(:merged) ? merge.merged : merge[:merged]
       raise StepFailed, "merge_train: GitHub did not report the integration PR as merged" unless merged
 
+      client.delete_branch(repository.slug, train.integration_branch)
       reconcile_members!(train, client, pr)
 
       train.update!(state: "succeeded", finished_at: Time.current)
@@ -60,6 +61,10 @@ module Steps
           client.close_pull_request(repository.slug, member_job.pr_number)
         end
         member_job.close_with_reason!("pr_merged") if member_job.open?
+        if member_job.branch_name.present?
+          client.delete_branch(repository.slug, member_job.branch_name)
+          member_job.update_column(:branch_deleted_at, Time.current)
+        end
         member.update!(state: "merged")
       end
     end

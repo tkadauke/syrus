@@ -164,6 +164,23 @@ class GithubClient
     raise
   end
 
+  # Deletes a branch ref. 422 (protected branch) and 404 (branch never
+  # existed or already gone) are suppressed and logged as warnings —
+  # GitHub may have auto-deleted the branch after merge. Octokit's
+  # delete_branch uses boolean_from_response, which catches 404
+  # internally and returns false; 422 raises Octokit::UnprocessableEntity.
+  def delete_branch(repo_slug, branch_name)
+    deleted = @client.delete_branch(repo_slug, branch_name)
+    unless deleted
+      Rails.logger.warn("[GithubClient] #{@user&.email_address} could not delete #{repo_slug}@#{branch_name} (branch not found or already deleted)")
+    end
+  rescue Octokit::UnprocessableEntity => e
+    Rails.logger.warn("[GithubClient] #{@user&.email_address} could not delete #{repo_slug}@#{branch_name} (suppressed): #{e.message}")
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user&.email_address} rate-limited deleting #{repo_slug}@#{branch_name}: #{e.message}")
+    raise
+  end
+
   def merge_pull_request(repo_slug, pr_number, commit_title:, merge_method:)
     track_rate_limits do
       @client.merge_pull_request(

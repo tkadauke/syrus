@@ -38,6 +38,7 @@ RSpec.describe Steps::AutoMerge do
     allow(client).to receive(:pr_issue_comments).and_return([])
     allow(client).to receive(:pr_commits).and_return([])
     allow(client).to receive(:branch_head_sha).and_return("base")
+    allow(client).to receive(:delete_branch)
   end
 
   def octokit_error(error_class, status:, message:)
@@ -383,5 +384,32 @@ RSpec.describe Steps::AutoMerge do
 
     expect(run.reload).to be_running
     expect(workflow.reload).to be_running
+  end
+
+  describe "branch deletion after merge" do
+    before do
+      job.approve!(via: "github_review")
+      job.start_landing!
+      job.save!
+      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+      allow(client).to receive(:add_issue_comment)
+      allow(client).to receive(:delete_branch)
+    end
+
+    it "deletes the branch and stamps branch_deleted_at after a successful merge" do
+      described_class.new(run).call
+
+      expect(client).to have_received(:delete_branch).with("acme/widgets", "syrus/issue-42-1")
+      expect(job.reload.branch_deleted_at).to be_present
+    end
+
+    it "skips delete_branch when branch_name is absent" do
+      job.update!(branch_name: nil)
+
+      described_class.new(run).call
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(job.reload.branch_deleted_at).to be_nil
+    end
   end
 end

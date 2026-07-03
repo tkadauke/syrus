@@ -63,6 +63,10 @@ class PollPullRequestJob < ApplicationJob
     end
     @job.close_with_reason!(reason)
     StackRebaseCoordinator.parent_closed(@job) if reason == "pr_closed"
+    if reason == "pr_merged" && @job.branch_name.present?
+      @client.delete_branch(@slug, @job.branch_name)
+      @job.update_column(:branch_deleted_at, Time.current)
+    end
   end
 
   def closed_pull_request_reason

@@ -197,6 +197,7 @@ RSpec.describe "Steps::MergeTrain*" do
       allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
       allow(client).to receive(:add_issue_comment)
       allow(client).to receive(:close_pull_request)
+      allow(client).to receive(:delete_branch)
     end
 
     it "opens + merges an integration PR atomically, closes member PRs, and marks Jobs merged" do
@@ -219,6 +220,37 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(b.reload).to be_closed
       expect(train.reload.state).to eq("succeeded")
       expect(train.members.pluck(:state).uniq).to eq([ "merged" ])
+    end
+
+    it "deletes the integration branch and each member branch after landing" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+
+      handler.call
+
+      expect(client).to have_received(:delete_branch).with("acme/widgets", train.integration_branch)
+      expect(client).to have_received(:delete_branch).with("acme/widgets", a.branch_name)
+      expect(client).to have_received(:delete_branch).with("acme/widgets", b.branch_name)
+      expect(a.reload.branch_deleted_at).to be_present
+      expect(b.reload.branch_deleted_at).to be_present
+    end
+
+    it "skips member branch deletion when branch_name is absent" do
+      a = member_job(issue_number: 1)
+      a.update!(branch_name: nil)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_land", train, a)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+
+      handler.call
+
+      expect(client).not_to have_received(:delete_branch).with("acme/widgets", nil)
+      expect(a.reload.branch_deleted_at).to be_nil
     end
 
     it "fails landing when GitHub does not report the integration PR merged" do

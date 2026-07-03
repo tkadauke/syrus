@@ -546,4 +546,46 @@ RSpec.describe GithubClient do
       end
     end
   end
+
+  describe "#delete_branch" do
+    let(:client) { GithubClient.for_user(user) }
+    let(:delete_url) { "https://api.github.com/repos/acme/widgets/git/refs/heads/syrus/issue-42-1" }
+
+    it "calls the GitHub delete ref API for the branch" do
+      stub = stub_request(:delete, delete_url).to_return(status: 204, body: "")
+      client.delete_branch("acme/widgets", "syrus/issue-42-1")
+      expect(stub).to have_been_requested
+    end
+
+    it "suppresses 422 UnprocessableEntity and logs a warning" do
+      stub_request(:delete, delete_url).to_return(
+        status: 422,
+        headers: { "Content-Type" => "application/json" },
+        body: { message: "Reference cannot be deleted" }.to_json
+      )
+      expect(Rails.logger).to receive(:warn).with(/could not delete/)
+      expect { client.delete_branch("acme/widgets", "syrus/issue-42-1") }.not_to raise_error
+    end
+
+    it "suppresses 404 NotFound and logs a warning" do
+      stub_request(:delete, delete_url).to_return(
+        status: 404,
+        headers: { "Content-Type" => "application/json" },
+        body: { message: "Not Found" }.to_json
+      )
+      allow(Rails.logger).to receive(:warn)
+      expect { client.delete_branch("acme/widgets", "syrus/issue-42-1") }.not_to raise_error
+      expect(Rails.logger).to have_received(:warn).with(/could not delete/)
+    end
+
+    it "re-raises TooManyRequests and logs a warning" do
+      stub_request(:delete, delete_url).to_return(
+        status: 403,
+        headers: { "Content-Type" => "application/json", "x-ratelimit-remaining" => "0" },
+        body: { message: "API rate limit exceeded" }.to_json
+      )
+      expect(Rails.logger).to receive(:warn).with(/rate-limited deleting/)
+      expect { client.delete_branch("acme/widgets", "syrus/issue-42-1") }.to raise_error(Octokit::TooManyRequests)
+    end
+  end
 end

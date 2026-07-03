@@ -74,6 +74,10 @@ module Steps
       comment = "Merged automatically by Syrus after approval and green checks. #{job.slug}: #{job_url}"
       client.add_issue_comment(repository.slug, job.pr_number, comment)
       job.close_with_reason!("pr_merged") if job.open?
+      if job.branch_name.present?
+        client.delete_branch(repository.slug, job.branch_name)
+        job.update_column(:branch_deleted_at, Time.current)
+      end
       log("auto_merge: merged PR ##{job.pr_number}")
     end
 

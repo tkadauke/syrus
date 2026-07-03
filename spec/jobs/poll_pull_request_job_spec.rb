@@ -23,6 +23,11 @@ RSpec.describe PollPullRequestJob do
       status: 200, headers: { "Content-Type" => "application/json" },
       body: { number: 42, title: "Add greeting", body: "We need a greeting helper." }.to_json
     )
+    # Allow branch deletion calls from the pr_merged close path (no-op 204 by default;
+    # individual tests override if they need to verify the call or test error paths).
+    stub_request(:delete, /api\.github\.com\/repos\/.*\/git\/refs\/heads\//).to_return(
+      status: 204, body: ""
+    )
   end
 
   def stub_pr(state: "open", merged: false, labels: [], head_sha: "deadbeef0000000000000000000000000000beef")
@@ -599,6 +604,42 @@ RSpec.describe PollPullRequestJob do
       expect { described_class.perform_now(job.id) }
         .to raise_error(Octokit::Forbidden)
       expect(user.reload).to be_gh_api_blocked
+    end
+  end
+
+  describe "branch deletion on merge" do
+    let(:branch_name) { job.branch_name }
+    let(:delete_ref_url) { "https://api.github.com/repos/acme/widgets/git/refs/heads/#{branch_name}" }
+
+    it "deletes the branch and stamps branch_deleted_at when the PR is merged" do
+      stub_pr(state: "closed", merged: true)
+      delete_stub = stub_request(:delete, delete_ref_url).to_return(status: 204, body: "")
+
+      described_class.perform_now(job.id)
+
+      expect(delete_stub).to have_been_requested
+      expect(job.reload.branch_deleted_at).to be_present
+    end
+
+    it "does not delete the branch for other close reasons" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
+      stub_pr(state: "closed", merged: false)
+      delete_stub = stub_request(:delete, delete_ref_url).to_return(status: 204, body: "")
+
+      described_class.perform_now(job.id)
+
+      expect(delete_stub).not_to have_been_requested
+      expect(job.reload.branch_deleted_at).to be_nil
+    end
+
+    it "skips branch deletion when branch_name is absent" do
+      job.update!(branch_name: nil)
+      stub_pr(state: "closed", merged: true)
+      delete_stub = stub_request(:delete, /git\/refs\/heads/).to_return(status: 204, body: "")
+
+      described_class.perform_now(job.id)
+
+      expect(delete_stub).not_to have_been_requested
     end
   end
 end
