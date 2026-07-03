@@ -153,6 +153,85 @@ RSpec.describe WorkflowWorkspacePruneJob do
     described_class.perform_now
   end
 
+  # ---- db_sweep: branch deletion on failed workflow cleanup --------
+
+  def make_failed_workflow_with_branch(branch_name: "syrus/test-branch", branch_deleted_at: nil, job_state: "closed")
+    user = Factories.user
+    repo = Factories.repository(user: user)
+    job = Job.create!(
+      user: user,
+      owner_user: user,
+      repository: repo,
+      issue_number: 42,
+      branch_name: branch_name,
+      branch_deleted_at: branch_deleted_at
+    )
+    job.update_columns(state: job_state, finished_at: 1.hour.ago)
+    wf = Workflow.create!(job: job, trigger_kind: "initial", user: user)
+    wf.update_columns(
+      state: "failed",
+      finished_at: (described_class::RETAIN_AFTER_FAILURE + 1.day).ago
+    )
+    [job, wf]
+  end
+
+  it "db_sweep deletes the branch and stamps branch_deleted_at when a failed workflow is past retention and the job is closed with a branch" do
+    job, _wf = make_failed_workflow_with_branch
+    client = instance_double(GithubClient)
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow(client).to receive(:delete_branch)
+
+    described_class.perform_now
+
+    expect(client).to have_received(:delete_branch).with(job.repository.slug, job.branch_name)
+    expect(job.reload.branch_deleted_at).to be_present
+  end
+
+  it "db_sweep does not delete the branch when the job is not closed" do
+    job, _wf = make_failed_workflow_with_branch(job_state: "running")
+    client = instance_double(GithubClient)
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow(client).to receive(:delete_branch)
+
+    described_class.perform_now
+
+    expect(client).not_to have_received(:delete_branch)
+  end
+
+  it "db_sweep does not delete the branch when branch_deleted_at is already set" do
+    job, _wf = make_failed_workflow_with_branch(branch_deleted_at: 1.hour.ago)
+    client = instance_double(GithubClient)
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow(client).to receive(:delete_branch)
+
+    described_class.perform_now
+
+    expect(client).not_to have_received(:delete_branch)
+  end
+
+  it "db_sweep does not delete the branch when branch_name is blank" do
+    job, _wf = make_failed_workflow_with_branch(branch_name: nil)
+    client = instance_double(GithubClient)
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow(client).to receive(:delete_branch)
+
+    described_class.perform_now
+
+    expect(client).not_to have_received(:delete_branch)
+  end
+
+  it "db_sweep logs a warning and continues when delete_branch raises" do
+    job, _wf = make_failed_workflow_with_branch
+    client = instance_double(GithubClient)
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow(client).to receive(:delete_branch).and_raise(StandardError, "network failure")
+    allow(Rails.logger).to receive(:warn)
+
+    expect { described_class.perform_now }.not_to raise_error
+    expect(Rails.logger).to have_received(:warn).with(a_string_including("WorkflowWorkspacePrune"))
+    expect(job.reload.branch_deleted_at).to be_nil
+  end
+
   it "prunes chat workspaces idle past the retention window" do
     allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
     chat = ChatSession.create!(user: Factories.user, last_message_at: (described_class::RETAIN_CHAT_WORKSPACES + 1.day).ago)

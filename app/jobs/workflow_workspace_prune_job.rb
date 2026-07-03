@@ -47,6 +47,17 @@ class WorkflowWorkspacePruneJob < ApplicationJob
             .find_each do |wf|
       WorkflowWorkspace.cleanup_for(wf)
       n += 1
+
+      job = wf.job
+      if job.closed? && job.branch_name.present? && job.branch_deleted_at.nil?
+        begin
+          GithubClient.for(repository: job.repository, user: job.user)
+                      .delete_branch(job.repository.slug, job.branch_name)
+          job.update_column(:branch_deleted_at, Time.current)
+        rescue => e
+          Rails.logger.warn("[WorkflowWorkspacePrune] failed to delete branch #{job.repository.slug}@#{job.branch_name}: #{e.class}: #{e.message}")
+        end
+      end
     end
 
     Rails.logger.info("[WorkflowWorkspacePrune] db_sweep cleaned #{n} workflow workspaces") if n > 0
