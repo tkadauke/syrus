@@ -44,12 +44,14 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
       github_repository_id: 201
     )
     other_user = Factories.user(email_address: "teammate@example.com")
-    duplicate_slug = Factories.repository(
+    # Repos are globally unique by [owner, name]; other users connect via membership.
+    # Use a distinct name under the same owner to test that admin sees repos from all users.
+    other_user_repo = Factories.repository(
       user: other_user,
       owner: "globex",
-      name: "pat-repo",
+      name: "other-pat-repo",
       github_owner_id: 101,
-      github_repository_id: 201
+      github_repository_id: 202
     )
 
     get "/api/v1/app/admin/installations"
@@ -62,7 +64,7 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
     )
     app_row = body["repositories"].find { |repository| repository["id"] == app_repo.id }
     pat_row = body["repositories"].find { |repository| repository["id"] == pat_repo.id }
-    duplicate_row = body["repositories"].find { |repository| repository["id"] == duplicate_slug.id }
+    other_row = body["repositories"].find { |repository| repository["id"] == other_user_repo.id }
     expect(app_row).to include(
       "slug" => app_repo.slug,
       "owner_user" => include("id" => admin.id, "email_address" => admin.email_address),
@@ -75,14 +77,14 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
       "app_credential_active" => false,
       "credential_mode" => "pat"
     )
-    expect(duplicate_row).to include(
-      "slug" => "globex/pat-repo",
+    expect(other_row).to include(
+      "slug" => "globex/other-pat-repo",
       "owner_user" => include("id" => other_user.id, "email_address" => "teammate@example.com")
     )
     expect(body["pat_owner_groups"].first).to include(
       "owner" => "globex",
       "repository_count" => 2,
-      "install_url" => "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=101&repository_ids[]=201"
+      "install_url" => "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=101&repository_ids[]=202&repository_ids[]=201"
     )
   end
 

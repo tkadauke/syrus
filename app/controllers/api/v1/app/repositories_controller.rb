@@ -20,7 +20,7 @@ module Api
         end
 
         def new
-          render json: form_payload(Current.user.repositories.build(default_branch: "main", trigger_label: "syrus"))
+          render json: form_payload(Repository.new(default_branch: "main", trigger_label: "syrus"))
         end
 
         def edit
@@ -67,13 +67,29 @@ module Api
         end
 
         def create
-          repository = Current.user.repositories.build(repository_params)
+          attrs = repository_params
+          repository = Repository.find_or_initialize_by(
+            owner: attrs[:owner].to_s.strip,
+            name: attrs[:name].to_s.strip
+          )
 
-          if repository.save
-            render json: saved_payload(repository, message: "Repository #{repository.slug} added."), status: :created
+          if repository.new_record?
+            repository.assign_attributes(attrs)
+            repository.user = Current.user
+            unless repository.save
+              render_error("validation_failed", repository.errors.full_messages.to_sentence, status: :unprocessable_content)
+              return
+            end
+            repository.repository_memberships.create!(user: Current.user, role: "owner")
           else
-            render_error("validation_failed", repository.errors.full_messages.to_sentence, status: :unprocessable_content)
+            if repository.repository_memberships.exists?(user: Current.user)
+              render_error("validation_failed", "#{repository.slug} is already in your workspace.", status: :unprocessable_content)
+              return
+            end
+            repository.repository_memberships.create!(user: Current.user, role: "collaborator")
           end
+
+          render json: saved_payload(repository, message: "Repository #{repository.slug} added."), status: :created
         end
 
         def update
@@ -417,6 +433,8 @@ module Api
         end
 
         def owner_user_json(user)
+          return nil unless user
+
           {
             id: user.id,
             display_name: user.team_display_name,
@@ -550,7 +568,7 @@ module Api
         end
 
         def github_rate_limit_json(user)
-          return nil unless user.gh_rate_limit_observed_at
+          return nil unless user&.gh_rate_limit_observed_at
 
           {
             remaining: user.gh_rate_limit_remaining,

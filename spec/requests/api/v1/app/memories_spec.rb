@@ -5,7 +5,7 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
   let(:user) { Factories.user }
   let(:other) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
-  let(:other_repository) { Factories.repository(user: other, owner: "acme", name: "widgets") }
+  let(:other_repository) { Factories.repository(user: other, owner: "other-org", name: "widgets") }
 
   def parse_body = JSON.parse(response.body)
 

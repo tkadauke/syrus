@@ -33,6 +33,13 @@ class ChatAttachment < ApplicationRecord
 
     # This guards all attachment paths, including attached Epics consumed by
     # chat MCP tools, against attaching another user's resource by raw id.
+    # Repositories are globally unique and access-controlled via memberships;
+    # a user may attach any repository where they are a member.
+    if attachable.is_a?(Repository)
+      return if attachable.repository_memberships.exists?(user_id: chat_session.user_id)
+      return if attachable.user_id == chat_session.user_id
+    end
+
     errors.add(:attachable, "must belong to the chat session user") if attachable.user_id != chat_session.user_id
   end
 end

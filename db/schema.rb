@@ -657,13 +657,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
     t.string "upstream_default_branch"
     t.string "upstream_name"
     t.string "upstream_owner"
-    t.integer "user_id", null: false
+    t.bigint "upstream_repository_id"
+    t.integer "user_id"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
     t.index ["installation_id"], name: "index_repositories_on_installation_id"
-    t.index ["user_id", "owner", "name"], name: "index_repositories_on_user_id_and_owner_and_name", unique: true
+    t.index ["owner", "name"], name: "index_repositories_on_owner_and_name", unique: true
+    t.index ["upstream_repository_id"], name: "index_repositories_on_upstream_repository_id"
     t.index ["user_id"], name: "index_repositories_on_user_id"
+  end
+
+  create_table "repository_memberships", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.string "role", default: "owner", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["repository_id", "user_id"], name: "index_repository_memberships_on_repository_id_and_user_id", unique: true
+    t.index ["repository_id"], name: "index_repository_memberships_on_repository_id"
+    t.index ["user_id"], name: "index_repository_memberships_on_user_id"
   end
 
   create_table "run_diagnostics", force: :cascade do |t|
@@ -1065,7 +1078,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
   add_foreign_key "notifications", "jobs"
   add_foreign_key "notifications", "users"
   add_foreign_key "repositories", "installations"
+  add_foreign_key "repositories", "repositories", column: "upstream_repository_id"
   add_foreign_key "repositories", "users"
+  add_foreign_key "repository_memberships", "repositories"
+  add_foreign_key "repository_memberships", "users"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_failure_classifications", "runs"
   add_foreign_key "run_health_snapshots", "runs"

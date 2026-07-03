@@ -67,10 +67,10 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
     it "filters by repository and user email substring" do
       other_user = Factories.user(email_address: "someone@example.com")
       other_repo = Factories.repository(user: admin, owner: "tkadauke", name: "other")
-      other_user_same_repo = Factories.repository(user: other_user, owner: "tkadauke", name: "syrus-test")
+      other_user_repo = Factories.repository(user: other_user, owner: "tkadauke", name: "someone-fork")
       matching = ChatSession.create!(user: admin, repository: repository, title: "Matching")
       ChatSession.create!(user: admin, repository: other_repo, title: "Wrong repo")
-      ChatSession.create!(user: other_user, repository: other_user_same_repo, title: "Wrong user")
+      ChatSession.create!(user: other_user, repository: other_user_repo, title: "Wrong user")
 
       get "/api/v1/admin/chats",
           params: { repo: "tkadauke/syrus-test", user: "user-" },

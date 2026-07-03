@@ -74,8 +74,9 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
   end
 
-  it "allows two users to configure the same GitHub slug independently" do
-    Factories.repository(user: Factories.user, owner: "acme", name: "widgets")
+  it "adds the current user as collaborator when the same GitHub slug is already registered by another user" do
+    other_user = Factories.user
+    existing_repo = Factories.repository(user: other_user, owner: "acme", name: "widgets")
     sign_in_as(user)
 
     expect {
@@ -89,18 +90,45 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
           prepare_enabled: true
         }
       }
-    }.to change { user.repositories.where(owner: "acme", name: "widgets").count }.from(0).to(1)
+    }.to change(RepositoryMembership, :count).by(1)
+      .and change(Repository, :count).by(0)
 
     expect(response).to have_http_status(:created)
+    membership = existing_repo.repository_memberships.find_by(user: user)
+    expect(membership).not_to be_nil
+    expect(membership.role).to eq("collaborator")
+  end
+
+  it "creates an owner membership when registering a new repository" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/repositories", params: {
+        repository: {
+          owner: "acme",
+          name: "brandnew",
+          default_branch: "main",
+          trigger_label: "syrus",
+          polling_enabled: true,
+          prepare_enabled: true
+        }
+      }
+    }.to change(Repository, :count).by(1)
+      .and change(RepositoryMembership, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    repo = Repository.find_by(owner: "acme", name: "brandnew")
+    expect(repo.repository_memberships.find_by(user: user).role).to eq("owner")
     expect(parse_body.dig("repository", "owner_user")).to include(
       "id" => user.id,
       "email_address" => user.email_address
     )
   end
 
-  it "rejects duplicate GitHub slugs for the same user with a clear owner-scoped message" do
+  it "rejects a second connect attempt for the same user on the same repository" do
     sign_in_as(user)
-    Factories.repository(user: user, owner: "acme", name: "widgets")
+    existing_repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+    existing_repo.repository_memberships.create!(user: user, role: "owner")
 
     expect {
       post "/api/v1/app/repositories", params: {
@@ -113,12 +141,10 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
           prepare_enabled: true
         }
       }
-    }.not_to change(Repository, :count)
+    }.not_to change(RepositoryMembership, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include(
-      "Name has already been configured for this Syrus user and GitHub owner"
-    )
+    expect(parse_body.dig("error", "message")).to include("already in your workspace")
   end
 
   it "returns the new repository form payload" do

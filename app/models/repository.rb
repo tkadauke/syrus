@@ -12,8 +12,12 @@ class Repository < ApplicationRecord
   # logical-conflict risk for landing throughput. See Steps::ForcePush.
   attribute :trust_clean_rebase_grade, :boolean, default: false
 
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :installation, optional: true
+  belongs_to :upstream_repository, class_name: "Repository", optional: true, inverse_of: :fork_repositories
+  has_many :fork_repositories, class_name: "Repository", foreign_key: :upstream_repository_id, dependent: :nullify, inverse_of: :upstream_repository
+  has_many :repository_memberships, dependent: :destroy
+  has_many :members, through: :repository_memberships, source: :user
   has_many :jobs, dependent: :destroy
   has_many :epics, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
@@ -31,11 +35,10 @@ class Repository < ApplicationRecord
   validates :trigger_label, presence: true
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
   validates :name, uniqueness: {
-    scope: [ :user_id, :owner ],
+    scope: :owner,
     case_sensitive: false,
-    message: "has already been configured for this Syrus user and GitHub owner"
+    message: "has already been registered for this GitHub owner"
   }
-  validates :owner, uniqueness: { scope: [ :user_id, :name ], case_sensitive: false }
   validate :upstream_owner_and_name_are_paired
 
   before_validation :normalize_agent_provider

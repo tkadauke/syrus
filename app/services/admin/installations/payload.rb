@@ -34,7 +34,7 @@ module Admin
           slug: repository.slug,
           owner: repository.owner,
           name: repository.name,
-          owner_user: {
+          owner_user: repository.user && {
             id: repository.user.id,
             email_address: repository.user.email_address,
             admin: repository.user.admin?
