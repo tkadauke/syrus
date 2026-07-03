@@ -6,7 +6,7 @@ RSpec.describe Filters::Chips::Jobs::State do
 
   def job_in(state)
     job = Factories.job_record(user: user, repository: repository,
-                                issue_number: rand(100_000), state: state)
+                                issue_number: rand(1..100_000), state: state)
     job.update_column(:state, state) # in case the AASM machinery normalizes
     job
   end
