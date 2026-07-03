@@ -46,7 +46,7 @@ export function EpicDetailRoute() {
   })
 
   return (
-    <main aria-label="Epic" className="mx-auto max-w-6xl space-y-6 p-6">
+    <main aria-label="Epic" className="mx-auto max-w-[96rem] space-y-6 p-6">
       {epic.isPending ? <PanelMessage>Loading Epic...</PanelMessage> : null}
       {epic.isError ? <PanelMessage tone="error">{errorMessage(epic.error, "Unable to load Epic.")}</PanelMessage> : null}
       {epic.isSuccess ? <EpicDetail payload={epic.data} prefix={prefix} /> : null}
