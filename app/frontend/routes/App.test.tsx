@@ -9107,7 +9107,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Job" })).toBeInTheDocument()
-    expect(await screen.findByRole("heading", { level: 1, name: "Repair aqueduct" })).toHaveClass("dark:text-gray-100")
+    expect(await screen.findByRole("heading", { level: 1, name: /Repair aqueduct/ })).toHaveClass("dark:text-gray-100")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("target", "_blank")
@@ -9286,7 +9286,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Investigate viewport report" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { level: 1, name: /Investigate viewport report/ })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByText("Direct Job")).toBeInTheDocument()
     expect(screen.getAllByText("implemented").length).toBeGreaterThan(0)

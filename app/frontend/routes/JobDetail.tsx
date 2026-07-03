@@ -165,7 +165,11 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-start gap-3">
-              <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100"><PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} /></h1>
+              <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">
+                <CopyableSlug slug={jobSlug(payload.job.id)} />
+                <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
+                <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
+              </h1>
               <div className="mt-1.5 shrink-0"><JobStateBadge state={payload.job.summary_state} /></div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -178,8 +182,7 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
               {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-              <CopyableSlug slug={jobSlug(payload.job.id)} />
-              <span>· {payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")}</span>
+              <span>{payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")}</span>
               {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
               {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· prepare skipped</span> : null}
               {payload.job.source_chat ? (
