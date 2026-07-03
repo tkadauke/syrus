@@ -24,6 +24,7 @@ import {
   type EpicStateTransition
 } from "../api/epics"
 import { Markdown } from "../lib/Markdown"
+import { CopyableSlug } from "../components/CopyableSlug"
 
 let mermaidInitialized = false
 let mermaidInitializedTheme: "base" | "dark" | null = null
@@ -94,7 +95,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="break-words text-2xl font-bold text-gray-900 dark:text-gray-100">
-            <span className="font-mono">{payload.epic.display_number}</span>
+            <CopyableSlug slug={payload.epic.display_number} />
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             {payload.epic.title}
           </h1>
