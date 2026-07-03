@@ -1037,24 +1037,11 @@ module Api
         end
 
         def chat_activity_order_sql
-          <<~SQL.squish
-            CASE
-              WHEN chat_sessions.last_message_at IS NOT NULL
-                AND chat_sessions.last_message_at > chat_sessions.updated_at
-                AND chat_sessions.last_message_at > chat_sessions.created_at
-                THEN chat_sessions.last_message_at
-              WHEN chat_sessions.updated_at > chat_sessions.created_at THEN chat_sessions.updated_at
-              ELSE chat_sessions.created_at
-            END
-          SQL
+          "COALESCE(chat_sessions.last_message_at, chat_sessions.created_at)"
         end
 
         def chat_activity_at(chat_session)
-          [
-            chat_session.last_message_at,
-            chat_session.updated_at,
-            chat_session.created_at
-          ].compact.max
+          chat_session.last_message_at || chat_session.created_at
         end
 
         def hidden_chat_json(chat_session)

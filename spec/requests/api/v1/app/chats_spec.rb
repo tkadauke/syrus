@@ -1181,32 +1181,91 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["recent_chats"].map { |chat| chat.fetch("unread") }).to eq([ true, false, false ])
   end
 
-  it "uses queued-message activity when listing recent chats" do
+  it "orders recent chats by last_message_at, ignoring updated_at bumps" do
     sign_in_as(user)
-    quiet_chat = ChatSession.create!(
+    recent_chat = ChatSession.create!(
       user: user,
       repository: repository,
-      title: "Quiet",
+      title: "Recent",
       created_at: 2.days.ago,
       updated_at: 2.days.ago,
       last_message_at: 1.hour.ago
     )
-    queued_chat = ChatSession.create!(
+    older_chat = ChatSession.create!(
       user: user,
       repository: repository,
-      title: "Queued",
+      title: "Older",
       created_at: 3.days.ago,
       updated_at: 3.days.ago,
       last_message_at: 1.day.ago
     )
 
-    queued_chat.touch
+    older_chat.touch
 
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
     group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
-    expect(group["chats"].map { |chat| chat.fetch("id") }).to start_with(queued_chat.id, quiet_chat.id)
+    expect(group["chats"].map { |chat| chat.fetch("id") }).to start_with(recent_chat.id, older_chat.id)
+  end
+
+  it "does not reorder chats when a non-message operation bumps updated_at" do
+    sign_in_as(user)
+    messaged_chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Recent messages",
+      created_at: 2.days.ago,
+      updated_at: 2.days.ago,
+      last_message_at: 1.hour.ago
+    )
+    renamed_chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Old chat",
+      created_at: 3.days.ago,
+      updated_at: 3.days.ago,
+      last_message_at: 1.day.ago
+    )
+
+    renamed_chat.update_columns(updated_at: Time.current)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat.fetch("id") }).to start_with(messaged_chat.id, renamed_chat.id)
+  end
+
+  it "uses created_at as the sort key for chats without messages" do
+    sign_in_as(user)
+    messaged_chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Has messages",
+      last_message_at: 2.hours.ago
+    )
+    recent_messageless = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Recent, no messages",
+      last_message_at: nil
+    )
+    recent_messageless.update_columns(created_at: 1.hour.ago)
+    old_messageless = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Old, no messages",
+      last_message_at: nil
+    )
+    old_messageless.update_columns(created_at: 4.hours.ago)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    chat_ids = group["chats"].map { |chat| chat.fetch("id") }
+    expect(chat_ids).to eq([ recent_messageless.id, messaged_chat.id, old_messageless.id ])
   end
 
   it "reports a running chat agent process in the app payload" do

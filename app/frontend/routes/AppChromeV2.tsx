@@ -1119,11 +1119,7 @@ function chatLastMessageTime(chat: ChatNavRecord) {
 }
 
 function chatActivityTime(chat: ChatNavRecord) {
-  return Math.max(
-    chatLastMessageTime(chat),
-    timestampValue(chat.updated_at),
-    timestampValue(chat.created_at)
-  )
+  return chatLastMessageTime(chat) || timestampValue(chat.created_at)
 }
 
 function timestampValue(value?: string | null) {
