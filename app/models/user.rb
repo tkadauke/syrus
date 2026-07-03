@@ -33,8 +33,7 @@ class User < ApplicationRecord
     "github_token" => "GitHub token",
     "claude_oauth_token" => "Claude OAuth token",
     "codex_api_key" => "Codex API key",
-    "codex_auth_json" => "Codex ChatGPT auth.json",
-    "telegram_chat_id" => "Telegram chat ID"
+    "codex_auth_json" => "Codex ChatGPT auth.json"
   }.freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",

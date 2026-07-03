@@ -1,10 +1,7 @@
 class AppSetting < ApplicationRecord
   DEFAULT_REPORT_ISSUE_REPO_SLUG = "tkadauke/syrus".freeze
 
-  CLEARABLE_SECRETS = {
-    "telegram_bot_token" => "Telegram bot token",
-    "telegram_webhook_secret" => "Telegram webhook secret"
-  }.freeze
+  CLEARABLE_SECRETS = {}.freeze
 
   validates :grade_max_iterations, numericality: {
     only_integer: true,

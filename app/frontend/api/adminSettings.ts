@@ -16,8 +16,6 @@ export type AdminSettingsPayload = {
 
 export type AdminSettingsUpdate = {
   signups_open: boolean
-  telegram_bot_token: string
-  telegram_webhook_secret: string
 }
 
 export function fetchAdminSettings() {

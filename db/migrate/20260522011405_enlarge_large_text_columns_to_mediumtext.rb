@@ -27,8 +27,6 @@ class EnlargeLargeTextColumnsToMediumtext < ActiveRecord::Migration[8.1]
   #   - jobs.invalidation_reason       (free text but short)
   #   - jobs.landing_failure_reason    (truncated to 500 by RunJob)
   #   - repository_notes.body          (operator-authored notes, short)
-  #   - operator_questions.text        (chat exchanges)
-  #   - operator_responses.text        (chat exchanges)
   #   - run_health_snapshots.*         (bounded probe outputs)
   #   - scheduled_tasks.description    (one-line label)
   #   - cron_templates.description     (one-line label)

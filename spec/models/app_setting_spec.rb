@@ -81,16 +81,6 @@ RSpec.describe AppSetting do
     expect(setting.reload.github_app_private_key_pem).to eq("private-key-pem")
   end
 
-  it "clears only declared clearable app secrets" do
-    setting = AppSetting.current
-    setting.update!(telegram_bot_token: "telegram-token", telegram_webhook_secret: "telegram-secret")
-
-    setting.clear_secret!("telegram_bot_token")
-
-    expect(setting.reload.telegram_bot_token).to be_nil
-    expect(setting.telegram_webhook_secret).to eq("telegram-secret")
-  end
-
   it "rejects clearing non-secret settings" do
     setting = AppSetting.current
 

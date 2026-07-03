@@ -74,7 +74,7 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
           className="self-start rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:cursor-not-allowed disabled:text-red-300 sm:self-auto"
           disabled={clearSecret.isPending}
           onClick={() => {
-            if (window.confirm(`Clear ${secret.label}? Telegram delivery will fail until you add a new value or set the ENV fallback.`)) {
+            if (window.confirm(`Clear ${secret.label}?`)) {
               onNotice(null)
               clearSecret.mutate()
             }
@@ -92,18 +92,12 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
 function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const [signupsOpen, setSignupsOpen] = useState(payload.settings.signups_open)
-  const [telegramBotToken, setTelegramBotToken] = useState("")
-  const [telegramWebhookSecret, setTelegramWebhookSecret] = useState("")
   const update = useMutation({
     mutationFn: () => updateAdminSettings({
-      signups_open: signupsOpen,
-      telegram_bot_token: telegramBotToken,
-      telegram_webhook_secret: telegramWebhookSecret
+      signups_open: signupsOpen
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
-      setTelegramBotToken("")
-      setTelegramWebhookSecret("")
       onNotice(updated.message || "Settings updated.")
     }
   })
@@ -120,8 +114,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
 
   return (
     <form className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6" onSubmit={submit}>
-      <p className="text-sm text-gray-600 dark:text-gray-300">Leaving secret fields blank keeps the stored value unchanged. Use the Clear controls above to remove a secret.</p>
-
       <div className="flex items-start gap-3">
         <input
           id="admin-settings-signups-open"
@@ -136,32 +128,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
             When enabled, anyone can create an account at /users/new. When disabled, signup is invitation-only, but invitation links still work either way.
           </span>
         </span>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-telegram-bot-token">Telegram bot token</label>
-        <p className="mt-1 text-xs font-normal text-gray-500 dark:text-gray-400">Optional app-wide fallback for Telegram operator chat. ENV TELEGRAM_BOT_TOKEN still takes precedence.</p>
-        <input
-          id="admin-settings-telegram-bot-token"
-          autoComplete="off"
-          className="mt-2 block w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
-          onChange={(event) => setTelegramBotToken(event.target.value)}
-          type="password"
-          value={telegramBotToken}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-telegram-webhook-secret">Telegram webhook secret</label>
-        <p className="mt-1 text-xs font-normal text-gray-500 dark:text-gray-400">Optional app-wide fallback for validating Telegram webhook requests. ENV TELEGRAM_WEBHOOK_SECRET still takes precedence.</p>
-        <input
-          id="admin-settings-telegram-webhook-secret"
-          autoComplete="off"
-          className="mt-2 block w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
-          onChange={(event) => setTelegramWebhookSecret(event.target.value)}
-          type="password"
-          value={telegramWebhookSecret}
-        />
       </div>
 
       <button
