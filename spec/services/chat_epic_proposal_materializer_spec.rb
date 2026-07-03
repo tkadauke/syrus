@@ -52,6 +52,26 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "blocks child Jobs when an EpicDependency wired during file! is invisible to a stale association cache" do
+    in_progress_epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    blocking_job = Factories.job_record(user: user, repository: repository, issue_number: 77)
+    proposal = epic_proposal
+    proposal.update!(target_epic: in_progress_epic, depends_on_job_ids: [ blocking_job.id ])
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "work",
+      title: "Work",
+      body: "Build it.",
+      repository: repository
+    )
+    # Simulate stale cache: load the empty collection before file! wires the dep.
+    proposal.target_epic.dependencies.load
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.jobs).to all(be_blocked_by_epic)
+  end
+
   it "materializes child Jobs under an existing target Epic without creating a new Epic" do
     target_epic = Factories.epic(user: user, repository: repository, title: "PO-authored backlog", state: "backlog")
     proposal = epic_proposal

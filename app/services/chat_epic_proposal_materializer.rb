@@ -48,6 +48,7 @@ class ChatEpicProposalMaterializer
       wire_epic_dependencies(epic_proposal, epic)
       wire_job_epic_dependencies(job_proposals, job_by_proposal_id)
       ChatEpicProposalDependencyWirer.new(user: user).resolve_confirmed_proposal!(epic_proposal)
+      epic.dependencies.reload # class-level create! bypasses the in-memory association target
       jobs.each { |job| job.advance_after_triage! if job.may_advance_after_triage? }
     end
 
