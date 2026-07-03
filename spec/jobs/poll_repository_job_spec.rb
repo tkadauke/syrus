@@ -255,6 +255,27 @@ RSpec.describe PollRepositoryJob do
       expect(job.runs).to be_empty
     end
 
+    it "sets target_repository_id to the upstream when a fork repo's child issue references an upstream epic" do
+      upstream = Factories.repository(user: user, owner: "acme", name: "core")
+      fork = Factories.repository(user: user, owner: "acme", name: "core-fork", upstream_repository: upstream)
+      epic = Factories.epic(
+        user: user,
+        repository: upstream,
+        github_issue_url: "https://github.com/acme/core/issues/41"
+      )
+      # Child issue on the fork must use owner/repo#number to resolve to the upstream epic.
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42, body: "Epic: acme/core#41") ])
+      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+
+      described_class.perform_now(fork.id)
+
+      job = Job.find_by!(repository: fork, issue_number: 42)
+      expect(job.epic).to eq(epic)
+      expect(job.target_repository_id).to eq(upstream.id)
+      expect(job.effective_target_repository).to eq(upstream)
+    end
+
     it "does not convert a pending Epic reference to an epicless Job on later polls" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(number: 42, body: "Epic: #41") ])

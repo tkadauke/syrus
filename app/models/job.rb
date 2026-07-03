@@ -27,6 +27,7 @@ class Job < ApplicationRecord
   belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
   belongs_to :approved_by_user, class_name: "User", optional: true
   belongs_to :claimed_by_user, class_name: "User", optional: true
+  belongs_to :target_repository, class_name: "Repository", optional: true
   has_many :chat_proposals, dependent: :nullify
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
@@ -76,6 +77,7 @@ class Job < ApplicationRecord
   before_validation :default_agent_provider, on: :create
   before_validation :default_credential_mode, on: :create
   before_validation :default_lifecycle_metadata, on: :create
+  before_validation :set_target_repository_from_epic, on: :create
   before_validation :defer_stale_closed_epic_assignment
   before_validation :sync_epic_title
 
@@ -354,6 +356,10 @@ class Job < ApplicationRecord
 
   def ready_for_execution?
     validity == "valid" && !triaging_reason_pending_epic_ref? && !blocked_by_epic_before_execution?
+  end
+
+  def effective_target_repository
+    target_repository || repository
   end
 
   def blocked_by_epic_before_execution?
@@ -1076,7 +1082,18 @@ class Job < ApplicationRecord
     return unless epic
 
     errors.add(:epic, "must belong to the same user") if epic.user_id != user_id
-    errors.add(:epic, "must belong to the same repository") if epic.repository_id != repository_id
+    unless epic.repository_id == repository_id || (repository && repository.upstream_repository_id == epic.repository_id)
+      errors.add(:epic, "must belong to the same repository or its upstream")
+    end
+  end
+
+  def set_target_repository_from_epic
+    return unless epic
+    return unless repository
+
+    if repository.upstream_repository_id == epic.repository_id
+      self.target_repository_id = epic.repository_id
+    end
   end
 
   def sync_epic_title

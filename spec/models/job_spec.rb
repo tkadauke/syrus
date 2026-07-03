@@ -1187,6 +1187,87 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "#effective_target_repository" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "returns the repository when target_repository_id is nil" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+      expect(job.effective_target_repository).to eq(repository)
+    end
+
+    it "returns the target_repository when one is set" do
+      upstream = Factories.repository(user: user)
+      fork = Factories.repository(user: user, upstream_repository: upstream)
+      epic = Epic.create!(user: user, repository: upstream, title: "Cross-fork epic")
+      job = Job.create!(user: user, repository: fork, epic: epic, issue_number: 5)
+      expect(job.effective_target_repository).to eq(upstream)
+    end
+  end
+
+  describe "target_repository_id auto-population" do
+    let(:user) { Factories.user }
+
+    it "leaves target_repository_id nil for a job on a non-fork repository without an epic" do
+      repo = Factories.repository(user: user)
+      job = Job.create!(user: user, repository: repo, issue_number: 1)
+      expect(job.target_repository_id).to be_nil
+    end
+
+    it "leaves target_repository_id nil for a job on the canonical repo directly under its own epic" do
+      repo = Factories.repository(user: user)
+      epic = Epic.create!(user: user, repository: repo, title: "Same-repo epic")
+      job = Job.create!(user: user, repository: repo, epic: epic, issue_number: 2)
+      expect(job.target_repository_id).to be_nil
+    end
+
+    it "sets target_repository_id to the upstream when the job repo is a fork whose upstream is the epic repo" do
+      upstream = Factories.repository(user: user)
+      fork = Factories.repository(user: user, upstream_repository: upstream)
+      epic = Epic.create!(user: user, repository: upstream, title: "Cross-fork epic")
+      job = Job.create!(user: user, repository: fork, epic: epic, issue_number: 3)
+      expect(job.target_repository_id).to eq(upstream.id)
+    end
+
+    it "leaves target_repository_id nil when the fork's upstream differs from the epic's repository" do
+      unrelated_upstream = Factories.repository(user: user)
+      fork = Factories.repository(user: user, upstream_repository: unrelated_upstream)
+      epic_repo = Factories.repository(user: user)
+      epic = Epic.create!(user: user, repository: epic_repo, title: "Different upstream epic")
+      job = Job.new(user: user, repository: fork, epic: epic, issue_number: 4)
+      job.valid?
+      expect(job.target_repository_id).to be_nil
+    end
+  end
+
+  describe "epic_belongs_to_same_user_and_repository validation" do
+    let(:user) { Factories.user }
+
+    it "is valid when the epic is on the same repository" do
+      repo = Factories.repository(user: user)
+      epic = Epic.create!(user: user, repository: repo, title: "Same-repo epic")
+      job = Job.new(user: user, repository: repo, epic: epic, issue_number: 7)
+      expect(job).to be_valid
+    end
+
+    it "is valid when the epic is on the upstream of the job's fork repository" do
+      upstream = Factories.repository(user: user)
+      fork = Factories.repository(user: user, upstream_repository: upstream)
+      epic = Epic.create!(user: user, repository: upstream, title: "Upstream epic")
+      job = Job.new(user: user, repository: fork, epic: epic, issue_number: 8)
+      expect(job).to be_valid
+    end
+
+    it "is invalid when the epic is on an unrelated repository" do
+      repo = Factories.repository(user: user)
+      other_repo = Factories.repository(user: user)
+      epic = Epic.create!(user: user, repository: other_repo, title: "Unrelated epic")
+      job = Job.new(user: user, repository: repo, epic: epic, issue_number: 9)
+      expect(job).not_to be_valid
+      expect(job.errors[:epic]).to include("must belong to the same repository or its upstream")
+    end
+  end
+
   describe "preempted creation (state: closed at create time)" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }

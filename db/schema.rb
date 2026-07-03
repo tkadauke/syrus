@@ -566,6 +566,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
     t.string "stack_base", default: "auto", null: false
     t.datetime "started_at"
     t.string "state", default: "triaging", null: false
+    t.bigint "target_repository_id"
     t.boolean "title_pending", default: false, null: false
     t.string "triaging_reason", default: "classifier_pending", null: false
     t.datetime "updated_at", null: false
@@ -586,6 +587,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
     t.index ["scheduled_task_id"], name: "index_jobs_on_scheduled_task_id"
     t.index ["stack_base"], name: "index_jobs_on_stack_base"
     t.index ["state", "approved_at", "id"], name: "index_jobs_on_state_and_approved_at_and_id"
+    t.index ["target_repository_id"], name: "index_jobs_on_target_repository_id"
     t.index ["triaging_reason"], name: "index_jobs_on_triaging_reason"
     t.index ["user_id"], name: "index_jobs_on_user_id"
     t.index ["validity"], name: "index_jobs_on_validity"
@@ -1065,6 +1067,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
   add_foreign_key "jobs", "epics"
   add_foreign_key "jobs", "jobs", column: "parent_job_id"
   add_foreign_key "jobs", "repositories"
+  add_foreign_key "jobs", "repositories", column: "target_repository_id"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"
   add_foreign_key "jobs", "users", column: "approved_by_user_id"
