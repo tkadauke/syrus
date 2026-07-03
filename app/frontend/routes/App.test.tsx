@@ -6761,13 +6761,7 @@ describe("App", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              settings: {
-                signups_open: true,
-                clearable_secrets: [
-                  { key: "telegram_bot_token", label: "Telegram bot token", set: true },
-                  { key: "telegram_webhook_secret", label: "Telegram webhook secret", set: false }
-                ]
-              },
+              settings: { signups_open: true, clearable_secrets: [] },
               message: "Settings updated."
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
@@ -6778,13 +6772,7 @@ describe("App", () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            settings: {
-              signups_open: false,
-              clearable_secrets: [
-                { key: "telegram_bot_token", label: "Telegram bot token", set: true },
-                { key: "telegram_webhook_secret", label: "Telegram webhook secret", set: false }
-              ]
-            }
+            settings: { signups_open: false, clearable_secrets: [] }
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         )
@@ -6800,11 +6788,9 @@ describe("App", () => {
     )
 
     expect(screen.getByRole("main", { name: "Admin settings" })).toBeInTheDocument()
-    expect((await screen.findAllByText("Telegram bot token")).length).toBeGreaterThan(0)
-    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument()
+    await screen.findByRole("checkbox", { name: /Open signups/ })
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Open signups/ }))
-    fireEvent.change(screen.getByLabelText("Telegram bot token"), { target: { value: "bot-token" } })
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
@@ -6818,11 +6804,7 @@ describe("App", () => {
             "Content-Type": "application/json"
           }),
           body: JSON.stringify({
-            app_setting: {
-              signups_open: true,
-              telegram_bot_token: "bot-token",
-              telegram_webhook_secret: ""
-            }
+            app_setting: { signups_open: true }
           })
         })
       )

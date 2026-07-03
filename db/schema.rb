@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_035554) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -65,8 +65,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_035554) do
     t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
     t.boolean "runs_paused", default: false, null: false
     t.boolean "signups_open", default: false, null: false
-    t.text "telegram_bot_token"
-    t.text "telegram_webhook_secret"
     t.datetime "updated_at", null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
   end
@@ -950,7 +948,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_035554) do
     t.string "profile_website"
     t.string "role", default: "developer", null: false
     t.boolean "scheduling_paused", default: false, null: false
-    t.text "telegram_chat_id"
     t.string "theme", default: "light", null: false
     t.datetime "updated_at", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
