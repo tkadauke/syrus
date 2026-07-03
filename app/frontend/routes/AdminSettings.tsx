@@ -38,11 +38,13 @@ export function AdminSettings() {
 function SettingsView({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
   return (
     <>
-      <section className="divide-y divide-gray-200 dark:divide-gray-700 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        {payload.settings.clearable_secrets.map((secret) => (
-          <SecretRow key={secret.key} onNotice={onNotice} secret={secret} />
-        ))}
-      </section>
+      {payload.settings.clearable_secrets.length > 0 && (
+        <section className="divide-y divide-gray-200 dark:divide-gray-700 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          {payload.settings.clearable_secrets.map((secret) => (
+            <SecretRow key={secret.key} onNotice={onNotice} secret={secret} />
+          ))}
+        </section>
+      )}
 
       <SettingsForm onNotice={onNotice} payload={payload} />
     </>
