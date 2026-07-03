@@ -116,12 +116,14 @@ function InvitationsTable({ invitations, onNotice }: { invitations: AdminInvitat
 
 function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
+  const [confirming, setConfirming] = useState(false)
   const revoke = useMutation({
     mutationFn: () => revokeAdminInvitation(invitation.id),
     onSuccess: (payload: AdminInvitationsPayload) => {
       queryClient.setQueryData(queryKey, payload)
       onNotice(payload.message || "Invitation revoked.")
-    }
+    },
+    onSettled: () => setConfirming(false)
   })
 
   return (
@@ -133,17 +135,41 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
       <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">{formatDate(invitation.expires_at)}</td>
       <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">{invitation.invited_by_email_address}</td>
       <td className="whitespace-nowrap px-4 py-3 text-right">
-        <button
-          className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300"
-          disabled={revoke.isPending}
-          onClick={() => {
-            onNotice(null)
-            revoke.mutate()
-          }}
-          type="button"
-        >
-          {revoke.isPending ? "Revoking..." : "Revoke"}
-        </button>
+        {confirming ? (
+          <span className="inline-flex items-center gap-2 text-sm">
+            <span className="text-gray-700 dark:text-gray-200">Revoke this invitation?</span>
+            <button
+              className="font-medium text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300"
+              disabled={revoke.isPending}
+              onClick={() => {
+                onNotice(null)
+                revoke.mutate()
+              }}
+              type="button"
+            >
+              {revoke.isPending ? "Revoking..." : "Yes, revoke"}
+            </button>
+            <button
+              className="text-gray-500 dark:text-gray-400 underline hover:no-underline disabled:cursor-not-allowed"
+              disabled={revoke.isPending}
+              onClick={() => setConfirming(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button
+            className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline"
+            onClick={() => {
+              onNotice(null)
+              setConfirming(true)
+            }}
+            type="button"
+          >
+            Revoke
+          </button>
+        )}
         {revoke.isError ? <div className="mt-1 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(revoke.error, "Unable to revoke invitation.")}</div> : null}
       </td>
     </tr>

@@ -6735,6 +6735,12 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }))
 
+    expect(await screen.findByText("Revoke this invitation?")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Yes, revoke" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Yes, revoke" }))
+
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/admin/invitations/9",
