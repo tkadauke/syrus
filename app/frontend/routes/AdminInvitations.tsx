@@ -130,7 +130,15 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
     <tr>
       <td className="whitespace-nowrap px-4 py-3 text-gray-900 dark:text-gray-100">{invitation.email_address}</td>
       <td className="max-w-xl px-4 py-3 font-mono text-xs">
-        <a className="break-all text-blue-600 dark:text-blue-300 underline hover:no-underline" href={invitation.share_url}>{invitation.share_url}</a>
+        <button
+          aria-label={`Copy signup link for ${invitation.email_address}`}
+          className="break-all text-left text-blue-600 dark:text-blue-300 underline hover:no-underline cursor-copy"
+          onClick={() => {
+            navigator.clipboard.writeText(invitation.share_url)
+            onNotice("Link copied to clipboard.")
+          }}
+          type="button"
+        >{invitation.share_url}</button>
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">{formatDate(invitation.expires_at)}</td>
       <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">{invitation.invited_by_email_address}</td>
