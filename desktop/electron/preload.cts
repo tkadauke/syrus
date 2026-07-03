@@ -18,6 +18,7 @@ type CredentialsUser = {
 type JobItem = {
   id: number
   epic_id: number | null
+  epic_title: string | null
   state: string
   summary_state: string
   title: string
@@ -97,6 +98,7 @@ type CheckoutRequest = {
   jobRef: string
   repoSlug: string
   branchName: string
+  extraArgs?: string[]
 }
 
 type LocalStatus = {

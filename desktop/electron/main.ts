@@ -24,6 +24,7 @@ type Credentials = {
 type JobItem = {
   id: number
   epic_id: number | null
+  epic_title: string | null
   state: string
   summary_state: string
   title: string
@@ -132,6 +133,7 @@ type CheckoutRequest = {
   jobRef: string
   repoSlug: string
   branchName: string
+  extraArgs?: string[]
 }
 
 type LocalStatus = {
@@ -947,7 +949,7 @@ const checkoutAvailability = async (repoSlug: string): Promise<CheckoutAvailabil
   localPath: resolveLocalPath(repoSlug)
 })
 
-const checkoutJob = async ({ jobRef, repoSlug, branchName }: CheckoutRequest) => {
+const checkoutJob = async ({ jobRef, repoSlug, branchName, extraArgs }: CheckoutRequest) => {
   const localPath = resolveLocalPath(repoSlug)
   if (!localPath) {
     await showPreferencesWindow()
@@ -959,7 +961,7 @@ const checkoutJob = async ({ jobRef, repoSlug, branchName }: CheckoutRequest) =>
   }
 
   try {
-    await execFileAsync("syrus", ["checkout", jobRef], { cwd: localPath })
+    await execFileAsync("syrus", ["checkout", jobRef, ...(extraArgs ?? [])], { cwd: localPath })
     setLastUsedRepo(repoSlug)
     return { branchName }
   } catch (error) {

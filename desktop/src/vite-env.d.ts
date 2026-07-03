@@ -13,6 +13,7 @@ type SyrusNotificationPreferences = {
 type SyrusJobItem = {
   id: number
   epic_id: number | null
+  epic_title: string | null
   state: string
   summary_state: string
   title: string
@@ -52,6 +53,7 @@ type SyrusCheckoutRequest = {
   jobRef: string
   repoSlug: string
   branchName: string
+  extraArgs?: string[]
 }
 
 type SyrusLocalStatus = {

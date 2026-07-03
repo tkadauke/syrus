@@ -7,7 +7,7 @@ module Api
         def index
           jobs = Current.user.jobs
                              .without_active_workflows
-                             .includes(:repository, :runs, workflows: { steps: :runs })
+                             .includes(:epic, :repository, :runs, workflows: { steps: :runs })
                              .order(updated_at: :desc, id: :desc)
           if params[:repo].present?
             owner, name = params[:repo].to_s.split("/", 2)
@@ -178,6 +178,7 @@ module Api
           {
             id: job.id,
             epic_id: job.epic_id,
+            epic_title: job.epic&.title,
             state: job.state,
             summary_state: ::App::Presentation.job_summary_state(job),
             title: job.issue_title.to_s,

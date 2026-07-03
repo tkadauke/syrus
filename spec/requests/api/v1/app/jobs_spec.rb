@@ -54,6 +54,7 @@ RSpec.describe "App API job detail", type: :request do
     expect(body["jobs"]).to contain_exactly(include(
       "id" => job.id,
       "epic_id" => epic.id,
+      "epic_title" => "Raise the aqueduct",
       "title" => "Repair aqueduct",
       "issue_title" => "Repair aqueduct",
       "repository_id" => repo.id,
@@ -62,6 +63,22 @@ RSpec.describe "App API job detail", type: :request do
       "pr_number" => 7
     ))
     expect(body.to_s).not_to include("Private")
+  end
+
+  it "includes epic_title for jobs with an epic and nil for epicless jobs" do
+    user.update!(api_token: "syrus_cli_token")
+    epic = Factories.epic(user: user, repository: repo, title: "Fix the pipes")
+    with_epic = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Epic job", state: "implemented")
+    with_epic.update!(epic: epic)
+    without_epic = Factories.job_record(repository: repo, issue_number: 102, issue_title: "Plain job", state: "implemented")
+
+    get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "implemented", limit: 10 },
+      headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    jobs_payload = parse_body["jobs"]
+    expect(jobs_payload.find { |j| j["id"] == with_epic.id }).to include("epic_title" => "Fix the pipes")
+    expect(jobs_payload.find { |j| j["id"] == without_epic.id }).to include("epic_title" => nil)
   end
 
   it "hides jobs with active workflows from the app job list" do

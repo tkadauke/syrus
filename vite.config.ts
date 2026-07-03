@@ -20,6 +20,6 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["app/frontend/test/setup.ts"],
-    include: ["app/frontend/**/*.test.{ts,tsx}"]
+    include: ["app/frontend/**/*.test.{ts,tsx}", "desktop/src/**/*.test.{ts,tsx}"]
   }
 })

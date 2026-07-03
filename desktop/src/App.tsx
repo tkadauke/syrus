@@ -3,6 +3,7 @@ import { FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, us
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RepoPicker } from "./RepoPicker"
 import syrusIconUrl from "../assets/syrusIcon.png"
+import { groupJobsByEpic, epicFullyImplemented } from "./inboxUtils"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
@@ -479,6 +480,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const [toast, setToast] = useState<ToastState | null>(null)
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [collapsedRepositorySlugs, setCollapsedRepositorySlugs] = useState<Set<string>>(readCollapsedRepos)
+  const [collapsedEpics, setCollapsedEpics] = useState<Set<number>>(new Set())
   const [retryingJobID, setRetryingJobID] = useState<number | null>(null)
   const [feedbackBody, setFeedbackBody] = useState("")
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false)
@@ -800,6 +802,40 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
       }
       return next
     })
+  }
+
+  const toggleEpic = (epicId: number) => {
+    setCollapsedEpics((current) => {
+      const next = new Set(current)
+      if (next.has(epicId)) {
+        next.delete(epicId)
+      } else {
+        next.add(epicId)
+      }
+      return next
+    })
+  }
+
+  const checkoutEpicComplete = async (epicId: number, repoSlug: string) => {
+    const command = `syrus checkout EPIC-${epicId} --complete`
+    clearToast()
+
+    try {
+      await window.syrusDesktop.checkoutJob({
+        jobRef: `EPIC-${epicId}`,
+        repoSlug,
+        branchName: "",
+        extraArgs: ["--complete"]
+      })
+      await refreshLocalStatus()
+      showToast({ kind: "success", message: `Checked out EPIC-${epicId}` }, 4000)
+    } catch (checkoutError) {
+      showToast({
+        kind: "error",
+        message: checkoutError instanceof Error ? checkoutError.message : "Epic checkout failed.",
+        copyCommand: command
+      }, 7000)
+    }
   }
 
   const checkoutJob = async (job: SyrusJobItem) => {
@@ -1209,24 +1245,71 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                     </div>
                     {isCollapsed ? null : (
                       <ul className="job-group__jobs" id={jobsId}>
-                        {group.jobs.map((job) => (
-                          <JobRow
-                            key={`${job.state}-${job.id}`}
-                            job={job}
-                            checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
-                            localStatus={localStatus?.job_id === job.id ? localStatus : undefined}
-                            cliAvailable={cliStatusQuery.data?.available ?? false}
-                            retrying={retryingJobID === job.id}
-                            onOpenDetail={() => openJobDetail(job)}
-                            onOpenJob={() => openJob(job)}
-                            onOpenPullRequest={() => openPullRequest(job)}
-                            onCheckout={() => void checkoutJob(job)}
-                            onApprove={() => void approveJob(job)}
-                            onRetry={() => void retryJob(job)}
-                            approving={pendingApprovals.has(job.id)}
-                            optimisticState={pendingApprovals.has(job.id) ? "approved" : undefined}
-                          />
-                        ))}
+                        {groupJobsByEpic(group.jobs).flatMap((entry) => {
+                          if (entry.kind === "job") {
+                            const job = entry.job
+                            return [
+                              <JobRow
+                                key={`${job.state}-${job.id}`}
+                                job={job}
+                                checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
+                                localStatus={localStatus?.job_id === job.id ? localStatus : undefined}
+                                cliAvailable={cliStatusQuery.data?.available ?? false}
+                                retrying={retryingJobID === job.id}
+                                onOpenDetail={() => openJobDetail(job)}
+                                onOpenJob={() => openJob(job)}
+                                onOpenPullRequest={() => openPullRequest(job)}
+                                onCheckout={() => void checkoutJob(job)}
+                                onApprove={() => void approveJob(job)}
+                                onRetry={() => void retryJob(job)}
+                                approving={pendingApprovals.has(job.id)}
+                                optimisticState={pendingApprovals.has(job.id) ? "approved" : undefined}
+                              />
+                            ]
+                          }
+                          const epicCollapsed = collapsedEpics.has(entry.epicId)
+                          return [
+                            <li key={`epic-${entry.epicId}`}>
+                              <button
+                                type="button"
+                                onClick={() => toggleEpic(entry.epicId)}
+                                className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50"
+                              >
+                                <DisclosureIcon collapsed={epicCollapsed} />
+                                <span>EPIC-{entry.epicId}: {entry.epicTitle}</span>
+                                <span className="ml-auto text-gray-400">{entry.jobs.length}</span>
+                                {epicFullyImplemented(entry.jobs) && (
+                                  <span
+                                    role="button"
+                                    onClick={(e) => { e.stopPropagation(); void checkoutEpicComplete(entry.epicId, group.repositorySlug) }}
+                                    className="ml-2 text-xs text-blue-600 hover:underline cursor-pointer"
+                                  >
+                                    Checkout
+                                  </span>
+                                )}
+                              </button>
+                            </li>,
+                            ...(!epicCollapsed ? entry.jobs.map((job) => (
+                              <JobRow
+                                key={`${job.state}-${job.id}`}
+                                job={job}
+                                checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
+                                localStatus={localStatus?.job_id === job.id ? localStatus : undefined}
+                                cliAvailable={cliStatusQuery.data?.available ?? false}
+                                retrying={retryingJobID === job.id}
+                                indented
+                                onOpenDetail={() => openJobDetail(job)}
+                                onOpenJob={() => openJob(job)}
+                                onOpenPullRequest={() => openPullRequest(job)}
+                                onCheckout={() => void checkoutJob(job)}
+                                onApprove={() => void approveJob(job)}
+                                onRetry={() => void retryJob(job)}
+                                approving={pendingApprovals.has(job.id)}
+                                optimisticState={pendingApprovals.has(job.id) ? "approved" : undefined}
+                              />
+                            )) : [])
+                          ]
+                        })}
                       </ul>
                     )}
                   </li>
@@ -1821,6 +1904,7 @@ function JobRow({
   localStatus,
   cliAvailable,
   retrying,
+  indented = false,
   onOpenDetail,
   onOpenJob,
   onOpenPullRequest,
@@ -1835,6 +1919,7 @@ function JobRow({
   localStatus?: SyrusLocalStatus
   cliAvailable: boolean
   retrying: boolean
+  indented?: boolean
   onOpenDetail: () => void
   onOpenJob: () => void
   onOpenPullRequest: () => void
@@ -1928,7 +2013,7 @@ function JobRow({
 
   return (
     <li
-      className={["job-row", localStatus ? "job-row--local" : ""].filter(Boolean).join(" ")}
+      className={["job-row", localStatus ? "job-row--local" : "", indented ? "pl-4" : ""].filter(Boolean).join(" ")}
       onClick={(event) => {
         if ((event.target as HTMLElement).closest("button")) {
           return
