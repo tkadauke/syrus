@@ -168,4 +168,20 @@ RSpec.describe SyrusChatMcp::ProposeJobTool do
     expect(response[:result][:content].first[:text]).to include("epic_id was not found")
     expect(chat_session.proposals.find_by(title: "Misfile the edict")).to be_nil
   end
+
+  it "broadcasts an update_proposal event after creating the proposal" do
+    allow(AppEvents).to receive(:broadcast)
+
+    call_tool(repo: repository.slug, title: "Broadcast test", description: "Check broadcast.")
+
+    proposal = chat_session.proposals.find_by!(title: "Broadcast test")
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "proposal" ],
+      payload: { action: "update_proposal", proposal_id: proposal.id }
+    )
+  end
 end

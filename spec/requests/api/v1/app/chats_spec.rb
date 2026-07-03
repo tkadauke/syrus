@@ -1671,6 +1671,46 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, rejection_message.id)
   end
 
+  it "broadcasts update_proposal after confirming a proposal" do
+    sign_in_as(user)
+    allow(AppEvents).to receive(:broadcast)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(slug: "build-auth", title: "Build auth", body: "Do it.")
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+
+    expect(response).to have_http_status(:ok)
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat.id,
+      changed: [ "proposal" ],
+      payload: { action: "update_proposal", proposal_id: proposal.id }
+    )
+  end
+
+  it "broadcasts update_proposal after rejecting a proposal" do
+    sign_in_as(user)
+    allow(AppEvents).to receive(:broadcast)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(slug: "build-auth", title: "Build auth", body: "Do it.")
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/reject"
+
+    expect(response).to have_http_status(:ok)
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat.id,
+      changed: [ "proposal" ],
+      payload: { action: "update_proposal", proposal_id: proposal.id }
+    )
+  end
+
   it "records confirmed Epic bundle details in a system chat message" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

@@ -527,6 +527,7 @@ module Api
             )
           )
           notify_agent_of_proposal_outcome(confirmation_message)
+          broadcast_proposal_updated(chat_session, proposal.reload)
 
           render json: chat_payload(chat_session.reload, message: proposal_confirmed_notice(proposal, result))
         rescue ActiveRecord::RecordInvalid => e
@@ -557,6 +558,7 @@ module Api
               )
             )
             notify_agent_of_proposal_outcome(rejection_message)
+            broadcast_proposal_updated(chat_session, proposal.reload)
             render json: chat_payload(chat_session.reload, message: "Proposal rejected.")
           else
             render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)

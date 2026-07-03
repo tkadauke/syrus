@@ -76,6 +76,7 @@ module SyrusChatMcp
           create_proposal_message!(chat_session, proposal, text: "Job proposal proposed.")
         end
 
+        SyrusChatMcp.broadcast_proposal_created(chat_session, proposal)
         SyrusChatMcp.success(SyrusChatMcp.proposal_payload(proposal))
       rescue ActiveRecord::RecordInvalid => e
         SyrusChatMcp.invalid(e.record.errors.full_messages.to_sentence)

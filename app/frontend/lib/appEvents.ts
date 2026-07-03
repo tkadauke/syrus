@@ -296,6 +296,13 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return true
   }
 
+  const updateProposal = chatUpdateProposalPayload(event.payload)
+  if (updateProposal) {
+    void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+    void queryClient.invalidateQueries({ queryKey: ["chats", String(event.id)] })
+    return true
+  }
+
   return false
 }
 
@@ -337,6 +344,11 @@ type ChatPendingActionUpdatedPayload = {
   action: "pending_action_updated"
   pending_action_id: number
   chat_message_id: number | null
+}
+
+type ChatUpdateProposalPayload = {
+  action: "update_proposal"
+  proposal_id: number
 }
 
 function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null {
@@ -441,6 +453,16 @@ function chatPendingActionUpdatedPayload(payload: unknown): ChatPendingActionUpd
     pending_action_id: candidate.pending_action_id,
     chat_message_id: candidate.chat_message_id
   }
+}
+
+function chatUpdateProposalPayload(payload: unknown): ChatUpdateProposalPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatUpdateProposalPayload>
+  if (candidate.action !== "update_proposal") return null
+  if (typeof candidate.proposal_id !== "number") return null
+
+  return { action: "update_proposal", proposal_id: candidate.proposal_id }
 }
 
 function isChatMessages(value: unknown): value is ChatMessageItem[] {

@@ -109,6 +109,7 @@ module SyrusChatMcp
           )
         end
 
+        SyrusChatMcp.broadcast_proposal_created(chat_session, proposal)
         SyrusChatMcp.success(payload_for(proposal.reload))
       rescue ActiveRecord::RecordInvalid => e
         SyrusChatMcp.invalid(e.record.errors.full_messages.to_sentence)

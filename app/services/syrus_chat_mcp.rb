@@ -104,6 +104,20 @@ module SyrusChatMcp
     Array(raw)
   end
 
+  def self.broadcast_proposal_created(chat_session, proposal)
+    AppEvents.broadcast(
+      user: chat_session.user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "proposal" ],
+      payload: {
+        action: "update_proposal",
+        proposal_id: proposal.id
+      }
+    )
+  end
+
   def self.safe_byteslice(text, start, length)
     text.to_s.safe_byteslice(start, length)
   end

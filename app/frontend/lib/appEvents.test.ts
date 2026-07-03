@@ -405,6 +405,23 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
   })
+
+  it("invalidates recent chats and chat detail for update_proposal events", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_proposal",
+        proposal_id: 42
+      }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats"] })
+  })
 })
 
 function event(resource: string, id: number | null) {

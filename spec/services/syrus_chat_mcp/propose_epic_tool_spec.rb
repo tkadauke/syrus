@@ -104,4 +104,20 @@ RSpec.describe SyrusChatMcp::ProposeEpicTool do
     expect(response[:result][:isError]).to be(true)
     expect(response[:result][:content].first[:text]).to match(/unknown depends_on_proposal_slugs/)
   end
+
+  it "broadcasts an update_proposal event after creating the proposal" do
+    allow(AppEvents).to receive(:broadcast)
+
+    call_tool(title: "Broadcast test", description: "Check broadcast.")
+
+    proposal = chat_session.proposals.find_by!(title: "Broadcast test")
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "proposal" ],
+      payload: { action: "update_proposal", proposal_id: proposal.id }
+    )
+  end
 end

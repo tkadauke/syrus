@@ -367,4 +367,23 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(withdrawn.reload).to be_withdrawn
     expect(chat_session.proposals.where(slug: "new-epic").count).to eq(0)
   end
+
+  it "broadcasts an update_proposal event after creating the proposal" do
+    allow(AppEvents).to receive(:broadcast)
+
+    call_tool(
+      epic: { slug: "the-epic", title: "Broadcast test", description: "Check broadcast.", target_repo: repository.slug },
+      jobs: [ { slug: "job-a", target_repo: repository.slug, title: "Job A", description: "Do it." } ]
+    )
+
+    proposal = chat_session.proposals.find_by!(slug: "the-epic")
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "proposal" ],
+      payload: { action: "update_proposal", proposal_id: proposal.id }
+    )
+  end
 end
