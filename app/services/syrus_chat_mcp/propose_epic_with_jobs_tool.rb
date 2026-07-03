@@ -13,7 +13,8 @@ module SyrusChatMcp
       Confirming the card creates the Epic, child Jobs, and sibling Job
       dependencies in one Syrus transaction.
       Proposals cannot be updated after creation. To revise a proposal,
-      call delete_proposal with its slug, then call this tool again.
+      call delete_proposal with its slug, then call this tool again with a
+      new slug. Reusing a withdrawn slug is an error.
       Any `id` in the response is a proposal record ID -- NOT an Epic or Job
       ID. Never write `EPIC-{id}` or `JOB-{id}` using these numbers. The actual
       Epic and Job IDs are assigned only when the operator confirms, and will
@@ -159,6 +160,12 @@ module SyrusChatMcp
         slugs = jobs.map { |job| job[:slug] }
         return "child job slugs must be unique" if slugs.uniq.length != slugs.length
         return "epic slug must not duplicate a child job slug" if slugs.include?(epic[:slug])
+
+        all_incoming_slugs = [ epic[:slug] ] + slugs
+        withdrawn_collision = chat_session.proposals.withdrawn.where(slug: all_incoming_slugs).pluck(:slug).first
+        if withdrawn_collision
+          return "slug '#{withdrawn_collision}' was already used and withdrawn in this session; use a different slug for the revised proposal"
+        end
 
         jobs.each do |job|
           return "job slug is required" if job[:slug].empty?

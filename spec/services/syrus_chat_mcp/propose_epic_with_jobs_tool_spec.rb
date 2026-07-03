@@ -321,4 +321,50 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(response[:result][:content].first[:text]).to match(/cycle/)
     expect(chat_session.proposals.count).to eq(0)
   end
+
+  it "rejects a withdrawn epic slug without reviving the withdrawn proposal" do
+    withdrawn = chat_session.proposals.create!(
+      repository: repository,
+      slug: "my-epic",
+      title: "Old Epic",
+      body: "Old description.",
+      kind: "epic",
+      state: "withdrawn"
+    )
+
+    response = call_tool(
+      epic: { slug: "my-epic", title: "New Epic", description: "New description.", target_repo: repository.slug },
+      jobs: [
+        { slug: "job-1", target_repo: repository.slug, title: "Job", description: "Do it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("already used and withdrawn")
+    expect(withdrawn.reload).to be_withdrawn
+    expect(chat_session.proposals.count).to eq(1)
+  end
+
+  it "rejects a withdrawn child job slug without reviving the withdrawn proposal" do
+    withdrawn = chat_session.proposals.create!(
+      repository: repository,
+      slug: "old-job",
+      title: "Old Job",
+      body: "Old description.",
+      kind: "syrus_issue",
+      state: "withdrawn"
+    )
+
+    response = call_tool(
+      epic: { slug: "new-epic", title: "New Epic", description: "New description.", target_repo: repository.slug },
+      jobs: [
+        { slug: "old-job", target_repo: repository.slug, title: "Job", description: "Do it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("already used and withdrawn")
+    expect(withdrawn.reload).to be_withdrawn
+    expect(chat_session.proposals.where(slug: "new-epic").count).to eq(0)
+  end
 end

@@ -7,6 +7,8 @@ module SyrusChatMcp
     description <<~DESC
       Withdraw a proposal by slug. Downstream dependents are withdrawn too;
       the response lists that cascade so the agent can tell the operator.
+      After withdrawal, any replacement proposal must use a new slug —
+      reusing a withdrawn slug is an error.
     DESC
 
     input_schema(

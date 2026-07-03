@@ -1678,10 +1678,17 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
   const queuedMessages = payload.queued_messages || []
   const commandQuery = slashCommandQuery(text)
   const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery), [commandQuery])
-  const pendingProposals = useMemo(() => payload.messages.filter(
-    (item): item is typeof item & { proposal: ChatProposal } =>
-      item.type === "message" && item.proposal?.proposed === true
-  ), [payload.messages])
+  const pendingProposals = useMemo(() => {
+    const seenIds = new Set<number>()
+    return payload.messages.filter(
+      (item): item is typeof item & { proposal: ChatProposal } => {
+        if (item.type !== "message" || item.proposal?.proposed !== true) return false
+        if (seenIds.has(item.proposal.id)) return false
+        seenIds.add(item.proposal.id)
+        return true
+      }
+    )
+  }, [payload.messages])
   const [jumpIndex, setJumpIndex] = useState(0)
   const attachedRepositories = payload.attachment_groups.repositories
 

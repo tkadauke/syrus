@@ -566,6 +566,27 @@ describe("chat pending proposal jump banner", () => {
     expect(secondScroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" })
   })
 
+  it("counts each pending proposal only once when the same proposal id appears in multiple messages", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
+          messageWithProposal(10, proposal({ id: 1, title: "Survey aqueduct route" }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("1 pending proposal")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Jump ↑" })).toBeInTheDocument()
+  })
+
   it("does not show the banner for resolved proposals", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

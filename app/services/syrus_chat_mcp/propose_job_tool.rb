@@ -11,7 +11,8 @@ module SyrusChatMcp
       card creates the Job under that Epic. Without epic_id, confirming
       creates an epicless direct Job.
       Proposals cannot be updated after creation. To revise a proposal,
-      call delete_proposal with its slug, then call this tool again.
+      call delete_proposal with its slug, then call this tool again with a
+      new title or different input so a new slug is generated.
       The `id` in the response is the proposal record ID -- NOT the Job ID.
       Never write `JOB-{id}` using this number. The actual Job ID is assigned
       only when the operator confirms, and will appear as `JOB-<id>` in the
