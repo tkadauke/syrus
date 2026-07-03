@@ -514,6 +514,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       owner: "acme",
       name: "widgets",
       default_branch: "main",
+      review_policy: "self",
       repository_path: "/repositories/2"
     },
     epic: null,
@@ -635,6 +636,8 @@ function baseJob(): JobDetailPayload["job"] {
     approved_via: null,
     owner_user_id: null,
     owner_user: null,
+    job_approvals: [],
+    approval_status: null,
     claimed_at: null,
     claimed_by_user: null,
     claimed_by_current_user: false,
