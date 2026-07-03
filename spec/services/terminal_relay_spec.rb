@@ -60,7 +60,7 @@ RSpec.describe TerminalRelay do
     thread = Thread.new { relay.run }
     thread[:terminal_relay_spec] = true
     Timeout.timeout(RELAY_READY_TIMEOUT) do
-      until session.reload.relay_ready?
+      until session.relay_ready?
         raise "TerminalRelay exited before recording relay_address" unless thread.alive?
 
         sleep 0.01
