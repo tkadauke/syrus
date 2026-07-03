@@ -31,8 +31,11 @@ RSpec.describe RefactorRepositoriesUniquenessAndAddMemberships do
     )
 
     # Create a job pointing to the duplicate row to verify FK redirect.
+    # Pass agent_provider explicitly so Job#default_agent_provider does not
+    # call repository.user.agent_provider on a repo whose AR user association
+    # may not resolve during schema-churn between migration.down and migration.up.
     duplicate_repo = Repository.find(duplicate_id)
-    job = Factories.job_record(user: user2, repository: duplicate_repo)
+    job = Factories.job_record(user: user2, repository: duplicate_repo, agent_provider: "claude")
 
     migration.up
 
