@@ -107,21 +107,29 @@ module Api
 
         def approve
           job = find_job
-          unless job.may_approve?
-            render_error("validation_failed", "Only implemented Jobs can be approved.", status: :unprocessable_content)
-            return
-          end
           unless job.repository.auto_merge_enabled?
             render_error("validation_failed", "Auto-merge is disabled for #{job.repository.slug}; enable it in repository settings before approving.", status: :unprocessable_content)
             return
           end
+          unless job.can_add_job_approval?(Current.user)
+            render_error("validation_failed", "Only the job owner or other repository members can add approval — the job creator cannot approve unless they are also the owner.", status: :unprocessable_content)
+            return
+          end
 
-          job.approve!(via: "operator", by_user: Current.user)
-          github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
-          landing_workflow = LandingQueueProcessor.try_land!(job)
-          landing_note = landing_workflow ? "Landing workflow enqueued." : nil
-          changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
-          render_job(job.reload, message: [ "Job approved.", github_note, landing_note ].compact.join(" "), changed: changed)
+          approval = job.job_approvals.find_or_initialize_by(user: Current.user)
+          approval.approved_at ||= Time.current
+          approval.save!
+
+          if job.approval_satisfied? && job.may_approve?
+            job.approve!(via: "operator", by_user: Current.user)
+            github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
+            landing_workflow = LandingQueueProcessor.try_land!(job)
+            landing_note = landing_workflow ? "Landing workflow enqueued." : nil
+            changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
+            render_job(job.reload, message: [ "Job approved.", github_note, landing_note ].compact.join(" "), changed: changed)
+          else
+            render_job(job.reload, message: "Approval recorded.", changed: [ "approval" ])
+          end
         end
 
         def unapprove

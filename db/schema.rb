@@ -457,6 +457,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
     t.index ["token"], name: "index_invitations_on_token", unique: true
   end
 
+  create_table "job_approvals", force: :cascade do |t|
+    t.datetime "approved_at", null: false
+    t.datetime "created_at", null: false
+    t.integer "job_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["job_id", "user_id"], name: "index_job_approvals_on_job_id_and_user_id", unique: true
+    t.index ["job_id"], name: "index_job_approvals_on_job_id"
+    t.index ["user_id"], name: "index_job_approvals_on_user_id"
+  end
+
   create_table "job_dependencies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "created_by_user_id"
@@ -651,6 +662,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
     t.boolean "polling_enabled", default: true, null: false
     t.boolean "pr_cost_footer_enabled", default: true, null: false
     t.boolean "prepare_enabled", default: true, null: false
+    t.string "review_policy", default: "self", null: false
     t.string "trigger_label", default: "syrus", null: false
     t.boolean "trust_clean_rebase_grade", default: false, null: false
     t.datetime "updated_at", null: false
@@ -666,6 +678,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
     t.index ["owner", "name"], name: "index_repositories_on_owner_and_name", unique: true
     t.index ["upstream_repository_id"], name: "index_repositories_on_upstream_repository_id"
     t.index ["user_id"], name: "index_repositories_on_user_id"
+  end
+
+  create_table "repository_final_approvers", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["repository_id", "user_id"], name: "index_repo_final_approvers_on_repository_and_user", unique: true
+    t.index ["repository_id"], name: "index_repository_final_approvers_on_repository_id"
+    t.index ["user_id"], name: "index_repository_final_approvers_on_user_id"
   end
 
   create_table "repository_memberships", force: :cascade do |t|
@@ -1054,6 +1076,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
   add_foreign_key "filter_usages", "users"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
+  add_foreign_key "job_approvals", "jobs"
+  add_foreign_key "job_approvals", "users"
   add_foreign_key "job_dependencies", "chat_proposals", column: "unresolved_chat_proposal_id"
   add_foreign_key "job_dependencies", "epics", column: "depends_on_epic_id"
   add_foreign_key "job_dependencies", "jobs"
@@ -1080,6 +1104,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "repositories", column: "upstream_repository_id"
   add_foreign_key "repositories", "users"
+  add_foreign_key "repository_final_approvers", "repositories"
+  add_foreign_key "repository_final_approvers", "users"
   add_foreign_key "repository_memberships", "repositories"
   add_foreign_key "repository_memberships", "users"
   add_foreign_key "run_diagnostics", "runs"

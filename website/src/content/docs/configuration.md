@@ -226,7 +226,49 @@ Repository settings are stored in Syrus, not in `.syrus.yml`.
 | Polling enabled | `true` | If disabled, scheduled pollers skip the repo |
 | Agent provider override | Blank | If set, new Jobs for the repo use this provider instead of the user's default |
 | PR cost footer | `true` | Adds or updates a cost footer on PRs when cost data exists |
+| Review policy | `self` | Who must approve before a Job lands; see [Review Policies](#review-policies) below |
 | Default issue workflow | `initial` | Label-triggered issues currently use the built-in Initial template |
+
+## Review Policies
+
+The `review_policy` setting on each repository controls how many approvals are
+required before a Job can enter the landing queue.
+
+| Policy | Who must approve |
+| --- | --- |
+| `self` (default) | The job owner must add their approval — reviewing your own AI-generated output before it merges |
+| `two_person` | The job owner **and** at least one other user must both approve |
+| `final_say` | The job owner must approve, plus one user from the repository's designated final-approvers list. If the owner is already a final approver, the policy collapses to `self`. |
+
+### How approvals work
+
+When the repository's review policy is anything other than `self`, the
+**Approve** button records the current user's vote without immediately
+transitioning the Job. Once the required votes are in, the Job moves to
+`:approved` and enters the landing queue.
+
+Approval rules:
+
+- The job **creator** (`user_id`) cannot add a JobApproval unless they are
+  also the **owner** (`owner_user_id`). The owner can always approve — that
+  step is the primary human review of AI-generated output.
+- Any other repository member can add an approval vote.
+- Unapproving a Job clears all recorded votes so the full policy must be
+  re-satisfied before the Job can land again.
+
+### Final approvers
+
+To designate final approvers for a `final_say` repository, add `RepositoryFinalApprover`
+records via the admin console or API. A repository may have any number of
+final approvers; only one needs to approve a given Job.
+
+### Auto-approval bypass
+
+`auto_approve_rules` on Epics, repositories, and users bypass the review
+policy entirely — the job transitions directly to `:approved` without
+creating `JobApproval` records. This is intentional: auto-approval means
+Syrus already validated the work through required graders, and requiring
+human sign-off on top of that would defeat the purpose.
 
 The default workflow is not a free-form per-repo template yet. In the
 current implementation, issue ingestion always starts the `initial`

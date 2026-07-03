@@ -788,6 +788,121 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "#approval_satisfied?" do
+    let(:owner) { Factories.user }
+    let(:other) { Factories.user }
+
+    context "review_policy: self" do
+      it "returns false when no approvals exist" do
+        repo = Factories.repository(user: owner, review_policy: "self")
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+        expect(job.approval_satisfied?).to be false
+      end
+
+      it "returns true when owner has approved" do
+        repo = Factories.repository(user: owner, review_policy: "self")
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+        JobApproval.create!(job: job, user: owner)
+        expect(job.approval_satisfied?).to be true
+      end
+
+      it "returns false when only a non-owner has approved" do
+        repo = Factories.repository(user: owner, review_policy: "self")
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+        JobApproval.create!(job: job, user: other)
+        expect(job.approval_satisfied?).to be false
+      end
+    end
+
+    context "review_policy: two_person" do
+      it "returns false when only the owner has approved" do
+        repo = Factories.repository(user: owner, review_policy: "two_person")
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+        JobApproval.create!(job: job, user: owner)
+        expect(job.approval_satisfied?).to be false
+      end
+
+      it "returns false when only a non-owner has approved" do
+        repo = Factories.repository(user: owner, review_policy: "two_person")
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+        JobApproval.create!(job: job, user: other)
+        expect(job.approval_satisfied?).to be false
+      end
+
+      it "returns true when owner and one other user have approved" do
+        repo = Factories.repository(user: owner, review_policy: "two_person")
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+        JobApproval.create!(job: job, user: owner)
+        JobApproval.create!(job: job, user: other)
+        expect(job.approval_satisfied?).to be true
+      end
+    end
+
+    context "review_policy: final_say" do
+      it "collapses to self when owner is a final approver" do
+        repo = Factories.repository(user: owner, review_policy: "final_say")
+        RepositoryFinalApprover.create!(repository: repo, user: owner)
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+        expect(job.approval_satisfied?).to be false
+        JobApproval.create!(job: job, user: owner)
+        expect(job.approval_satisfied?).to be true
+      end
+
+      it "requires owner approval and a final approver when owner is not a final approver" do
+        final_approver = Factories.user
+        repo = Factories.repository(user: owner, review_policy: "final_say")
+        RepositoryFinalApprover.create!(repository: repo, user: final_approver)
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+
+        JobApproval.create!(job: job, user: owner)
+        expect(job.approval_satisfied?).to be false
+
+        JobApproval.create!(job: job, user: final_approver)
+        expect(job.approval_satisfied?).to be true
+      end
+
+      it "returns false when only a non-final-approver has approved alongside the owner" do
+        repo = Factories.repository(user: owner, review_policy: "final_say")
+        RepositoryFinalApprover.create!(repository: repo, user: other)
+        job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+        random_user = Factories.user
+        JobApproval.create!(job: job, user: owner)
+        JobApproval.create!(job: job, user: random_user)
+        expect(job.approval_satisfied?).to be false
+      end
+    end
+  end
+
+  describe "#can_add_job_approval?" do
+    let(:owner) { Factories.user }
+    let(:creator) { Factories.user }
+    let(:other) { Factories.user }
+
+    it "allows the owner to approve even when they are also the creator" do
+      repo = Factories.repository(user: owner)
+      job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")
+      expect(job.can_add_job_approval?(owner)).to be true
+    end
+
+    it "blocks the creator when they are not the owner" do
+      repo = Factories.repository(user: owner)
+      job = Factories.job_record(user: creator, owner_user: owner, repository: repo, state: "implemented")
+      expect(job.can_add_job_approval?(creator)).to be false
+    end
+
+    it "allows a non-creator non-owner to approve" do
+      repo = Factories.repository(user: owner)
+      job = Factories.job_record(user: creator, owner_user: owner, repository: repo, state: "implemented")
+      expect(job.can_add_job_approval?(other)).to be true
+    end
+
+    it "returns false when job is not implemented" do
+      repo = Factories.repository(user: owner)
+      job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "queued")
+      expect(job.can_add_job_approval?(owner)).to be false
+    end
+  end
+
   describe "dependencies" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }

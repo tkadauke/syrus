@@ -72,6 +72,11 @@ class LandingQueueProcessor
     return MergeTrainDispatcher.try_dispatch!(job.epic) if merge_train_for_epic_child?(job)
 
     return unless job.approved?
+    # For jobs that went through the operator review flow (job_approvals exist),
+    # re-verify the policy is still satisfied — e.g. a final approver may have
+    # been removed after the job reached :approved. Auto-approved jobs (no
+    # job_approvals) bypass this gate by design.
+    return if job.job_approvals.exists? && !job.approval_satisfied?
     return unless blockage_for(job)[:blocked_reason].blank?
 
     land(job)

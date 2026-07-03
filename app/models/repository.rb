@@ -2,6 +2,8 @@ class Repository < ApplicationRecord
   include AutoApproveModes
 
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
+  REVIEW_POLICIES = %w[ self two_person final_say ].freeze
+
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
   attribute :pr_cost_footer_enabled, :boolean, default: true
@@ -18,6 +20,8 @@ class Repository < ApplicationRecord
   has_many :fork_repositories, class_name: "Repository", foreign_key: :upstream_repository_id, dependent: :nullify, inverse_of: :upstream_repository
   has_many :repository_memberships, dependent: :destroy
   has_many :members, through: :repository_memberships, source: :user
+  has_many :repository_final_approvers, dependent: :destroy
+  has_many :final_approvers, through: :repository_final_approvers, source: :user
   has_many :jobs, dependent: :destroy
   has_many :epics, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
@@ -34,6 +38,7 @@ class Repository < ApplicationRecord
   validates :default_branch, presence: true
   validates :trigger_label, presence: true
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
+  validates :review_policy, presence: true, inclusion: { in: REVIEW_POLICIES }
   validates :name, uniqueness: {
     scope: :owner,
     case_sensitive: false,

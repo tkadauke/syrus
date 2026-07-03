@@ -17,6 +17,30 @@ RSpec.describe Repository do
     expect(repo.agent_provider).to eq("codex")
   end
 
+  it "defaults review_policy to 'self' and accepts other valid policies" do
+    repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
+    expect(repo.review_policy).to eq("self")
+
+    repo.update!(review_policy: "two_person")
+    expect(repo.review_policy).to eq("two_person")
+
+    repo.update!(review_policy: "final_say")
+    expect(repo.review_policy).to eq("final_say")
+  end
+
+  it "rejects unknown review policies" do
+    repo = Repository.new(user: owner, owner: "acme", name: "widgets", review_policy: "committee")
+    expect(repo).not_to be_valid
+    expect(repo.errors[:review_policy]).to be_present
+  end
+
+  it "has_many final_approvers through repository_final_approvers" do
+    repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
+    approver = Factories.user
+    RepositoryFinalApprover.create!(repository: repo, user: approver)
+    expect(repo.final_approvers).to contain_exactly(approver)
+  end
+
   it "defaults auto-approval to never and accepts grader-gated modes" do
     repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
     expect(repo.auto_approve_mode).to eq("never")

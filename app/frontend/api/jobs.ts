@@ -6,6 +6,7 @@ export type JobRepository = {
   owner: string
   name: string
   default_branch: string
+  review_policy: "self" | "two_person" | "final_say"
   repository_path: string
 }
 
@@ -62,6 +63,8 @@ export type JobRecord = {
   approved_via: string | null
   owner_user_id: number | null
   owner_user: JobOwnerUser | null
+  job_approvals: JobApprovalRecord[]
+  approval_status: JobApprovalStatus | null
   claimed_at: string | null
   claimed_by_user: JobOwner | null
   claimed_by_current_user: boolean
@@ -84,6 +87,20 @@ export type JobRecord = {
 export type JobOwnerUser = {
   id: number
   email_address: string
+}
+
+export type JobApprovalRecord = {
+  id: number
+  user_id: number
+  user_email: string
+  approved_at: string
+}
+
+export type JobApprovalStatus = {
+  policy: "self" | "two_person" | "final_say"
+  satisfied: boolean
+  pending_description: string | null
+  approvals_count: number
 }
 
 export type JobOwner = {

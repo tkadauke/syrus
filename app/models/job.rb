@@ -27,6 +27,8 @@ class Job < ApplicationRecord
   belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
   belongs_to :approved_by_user, class_name: "User", optional: true
   belongs_to :claimed_by_user, class_name: "User", optional: true
+  has_many :job_approvals, dependent: :destroy
+  has_many :approving_users, through: :job_approvals, source: :user
   has_many :chat_proposals, dependent: :nullify
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
@@ -388,6 +390,39 @@ class Job < ApplicationRecord
     return if last_feedback_addressed_at && last_feedback_addressed_at >= addressed_at
 
     update!(last_feedback_addressed_at: addressed_at)
+  end
+
+  # Returns true when the repository's review_policy is satisfied by
+  # the existing job_approvals. Used by the approve action and the
+  # landing queue to gate the job's transition to :approved.
+  def approval_satisfied?
+    policy = repository.review_policy
+    case policy
+    when "self"
+      job_approvals.where(user_id: owner_user_id).exists?
+    when "two_person"
+      job_approvals.where(user_id: owner_user_id).exists? &&
+        job_approvals.where.not(user_id: owner_user_id).exists?
+    when "final_say"
+      final_approver_ids = repository.final_approver_ids
+      if final_approver_ids.include?(owner_user_id)
+        # Owner is a final approver — collapses to self-review
+        job_approvals.where(user_id: owner_user_id).exists?
+      else
+        job_approvals.where(user_id: owner_user_id).exists? &&
+          job_approvals.where(user_id: final_approver_ids).exists?
+      end
+    else
+      false
+    end
+  end
+
+  # Returns true when +user+ is eligible to add a JobApproval vote.
+  # The creator (user_id) is blocked unless they are also the owner.
+  def can_add_job_approval?(user)
+    return false unless implemented?
+
+    user.id == owner_user_id || user.id != user_id
   end
 
   def approve!(*args, **kwargs)
@@ -1070,6 +1105,7 @@ class Job < ApplicationRecord
     self.approved_via = nil
     self.approved_by_user = nil
     self.approval_evidence = {}
+    job_approvals.destroy_all
   end
 
   def epic_belongs_to_same_user_and_repository

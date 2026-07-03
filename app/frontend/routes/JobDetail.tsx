@@ -27,6 +27,8 @@ import {
   submitJobFeedback,
   type JobAttachment,
   type JobDependency,
+  type JobApprovalRecord,
+  type JobApprovalStatus,
   type JobDetailPayload,
   type JobRun,
   type JobSourceDiffPayload,
@@ -644,6 +646,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </section>
 
+          <ApprovalStatusPanel payload={payload} />
           <DependenciesPanel command={command} payload={payload} prefix={prefix} />
         </div>
       </div>
@@ -826,6 +829,56 @@ function PullRequestSummary({ payload }: { payload: JobDetailPayload }) {
       {payload.job.pr_number ? <a className="text-blue-600 hover:underline" href={payload.job.pr_url || "#"} rel="noopener" target="_blank">Syrus PR #{payload.job.pr_number}</a> : null}
       {payload.job.external_pr_number ? <a className="block text-violet-700 hover:underline" href={payload.job.external_pr_url || "#"} rel="noopener" target="_blank">External PR #{payload.job.external_pr_number}</a> : null}
       <div><MergeablePill value={payload.job.pr_mergeable} /> {payload.job.pr_mergeable_checked_at ? <span className="text-xs text-gray-400 dark:text-gray-500">checked {formatDate(payload.job.pr_mergeable_checked_at)}</span> : null}</div>
+    </div>
+  )
+}
+
+function ApprovalStatusPanel({ payload }: { payload: JobDetailPayload }) {
+  const { job, repository } = payload
+  const status: JobApprovalStatus | null = job.approval_status
+  const approvals: JobApprovalRecord[] = job.job_approvals ?? []
+
+  const policyLabel: Record<string, string> = {
+    self: "Self (owner review)",
+    two_person: "Two-person review",
+    final_say: "Final say"
+  }
+
+  if (!status && approvals.length === 0 && repository.review_policy === "self") return null
+
+  return (
+    <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Approval</h2>
+      <div className="mt-2 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-500 dark:text-gray-400">Policy</span>
+          <span className="text-gray-700 dark:text-gray-300">{policyLabel[repository.review_policy] ?? repository.review_policy}</span>
+        </div>
+        {status && (
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500 dark:text-gray-400">Status</span>
+            {status.satisfied
+              ? <span className="font-medium text-emerald-600 dark:text-emerald-400">Satisfied</span>
+              : <span className="text-amber-600 dark:text-amber-400">{status.pending_description ?? "Pending"}</span>
+            }
+          </div>
+        )}
+        {approvals.length > 0 ? (
+          <div>
+            <span className="text-gray-500 dark:text-gray-400">Approvals</span>
+            <ul className="mt-1 divide-y divide-gray-100 dark:divide-gray-800">
+              {approvals.map((approval) => (
+                <li key={approval.id} className="flex items-center justify-between py-1 text-xs">
+                  <span className="truncate text-gray-700 dark:text-gray-300">{approval.user_email}</span>
+                  <span className="ml-2 shrink-0 text-gray-400 dark:text-gray-500">{new Date(approval.approved_at).toLocaleDateString()}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 dark:text-gray-500">No approvals yet.</p>
+        )}
+      </div>
     </div>
   )
 }

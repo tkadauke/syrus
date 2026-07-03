@@ -133,7 +133,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(parse_body.dig("job", "state")).to eq("closed")
   end
 
-  it "approves and unapproves an implemented job" do
+  it "approves and unapproves an implemented job (self policy — owner is user)" do
     job.update!(state: "implemented")
 
     post app_job_path(job, "approve"), as: :json
@@ -144,6 +144,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(job.approved_by_user).to eq(user)
     expect(parse_body).to include("message" => "Job approved.")
     expect(parse_body.dig("job", "approved_by_user_id")).to eq(user.id)
+    expect(job.job_approvals.where(user: user).count).to eq(1)
 
     post app_job_path(job, "unapprove"), as: :json
 
@@ -152,6 +153,18 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(job.approved_at).to be_nil
     expect(job.approved_via).to be_nil
     expect(parse_body).to include("message" => "Job unapproved.")
+  end
+
+  it "records an approval vote without transitioning when policy is not yet satisfied (two_person)" do
+    repo.update!(review_policy: "two_person")
+    job.update!(state: "implemented", owner_user_id: user.id)
+
+    post app_job_path(job, "approve"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_implemented
+    expect(job.job_approvals.where(user: user).count).to eq(1)
+    expect(parse_body).to include("message" => "Approval recorded.")
   end
 
   it "approves an implemented job with bearer token auth", :skip_sign_in do
