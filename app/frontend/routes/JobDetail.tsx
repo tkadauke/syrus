@@ -590,16 +590,14 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
 
       <div className="grid gap-4 lg:grid-cols-[62%_38%]">
         <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Issue</h2>
-              {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No issue body.</p>}
-            </section>
-            <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent summary</h2>
-              {payload.summary ? <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{payload.summary.text}</p> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No summary yet.</p>}
-            </section>
-          </div>
+          <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Issue</h2>
+            {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No issue body.</p>}
+          </section>
+          <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent summary</h2>
+            {payload.summary ? <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{payload.summary.text}</p> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No summary yet.</p>}
+          </section>
 
           <TestPlanPanel testPlan={payload.test_plan} />
 
