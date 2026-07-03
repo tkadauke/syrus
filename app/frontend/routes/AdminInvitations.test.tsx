@@ -13,7 +13,7 @@ describe("AdminInvitations", () => {
   })
 
   it("copies the share URL to clipboard when the link is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(invitationsPayload()))
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(invitationsPayload())))
 
     renderRoute(<AdminInvitations />)
 
@@ -25,7 +25,7 @@ describe("AdminInvitations", () => {
   })
 
   it("does not navigate when the share URL is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(invitationsPayload()))
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(invitationsPayload())))
 
     renderRoute(<AdminInvitations />)
 
@@ -35,7 +35,7 @@ describe("AdminInvitations", () => {
   })
 
   it("shows the share URL text in the copy button", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(invitationsPayload()))
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(invitationsPayload())))
 
     renderRoute(<AdminInvitations />)
 
