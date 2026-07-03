@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   createAdminInvitation,
   fetchAdminInvitations,
@@ -9,6 +9,7 @@ import {
   type AdminInvitationsPayload
 } from "../api/adminInvitations"
 import { ApiError } from "../api/client"
+import { CopyIcon } from "../components/CopyableJobSlug"
 import { NoticeToast } from "../components/NoticeToast"
 
 const queryKey = ["admin", "invitations"] as const
@@ -117,6 +118,7 @@ function InvitationsTable({ invitations, onNotice }: { invitations: AdminInvitat
 function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
+  const [copied, setCopied] = useState(false)
   const revoke = useMutation({
     mutationFn: () => revokeAdminInvitation(invitation.id),
     onSuccess: (payload: AdminInvitationsPayload) => {
@@ -126,19 +128,31 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
     onSettled: () => setConfirming(false)
   })
 
+  useEffect(() => {
+    if (!copied) return
+    const timeout = window.setTimeout(() => setCopied(false), 1500)
+    return () => window.clearTimeout(timeout)
+  }, [copied])
+
+  function copyUrl() {
+    navigator.clipboard.writeText(invitation.share_url)
+    setCopied(true)
+    onNotice("Link copied to clipboard.")
+  }
+
   return (
     <tr>
       <td className="whitespace-nowrap px-4 py-3 text-gray-900 dark:text-gray-100">{invitation.email_address}</td>
       <td className="max-w-xl px-4 py-3 font-mono text-xs">
         <button
           aria-label={`Copy signup link for ${invitation.email_address}`}
-          className="break-all text-left text-blue-600 dark:text-blue-300 underline hover:no-underline cursor-copy"
-          onClick={() => {
-            navigator.clipboard.writeText(invitation.share_url)
-            onNotice("Link copied to clipboard.")
-          }}
+          className="group inline-flex items-center gap-1 break-all text-left text-blue-600 dark:text-blue-300 underline hover:no-underline cursor-copy"
+          onClick={copyUrl}
           type="button"
-        >{invitation.share_url}</button>
+        >
+          <span>{invitation.share_url}</span>
+          <CopyIcon className={`h-3.5 w-3.5 shrink-0 no-underline ${copied ? "text-green-600 dark:text-green-300" : "text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300"}`} />
+        </button>
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">{formatDate(invitation.expires_at)}</td>
       <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">{invitation.invited_by_email_address}</td>
