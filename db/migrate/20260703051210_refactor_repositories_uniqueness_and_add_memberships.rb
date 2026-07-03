@@ -27,11 +27,16 @@ class RefactorRepositoriesUniquenessAndAddMemberships < ActiveRecord::Migration[
     end
 
     # 3. Backfill one owner membership per existing repository.
+    #    NOT EXISTS guard makes this idempotent if migration.up is re-run.
     execute <<~SQL
       INSERT INTO repository_memberships (repository_id, user_id, role, created_at, updated_at)
-      SELECT id, user_id, 'owner', created_at, updated_at
-      FROM repositories
-      WHERE user_id IS NOT NULL
+      SELECT r.id, r.user_id, 'owner', r.created_at, r.updated_at
+      FROM repositories r
+      WHERE r.user_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM repository_memberships m
+          WHERE m.repository_id = r.id AND m.user_id = r.user_id
+        )
     SQL
 
     # 4. Deduplicate: the old unique key was [user_id, owner, name], so the
