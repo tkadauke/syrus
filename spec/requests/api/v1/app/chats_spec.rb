@@ -25,14 +25,42 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
   end
 
-  it "returns the default repository for a new chat" do
-    sign_in_as(user)
-    repository
+  describe "GET /api/v1/app/chats/new" do
+    it "returns the repository from the most recently created chat session with one attached" do
+      sign_in_as(user)
+      older_repo = Factories.repository(user: user, owner: "acme", name: "aardvark")
+      newer_repo = Factories.repository(user: user, owner: "acme", name: "zebra")
 
-    get "/api/v1/app/chats/new"
+      older_chat = ChatSession.create!(user: user, repository: older_repo)
+      older_chat.update_columns(created_at: 2.hours.ago)
+      ChatSession.create!(user: user, repository: newer_repo)
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("default_repository_id" => repository.id)
+      get "/api/v1/app/chats/new"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to eq("default_repository_id" => newer_repo.id)
+    end
+
+    it "falls back to alphabetical-first active repository when no chat session has a repository" do
+      sign_in_as(user)
+      ChatSession.create!(user: user)
+      repo_a = Factories.repository(user: user, owner: "acme", name: "aardvark")
+      Factories.repository(user: user, owner: "acme", name: "zebra")
+
+      get "/api/v1/app/chats/new"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to eq("default_repository_id" => repo_a.id)
+    end
+
+    it "returns nil when the user has no repositories" do
+      sign_in_as(user)
+
+      get "/api/v1/app/chats/new"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to eq("default_repository_id" => nil)
+    end
   end
 
   describe "sharing" do

@@ -158,7 +158,8 @@ module Api
         end
 
         def new
-          repository = Current.user.repositories.active.order(:owner, :name).first
+          repository = most_recent_chat_repository
+          repository ||= Current.user.repositories.active.order(:owner, :name).first
 
           render json: {
             default_repository_id: repository&.id
@@ -1459,6 +1460,16 @@ module Api
 
         def bookmark_label
           params.dig(:chat_bookmark, :label).to_s.strip
+        end
+
+        def most_recent_chat_repository
+          recent_repo_id = Current.user.chat_sessions
+            .joins(:repository_attachments)
+            .order("chat_sessions.created_at DESC")
+            .limit(1)
+            .pick("chat_attachments.attachable_id")
+
+          Current.user.repositories.active.find_by(id: recent_repo_id) if recent_repo_id
         end
 
         def repository_from_params
