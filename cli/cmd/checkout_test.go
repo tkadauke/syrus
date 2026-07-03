@@ -653,6 +653,203 @@ func TestCheckoutCommandRoutesJobRefsToJobCheckout(t *testing.T) {
 	}
 }
 
+func TestCheckoutCompleteChecksOutMergeTrainBranch(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/epics/42" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[45]}],"merge_train_branch":"syrus/merge-train-epic-42-7"}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "syrus/merge-train-epic-42-7", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "--complete", "EPIC-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	wantOutput := "Checked out syrus/merge-train-epic-42-7.\n"
+	if output.String() != wantOutput {
+		t.Fatalf("output = %q", output.String())
+	}
+	wantCalls := checkoutGitCalls("syrus/merge-train-epic-42-7")
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+func TestCheckoutCompleteChecksOutLinearStackTip(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"closed","title":"Add user model","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Add OAuth login","branch_name":"syrus/issue-47","depends_on_job_ids":[45]}],"merge_train_branch":""}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	repoRoot := t.TempDir()
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "fetch origin +refs/heads/syrus/issue-45:refs/remotes/origin/syrus/issue-45",
+			"fetch origin +refs/heads/syrus/issue-47:refs/remotes/origin/syrus/issue-47":
+			return "", nil
+		case "merge-base --is-ancestor refs/remotes/origin/syrus/issue-47 refs/remotes/origin/syrus/issue-45":
+			return "", fmt.Errorf("exit status 1")
+		case "merge-base --is-ancestor refs/remotes/origin/syrus/issue-45 refs/remotes/origin/syrus/issue-47":
+			return "", nil
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "remote get-url origin":
+			return "git@github.com:acme/widgets.git\n", nil
+		case "branch --show-current":
+			return "main\n", nil
+		case "show-ref --verify --quiet refs/heads/syrus/issue-47":
+			return "", fmt.Errorf("exit status 1")
+		case "checkout --track -b syrus/issue-47 refs/remotes/origin/syrus/issue-47":
+			return "", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "--complete", "EPIC-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	wantOutput := "Checked out syrus/issue-47 — run 'syrus test-plan JOB-47' to see the test plan.\n"
+	if output.String() != wantOutput {
+		t.Fatalf("output = %q", output.String())
+	}
+	wantCalls := [][]string{
+		{"fetch", "origin", "+refs/heads/syrus/issue-45:refs/remotes/origin/syrus/issue-45"},
+		{"fetch", "origin", "+refs/heads/syrus/issue-47:refs/remotes/origin/syrus/issue-47"},
+		{"merge-base", "--is-ancestor", "refs/remotes/origin/syrus/issue-47", "refs/remotes/origin/syrus/issue-45"},
+		{"merge-base", "--is-ancestor", "refs/remotes/origin/syrus/issue-45", "refs/remotes/origin/syrus/issue-47"},
+		{"rev-parse", "--is-inside-work-tree"},
+		{"remote", "get-url", "origin"},
+		{"fetch", "origin", "+refs/heads/syrus/issue-47:refs/remotes/origin/syrus/issue-47"},
+		{"branch", "--show-current"},
+		{"show-ref", "--verify", "--quiet", "refs/heads/syrus/issue-47"},
+		{"checkout", "--track", "-b", "syrus/issue-47", "refs/remotes/origin/syrus/issue-47"},
+		{"rev-parse", "--show-toplevel"},
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+func TestCheckoutCompleteRejectsUnstackedBranches(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"implemented","title":"Branch A","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Branch B","branch_name":"syrus/issue-47","depends_on_job_ids":[]}],"merge_train_branch":""}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		switch strings.Join(args, " ") {
+		case "fetch origin +refs/heads/syrus/issue-45:refs/remotes/origin/syrus/issue-45",
+			"fetch origin +refs/heads/syrus/issue-47:refs/remotes/origin/syrus/issue-47":
+			return "", nil
+		case "merge-base --is-ancestor refs/remotes/origin/syrus/issue-47 refs/remotes/origin/syrus/issue-45",
+			"merge-base --is-ancestor refs/remotes/origin/syrus/issue-45 refs/remotes/origin/syrus/issue-47":
+			return "", fmt.Errorf("exit status 1")
+		default:
+			t.Fatalf("unexpected git command: %v", args)
+			return "", nil
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "--complete", "EPIC-42"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	want := "Epic EPIC-42 branches are not linearly stacked. Run 'syrus checkout EPIC-42' to select a specific job."
+	if err.Error() != want {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestCheckoutCompleteRejectsEpicWithNoImplementedBranches(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"queued","title":"Add user model","branch_name":"","depends_on_job_ids":[]},{"id":47,"state":"queued","title":"Add OAuth login","branch_name":"","depends_on_job_ids":[]}],"merge_train_branch":""}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		t.Fatalf("git should not be called")
+		return "", nil
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "--complete", "EPIC-42"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "Epic EPIC-42 has no implemented jobs yet." {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestCheckoutWithoutCompleteIgnoresCompleteFlag(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[]}],"merge_train_branch":""}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var pickerCalled bool
+	originalPicker := epicPickerFunc
+	epicPickerFunc = func(epicRef string, candidates []epicCandidate) (*api.JobItem, error) {
+		pickerCalled = true
+		return &candidates[0].job, nil
+	}
+	t.Cleanup(func() { epicPickerFunc = originalPicker })
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "syrus/issue-45", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "EPIC-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !pickerCalled {
+		t.Fatal("picker should have been called for multiple sink candidates without --complete")
+	}
+}
+
 func checkoutServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(handler)

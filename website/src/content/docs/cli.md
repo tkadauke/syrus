@@ -225,6 +225,23 @@ committed or stashed first. After a successful checkout, the CLI runs any
 stops if one fails. Pass `--no-hooks` to skip those commands for one
 checkout.
 
+`syrus checkout EPIC-N --complete` automatically selects the single branch
+that contains all of the Epic's implemented changes and checks it out, without
+opening the interactive picker. It uses a two-step algorithm:
+
+1. If the Epic has an active merge-train integration branch (set by
+   `merge_train_build` and not yet landed), that branch is checked out
+   directly — it is, by construction, a descendant of all member branches.
+2. Otherwise, Syrus fetches all implemented job branches and finds the one
+   that is a git descendant of every other (i.e. the "tip" of a linear
+   stack). If exactly one such branch exists it is checked out; if the
+   branches are not linearly stacked the command fails with an error
+   suggesting `syrus checkout EPIC-N` for manual selection.
+
+`--complete` is useful after an Epic's Jobs have been reviewed and merged
+in sequence, or when working with a stacked-branch workflow where one
+branch is explicitly built on top of another.
+
 ## Test Plans
 
 The top-level test-plan shortcut accepts `JOB-123` slugs:

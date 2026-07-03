@@ -23,8 +23,9 @@ type EpicItem struct {
 }
 
 type EpicDetail struct {
-	Epic EpicItem  `json:"epic"`
-	Jobs []JobItem `json:"jobs"`
+	Epic             EpicItem  `json:"epic"`
+	Jobs             []JobItem `json:"jobs"`
+	MergeTrainBranch string    `json:"merge_train_branch"`
 }
 
 type EpicFormPayload struct {

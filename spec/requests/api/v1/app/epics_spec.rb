@@ -810,4 +810,38 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: user.id }
     expect(response).to have_http_status(:not_found)
   end
+
+  it "includes merge_train_branch in the detail payload when an active train has an integration branch" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+    train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "main", state: "building",
+      integration_branch: "syrus/merge-train-epic-#{epic.id}-1")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["merge_train_branch"]).to eq(train.integration_branch)
+  end
+
+  it "returns merge_train_branch as null when no active merge train exists" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["merge_train_branch"]).to be_nil
+  end
+
+  it "returns merge_train_branch as null when the merge train is terminal" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+    MergeTrain.create!(epic: epic, repository: repository, base_branch: "main", state: "succeeded",
+      integration_branch: "syrus/merge-train-epic-#{epic.id}-1")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["merge_train_branch"]).to be_nil
+  end
 end

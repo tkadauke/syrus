@@ -191,9 +191,11 @@ module Api
           jobs = epic.jobs.includes(:repository, :dependencies, :dependent_links).order(:id).to_a
           blocked_dependency = epic.dependencies.includes(:depends_on_epic, :depends_on_job).find { |dependency| !dependency.dependency_succeeded? }
           graph = EpicDependencyGraphRenderer.new(epic).render
+          active_train = MergeTrain.active.where(epic_id: epic.id).where.not(integration_branch: nil).order(:id).last
 
           {
             message: message,
+            merge_train_branch: active_train&.integration_branch,
             epic: detail_epic_json(epic, jobs: jobs),
             summary: {
               done_jobs_count: done_jobs_count(jobs),

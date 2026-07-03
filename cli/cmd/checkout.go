@@ -39,6 +39,7 @@ var epicPickerFunc = func(epicRef string, candidates []epicCandidate) (*api.JobI
 
 func NewCheckoutCommand() *cobra.Command {
 	var noHooks bool
+	var complete bool
 	command := &cobra.Command{
 		Use:           "checkout JOB-ID|EPIC-ID",
 		Short:         "Check out a Syrus Job branch",
@@ -48,6 +49,9 @@ func NewCheckoutCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			upper := strings.ToUpper(strings.TrimSpace(args[0]))
 			if strings.HasPrefix(upper, "EPIC-") {
+				if complete {
+					return runEpicCheckoutComplete(cmd, args[0], noHooks)
+				}
 				return runEpicCheckout(cmd, args[0], noHooks)
 			}
 
@@ -84,6 +88,7 @@ func NewCheckoutCommand() *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&noHooks, "no-hooks", false, "skip .syrus.yml hooks.post_checkout commands")
+	command.Flags().BoolVar(&complete, "complete", false, "automatically select the single branch containing all epic changes (Epic refs only)")
 	return command
 }
 
@@ -137,6 +142,121 @@ func runEpicCheckout(cmd *cobra.Command, input string, noHooks bool) error {
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s — run 'syrus test-plan JOB-%d' to see the test plan.\n", selected.BranchName, selected.ID)
 	return nil
+}
+
+func runEpicCheckoutComplete(cmd *cobra.Command, input string, noHooks bool) error {
+	epicRef, epicID, err := parseEpicRef(input)
+	if err != nil {
+		return err
+	}
+
+	client, _, err := apiClient()
+	if err != nil {
+		return err
+	}
+	epic, err := client.GetEpic(cmd.Context(), epicID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(epic.Epic.RepositorySlug) == "" {
+		return fmt.Errorf("Epic %s response did not include a repository slug", epicRef)
+	}
+
+	// Step 1: Use the merge train integration branch if one is active.
+	if strings.TrimSpace(epic.MergeTrainBranch) != "" {
+		if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, epic.MergeTrainBranch); err != nil {
+			return err
+		}
+		if !noHooks {
+			if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s.\n", epic.MergeTrainBranch)
+		return nil
+	}
+
+	// Step 2: Git ancestry check on job branches.
+	var branches []string
+	for _, job := range epic.Jobs {
+		if strings.TrimSpace(job.BranchName) != "" {
+			branches = append(branches, job.BranchName)
+		}
+	}
+	if len(branches) == 0 {
+		return fmt.Errorf("Epic %s has no implemented jobs yet.", epicRef)
+	}
+
+	// Fetch all branches so remote refs are current for the ancestry check.
+	for _, branch := range branches {
+		remoteRef := "refs/remotes/origin/" + branch
+		if _, err := checkoutRunGit(cmd.Context(), "", "fetch", "origin", "+refs/heads/"+branch+":"+remoteRef); err != nil {
+			return fmt.Errorf("git fetch failed for %s: %w", branch, err)
+		}
+	}
+
+	tip, err := epicCompleteFindTip(cmd.Context(), checkoutRunGit, branches)
+	if err != nil {
+		return err
+	}
+	if tip == "" {
+		return fmt.Errorf("Epic %s branches are not linearly stacked. Run 'syrus checkout %s' to select a specific job.", epicRef, epicRef)
+	}
+
+	if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, tip); err != nil {
+		return err
+	}
+	if !noHooks {
+		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+			return err
+		}
+	}
+
+	tipJobID := int64(0)
+	for _, job := range epic.Jobs {
+		if job.BranchName == tip {
+			tipJobID = job.ID
+			break
+		}
+	}
+	if tipJobID != 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s — run 'syrus test-plan JOB-%d' to see the test plan.\n", tip, tipJobID)
+	} else {
+		fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s.\n", tip)
+	}
+	return nil
+}
+
+// epicCompleteFindTip returns the single branch that is a git descendant of
+// every other branch in the set, or "" if no such unique branch exists.
+func epicCompleteFindTip(ctx context.Context, runner gitRunner, branches []string) (string, error) {
+	if len(branches) == 1 {
+		return branches[0], nil
+	}
+
+	var tips []string
+	for _, candidate := range branches {
+		candidateRef := "refs/remotes/origin/" + candidate
+		isDescendantOfAll := true
+		for _, other := range branches {
+			if other == candidate {
+				continue
+			}
+			otherRef := "refs/remotes/origin/" + other
+			if _, err := runner(ctx, "", "merge-base", "--is-ancestor", otherRef, candidateRef); err != nil {
+				isDescendantOfAll = false
+				break
+			}
+		}
+		if isDescendantOfAll {
+			tips = append(tips, candidate)
+		}
+	}
+
+	if len(tips) == 1 {
+		return tips[0], nil
+	}
+	return "", nil
 }
 
 func parseEpicRef(input string) (string, string, error) {
