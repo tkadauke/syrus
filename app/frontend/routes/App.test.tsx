@@ -12705,6 +12705,29 @@ describe("App", () => {
     expect(await screen.findByText("Pending action confirmed.")).toBeInTheDocument()
   })
 
+  it("shows Copy button on chat messages and copies text to clipboard", async () => {
+    const writeTextSpy = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: writeTextSpy }, configurable: true })
+
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    const copyButton = screen.getByRole("button", { name: "Copy" })
+    expect(copyButton).toBeInTheDocument()
+    fireEvent.click(copyButton)
+    await waitFor(() => {
+      expect(writeTextSpy).toHaveBeenCalledWith("Discuss aqueducts.")
+    })
+  })
+
   it("renders pending action cards inline in chat messages", async () => {
     const pendingMessage = {
       type: "message",

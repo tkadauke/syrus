@@ -895,6 +895,7 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
   const search = queryKey[2]
   const [open, setOpen] = useState(false)
   const [label, setLabel] = useState("")
+  const [copied, setCopied] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
   const bookmark = useMutation({
     mutationFn: () => createChatBookmark(appendSearch(payload.paths.app_bookmarks_path, search), item.id, label),
@@ -906,30 +907,44 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
     }
   })
 
-  if (!item.bookmarkable) return null
+  if (!item.text) return null
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     bookmark.mutate()
   }
 
+  function handleCopy() {
+    void navigator.clipboard.writeText(item.text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
   return (
-    <div className={`absolute right-0 top-0 z-10 ${open ? "block" : "hidden group-hover/message:block"}`} ref={menuRef}>
-      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => setOpen((value) => !value)} type="button">
-        Bookmark
+    <div className={`absolute right-0 top-0 z-10 flex gap-1 ${open ? "flex" : "hidden group-hover/message:flex"}`} ref={menuRef}>
+      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={handleCopy} type="button">
+        {copied ? "Copied!" : "Copy"}
       </button>
-      {open ? (
-        <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
-            Label
-            <input className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
-          </label>
-          {bookmark.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
-          <div className="flex justify-end gap-2">
-            <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => setOpen(false)} type="button">Cancel</button>
-            <button className={primaryButton()} disabled={bookmark.isPending} type="submit">Save</button>
-          </div>
-        </form>
+      {item.bookmarkable ? (
+        <>
+          <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => setOpen((value) => !value)} type="button">
+            Bookmark
+          </button>
+          {open ? (
+            <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+                Label
+                <input className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
+              </label>
+              {bookmark.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
+              <div className="flex justify-end gap-2">
+                <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => setOpen(false)} type="button">Cancel</button>
+                <button className={primaryButton()} disabled={bookmark.isPending} type="submit">Save</button>
+              </div>
+            </form>
+          ) : null}
+        </>
       ) : null}
     </div>
   )
