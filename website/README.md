@@ -65,6 +65,7 @@ The public website should browse in this order:
 | Desktop app | `/docs/desktop` | macOS DMG download, guided local install, app window + menu bar, updates. |
 | Concepts | `/docs/concepts` | Job, Workflow, Step, Run, states, trigger kinds, and MCP signals. |
 | Feature docs | `/docs/features` | Product-feature map that points to canonical reference pages. |
+| Collaboration | `/docs/collaboration` | Solo, shared-repository team, fork-based team, and open source contributor modes; review policies; feedback policies. |
 | How-tos and recipes | `/docs/recipes` | Task-focused recipes: CI repair, PR feedback, scheduled jobs, custom workflows. |
 | Troubleshooting | `/docs/troubleshooting` | Failure modes and debugging steps. |
 
@@ -93,15 +94,16 @@ Recommended sidebar order once Starlight lands:
 5. Why use Syrus?
 6. Concepts
 7. Features
-8. Workflows
-9. Configuration
-10. Deployment
-11. Recipes
-12. Troubleshooting
-13. Architecture
-14. Syrus CLI
-15. API
-16. FAQ
+8. Collaboration
+9. Workflows
+10. Configuration
+11. Deployment
+12. Recipes
+13. Troubleshooting
+14. Architecture
+15. Syrus CLI
+16. API
+17. FAQ
 
 ## Contributing
 

@@ -30,6 +30,8 @@ recipes needed to run Syrus without reading the Rails source.
   trigger kinds, and state machines.
 - [Features](/docs/features): Jobs, Epics, schedules, chats, direct Jobs,
   credentials, GitHub App/PAT behavior, and multi-user operation.
+- [Collaboration](/docs/collaboration): solo, shared-repository team, fork-based
+  team, and open source contributor modes; review policies; feedback policies.
 - [Workflows](/docs/workflows): the built-in pipelines for issues, PR
   feedback, CI failures, retries, rebases, direct Jobs, and landing.
 - [Configuration](/docs/configuration): `.syrus.yml`, user settings,

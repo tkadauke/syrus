@@ -332,6 +332,9 @@ instances keep the primary navigation focused on the solo operator's work.
 That model keeps solo operation simple and team operation centralized
 without turning every run into a shared global credential.
 
+For team workflows, fork-based development, and open source contributions,
+see [Collaboration](/docs/collaboration).
+
 ## Spending Insights
 
 The spending dashboard at `/insights/spending` rolls up captured
