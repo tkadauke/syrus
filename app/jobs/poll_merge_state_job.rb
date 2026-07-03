@@ -19,8 +19,9 @@ class PollMergeStateJob < ApplicationJob
     return if @job.workflows.active.exists?
     return if RebaseWorkflowSelector.active_for_stack?(@job)
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
-    @pr = @client.pull_request(@job.repository.slug, pr_number, bypass_cache: false)
+    pr_repo = @job.effective_pr_repository
+    @client = GithubClient.for(repository: pr_repo, user: @job.user)
+    @pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: false)
 
     # A preempted Job tracks an external PR only to keep it rebased while
     # that PR is open. Once the external PR reaches a terminal state,

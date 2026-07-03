@@ -28,6 +28,7 @@ class Job < ApplicationRecord
   belongs_to :approved_by_user, class_name: "User", optional: true
   belongs_to :claimed_by_user, class_name: "User", optional: true
   belongs_to :target_repository, class_name: "Repository", optional: true
+  belongs_to :pr_repository, class_name: "Repository", optional: true
   has_many :chat_proposals, dependent: :nullify
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
@@ -360,6 +361,10 @@ class Job < ApplicationRecord
 
   def effective_target_repository
     target_repository || repository
+  end
+
+  def effective_pr_repository
+    pr_repository || repository
   end
 
   def blocked_by_epic_before_execution?

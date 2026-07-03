@@ -40,8 +40,9 @@ class PollRebaseJob < ApplicationJob
     pr_number = @job.pr_number || @job.external_pr_number
     return unless pr_number
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
-    pr = @client.pull_request(@job.repository.slug, pr_number, bypass_cache: bypass_cache)
+    pr_repo = @job.effective_pr_repository
+    @client = GithubClient.for(repository: pr_repo, user: @job.user)
+    pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: bypass_cache)
 
     # Cache what GitHub told us so the show page doesn't have to call
     # back here on every render. Persist BEFORE any early returns so

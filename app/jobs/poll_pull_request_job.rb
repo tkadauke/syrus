@@ -29,8 +29,9 @@ class PollPullRequestJob < ApplicationJob
     return unless @job&.open? && @job.pr_number.present?
     return if @job.repository.archived?
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
-    @slug = @job.repository.slug
+    pr_repo = @job.effective_pr_repository
+    @client = GithubClient.for(repository: pr_repo, user: @job.user)
+    @slug = pr_repo.slug
     @pr = @client.pull_request(@slug, @job.pr_number)
 
     # Reaching this point means the user's GH token is at least
@@ -64,7 +65,9 @@ class PollPullRequestJob < ApplicationJob
     @job.close_with_reason!(reason)
     StackRebaseCoordinator.parent_closed(@job) if reason == "pr_closed"
     if reason == "pr_merged" && @job.branch_name.present?
-      @client.delete_branch(@slug, @job.branch_name)
+      # Branch lives on the fork (repository), not the upstream (effective_pr_repository)
+      fork_client = GithubClient.for(repository: @job.repository, user: @job.user)
+      fork_client.delete_branch(@job.repository.slug, @job.branch_name)
       @job.update_column(:branch_deleted_at, Time.current)
     end
   end

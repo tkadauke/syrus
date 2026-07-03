@@ -1205,6 +1205,22 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "#effective_pr_repository" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "returns the repository when pr_repository_id is nil" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+      expect(job.effective_pr_repository).to eq(repository)
+    end
+
+    it "returns pr_repository when one is set" do
+      upstream = Factories.repository(user: user)
+      job = Job.create!(user: user, repository: repository, issue_number: 6, pr_repository: upstream)
+      expect(job.effective_pr_repository).to eq(upstream)
+    end
+  end
+
   describe "target_repository_id auto-population" do
     let(:user) { Factories.user }
 

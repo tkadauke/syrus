@@ -24,6 +24,8 @@ The Job owns the long-lived identifiers:
 - repository and user
 - issue number, when the source is a GitHub issue
 - PR number, once Syrus opens one
+- PR repository — the repository where the PR lives; differs from the working
+  repository when Syrus opens a cross-fork PR against an upstream
 - branch name, reused by follow-up attempts
 - closure reason, when the thread ends
 

@@ -1,6 +1,9 @@
 class PullRequestOpener
-  def initialize(repository, client: nil)
+  # repository     — where the PR is opened (target / upstream for cross-fork)
+  # head_repository — where the branch lives (fork repo); defaults to repository
+  def initialize(repository, client: nil, head_repository: nil)
     @repository = repository
+    @head_repository = head_repository || repository
     @client = client || GithubClient.for(repository: @repository, user: @repository.user)
   end
 
@@ -19,6 +22,6 @@ class PullRequestOpener
   private
 
   def head_ref(branch)
-    "#{@repository.owner}:#{branch}"
+    "#{@head_repository.owner}:#{branch}"
   end
 end

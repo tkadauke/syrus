@@ -607,6 +607,84 @@ RSpec.describe PollPullRequestJob do
     end
   end
 
+  describe "cross-fork PR polling" do
+    let(:upstream) do
+      Factories.repository(user: user, owner: "upstream-org", name: "widgets")
+    end
+    let(:fork_job) do
+      j = Factories.job(repository: repository, issue_number: 55, pr_repository: upstream)
+      j.update!(branch_name: "syrus/issue-55-#{j.id}", pr_number: 20)
+      j
+    end
+    let(:upstream_slug) { "upstream-org/widgets" }
+    let(:upstream_pr_url) { "https://api.github.com/repos/upstream-org/widgets/pulls/20" }
+    let(:upstream_reviews_url) { "https://api.github.com/repos/upstream-org/widgets/pulls/20/reviews" }
+    let(:upstream_issue_comments_url) { "https://api.github.com/repos/upstream-org/widgets/issues/20/comments" }
+    let(:upstream_review_comments_url) { "https://api.github.com/repos/upstream-org/widgets/pulls/20/comments" }
+    let(:upstream_delete_ref_url) do
+      "https://api.github.com/repos/upstream-org/widgets/git/refs/heads/syrus/issue-55-#{fork_job.id}"
+    end
+    let(:fork_delete_ref_url) do
+      "https://api.github.com/repos/acme/widgets/git/refs/heads/syrus/issue-55-#{fork_job.id}"
+    end
+
+    before do
+      stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { number: 20, state: "open", merged: false, labels: [],
+                head: { sha: "abc123", ref: "syrus/issue-55-#{fork_job.id}" } }.to_json
+      )
+      stub_request(:get, upstream_reviews_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: [].to_json
+      )
+      stub_request(:get, upstream_issue_comments_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: [].to_json
+      )
+      stub_request(:get, upstream_review_comments_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: [].to_json
+      )
+      stub_request(:get, "https://api.github.com/repos/upstream-org/widgets/commits/abc123/check-runs")
+        .with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: { total_count: 0, check_runs: [] }.to_json
+        )
+      stub_request(:delete, /api\.github\.com\/repos\/.*\/git\/refs\/heads\//).to_return(
+        status: 204, body: ""
+      )
+    end
+
+    it "fetches the PR from the effective_pr_repository (upstream) slug" do
+      upstream_pr_stub = stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { number: 20, state: "open", merged: false, labels: [],
+                head: { sha: "abc123", ref: "syrus/issue-55-#{fork_job.id}" } }.to_json
+      )
+
+      described_class.perform_now(fork_job.id)
+
+      expect(upstream_pr_stub).to have_been_requested
+    end
+
+    it "deletes the branch on the fork repo (not the upstream) after a cross-fork PR merges" do
+      stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { number: 20, state: "closed", merged: true, labels: [],
+                head: { sha: "abc123", ref: "syrus/issue-55-#{fork_job.id}" } }.to_json
+      )
+      fork_delete_stub = stub_request(:delete, fork_delete_ref_url).to_return(status: 204, body: "")
+      upstream_delete_stub = stub_request(:delete, upstream_delete_ref_url).to_return(status: 204, body: "")
+
+      described_class.perform_now(fork_job.id)
+
+      expect(fork_delete_stub).to have_been_requested
+      expect(upstream_delete_stub).not_to have_been_requested
+      expect(fork_job.reload.branch_deleted_at).to be_present
+    end
+  end
+
   describe "branch deletion on merge" do
     let(:branch_name) { job.branch_name }
     let(:delete_ref_url) { "https://api.github.com/repos/acme/widgets/git/refs/heads/#{branch_name}" }

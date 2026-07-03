@@ -24,14 +24,24 @@ module Steps
       end
 
       title, body = pr_title_and_body
-      pr_number = PullRequestOpener.new(repository).open(
+      target_repo = job.effective_target_repository
+      opener_client = GithubClient.for(repository: target_repo, user: job.user)
+      pr_number = PullRequestOpener.new(
+        target_repo,
+        client: opener_client,
+        head_repository: cross_fork? ? repository : nil
+      ).open(
         branch: workspace.branch_name,
         title: title,
         body: body,
         job: job
       )
       log("pr_open: opened PR ##{pr_number} (#{title.inspect})")
-      job.update!(pr_number: pr_number, branch_name: workspace.branch_name)
+      job.update!(
+        pr_number: pr_number,
+        pr_repository_id: target_repo.id,
+        branch_name: workspace.branch_name
+      )
       transition_job_to_implemented!
       refresh_stack_footer
     end
@@ -193,16 +203,21 @@ module Steps
       PrCostFooter.apply(PrStackFooter.apply(parts.join("\n"), job), job)
     end
 
+    def cross_fork?
+      job.target_repository_id.present? && job.target_repository_id != job.repository_id
+    end
+
     def refresh_stack_footer
       return unless job.parent_job.present? || job.stack_children.exists?
 
-      client = GithubClient.for(repository: repository, user: job.user)
       [ job.parent_job, job ].compact.uniq.each do |stack_job|
         next if stack_job.pr_number.blank?
 
-        pr = client.pull_request(repository.slug, stack_job.pr_number, bypass_cache: true)
+        pr_repo = stack_job.effective_pr_repository
+        client = GithubClient.for(repository: pr_repo, user: job.user)
+        pr = client.pull_request(pr_repo.slug, stack_job.pr_number, bypass_cache: true)
         body = PrCostFooter.apply(PrStackFooter.apply(pr.body.to_s, stack_job), stack_job)
-        client.update_pull_request_body(repository.slug, stack_job.pr_number, body)
+        client.update_pull_request_body(pr_repo.slug, stack_job.pr_number, body)
       end
     end
 

@@ -70,7 +70,7 @@ class RebaseLoopGuard
     branch = pr_base_ref(pr) || job.effective_base_branch
     return if branch.blank?
 
-    client.branch_head_sha(job.repository.slug, branch).to_s.presence
+    client.branch_head_sha(job.effective_pr_repository.slug, branch).to_s.presence
   end
   private_class_method :live_base_sha
 end

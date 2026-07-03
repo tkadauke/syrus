@@ -559,6 +559,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
     t.boolean "pr_mergeable"
     t.datetime "pr_mergeable_checked_at"
     t.integer "pr_number"
+    t.bigint "pr_repository_id"
     t.string "priority", default: "medium", null: false
     t.integer "repository_id", null: false
     t.integer "scheduled_task_id"
@@ -581,6 +582,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["owner_user_id"], name: "index_jobs_on_owner_user_id"
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
+    t.index ["pr_repository_id"], name: "index_jobs_on_pr_repository_id"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
@@ -1067,6 +1069,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_214113) do
   add_foreign_key "jobs", "epics"
   add_foreign_key "jobs", "jobs", column: "parent_job_id"
   add_foreign_key "jobs", "repositories"
+  add_foreign_key "jobs", "repositories", column: "pr_repository_id"
   add_foreign_key "jobs", "repositories", column: "target_repository_id"
   add_foreign_key "jobs", "scheduled_tasks"
   add_foreign_key "jobs", "users"

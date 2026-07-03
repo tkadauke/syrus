@@ -59,6 +59,22 @@ RSpec.describe PollMergeStateJob do
     described_class.perform_now(job.id)
   end
 
+  it "fetches the PR from effective_pr_repository when it differs from repository" do
+    upstream = Factories.repository(user: user, owner: "upstream-org", name: "widgets", auto_merge_enabled: true)
+    fork_job = Factories.job(user: user, repository: repository, pr_number: 8, pr_repository: upstream,
+                             branch_name: "syrus/issue-42-x")
+    fork_job.mark_implemented! if fork_job.may_mark_implemented?
+    fork_job.save!
+    fork_job.workflows.update_all(state: "succeeded")
+
+    expect_any_instance_of(GithubClient)
+      .to receive(:pull_request)
+      .with("upstream-org/widgets", 8, bypass_cache: false)
+      .and_return(pr)
+
+    described_class.perform_now(fork_job.id)
+  end
+
   it "re-approves after a cancelled transient auto-merge attempt" do
     cancelled = Workflows::AutoMerge.instantiate(job: job)
     cancelled.cancel!

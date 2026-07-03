@@ -67,4 +67,23 @@ RSpec.describe PullRequestOpener do
       body: "B"
     )
   end
+
+  it "opens a cross-fork PR with the fork owner in head and the upstream slug as base repo" do
+    upstream = Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main")
+    fork = Factories.repository(user: user, owner: "forker", name: "widgets", default_branch: "main")
+    fake_pr = double(number: 102)
+    fake_client = instance_double(GithubClient, create_pull_request: fake_pr)
+
+    opener = described_class.new(upstream, client: fake_client, head_repository: fork)
+    pr_number = opener.open(branch: "syrus/issue-4-4", title: "T", body: "B")
+
+    expect(pr_number).to eq(102)
+    expect(fake_client).to have_received(:create_pull_request).with(
+      "acme/widgets",
+      base: "main",
+      head: "forker:syrus/issue-4-4",
+      title: "T",
+      body: "B"
+    )
+  end
 end

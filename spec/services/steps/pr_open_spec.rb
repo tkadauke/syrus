@@ -70,9 +70,11 @@ RSpec.describe Steps::PrOpen do
     )
     handler = described_class.new(pr_open_run)
     workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+    fake_client = instance_double(GithubClient, access_token: "tok")
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:push_branch)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
+    allow(GithubClient).to receive(:for).and_return(fake_client)
     opener = instance_double(PullRequestOpener, open: 100)
     allow(PullRequestOpener).to receive(:new).and_return(opener)
 
@@ -110,11 +112,13 @@ RSpec.describe Steps::PrOpen do
     handler = described_class.new(pr_open_run)
     workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
     opener = instance_double(PullRequestOpener)
+    client = instance_double(GithubClient, access_token: "tok")
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:push_branch)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
-    expect(PullRequestOpener).to receive(:new).with(repository).and_return(opener)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    expect(PullRequestOpener).to receive(:new).with(repository, client: client, head_repository: nil).and_return(opener)
     expect(opener).to receive(:open).with(
       branch: "syrus/issue-42-#{job.id}",
       title: "T",
@@ -125,6 +129,54 @@ RSpec.describe Steps::PrOpen do
     handler.call
 
     expect(job.reload.pr_number).to eq(99)
+    expect(job.reload.pr_repository_id).to eq(repository.id)
+  end
+
+  context "when the Job has a cross-fork target_repository" do
+    let(:upstream) { Factories.repository(user: user, owner: "upstream-org", name: "widgets") }
+    let(:fork_job) do
+      j = Factories.job(repository: repository, issue_number: 55, target_repository: upstream)
+      j.update!(state: "running")
+      j
+    end
+    let(:fork_workflow) { Workflow.create!(job: fork_job, trigger_kind: "initial", agent_provider: "claude") }
+    let!(:fork_implement_step) { Step.create!(workflow: fork_workflow, kind: "implement", position: 0) }
+    let!(:fork_pr_open_step) { Step.create!(workflow: fork_workflow, kind: "pr_open", position: 1) }
+
+    it "opens PR on the upstream with the fork's owner in the head ref and saves pr_repository_id" do
+      fork_run = Run.create!(
+        job: fork_job,
+        step: fork_pr_open_step,
+        trigger_kind: fork_workflow.trigger_kind,
+        agent_provider: fork_workflow.agent_provider
+      )
+      handler = described_class.new(fork_run)
+      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-55-#{fork_job.id}")
+      upstream_client = instance_double(GithubClient, access_token: "upstream-tok")
+      opener = instance_double(PullRequestOpener)
+
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:push_branch)
+      allow(handler).to receive(:pr_title_and_body).and_return([ "U", "V" ])
+      allow(GithubClient).to receive(:for).with(repository: upstream, user: fork_job.user).and_return(upstream_client)
+      expect(PullRequestOpener).to receive(:new).with(
+        upstream,
+        client: upstream_client,
+        head_repository: repository
+      ).and_return(opener)
+      expect(opener).to receive(:open).with(
+        branch: "syrus/issue-55-#{fork_job.id}",
+        title: "U",
+        body: "V",
+        job: fork_job
+      ).and_return(200)
+
+      handler.call
+
+      fork_job.reload
+      expect(fork_job.pr_number).to eq(200)
+      expect(fork_job.pr_repository_id).to eq(upstream.id)
+    end
   end
 
   it "fails clearly when an existing PR branch moved before push" do

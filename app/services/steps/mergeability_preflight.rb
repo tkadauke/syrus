@@ -3,8 +3,9 @@ module Steps
     include AutoMergeControl
 
     def call
-      client = GithubClient.for(repository: repository, user: job.user)
-      pr = client.pull_request(repository.slug, job.pr_number, bypass_cache: true)
+      pr_repo = job.effective_pr_repository
+      client = GithubClient.for(repository: pr_repo, user: job.user)
+      pr = client.pull_request(pr_repo.slug, job.pr_number, bypass_cache: true)
       persist_github_mergeability(pr)
 
       gate = AutoMergeGate.new(job: job, client: client, bypass_cache: true, pr: pr).evaluate
@@ -46,7 +47,7 @@ module Steps
         handle_needs_rebase!(
           rebase_gate,
           defer_reason: "#{rebase_gate.reason}; local_mergeable_state=#{local.state}",
-          client: GithubClient.for(repository: repository, user: job.user)
+          client: GithubClient.for(repository: job.effective_pr_repository, user: job.user)
         )
         return
       end
