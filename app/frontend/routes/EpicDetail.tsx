@@ -27,6 +27,7 @@ import {
 } from "../api/epics"
 import { Markdown } from "../lib/Markdown"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { KeyValue } from "../components/KeyValue"
 
 let mermaidInitialized = false
 let mermaidInitializedTheme: "base" | "dark" | null = null
@@ -162,8 +163,8 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
       <div className="grid gap-6 lg:grid-cols-[62%_38%]">
         <div className="space-y-6">
           {payload.epic.description.trim() ? (
-            <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Description</h2>
+            <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Description</h2>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
             </section>
           ) : null}
@@ -585,35 +586,27 @@ function DetailsPanel({ epic, jobs, prefix }: { epic: EpicDetailPayload["epic"];
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Details</h2>
-      <dl className="mt-3 space-y-3">
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Owner</dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-200">{owner ? owner.email_address : "Unclaimed"}</dd>
-        </div>
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Details</h2>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+        <KeyValue label="Owner">{owner ? owner.email_address : "Unclaimed"}</KeyValue>
         {activeMembers.length > 0 ? (
-          <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Active members</dt>
-            <dd className="mt-0.5 space-y-0.5">
+          <KeyValue label="Active members">
+            <div className="space-y-0.5">
               {activeMembers.map((member) => (
-                <div className="text-gray-700 dark:text-gray-200" key={member.id}>{member.email_address}</div>
+                <div key={member.id}>{member.email_address}</div>
               ))}
-            </dd>
-          </div>
+            </div>
+          </KeyValue>
         ) : null}
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Repository</dt>
-          <dd className="mt-0.5">
-            <Link className="font-mono text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(epic.repository.repository_path, prefix)}>
-              {epic.repository.slug}
-            </Link>
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Updated</dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-200" title={formatDateTime(epic.updated_at)}>{formatRelative(epic.updated_at)}</dd>
-        </div>
-      </dl>
+        <KeyValue label="Repository">
+          <Link className="font-mono text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(epic.repository.repository_path, prefix)}>
+            {epic.repository.slug}
+          </Link>
+        </KeyValue>
+        <KeyValue label="Updated">
+          <span title={formatDateTime(epic.updated_at)}>{formatRelative(epic.updated_at)}</span>
+        </KeyValue>
+      </div>
     </section>
   )
 }

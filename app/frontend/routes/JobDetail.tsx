@@ -6,6 +6,7 @@ import { ApiError } from "../api/client"
 import { createTerminalSession } from "../api/terminal"
 import { AnsiText } from "../components/AnsiText"
 import { CloseIcon } from "../components/CloseIcon"
+import { KeyValue } from "../components/KeyValue"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill } from "../components/StatusPill"
@@ -509,7 +510,7 @@ function TagsPanel({ payload, command, embedded = false, canManageTags }: { payl
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Tags</h2>
         {payload.tags.map((tag) => (
-          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
             {tag.name}
             {canManageTags ? (
               <button
@@ -2211,14 +2212,6 @@ function withRoutePrefix(path: string, prefix: string) {
   return `${prefix}${path}`
 }
 
-function KeyValue({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
-      <div className="mt-1 text-gray-800 dark:text-gray-200">{children}</div>
-    </div>
-  )
-}
 
 function MergeablePill({ value }: { value: boolean | null }) {
   if (value === true) return <StatusPill state="mergeable" />
