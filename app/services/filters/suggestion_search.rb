@@ -146,10 +146,16 @@ module Filters
     end
 
     def deduplicate(candidates)
-      candidates.compact.each_with_object({}) do |candidate, by_fingerprint|
-        fingerprint = candidate.fetch(:fingerprint)
-        current = by_fingerprint[fingerprint]
-        by_fingerprint[fingerprint] = candidate if current.nil? || candidate.fetch(:score) > current.fetch(:score)
+      by_fingerprint = candidates.compact.each_with_object({}) do |candidate, acc|
+        fp = candidate.fetch(:fingerprint)
+        current = acc[fp]
+        acc[fp] = candidate if current.nil? || candidate.fetch(:score) > current.fetch(:score)
+      end.values
+
+      by_fingerprint.each_with_object({}) do |candidate, acc|
+        key = candidate.fetch(:label).downcase
+        current = acc[key]
+        acc[key] = candidate if current.nil? || candidate.fetch(:score) > current.fetch(:score)
       end.values
     end
 
