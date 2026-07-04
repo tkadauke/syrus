@@ -47,7 +47,7 @@ module Filters
             when "unclaimed" then scope.where.not(id: scope.where(no_owner_condition).select(:id))
             else
               id = Integer(value, exception: false)
-              id ? scope.where.not(owner_user_id: id) : scope
+              id ? scope.where.not(id: scope.where(owner_user_id: id).select(:id)) : scope
             end
           when :is_set   then scope.where.not(owner_user_id: nil)
           when :is_unset then scope.where(owner_user_id: nil)

@@ -3326,7 +3326,7 @@ describe("App", () => {
     )
   })
 
-  it("renders dashboard ownership scope controls and useful owner badges", async () => {
+  it("renders useful owner badges on the jobs dashboard", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/dashboard?view=list&ownership_scope=team&subject=job") {
@@ -3373,14 +3373,10 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const ownerChip = await screen.findByRole("button", { name: "Owner is Team" })
-    expect(ownerChip).toBeInTheDocument()
-    fireEvent.click(ownerChip)
-    expect(screen.getByRole("menuitem", { name: "Mine" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=mine")
-    expect(screen.getByRole("menuitem", { name: "Team" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
-    expect(screen.getByRole("menuitem", { name: "User" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=user&owner_id=1")
-    expect(screen.getByText("Teammate")).toBeInTheDocument()
+    expect(await screen.findByText("Teammate")).toBeInTheDocument()
     expect(screen.queryByText("Operator")).not.toBeInTheDocument()
+    // Owner filter for jobs moved to the FilterBar; no standalone ownership chip rendered
+    expect(screen.queryByRole("button", { name: /Owner is/i })).toBeNull()
   })
 
   it("keeps dashboard folders and filters collapsed on mobile", async () => {
