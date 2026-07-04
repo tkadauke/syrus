@@ -1,0 +1,126 @@
+{
+  "title": "Dashboard",
+  "loading": "Loading...",
+  "load_error": "Unable to load dashboard.",
+
+  "new_epic": "New Epic",
+  "new_job": "New Job",
+
+  "tab_epics": "Epics",
+  "tab_jobs": "Jobs",
+  "tab_workflows": "Workflows",
+  "subjects": "Dashboard subjects",
+
+  "ownership_scope_label": "Dashboard ownership scope",
+  "owner_filter_label": "Dashboard owner",
+  "view_label": "Dashboard view",
+  "controls_label": "Dashboard controls",
+
+  "folders_and_filters": "Folders and filters",
+  "show": "Show",
+  "hide": "Hide",
+
+  "columns": "Columns",
+  "visible_columns": "Visible columns",
+  "kanban_lanes": "Kanban lanes",
+  "preferences_error": "Unable to update dashboard preferences.",
+
+  "readiness_title": "System readiness needs attention",
+  "readiness_description": "Syrus may not be able to pick up or run work until these checks pass.",
+  "open_settings": "Open settings",
+  "optional": "optional",
+
+  "no_match": "No {{subject}} match this view.",
+  "no_lanes": "No kanban lanes are configured.",
+  "no_items_in_lane": "No {{subject}}",
+
+  "empty_title": "No {{subject}} yet",
+  "empty_description": "No {{subject}} exist yet. Create work from a direct prompt or a labelled GitHub issue.",
+  "setup_credentials_description": "Finish credentials first so Syrus can talk to GitHub and the selected agent.",
+  "setup_description": "Finish setup first so Syrus can run work against a repository.",
+  "open_setup": "Open setup",
+  "create_epic": "Create Epic",
+  "create_direct_job": "Create direct job",
+
+  "load_more": "Load more",
+  "load_more_lane": "Load more {{lane}}",
+
+  "selected_count": "{{count}} selected",
+  "bulk_action_error": "Bulk action failed.",
+  "retry": "Retry",
+  "claim": "Claim",
+  "release": "Release",
+  "approve": "Approve",
+  "close_action": "Close",
+  "move_to_in_progress": "Move to In Progress",
+  "close_confirm_one": "Close {{count}} selected job?",
+  "close_confirm_other": "Close {{count}} selected jobs?",
+
+  "select_all_jobs": "Select all jobs",
+  "select_all_epics": "Select all Epics",
+  "select_item": "Select {{title}}",
+
+  "blocker_one": "{{count}} blocker",
+  "blocker_other": "{{count}} blockers",
+
+  "approved": "Approved",
+  "not_approved": "Not approved",
+  "generating_title": "Generating title...",
+  "unclaimed": "Unclaimed",
+  "claimed_by_you": "Claimed by you",
+  "chat_link": "Chat",
+  "standalone": "standalone",
+  "epic_attribution": "Epic: {{title}}",
+  "epic_attribution_by_id": "Epic #{{id}}",
+
+  "epic_progress": "{{done}}/{{total}} done",
+  "epic_updated": "Epic updated.",
+  "epic_move_error": "Unable to move Epic.",
+
+  "needs_attention": "Needs attention",
+  "needs_attention_title": "All jobs closed - mark this epic done or file a follow-up.",
+
+  "showing_pagination": "Showing {{first}}-{{last}} of {{total}}",
+  "previous": "Previous",
+  "next": "Next",
+
+  "started_at": "Started {{date}}",
+  "finished_at": "Finished {{date}}",
+
+  "ascending": "Ascending",
+  "descending": "Descending",
+  "sort_by": "Sort by {{label}} {{direction}}",
+
+  "column_label": {
+    "checkbox": "Checkbox",
+    "epic": "Epic",
+    "state": "State",
+    "owner": "Owner",
+    "repository": "Repository",
+    "updated": "Updated",
+    "created_at": "Created at",
+    "updated_at": "Updated at",
+    "done_at": "Done at",
+    "archived_at": "Archived at",
+    "issue": "Issue",
+    "title": "Title",
+    "landing_queue_position": "Queue",
+    "latest": "Latest",
+    "workflows_count": "Workflows count",
+    "started": "Started",
+    "started_at": "Started at",
+    "finished_at": "Finished at",
+    "approved_at": "Approved at",
+    "dependencies_overridden_at": "Dependencies overridden at",
+    "last_feedback_addressed_at": "Last feedback addressed at",
+    "last_seen_comment_at": "Last seen comment at",
+    "pr_mergeable_checked_at": "PR mergeable checked at",
+    "workflow": "Workflow",
+    "workflow_title": "Workflow",
+    "job": "Job",
+    "trigger": "Trigger",
+    "finished": "Finished",
+    "agent": "Agent",
+    "cleaned_up_at": "Cleaned up at"
+  }
+}

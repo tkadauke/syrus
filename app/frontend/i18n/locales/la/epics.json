@@ -1,3 +1,84 @@
 {
-  "title": "Epica"
+  "title": "Epica",
+
+  "loading": "Epica oneratur...",
+  "load_error": "Epica onerari non potest.",
+  "form_loading": "Forma epicae oneratur...",
+  "form_load_error": "Forma epicae onerari non potest.",
+  "command_error": "Mandatum epicae defecit.",
+  "dependency_error": "Nexus renovari non possunt.",
+  "save_error": "Epica servari non potest.",
+
+  "claim": "Vindica",
+  "unclaim": "Dimitte",
+  "edit": "Emenda",
+  "cancel": "Abroga",
+  "add_button": "Adde",
+  "add_job": "+ Opus adde",
+  "more_actions": "Actiones plures",
+
+  "description": "Descriptio",
+  "blocked": "Impedita",
+
+  "dependencies": "Nexus",
+  "depends_on": "Pendet ex",
+  "depended_on_by": "Pendent ex hoc",
+  "add_dependency": "Nexum adde",
+  "search_placeholder": "Epica per nomen quaere...",
+  "searching": "Quaeritur...",
+  "no_matches": "Nulla concordant",
+  "remove_dependency": "Nexum a {{title}} remove",
+  "none": "Nihil",
+
+  "no_external_dependencies": "Nulli nexus externi",
+  "dependency_graph": "Nexuum schema",
+  "rendering_graph": "Nexuum schema pingitur...",
+  "graph_render_error": "Nexuum schema pingi non potuit: {{message}}",
+  "epic_dep_one": "{{count}} nexus epicae",
+  "epic_dep_other": "{{count}} nexus epicarum",
+  "job_blocker_one": "{{count}} impedimentum",
+  "job_blocker_other": "{{count}} impedimenta",
+
+  "history": "Historia",
+  "no_history": "Nullae mutationes tituli vel descriptionis adhuc.",
+  "title_before": "Titulus ante",
+  "title_after": "Titulus post",
+  "description_before": "Descriptio ante",
+  "description_after": "Descriptio post",
+  "empty_value": "(vacuum)",
+
+  "jobs_section": "Opera",
+  "no_jobs": "Nulla opera in hac Epica.",
+
+  "details": "Particularia",
+  "owner": "Dominus",
+  "owner_label": "Dominus {{email}}",
+  "unclaimed": "Non vindicata",
+  "active_members": "Membra activa",
+  "repository": "Repositorium",
+  "updated_label": "Renovata",
+  "updated_relative": "renovata {{time}}",
+  "jobs_count_one": "{{count}} opus",
+  "jobs_count_other": "{{count}} opera",
+  "dep_one": "{{count}} nexus",
+  "dep_other": "{{count}} nexus",
+
+  "needs_attention": "Attentione opus",
+  "needs_attention_title": "Omnia opera clausa – hanc epicam perfectam signa vel opus novum crea.",
+
+  "state_chip": {
+    "merged": "Adlata",
+    "blocked_by_epic": "Impedita"
+  },
+
+  "new_epic": "Nova Epica",
+  "edit_epic": "Epica emendanda",
+  "back_to_epic": "Ad epicam redi",
+  "form_title": "Titulus",
+  "form_repository": "Repositorium",
+  "select_repository": "Repositorium elige",
+  "github_issue_url": "URL quaestionis GitHub",
+  "saving": "Servatur...",
+  "create": "Epicam crea",
+  "save": "Epicam serva"
 }

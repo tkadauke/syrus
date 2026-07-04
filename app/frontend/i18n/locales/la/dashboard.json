@@ -1,0 +1,126 @@
+{
+  "title": "Tabula",
+  "loading": "Oneratur...",
+  "load_error": "Tabula onerari non potest.",
+
+  "new_epic": "Nova Epica",
+  "new_job": "Novum Opus",
+
+  "tab_epics": "Epica",
+  "tab_jobs": "Opera",
+  "tab_workflows": "Cursus operum",
+  "subjects": "Subiecta tabulae",
+
+  "ownership_scope_label": "Tabulae ambitus dominii",
+  "owner_filter_label": "Dominus tabulae",
+  "view_label": "Tabulae aspectus",
+  "controls_label": "Tabulae moderatio",
+
+  "folders_and_filters": "Indices et cribia",
+  "show": "Monstra",
+  "hide": "Cela",
+
+  "columns": "Columnae",
+  "visible_columns": "Columnae visibiles",
+  "kanban_lanes": "Viae Kanbani",
+  "preferences_error": "Tabulae praeferentiae mutari non possunt.",
+
+  "readiness_title": "Status systematis attentione opus habet",
+  "readiness_description": "Syrus opus non suscipere aut exsequi potest donec haec examina superantur.",
+  "open_settings": "Optiones aperi",
+  "optional": "optionale",
+
+  "no_match": "Nulli {{subject}} huic aspectui concordant.",
+  "no_lanes": "Nullae viae Kanbani configuratae sunt.",
+  "no_items_in_lane": "Nulli {{subject}}",
+
+  "empty_title": "Nulli {{subject}} adhuc",
+  "empty_description": "Nulli {{subject}} adhuc existunt. Opus ex mandato directo vel quaestione GitHub signata crea.",
+  "setup_credentials_description": "Primum documenta perfice ut Syrus cum GitHub et agente electo colloqui possit.",
+  "setup_description": "Primum configurationem perfice ut Syrus opus contra repositorium exsequi possit.",
+  "open_setup": "Configurationem aperi",
+  "create_epic": "Epicam crea",
+  "create_direct_job": "Opus directum crea",
+
+  "load_more": "Plura onerans",
+  "load_more_lane": "Plura ex {{lane}} onerans",
+
+  "selected_count": "{{count}} electa",
+  "bulk_action_error": "Actio multa defecit.",
+  "retry": "Iterum conare",
+  "claim": "Vindica",
+  "release": "Dimitte",
+  "approve": "Approba",
+  "close_action": "Claude",
+  "move_to_in_progress": "Ad agenda move",
+  "close_confirm_one": "{{count}} opus electum claude?",
+  "close_confirm_other": "{{count}} opera electa claude?",
+
+  "select_all_jobs": "Omnia opera elige",
+  "select_all_epics": "Omnia Epica elige",
+  "select_item": "{{title}} elige",
+
+  "blocker_one": "{{count}} impedimentum",
+  "blocker_other": "{{count}} impedimenta",
+
+  "approved": "Approbatum",
+  "not_approved": "Non approbatum",
+  "generating_title": "Titulus generatur...",
+  "unclaimed": "Non vindicata",
+  "claimed_by_you": "A te vindicata",
+  "chat_link": "Colloquium",
+  "standalone": "separatum",
+  "epic_attribution": "Epica: {{title}}",
+  "epic_attribution_by_id": "Epica #{{id}}",
+
+  "epic_progress": "{{done}}/{{total}} perfecta",
+  "epic_updated": "Epica renovata.",
+  "epic_move_error": "Epica moveri non potest.",
+
+  "needs_attention": "Attentione opus",
+  "needs_attention_title": "Omnia opera clausa – hanc epicam perfectam signa vel opus novum crea.",
+
+  "showing_pagination": "Monstrans {{first}}–{{last}} ex {{total}}",
+  "previous": "Prius",
+  "next": "Sequens",
+
+  "started_at": "Coeptum {{date}}",
+  "finished_at": "Perfectum {{date}}",
+
+  "ascending": "Ascendens",
+  "descending": "Descendens",
+  "sort_by": "Ordina secundum {{label}} {{direction}}",
+
+  "column_label": {
+    "checkbox": "Tesserula",
+    "epic": "Epica",
+    "state": "Status",
+    "owner": "Dominus",
+    "repository": "Repositorium",
+    "updated": "Renovatum",
+    "created_at": "Creatum",
+    "updated_at": "Renovatum",
+    "done_at": "Perfectum",
+    "archived_at": "Archivatum",
+    "issue": "Quaestio",
+    "title": "Titulus",
+    "landing_queue_position": "Ordo",
+    "latest": "Recentissimum",
+    "workflows_count": "Numerus cursuum",
+    "started": "Coeptum",
+    "started_at": "Coeptum",
+    "finished_at": "Perfectum",
+    "approved_at": "Approbatum",
+    "dependencies_overridden_at": "Nexus superati",
+    "last_feedback_addressed_at": "Ultima relatio habita",
+    "last_seen_comment_at": "Ultima nota visa",
+    "pr_mergeable_checked_at": "Rogatio verificata",
+    "workflow": "Cursus",
+    "workflow_title": "Cursus",
+    "job": "Opus",
+    "trigger": "Causa",
+    "finished": "Perfectum",
+    "agent": "Agens",
+    "cleaned_up_at": "Purgatum"
+  }
+}

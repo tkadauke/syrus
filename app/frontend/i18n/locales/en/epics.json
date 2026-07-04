@@ -1,3 +1,84 @@
 {
-  "title": "Epics"
+  "title": "Epics",
+
+  "loading": "Loading Epic...",
+  "load_error": "Unable to load Epic.",
+  "form_loading": "Loading epic form...",
+  "form_load_error": "Unable to load epic form.",
+  "command_error": "Epic command failed.",
+  "dependency_error": "Unable to update dependencies.",
+  "save_error": "Unable to save Epic.",
+
+  "claim": "Claim",
+  "unclaim": "Unclaim",
+  "edit": "Edit",
+  "cancel": "Cancel",
+  "add_button": "Add",
+  "add_job": "+ Add Job",
+  "more_actions": "More actions",
+
+  "description": "Description",
+  "blocked": "Blocked",
+
+  "dependencies": "Dependencies",
+  "depends_on": "Depends on",
+  "depended_on_by": "Depended on by",
+  "add_dependency": "Add dependency",
+  "search_placeholder": "Search Epics by name...",
+  "searching": "Searching...",
+  "no_matches": "No matches",
+  "remove_dependency": "Remove dependency on {{title}}",
+  "none": "None",
+
+  "no_external_dependencies": "No external dependencies",
+  "dependency_graph": "Dependency graph",
+  "rendering_graph": "Rendering dependency graph...",
+  "graph_render_error": "Dependency graph could not render: {{message}}",
+  "epic_dep_one": "{{count}} epic dep",
+  "epic_dep_other": "{{count}} epic deps",
+  "job_blocker_one": "{{count}} job blocker",
+  "job_blocker_other": "{{count}} job blockers",
+
+  "history": "History",
+  "no_history": "No title or description changes yet.",
+  "title_before": "Title before",
+  "title_after": "Title after",
+  "description_before": "Description before",
+  "description_after": "Description after",
+  "empty_value": "(empty)",
+
+  "jobs_section": "Jobs",
+  "no_jobs": "No Jobs in this Epic.",
+
+  "details": "Details",
+  "owner": "Owner",
+  "owner_label": "Owner {{email}}",
+  "unclaimed": "Unclaimed",
+  "active_members": "Active members",
+  "repository": "Repository",
+  "updated_label": "Updated",
+  "updated_relative": "updated {{time}}",
+  "jobs_count_one": "{{count}} Job",
+  "jobs_count_other": "{{count}} Jobs",
+  "dep_one": "{{count}} dep",
+  "dep_other": "{{count}} deps",
+
+  "needs_attention": "Needs attention",
+  "needs_attention_title": "All jobs closed - mark this epic done or file a follow-up.",
+
+  "state_chip": {
+    "merged": "Landed",
+    "blocked_by_epic": "Blocked"
+  },
+
+  "new_epic": "New Epic",
+  "edit_epic": "Edit Epic",
+  "back_to_epic": "Back to Epic",
+  "form_title": "Title",
+  "form_repository": "Repository",
+  "select_repository": "Select a repository",
+  "github_issue_url": "GitHub issue URL",
+  "saving": "Saving...",
+  "create": "Create Epic",
+  "save": "Save Epic"
 }

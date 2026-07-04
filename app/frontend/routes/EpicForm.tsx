@@ -11,8 +11,10 @@ import {
   type EpicInput,
   updateEpic
 } from "../api/epics"
+import { useT } from "../hooks/useT"
 
 export function EpicFormRoute({ mode }: { mode: "new" | "edit" }) {
+  const { t } = useT("epics")
   const params = useParams()
   const location = useLocation()
   const id = params.id || ""
@@ -24,15 +26,16 @@ export function EpicFormRoute({ mode }: { mode: "new" | "edit" }) {
   })
 
   return (
-    <main aria-label={mode === "new" ? "New Epic" : "Edit Epic"} className="mx-auto max-w-2xl space-y-6 p-6">
-      {form.isPending ? <PanelMessage>Loading epic form...</PanelMessage> : null}
-      {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, "Unable to load epic form.")}</PanelMessage> : null}
+    <main aria-label={mode === "new" ? t("new_epic") : t("edit_epic")} className="mx-auto max-w-2xl space-y-6 p-6">
+      {form.isPending ? <PanelMessage>{t("form_loading")}</PanelMessage> : null}
+      {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, t("form_load_error"))}</PanelMessage> : null}
       {form.isSuccess ? <EpicForm mode={mode} payload={form.data} prefix={prefix} /> : null}
     </main>
   )
 }
 
 function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: EpicFormPayload; prefix: string }) {
+  const { t } = useT("epics")
   const navigate = useNavigate()
   const [values, setValues] = useState<EpicInput>(() => inputFromPayload(payload))
   const save = useMutation({
@@ -57,14 +60,14 @@ function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: Ep
   return (
     <>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{mode === "new" ? "New Epic" : "Edit Epic"}</h1>
-        {mode === "edit" && payload.epic.epic_path ? <Link className="text-sm text-blue-600 underline hover:no-underline" to={withRoutePrefix(payload.epic.epic_path, prefix)}>Back to Epic</Link> : null}
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{mode === "new" ? t("new_epic") : t("edit_epic")}</h1>
+        {mode === "edit" && payload.epic.epic_path ? <Link className="text-sm text-blue-600 underline hover:no-underline" to={withRoutePrefix(payload.epic.epic_path, prefix)}>{t("back_to_epic")}</Link> : null}
       </header>
 
-      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save Epic.")}</PanelMessage> : null}
+      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("save_error"))}</PanelMessage> : null}
 
       <form className="space-y-5" onSubmit={submit}>
-        <Field label="Title">
+        <Field label={t("form_title")}>
           <input
             className={inputClass()}
             onChange={(event) => setValues({ ...values, title: event.target.value })}
@@ -74,7 +77,7 @@ function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: Ep
           />
         </Field>
 
-        <Field label="Description">
+        <Field label={t("description")}>
           <textarea
             className={inputClass()}
             onChange={(event) => setValues({ ...values, description: event.target.value })}
@@ -83,21 +86,21 @@ function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: Ep
           />
         </Field>
 
-        <Field label="Repository">
+        <Field label={t("form_repository")}>
           <select
             className={inputClass()}
             onChange={(event) => setValues({ ...values, repository_id: event.target.value })}
             required
             value={values.repository_id}
           >
-            <option value="">Select a repository</option>
+            <option value="">{t("select_repository")}</option>
             {payload.repositories.map((repository) => (
               <option key={repository.id} value={repository.id}>{repository.slug}</option>
             ))}
           </select>
         </Field>
 
-        <Field label="GitHub issue URL">
+        <Field label={t("github_issue_url")}>
           <input
             className={`${inputClass()} font-mono`}
             onChange={(event) => setValues({ ...values, github_issue_url: event.target.value })}
@@ -112,9 +115,9 @@ function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: Ep
             disabled={save.isPending}
             type="submit"
           >
-            {save.isPending ? "Saving..." : mode === "new" ? "Create Epic" : "Save Epic"}
+            {save.isPending ? t("saving") : mode === "new" ? t("create") : t("save")}
           </button>
-          <Link className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(mode === "new" ? payload.dashboard_epics_path : payload.epic.epic_path || payload.dashboard_epics_path, prefix)}>Cancel</Link>
+          <Link className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(mode === "new" ? payload.dashboard_epics_path : payload.epic.epic_path || payload.dashboard_epics_path, prefix)}>{t("cancel")}</Link>
         </div>
       </form>
     </>

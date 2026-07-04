@@ -21,7 +21,6 @@ import type { LandingQueueBlockerJob } from "../api/jobs"
 const KANBAN_CARDS_PER_PAGE = 20
 
 export function DashboardRoute() {
-  const { t } = useT("jobs")
   const location = useLocation()
   const search = dashboardApiSearch(location.pathname, location.search)
   const dashboard = useQuery({
@@ -30,14 +29,14 @@ export function DashboardRoute() {
     placeholderData: (previousData) => previousData
   })
 
-  if (dashboard.isPending) return <main aria-label="Dashboard" className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("dashboard_loading")}</main>
+  const { t } = useT("dashboard")
+  if (dashboard.isPending) return <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
   if (dashboard.isError) return <DashboardError error={dashboard.error} />
 
   return <DashboardView pathname={location.pathname} search={location.search} payload={dashboard.data} />
 }
 
 function DashboardView({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  const { t } = useT("jobs")
   const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const initialBootstrap = readInitialBootstrap()
@@ -51,10 +50,12 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   const readiness = bootstrap.data?.setup_status?.readiness
   const useSidebarSubjectSelector = Boolean(bootstrap.data?.feature_flags?.v2_sidebar_subject_selector)
 
+  const { t } = useT("dashboard")
+
   return (
-    <main aria-label="Dashboard" className="mx-auto max-w-[96rem] space-y-5 p-6">
+    <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 p-6">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{t("dashboard_title")}</h1>
+        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{t("title")}</h1>
         {isDesktop && !useSidebarSubjectSelector ? <SubjectTabs payload={payload} prefix={prefix} /> : null}
         {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
@@ -77,7 +78,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
 }
 
 function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   if (!readiness || readiness.status === "ok") return null
 
   const failingChecks = readiness.checks.filter((check) => check.status !== "ok")
@@ -88,10 +89,10 @@ function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: Non
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">{t("readiness_title")}</h2>
-          <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">{t("readiness_body")}</p>
+          <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">{t("readiness_description")}</p>
         </div>
         <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900" to={`${prefix}/credentials`}>
-          {t("readiness_open_settings")}
+          {t("open_settings")}
         </Link>
       </div>
       <div className="mt-3 grid gap-2 lg:grid-cols-2">
@@ -100,7 +101,7 @@ function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: Non
             <div className="flex items-center gap-2">
               <TonePill tone={check.status === "error" ? "red" : "amber"}>{check.status}</TonePill>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{check.label}</h3>
-              {check.optional ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("readiness_optional")}</span> : null}
+              {check.optional ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("optional")}</span> : null}
             </div>
             <p className="mt-2 text-sm text-gray-700 dark:text-gray-200">{check.message}</p>
             {check.remediation ? <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{check.remediation}</p> : null}
@@ -123,10 +124,10 @@ function DesktopDashboardControls({ payload, pathname, search }: { payload: Dash
 }
 
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   return (
     <div className="space-y-3">
-      <div aria-label="Dashboard controls" className="flex items-center justify-between gap-3 pb-1" role="group">
+      <div aria-label={t("controls_label")} className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
           <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" payload={payload} prefix={prefix} />
         </div>
@@ -134,9 +135,9 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
       </div>
       <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-          <span>{t("mobile_folders_filters")}</span>
-          <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("mobile_show")}</span>
-          <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("mobile_hide")}</span>
+          <span>{t("folders_and_filters")}</span>
+          <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("show")}</span>
+          <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("hide")}</span>
         </summary>
         <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
           <OwnershipControls pathname={pathname} search={search} payload={payload} />
@@ -149,6 +150,7 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
 }
 
 function OwnershipControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
+  const { t } = useT("dashboard")
   const navigate = useNavigate()
   if (payload.subject === "epic" || payload.subject === "job") return null
   if (payload.ownership.team_user_count <= 1) return null
@@ -175,7 +177,7 @@ function OwnershipControls({ payload, pathname, search }: { payload: DashboardPa
         ))}
       </nav>
       {payload.ownership.scope === "user" ? (
-        <label className="sr-only" htmlFor="dashboard-owner-filter">Dashboard owner</label>
+        <label className="sr-only" htmlFor="dashboard-owner-filter">{t("owner_filter_label")}</label>
       ) : null}
       {payload.ownership.scope === "user" ? (
         <select
@@ -229,25 +231,25 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
 }
 
 function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   return (
     <div className="flex flex-wrap gap-2">
-      <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{t("create_new_epic")}</Link>
-      <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("create_new_job")}</Link>
+      <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{t("new_epic")}</Link>
+      <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>
     </div>
   )
 }
 
 function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" }: { payload: DashboardPayload; prefix: string; className?: string }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
-    { key: "epic", label: t("subject_epics"), path: "/dashboard/epics" },
-    { key: "job", label: t("subject_jobs"), path: "/dashboard/jobs" },
-    { key: "workflow", label: t("subject_workflows"), path: "/dashboard/workflows" }
+    { key: "epic", label: t("tab_epics"), path: "/dashboard/epics" },
+    { key: "job", label: t("tab_jobs"), path: "/dashboard/jobs" },
+    { key: "workflow", label: t("tab_workflows"), path: "/dashboard/workflows" }
   ]
 
   return (
-    <nav aria-label="Dashboard subjects" className={className}>
+    <nav aria-label={t("subjects")} className={className}>
       {subjects.map((subject) => (
         <Link
           className={`px-3 py-1.5 font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
@@ -262,7 +264,7 @@ function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-
 }
 
 function DashboardToolbar({ payload, pathname, search, showConfiguration = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [lanesOpen, setLanesOpen] = useState(false)
@@ -320,7 +322,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
         {showConfiguration && payload.view === "list" ? (
           <div className="relative" ref={columnsMenuRef}>
             <button
-              aria-label="Columns"
+              aria-label={t("columns")}
               aria-controls="dashboard-columns-menu"
               aria-expanded={columnsOpen}
               aria-haspopup="menu"
@@ -333,7 +335,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
             {columnsOpen ? (
               <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-columns-menu" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("columns_visible")}</legend>
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("visible_columns")}</legend>
                   {payload.controls.columns.optional.map((column) => (
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
                       <input
@@ -353,7 +355,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
         {showConfiguration && payload.view === "kanban" ? (
           <div className="relative" ref={lanesMenuRef}>
             <button
-              aria-label="Kanban lanes"
+              aria-label={t("kanban_lanes")}
               aria-controls="dashboard-kanban-lanes-menu"
               aria-expanded={lanesOpen}
               aria-haspopup="menu"
@@ -366,7 +368,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
             {lanesOpen ? (
               <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-kanban-lanes-menu" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("kanban_lanes_label")}</legend>
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("kanban_lanes")}</legend>
                   {payload.controls.kanban_lanes.map((lane) => (
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={lane.key}>
                       <input
@@ -384,7 +386,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
           </div>
         ) : null}
       </div>
-      {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("dashboard_preferences_error"))}</p> : null}
+      {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("preferences_error"))}</p> : null}
     </div>
   )
 }
@@ -426,7 +428,7 @@ function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardP
 const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
 
 function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const updateSort = useMutation({
     mutationFn: updateDashboardPreferences,
@@ -495,18 +497,18 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
       )
     }
 
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("dashboard_no_match", { subjects: subjectLabel(payload.subject, 2) })}</div>
+    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</div>
   }
 
   const columns = dashboardVisibleColumns(payload)
-  if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={payload.items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} />
+  if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={payload.items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} t={t} />
   if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={payload.items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
 
   return <EpicsTable columns={epicTableColumns(columns)} items={payload.items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
 }
 
 function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [draggedEpic, setDraggedEpic] = useState<DashboardEpicItem | null>(null)
   const [dragOverLane, setDragOverLane] = useState<string | null>(null)
@@ -515,7 +517,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   const moveEpic = useMutation({
     mutationFn: ({ epic, targetState }: { epic: DashboardEpicItem; sourceState: string; targetState: string }) => updateDashboardEpicState(epic.paths.app_state_path, targetState),
     onSuccess: (updated) => {
-      setNotice(updated.message || t("kanban_epic_updated"))
+      setNotice(updated.message || t("epic_updated"))
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     },
     onError: (_error, { epic, sourceState }) => {
@@ -528,7 +530,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   }, [payload.lanes])
 
   if (payload.lanes.length === 0) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("dashboard_no_kanban_lanes")}</div>
+    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_lanes")}</div>
   }
 
   if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
@@ -585,7 +587,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{errorMessage(moveEpic.error, t("kanban_move_error"))}</div> : null}
+      {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{errorMessage(moveEpic.error, t("epic_move_error"))}</div> : null}
       <div className="select-none overflow-x-auto pb-2">
         <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${payload.lanes.length}, minmax(14rem, 1fr))` }}>
           {optimisticLanes.map((lane) => (
@@ -611,26 +613,26 @@ function dashboardEmptyFallbackPath(payload: DashboardPayload) {
   return payload.subject === "epic" ? payload.paths.new_epic_path : payload.paths.new_job_path
 }
 
-function dashboardEmptyState(payload: DashboardPayload, t: ReturnType<typeof useT>["t"]) {
-  const subject = capitalizeLabel(subjectLabel(payload.subject, 2))
+function dashboardEmptyState(payload: DashboardPayload, t: (key: string, opts?: Record<string, unknown>) => string) {
+  const subject = subjectLabel(payload.subject, 2)
   if (payload.setup && !payload.setup.complete) {
     const setupDescription = payload.setup.next_step === "credentials"
-      ? t("empty_state_setup_credentials")
-      : t("empty_state_setup_general")
+      ? t("setup_credentials_description")
+      : t("setup_description")
 
     return {
-      title: t("empty_state_no_subject", { subject }),
+      title: t("empty_title", { subject: capitalizeLabel(subject) }),
       description: setupDescription,
       actionPath: payload.setup.paths.setup_path,
-      actionText: t("empty_state_open_setup")
+      actionText: t("open_setup")
     }
   }
 
   return {
-    title: t("empty_state_no_subject", { subject }),
-    description: t("empty_state_description", { subjects: subjectLabel(payload.subject, 2) }),
+    title: t("empty_title", { subject: capitalizeLabel(subject) }),
+    description: t("empty_description", { subject }),
     actionPath: dashboardEmptyFallbackPath(payload),
-    actionText: payload.subject === "epic" ? t("empty_state_create_epic") : t("empty_state_create_job")
+    actionText: payload.subject === "epic" ? t("create_epic") : t("create_direct_job")
   }
 }
 
@@ -657,7 +659,7 @@ function KanbanLane({
   prefix: string
   subject: DashboardSubject
 }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const itemSignature = lane.items.map((item) => `${item.type}-${item.id}`).join(",")
   const [visibleCount, setVisibleCount] = useState(KANBAN_CARDS_PER_PAGE)
   const visibleItems = lane.items.slice(0, visibleCount)
@@ -679,7 +681,7 @@ function KanbanLane({
         <span className="rounded bg-white px-2 py-0.5 text-xs text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">{lane.count}</span>
       </header>
       <div className="space-y-2 p-2">
-        {lane.items.length === 0 ? <p className="px-1 py-2 text-sm text-gray-400 dark:text-gray-500">{t("dashboard_no_match", { subjects: subjectLabel(subject, 2) })}</p> : null}
+        {lane.items.length === 0 ? <p className="px-1 py-2 text-sm text-gray-400 dark:text-gray-500">{t("no_items_in_lane", { subject: subjectLabel(subject, 2) })}</p> : null}
         {visibleItems.map((item) => (
           <KanbanCard
             item={item}
@@ -691,12 +693,12 @@ function KanbanLane({
         ))}
         {hiddenCount > 0 ? (
           <button
-            aria-label={`Load more ${lane.title}`}
+            aria-label={t("load_more_lane", { lane: lane.title })}
             className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             onClick={() => setVisibleCount((count) => count + KANBAN_CARDS_PER_PAGE)}
             type="button"
           >
-            {t("kanban_load_more")}
+            {t("load_more")}
           </button>
         ) : null}
       </div>
@@ -804,7 +806,7 @@ type DashboardSortState = {
   onSort: (column: string) => void
 }
 
-function JobsDashboardTable({ items, columns, landingQueueEntries, prefix, sortState }: { items: DashboardJobItem[]; columns: string[]; landingQueueEntries: DashboardLandingQueueEntry[]; prefix: string; sortState: DashboardSortState }) {
+function JobsDashboardTable({ items, columns, landingQueueEntries, prefix, sortState, t }: { items: DashboardJobItem[]; columns: string[]; landingQueueEntries: DashboardLandingQueueEntry[]; prefix: string; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string }) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
@@ -847,13 +849,14 @@ function JobsDashboardTable({ items, columns, landingQueueEntries, prefix, sortS
         prefix={prefix}
         selectedIds={selectedIds}
         sortState={sortState}
+        t={t}
       />
     </div>
   )
 }
 
 function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
   const action = useMutation({
@@ -868,7 +871,7 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
 
   function run(bulkAction: DashboardBulkJobAction) {
     setNotice(null)
-    if (bulkAction === "close" && !window.confirm(t("bulk_close_confirm", { count: selectedIds.length, plural: selectedIds.length === 1 ? "" : "s" }))) return
+    if (bulkAction === "close" && !window.confirm(t(selectedIds.length === 1 ? "close_confirm_one" : "close_confirm_other", { count: selectedIds.length }))) return
     action.mutate(bulkAction)
   }
 
@@ -879,16 +882,16 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
       <div>
-        <span className="font-medium text-gray-900 dark:text-gray-100">{t("bulk_selected", { count: selectedIds.length })}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{t("selected_count", { count: selectedIds.length })}</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, t("bulk_action_error"))}</span> : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("bulk_retry")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("bulk_claim")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("bulk_release")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("bulk_approve")}</button>
-        <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("bulk_close")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("retry")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("claim")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("release")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button>
+        <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button>
       </div>
     </div>
   )
@@ -924,7 +927,8 @@ function JobsTable({
   onToggleAll,
   onToggleOne,
   prefix,
-  sortState
+  sortState,
+  t
 }: {
   items: DashboardJobItem[]
   columns: string[]
@@ -935,12 +939,13 @@ function JobsTable({
   onToggleOne: (id: number) => void
   prefix: string
   sortState: DashboardSortState
+  t: (key: string, opts?: Record<string, unknown>) => string
 }) {
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   // Only group by Epic when the rows are actually in queue order — in any
   // other sort the Epics aren't contiguous, so a separator would mislead.
   const groupByEpic = sortState.column === "landing_queue_position"
-  const landingQueueGroups = useMemo(() => groupByLandingQueueEntry(items, landingQueueEntries), [items, landingQueueEntries])
+  const landingQueueGroups = useMemo(() => groupByLandingQueueEntry(items, landingQueueEntries, t), [items, landingQueueEntries, t])
   const [expandedBlockerGroups, setExpandedBlockerGroups] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
@@ -969,7 +974,7 @@ function JobsTable({
           <tr>
             {columns.map((column) => (
               <th aria-sort={columnAriaSort("job", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column}>
-                {column === "checkbox" ? <input aria-label="Select all jobs" checked={allSelected} onChange={onToggleAll} type="checkbox" /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
+                {column === "checkbox" ? <input aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} type="checkbox" /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
               </th>
             ))}
           </tr>
@@ -1043,6 +1048,7 @@ function LandingQueueJobGroup({
   selectedIds: Set<number>
   topSeparator: boolean
 }) {
+  const { t } = useT("dashboard")
   const blockerCount = group.blockerJobs.length
   const rows = expanded ? group.rows : group.rows.filter((row) => row.kind === "approved")
 
@@ -1058,7 +1064,7 @@ function LandingQueueJobGroup({
               type="button"
             >
               <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
-              <span>{blockerCount} {pluralize(blockerCount, "blocker")}</span>
+              <span>{t(blockerCount === 1 ? "blocker_one" : "blocker_other", { count: blockerCount })}</span>
             </button>
           </td>
         </tr>
@@ -1109,7 +1115,7 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
   return <td className="px-4 py-3 text-gray-400 dark:text-gray-500">-</td>
 }
 
-function groupByLandingQueueEntry(items: DashboardJobItem[], entries: DashboardLandingQueueEntry[]) {
+function groupByLandingQueueEntry(items: DashboardJobItem[], entries: DashboardLandingQueueEntry[], t: (key: string, opts?: Record<string, unknown>) => string) {
   const entriesByKey = new Map(entries.map((entry) => [entry.key, entry]))
   const groups: LandingQueueDisplayGroup[] = []
   const groupsByKey = new Map<string, LandingQueueDisplayGroup>()
@@ -1131,7 +1137,7 @@ function groupByLandingQueueEntry(items: DashboardJobItem[], entries: DashboardL
       kind: "blocker",
       id: job.id,
       job,
-      attribution: blockerAttribution(job, group.key)
+      attribution: blockerAttribution(job, group.key, t)
     }))
     const approvedRows: LandingQueueApprovedRow[] = group.jobs.map((job) => ({ kind: "approved", id: job.id, job }))
     group.rows = topologicalLandingQueueRows([ ...approvedRows, ...group.blockerJobs ], entry)
@@ -1188,11 +1194,11 @@ function sortLandingQueueRows(rows: LandingQueueDisplayRow[], originalIndex: Map
   rows.sort((left, right) => (originalIndex.get(left.id) ?? 0) - (originalIndex.get(right.id) ?? 0))
 }
 
-function blockerAttribution(job: LandingQueueBlockerJob, groupKey: string) {
-  if (job.epic_title) return `Epic: ${job.epic_title}`
-  if (job.epic_id != null) return `Epic #${job.epic_id}`
-  if (Object.prototype.hasOwnProperty.call(job, "epic_id") && job.epic_id == null) return "standalone"
-  if (groupKey.startsWith("job:") && groupKey !== `job:${job.id}`) return "standalone"
+function blockerAttribution(job: LandingQueueBlockerJob, groupKey: string, t: (key: string, opts?: Record<string, unknown>) => string) {
+  if (job.epic_title) return t("epic_attribution", { title: job.epic_title })
+  if (job.epic_id != null) return t("epic_attribution_by_id", { id: job.epic_id })
+  if (Object.prototype.hasOwnProperty.call(job, "epic_id") && job.epic_id == null) return t("standalone")
+  if (groupKey.startsWith("job:") && groupKey !== `job:${job.id}`) return t("standalone")
   return null
 }
 
@@ -1207,11 +1213,12 @@ function MobileJobsList({ items, selectedIds, onToggleOne, prefix, groupByEpic }
 }
 
 function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false }: { job: DashboardJobItem; selected: boolean; onToggleOne: (id: number) => void; prefix: string; topSeparator?: boolean }) {
-  const approvalLabel = job.approved_at ? "Approved" : "Not approved"
+  const { t } = useT("dashboard")
+  const approvalLabel = job.approved_at ? t("approved") : t("not_approved")
 
   return (
     <article aria-label={job.title} className={`grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3${topSeparator ? " border-t-4 border-gray-300 dark:border-gray-600" : ""}`}>
-      <input aria-label={`Select ${job.title}`} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} type="checkbox" />
+      <input aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} type="checkbox" />
       <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
@@ -1244,8 +1251,9 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
 }
 
 function JobCell({ job, column, selected, onToggleOne, prefix }: { job: DashboardJobItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
+  const { t } = useT("dashboard")
   if (column === "checkbox") {
-    return <td className="px-4 py-3 align-top"><input aria-label={`Select ${job.title}`} checked={selected} onChange={() => onToggleOne(job.id)} type="checkbox" /></td>
+    return <td className="px-4 py-3 align-top"><input aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} type="checkbox" /></td>
   }
   if (column === "issue" || column === "title") {
     return (
@@ -1283,10 +1291,10 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
 }
 
 function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJobItem; prefix: string; quiet?: boolean }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const owner = job.claimed_by_user
-  if (!owner) return quiet ? null : <span className="text-xs text-gray-400 dark:text-gray-500">{t("dashboard_owner_unclaimed")}</span>
-  if (job.claimed_by_current_user) return quiet ? null : <span className="sr-only">Claimed by you</span>
+  if (!owner) return quiet ? null : <span className="text-xs text-gray-400 dark:text-gray-500">{t("unclaimed")}</span>
+  if (job.claimed_by_current_user) return quiet ? null : <span className="sr-only">{t("claimed_by_you")}</span>
 
   return (
     <Link className="text-xs font-medium text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" to={withRoutePrefix(owner.profile_path, prefix)}>
@@ -1338,8 +1346,7 @@ function WorkflowBadges({ state, triggerAriaPrefix, triggerKind }: { state: stri
 }
 
 function PendingJobTitle({ pending, title }: { pending: boolean; title: string }) {
-  const { t } = useT("jobs")
-
+  const { t } = useT("dashboard")
   if (!pending) return <>{title}</>
 
   return (
@@ -1391,11 +1398,12 @@ function MetadataLine({ children, className }: { children: ReactNode; className:
 }
 
 function JobSourceChatLink({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
+  const { t } = useT("dashboard")
   if (!job.source_chat) return null
 
   return (
     <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.source_chat.path, prefix)}>
-      Chat
+      {t("chat_link")}
     </Link>
   )
 }
@@ -1428,6 +1436,7 @@ function RepositorySlugLink({ className = "font-mono text-xs text-gray-500 hover
 }
 
 function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpicItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
+  const { t } = useT("dashboard")
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
@@ -1468,7 +1477,7 @@ function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpi
               <tr>
                 {columns.map((column) => (
                   <th aria-sort={columnAriaSort("epic", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column}>
-                    {column === "checkbox" ? <input aria-label="Select all Epics" checked={allSelected} onChange={toggleAll} type="checkbox" /> : <SortableColumnHeader column={column} sortState={sortState} subject="epic" />}
+                    {column === "checkbox" ? <input aria-label={t("select_all_epics")} checked={allSelected} onChange={toggleAll} type="checkbox" /> : <SortableColumnHeader column={column} sortState={sortState} subject="epic" />}
                   </th>
                 ))}
               </tr>
@@ -1490,7 +1499,7 @@ function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpi
 }
 
 function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
   const action = useMutation({
@@ -1515,12 +1524,12 @@ function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onCl
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
       <div>
-        <span className="font-medium text-gray-900 dark:text-gray-100">{t("bulk_selected", { count: selectedIds.length })}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{t("selected_count", { count: selectedIds.length })}</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, t("bulk_action_error"))}</span> : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("start")} type="button">{t("bulk_move_in_progress")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("start")} type="button">{t("move_to_in_progress")}</button>
       </div>
     </div>
   )
@@ -1537,9 +1546,10 @@ function MobileEpicsList({ items, selectedIds, onToggleOne, prefix }: { items: D
 }
 
 function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
+  const { t } = useT("dashboard")
   return (
     <article aria-label={`${epic.display_number} ${epic.title}`} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 dark:text-gray-200">
-      <input aria-label={`Select ${epic.title}`} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} type="checkbox" />
+      <input aria-label={t("select_item", { title: epic.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} type="checkbox" />
       <div className="min-w-0">
         <div className="mb-1">
           <NeutralStatePill state={epic.state} />
@@ -1561,8 +1571,9 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
 }
 
 function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
+  const { t } = useT("dashboard")
   if (column === "checkbox") {
-    return <td className="px-4 py-3 align-top"><input aria-label={`Select ${epic.title}`} checked={selected} onChange={() => onToggleOne(epic.id)} type="checkbox" /></td>
+    return <td className="px-4 py-3 align-top"><input aria-label={t("select_item", { title: epic.title })} checked={selected} onChange={() => onToggleOne(epic.id)} type="checkbox" /></td>
   }
   if (column === "epic") {
     return (
@@ -1618,21 +1629,23 @@ function WorkflowsTable({ items, columns, prefix, sortState }: { items: Dashboar
 }
 
 function EpicProgressPill({ epic }: { epic: DashboardEpicItem }) {
+  const { t } = useT("dashboard")
   if (epic.state !== "in_progress") return null
 
-  return <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 dark:bg-gray-800 dark:text-gray-200">{epic.landed_jobs_count}/{epic.jobs_count} done</span>
+  return <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 dark:bg-gray-800 dark:text-gray-200">{t("epic_progress", { done: epic.landed_jobs_count, total: epic.jobs_count })}</span>
 }
 
 function EpicStuckBadge({ stuck }: { stuck: boolean }) {
+  const { t } = useT("dashboard")
   if (!stuck) return null
 
   return (
     <span
-      aria-label="Needs attention"
+      aria-label={t("needs_attention")}
       className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:ring-amber-800"
-      title="All jobs closed - mark this epic done or file a follow-up."
+      title={t("needs_attention_title")}
     >
-      Needs attention
+      {t("needs_attention")}
     </span>
   )
 }
@@ -1648,6 +1661,7 @@ function MobileWorkflowsList({ items, prefix }: { items: DashboardWorkflowItem[]
 }
 
 function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: DashboardWorkflowItem }) {
+  const { t } = useT("dashboard")
   const startedAt = workflow.started_at || workflow.created_at
   const finishedAt = workflow.finished_at || workflow.cleaned_up_at
   const slug = workflowLabel(workflow)
@@ -1667,8 +1681,8 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
           <span>{workflow.trigger_kind}</span>
           <span>{workflow.agent_provider}</span>
           <OwnerBadge badge={workflow.job.owner_badge} />
-          {startedAt ? <span>Started {formatDate(startedAt)}</span> : null}
-          {finishedAt ? <span>Finished {formatDate(finishedAt)}</span> : null}
+          {startedAt ? <span>{t("started_at", { date: formatDate(startedAt) })}</span> : null}
+          {finishedAt ? <span>{t("finished_at", { date: formatDate(finishedAt) })}</span> : null}
         </div>
       </div>
     </Link>
@@ -1676,17 +1690,18 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
 }
 
 function SortableColumnHeader({ subject, column, sortState }: { subject: DashboardSubject; column: string; sortState: DashboardSortState }) {
-  const { t } = useT("jobs")
+  const { t } = useT("dashboard")
   const label = dashboardColumnLabel(subject, column, t)
   const sortColumn = sortableColumnFor(subject, column)
   if (!sortColumn || !sortState.sortableColumns.includes(sortColumn)) return <span>{label}</span>
 
   const active = sortState.column === sortColumn
   const nextDirection = active && sortState.direction === "asc" ? "desc" : "asc"
+  const directionLabel = nextDirection === "asc" ? t("ascending") : t("descending")
 
   return (
     <button
-      aria-label={`Sort by ${label} ${sortDirectionLabel(nextDirection).toLowerCase()}`}
+      aria-label={t("sort_by", { label, direction: directionLabel.toLowerCase() })}
       className={`inline-flex items-center gap-1 text-left font-semibold uppercase ${active ? "text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"}`}
       disabled={sortState.pending}
       onClick={() => sortState.onSort(column)}
@@ -1739,8 +1754,7 @@ function workflowLabel(workflow: Pick<DashboardWorkflowItem, "id" | "slug">) {
 }
 
 function Pagination({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  const { t } = useT("jobs")
-
+  const { t } = useT("dashboard")
   if (payload.total_pages <= 1) return null
 
   const firstItem = (payload.page - 1) * payload.per_page + 1
@@ -1748,17 +1762,17 @@ function Pagination({ payload, pathname, search }: { payload: DashboardPayload; 
 
   return (
     <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-      <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: payload.total })}</span>
+      <span>{t("showing_pagination", { first: firstItem, last: lastItem, total: payload.total })}</span>
       <div className="flex gap-2">
         {payload.page > 1 ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page - 1)}>{t("pagination_previous")}</Link>
+          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page - 1)}>{t("previous")}</Link>
         ) : (
-          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("pagination_previous")}</span>
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("previous")}</span>
         )}
         {payload.page < payload.total_pages ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page + 1)}>{t("pagination_next")}</Link>
+          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page + 1)}>{t("next")}</Link>
         ) : (
-          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("pagination_next")}</span>
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("next")}</span>
         )}
       </div>
     </div>
@@ -1793,11 +1807,10 @@ function pluralize(count: number, singular: string) {
 }
 
 function DashboardError({ error }: { error: Error }) {
-  const { t } = useT("jobs")
-
+  const { t } = useT("dashboard")
   return (
-    <main aria-label="Dashboard" className="p-6">
-      <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(error, t("dashboard_error"))}</p>
+    <main aria-label={t("title")} className="p-6">
+      <p className="text-sm text-red-700 dark:text-red-300">{error instanceof ApiError ? error.message : t("load_error")}</p>
     </main>
   )
 }
@@ -1864,10 +1877,6 @@ function sortValue(sort: Record<string, string>, key: string) {
   return sort[key]
 }
 
-function sortDirectionLabel(direction: string) {
-  return direction === "asc" ? "Ascending" : "Descending"
-}
-
 function sortableColumnFor(subject: DashboardSubject, column: string) {
   const aliases: Record<DashboardSubject, Record<string, string>> = {
     epic: {
@@ -1898,59 +1907,10 @@ function columnAriaSort(subject: DashboardSubject, column: string, sortState: Da
   return sortState.direction === "asc" ? "ascending" : "descending"
 }
 
-function dashboardColumnLabel(subject: DashboardSubject, column: string, t: ReturnType<typeof useT>["t"]) {
-  const labels: Record<DashboardSubject, Record<string, string>> = {
-    epic: {
-      checkbox: t("column_checkbox"),
-      epic: t("column_epic"),
-      state: t("column_state"),
-      owner: t("column_owner"),
-      repository: t("column_repository"),
-      updated: t("column_updated"),
-      created_at: t("column_created_at"),
-      updated_at: t("column_updated_at"),
-      done_at: t("column_done_at"),
-      archived_at: t("column_archived_at")
-    },
-    job: {
-      checkbox: t("column_checkbox"),
-      issue: t("column_issue"),
-      title: t("column_title"),
-      state: t("column_state"),
-      landing_queue_position: t("column_landing_queue_position"),
-      repository: t("column_repository"),
-      owner: t("column_owner"),
-      latest: t("column_latest"),
-      workflows_count: t("column_workflows_count"),
-      started: t("column_started"),
-      created_at: t("column_created_at"),
-      updated_at: t("column_updated_at"),
-      started_at: t("column_started_at"),
-      finished_at: t("column_finished_at"),
-      approved_at: t("column_approved_at"),
-      dependencies_overridden_at: t("column_dependencies_overridden_at"),
-      last_feedback_addressed_at: t("column_last_feedback_addressed_at"),
-      last_seen_comment_at: t("column_last_seen_comment_at"),
-      pr_mergeable_checked_at: t("column_pr_mergeable_checked_at")
-    },
-    workflow: {
-      workflow: t("column_workflow"),
-      title: t("column_workflow"),
-      job: t("column_job"),
-      trigger: t("column_trigger"),
-      state: t("column_state"),
-      started: t("column_started"),
-      finished: t("column_finished"),
-      agent: t("column_agent"),
-      created_at: t("column_created_at"),
-      updated_at: t("column_updated_at"),
-      started_at: t("column_started_at"),
-      finished_at: t("column_finished_at"),
-      cleaned_up_at: t("column_cleaned_up_at")
-    }
-  }
-
-  return labels[subject][column] || humanizeOption(column)
+function dashboardColumnLabel(subject: DashboardSubject, column: string, t: (key: string, opts?: Record<string, unknown>) => string) {
+  // The workflow table uses "title" column key but displays it as "Workflow"
+  const i18nKey = subject === "workflow" && column === "title" ? "workflow_title" : column
+  return t(`column_label.${i18nKey}`, { defaultValue: humanizeOption(column) })
 }
 
 function dashboardVisibleColumns(payload: DashboardPayload) {
