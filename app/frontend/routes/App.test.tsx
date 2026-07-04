@@ -669,6 +669,59 @@ describe("App", () => {
     }
   })
 
+  it("renders a Publilius Syrus quote in the footer on non-chat routes", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByRole("navigation", { name: "Primary" })
+      const link = screen.getByRole("link", { name: "Malum est consilium quod mutari non potest." })
+      expect(link).toHaveAttribute("href", "https://en.wikipedia.org/wiki/Publilius_Syrus")
+      const footer = link.closest("footer")
+      expect(footer).toHaveClass("hidden", "lg:block")
+    } finally {
+      randomSpy.mockRestore()
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("hides the Publilius Syrus quote on chat routes", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByRole("heading", { name: "What would you like to build?" })
+      expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it("renders the v2 sidebar navigation and account popup actions", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
