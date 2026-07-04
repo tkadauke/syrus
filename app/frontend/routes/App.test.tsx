@@ -3373,11 +3373,12 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const scopeNav = await screen.findByRole("navigation", { name: "Dashboard ownership scope" })
-    expect(within(scopeNav).getByRole("link", { name: "Mine" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=mine")
-    expect(within(scopeNav).getByRole("link", { name: "Team" })).toHaveClass("bg-gray-900", "text-white")
-    expect(within(scopeNav).getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
-    expect(within(scopeNav).getByRole("link", { name: "User" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=user&owner_id=1")
+    const ownerChip = await screen.findByRole("button", { name: "Owner is Team" })
+    expect(ownerChip).toBeInTheDocument()
+    fireEvent.click(ownerChip)
+    expect(screen.getByRole("menuitem", { name: "Mine" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=mine")
+    expect(screen.getByRole("menuitem", { name: "Team" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list")
+    expect(screen.getByRole("menuitem", { name: "User" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&ownership_scope=user&owner_id=1")
     expect(screen.getByText("Teammate")).toBeInTheDocument()
     expect(screen.queryByText("Operator")).not.toBeInTheDocument()
   })
