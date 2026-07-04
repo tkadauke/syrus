@@ -4,12 +4,14 @@ import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { fetchAdminTranscript, type TranscriptEvent, type TranscriptPayload } from "../api/adminTranscript"
 import { AnsiText } from "../components/AnsiText"
+import { useT } from "../hooks/useT"
 
 const DEFAULT_PER_PAGE = 100
 const TRANSCRIPT_BOTTOM_THRESHOLD_PX = 48
 const TRANSCRIPT_REFETCH_INTERVAL_MS = 2000
 
 export function AdminTranscript() {
+  const { t } = useT("admin")
   const params = useParams()
   const location = useLocation()
   const runId = params.runId || ""
@@ -26,7 +28,7 @@ export function AdminTranscript() {
 
   return (
     <main aria-label="Admin transcript" className="mx-auto flex h-[calc(100vh-4rem)] max-w-6xl flex-col gap-6 overflow-hidden p-6">
-      {transcript.isPending ? <PanelMessage>Loading transcript...</PanelMessage> : null}
+      {transcript.isPending ? <PanelMessage>{t("transcript.loading")}</PanelMessage> : null}
       {transcript.isError ? <TranscriptError error={transcript.error} /> : null}
       {transcript.isSuccess ? <TranscriptView payload={transcript.data} prefix={prefix} /> : null}
     </main>
@@ -34,6 +36,8 @@ export function AdminTranscript() {
 }
 
 function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefix: string }) {
+  const { t } = useT("admin")
+
   return (
     <>
       <header className="shrink-0 flex flex-col gap-3 border-b border-gray-200 dark:border-gray-700 pb-4 sm:flex-row sm:items-start sm:justify-between">
@@ -52,7 +56,7 @@ function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefi
           </p>
         </div>
         <a className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" href={`/admin/runs/${payload.run_id}/transcript/download`}>
-          Download JSONL
+          {t("transcript.download_jsonl")}
         </a>
       </header>
 
@@ -119,29 +123,38 @@ function TranscriptEventStream({ payload }: { payload: TranscriptPayload }) {
         ))}
       </section>
       {hasNewMessages ? (
-        <button
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-gray-900 dark:bg-gray-100 px-4 py-2 text-sm font-medium text-white dark:text-gray-900 shadow-lg hover:bg-gray-800 dark:hover:bg-gray-200"
-          onClick={scrollToBottom}
-          type="button"
-        >
-          New Messages
-        </button>
+        <NewMessagesButton onClick={scrollToBottom} />
       ) : null}
     </div>
   )
 }
 
+function NewMessagesButton({ onClick }: { onClick: () => void }) {
+  const { t } = useT("admin")
+
+  return (
+    <button
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-gray-900 dark:bg-gray-100 px-4 py-2 text-sm font-medium text-white dark:text-gray-900 shadow-lg hover:bg-gray-800 dark:hover:bg-gray-200"
+      onClick={onClick}
+      type="button"
+    >
+      {t("transcript.new_messages")}
+    </button>
+  )
+}
+
 function SummaryGrid({ payload }: { payload: TranscriptPayload }) {
+  const { t } = useT("admin")
   const summary = payload.summary
 
   return (
     <section aria-label="Transcript summary" className="grid gap-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-      <SummaryItem label="Turns" value={summary.total_turns ?? "-"} />
-      <SummaryItem label="Tool calls" value={summary.total_tool_calls} />
-      <SummaryItem label="Cost" value={summary.total_cost_usd == null ? "-" : `$${summary.total_cost_usd.toFixed(4)}`} />
-      <SummaryItem label="Exit reason" value={summary.exit_reason || "-"} mono />
+      <SummaryItem label={t("transcript.turns")} value={summary.total_turns ?? "-"} />
+      <SummaryItem label={t("transcript.tool_calls")} value={summary.total_tool_calls} />
+      <SummaryItem label={t("transcript.cost")} value={summary.total_cost_usd == null ? "-" : `$${summary.total_cost_usd.toFixed(4)}`} />
+      <SummaryItem label={t("transcript.exit_reason")} value={summary.exit_reason || "-"} mono />
       <div className="border-t border-gray-100 dark:border-gray-800 pt-3 sm:col-span-2 lg:col-span-4">
-        <div className="mb-2 text-xs uppercase text-gray-500 dark:text-gray-400">Tool call breakdown</div>
+        <div className="mb-2 text-xs uppercase text-gray-500 dark:text-gray-400">{t("transcript.tool_call_breakdown")}</div>
         {Object.keys(summary.tool_call_counts).length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {Object.entries(summary.tool_call_counts).map(([name, count]) => (
@@ -149,7 +162,7 @@ function SummaryGrid({ payload }: { payload: TranscriptPayload }) {
             ))}
           </div>
         ) : (
-          <span className="text-xs italic text-gray-400">no tool calls</span>
+          <span className="text-xs italic text-gray-400">{t("transcript.no_tool_calls")}</span>
         )}
       </div>
     </section>
@@ -166,27 +179,28 @@ function SummaryItem({ label, value, mono = false }: { label: string; value: Rea
 }
 
 function Pagination({ payload }: { payload: TranscriptPayload }) {
+  const { t } = useT("admin")
   const location = useLocation()
   const basePath = location.pathname
   const { page, per, total_pages: totalPages, total_events: totalEvents } = payload.pagination
 
   if (totalPages <= 1) {
-    return <p className="text-sm text-gray-600 dark:text-gray-300">Showing {totalEvents} events.</p>
+    return <p className="text-sm text-gray-600 dark:text-gray-300">{t("transcript.showing_events", { count: totalEvents })}</p>
   }
 
   return (
     <nav aria-label="Transcript pagination" className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-      <span>Page {page} of {totalPages} · {totalEvents} events</span>
+      <span>{t("transcript.page_of", { page, total: totalPages, events: totalEvents })}</span>
       <div className="flex gap-2">
         {page > 1 ? (
-          <Link className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 hover:bg-gray-50 dark:hover:bg-gray-800" to={`${basePath}?page=${page - 1}&per=${per}`}>Previous</Link>
+          <Link className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 hover:bg-gray-50 dark:hover:bg-gray-800" to={`${basePath}?page=${page - 1}&per=${per}`}>{t("transcript.previous")}</Link>
         ) : (
-          <span className="rounded border border-gray-200 dark:border-gray-700 px-3 py-1 text-gray-300">Previous</span>
+          <span className="rounded border border-gray-200 dark:border-gray-700 px-3 py-1 text-gray-300">{t("transcript.previous")}</span>
         )}
         {page < totalPages ? (
-          <Link className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 hover:bg-gray-50 dark:hover:bg-gray-800" to={`${basePath}?page=${page + 1}&per=${per}`}>Next</Link>
+          <Link className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 hover:bg-gray-50 dark:hover:bg-gray-800" to={`${basePath}?page=${page + 1}&per=${per}`}>{t("transcript.next")}</Link>
         ) : (
-          <span className="rounded border border-gray-200 dark:border-gray-700 px-3 py-1 text-gray-300">Next</span>
+          <span className="rounded border border-gray-200 dark:border-gray-700 px-3 py-1 text-gray-300">{t("transcript.next")}</span>
         )}
       </div>
     </nav>
@@ -260,7 +274,8 @@ function ResultEvent({ data }: { data: Record<string, unknown> }) {
 }
 
 function TranscriptError({ error }: { error: Error }) {
-  const message = error instanceof ApiError ? error.message : "Unable to load transcript."
+  const { t } = useT("admin")
+  const message = error instanceof ApiError ? error.message : t("transcript.error_load")
 
   return <PanelMessage tone="error">{message}</PanelMessage>
 }

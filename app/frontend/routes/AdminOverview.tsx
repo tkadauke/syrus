@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
 import { fetchAdminOverview, type AdminOverviewPayload } from "../api/adminOverview"
+import { useT } from "../hooks/useT"
 
 export function AdminOverview() {
+  const { t } = useT("admin")
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const overview = useQuery({
@@ -11,13 +13,13 @@ export function AdminOverview() {
   })
 
   if (overview.isPending) {
-    return <main aria-label="Admin overview" className="p-6 text-sm text-gray-600 dark:text-gray-300">Loading...</main>
+    return <main aria-label="Admin overview" className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("overview.loading")}</main>
   }
 
   if (overview.isError) {
     return (
       <main aria-label="Admin overview" className="p-6">
-        <p className="text-sm text-red-700 dark:text-red-300">Unable to load admin overview.</p>
+        <p className="text-sm text-red-700 dark:text-red-300">{t("overview.error_load")}</p>
       </main>
     )
   }
@@ -30,26 +32,26 @@ export function AdminOverview() {
   return (
     <main aria-label="Admin overview" className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Overview</h1>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("overview.heading")}</h1>
       </header>
 
       <section aria-label="System metrics" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric title="Active runs" value={data.active_runs.total} context={triggerContext(data.active_runs.by_trigger, "all idle")} href={withRoutePrefix("/admin/queue/active", prefix)} />
-        <Metric title="Queued runs" value={data.queued_runs.total} context={data.queued_runs.total > 0 ? "waiting for a worker" : "queue empty"} href={withRoutePrefix("/admin/queue/pending", prefix)} />
-        <Metric title="Workers" value={data.workers.unreachable ? "?" : data.workers.total ?? 0} context={workersContext(data.workers)} href={withRoutePrefix("/admin/queue/workers", prefix)} tone={data.workers.stale ? "alarm" : "ok"} />
-        <Metric title="Recurring jobs" value={overdueRecurring.length} context={overdueRecurring.length > 0 ? overdueRecurring.map((task) => task.key).join(", ") : "all firing"} href={withRoutePrefix("/admin/queue/recurring", prefix)} tone={overdueRecurring.length > 0 ? "alarm" : "ok"} />
-        <Metric title="Failed runs (24h)" value={data.recent_failures_24h.total} context={triggerContext(data.recent_failures_24h.by_trigger, "no failures")} href={withRoutePrefix("/admin/queue/failed", prefix)} tone={data.recent_failures_24h.total > 0 ? "warn" : "ok"} />
-        <Metric title="Provider circuits" value={data.provider_circuits.length} context={data.provider_circuits.length > 0 ? data.provider_circuits.map((circuit) => circuit.provider).join(", ") : "all closed"} tone={data.provider_circuits.length > 0 ? "alarm" : "ok"} />
-        <Metric title="GitHub rate limits" value={data.github_rate_limits.length} context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : "all healthy"} tone={data.github_rate_limits.length > 0 ? "warn" : "ok"} />
-        <Metric title="Agent session capture" value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`} context={`${data.agent_session_capture_rate.captured} of ${data.agent_session_capture_rate.total}`} tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"} />
-        <Metric title="Data root disk" value={dataRoot ? `${dataRoot.used_percent}%` : "?"} context={dataRoot ? `${formatBytes(dataRoot.available_bytes)} free at ${dataRoot.path}` : "unavailable"} tone={dataRootTone(dataRoot?.level)} />
-        <Metric title="Stuck things" value={data.stuck.length} context={data.stuck.length > 0 ? "needs attention" : "nothing flagged"} href={withRoutePrefix("/admin/stuck", prefix)} tone={data.stuck.some((item) => item.severity === "alarm") ? "alarm" : data.stuck.length > 0 ? "warn" : "ok"} />
+        <Metric title={t("overview.active_runs")} value={data.active_runs.total} context={triggerContext(data.active_runs.by_trigger, t("overview.all_idle"))} href={withRoutePrefix("/admin/queue/active", prefix)} />
+        <Metric title={t("overview.queued_runs")} value={data.queued_runs.total} context={data.queued_runs.total > 0 ? t("overview.waiting_for_worker") : t("overview.queue_empty")} href={withRoutePrefix("/admin/queue/pending", prefix)} />
+        <Metric title={t("overview.workers")} value={data.workers.unreachable ? "?" : data.workers.total ?? 0} context={workersContext(data.workers, t)} href={withRoutePrefix("/admin/queue/workers", prefix)} tone={data.workers.stale ? "alarm" : "ok"} />
+        <Metric title={t("overview.recurring_jobs")} value={overdueRecurring.length} context={overdueRecurring.length > 0 ? overdueRecurring.map((task) => task.key).join(", ") : t("overview.all_firing")} href={withRoutePrefix("/admin/queue/recurring", prefix)} tone={overdueRecurring.length > 0 ? "alarm" : "ok"} />
+        <Metric title={t("overview.failed_runs")} value={data.recent_failures_24h.total} context={triggerContext(data.recent_failures_24h.by_trigger, t("overview.no_failures"))} href={withRoutePrefix("/admin/queue/failed", prefix)} tone={data.recent_failures_24h.total > 0 ? "warn" : "ok"} />
+        <Metric title={t("overview.provider_circuits")} value={data.provider_circuits.length} context={data.provider_circuits.length > 0 ? data.provider_circuits.map((circuit) => circuit.provider).join(", ") : t("overview.all_closed")} tone={data.provider_circuits.length > 0 ? "alarm" : "ok"} />
+        <Metric title={t("overview.github_rate_limits")} value={data.github_rate_limits.length} context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : t("overview.all_healthy")} tone={data.github_rate_limits.length > 0 ? "warn" : "ok"} />
+        <Metric title={t("overview.agent_session_capture")} value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`} context={`${data.agent_session_capture_rate.captured} of ${data.agent_session_capture_rate.total}`} tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"} />
+        <Metric title={t("overview.data_root_disk")} value={dataRoot ? `${dataRoot.used_percent}%` : "?"} context={dataRoot ? `${formatBytes(dataRoot.available_bytes)} free at ${dataRoot.path}` : t("overview.unavailable")} tone={dataRootTone(dataRoot?.level)} />
+        <Metric title={t("overview.stuck_things")} value={data.stuck.length} context={data.stuck.length > 0 ? t("overview.needs_attention") : t("overview.nothing_flagged")} href={withRoutePrefix("/admin/stuck", prefix)} tone={data.stuck.some((item) => item.severity === "alarm") ? "alarm" : data.stuck.length > 0 ? "warn" : "ok"} />
       </section>
 
       {data.stuck.length > 0 ? (
         <section aria-label="Stuck things" className="overflow-hidden rounded border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-900">
-          <div className="bg-amber-50 dark:bg-amber-950/40 px-4 py-2 text-xs font-medium uppercase text-amber-700 dark:text-amber-300">Stuck things</div>
+          <div className="bg-amber-50 dark:bg-amber-950/40 px-4 py-2 text-xs font-medium uppercase text-amber-700 dark:text-amber-300">{t("overview.stuck_section")}</div>
           <ul className="divide-y divide-gray-100 dark:divide-gray-800">
             {data.stuck.map((item) => (
               <li className="flex items-center justify-between gap-3 px-4 py-3 text-sm" key={`${item.kind}-${item.run_id}-${item.workflow_id}`}>
@@ -132,10 +134,10 @@ function triggerContext(values: Record<string, number>, fallback: string) {
   return entries.map(([trigger, count]) => `${count} ${trigger}`).join(" · ")
 }
 
-function workersContext(workers: { stale?: number; unreachable?: boolean }) {
-  if (workers.unreachable) return "queue tables unreachable"
-  if (workers.stale && workers.stale > 0) return `${workers.stale} stale`
-  return "all healthy"
+function workersContext(workers: { stale?: number; unreachable?: boolean }, t: (key: string, opts?: Record<string, unknown>) => string) {
+  if (workers.unreachable) return t("overview.queue_unreachable")
+  if (workers.stale && workers.stale > 0) return t("overview.stale_workers", { count: workers.stale })
+  return t("overview.all_healthy")
 }
 
 function dataRootTone(level?: string) {

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
@@ -15,6 +16,7 @@ import {
 import { workflowSlug } from "../lib/slugs"
 
 export function AdminProcessesIndex() {
+  const { t } = useT("admin")
   const location = useLocation()
   const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)
@@ -29,10 +31,10 @@ export function AdminProcessesIndex() {
     <main aria-label="Admin processes" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Processes</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("processes.heading")}</h1>
       </header>
 
-      {processes.isPending ? <PanelMessage>Loading processes...</PanelMessage> : null}
+      {processes.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
       {processes.isError ? <ProcessError error={processes.error} /> : null}
       {processes.isSuccess ? (
         <AdminFiltersLayout
@@ -271,7 +273,8 @@ function Outcome({ process }: { process: SpawnedProcessPayload }) {
 }
 
 function ProcessError({ error }: { error: Error }) {
-  const message = error instanceof ApiError ? error.message : "Unable to load process data."
+  const { t } = useT("admin")
+  const message = error instanceof ApiError ? error.message : t("processes.error_load")
 
   return <PanelMessage tone="error">{message}</PanelMessage>
 }
