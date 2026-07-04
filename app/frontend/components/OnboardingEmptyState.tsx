@@ -13,21 +13,24 @@ type OnboardingEmptyStateProps = {
   setupStatus?: SetupStatus | null
 }
 
-const setupCopy: Record<NonNullable<SetupStatus["next_step"]>, { title: string; description: string; action: string }> = {
+const setupCopy: Record<NonNullable<SetupStatus["next_step"]>, { title: string; description: string; action: string; latin: string }> = {
   configure_credentials: {
     title: "Connect credentials first",
     description: "Syrus needs both GitHub access and an agent provider before it can poll repositories or run jobs.",
-    action: "Open credentials"
+    action: "Open credentials",
+    latin: "Tesseram da"
   },
   add_repository: {
     title: "Add your first repository",
     description: "Credentials are ready. Add a repository so Syrus knows where to watch issues and where direct jobs can run.",
-    action: "Add repository"
+    action: "Add repository",
+    latin: "Horrea aperi"
   },
   start_first_chat: {
     title: "Meet Syrus in chat",
     description: "Credentials and a repository are ready. Chat with Syrus to create and land your first Epic — it will explain how Jobs and Epics flow through the pipeline.",
-    action: "Start Syrus chat"
+    action: "Start Syrus chat",
+    latin: "Syrum conveni"
   }
 }
 
@@ -61,6 +64,7 @@ export function OnboardingEmptyState({
       <div className="max-w-2xl space-y-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900">{copy?.title || fallbackTitle}</h2>
+          {copy?.latin ? <p className="text-xs italic text-gray-400">{copy.latin}</p> : null}
           <p className="mt-1 leading-6">{copy?.description || fallbackDescription}</p>
         </div>
         {actionPath && actionText && /^https?:\/\//.test(actionPath) ? (
