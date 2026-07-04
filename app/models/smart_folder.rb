@@ -39,7 +39,6 @@ class SmartFolder < ApplicationRecord
 
     # Tier 2: always-on routing.
     { key: "inbox",            name: "Inbox",                  visibility: :always,       filter: attention_preset_filter("inbox") },
-    { key: "awaiting_approval", name: "Awaiting your approval", visibility: :when_present, filter: attention_preset_filter("awaiting_approval") },
     { key: "landing_queue",    name: "Landing queue",          visibility: :when_present, filter: attention_preset_filter("landing_queue") },
     { key: "just_failed",      name: "Just failed",            visibility: :when_present, filter: attention_preset_filter("just_failed") },
     { key: "blocked",          name: "Blocked",                visibility: :when_present, filter: attention_preset_filter("blocked") },
