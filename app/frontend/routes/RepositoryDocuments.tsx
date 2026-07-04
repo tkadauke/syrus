@@ -53,7 +53,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
         </h1>
       </header>
 
-      <RepositoryTabs active="documents" prefix={prefix} repositoryId={payload.repository.id} />
+      <RepositoryTabs active="documents" prefix={prefix} tabs={payload.tabs} />
       <p className="text-sm text-gray-600 dark:text-gray-400">Supporting documents available to agent runs for this repository.</p>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />

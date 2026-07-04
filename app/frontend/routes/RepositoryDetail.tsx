@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
+import { RepositoryTabs } from "../components/RepositoryTabs"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
@@ -93,7 +94,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
         </h1>
       </header>
 
-      <Tabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
+      <RepositoryTabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <RepositorySummary payload={payload} />
       <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
@@ -152,7 +153,7 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
         </h1>
       </header>
 
-      <Tabs active="github_issues" prefix={prefix} tabs={payload.tabs} />
+      <RepositoryTabs active="github_issues" prefix={prefix} tabs={payload.tabs} />
 
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
         <span>Trigger label: <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{payload.repository.trigger_label}</code></span>
@@ -325,21 +326,6 @@ function IssueLabel({ color, name }: { color: string; name: string }) {
   )
 }
 
-function Tabs({ active, prefix, tabs }: { active: string; prefix: string; tabs: Array<{ key: string; label: string; path: string }> }) {
-  return (
-    <nav className="flex flex-wrap border-b border-gray-200 dark:border-gray-700" aria-label="Repository tabs">
-      {tabs.map((tab) => (
-        <Link
-          className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab.key === active ? "border-blue-600 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-gray-100"}`}
-          key={tab.key}
-          to={withRoutePrefix(tab.path, prefix)}
-        >
-          {tab.label}
-        </Link>
-      ))}
-    </nav>
-  )
-}
 
 function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   const location = useLocation()

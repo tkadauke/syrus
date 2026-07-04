@@ -7232,7 +7232,7 @@ describe("App", () => {
       expect(await screen.findByRole("main", { name: "Repository scheduled tasks" })).toHaveClass("max-w-[96rem]")
       const scheduledTabs = await screen.findByRole("navigation", { name: "Repository tabs" })
       expect(within(scheduledTabs).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
-      expect(within(scheduledTabs).getByRole("link", { name: "Context" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=context")
+      expect(within(scheduledTabs).queryByRole("link", { name: "Context" })).not.toBeInTheDocument()
       expect(within(scheduledTabs).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/repositories/3/documents")
       expect(within(scheduledTabs).getByRole("link", { name: "Scheduled Tasks" })).toHaveClass("border-blue-600")
       expect(screen.getByRole("heading", { level: 1, name: "acme/widgets" })).toHaveClass("text-3xl")
@@ -7872,7 +7872,7 @@ describe("App", () => {
     const repositoryTabs = await screen.findByRole("navigation", { name: "Repository tabs" })
     expect(within(repositoryTabs).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(within(repositoryTabs).getByRole("link", { name: "GitHub Issues" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues")
-    expect(within(repositoryTabs).getByRole("link", { name: "Context" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=context")
+    expect(within(repositoryTabs).queryByRole("link", { name: "Context" })).not.toBeInTheDocument()
     expect(within(repositoryTabs).getByRole("link", { name: "Documents" })).toHaveClass("border-blue-600")
     expect(within(repositoryTabs).getByRole("link", { name: "Scheduled Tasks" })).toHaveAttribute("href", "/app-shell/repositories/3/scheduled_tasks")
     const description = screen.getByText("Supporting documents available to agent runs for this repository.")
@@ -8408,7 +8408,7 @@ describe("App", () => {
     expect(screen.getByText("Install Syrus App")).toHaveAttribute("href", "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=100&repository_ids[]=200")
     expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByRole("link", { name: "GitHub Issues" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues")
-    expect(screen.getByRole("link", { name: "Context" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=context")
+    expect(screen.queryByRole("link", { name: "Context" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/repositories/3/documents")
     expect(screen.getByRole("link", { name: "Scheduled Tasks" })).toHaveAttribute("href", "/app-shell/repositories/3/scheduled_tasks")
     expect(screen.getByRole("link", { name: "New job" })).toHaveAttribute("href", "/app-shell/jobs/new?repository_id=3")
@@ -13855,6 +13855,7 @@ function repositoryScheduledTasksPayload(overrides: { state?: string; active?: b
   const detail = scheduledTaskDetailPayload({ state: overrides.state || "scheduled" }).task
   return {
     repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+    tabs: repositoryTabsPayload(3),
     tasks: [
       {
         ...detail,
@@ -14015,6 +14016,7 @@ function repositoryDocumentsPayload(overrides: {
 } = {}) {
   return {
     repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+    tabs: repositoryTabsPayload(3),
     documents: overrides.documents || [],
     accepted_file_content_types: ["text/markdown", "application/pdf", "image/png"],
     message: overrides.message
@@ -14217,6 +14219,15 @@ function closedProviderCircuit(provider: string) {
   }
 }
 
+function repositoryTabsPayload(repositoryId: number) {
+  return [
+    { key: "overview", label: "Overview", path: `/repositories/${repositoryId}` },
+    { key: "github_issues", label: "GitHub Issues", path: `/repositories/${repositoryId}?tab=github_issues` },
+    { key: "documents", label: "Documents", path: `/repositories/${repositoryId}/documents` },
+    { key: "scheduled_tasks", label: "Scheduled Tasks", path: `/repositories/${repositoryId}/scheduled_tasks` }
+  ]
+}
+
 function repositoryDetailPayload() {
   return {
     message: null,
@@ -14253,13 +14264,7 @@ function repositoryDetailPayload() {
         observed_at: "2026-05-30T12:00:00Z"
       }
     },
-    tabs: [
-      { key: "overview", label: "Overview", path: "/repositories/3" },
-      { key: "github_issues", label: "GitHub Issues", path: "/repositories/3?tab=github_issues" },
-      { key: "context", label: "Context", path: "/repositories/3?tab=context" },
-      { key: "documents", label: "Documents", path: "/repositories/3/documents" },
-      { key: "scheduled_tasks", label: "Scheduled Tasks", path: "/repositories/3/scheduled_tasks" }
-    ],
+    tabs: repositoryTabsPayload(3),
     counts: {
       running: 1,
       queued: 1,

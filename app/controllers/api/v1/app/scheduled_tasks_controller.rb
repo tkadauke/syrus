@@ -158,10 +158,20 @@ module Api
 
           {
             repository: repository_json(repository),
+            tabs: repository_tabs_json(repository),
             tasks: tasks.map { |task| repository_task_json(task) },
             new_scheduled_task_path: new_repository_scheduled_task_path(repository),
             options: scheduled_task_options
           }
+        end
+
+        def repository_tabs_json(repository)
+          [
+            { key: "overview", label: "Overview", path: repository_path(repository) },
+            { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") },
+            { key: "documents", label: "Documents", path: repository_documents_path(repository) },
+            { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) }
+          ]
         end
 
         def task_summary_json(task)

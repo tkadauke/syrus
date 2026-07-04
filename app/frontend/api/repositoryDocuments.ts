@@ -1,4 +1,5 @@
 import { deleteJson, getJson, postForm } from "./client"
+import type { RepositoryTab } from "./repositories"
 
 export type RepositoryDocumentsRepository = {
   id: number
@@ -20,6 +21,7 @@ export type RepositoryDocument = {
 
 export type RepositoryDocumentsPayload = {
   repository: RepositoryDocumentsRepository
+  tabs: RepositoryTab[]
   documents: RepositoryDocument[]
   accepted_file_content_types: string[]
   message?: string

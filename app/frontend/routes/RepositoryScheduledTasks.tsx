@@ -61,7 +61,7 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
         </div>
       </header>
 
-      <RepositoryTabs active="scheduled_tasks" prefix={prefix} repositoryId={payload.repository.id} />
+      <RepositoryTabs active="scheduled_tasks" prefix={prefix} tabs={payload.tabs} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Scheduled tasks</h2>
