@@ -34,12 +34,14 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     admin_job = Factories.job(user: admin, repository: admin_repo, issue_number: 101)
     other_job = Factories.job(user: other_user, repository: other_repo, issue_number: 202)
     admin_job.update_columns(state: "closed", closure_reason: "pr_merged", epic_id: epic.id)
-    set_run_cost(initial_run(admin_job), 1.25, created_at: Time.zone.parse("2026-06-03 12:00:00"))
-    set_run_cost(initial_run(other_job), 2.50, created_at: Time.zone.parse("2026-06-04 12:00:00"))
+    admin_run_date = 5.days.ago.to_date
+    other_run_date = 4.days.ago.to_date
+    set_run_cost(initial_run(admin_job), 1.25, created_at: admin_run_date.noon)
+    set_run_cost(initial_run(other_job), 2.50, created_at: other_run_date.noon)
     ChatSession.create!(user: admin, cumulative_cost_usd: 0.75)
 
     sign_in_as(admin)
-    get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05" }
+    get "/api/v1/app/insights/spending", params: { start_date: (admin_run_date - 1.day).iso8601, end_date: (other_run_date + 1.day).iso8601 }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -70,8 +72,8 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       "trigger_kind" => "initial"
     )
     expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
-      { "date" => "2026-06-03", "total_usd" => 1.25 },
-      { "date" => "2026-06-04", "total_usd" => 2.5 }
+      { "date" => admin_run_date.iso8601, "total_usd" => 1.25 },
+      { "date" => other_run_date.iso8601, "total_usd" => 2.5 }
     )
   end
 
