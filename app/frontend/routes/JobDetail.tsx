@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import type { Dispatch, FormEvent, ReactNode, SetStateAction, UIEvent } from "react"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { useT } from "../hooks/useT"
 import { ApiError } from "../api/client"
 import { createTerminalSession } from "../api/terminal"
 import { AnsiText } from "../components/AnsiText"
@@ -77,6 +78,7 @@ type PrepareFailure = {
 const RUN_TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24
 
 export function JobDetailRoute() {
+  const { t } = useT("jobs")
   const params = useParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -102,8 +104,8 @@ export function JobDetailRoute() {
 
   return (
     <main aria-label="Job" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {detail.isPending ? <PanelMessage>Loading Job...</PanelMessage> : null}
-      {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load Job.")}</PanelMessage> : null}
+      {detail.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
+      {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("load_error"))}</PanelMessage> : null}
       {detail.isSuccess ? <JobDetailView activeTab={activeTab} onSelectTab={selectTab} payload={detail.data} prefix={prefix} queryKey={queryKey} /> : null}
     </main>
   )
@@ -130,19 +132,20 @@ function tabFromLocation(pathname: string, search: string): JobTab {
 }
 
 export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
+  const { t } = useT("jobs")
   const location = useLocation()
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
   const command = useJobCommand(payload.job.id, queryKey, setNotice)
-  const title = payload.job.issue_title || jobSourceLabel(payload)
+  const title = payload.job.issue_title || jobSourceLabel(payload, t)
   const workflowAnchor = location.hash.startsWith("#workflow-") ? location.hash.slice(1) : null
   const renderedWorkflowIds = payload.workflows.map((workflow) => workflow.id).join(",")
   const feedback = useMutation({
     mutationFn: (body: string) => submitJobFeedback(payload.job.id, body),
     onSuccess: () => {
       setFeedbackPanelOpen(false)
-      setNotice("Feedback submitted — a new workflow will start shortly.")
+      setNotice(t("feedback_submitted"))
       void queryClient.invalidateQueries({ queryKey: ["jobs", String(payload.job.id)] })
       void queryClient.invalidateQueries({ queryKey })
     }
@@ -185,9 +188,9 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
               {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-              <span>{payload.job.workflows_count} {plural(payload.job.workflows_count, "workflow")} · {payload.job.runs_count} {plural(payload.job.runs_count, "run")}</span>
+              <span>{t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}</span>
               {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
-              {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· prepare skipped</span> : null}
+              {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
               {payload.job.source_chat ? (
                 <span>
                   · <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
@@ -197,7 +200,7 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
                 <span>
                   · <Link className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
                     <ChatBubbleIcon />
-                    <span>View in chat</span>
+                    <span>{t("view_in_chat")}</span>
                   </Link>
                 </span>
               ) : null}
@@ -213,7 +216,7 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Job command failed.")}</PanelMessage> : null}
+      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {feedbackPanelOpen ? (
         <JobFeedbackPanel
           error={feedback.error}
@@ -262,8 +265,9 @@ function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, onNotice: (me
 }
 
 function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFeedbackPanel }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; feedbackPanelOpen: boolean; onToggleFeedbackPanel: () => void }) {
+  const { t } = useT("jobs")
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
-  const actions = headerActions(payload)
+  const actions = headerActions(payload, t)
   const visibleKeys = primaryHeaderActionKeys(payload, actions)
   const visibleActions = visibleKeys.map((key) => actions.find((action) => action.key === key)).filter((action): action is HeaderAction => Boolean(action))
   const overflowActions = actions.filter((action) => !visibleKeys.includes(action.key))
@@ -279,7 +283,7 @@ function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFeedbackPa
             onClick={onToggleFeedbackPanel}
             type="button"
           >
-            Give feedback
+            {t("give_feedback")}
           </button>
         ) : null}
         {visibleActions.map((action) => (
@@ -299,6 +303,7 @@ function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFeedbackPa
 }
 
 function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { error: Error | null; isPending: boolean; onCancel: () => void; onSubmit: (body: string) => void }) {
+  const { t } = useT("jobs")
   const [body, setBody] = useState("")
   const trimmedBody = body.trim()
 
@@ -312,20 +317,20 @@ function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { error: Err
   return (
     <section aria-labelledby="job-feedback-title" className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
       <form className="space-y-3" onSubmit={submit}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-feedback-title">Give feedback</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-feedback-title">{t("feedback_panel_title")}</h2>
         <textarea
           className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           disabled={isPending}
           onChange={(event) => setBody(event.target.value)}
-          placeholder="What should be changed?"
+          placeholder={t("feedback_placeholder")}
           rows={4}
           value={body}
         />
-        {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, "Unable to submit feedback.")}</p> : null}
+        {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("feedback_error"))}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
-          <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">Cancel</button>
+          <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">{t("cancel")}</button>
           <button className={buttonClass("primary")} disabled={isPending || !trimmedBody} type="submit">
-            {isPending ? "Submitting..." : "Submit feedback"}
+            {isPending ? t("submitting") : t("submit_feedback")}
           </button>
         </div>
       </form>
@@ -333,24 +338,24 @@ function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { error: Err
   )
 }
 
-function headerActions(payload: JobDetailPayload): HeaderAction[] {
+function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"]): HeaderAction[] {
   const actions = payload.actions
   const paths = payload.paths
   const available: HeaderAction[] = []
 
-  if (actions.can_start) available.push({ key: "start", label: "Start Run", input: { method: "post", path: paths.app_start_path }, tone: "primary" })
-  if (actions.can_poll_feedback) available.push({ key: "poll_feedback", label: "Check feedback", input: { method: "post", path: paths.app_poll_feedback_path }, tone: "secondary" })
-  if (actions.can_rebase) available.push({ key: "rebase", label: "Rebase now", input: { method: "post", path: paths.app_rebase_path }, tone: "secondary" })
-  if (actions.can_check_mergeability) available.push({ key: "check_mergeability", label: "Check mergeability", input: { method: "post", path: paths.app_check_mergeability_path }, tone: "secondary" })
-  if (actions.can_retry) available.push({ key: "retry", label: "Retry", input: { method: "post", path: paths.app_run_again_path }, tone: "primary" })
-  if (actions.can_retry) available.push({ key: "retry_feedback", label: "Retry with feedback", input: { method: "post", path: paths.app_run_again_path }, tone: "secondary" })
-  if (actions.can_restart) available.push({ key: "restart", label: "Start over", input: { method: "post", path: paths.app_restart_path, confirm: "Start over with a new Job and abandon this branch?" }, tone: "secondary" })
-  if (actions.can_approve) available.push({ key: "approve", label: payload.job.landing_failure_reason ? "Reapprove" : "Approve", input: { method: "post", path: paths.app_approve_path }, tone: "success" })
-  if (actions.can_unapprove) available.push({ key: "unapprove", label: "Unapprove", input: { method: "post", path: paths.app_unapprove_path, confirm: "Move this Job back to implemented?" }, tone: "secondary" })
-  if (actions.can_cancel) available.push({ key: "cancel", label: "Cancel", input: { method: "post", path: paths.app_cancel_path, confirm: "Cancel any running work and close this Job?" }, tone: "danger" })
-  if (actions.can_reopen) available.push({ key: "reopen", label: "Reopen", input: { method: "post", path: paths.app_reopen_path }, tone: "success" })
-  if (actions.can_mark_valid) available.push({ key: "mark_valid", label: "Mark valid", input: { method: "post", path: paths.app_mark_valid_path }, tone: "secondary" })
-  available.push({ key: "pin", label: payload.pinned ? "Unpin" : "Pin", input: payload.pinned ? { method: "delete", path: paths.app_pin_path } : { method: "post", path: paths.app_pin_path }, tone: "secondary" })
+  if (actions.can_start) available.push({ key: "start", label: t("start_run"), input: { method: "post", path: paths.app_start_path }, tone: "primary" })
+  if (actions.can_poll_feedback) available.push({ key: "poll_feedback", label: t("check_feedback"), input: { method: "post", path: paths.app_poll_feedback_path }, tone: "secondary" })
+  if (actions.can_rebase) available.push({ key: "rebase", label: t("rebase_now"), input: { method: "post", path: paths.app_rebase_path }, tone: "secondary" })
+  if (actions.can_check_mergeability) available.push({ key: "check_mergeability", label: t("check_mergeability"), input: { method: "post", path: paths.app_check_mergeability_path }, tone: "secondary" })
+  if (actions.can_retry) available.push({ key: "retry", label: t("retry"), input: { method: "post", path: paths.app_run_again_path }, tone: "primary" })
+  if (actions.can_retry) available.push({ key: "retry_feedback", label: t("retry_with_feedback"), input: { method: "post", path: paths.app_run_again_path }, tone: "secondary" })
+  if (actions.can_restart) available.push({ key: "restart", label: t("start_over"), input: { method: "post", path: paths.app_restart_path, confirm: t("confirm_start_over") }, tone: "secondary" })
+  if (actions.can_approve) available.push({ key: "approve", label: payload.job.landing_failure_reason ? t("reapprove") : t("approve"), input: { method: "post", path: paths.app_approve_path }, tone: "success" })
+  if (actions.can_unapprove) available.push({ key: "unapprove", label: t("unapprove"), input: { method: "post", path: paths.app_unapprove_path, confirm: t("confirm_unapprove") }, tone: "secondary" })
+  if (actions.can_cancel) available.push({ key: "cancel", label: t("cancel"), input: { method: "post", path: paths.app_cancel_path, confirm: t("confirm_cancel") }, tone: "danger" })
+  if (actions.can_reopen) available.push({ key: "reopen", label: t("reopen"), input: { method: "post", path: paths.app_reopen_path }, tone: "success" })
+  if (actions.can_mark_valid) available.push({ key: "mark_valid", label: t("mark_valid"), input: { method: "post", path: paths.app_mark_valid_path }, tone: "secondary" })
+  available.push({ key: "pin", label: payload.pinned ? t("unpin") : t("pin"), input: payload.pinned ? { method: "delete", path: paths.app_pin_path } : { method: "post", path: paths.app_pin_path }, tone: "secondary" })
 
   return available
 }
@@ -428,6 +433,7 @@ function HeaderActionsMenu({ actions, command, onRetryFeedback }: { actions: Hea
 }
 
 function RetryFeedbackDialog({ command, path, onClose }: { command: ReturnType<typeof useJobCommand>; path: string; onClose: () => void }) {
+  const { t } = useT("jobs")
   const [feedback, setFeedback] = useState("")
   const trimmedFeedback = feedback.trim()
 
@@ -446,11 +452,11 @@ function RetryFeedbackDialog({ command, path, onClose }: { command: ReturnType<t
       <section aria-labelledby="retry-feedback-title" className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-900" role="dialog" aria-modal="true">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="retry-feedback-title">Retry with feedback</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">This feedback will be added to the retry prompt.</p>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="retry-feedback-title">{t("retry_feedback_title")}</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("retry_feedback_description")}</p>
           </div>
           <button
-            aria-label="Close retry with feedback"
+            aria-label={t("close_retry_feedback")}
             className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             disabled={command.isPending}
             onClick={onClose}
@@ -461,7 +467,7 @@ function RetryFeedbackDialog({ command, path, onClose }: { command: ReturnType<t
         </div>
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="retry-feedback-text">
-            Feedback
+            {t("retry_feedback_label")}
           </label>
           <textarea
             autoFocus
@@ -472,9 +478,9 @@ function RetryFeedbackDialog({ command, path, onClose }: { command: ReturnType<t
             value={feedback}
           />
           <div className="flex flex-wrap justify-end gap-2">
-            <button className={buttonClass("secondary")} disabled={command.isPending} onClick={onClose} type="button">Cancel</button>
+            <button className={buttonClass("secondary")} disabled={command.isPending} onClick={onClose} type="button">{t("cancel")}</button>
             <button className={buttonClass("primary")} disabled={command.isPending || !trimmedFeedback} type="submit">
-              {command.isPending ? "Retrying..." : "Retry"}
+              {command.isPending ? t("retrying") : t("retry")}
             </button>
           </div>
         </form>
@@ -492,6 +498,7 @@ function CommandButton({ children, command, input, tone = "primary" }: { childre
 }
 
 function TagsPanel({ payload, command, embedded = false, canManageTags }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; embedded?: boolean; canManageTags: boolean }) {
+  const { t } = useT("jobs")
   const [tagName, setTagName] = useState("")
   const [addingTag, setAddingTag] = useState(false)
 
@@ -508,17 +515,17 @@ function TagsPanel({ payload, command, embedded = false, canManageTags }: { payl
   const content = (
     <div className="space-y-2">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Tags</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_tags")}</h2>
         {payload.tags.map((tag) => (
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
             {tag.name}
             {canManageTags ? (
               <button
-                aria-label={`Remove ${tag.name}`}
-                className="inline-flex h-4 w-4 items-center justify-center rounded text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                aria-label={t("tags_remove_aria", { name: tag.name })}
+                className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300"
                 disabled={command.isPending}
                 onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_tags_path}/${tag.id}` })}
-                title={`Remove ${tag.name}`}
+                title={t("tags_remove_aria", { name: tag.name })}
                 type="button"
               >
                 <CloseIcon className="h-3 w-3" />
@@ -530,15 +537,15 @@ function TagsPanel({ payload, command, embedded = false, canManageTags }: { payl
       {canManageTags ? (
         addingTag ? (
           <form className="flex items-center gap-2" onSubmit={submit}>
-            <input className="w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder="Add tag" required value={tagName} />
+            <input className="w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder={t("tags_placeholder")} required value={tagName} />
             <datalist id="job-tag-options">
               {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
             </datalist>
-            <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">Add</button>
-            <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingTag(false)} type="button">Cancel</button>
+            <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">{t("tags_add")}</button>
+            <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingTag(false)} type="button">{t("tags_cancel")}</button>
           </form>
         ) : (
-          <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingTag(true)} type="button">+ Add tag</button>
+          <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingTag(true)} type="button">{t("tags_add_tag")}</button>
         )
       ) : null}
     </div>
@@ -560,11 +567,12 @@ function TagsPanel({ payload, command, embedded = false, canManageTags }: { payl
 }
 
 function TabNav({ active, workflowsCount, attachmentsCount, onSelect }: { active: JobTab; workflowsCount: number; attachmentsCount: number; onSelect: (tab: JobTab) => void }) {
+  const { t } = useT("jobs")
   const tabs: Array<{ id: JobTab; label: string }> = [
-    { id: "summary", label: "Summary" },
-    { id: "workflows", label: `Workflows (${workflowsCount})` },
-    { id: "attachments", label: `Attachments (${attachmentsCount})` },
-    { id: "source", label: "Source" }
+    { id: "summary", label: t("tab_summary") },
+    { id: "workflows", label: t("tab_workflows", { count: workflowsCount }) },
+    { id: "attachments", label: t("tab_attachments", { count: attachmentsCount }) },
+    { id: "source", label: t("tab_source") }
   ]
 
   return (
@@ -584,16 +592,17 @@ function TabNav({ active, workflowsCount, attachmentsCount, onSelect }: { active
 }
 
 function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+  const { t } = useT("jobs")
   return (
     <div className="space-y-4">
       {payload.landing_queue_entry ? (
         <PanelMessage>
-          In landing queue: position #{payload.landing_queue_entry.position}
+          {t("landing_queue_position", { position: payload.landing_queue_entry.position })}
           {payload.landing_queue_entry.blocked_reason ? ` (${payload.landing_queue_entry.blocked_reason})` : ""}
           {payload.landing_queue_entry.waiting_for_jobs.length > 0 ? (
             <>
               {" "}
-              Waiting for: {payload.landing_queue_entry.waiting_for_jobs.map((job, index) => (
+              {t("landing_queue_waiting_for")} {payload.landing_queue_entry.waiting_for_jobs.map((job, index) => (
                 <span key={job.id}>
                   {index > 0 ? ", " : null}
                   <Link className="font-medium text-blue-700 underline hover:no-underline" to={`${prefix}${job.job_path}`}>
@@ -605,19 +614,19 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
           ) : null}
         </PanelMessage>
       ) : null}
-      {payload.job.landing_failure_reason ? <PanelMessage tone="error">Landing failed: {payload.job.landing_failure_reason}</PanelMessage> : null}
+      {payload.job.landing_failure_reason ? <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage> : null}
       <RetryStatePanel payload={payload} />
       {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} prefix={prefix} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-[62%_38%]">
         <div className="space-y-4">
           <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Issue</h2>
-            {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No issue body.</p>}
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_issue")}</h2>
+            {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_issue_body")}</p>}
           </section>
           <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent summary</h2>
-            {payload.summary ? <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{payload.summary.text}</p> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No summary yet.</p>}
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_agent_summary")}</h2>
+            {payload.summary ? <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{payload.summary.text}</p> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
           </section>
 
           <TestPlanPanel testPlan={payload.test_plan} />
@@ -630,19 +639,19 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
 
         <div className="space-y-4">
           <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Details</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_details")}</h2>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-              <KeyValue label="State"><StatusPill state={payload.job.summary_state} /></KeyValue>
-              <KeyValue label="Owner"><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
-              <KeyValue label="Priority"><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
-              <KeyValue label="Validity"><span className="capitalize">{payload.job.validity}</span></KeyValue>
-              {payload.epic ? <KeyValue label="Epic"><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
-              {payload.job.branch_name ? <KeyValue label="Branch"><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
-              <KeyValue label="Stack base"><StackBaseForm command={command} payload={payload} /></KeyValue>
-              {payload.job.pr_number || payload.job.external_pr_number ? <KeyValue label="Pull request"><PullRequestSummary payload={payload} /></KeyValue> : null}
-              <KeyValue label="Cost">{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} billed)</span></KeyValue>
-              <KeyValue label="Started">{formatDate(payload.job.started_at)}</KeyValue>
-              {payload.job.finished_at ? <KeyValue label="Closed">{formatDate(payload.job.finished_at)} ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
+              <KeyValue label={t("detail_state")}><StatusPill state={payload.job.summary_state} /></KeyValue>
+              <KeyValue label={t("detail_owner")}><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
+              <KeyValue label={t("detail_priority")}><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
+              <KeyValue label={t("detail_validity")}><span className="capitalize">{payload.job.validity}</span></KeyValue>
+              {payload.epic ? <KeyValue label={t("detail_epic")}><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
+              {payload.job.branch_name ? <KeyValue label={t("detail_branch")}><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
+              <KeyValue label={t("detail_stack_base")}><StackBaseForm command={command} payload={payload} /></KeyValue>
+              {payload.job.pr_number || payload.job.external_pr_number ? <KeyValue label={t("detail_pull_request")}><PullRequestSummary payload={payload} /></KeyValue> : null}
+              <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} billed)</span></KeyValue>
+              <KeyValue label={t("detail_started")}>{formatDate(payload.job.started_at)}</KeyValue>
+              {payload.job.finished_at ? <KeyValue label={t("detail_closed")}>{formatDate(payload.job.finished_at)} ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
             </div>
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </section>
@@ -656,11 +665,12 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
 }
 
 export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
+  const { t } = useT("jobs")
   if (!testPlan || (testPlan.steps.length === 0 && !testPlan.notes)) return null
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Test plan</h2>
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_test_plan")}</h2>
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
         {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
       </ol>
@@ -670,6 +680,7 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
 }
 
 export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWorkflow[]; prefix: string }) {
+  const { t } = useT("jobs")
   const feedbackWorkflows = [...workflows]
     .filter((workflow) => workflow.trigger_kind === "chat_feedback" || workflow.trigger_kind === "pr_comment")
     .sort((left, right) => workflowCreatedAtTime(right) - workflowCreatedAtTime(left))
@@ -678,7 +689,7 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Feedback history</h2>
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_feedback_history")}</h2>
       <div className="mt-3">
         {feedbackWorkflows.map((workflow) => {
           const chatFeedback = workflow.artifacts.chat_feedback
@@ -686,7 +697,7 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
             <div className="mt-3 border-t border-gray-100 pt-3 first:mt-0 first:border-t-0 first:pt-0 dark:border-gray-800" key={workflow.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{feedbackTriggerLabel(workflow.trigger_kind)}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{feedbackTriggerLabel(workflow.trigger_kind, t)}</span>
                   <StatusPill state={workflow.state} />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -699,7 +710,7 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
               {workflow.trigger_kind === "chat_feedback" ? (
                 <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">{typeof chatFeedback === "string" ? chatFeedback : ""}</pre>
               ) : (
-                <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">PR review feedback</p>
+                <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{t("feedback_trigger_pr_review_text")}</p>
               )}
             </div>
           )
@@ -709,9 +720,9 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
   )
 }
 
-function feedbackTriggerLabel(triggerKind: string) {
-  if (triggerKind === "chat_feedback") return "Chat feedback"
-  if (triggerKind === "pr_comment") return "PR review"
+function feedbackTriggerLabel(triggerKind: string, t: ReturnType<typeof useT>["t"]) {
+  if (triggerKind === "chat_feedback") return t("feedback_trigger_chat")
+  if (triggerKind === "pr_comment") return t("feedback_trigger_pr")
   return triggerKind.replaceAll("_", " ")
 }
 
@@ -730,6 +741,7 @@ function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailPayload[
 }
 
 function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
+  const { t } = useT("jobs")
   const retry = payload.job.retry_state
   if (!retry || (retry.state_label === "No failure" && !retry.classification)) return null
 
@@ -738,13 +750,13 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold">{retry.state_label}</span>
         <SmallPill>{retry.classification_label}</SmallPill>
-        <SmallPill>{retry.retryable ? "retryable" : "not retryable"}</SmallPill>
+        <SmallPill>{retry.retryable ? t("run_retryable") : t("run_not_retryable")}</SmallPill>
         <SmallPill>{retry.retry_attempt_count}/{retry.retry_budget} attempts</SmallPill>
         <SmallPill>{retry.retry_budget_remaining} remaining</SmallPill>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {retry.next_auto_retry_at ? <span>Next retry {formatDate(retry.next_auto_retry_at)}</span> : null}
-        {retry.retry_delayed_until ? <span>Delayed until {formatDate(retry.retry_delayed_until)}</span> : null}
+        {retry.next_auto_retry_at ? <span>{t("retry_state_next_retry")} {formatDate(retry.next_auto_retry_at)}</span> : null}
+        {retry.retry_delayed_until ? <span>{t("retry_state_delayed_until")} {formatDate(retry.retry_delayed_until)}</span> : null}
         {retry.retry_delay_reason ? <span>{retry.retry_delay_reason}</span> : null}
       </div>
     </section>
@@ -752,6 +764,7 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
 }
 
 function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+  const { t } = useT("jobs")
   const owner = payload.job.claimed_by_user
 
   return (
@@ -759,30 +772,31 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
       {owner ? (
         <>
           <Link className="font-medium text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
-            {payload.job.claimed_by_current_user ? "You" : owner.display_name}
+            {payload.job.claimed_by_current_user ? t("owner_you") : owner.display_name}
           </Link>
           {payload.job.claimed_at ? <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(payload.job.claimed_at)}</span> : null}
         </>
       ) : (
-        <span className="text-gray-400 dark:text-gray-500">Unclaimed</span>
+        <span className="text-gray-400 dark:text-gray-500">{t("owner_unclaimed")}</span>
       )}
       {payload.actions.can_claim ? (
-        <button className="text-xs font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: payload.paths.app_claim_path })} type="button">Claim</button>
+        <button className="text-xs font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: payload.paths.app_claim_path })} type="button">{t("owner_claim")}</button>
       ) : null}
       {payload.actions.can_unclaim ? (
-        <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: payload.paths.app_claim_path })} type="button">Release</button>
+        <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: payload.paths.app_claim_path })} type="button">{t("owner_release")}</button>
       ) : null}
     </span>
   )
 }
 
 function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+  const { t } = useT("jobs")
   const count = payload.unsatisfied_dependencies.length
   return (
     <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <span className="font-medium">Blocked on {count > 1 ? `${count} dependencies` : ""}:</span>
+          <span className="font-medium">{t("blocked_on", { count })}</span>
           <span className="ml-2 inline-flex flex-wrap gap-x-2 gap-y-1">
             {payload.unsatisfied_dependencies.map((dependency, index) => (
               <span key={dependency.id}>
@@ -791,11 +805,11 @@ function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDet
               </span>
             ))}
           </span>
-          <span className="ml-1">— this job will start automatically once {count === 1 ? "that PR merges" : "those PRs merge"}.</span>
+          <span className="ml-1">{count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")}</span>
         </div>
         {payload.actions.can_override_dependencies ? (
-          <CommandButton command={command} input={{ method: "post", path: payload.paths.app_dependency_override_path, confirm: "Bypass dependency checks for this Job?" }} tone="danger-outline">
-            Override and force-run
+          <CommandButton command={command} input={{ method: "post", path: payload.paths.app_dependency_override_path, confirm: t("confirm_override_dependencies") }} tone="danger-outline">
+            {t("override_and_force_run")}
           </CommandButton>
         ) : null}
       </div>
@@ -804,6 +818,7 @@ function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDet
 }
 
 function StackBaseForm({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
+  const { t } = useT("jobs")
   const [stackBase, setStackBase] = useState(payload.job.stack_base)
 
   useEffect(() => setStackBase(payload.job.stack_base), [payload.job.stack_base])
@@ -817,56 +832,58 @@ function StackBaseForm({ payload, command }: { payload: JobDetailPayload; comman
         <option value="auto">auto</option>
         <option value="main">main</option>
       </select>
-      <button className="text-xs text-blue-600 hover:underline" disabled={command.isPending} type="submit">Update</button>
+      <button className="text-xs text-blue-600 hover:underline" disabled={command.isPending} type="submit">{t("stack_base_update")}</button>
     </form>
   )
 }
 
 function PullRequestSummary({ payload }: { payload: JobDetailPayload }) {
+  const { t } = useT("jobs")
   if (!payload.job.pr_number && !payload.job.external_pr_number) return <span className="text-gray-400 dark:text-gray-500">-</span>
 
   return (
     <div className="space-y-1">
-      {payload.job.pr_number ? <a className="text-blue-600 hover:underline" href={payload.job.pr_url || "#"} rel="noopener" target="_blank">Syrus PR #{payload.job.pr_number}</a> : null}
-      {payload.job.external_pr_number ? <a className="block text-violet-700 hover:underline" href={payload.job.external_pr_url || "#"} rel="noopener" target="_blank">External PR #{payload.job.external_pr_number}</a> : null}
-      <div><MergeablePill value={payload.job.pr_mergeable} /> {payload.job.pr_mergeable_checked_at ? <span className="text-xs text-gray-400 dark:text-gray-500">checked {formatDate(payload.job.pr_mergeable_checked_at)}</span> : null}</div>
+      {payload.job.pr_number ? <a className="text-blue-600 hover:underline" href={payload.job.pr_url || "#"} rel="noopener" target="_blank">{t("pr_syrus", { number: payload.job.pr_number })}</a> : null}
+      {payload.job.external_pr_number ? <a className="block text-violet-700 hover:underline" href={payload.job.external_pr_url || "#"} rel="noopener" target="_blank">{t("pr_external", { number: payload.job.external_pr_number })}</a> : null}
+      <div><MergeablePill value={payload.job.pr_mergeable} /> {payload.job.pr_mergeable_checked_at ? <span className="text-xs text-gray-400 dark:text-gray-500">{t("pr_checked")} {formatDate(payload.job.pr_mergeable_checked_at)}</span> : null}</div>
     </div>
   )
 }
 
 function ApprovalStatusPanel({ payload }: { payload: JobDetailPayload }) {
+  const { t } = useT("jobs")
   const { job, repository } = payload
   const status: JobApprovalStatus | null = job.approval_status
   const approvals: JobApprovalRecord[] = job.job_approvals ?? []
 
   const policyLabel: Record<string, string> = {
-    self: "Self (owner review)",
-    two_person: "Two-person review",
-    final_say: "Final say"
+    self: t("approval_policy_self"),
+    two_person: t("approval_policy_two_person"),
+    final_say: t("approval_policy_final_say")
   }
 
   if (!status && approvals.length === 0 && repository.review_policy === "self") return null
 
   return (
     <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Approval</h2>
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_approval")}</h2>
       <div className="mt-2 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-gray-500 dark:text-gray-400">Policy</span>
+          <span className="text-gray-500 dark:text-gray-400">{t("approval_policy")}</span>
           <span className="text-gray-700 dark:text-gray-300">{policyLabel[repository.review_policy] ?? repository.review_policy}</span>
         </div>
         {status && (
           <div className="flex items-center justify-between">
-            <span className="text-gray-500 dark:text-gray-400">Status</span>
+            <span className="text-gray-500 dark:text-gray-400">{t("approval_status")}</span>
             {status.satisfied
-              ? <span className="font-medium text-emerald-600 dark:text-emerald-400">Satisfied</span>
-              : <span className="text-amber-600 dark:text-amber-400">{status.pending_description ?? "Pending"}</span>
+              ? <span className="font-medium text-emerald-600 dark:text-emerald-400">{t("approval_satisfied")}</span>
+              : <span className="text-amber-600 dark:text-amber-400">{status.pending_description ?? t("approval_pending")}</span>
             }
           </div>
         )}
         {approvals.length > 0 ? (
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Approvals</span>
+            <span className="text-gray-500 dark:text-gray-400">{t("approval_approvals")}</span>
             <ul className="mt-1 divide-y divide-gray-100 dark:divide-gray-800">
               {approvals.map((approval) => (
                 <li key={approval.id} className="flex items-center justify-between py-1 text-xs">
@@ -877,7 +894,7 @@ function ApprovalStatusPanel({ payload }: { payload: JobDetailPayload }) {
             </ul>
           </div>
         ) : (
-          <p className="text-xs text-gray-400 dark:text-gray-500">No approvals yet.</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{t("no_approvals")}</p>
         )}
       </div>
     </div>
@@ -885,6 +902,7 @@ function ApprovalStatusPanel({ payload }: { payload: JobDetailPayload }) {
 }
 
 function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+  const { t } = useT("jobs")
   const [query, setQuery] = useState("")
   const [addingDependency, setAddingDependency] = useState(false)
 
@@ -908,21 +926,21 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
   return (
     <div className="space-y-4">
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Dependencies</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_dependencies")}</h2>
         {payload.dependencies.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependencies.map((dependency) => (
               <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
                 <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
-                {dependency.manual ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_dependencies_path}/${dependency.id}`, confirm: "Remove this dependency?" })} type="button">Remove</button> : null}
+                {dependency.manual ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_dependencies_path}/${dependency.id}`, confirm: t("confirm_remove_dependency") })} type="button">{t("remove_dependency")}</button> : null}
               </li>
             ))}
           </ul>
-        ) : <p className="mt-2 text-gray-400 dark:text-gray-500">No dependencies.</p>}
+        ) : <p className="mt-2 text-gray-400 dark:text-gray-500">{t("section_no_dependencies")}</p>}
         {addingDependency ? (
           <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
             <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              Search Jobs or issues
+              {t("dependency_search_label")}
               <div className="relative mt-1">
                 <input
                   aria-autocomplete="list"
@@ -930,7 +948,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
                   className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                   disabled={command.isPending}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Type to search..."
+                  placeholder={t("dependency_search_placeholder")}
                   type="search"
                   value={query}
                 />
@@ -949,21 +967,21 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
                     ))}
                   </div>
                 ) : trimmedQuery.length > 0 ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">No matches</div>
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">{t("dependency_no_matches")}</div>
                 ) : null}
               </div>
             </label>
-            <button className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={cancelAdding} type="button">Cancel</button>
+            <button className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={cancelAdding} type="button">{t("cancel")}</button>
           </div>
         ) : (
           <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingDependency(true)} type="button">+ Add dependency</button>
+            <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingDependency(true)} type="button">{t("add_dependency")}</button>
           </div>
         )}
       </div>
       {payload.dependents.length > 0 ? (
         <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">{payload.dependents.length} other {plural(payload.dependents.length, "Job")} depend on this one</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("dependents_title", { count: payload.dependents.length })}</h2>
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependents.map((dependent) => (
               <li className="flex flex-wrap items-center gap-2 py-2" key={dependent.id}>
@@ -979,6 +997,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
 }
 
 function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: boolean; jobId: number; prefix: string; runsCount: number }) {
+  const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
   const timeline = useQuery({
     queryKey: ["jobs", String(jobId), "timeline"],
@@ -999,12 +1018,12 @@ function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: boolean
         <svg aria-hidden="true" className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
           <path clipRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 0 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" fillRule="evenodd" />
         </svg>
-        Timeline <span className="font-normal text-gray-500 dark:text-gray-400">({runsCount} {plural(runsCount, "run")})</span>
+        {t("section_timeline")} <span className="font-normal text-gray-500 dark:text-gray-400">{t("timeline_runs", { count: runsCount })}</span>
       </button>
       {expanded ? (
         <div className="border-t border-gray-100 px-4 pb-4 dark:border-gray-800">
-          {timeline.isPending ? <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">Loading timeline...</p> : null}
-          {timeline.isError ? <p className="mt-3 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), "Unable to load timeline.")}</p> : null}
+          {timeline.isPending ? <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("timeline_loading")}</p> : null}
+          {timeline.isError ? <p className="mt-3 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), t("timeline_error"))}</p> : null}
           {timeline.data && timeline.data.events.length > 0 ? (
             <ol className="mt-3 space-y-3">
               {timeline.data.events.map((event, index) => (
@@ -1037,11 +1056,12 @@ function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: boolean
 }
 
 function AttachmentPreview({ attachments }: { attachments: JobAttachment[] }) {
+  const { t } = useT("jobs")
   if (attachments.length === 0) return null
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Attachments</h2>
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_attachments")}</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {attachments.slice(0, 6).map((attachment) => <AttachmentCard attachment={attachment} key={attachment.id} />)}
       </div>
@@ -1050,7 +1070,8 @@ function AttachmentPreview({ attachments }: { attachments: JobAttachment[] }) {
 }
 
 function WorkflowsTab({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
-  if (payload.workflows.length === 0) return <PanelMessage>No workflows yet.</PanelMessage>
+  const { t } = useT("jobs")
+  if (payload.workflows.length === 0) return <PanelMessage>{t("section_no_workflows")}</PanelMessage>
 
   return (
     <div className="space-y-4">
@@ -1062,21 +1083,23 @@ function WorkflowsTab({ payload, command, prefix }: { payload: JobDetailPayload;
 }
 
 function WorkflowsPagination({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
+  const { t } = useT("jobs")
   const pagination = payload.workflows_pagination
   if (pagination.total_pages <= 1) return null
 
   return (
     <nav aria-label="Workflow pagination" className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-      <span>Showing {pagination.first_item}-{pagination.last_item} of {pagination.total_workflows}</span>
+      <span>{t("workflows_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_workflows })}</span>
       <div className="flex gap-2">
-        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>Previous</Link> : <span className={disabledPaginationClass()}>Previous</span>}
-        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>Next</Link> : <span className={disabledPaginationClass()}>Next</span>}
+        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>{t("workflows_previous")}</Link> : <span className={disabledPaginationClass()}>{t("workflows_previous")}</span>}
+        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>{t("workflows_next")}</Link> : <span className={disabledPaginationClass()}>{t("workflows_next")}</span>}
       </div>
     </nav>
   )
 }
 
 function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWorkflow; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+  const { t } = useT("jobs")
   const stepItems = workflowStepItems(workflow.steps)
   const branchDivergence = workflowBranchDivergence(workflow)
   const navigate = useNavigate()
@@ -1104,17 +1127,17 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             <Link className="hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflow.slug || workflowSlug(workflow.id)}</Link>
           </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{workflow.trigger_kind} · {workflow.agent_provider || "default agent"} · created {formatDate(workflow.created_at)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")} {formatDate(workflow.created_at)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
           {payload.feature_flags?.terminal ? (
             <button className={buttonClass("secondary")} disabled={terminalOpening} onClick={openTerminal} type="button">
-              Open terminal in workspace
+              {t("open_terminal_in_workspace")}
             </button>
           ) : null}
-          {workflow.retry_available ? <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">Retry failed step</CommandButton> : null}
-          {workflow.state === "failed" && !workflow.cleaned_up_at ? <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">Push commits</CommandButton> : null}
+          {workflow.retry_available ? <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">{t("retry_failed_step")}</CommandButton> : null}
+          {workflow.state === "failed" && !workflow.cleaned_up_at ? <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">{t("push_commits")}</CommandButton> : null}
         </div>
       </div>
       {branchDivergence ? <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={workflow} /> : null}
@@ -1158,30 +1181,31 @@ function BranchDivergencePanel({
   command: ReturnType<typeof useJobCommand>
   prefix: string
 }) {
+  const { t } = useT("jobs")
   const sourcePath = withRoutePrefix(`/jobs/${payload.job.id}/source`, prefix)
   const branch = divergence.branch || "the PR branch"
 
   return (
     <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-      <div className="font-semibold">PR branch changed before this workflow could push.</div>
+      <div className="font-semibold">{t("workflow_divergence_title")}</div>
       <p className="mt-1 text-amber-900 dark:text-amber-200">
-        Review this workflow's output, then choose whether to retry from the current PR branch or replace it with this workflow's output.
+        {t("workflow_divergence_review")}
       </p>
       <dl className="mt-2 grid gap-1 text-xs text-amber-900 dark:text-amber-200 sm:grid-cols-3">
-        <div><dt className="font-semibold uppercase tracking-wide">Branch</dt><dd className="font-mono">{branch}</dd></div>
-        <div><dt className="font-semibold uppercase tracking-wide">Remote</dt><dd className="font-mono">{shortSha(divergence.remote_sha)}</dd></div>
-        <div><dt className="font-semibold uppercase tracking-wide">Local</dt><dd className="font-mono">{shortSha(divergence.local_sha)}</dd></div>
+        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_branch")}</dt><dd className="font-mono">{branch}</dd></div>
+        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_remote")}</dt><dd className="font-mono">{shortSha(divergence.remote_sha)}</dd></div>
+        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_local")}</dt><dd className="font-mono">{shortSha(divergence.local_sha)}</dd></div>
       </dl>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Link className={buttonClass("secondary")} to={sourcePath}>Open source browser</Link>
+        <Link className={buttonClass("secondary")} to={sourcePath}>{t("workflow_open_source")}</Link>
         <CommandButton command={command} input={{ method: "post", path: payload.paths.app_run_again_path }} tone="secondary">
-          Retry from current PR branch
+          {t("workflow_retry_from_pr")}
         </CommandButton>
         <CommandButton command={command} input={{ method: "post", path: workflow.app_force_push_branch_path, confirm: `Replace ${branch} with this workflow's output?` }} tone="danger">
-          Replace PR branch
+          {t("workflow_replace_pr_branch")}
         </CommandButton>
         <CommandButton command={command} input={{ method: "post", path: workflow.app_discard_branch_output_path }} tone="secondary">
-          Discard stale output
+          {t("workflow_discard_stale")}
         </CommandButton>
       </div>
     </div>
@@ -1193,6 +1217,7 @@ function shortSha(sha: string | null) {
 }
 
 function LoopGroup({ item, payload, command }: { item: LoopStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
+  const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = loopDisplayStatus(item)
 
@@ -1205,8 +1230,8 @@ function LoopGroup({ item, payload, command }: { item: LoopStepItem; payload: Jo
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{loopDisplayName(item)}</span>
-          <SmallPill>{item.iterations.length} {plural(item.iterations.length, "iteration")}</SmallPill>
+          <span className="font-medium text-gray-900 dark:text-gray-100">{loopDisplayName(item, t)}</span>
+          <SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {status ? <StatusPill state={status} /> : null}
@@ -1218,7 +1243,7 @@ function LoopGroup({ item, payload, command }: { item: LoopStepItem; payload: Jo
           {item.iterations.map((iteration) => (
             <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={iteration.iteration}>
               <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                Iteration {iteration.iteration}
+                {t("loop_iteration", { n: iteration.iteration })}
               </div>
               {iteration.items.map((stepItem, index) => (
                 <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} />
@@ -1238,9 +1263,10 @@ function DisplayStepCard({ item, payload, command, numberLabel }: { item: Displa
 }
 
 function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string }) {
+  const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = gradeDisplayStatus(item)
-  const phases = gradePhases(item)
+  const phases = gradePhases(item, t)
   const summaries = gradeSummaries(item)
 
   return (
@@ -1253,8 +1279,8 @@ function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepIt
       >
         <span className="flex min-w-0 items-center gap-2">
           <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{numberLabel}.</span>
-          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">Grade</span>
-          {item.graders.length > 0 ? <SmallPill>{item.graders.length} {plural(item.graders.length, "check")}</SmallPill> : null}
+          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{t("grade_label")}</span>
+          {item.graders.length > 0 ? <SmallPill>{t("grade_check_count", { count: item.graders.length })}</SmallPill> : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </span>
         <span className="flex shrink-0 items-center gap-2">
@@ -1293,12 +1319,13 @@ type GradeSummary = {
 }
 
 function GradeSummaryPills({ summaries }: { summaries: GradeSummary[] }) {
+  const { t } = useT("jobs")
   const counts = gradeSummaryCounts(summaries)
   return (
     <span className="hidden items-center gap-1 sm:inline-flex">
-      {counts.passed > 0 ? <SmallPill>{counts.passed} passed</SmallPill> : null}
-      {counts.failed > 0 ? <SmallPill>{counts.failed} failed</SmallPill> : null}
-      {counts.error > 0 ? <SmallPill>{counts.error} error</SmallPill> : null}
+      {counts.passed > 0 ? <SmallPill>{t("grade_passed", { count: counts.passed })}</SmallPill> : null}
+      {counts.failed > 0 ? <SmallPill>{t("grade_failed", { count: counts.failed })}</SmallPill> : null}
+      {counts.error > 0 ? <SmallPill>{t("grade_error", { count: counts.error })}</SmallPill> : null}
     </span>
   )
 }
@@ -1311,6 +1338,7 @@ const GRADER_DESCRIPTION_LIMIT = 220
 // log_bytes, timeout_minutes) are intentionally hidden — the grade log
 // button on the run exposes the output.
 function GraderDetails({ details }: { details: Record<string, unknown> }) {
+  const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
   const description = (stringValue(details.description) || "").replace(/\s+/g, " ").trim()
   const command = (stringValue(details.command) || "").trim()
@@ -1320,7 +1348,7 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
 
   return (
     <div className="mt-2 space-y-2 text-xs">
-      <SmallPill>{required === false ? "optional" : "required"}</SmallPill>
+      <SmallPill>{required === false ? t("grader_optional") : t("grader_required")}</SmallPill>
       {description ? (
         <p className="text-gray-700 dark:text-gray-300">
           {shownDescription}
@@ -1330,16 +1358,16 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
               onClick={() => setExpanded((current) => !current)}
               type="button"
             >
-              {expanded ? "Read less" : "Read more"}
+              {expanded ? t("grader_read_less") : t("grader_read_more")}
             </button>
           ) : null}
         </p>
       ) : (
-        <p className="italic text-gray-400 dark:text-gray-500">No description.</p>
+        <p className="italic text-gray-400 dark:text-gray-500">{t("grader_no_description")}</p>
       )}
       {command ? (
         <div>
-          <div className="mb-1 font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Command</div>
+          <div className="mb-1 font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{t("grader_command_label")}</div>
           <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] text-gray-700 dark:bg-gray-950 dark:text-gray-300">{command}</pre>
         </div>
       ) : null}
@@ -1348,6 +1376,7 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
 }
 
 function StepCard({ step, payload, command, numberLabel, displayName, metadataLabel }: { step: JobStep; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; displayName?: string; metadataLabel?: string }) {
+  const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const runs = sortedRunsNewestFirst(step.runs)
   const activeRun = runs.find((run) => isActiveState(run.state))
@@ -1375,9 +1404,9 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
         <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>{metadataLabel || step.kind}</span>
-            {step.loop_id ? <span>iteration {step.iteration ?? 1}</span> : null}
+            {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
             {activeRun && step.state !== activeRun.state ? <SmallPill>step {step.state.replaceAll("_", " ")}</SmallPill> : null}
-            {step.latest ? <SmallPill>latest</SmallPill> : null}
+            {step.latest ? <SmallPill>{t("step_latest")}</SmallPill> : null}
             <span>{formatDate(step.started_at || step.created_at)}</span>
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
@@ -1391,7 +1420,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
             <div className="mt-3 space-y-2">
               {runs.map((run) => <RunRow active={activeRun?.id === run.id} command={command} key={run.id} payload={payload} run={run} />)}
             </div>
-          ) : <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">No runs for this step.</p>}
+          ) : <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("section_no_runs")}</p>}
         </div>
       ) : null}
     </div>
@@ -1399,25 +1428,25 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
 }
 
 function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
-  const status = prepareFailureStatus(failure)
+  const { t } = useT("jobs")
+  const status = prepareFailureStatus(failure, t)
 
   return (
     <section className="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
       <div className="font-semibold">
-        {failure.soft ? "Setup skipped — guessed command failed" : "Setup failed before the agent started"}
+        {failure.soft ? t("prepare_failure_soft_title") : t("prepare_failure_hard_title")}
       </div>
       {failure.soft ? (
         <p className="mt-1">
-          Syrus auto-detected this command from a lockfile. Because it was a guess, the agent ran anyway without it.
-          Add a <code className="font-mono">.syrus.yml</code> <code className="font-mono">prepare:</code> list (or fix the lockfile) to take control of setup.
+          {t("prepare_failure_soft_body")} <code className="font-mono">{t("prepare_failure_soft_syrus_yml")}</code> <code className="font-mono">{t("prepare_failure_soft_prepare")}</code> {t("prepare_failure_soft_suffix")}
         </p>
       ) : null}
       <dl className="mt-2 grid gap-x-4 gap-y-1 md:grid-cols-[max-content_1fr]">
-        <dt className="font-medium">Command</dt>
+        <dt className="font-medium">{t("prepare_failure_command")}</dt>
         <dd className="min-w-0 break-words font-mono">{failure.command || "-"}</dd>
-        <dt className="font-medium">Working directory</dt>
+        <dt className="font-medium">{t("prepare_failure_workdir")}</dt>
         <dd className="min-w-0 break-words font-mono">{failure.workdir || "-"}</dd>
-        <dt className="font-medium">Status</dt>
+        <dt className="font-medium">{t("prepare_failure_status_label")}</dt>
         <dd>{status}</dd>
       </dl>
       {failure.output_tail ? (
@@ -1428,6 +1457,7 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
 }
 
 function RunRow({ run, payload, command, active = false }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; active?: boolean }) {
+  const { t } = useT("jobs")
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
   const [artifactView, setArtifactView] = useState<"transcript" | "diff" | null>(null)
   const gradeLog = useMutation({
@@ -1466,42 +1496,42 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-gray-900 dark:text-gray-100">Run #{run.id}</span>
+            <span className="font-medium text-gray-900 dark:text-gray-100">{t("run_number", { id: run.id })}</span>
             <StatusPill state={run.state} />
-            {run.rate_limited ? <SmallPill>rate limited</SmallPill> : null}
+            {run.rate_limited ? <SmallPill>{t("run_rate_limited")}</SmallPill> : null}
           </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {run.agent_provider || "agent"} · {run.agent_turns ?? 0} {plural(run.agent_turns ?? 0, "turn")} · {run.job_log_count} log {plural(run.job_log_count, "line")} · {formatCurrency(run.cost_usd || 0)}
+            {run.agent_provider || "agent"} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
           </p>
           {run.agent_summary ? <p className="mt-2 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{run.agent_summary}</p> : null}
-          {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Health: {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
-          {run.failure_classification ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">Failure: {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? "retryable" : "manual review"}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
-          {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Diagnostic captured {formatDate(run.run_diagnostic.created_at)}{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
+          {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("run_health")} {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
+          {run.failure_classification ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{t("run_failure_label")} {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? t("run_retryable") : t("run_not_retryable")}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
+          {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t("run_diagnostic_captured")} {formatDate(run.run_diagnostic.created_at)}{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           {run.job_log_count > 0 ? (
             <button className={buttonClass("secondary")} disabled={artifactsLoading} onClick={() => showArtifacts("transcript")} type="button">
-              {artifactsLoading && artifactView === "transcript" ? "Loading..." : "Transcript"}
+              {artifactsLoading && artifactView === "transcript" ? t("run_loading") : t("run_transcript")}
             </button>
           ) : null}
           {run.agent_diff_present ? (
             <button className={buttonClass("secondary")} disabled={artifactsLoading} onClick={() => showArtifacts("diff")} type="button">
-              {artifactsLoading && artifactView === "diff" ? "Loading..." : "Diff"}
+              {artifactsLoading && artifactView === "diff" ? t("run_loading") : t("run_diff")}
             </button>
           ) : null}
-          {run.can_stop ? <CommandButton command={command} input={{ method: "post", path: run.app_stop_path }} tone="danger">Stop</CommandButton> : null}
-          {run.can_diagnose ? <CommandButton command={command} input={{ method: "post", path: run.app_diagnose_path }} tone="secondary">Diagnose</CommandButton> : null}
-          {run.can_resume ? <CommandButton command={command} input={{ method: "post", path: payload.paths.app_resume_path, body: { source_run_id: run.id } }} tone="secondary">Resume</CommandButton> : null}
+          {run.can_stop ? <CommandButton command={command} input={{ method: "post", path: run.app_stop_path }} tone="danger">{t("run_stop")}</CommandButton> : null}
+          {run.can_diagnose ? <CommandButton command={command} input={{ method: "post", path: run.app_diagnose_path }} tone="secondary">{t("run_diagnose")}</CommandButton> : null}
+          {run.can_resume ? <CommandButton command={command} input={{ method: "post", path: payload.paths.app_resume_path, body: { source_run_id: run.id } }} tone="secondary">{t("run_resume")}</CommandButton> : null}
           {run.app_grade_log_path ? (
             <button className={buttonClass("secondary")} disabled={gradeLog.isPending} onClick={() => showGradeLog(run.app_grade_log_path!)} type="button">
-              {gradeLog.isPending ? "Loading log..." : "Grade log"}
+              {gradeLog.isPending ? t("run_loading_log") : t("run_grade_log")}
             </button>
           ) : null}
         </div>
       </div>
-      {artifacts.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(artifacts.error, "Unable to load run artifacts.")}</p> : null}
+      {artifacts.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(artifacts.error, t("run_artifacts_error"))}</p> : null}
       {artifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView} /> : null}
-      {gradeLog.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(gradeLog.error, "Grade log failed.")}</p> : null}
+      {gradeLog.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(gradeLog.error, t("run_grade_log_error"))}</p> : null}
       {gradeLogOpen && gradeLog.data ? (
         <RunGradeLogPanel onClose={() => setGradeLogOpen(false)} payload={gradeLog.data} />
       ) : null}
@@ -1510,29 +1540,31 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
 }
 
 function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff"; onClose: () => void }) {
+  const { t } = useT("jobs")
   if (view === "diff") {
     return (
       <section className={artifactPanelClass()}>
-        <ArtifactPanelHeader onClose={onClose}>Agent diff</ArtifactPanelHeader>
+        <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_diff")}</ArtifactPanelHeader>
         {payload.agent_diff ? (
           <AgentDiff diff={payload.agent_diff} />
-        ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">No diff captured for this run.</p>}
+        ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
       </section>
     )
   }
 
   return (
     <section className={artifactPanelClass()}>
-      <ArtifactPanelHeader onClose={onClose}>Transcript</ArtifactPanelHeader>
-      {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">No transcript rows captured for this run.</p>}
+      <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_transcript")}</ArtifactPanelHeader>
+      {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>}
     </section>
   )
 }
 
 function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<typeof fetchJobGradeLog>>; onClose: () => void }) {
+  const { t } = useT("jobs")
   return (
     <section className={artifactPanelClass()}>
-      <ArtifactPanelHeader onClose={onClose}>{payload.name || `Run #${payload.run_id}`} grade log</ArtifactPanelHeader>
+      <ArtifactPanelHeader onClose={onClose}>{payload.name || t("run_number", { id: payload.run_id })} {t("artifact_grade_log_title")}</ArtifactPanelHeader>
       <pre className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950 dark:text-gray-200" data-testid="run-grade-log-stream"><AnsiText text={payload.contents} /></pre>
     </section>
   )
@@ -1543,10 +1575,11 @@ function artifactPanelClass() {
 }
 
 function ArtifactPanelHeader({ children, onClose }: { children: ReactNode; onClose: () => void }) {
+  const { t } = useT("jobs")
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
       <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{children}</h4>
-      <button aria-label="Close artifact viewer" className="hidden rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 max-md:block dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+      <button aria-label={t("artifact_close")} className="hidden rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 max-md:block dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
         <CloseIcon className="h-5 w-5" />
       </button>
     </div>
@@ -1750,6 +1783,7 @@ function transcriptLogKindLabel(kind: string | null | undefined) {
 }
 
 function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
   const [googleDocUrl, setGoogleDocUrl] = useState("")
@@ -1780,19 +1814,19 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
   return (
     <section className="space-y-4">
       <form className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Add attachment</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("attachment_add_title")}</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Files
+            {t("attachment_files_label")}
             <input className="mt-1 block w-full text-sm" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} type="file" />
           </label>
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Google Doc URL
-            <input className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." type="url" value={googleDocUrl} />
+            {t("attachment_google_doc_label")}
+            <input className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder={t("attachment_google_doc_placeholder")} type="url" value={googleDocUrl} />
           </label>
-          <button className={buttonClass("primary")} disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">Add</button>
+          <button className={buttonClass("primary")} disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">{t("attachment_add_button")}</button>
         </div>
-        {add.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(add.error, "Unable to add attachment.")}</p> : null}
+        {add.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(add.error, t("attachment_add_error"))}</p> : null}
       </form>
 
       {payload.attachments.length > 0 ? (
@@ -1800,23 +1834,24 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
           {payload.attachments.map((attachment) => (
             <div className="relative" key={attachment.id}>
               <AttachmentCard attachment={attachment} />
-              <button className="absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40" disabled={remove.isPending} onClick={() => remove.mutate(attachment.app_delete_path)} type="button">Remove</button>
+              <button className="absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40" disabled={remove.isPending} onClick={() => remove.mutate(attachment.app_delete_path)} type="button">{t("attachment_remove")}</button>
             </div>
           ))}
         </div>
-      ) : <PanelMessage>No attachments.</PanelMessage>}
-      {remove.isError ? <PanelMessage tone="error">{errorMessage(remove.error, "Unable to remove attachment.")}</PanelMessage> : null}
+      ) : <PanelMessage>{t("section_no_attachments")}</PanelMessage>}
+      {remove.isError ? <PanelMessage tone="error">{errorMessage(remove.error, t("attachment_remove_error"))}</PanelMessage> : null}
     </section>
   )
 }
 
 function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
+  const { t } = useT("jobs")
   const title = attachment.title || attachment.filename || attachment.google_doc_url || `Attachment #${attachment.id}`
   return (
     <article className="rounded border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900">
       <div className="font-medium text-gray-900 dark:text-gray-100">{attachment.file_path ? <a className="hover:underline" href={attachment.file_path}>{title}</a> : title}</div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {attachment.google_doc_url ? <a className="text-blue-600 hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">Google Doc</a> : attachment.content_type || attachment.attachment_type}
+        {attachment.google_doc_url ? <a className="text-blue-600 hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">{t("attachment_google_doc")}</a> : attachment.content_type || attachment.attachment_type}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
       </div>
     </article>
@@ -1843,15 +1878,17 @@ function SourceTab({ jobId }: { jobId: string }) {
     queryFn: () => fetchJobSourceDiff(jobId, diffSearch)
   })
 
-  if (source.isPending) return <PanelMessage>Loading source browser...</PanelMessage>
-  if (source.isError) return <PanelMessage tone="error">{errorMessage(source.error, "Unable to load source browser.")}</PanelMessage>
+  const { t } = useT("jobs")
+
+  if (source.isPending) return <PanelMessage>{t("source_loading")}</PanelMessage>
+  if (source.isError) return <PanelMessage tone="error">{errorMessage(source.error, t("source_error"))}</PanelMessage>
 
   if (mode === "diff") {
     if (sourceDiff.isPending) {
-      return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage>Loading diff...</PanelMessage></SourceShell>
+      return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage>{t("source_diff_loading")}</PanelMessage></SourceShell>
     }
     if (sourceDiff.isError) {
-      return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage tone="error">{errorMessage(sourceDiff.error, "Unable to load diff.")}</PanelMessage></SourceShell>
+      return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage tone="error">{errorMessage(sourceDiff.error, t("source_diff_error"))}</PanelMessage></SourceShell>
     }
 
     return <SourceDiffBrowser mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
@@ -1885,6 +1922,7 @@ function SourceBrowser({
   onSelectRef: (ref: string) => void
   showDiffToggle: boolean
 }) {
+  const { t } = useT("jobs")
   const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
   const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
   const refOptions = refOptionsFor(payload, [payload.selected_ref])
@@ -1908,12 +1946,12 @@ function SourceBrowser({
     <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="text-sm text-gray-600 dark:text-gray-300">
-          Viewing
+          {t("source_viewing_label")}
           <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectRef(event.target.value)} value={payload.selected_ref}>
             {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
-        {payload.tree_truncated ? <span className="text-xs text-amber-700">Tree truncated by GitHub.</span> : null}
+        {payload.tree_truncated ? <span className="text-xs text-amber-700">{t("source_tree_truncated")}</span> : null}
       </div>
       <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
         <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
@@ -1926,8 +1964,8 @@ function SourceBrowser({
               onToggleDirectory={toggleDirectory}
               selectedPath={payload.selected_path}
             />
-          )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">No files found.</p>}
-          {payload.tree_items.length > visibleItems.length ? <p className="p-3 text-xs text-amber-700">Showing first {visibleItems.length.toLocaleString()} files.</p> : null}
+          )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_files")}</p>}
+          {payload.tree_items.length > visibleItems.length ? <p className="p-3 text-xs text-amber-700">{t("source_showing_first", { count: visibleItems.length })}</p> : null}
         </div>
         <div className="min-w-0 overflow-auto">
           {payload.file_error ? <p className="p-4 text-sm text-red-700">{payload.file_error}</p> : null}
@@ -1942,7 +1980,7 @@ function SourceBrowser({
                 <code>{fileLanguage ? highlightCode(payload.file.content, fileLanguage) : payload.file.content}</code>
               </pre>
             </>
-          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">Select a file to view its contents.</div>}
+          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_file")}</div>}
         </div>
       </div>
     </SourceShell>
@@ -1960,6 +1998,7 @@ function SourceShell({
   onModeChange: (mode: "browse" | "diff") => void
   showDiffToggle: boolean
 }) {
+  const { t } = useT("jobs")
   return (
     <section className="space-y-3">
       {showDiffToggle ? (
@@ -1971,7 +2010,7 @@ function SourceShell({
               onClick={() => onModeChange(option)}
               type="button"
             >
-              {option === "browse" ? "Browse" : "Diff"}
+              {option === "browse" ? t("source_browse") : t("source_diff")}
             </button>
           ))}
         </div>
@@ -1996,6 +2035,7 @@ function SourceDiffBrowser({
   payload: JobSourceDiffPayload
   showDiffToggle: boolean
 }) {
+  const { t } = useT("jobs")
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
@@ -2011,19 +2051,19 @@ function SourceDiffBrowser({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm text-gray-600 dark:text-gray-300">
-            From
+            {t("source_from_label")}
             <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectBaseRef(event.target.value)} value={payload.base_ref || ""}>
               {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           <label className="text-sm text-gray-600 dark:text-gray-300">
-            To
+            {t("source_to_label")}
             <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectHeadRef(event.target.value)} value={payload.head_ref || ""}>
               {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
         </div>
-        {payload.truncated ? <span className="text-xs text-amber-700">Diff truncated by GitHub.</span> : null}
+        {payload.truncated ? <span className="text-xs text-amber-700">{t("source_diff_truncated")}</span> : null}
       </div>
       <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
         <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
@@ -2038,7 +2078,7 @@ function SourceDiffBrowser({
               <SourceDiffStatusBadge status={file.status} />
               <span className="min-w-0 flex-1 truncate">{file.path}</span>
             </button>
-          )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">No changed files found.</p>}
+          )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
         </div>
         <div className="min-w-0 overflow-auto">
           {selectedFile ? (
@@ -2051,8 +2091,8 @@ function SourceDiffBrowser({
                 </div>
                 <AgentDiff diff={selectedFile.patch} />
               </>
-            ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">Diff not available (binary or very large file).</div>
-          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">Select a file to view its diff.</div>}
+            ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_diff_not_available")}</div>
+          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
         </div>
       </div>
     </SourceShell>
@@ -2282,25 +2322,27 @@ function disabledPaginationClass() {
 }
 
 function PendingJobTitle({ pending, title }: { pending: boolean; title: string }) {
+  const { t } = useT("jobs")
   if (!pending) return <>{title}</>
 
   return (
     <span className="inline-flex min-w-0 items-center gap-2 italic text-gray-500 dark:text-gray-400">
       <span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300" />
-      <span>Generating title...</span>
+      <span>{t("generating_title")}</span>
     </span>
   )
 }
 
-function jobSourceLabel(payload: JobDetailPayload) {
+function jobSourceLabel(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"]) {
   if (payload.job.issue_number) return `#${payload.job.issue_number}`
-  if (payload.job.kind === "direct") return "Direct Job"
-  if (payload.job.kind === "cron") return "Scheduled Job"
+  if (payload.job.kind === "direct") return t("source_label_direct")
+  if (payload.job.kind === "cron") return t("source_label_scheduled")
   return jobSlug(payload.job.id)
 }
 
 function JobSourceLink({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
-  const label = jobSourceLabel(payload)
+  const { t } = useT("jobs")
+  const label = jobSourceLabel(payload, t)
   if (payload.job.scheduled_task) {
     return (
       <Link className="hover:underline" to={withRoutePrefix(payload.job.scheduled_task.scheduled_task_path, prefix)}>
@@ -2317,16 +2359,17 @@ function JobSourceLink({ payload, prefix }: { payload: JobDetailPayload; prefix:
   )
 }
 
-function dependencyLabel(dependency: JobDependency) {
-  if (dependency.pending) return dependency.unresolved_slug || "Unresolved dependency"
+function dependencyLabel(dependency: JobDependency, t: ReturnType<typeof useT>["t"]) {
+  if (dependency.pending) return dependency.unresolved_slug || t("dependency_unresolved")
   const target = dependency.depends_on_job
-  if (!target) return dependency.unresolved_slug || "Missing dependency"
+  if (!target) return dependency.unresolved_slug || t("dependency_missing")
   return `${target.repository_slug} ${jobSlug(target.id)} (${target.summary_state})`
 }
 
 function DependencyLink({ dependency, prefix }: { dependency: JobDependency; prefix: string }) {
+  const { t } = useT("jobs")
   const target = dependency.depends_on_job
-  const label = dependencyLabel(dependency)
+  const label = dependencyLabel(dependency, t)
   if (dependency.pending || !target) return <span>{label}</span>
 
   return <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(target.job_path, prefix)}>{label}</Link>
@@ -2462,11 +2505,11 @@ function displayStepItemKey(item: DisplayStepItem) {
   return item.type === "grade" ? item.key : `step-${item.step.id}`
 }
 
-function gradePhases(item: GradeStepItem) {
+function gradePhases(item: GradeStepItem, t: ReturnType<typeof useT>["t"]) {
   return item.steps.map((step) => {
-    if (step.kind === "grader_fanout") return { step, displayName: "Setup", metadataLabel: "grade setup" }
-    if (step.kind === "grader_collect") return { step, displayName: "Result", metadataLabel: "grade result" }
-    if (step.kind === "grade") return { step, displayName: step.display_name || "Grade", metadataLabel: "grade" }
+    if (step.kind === "grader_fanout") return { step, displayName: t("grade_setup"), metadataLabel: "grade setup" }
+    if (step.kind === "grader_collect") return { step, displayName: t("grade_result"), metadataLabel: "grade result" }
+    if (step.kind === "grade") return { step, displayName: step.display_name || t("grade_label"), metadataLabel: "grade" }
     return { step, displayName: step.display_name, metadataLabel: "grader" }
   })
 }
@@ -2516,10 +2559,10 @@ function gradeSummaryCounts(summaries: GradeSummary[]) {
   }, { passed: 0, failed: 0, error: 0 })
 }
 
-function loopDisplayName(item: LoopStepItem) {
+function loopDisplayName(item: LoopStepItem, t: ReturnType<typeof useT>["t"]) {
   const kinds = item.iterations.flatMap((iteration) => iteration.steps.map((step) => step.kind))
-  if (kinds.some((kind) => kind === "grade" || kind === "grader" || kind.startsWith("grader_"))) return "Grade loop"
-  return "Loop"
+  if (kinds.some((kind) => kind === "grade" || kind === "grader" || kind.startsWith("grader_"))) return t("loop_grade_name")
+  return t("loop_name")
 }
 
 function loopDisplayStatus(item: LoopStepItem) {
@@ -2587,6 +2630,7 @@ function formatElapsed(seconds: number) {
 // (with how long it's been waiting) so a capacity wait doesn't read as a
 // hung job; a running Run shows how long it's been going.
 function ActiveRunBanner({ run }: { run: JobRun }) {
+  const { t } = useT("jobs")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const queued = run.state === "queued" || !run.started_at
@@ -2597,10 +2641,10 @@ function ActiveRunBanner({ run }: { run: JobRun }) {
   if (queued) {
     return (
       <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
-        <span className="font-semibold">Run #{run.id} is waiting for a worker{elapsed ? ` · queued ${elapsed}` : ""}</span>
+        <span className="font-semibold">{t("run_queued_waiting", { id: run.id })}{elapsed ? ` · ${t("run_queued_suffix", { elapsed })}` : ""}</span>
         <span className="mt-1 block text-amber-700 dark:text-amber-300">
-          The run-worker pool is busy — this run starts as soon as a slot frees up, it is not stuck. Check the{" "}
-          <Link className="underline hover:text-amber-900 dark:hover:text-amber-100" to={withRoutePrefix("/admin/queue/pending", prefix)}>pending queue</Link> for the backlog.
+          {t("run_queued_backlog")}{" "}
+          <Link className="underline hover:text-amber-900 dark:hover:text-amber-100" to={withRoutePrefix("/admin/queue/pending", prefix)}>{t("run_queued_backlog_link")}</Link> {t("run_queued_backlog_suffix")}
         </span>
       </div>
     )
@@ -2608,8 +2652,8 @@ function ActiveRunBanner({ run }: { run: JobRun }) {
 
   return (
     <div className="mt-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900/70 dark:bg-blue-950/40 dark:text-blue-200">
-      <span className="font-semibold">Run #{run.id} is running{elapsed ? ` · ${elapsed}` : ""}</span>
-      <span> (since {formatDate(run.started_at)})</span>
+      <span className="font-semibold">{t("run_running", { id: run.id })}{elapsed ? ` · ${elapsed}` : ""}</span>
+      <span> {t("run_running_suffix", { date: formatDate(run.started_at) })}</span>
     </div>
   )
 }
@@ -2620,13 +2664,13 @@ function prepareFailureDetails(step: JobStep): PrepareFailure | null {
   return isRecord(failure) ? failure as PrepareFailure : null
 }
 
-function prepareFailureStatus(failure: PrepareFailure) {
-  if (failure.timed_out) return "timed out"
-  if (failure.operator_killed) return "operator killed"
-  if (failure.stopped) return "stopped"
-  if (failure.aliveness_failed) return "process disappeared"
-  if (failure.exit_status != null) return `exit ${failure.exit_status}`
-  return "failed"
+function prepareFailureStatus(failure: PrepareFailure, t: ReturnType<typeof useT>["t"]) {
+  if (failure.timed_out) return t("prepare_failure_timed_out")
+  if (failure.operator_killed) return t("prepare_failure_operator_killed")
+  if (failure.stopped) return t("prepare_failure_stopped")
+  if (failure.aliveness_failed) return t("prepare_failure_aliveness_failed")
+  if (failure.exit_status != null) return t("prepare_failure_exit", { code: failure.exit_status })
+  return t("prepare_failure_failed")
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
