@@ -145,6 +145,7 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
 
 function OwnershipControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   const navigate = useNavigate()
+  if (payload.subject === "epic") return null
   if (payload.ownership.team_user_count <= 1) return null
 
   function scopeLink(scope: string) {

@@ -9,11 +9,12 @@ module App
     DEFAULT_VIEW = "list"
     DEFAULT_OWNERSHIP_SCOPE = "mine"
     FOLDER_PREFERENCE_DEFAULTS = {
-      [ "epic", "null" ] => { "view" => "kanban" },
+      [ "epic", "epics_mine" ] => { "view" => "kanban" },
+      [ "epic", "epics_claimable" ] => { "view" => "list" },
       [ "job", "landing_queue" ] => { "sort_column" => "landing_queue_position", "sort_direction" => "asc" }
     }.freeze
-    USER_FOCUSED_SUBJECTS = %w[epic].freeze
-    TEAM_FOCUSED_SUBJECTS = %w[job workflow].freeze
+    USER_FOCUSED_SUBJECTS = [].freeze
+    TEAM_FOCUSED_SUBJECTS = %w[epic job workflow].freeze
     PER_PAGE = 25
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
     KANBAN_PER_PAGE = 100
@@ -355,22 +356,7 @@ module App
     end
 
     def epics_base_scope
-      @epics_base_scope ||= begin
-        scope = Epic.where(repository_id: active_repo_ids)
-        if default_epic_mine_plus_claimable_scope?
-          scope.where(
-            "epics.owner_id = :owner_id OR epics.owner_user_id = :owner_id OR (epics.owner_id IS NULL AND epics.owner_user_id IS NULL AND epics.state IN (:claimable_states))",
-            owner_id: selected_owner_user.id,
-            claimable_states: %w[backlog ready]
-          )
-        else
-          apply_ownership_scope(scope, :epic)
-        end
-      end
-    end
-
-    def default_epic_mine_plus_claimable_scope?
-      subject == "epic" && ownership_scope == "mine" && !ownership_param_present?
+      @epics_base_scope ||= apply_ownership_scope(Epic.where(repository_id: active_repo_ids), :epic)
     end
 
     def workflows_base_scope

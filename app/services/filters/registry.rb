@@ -159,6 +159,7 @@ module Filters
         "child_job_count"         => "Filters::Chips::Epics::ChildJobCount",
         "child_progress_percent"  => "Filters::Chips::Epics::ChildProgressPercent",
         "has_epic_dependency"     => "Filters::Chips::Epics::HasEpicDependency",
+        "owner_user_id"           => "Filters::Chips::Epics::OwnerUserId",
         "attention"               => "Filters::Chips::Epics::Attention"
       }
     ),

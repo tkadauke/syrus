@@ -26,6 +26,7 @@ RSpec.describe "Filters::Chips::Epics" do
       expect(subject.chips).to include(
         "state" => "Filters::Chips::Epics::State",
         "has_child_jobs" => "Filters::Chips::Epics::HasChildJobs",
+        "owner_user_id" => "Filters::Chips::Epics::OwnerUserId",
         "attention" => "Filters::Chips::Epics::Attention"
       )
     end
