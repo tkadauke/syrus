@@ -415,7 +415,8 @@ class Job < ApplicationRecord
   def can_add_job_approval?(user)
     return false unless implemented?
 
-    user.id == owner_user_id || user.id != user_id
+    effective_owner_id = owner_user_id.presence || user_id
+    user.id == effective_owner_id || user.id != user_id
   end
 
   def approve!(*args, **kwargs)

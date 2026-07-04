@@ -884,6 +884,13 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.can_add_job_approval?(owner)).to be true
     end
 
+    it "allows the creator to approve when owner_user_id is nil" do
+      repo = Factories.repository(user: owner)
+      job = Factories.job_record(user: owner, repository: repo, state: "implemented")
+      job.update_column(:owner_user_id, nil)
+      expect(job.can_add_job_approval?(owner)).to be true
+    end
+
     it "blocks the creator when they are not the owner" do
       repo = Factories.repository(user: owner)
       job = Factories.job_record(user: creator, owner_user: owner, repository: repo, state: "implemented")
