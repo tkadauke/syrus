@@ -674,14 +674,20 @@ const WORKING_PHRASES = [
   { latin: "Expediens", english: "making ready, dispatching" }
 ] as const
 
-const STARTING_PHRASE = { latin: "Accingitur", english: "girding itself" } as const
+export function getStartingPhrase() {
+  const now = new Date()
+  if (now.getMonth() === 2 && now.getDate() === 15) {
+    return { latin: "Cave, Idus Martias.", english: "Beware the Ides of March." }
+  }
+  return { latin: "Accingitur", english: "girding itself" }
+}
 
 function AgentActivityIndicator({ running }: { running: boolean }) {
   const workingPhrase = useMemo(
     () => WORKING_PHRASES[Math.floor(Math.random() * WORKING_PHRASES.length)],
     []
   )
-  const phrase = running ? workingPhrase : STARTING_PHRASE
+  const phrase = running ? workingPhrase : getStartingPhrase()
 
   return (
     <div aria-label={phrase.english} aria-live="polite" className="flex justify-start" role="status">

@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { ChatRoute, storedWorkspaceCollapsed, asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./Chat"
+import { ChatRoute, storedWorkspaceCollapsed, asExcalidrawElements, VALID_EXCALIDRAW_TYPES, getStartingPhrase } from "./Chat"
 
 describe("storedWorkspaceCollapsed", () => {
   beforeEach(() => {
@@ -51,6 +51,30 @@ describe("asExcalidrawElements", () => {
 
   it("returns an empty array for an empty input", () => {
     expect(asExcalidrawElements([])).toEqual([])
+  })
+})
+
+describe("getStartingPhrase", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("returns the Ides of March phrase on March 15", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 2, 15))
+    expect(getStartingPhrase()).toEqual({ latin: "Cave, Idus Martias.", english: "Beware the Ides of March." })
+  })
+
+  it("returns Accingitur on March 14", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 2, 14))
+    expect(getStartingPhrase()).toEqual({ latin: "Accingitur", english: "girding itself" })
+  })
+
+  it("returns Accingitur on March 16", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 2, 16))
+    expect(getStartingPhrase()).toEqual({ latin: "Accingitur", english: "girding itself" })
   })
 })
 
