@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe PollForkReviewPrJob do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:upstream) { Factories.repository(user: user, owner: "upstream-org", name: "widgets") }
-  let(:fork_repo) { Factories.repository(user: user, owner: "acme", name: "widgets-fork") }
+  let(:fork_repo) { Factories.repository(user: user, owner: "acme", name: "widgets-fork", feedback_policy: "auto") }
   let(:job) do
     j = Factories.job(repository: fork_repo, issue_number: 42, target_repository: upstream)
     j.update!(branch_name: "syrus/issue-42-#{j.id}", fork_review_pr_number: 7)

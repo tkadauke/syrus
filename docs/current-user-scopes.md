@@ -37,6 +37,7 @@ per-user/private:
   - app/controllers/api/v1/app/memories_controller.rb
   - app/controllers/api/v1/app/notification_preferences_controller.rb
   - app/controllers/api/v1/app/notifications_controller.rb
+  - app/controllers/api/v1/app/pending_feedback_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
@@ -115,6 +116,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source and chat feedback submission use `Current.user.jobs`; timeline is separately admin-only because it exposes run history. |
 | `app/controllers/api/v1/app/memories_controller.rb` | per-user/private and admin gate | Memory listing includes the current user's own memories plus repository-published memories for that user's repositories; writes are owner-only unless the viewer is an admin. |
 | `app/controllers/api/v1/app/notification_preferences_controller.rb` | per-user/private | Reads and updates only `Current.user.notification_preferences`. |
+| `app/controllers/api/v1/app/pending_feedback_controller.rb` | per-user/private | Pending feedback actions (apply/ignore/replace) find the parent job through `Current.user.jobs` and serialize a full `App::JobDetailPayload` for that user. |
 | `app/controllers/api/v1/app/notifications_controller.rb` | per-user/private | Notification listing and mark-read commands operate only on `Current.user.notifications`. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with current-user context | Team profiles include credential-safe user summaries visible to signed-in users; `Current.user` decides whether owner labels and current-user-specific details should be shown. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |

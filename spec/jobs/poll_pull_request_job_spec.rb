@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe PollPullRequestJob do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
-  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", feedback_policy: "auto") }
   let(:job) do
     j = Factories.job(repository: repository, issue_number: 42)
     j.update!(branch_name: "syrus/issue-42-#{j.id}", pr_number: 7)
