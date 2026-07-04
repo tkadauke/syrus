@@ -1276,7 +1276,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                                 className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50"
                               >
                                 <DisclosureIcon collapsed={epicCollapsed} />
-                                <span>EPIC-{entry.epicId}: {entry.epicTitle}</span>
+                                <span className="flex-1 min-w-0 truncate text-left">EPIC-{entry.epicId}: {entry.epicTitle}</span>
                                 <span className="ml-auto text-gray-400">{entry.jobs.length}</span>
                                 {epicFullyImplemented(entry.jobs) && (
                                   <span
