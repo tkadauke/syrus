@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent, ReactNode } from "react"
 import { Children, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useT } from "../hooks/useT"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
 import { CopyableJobSlug } from "../components/CopyableJobSlug"
@@ -20,6 +21,7 @@ import type { LandingQueueBlockerJob } from "../api/jobs"
 const KANBAN_CARDS_PER_PAGE = 20
 
 export function DashboardRoute() {
+  const { t } = useT("jobs")
   const location = useLocation()
   const search = dashboardApiSearch(location.pathname, location.search)
   const dashboard = useQuery({
@@ -28,13 +30,14 @@ export function DashboardRoute() {
     placeholderData: (previousData) => previousData
   })
 
-  if (dashboard.isPending) return <main aria-label="Dashboard" className="p-6 text-sm text-gray-600 dark:text-gray-300">Loading...</main>
+  if (dashboard.isPending) return <main aria-label="Dashboard" className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("dashboard_loading")}</main>
   if (dashboard.isError) return <DashboardError error={dashboard.error} />
 
   return <DashboardView pathname={location.pathname} search={location.search} payload={dashboard.data} />
 }
 
 function DashboardView({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
+  const { t } = useT("jobs")
   const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const initialBootstrap = readInitialBootstrap()
@@ -51,7 +54,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   return (
     <main aria-label="Dashboard" className="mx-auto max-w-[96rem] space-y-5 p-6">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">Dashboard</h1>
+        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{t("dashboard_title")}</h1>
         {isDesktop && !useSidebarSubjectSelector ? <SubjectTabs payload={payload} prefix={prefix} /> : null}
         {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
@@ -74,6 +77,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
 }
 
 function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
+  const { t } = useT("jobs")
   if (!readiness || readiness.status === "ok") return null
 
   const failingChecks = readiness.checks.filter((check) => check.status !== "ok")
@@ -83,11 +87,11 @@ function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: Non
     <section aria-label="System readiness" className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">System readiness needs attention</h2>
-          <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">Syrus may not be able to pick up or run work until these checks pass.</p>
+          <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">{t("readiness_title")}</h2>
+          <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">{t("readiness_body")}</p>
         </div>
         <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900" to={`${prefix}/credentials`}>
-          Open settings
+          {t("readiness_open_settings")}
         </Link>
       </div>
       <div className="mt-3 grid gap-2 lg:grid-cols-2">
@@ -96,7 +100,7 @@ function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: Non
             <div className="flex items-center gap-2">
               <TonePill tone={check.status === "error" ? "red" : "amber"}>{check.status}</TonePill>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{check.label}</h3>
-              {check.optional ? <span className="text-xs text-gray-500 dark:text-gray-400">optional</span> : null}
+              {check.optional ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("readiness_optional")}</span> : null}
             </div>
             <p className="mt-2 text-sm text-gray-700 dark:text-gray-200">{check.message}</p>
             {check.remediation ? <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{check.remediation}</p> : null}
@@ -119,6 +123,7 @@ function DesktopDashboardControls({ payload, pathname, search }: { payload: Dash
 }
 
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
+  const { t } = useT("jobs")
   return (
     <div className="space-y-3">
       <div aria-label="Dashboard controls" className="flex items-center justify-between gap-3 pb-1" role="group">
@@ -129,9 +134,9 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
       </div>
       <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-          <span>Folders and filters</span>
-          <span className="text-gray-400 group-open:hidden dark:text-gray-500">Show</span>
-          <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">Hide</span>
+          <span>{t("mobile_folders_filters")}</span>
+          <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("mobile_show")}</span>
+          <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("mobile_hide")}</span>
         </summary>
         <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
           <OwnershipControls pathname={pathname} search={search} payload={payload} />
@@ -224,19 +229,21 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
 }
 
 function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
+  const { t } = useT("jobs")
   return (
     <div className="flex flex-wrap gap-2">
-      <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>New Epic</Link>
-      <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>New Job</Link>
+      <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{t("create_new_epic")}</Link>
+      <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("create_new_job")}</Link>
     </div>
   )
 }
 
 function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" }: { payload: DashboardPayload; prefix: string; className?: string }) {
+  const { t } = useT("jobs")
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
-    { key: "epic", label: "Epics", path: "/dashboard/epics" },
-    { key: "job", label: "Jobs", path: "/dashboard/jobs" },
-    { key: "workflow", label: "Workflows", path: "/dashboard/workflows" }
+    { key: "epic", label: t("subject_epics"), path: "/dashboard/epics" },
+    { key: "job", label: t("subject_jobs"), path: "/dashboard/jobs" },
+    { key: "workflow", label: t("subject_workflows"), path: "/dashboard/workflows" }
   ]
 
   return (
@@ -255,6 +262,7 @@ function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-
 }
 
 function DashboardToolbar({ payload, pathname, search, showConfiguration = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean }) {
+  const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [lanesOpen, setLanesOpen] = useState(false)
@@ -325,7 +333,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
             {columnsOpen ? (
               <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-columns-menu" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Visible columns</legend>
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("columns_visible")}</legend>
                   {payload.controls.columns.optional.map((column) => (
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
                       <input
@@ -358,7 +366,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
             {lanesOpen ? (
               <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-kanban-lanes-menu" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Kanban lanes</legend>
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("kanban_lanes_label")}</legend>
                   {payload.controls.kanban_lanes.map((lane) => (
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={lane.key}>
                       <input
@@ -376,7 +384,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
           </div>
         ) : null}
       </div>
-      {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, "Unable to update dashboard preferences.")}</p> : null}
+      {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("dashboard_preferences_error"))}</p> : null}
     </div>
   )
 }
@@ -418,6 +426,7 @@ function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardP
 const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
 
 function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+  const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const updateSort = useMutation({
     mutationFn: updateDashboardPreferences,
@@ -473,7 +482,7 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
 
   if (payload.items.length === 0) {
     if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
-      const emptyState = dashboardEmptyState(payload)
+      const emptyState = dashboardEmptyState(payload, t)
       return (
         <OnboardingEmptyState
           fallbackActionPath={emptyState.actionPath}
@@ -486,7 +495,7 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
       )
     }
 
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">No {subjectLabel(payload.subject, 2)} match this view.</div>
+    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("dashboard_no_match", { subjects: subjectLabel(payload.subject, 2) })}</div>
   }
 
   const columns = dashboardVisibleColumns(payload)
@@ -497,6 +506,7 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
 }
 
 function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+  const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [draggedEpic, setDraggedEpic] = useState<DashboardEpicItem | null>(null)
   const [dragOverLane, setDragOverLane] = useState<string | null>(null)
@@ -505,7 +515,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   const moveEpic = useMutation({
     mutationFn: ({ epic, targetState }: { epic: DashboardEpicItem; sourceState: string; targetState: string }) => updateDashboardEpicState(epic.paths.app_state_path, targetState),
     onSuccess: (updated) => {
-      setNotice(updated.message || "Epic updated.")
+      setNotice(updated.message || t("kanban_epic_updated"))
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     },
     onError: (_error, { epic, sourceState }) => {
@@ -518,11 +528,11 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   }, [payload.lanes])
 
   if (payload.lanes.length === 0) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">No kanban lanes are configured.</div>
+    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("dashboard_no_kanban_lanes")}</div>
   }
 
   if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
-    const emptyState = dashboardEmptyState(payload)
+    const emptyState = dashboardEmptyState(payload, t)
     return (
       <OnboardingEmptyState
         fallbackActionPath={emptyState.actionPath}
@@ -575,7 +585,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{errorMessage(moveEpic.error, "Unable to move Epic.")}</div> : null}
+      {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{errorMessage(moveEpic.error, t("kanban_move_error"))}</div> : null}
       <div className="select-none overflow-x-auto pb-2">
         <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${payload.lanes.length}, minmax(14rem, 1fr))` }}>
           {optimisticLanes.map((lane) => (
@@ -601,26 +611,26 @@ function dashboardEmptyFallbackPath(payload: DashboardPayload) {
   return payload.subject === "epic" ? payload.paths.new_epic_path : payload.paths.new_job_path
 }
 
-function dashboardEmptyState(payload: DashboardPayload) {
+function dashboardEmptyState(payload: DashboardPayload, t: ReturnType<typeof useT>["t"]) {
   const subject = capitalizeLabel(subjectLabel(payload.subject, 2))
   if (payload.setup && !payload.setup.complete) {
     const setupDescription = payload.setup.next_step === "credentials"
-      ? "Finish credentials first so Syrus can talk to GitHub and the selected agent."
-      : "Finish setup first so Syrus can run work against a repository."
+      ? t("empty_state_setup_credentials")
+      : t("empty_state_setup_general")
 
     return {
-      title: `No ${subject} yet`,
+      title: t("empty_state_no_subject", { subject }),
       description: setupDescription,
       actionPath: payload.setup.paths.setup_path,
-      actionText: "Open setup"
+      actionText: t("empty_state_open_setup")
     }
   }
 
   return {
-    title: `No ${subject} yet`,
-    description: `No ${subjectLabel(payload.subject, 2)} exist yet. Create work from a direct prompt or a labelled GitHub issue.`,
+    title: t("empty_state_no_subject", { subject }),
+    description: t("empty_state_description", { subjects: subjectLabel(payload.subject, 2) }),
     actionPath: dashboardEmptyFallbackPath(payload),
-    actionText: payload.subject === "epic" ? "Create Epic" : "Create direct job"
+    actionText: payload.subject === "epic" ? t("empty_state_create_epic") : t("empty_state_create_job")
   }
 }
 
@@ -647,6 +657,7 @@ function KanbanLane({
   prefix: string
   subject: DashboardSubject
 }) {
+  const { t } = useT("jobs")
   const itemSignature = lane.items.map((item) => `${item.type}-${item.id}`).join(",")
   const [visibleCount, setVisibleCount] = useState(KANBAN_CARDS_PER_PAGE)
   const visibleItems = lane.items.slice(0, visibleCount)
@@ -668,7 +679,7 @@ function KanbanLane({
         <span className="rounded bg-white px-2 py-0.5 text-xs text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">{lane.count}</span>
       </header>
       <div className="space-y-2 p-2">
-        {lane.items.length === 0 ? <p className="px-1 py-2 text-sm text-gray-400 dark:text-gray-500">No {subjectLabel(subject, 2)}</p> : null}
+        {lane.items.length === 0 ? <p className="px-1 py-2 text-sm text-gray-400 dark:text-gray-500">{t("dashboard_no_match", { subjects: subjectLabel(subject, 2) })}</p> : null}
         {visibleItems.map((item) => (
           <KanbanCard
             item={item}
@@ -685,7 +696,7 @@ function KanbanLane({
             onClick={() => setVisibleCount((count) => count + KANBAN_CARDS_PER_PAGE)}
             type="button"
           >
-            Load more
+            {t("kanban_load_more")}
           </button>
         ) : null}
       </div>
@@ -842,6 +853,7 @@ function JobsDashboardTable({ items, columns, landingQueueEntries, prefix, sortS
 }
 
 function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
+  const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
   const action = useMutation({
@@ -856,7 +868,7 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
 
   function run(bulkAction: DashboardBulkJobAction) {
     setNotice(null)
-    if (bulkAction === "close" && !window.confirm(`Close ${selectedIds.length} selected job${selectedIds.length === 1 ? "" : "s"}?`)) return
+    if (bulkAction === "close" && !window.confirm(t("bulk_close_confirm", { count: selectedIds.length, plural: selectedIds.length === 1 ? "" : "s" }))) return
     action.mutate(bulkAction)
   }
 
@@ -867,16 +879,16 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
       <div>
-        <span className="font-medium text-gray-900 dark:text-gray-100">{selectedIds.length} selected</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{t("bulk_selected", { count: selectedIds.length })}</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-        {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, "Bulk action failed.")}</span> : null}
+        {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, t("bulk_action_error"))}</span> : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">Retry</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">Claim</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">Release</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">Approve</button>
-        <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">Close</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("bulk_retry")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("bulk_claim")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("bulk_release")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("bulk_approve")}</button>
+        <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("bulk_close")}</button>
       </div>
     </div>
   )
@@ -1271,8 +1283,9 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
 }
 
 function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJobItem; prefix: string; quiet?: boolean }) {
+  const { t } = useT("jobs")
   const owner = job.claimed_by_user
-  if (!owner) return quiet ? null : <span className="text-xs text-gray-400 dark:text-gray-500">Unclaimed</span>
+  if (!owner) return quiet ? null : <span className="text-xs text-gray-400 dark:text-gray-500">{t("dashboard_owner_unclaimed")}</span>
   if (job.claimed_by_current_user) return quiet ? null : <span className="sr-only">Claimed by you</span>
 
   return (
@@ -1325,12 +1338,14 @@ function WorkflowBadges({ state, triggerAriaPrefix, triggerKind }: { state: stri
 }
 
 function PendingJobTitle({ pending, title }: { pending: boolean; title: string }) {
+  const { t } = useT("jobs")
+
   if (!pending) return <>{title}</>
 
   return (
     <span className="inline-flex min-w-0 items-center gap-1 italic text-gray-500 dark:text-gray-400">
       <span aria-hidden="true" className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300" />
-      <span>Generating title...</span>
+      <span>{t("generating_title")}</span>
     </span>
   )
 }
@@ -1475,6 +1490,7 @@ function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpi
 }
 
 function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
+  const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
   const action = useMutation({
@@ -1499,12 +1515,12 @@ function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onCl
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
       <div>
-        <span className="font-medium text-gray-900 dark:text-gray-100">{selectedIds.length} selected</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{t("bulk_selected", { count: selectedIds.length })}</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-        {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, "Bulk action failed.")}</span> : null}
+        {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, t("bulk_action_error"))}</span> : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("start")} type="button">Move to In Progress</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("start")} type="button">{t("bulk_move_in_progress")}</button>
       </div>
     </div>
   )
@@ -1660,7 +1676,8 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
 }
 
 function SortableColumnHeader({ subject, column, sortState }: { subject: DashboardSubject; column: string; sortState: DashboardSortState }) {
-  const label = dashboardColumnLabel(subject, column)
+  const { t } = useT("jobs")
+  const label = dashboardColumnLabel(subject, column, t)
   const sortColumn = sortableColumnFor(subject, column)
   if (!sortColumn || !sortState.sortableColumns.includes(sortColumn)) return <span>{label}</span>
 
@@ -1722,6 +1739,8 @@ function workflowLabel(workflow: Pick<DashboardWorkflowItem, "id" | "slug">) {
 }
 
 function Pagination({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
+  const { t } = useT("jobs")
+
   if (payload.total_pages <= 1) return null
 
   const firstItem = (payload.page - 1) * payload.per_page + 1
@@ -1729,17 +1748,17 @@ function Pagination({ payload, pathname, search }: { payload: DashboardPayload; 
 
   return (
     <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-      <span>Showing {firstItem}-{lastItem} of {payload.total}</span>
+      <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: payload.total })}</span>
       <div className="flex gap-2">
         {payload.page > 1 ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page - 1)}>Previous</Link>
+          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page - 1)}>{t("pagination_previous")}</Link>
         ) : (
-          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Previous</span>
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("pagination_previous")}</span>
         )}
         {payload.page < payload.total_pages ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page + 1)}>Next</Link>
+          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page + 1)}>{t("pagination_next")}</Link>
         ) : (
-          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Next</span>
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("pagination_next")}</span>
         )}
       </div>
     </div>
@@ -1774,9 +1793,11 @@ function pluralize(count: number, singular: string) {
 }
 
 function DashboardError({ error }: { error: Error }) {
+  const { t } = useT("jobs")
+
   return (
     <main aria-label="Dashboard" className="p-6">
-      <p className="text-sm text-red-700 dark:text-red-300">{error instanceof ApiError ? error.message : "Unable to load dashboard."}</p>
+      <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(error, t("dashboard_error"))}</p>
     </main>
   )
 }
@@ -1877,55 +1898,55 @@ function columnAriaSort(subject: DashboardSubject, column: string, sortState: Da
   return sortState.direction === "asc" ? "ascending" : "descending"
 }
 
-function dashboardColumnLabel(subject: DashboardSubject, column: string) {
+function dashboardColumnLabel(subject: DashboardSubject, column: string, t: ReturnType<typeof useT>["t"]) {
   const labels: Record<DashboardSubject, Record<string, string>> = {
     epic: {
-      checkbox: "Checkbox",
-      epic: "Epic",
-      state: "State",
-      owner: "Owner",
-      repository: "Repository",
-      updated: "Updated",
-      created_at: "Created at",
-      updated_at: "Updated at",
-      done_at: "Done at",
-      archived_at: "Archived at"
+      checkbox: t("column_checkbox"),
+      epic: t("column_epic"),
+      state: t("column_state"),
+      owner: t("column_owner"),
+      repository: t("column_repository"),
+      updated: t("column_updated"),
+      created_at: t("column_created_at"),
+      updated_at: t("column_updated_at"),
+      done_at: t("column_done_at"),
+      archived_at: t("column_archived_at")
     },
     job: {
-      checkbox: "Checkbox",
-      issue: "Issue",
-      title: "Title",
-      state: "State",
-      landing_queue_position: "Queue",
-      repository: "Repository",
-      owner: "Owner",
-      latest: "Latest",
-      workflows_count: "Workflows count",
-      started: "Started",
-      created_at: "Created at",
-      updated_at: "Updated at",
-      started_at: "Started at",
-      finished_at: "Finished at",
-      approved_at: "Approved at",
-      dependencies_overridden_at: "Dependencies overridden at",
-      last_feedback_addressed_at: "Last feedback addressed at",
-      last_seen_comment_at: "Last seen comment at",
-      pr_mergeable_checked_at: "PR mergeable checked at"
+      checkbox: t("column_checkbox"),
+      issue: t("column_issue"),
+      title: t("column_title"),
+      state: t("column_state"),
+      landing_queue_position: t("column_landing_queue_position"),
+      repository: t("column_repository"),
+      owner: t("column_owner"),
+      latest: t("column_latest"),
+      workflows_count: t("column_workflows_count"),
+      started: t("column_started"),
+      created_at: t("column_created_at"),
+      updated_at: t("column_updated_at"),
+      started_at: t("column_started_at"),
+      finished_at: t("column_finished_at"),
+      approved_at: t("column_approved_at"),
+      dependencies_overridden_at: t("column_dependencies_overridden_at"),
+      last_feedback_addressed_at: t("column_last_feedback_addressed_at"),
+      last_seen_comment_at: t("column_last_seen_comment_at"),
+      pr_mergeable_checked_at: t("column_pr_mergeable_checked_at")
     },
     workflow: {
-      workflow: "Workflow",
-      title: "Workflow",
-      job: "Job",
-      trigger: "Trigger",
-      state: "State",
-      started: "Started",
-      finished: "Finished",
-      agent: "Agent",
-      created_at: "Created at",
-      updated_at: "Updated at",
-      started_at: "Started at",
-      finished_at: "Finished at",
-      cleaned_up_at: "Cleaned up at"
+      workflow: t("column_workflow"),
+      title: t("column_workflow"),
+      job: t("column_job"),
+      trigger: t("column_trigger"),
+      state: t("column_state"),
+      started: t("column_started"),
+      finished: t("column_finished"),
+      agent: t("column_agent"),
+      created_at: t("column_created_at"),
+      updated_at: t("column_updated_at"),
+      started_at: t("column_started_at"),
+      finished_at: t("column_finished_at"),
+      cleaned_up_at: t("column_cleaned_up_at")
     }
   }
 
