@@ -187,6 +187,43 @@ RSpec.describe PollPullRequestJob do
       expect(job.approved_via).to eq("github_review")
       expect(job.closure_reason).to be_nil
     end
+
+    it "creates a JobApproval for the Syrus user matching the reviewer's GitHub login" do
+      # Set the job owner's github_handle so they are resolved from the review login;
+      # SelfPolicy requires the owner's approval for the job to become :approved
+      user.update!(github_handle: "reviewer")
+      stub_pr
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601, html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1", user: { login: "reviewer" } }
+      ])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.job_approvals.count }.by(1)
+
+      expect(job.job_approvals.find_by(user: user)).to be_present
+      expect(job.reload.state).to eq("approved")
+    end
+
+    it "creates a JobApproval for the job owner when the reviewer has no Syrus account" do
+      stub_pr
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601, html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1", user: { login: "external-approver" } }
+      ])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.job_approvals.count }.by(1)
+
+      expect(job.job_approvals.find_by(user: user)).to be_present
+      expect(job.reload.state).to eq("approved")
+    end
   end
 
   describe "follow-up dispatch" do
@@ -742,7 +779,7 @@ RSpec.describe PollPullRequestJob do
       }.not_to change { job.job_approvals.count }
     end
 
-    it "does not create a JobApproval for a reviewer with no Syrus account" do
+    it "falls back to the job owner for a reviewer with no Syrus account" do
       stub_reviews([
         { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
           html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
@@ -751,7 +788,9 @@ RSpec.describe PollPullRequestJob do
 
       expect {
         described_class.perform_now(job.id)
-      }.not_to change { JobApproval.count }
+      }.to change { job.job_approvals.count }.by(1)
+
+      expect(job.job_approvals.find_by(user: user)).to be_present
     end
 
     it "does not create a JobApproval for a dismissed review" do

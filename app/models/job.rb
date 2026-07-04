@@ -431,9 +431,16 @@ class Job < ApplicationRecord
     unapprove(*args, **kwargs).tap { save! }
   end
 
-  def record_github_review_approval!(review_url:, approved_at: Time.current)
+  def record_github_review_approval!(review_url:, approved_at: Time.current, reviewer_user: nil)
     mark_implemented! if may_mark_implemented?
     return false unless may_approve?
+
+    approver = reviewer_user || user
+    approval = job_approvals.find_or_initialize_by(user: approver)
+    approval.approved_at ||= approved_at
+    approval.save!
+
+    return false unless approval_satisfied?
 
     approve!(
       via: "github_review",

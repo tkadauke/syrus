@@ -319,6 +319,88 @@ RSpec.describe Job do
       expect(job.state).to eq("landing")
     end
 
+    describe "#record_github_review_approval!" do
+      it "creates a JobApproval for the reviewer and approves when policy is satisfied" do
+        job = Factories.job
+        job.update!(state: "implemented")
+        submitted = 2.hours.ago
+
+        # Pass the job owner as reviewer; SelfPolicy (default) requires the owner's approval
+        expect {
+          job.record_github_review_approval!(
+            review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+            approved_at: submitted,
+            reviewer_user: job.user
+          )
+        }.to change { job.job_approvals.count }.by(1)
+          .and change { job.reload.state }.from("implemented").to("approved")
+
+        approval = job.job_approvals.find_by(user: job.user)
+        expect(approval.approved_at).to be_within(1.second).of(submitted)
+        expect(job.approved_via).to eq("github_review")
+        expect(job.approval_evidence).to eq("github_review_url" => "https://github.com/acme/widgets/pull/7#pullrequestreview-1")
+      end
+
+      it "falls back to the job owner when reviewer_user is nil" do
+        job = Factories.job
+        job.update!(state: "implemented")
+
+        job.record_github_review_approval!(
+          review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          approved_at: Time.current
+        )
+
+        expect(job.job_approvals.find_by(user: job.user)).to be_present
+        expect(job.reload.state).to eq("approved")
+      end
+
+      it "is idempotent: does not duplicate an existing JobApproval" do
+        job = Factories.job
+        job.update!(state: "implemented")
+        job.job_approvals.create!(user: job.user, approved_at: 2.hours.ago)
+
+        expect {
+          job.record_github_review_approval!(
+            review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+            approved_at: 1.hour.ago,
+            reviewer_user: job.user
+          )
+        }.not_to change { job.job_approvals.count }
+
+        expect(job.reload.state).to eq("approved")
+      end
+
+      it "creates a JobApproval without approving when policy is not yet met" do
+        repository = Factories.repository(review_policy: "two_person")
+        owner = Factories.user
+        job = Factories.job(user: owner, repository: repository, owner_user: owner)
+        job.update!(state: "implemented")
+        non_owner = Factories.user
+
+        result = job.record_github_review_approval!(
+          review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          approved_at: Time.current,
+          reviewer_user: non_owner
+        )
+
+        expect(result).to be false
+        expect(job.reload.state).to eq("implemented")
+        expect(job.job_approvals.find_by(user: non_owner)).to be_present
+      end
+
+      it "returns false and does nothing when job cannot transition to approved" do
+        job = Factories.job
+        job.update!(state: "approved")
+
+        expect {
+          job.record_github_review_approval!(
+            review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+            approved_at: Time.current
+          )
+        }.not_to change { job.job_approvals.count }
+      end
+    end
+
 describe "running / failed lifecycle (new in this commit)" do
       it "transitions :queued → :running via start_running!" do
         job = Factories.job_record(state: "queued")

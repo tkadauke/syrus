@@ -92,7 +92,32 @@ class PollMergeStateJob < ApplicationJob
 
     pr_repo = @job.effective_pr_repository
     reviews = @client.pr_reviews(pr_repo.slug, @job.pr_number)
-    Job::GithubReviewApprovalSyncer.sync(job: @job, reviews: reviews)
+
+    Array(reviews).each do |review|
+      next unless review.state == "APPROVED"
+
+      github_login = review.user&.login
+      next if github_login.blank?
+
+      approver = User.find_by(github_handle: github_login)
+      next unless approver
+      next if @job.job_approvals.where(user: approver).exists?
+
+      submitted_at = parse_review_submitted_at(review)
+      @job.job_approvals.create!(user: approver, approved_at: submitted_at || Time.current)
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+      # Concurrent poller created the record between exists? and create!
+    end
+  end
+
+  def parse_review_submitted_at(review)
+    value = review.respond_to?(:submitted_at) ? review.submitted_at : nil
+    return value if value.respond_to?(:to_time) && !value.is_a?(String)
+    return nil if value.blank?
+
+    Time.zone.parse(value.to_s)
+  rescue ArgumentError
+    nil
   end
 
   def dispatch_rebase
