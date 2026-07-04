@@ -518,18 +518,35 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
   )
 }
 
+const PROGRESS_SEGMENTS = [
+  { state: "merged", color: "bg-emerald-700" },
+  { state: "approved", color: "bg-green-500" },
+  { state: "implemented", color: "bg-cyan-500" },
+  { state: "blocked_by_epic", color: "bg-amber-400" },
+]
+
 export function ProgressBar({ jobs, totalCount }: { jobs: EpicDetailJob[]; totalCount: number }) {
-  const doneCount = jobs.filter((job) => job.state === "merged" || job.state === "approved").length
-  const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
+  const segments = PROGRESS_SEGMENTS.map(({ state, color }) => ({
+    state,
+    color,
+    percent: totalCount > 0 ? (jobs.filter((j) => j.state === state).length / totalCount) * 100 : 0,
+  }))
 
   return (
-    <div aria-label={`${doneCount} of ${totalCount} jobs done`} aria-valuemax={totalCount} aria-valuemin={0} aria-valuenow={doneCount} className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar">
-      <div className="h-2 rounded-full bg-blue-500 transition-[width]" style={{ width: `${percent}%` }} />
+    <div aria-label="Epic job progress" className="flex h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar">
+      {segments.map(({ state, color, percent }) =>
+        percent > 0 ? <div className={`h-2 transition-[width] ${color}`} key={state} style={{ width: `${percent}%` }} /> : null
+      )}
     </div>
   )
 }
 
-const STATE_CHIP_ORDER = ["open", "triaging", "implemented", "approved", "landing", "merged", "blocked_by_epic", "landing_failed", "closed", "preempted", "pending"]
+const STATE_CHIP_ORDER = ["merged", "approved", "implemented", "blocked_by_epic", "open", "triaging", "landing", "landing_failed", "closed", "preempted", "pending"]
+
+const STATE_CHIP_LABELS: Record<string, string> = {
+  merged: "Landed",
+  blocked_by_epic: "Blocked",
+}
 
 const STATE_CHIP_STYLES: Record<string, string> = {
   open: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
@@ -565,7 +582,7 @@ export function StateChips({ jobs }: { jobs: EpicDetailJob[] }) {
     <>
       {sortedStates.map((state) => (
         <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATE_CHIP_STYLES[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`} key={state}>
-          {counts.get(state)} {humanize(state)}
+          {counts.get(state)} {STATE_CHIP_LABELS[state] ?? humanize(state)}
         </span>
       ))}
     </>

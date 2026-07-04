@@ -12,35 +12,34 @@ describe("ProgressBar", () => {
   it("renders an empty bar when there are no jobs", () => {
     render(<ProgressBar jobs={[]} totalCount={0} />)
     const bar = screen.getByRole("progressbar")
-    expect(bar).toHaveAttribute("aria-valuenow", "0")
-    expect(bar).toHaveAttribute("aria-valuemax", "0")
-    const fill = bar.firstElementChild as HTMLElement
-    expect(fill.style.width).toBe("0%")
+    expect(bar.children).toHaveLength(0)
   })
 
-  it("fills proportionally based on merged and approved jobs", () => {
-    const jobs = [job("merged"), job("approved"), job("open"), job("open")]
+  it("renders a segment only for states with jobs", () => {
+    const jobs = [job("merged"), job("open"), job("open")]
+    render(<ProgressBar jobs={jobs} totalCount={3} />)
+    const bar = screen.getByRole("progressbar")
+    // Only merged segment rendered; open/approved/implemented/blocked_by_epic have 0 count
+    expect(bar.children).toHaveLength(1)
+    const segment = bar.firstElementChild as HTMLElement
+    expect(segment.style.width).toMatch(/33/)
+  })
+
+  it("renders separate segments for each tracked state with jobs", () => {
+    const jobs = [job("merged"), job("approved"), job("implemented"), job("blocked_by_epic")]
     render(<ProgressBar jobs={jobs} totalCount={4} />)
     const bar = screen.getByRole("progressbar")
-    expect(bar).toHaveAttribute("aria-valuenow", "2")
-    const fill = bar.firstElementChild as HTMLElement
-    expect(fill.style.width).toBe("50%")
+    expect(bar.children).toHaveLength(4)
   })
 
-  it("shows 100% when all jobs are merged or approved", () => {
-    const jobs = [job("merged"), job("approved"), job("merged")]
-    render(<ProgressBar jobs={jobs} totalCount={3} />)
-    const fill = (screen.getByRole("progressbar").firstElementChild) as HTMLElement
-    expect(fill.style.width).toBe("100%")
-  })
-
-  it("counts only merged and approved as done, not other terminal states", () => {
-    const jobs = [job("closed"), job("landing_failed"), job("merged")]
-    render(<ProgressBar jobs={jobs} totalCount={3} />)
+  it("segments are proportional to totalCount including untracked states", () => {
+    // 1 merged out of 4 total = 25%
+    const jobs = [job("merged"), job("open"), job("open"), job("open")]
+    render(<ProgressBar jobs={jobs} totalCount={4} />)
     const bar = screen.getByRole("progressbar")
-    expect(bar).toHaveAttribute("aria-valuenow", "1")
-    const fill = bar.firstElementChild as HTMLElement
-    expect(fill.style.width).toBe("33%")
+    expect(bar.children).toHaveLength(1)
+    const segment = bar.firstElementChild as HTMLElement
+    expect(segment.style.width).toBe("25%")
   })
 })
 
@@ -57,19 +56,26 @@ describe("StateChips", () => {
     expect(screen.getByText("1 Approved")).toBeInTheDocument()
   })
 
-  it("renders chips in a defined state order", () => {
+  it("renders chips in a defined state order matching the progress bar", () => {
     const jobs = [job("merged"), job("open"), job("approved")]
     const { container } = render(<StateChips jobs={jobs} />)
     const chips = container.querySelectorAll("span")
-    expect(chips[0]).toHaveTextContent("Open")
+    // merged (as "Landed") comes first, then approved, then open
+    expect(chips[0]).toHaveTextContent("Landed")
     expect(chips[1]).toHaveTextContent("Approved")
-    expect(chips[2]).toHaveTextContent("Merged")
+    expect(chips[2]).toHaveTextContent("Open")
+  })
+
+  it("labels merged jobs as Landed and blocked_by_epic jobs as Blocked", () => {
+    render(<StateChips jobs={[job("merged"), job("blocked_by_epic")]} />)
+    expect(screen.getByText("1 Landed")).toBeInTheDocument()
+    expect(screen.getByText("1 Blocked")).toBeInTheDocument()
   })
 
   it("omits zero-count states", () => {
     render(<StateChips jobs={[job("merged")]} />)
     expect(screen.queryByText(/open/i)).not.toBeInTheDocument()
-    expect(screen.getByText("1 Merged")).toBeInTheDocument()
+    expect(screen.getByText("1 Landed")).toBeInTheDocument()
   })
 })
 
