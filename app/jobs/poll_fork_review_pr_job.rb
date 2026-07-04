@@ -38,13 +38,15 @@ class PollForkReviewPrJob < ApplicationJob
 
     handle_approval!(
       review_url: latest_approval.respond_to?(:html_url) ? latest_approval.html_url : nil,
+      reviewer_github_handle: latest_approval.user&.login,
       fork_pr_merged: false
     )
   end
 
-  def handle_approval!(review_url:, fork_pr_merged:)
+  def handle_approval!(review_url:, reviewer_github_handle: nil, fork_pr_merged:)
     ForkReviewApprover.new(@job, fork_client: @client).call(
       review_url: review_url,
+      reviewer_github_handle: reviewer_github_handle,
       fork_pr_merged: fork_pr_merged
     )
   end
@@ -107,9 +109,15 @@ class PollForkReviewPrJob < ApplicationJob
   end
 
   def enqueue_fork_review_followup(all_comments:, new_comments:, qualifying_records:)
+    iteration = @job.workflows.where(trigger_kind: %w[ pr_comment chat_feedback ]).count + 1
+    source_handle = qualifying_records.first&.github_handle
+
     artifacts = {
       "pr_comments" => all_comments.map { |c| serialize_comment(c) },
-      "feedback_cutoff" => @job.last_seen_fork_review_comment_at&.iso8601
+      "feedback_cutoff" => @job.last_seen_fork_review_comment_at&.iso8601,
+      "pr_feedback_iteration" => iteration,
+      "pr_feedback_auto" => true,
+      "pr_feedback_source_handle" => source_handle
     }
     workflow = Workflows::PrFeedback.instantiate(job: @job, artifacts: artifacts)
     StepDispatcher.start_workflow(workflow)

@@ -1,5 +1,5 @@
 class Notification < ApplicationRecord
-  KINDS = %w[job_failed job_implemented pr_comment_addressed pr_merged epic_completed].freeze
+  KINDS = %w[job_failed job_implemented pr_comment_addressed pr_merged epic_completed upstream_pr_closed].freeze
 
   belongs_to :user
   belongs_to :job, optional: true

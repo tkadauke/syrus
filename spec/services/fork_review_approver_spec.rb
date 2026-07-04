@@ -125,6 +125,87 @@ RSpec.describe ForkReviewApprover do
 
         expect(job.reload.state).to eq("implemented")
       end
+
+      it "creates a JobApproval for the job owner when reviewer github_handle cannot be matched" do
+        expect {
+          described_class.new(job, fork_client: fork_client).call(
+            review_url: "review-url",
+            reviewer_github_handle: nil,
+            fork_pr_merged: false
+          )
+        }.to change { job.job_approvals.count }.by(1)
+
+        expect(job.job_approvals.last.user).to eq(job.owner_user)
+      end
+
+      it "creates a JobApproval for the matched Syrus user when reviewer github_handle is known" do
+        reviewer = Factories.user(github_handle: "alice-dev")
+
+        expect {
+          described_class.new(job, fork_client: fork_client).call(
+            review_url: "review-url",
+            reviewer_github_handle: "alice-dev",
+            fork_pr_merged: false
+          )
+        }.to change { job.job_approvals.count }.by(1)
+
+        expect(job.job_approvals.last.user).to eq(reviewer)
+      end
+
+      it "falls back to job owner when reviewer github_handle doesn't match any Syrus user" do
+        expect {
+          described_class.new(job, fork_client: fork_client).call(
+            review_url: "review-url",
+            reviewer_github_handle: "unknown-person",
+            fork_pr_merged: false
+          )
+        }.to change { job.job_approvals.count }.by(1)
+
+        expect(job.job_approvals.last.user).to eq(job.owner_user)
+      end
+
+      it "is idempotent on repeated calls (does not duplicate JobApproval)" do
+        described_class.new(job, fork_client: fork_client).call(
+          review_url: "review-url",
+          reviewer_github_handle: nil,
+          fork_pr_merged: false
+        )
+
+        expect {
+          described_class.new(job, fork_client: fork_client).call(
+            review_url: "review-url",
+            reviewer_github_handle: nil,
+            fork_pr_merged: false
+          )
+        }.not_to change { job.job_approvals.count }
+      end
+    end
+
+    context "with final_say review policy" do
+      before do
+        fork_repo.update!(review_policy: "final_say")
+        stub_close_fork_pr
+        stub_open_upstream_pr(pr_number: 105)
+      end
+
+      it "creates a JobApproval for the fork PR approver (owner fallback)" do
+        expect {
+          described_class.new(job, fork_client: fork_client).call(
+            review_url: "review-url",
+            reviewer_github_handle: nil,
+            fork_pr_merged: false
+          )
+        }.to change { job.job_approvals.count }.by(1)
+      end
+
+      it "does not auto-approve the job for landing" do
+        described_class.new(job, fork_client: fork_client).call(
+          review_url: "review-url",
+          fork_pr_merged: false
+        )
+
+        expect(job.reload.state).to eq("implemented")
+      end
     end
 
     it "continues opening the upstream PR even if closing the fork PR fails" do

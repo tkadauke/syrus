@@ -128,5 +128,111 @@ RSpec.describe Jobs::Timeline do
       expect(running_event).not_to be_nil
       expect(running_event.transition_source).to eq("propagate")
     end
+
+    describe "feedback iteration events" do
+      it "emits a numbered workflow-level iteration event for each pr_comment workflow" do
+        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "succeeded",
+                         created_at: 2.hours.ago,
+                         artifacts: { "pr_feedback_iteration" => 1, "pr_feedback_auto" => true,
+                                      "pr_feedback_source_handle" => "alice" })
+        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "succeeded",
+                         created_at: 1.hour.ago,
+                         artifacts: { "pr_feedback_iteration" => 2, "pr_feedback_auto" => false,
+                                      "pr_feedback_source_handle" => "bob" })
+
+        events = described_class.for(job)
+        iteration_events = events.select { |e| e.source == "feedback" && e.title.include?("iteration") }
+
+        expect(iteration_events.size).to be >= 2
+        titles = iteration_events.map(&:title)
+        expect(titles).to include(a_string_matching(/Feedback iteration 1.*auto/))
+        expect(titles).to include(a_string_matching(/Feedback iteration 2.*confirmed/))
+      end
+
+      it "includes triggering comment handle in the iteration event title" do
+        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "succeeded",
+                         created_at: 1.hour.ago,
+                         artifacts: { "pr_feedback_iteration" => 1, "pr_feedback_auto" => true,
+                                      "pr_feedback_source_handle" => "alice-reviewer" })
+
+        events = described_class.for(job)
+        iter_event = events.find { |e| e.source == "feedback" && e.title.include?("iteration 1") }
+
+        expect(iter_event).not_to be_nil
+        expect(iter_event.title).to include("@alice-reviewer")
+      end
+
+      it "falls back to ordinal index when pr_feedback_iteration artifact is missing" do
+        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "succeeded",
+                         created_at: 2.hours.ago, artifacts: {})
+        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "succeeded",
+                         created_at: 1.hour.ago, artifacts: {})
+
+        events = described_class.for(job)
+        iteration_events = events.select { |e| e.source == "feedback" && e.kind == :start }
+
+        titles = iteration_events.map(&:title)
+        expect(titles).to include(a_string_matching(/Feedback iteration 1/))
+        expect(titles).to include(a_string_matching(/Feedback iteration 2/))
+      end
+
+      it "emits per-comment action events for actioned PrReviewComments" do
+        pr_comment = PrReviewComment.create!(
+          job: job,
+          pr_type: "direct",
+          comment_kind: "issue",
+          github_comment_id: 42,
+          github_handle: "reviewer",
+          attributed_to: "external",
+          actionable: true,
+          actioned_at: 1.hour.ago,
+          actioned_by: "auto_poll"
+        )
+
+        events = described_class.for(job)
+        comment_events = events.select { |e| e.source == "feedback" && e.title.include?("actioned") }
+
+        expect(comment_events.size).to eq(1)
+        expect(comment_events.first.title).to include("automatically")
+        expect(comment_events.first.detail).to include("@reviewer")
+      end
+
+      it "marks ignored comments as :cancel kind" do
+        PrReviewComment.create!(
+          job: job,
+          pr_type: "direct",
+          comment_kind: "issue",
+          github_comment_id: 99,
+          github_handle: "outsider",
+          attributed_to: "external",
+          actionable: true,
+          actioned_at: 1.hour.ago,
+          actioned_by: "operator:ignore"
+        )
+
+        events = described_class.for(job)
+        ignore_event = events.find { |e| e.source == "feedback" && e.kind == :cancel }
+        expect(ignore_event).not_to be_nil
+        expect(ignore_event.title).to include("ignored by operator")
+      end
+
+      it "includes chat_feedback workflows in iteration numbering" do
+        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "succeeded",
+                         created_at: 2.hours.ago,
+                         artifacts: { "pr_feedback_iteration" => 1, "pr_feedback_auto" => true })
+        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "succeeded",
+                         created_at: 1.hour.ago,
+                         artifacts: { "pr_feedback_iteration" => 2, "pr_feedback_auto" => false })
+
+        events = described_class.for(job)
+        iteration_events = events.select { |e| e.source == "feedback" && e.kind == :start }
+
+        expect(iteration_events.size).to eq(2)
+        expect(iteration_events.map(&:title)).to include(
+          a_string_matching(/Feedback iteration 1.*auto/),
+          a_string_matching(/Feedback iteration 2.*confirmed/)
+        )
+      end
+    end
   end
 end

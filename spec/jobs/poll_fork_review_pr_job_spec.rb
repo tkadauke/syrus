@@ -76,6 +76,7 @@ RSpec.describe PollForkReviewPrJob do
     ).and_return(approver)
     expect(approver).to receive(:call).with(
       review_url: "https://github.com/acme/#{fork_repo.name}/pull/7",
+      reviewer_github_handle: nil,
       fork_pr_merged: true
     )
 
@@ -95,7 +96,8 @@ RSpec.describe PollForkReviewPrJob do
       {
         state: "APPROVED",
         submitted_at: 1.hour.ago.iso8601,
-        html_url: "https://github.com/acme/#{fork_repo.name}/pull/7#pullrequestreview-42"
+        html_url: "https://github.com/acme/#{fork_repo.name}/pull/7#pullrequestreview-42",
+        user: { login: "reviewer-gh" }
       }
     ])
     approver = instance_double(ForkReviewApprover)
@@ -103,7 +105,11 @@ RSpec.describe PollForkReviewPrJob do
       job,
       fork_client: instance_of(GithubClient)
     ).and_return(approver)
-    expect(approver).to receive(:call) do |**kwargs|
+    expect(approver).to receive(:call).with(
+      review_url: "https://github.com/acme/#{fork_repo.name}/pull/7#pullrequestreview-42",
+      reviewer_github_handle: "reviewer-gh",
+      fork_pr_merged: false
+    ) do
       # Simulate ForkReviewApprover setting pr_number (upstream PR created)
       job.update!(pr_number: 99)
     end
@@ -220,6 +226,19 @@ RSpec.describe PollForkReviewPrJob do
       expect {
         described_class.perform_now(job.id)
       }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+    end
+
+    it "stamps pr_feedback_iteration on the first fork review pr_comment workflow" do
+      stub_issue_comments([
+        { id: 1, body: "Fix this before approving", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(job.id)
+
+      wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.artifact("pr_feedback_iteration")).to eq(1)
+      expect(wf.artifact("pr_feedback_auto")).to be true
     end
   end
 end

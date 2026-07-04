@@ -231,14 +231,21 @@ a repository member must approve before the change reaches the upstream.
 | GitHub review approval on the fork PR | `PollForkReviewPrJob` reads `/reviews` and finds an `APPROVED` state |
 | GitHub merge of the fork PR | `PollForkReviewPrJob` finds `merged: true` (accidental merge, treated as implicit approval) |
 
-All three signals are equivalent. On detection, `ForkReviewApprover`:
+All signals are equivalent. On detection, `ForkReviewApprover`:
 
 1. Closes the fork review PR (skipped when already merged).
 2. Opens the upstream PR from the feature branch against `target_repository`'s default branch.
 3. Updates the Job's `pr_number` and `pr_repository_id` so normal PR polling takes over.
-4. For repositories with a **self** review policy, immediately records a GitHub review approval — the fork owner's approval satisfies both gates at once and the Job becomes eligible for auto-merge. For `two_person` and `final_say` policies, additional approvals on the upstream PR are required.
+4. Records approval based on the repository's review policy:
+   - **`self`** — records a GitHub review approval immediately; the Job becomes eligible for auto-merge.
+   - **`two_person` / `final_say`** — creates a `JobApproval` for the fork PR approver (matched by GitHub handle to a Syrus user; falls back to job owner). Additional approvals on the upstream PR are also polled — `PollPullRequestJob` reads `/reviews` on the upstream PR and creates a `JobApproval` for each `APPROVED` reviewer it can match to a Syrus user. When `approval_satisfied?` becomes true, the Job is auto-approved for landing.
 
-The feature branch is never deleted as part of this flow; it remains available for the upstream PR's lifetime.
+**Feature branch lifetime** — the feature branch is never deleted while the upstream PR is open. When the upstream PR is later closed or merged, `PollPullRequestJob` handles cleanup:
+
+- **Merged** — closes the Job as `pr_merged`; the fork branch is deleted.
+- **Closed without merge** — closes the Job as `pr_closed` or `no_changes`; the fork branch is deleted and an `upstream_pr_closed` notification is sent to the job owner so they know the upstream PR was rejected.
+
+**PR feedback iteration history** — each round of review feedback (a `pr_comment` or `chat_feedback` workflow) is stamped with a sequential iteration number in workflow artifacts (`pr_feedback_iteration`, `pr_feedback_auto`, `pr_feedback_source_handle`). The Job timeline (`Jobs::Timeline`) surfaces these as labeled "Feedback iteration N" events, showing whether each iteration was triggered automatically or confirmed by an operator, and who sent the triggering comment.
 
 ## Next: DAG Workflows
 

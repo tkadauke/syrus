@@ -335,6 +335,45 @@ RSpec.describe PollPullRequestJob do
       expect(wf.artifact("feedback_cutoff")).to eq(t2.iso8601)
     end
 
+    it "stamps pr_feedback_iteration = 1 on the first pr_comment workflow" do
+      stub_issue_comments([
+        { id: 1, body: "Please fix this", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(job.id)
+
+      wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.artifact("pr_feedback_iteration")).to eq(1)
+      expect(wf.artifact("pr_feedback_auto")).to be true
+    end
+
+    it "increments pr_feedback_iteration for each subsequent pr_comment workflow" do
+      Workflow.create!(job: job, trigger_kind: "pr_comment", state: "succeeded")
+      stub_issue_comments([
+        { id: 1, body: "Another fix", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(job.id)
+
+      wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.artifact("pr_feedback_iteration")).to eq(2)
+    end
+
+    it "stores pr_feedback_source_handle from the first qualifying comment's github_handle" do
+      user.update!(github_handle: "op-dev")
+      stub_issue_comments([
+        { id: 1, body: "Change the algorithm", user: { login: "op-dev" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(job.id)
+
+      wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.artifact("pr_feedback_source_handle")).to eq("op-dev")
+    end
+
     it "manual polls retry feedback that was seen but not successfully addressed" do
       job.update!(last_seen_comment_at: t1)
       stub_issue_comments([
@@ -849,6 +888,165 @@ RSpec.describe PollPullRequestJob do
       expect(fork_delete_stub).to have_been_requested
       expect(upstream_delete_stub).not_to have_been_requested
       expect(fork_job.reload.branch_deleted_at).to be_present
+    end
+
+    it "deletes the fork branch when the upstream PR is closed without merge (pr_closed)" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
+      stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { number: 20, state: "closed", merged: false, labels: [],
+                head: { sha: "abc123", ref: "syrus/issue-55-#{fork_job.id}" } }.to_json
+      )
+      fork_delete_stub = stub_request(:delete, fork_delete_ref_url).to_return(status: 204, body: "")
+
+      described_class.perform_now(fork_job.id)
+
+      expect(fork_delete_stub).to have_been_requested
+      expect(fork_job.reload.branch_deleted_at).to be_present
+    end
+
+    it "deletes the fork branch when the upstream PR closes with no_changes" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("no_changes")
+      stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { number: 20, state: "closed", merged: false, labels: [],
+                head: { sha: "abc123", ref: "syrus/issue-55-#{fork_job.id}" } }.to_json
+      )
+      fork_delete_stub = stub_request(:delete, fork_delete_ref_url).to_return(status: 204, body: "")
+
+      described_class.perform_now(fork_job.id)
+
+      expect(fork_delete_stub).to have_been_requested
+      expect(fork_job.reload.branch_deleted_at).to be_present
+    end
+
+    it "sends an upstream_pr_closed notification when the upstream PR closes without merge" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
+      stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { number: 20, state: "closed", merged: false, labels: [],
+                head: { sha: "abc123", ref: "syrus/issue-55-#{fork_job.id}" } }.to_json
+      )
+      stub_request(:delete, fork_delete_ref_url).to_return(status: 204, body: "")
+
+      expect {
+        described_class.perform_now(fork_job.id)
+      }.to change { user.notifications.where(kind: "upstream_pr_closed").count }.by(1)
+
+      notification = user.notifications.where(kind: "upstream_pr_closed").last
+      expect(notification.job).to eq(fork_job)
+      expect(notification.body).to include("Upstream PR #20")
+    end
+
+    it "does not send upstream_pr_closed notification for a normal non-fork job pr_closed" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
+      stub_pr(state: "closed", merged: false)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { user.notifications.where(kind: "upstream_pr_closed").count }
+    end
+
+    context "with two_person review policy and matching Syrus users" do
+      let(:reviewer_user) { Factories.user(github_handle: "alice-dev") }
+
+      before do
+        repository.update!(review_policy: "two_person")
+        fork_job.update!(owner_user: user)
+        # Give job owner a JobApproval to simulate fork PR approval already recorded
+        fork_job.job_approvals.find_or_create_by!(user: user)
+      end
+
+      it "creates a JobApproval for the matching Syrus user when an upstream PR review arrives" do
+        reviewer_user  # trigger creation
+        stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: { number: 20, state: "open", merged: false, labels: [],
+                  head: { sha: "abc123" } }.to_json
+        )
+        stub_request(:get, upstream_reviews_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: [ { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
+                    user: { login: "alice-dev" } } ].to_json
+        )
+        stub_request(:get, upstream_issue_comments_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+        stub_request(:get, upstream_review_comments_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+        stub_request(:get, "https://api.github.com/repos/upstream-org/widgets/commits/abc123/check-runs")
+          .with(query: hash_including({})).to_return(
+            status: 200, headers: { "Content-Type" => "application/json" },
+            body: { total_count: 0, check_runs: [] }.to_json
+          )
+
+        expect {
+          described_class.perform_now(fork_job.id)
+        }.to change { fork_job.job_approvals.count }.by(1)
+
+        expect(fork_job.job_approvals.pluck(:user_id)).to include(reviewer_user.id)
+      end
+
+      it "approves the job when two_person policy is satisfied by GitHub reviews" do
+        reviewer_user  # trigger creation
+        fork_job.mark_implemented! if fork_job.may_mark_implemented?
+        fork_job.update!(state: "implemented")
+
+        stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: { number: 20, state: "open", merged: false, labels: [],
+                  head: { sha: "abc123" } }.to_json
+        )
+        stub_request(:get, upstream_reviews_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: [ { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
+                    user: { login: "alice-dev" } } ].to_json
+        )
+        stub_request(:get, upstream_issue_comments_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+        stub_request(:get, upstream_review_comments_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+        stub_request(:get, "https://api.github.com/repos/upstream-org/widgets/commits/abc123/check-runs")
+          .with(query: hash_including({})).to_return(
+            status: 200, headers: { "Content-Type" => "application/json" },
+            body: { total_count: 0, check_runs: [] }.to_json
+          )
+
+        described_class.perform_now(fork_job.id)
+
+        expect(fork_job.reload.state).to eq("approved")
+      end
+
+      it "skips unrecognized GitHub reviewers (no matching Syrus user by github_handle)" do
+        stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: { number: 20, state: "open", merged: false, labels: [],
+                  head: { sha: "abc123" } }.to_json
+        )
+        stub_request(:get, upstream_reviews_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: [ { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
+                    user: { login: "unknown-ghuser" } } ].to_json
+        )
+        stub_request(:get, upstream_issue_comments_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+        stub_request(:get, upstream_review_comments_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+        stub_request(:get, "https://api.github.com/repos/upstream-org/widgets/commits/abc123/check-runs")
+          .with(query: hash_including({})).to_return(
+            status: 200, headers: { "Content-Type" => "application/json" },
+            body: { total_count: 0, check_runs: [] }.to_json
+          )
+
+        expect {
+          described_class.perform_now(fork_job.id)
+        }.not_to change { fork_job.job_approvals.count }
+      end
     end
   end
 

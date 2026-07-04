@@ -19,13 +19,14 @@ class ForkReviewApprover
   end
 
   # review_url: the URL of the review or merged PR on the fork; stored as evidence.
+  # reviewer_github_handle: GitHub login of the approver (used to link to a Syrus user).
   # fork_pr_merged: true when the fork PR was already merged (skip close step).
-  def call(review_url:, fork_pr_merged: false)
+  def call(review_url:, reviewer_github_handle: nil, fork_pr_merged: false)
     return if @job.pr_number.present?  # idempotent: upstream PR already exists
 
     close_fork_review_pr! unless fork_pr_merged
     open_upstream_pr!
-    record_approval!(review_url: review_url)
+    record_approval!(review_url: review_url, reviewer_github_handle: reviewer_github_handle)
   end
 
   private
@@ -58,17 +59,39 @@ class ForkReviewApprover
     Rails.logger.info("[ForkReviewApprover] #{@job.slug}: opened upstream PR ##{pr_number} on #{target_repo.slug}")
   end
 
-  def record_approval!(review_url:)
-    return unless self_review_policy?
+  def record_approval!(review_url:, reviewer_github_handle: nil)
+    if self_review_policy?
+      @job.record_github_review_approval!(review_url: review_url, approved_at: Time.current)
+    elsif multi_person_review_policy?
+      record_fork_review_job_approval!(reviewer_github_handle: reviewer_github_handle)
+    end
+  end
 
-    @job.record_github_review_approval!(
-      review_url: review_url,
-      approved_at: Time.current
-    )
+  # For two_person / final_say policies, record the fork PR approver as a JobApproval.
+  # This counts as the "first approval" in the review chain; subsequent reviews on the
+  # upstream PR will add additional JobApprovals via PollPullRequestJob.
+  def record_fork_review_job_approval!(reviewer_github_handle:)
+    approver = find_syrus_user(reviewer_github_handle) || @job.owner_user || @job.user
+    return unless approver
+
+    @job.job_approvals.find_or_create_by!(user: approver)
+    Rails.logger.info("[ForkReviewApprover] #{@job.slug}: recorded fork review approval for user #{approver.id} (multi-person policy)")
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+    # Already recorded; idempotent.
+  end
+
+  def find_syrus_user(github_handle)
+    return nil unless github_handle.present?
+
+    User.where("LOWER(github_handle) = ?", github_handle.downcase).first
   end
 
   def self_review_policy?
     @job.repository.review_policy == "self"
+  end
+
+  def multi_person_review_policy?
+    @job.repository.review_policy.in?(%w[ two_person final_say ])
   end
 
   def upstream_pr_copy
