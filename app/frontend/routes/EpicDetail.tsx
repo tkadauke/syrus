@@ -95,7 +95,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
     <>
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="break-words text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">
             <CopyableSlug slug={payload.epic.display_number} />
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             {payload.epic.title}
@@ -162,7 +162,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
         <div className="space-y-6">
           {payload.epic.description.trim() ? (
             <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Description</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Description</h2>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
             </section>
           ) : null}
@@ -206,32 +206,38 @@ function DependenciesSection({
   return (
     <section className="space-y-4">
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Dependencies</h2>
-        <h3 className="mt-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Depends on</h3>
-        {dependencies.length > 0 ? (
-          <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
-            {dependencies.map((dependency) => (
-              <li className="flex min-h-10 items-center justify-between gap-3 py-2" key={dependency.epic_id}>
-                <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <Link className="min-w-0 break-words text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(dependency.url, prefix)}>{dependency.title}</Link>
-                  <StatePill state={dependency.state} />
-                </span>
-                <button
-                  aria-label={`Remove dependency on ${dependency.title}`}
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/70 dark:text-red-300 dark:hover:bg-red-950/40"
-                  disabled={command.isPending}
-                  onClick={() => command.mutate({ kind: "remove", dependsOnEpicId: dependency.epic_id })}
-                  title={`Remove dependency on ${dependency.title}`}
-                  type="button"
-                >
-                  <CloseIcon className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-gray-400 dark:text-gray-500">None</p>
-        )}
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Dependencies</h2>
+        <dl className="mt-3">
+          <div>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Depends on</dt>
+            <dd className="mt-2">
+              {dependencies.length > 0 ? (
+                <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {dependencies.map((dependency) => (
+                    <li className="flex min-h-10 items-center justify-between gap-3 py-2" key={dependency.epic_id}>
+                      <span className="flex min-w-0 flex-wrap items-center gap-2">
+                        <Link className="min-w-0 break-words text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(dependency.url, prefix)}>{dependency.title}</Link>
+                        <StatePill state={dependency.state} />
+                      </span>
+                      <button
+                        aria-label={`Remove dependency on ${dependency.title}`}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/70 dark:text-red-300 dark:hover:bg-red-950/40"
+                        disabled={command.isPending}
+                        onClick={() => command.mutate({ kind: "remove", dependsOnEpicId: dependency.epic_id })}
+                        title={`Remove dependency on ${dependency.title}`}
+                        type="button"
+                      >
+                        <CloseIcon className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-400 dark:text-gray-500">None</p>
+              )}
+            </dd>
+          </div>
+        </dl>
         <form className="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800" onSubmit={submit}>
           <EpicDependencyTypeahead
             currentEpicId={currentEpicId}
@@ -244,7 +250,7 @@ function DependenciesSection({
         {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, "Unable to update dependencies.")}</p> : null}
       </div>
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Depended on by</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Depended on by</h2>
         {dependents.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {dependents.map((dependent) => (
@@ -480,7 +486,7 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
         <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(newJobPath, prefix)}>+ Add Job</Link>
       </div>
       {jobs.length > 0 ? (
@@ -578,7 +584,7 @@ function DetailsPanel({ epic, jobs, prefix }: { epic: EpicDetailPayload["epic"];
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Details</h2>
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Details</h2>
       <dl className="mt-3 space-y-3">
         <div>
           <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Owner</dt>
