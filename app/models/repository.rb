@@ -3,6 +3,7 @@ class Repository < ApplicationRecord
 
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   REVIEW_POLICIES = %w[ self two_person final_say ].freeze
+  FEEDBACK_POLICIES = %w[ auto confirm ].freeze
 
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
@@ -13,6 +14,7 @@ class Repository < ApplicationRecord
   # rebase instead of re-running the landing graders. Trades a small
   # logical-conflict risk for landing throughput. See Steps::ForcePush.
   attribute :trust_clean_rebase_grade, :boolean, default: false
+  attribute :feedback_policy, :string, default: "auto"
 
   belongs_to :user, optional: true
   belongs_to :installation, optional: true
@@ -39,6 +41,7 @@ class Repository < ApplicationRecord
   validates :trigger_label, presence: true
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
   validates :review_policy, presence: true, inclusion: { in: REVIEW_POLICIES }
+  validates :feedback_policy, presence: true, inclusion: { in: FEEDBACK_POLICIES }
   validates :name, uniqueness: {
     scope: :owner,
     case_sensitive: false,
@@ -57,6 +60,14 @@ class Repository < ApplicationRecord
 
   def archived?
     archived_at.present?
+  end
+
+  def feedback_policy_auto?
+    feedback_policy == "auto"
+  end
+
+  def feedback_policy_confirm?
+    feedback_policy == "confirm"
   end
 
   # Mark the repo as done. Side-effect: also flips polling_enabled off so

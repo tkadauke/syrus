@@ -30,6 +30,7 @@ class Job < ApplicationRecord
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
   has_many :job_approvals, dependent: :destroy
+  has_many :pr_review_comments, dependent: :destroy
   has_many :approving_users, through: :job_approvals, source: :user
   has_many :chat_proposals, dependent: :nullify
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy

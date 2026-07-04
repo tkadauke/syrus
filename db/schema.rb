@@ -556,6 +556,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_04_212042) do
     t.string "last_ci_handled_sha"
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
+    t.datetime "last_seen_fork_review_comment_at"
     t.string "local_mergeability_base_sha"
     t.datetime "local_mergeability_checked_at"
     t.string "local_mergeability_head_sha"
@@ -648,6 +649,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_04_212042) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
+  create_table "pr_review_comments", force: :cascade do |t|
+    t.boolean "actionable"
+    t.datetime "actioned_at"
+    t.string "actioned_by"
+    t.string "attributed_to"
+    t.text "body"
+    t.datetime "comment_created_at"
+    t.string "comment_kind", null: false
+    t.datetime "created_at", null: false
+    t.bigint "github_comment_id", null: false
+    t.string "github_handle"
+    t.integer "job_id", null: false
+    t.string "pr_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actioned_at"], name: "index_pr_review_comments_on_actioned_at"
+    t.index ["job_id", "pr_type", "comment_kind", "github_comment_id"], name: "index_pr_review_comments_uniqueness", unique: true
+    t.index ["job_id"], name: "index_pr_review_comments_on_job_id"
+  end
+
   create_table "repositories", force: :cascade do |t|
     t.string "agent_provider"
     t.boolean "approval_propagates_to_github", default: true
@@ -656,6 +676,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_04_212042) do
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
+    t.string "feedback_policy", default: "auto", null: false
     t.bigint "github_owner_id"
     t.bigint "github_repository_id"
     t.integer "installation_id"
@@ -1112,6 +1133,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_04_212042) do
   add_foreign_key "merge_trains", "repositories"
   add_foreign_key "notifications", "jobs"
   add_foreign_key "notifications", "users"
+  add_foreign_key "pr_review_comments", "jobs"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "repositories", column: "upstream_repository_id"
   add_foreign_key "repositories", "users"

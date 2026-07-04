@@ -236,6 +236,11 @@ RSpec.describe PollPullRequestJob do
       # CI branch fires too on every poll; default to "no checks" so
       # only the pr_comment branch can do anything in these tests.
       stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+      # Stub classifier to return actionable by default; individual tests
+      # override when they need to exercise non-actionable classification.
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
     end
 
     it "instantiates a PrFeedback workflow and stashes comments as artifacts" do
@@ -407,6 +412,131 @@ RSpec.describe PollPullRequestJob do
       expect {
         described_class.perform_now(job.id)
       }.not_to change { job.workflows.count }
+    end
+
+    it "does not enqueue a workflow when the classifier returns non-actionable for all new comments" do
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: false, reason: "just praise", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "LGTM!", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+    end
+
+    it "still stores a PrReviewComment record for non-actionable comments" do
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: false, reason: "praise", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "LGTM!", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { PrReviewComment.count }.by(1)
+
+      record = PrReviewComment.last
+      expect(record.actionable).to be false
+      expect(record.attributed_to).to eq("external")
+      expect(record.actioned_at).to be_nil
+    end
+
+    it "creates PrReviewComment records and marks qualifying ones as actioned when workflow is triggered" do
+      stub_issue_comments([
+        { id: 1, body: "Please fix the typo", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { PrReviewComment.count }.by(1)
+        .and change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      record = PrReviewComment.last
+      expect(record.actioned_at).to be_present
+      expect(record.actioned_by).to eq("auto_poll")
+    end
+
+    it "does not enqueue workflow for external actionable comments when feedback_policy is confirm" do
+      repository.update!(feedback_policy: "confirm")
+      stub_issue_comments([
+        { id: 1, body: "Please add more tests", user: { login: "outsider" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+
+      record = PrReviewComment.last
+      expect(record.attributed_to).to eq("external")
+      expect(record.actionable).to be true
+      expect(record.actioned_at).to be_nil
+    end
+
+    it "always enqueues workflow for job owner's actionable comments regardless of feedback_policy" do
+      repository.update!(feedback_policy: "confirm")
+      user.update!(github_handle: "op-dev")
+      stub_issue_comments([
+        { id: 1, body: "Change the algorithm", user: { login: "op-dev" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+    end
+
+    it "sets pr_type to direct for a standard PR on the repository" do
+      stub_issue_comments([
+        { id: 1, body: "Refactor this", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(job.id)
+
+      record = PrReviewComment.last
+      expect(record.pr_type).to eq("direct")
+    end
+
+    it "sets pr_type to upstream when pr_repository_id differs from repository_id" do
+      other_repo = Factories.repository(user: user, owner: "upstream-org", name: "upstream-widgets")
+      job.update!(pr_repository_id: other_repo.id)
+
+      stub_request(:get, "https://api.github.com/repos/upstream-org/#{other_repo.name}/pulls/7")
+        .with(query: hash_including({}))
+        .to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: { number: 7, state: "open", merged: false, labels: [],
+                  head: { sha: "deadbeef0000000000000000000000000000beef", ref: "syrus/branch" } }.to_json
+        )
+      stub_request(:get, "https://api.github.com/repos/upstream-org/#{other_repo.name}/pulls/7/reviews")
+        .with(query: hash_including({}))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json)
+      stub_request(:get, "https://api.github.com/repos/upstream-org/#{other_repo.name}/issues/7/comments")
+        .with(query: hash_including({}))
+        .to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: [ { id: 1, body: "Fix this", user: { login: "reviewer" }, created_at: t1.iso8601 } ].to_json
+        )
+      stub_request(:get, "https://api.github.com/repos/upstream-org/#{other_repo.name}/pulls/7/comments")
+        .with(query: hash_including({}))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json)
+      stub_request(:get, %r{api\.github\.com/repos/upstream-org/#{other_repo.name}/commits/.*/check-runs})
+        .with(query: hash_including({}))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { total_count: 0, check_runs: [] }.to_json)
+
+      described_class.perform_now(job.id)
+
+      record = PrReviewComment.last
+      expect(record&.pr_type).to eq("upstream")
     end
   end
 

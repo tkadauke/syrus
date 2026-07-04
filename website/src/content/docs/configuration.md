@@ -275,6 +275,37 @@ current implementation, issue ingestion always starts the `initial`
 workflow; scheduled tasks, PR feedback, CI failures, rebases, retries, and
 manual actions choose their own trigger-specific templates.
 
+## Feedback Policies
+
+The `feedback_policy` setting on each repository controls whether PR comments
+from team members and external reviewers are acted on automatically or require
+confirmation.
+
+| Policy | Behavior |
+| --- | --- |
+| `auto` (default) | Actionable comments from all commenter categories queue an implementation workflow automatically |
+| `confirm` | Only the job owner's actionable comments trigger automatic implementation; team member and external actionable comments are recorded but do not queue a workflow until confirmed by the operator |
+
+### Comment attribution
+
+Syrus classifies each new PR comment by commenter:
+
+- **Job owner** — the GitHub handle matches the job's owner user. Owner comments always queue automatically regardless of `feedback_policy`.
+- **Team member** — the handle matches a repository membership. Member comments respect `feedback_policy`.
+- **External** — the handle is not found in memberships and is not the owner. External comments respect `feedback_policy`.
+
+Syrus also passes each comment through an LLM classifier to determine whether it contains actionable feedback (requests a code change, correction, or improvement) or is a discussion remark, question, or acknowledgement. Non-actionable comments are stored in the `pr_review_comments` audit log but never trigger a workflow.
+
+### Which PRs are polled for comments
+
+Syrus polls all PR surfaces associated with a Job:
+
+- **Direct PR** — the PR Syrus opened against the shared repository (modes 1 and 2a)
+- **Upstream PR** — the PR opened against the upstream repository after fork review approval (modes 2b and 3)
+- **Fork review PR** — the internal PR from the feature branch to the fork's default branch, polled until the upstream PR is created
+
+All three surfaces use the same attribution and classification pipeline.
+
 ## Worker Environment
 
 The web and worker processes share the Rails environment. The worker also

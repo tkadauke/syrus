@@ -129,7 +129,18 @@ class PollPullRequestJob < ApplicationJob
     end
     return if new_comments.empty?
 
-    enqueue_followup_run(all_comments: all_comments, new_comments: new_comments, cutoff: cutoff)
+    # Attribute and classify each new comment; only trigger a workflow
+    # when at least one qualifies (job-owner actionable, or any actionable
+    # when feedback_policy == 'auto').
+    ingestion = ingest_new_comments(new_comments)
+    return unless ingestion.any_qualifying?
+
+    enqueue_followup_run(
+      all_comments: all_comments,
+      new_comments: new_comments,
+      cutoff: cutoff,
+      qualifying_records: ingestion.qualifying_records
+    )
   end
 
   def pending_followup?
@@ -156,7 +167,7 @@ class PollPullRequestJob < ApplicationJob
     (issue_comments + review_comments).sort_by(&:created_at)
   end
 
-  def enqueue_followup_run(all_comments:, new_comments:, cutoff:)
+  def enqueue_followup_run(all_comments:, new_comments:, cutoff:, qualifying_records: [])
     ingest_comment_images(new_comments)
     clear_stale_approval!
 
@@ -170,6 +181,8 @@ class PollPullRequestJob < ApplicationJob
     }
     workflow = Workflows::PrFeedback.instantiate(job: @job, artifacts: artifacts, agent_provider: @agent_provider)
     StepDispatcher.start_workflow(workflow)
+
+    qualifying_records.each { |r| r.mark_actioned!(by: "auto_poll") }
 
     latest = new_comments.map(&:created_at).compact.max
     @job.update!(last_seen_comment_at: latest) if latest && (@job.last_seen_comment_at.nil? || latest > @job.last_seen_comment_at)
@@ -191,6 +204,35 @@ class PollPullRequestJob < ApplicationJob
     return @job.last_feedback_addressed_at if @manual
 
     [ @job.last_seen_comment_at, @job.last_feedback_addressed_at ].compact.max
+  end
+
+  def ingest_new_comments(new_comments)
+    issue_new = new_comments.reject { |c| c.respond_to?(:path) && c.path.present? }
+    review_new = new_comments.select { |c| c.respond_to?(:path) && c.path.present? }
+
+    user = @job.owner_user || @job.user
+    provider = @agent_provider.presence || @job.agent_provider
+    pr_type = pr_type_for_job
+
+    issue_result = PrCommentIngester.call(
+      job: @job, comments: issue_new, pr_type: pr_type,
+      comment_kind: "issue", user: user, agent_provider: provider
+    )
+    review_result = PrCommentIngester.call(
+      job: @job, comments: review_new, pr_type: pr_type,
+      comment_kind: "review", user: user, agent_provider: provider
+    )
+
+    PrCommentIngester::Result.new(
+      qualifying_records: issue_result.qualifying_records + review_result.qualifying_records,
+      non_qualifying_records: issue_result.non_qualifying_records + review_result.non_qualifying_records
+    )
+  end
+
+  def pr_type_for_job
+    return "upstream" if @job.pr_repository_id.present? && @job.pr_repository_id != @job.repository_id
+
+    "direct"
   end
 
   # Octokit returns Sawyer::Resource objects; serialize to a plain
