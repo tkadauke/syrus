@@ -8,6 +8,10 @@ module ReviewPolicies
       raise NotImplementedError, "#{self.class} must implement #satisfied?"
     end
 
+    def pending_description
+      raise NotImplementedError, "#{self.class} must implement #pending_description"
+    end
+
     private
 
     def owner_approved?

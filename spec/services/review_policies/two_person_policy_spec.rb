@@ -14,20 +14,24 @@ RSpec.describe ReviewPolicies::TwoPersonPolicy do
   context "with no approvals" do
     subject { described_class.new(job_with_approvals) }
     it { is_expected.not_to be_satisfied }
+    it { expect(subject.pending_description).to eq("Waiting for owner approval") }
   end
 
   context "with only owner approval" do
     subject { described_class.new(job_with_approvals(owner)) }
     it { is_expected.not_to be_satisfied }
+    it { expect(subject.pending_description).to eq("Waiting for one additional approval") }
   end
 
   context "with only a non-owner approval" do
     subject { described_class.new(job_with_approvals(other)) }
     it { is_expected.not_to be_satisfied }
+    it { expect(subject.pending_description).to eq("Waiting for owner approval") }
   end
 
   context "with owner and another user's approval" do
     subject { described_class.new(job_with_approvals(owner, other)) }
     it { is_expected.to be_satisfied }
+    it { expect(subject.pending_description).to be_nil }
   end
 end

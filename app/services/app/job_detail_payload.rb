@@ -189,35 +189,14 @@ module App
     end
 
     def approval_status_json
-      policy = @job.repository.review_policy
+      policy_name = @job.repository.review_policy
+      policy_obj = ReviewPolicies.for(policy_name).new(@job)
       approvals = @job.job_approvals.includes(:user)
-      approver_ids = approvals.map(&:user_id)
-      satisfied = @job.approval_satisfied?
-
-      pending_description = case policy
-      when "self"
-        satisfied ? nil : "Waiting for owner to approve"
-      when "two_person"
-        if !approver_ids.include?(@job.owner_user_id)
-          "Waiting for owner approval"
-        elsif approver_ids.size < 2
-          "Waiting for one additional approval"
-        end
-      when "final_say"
-        final_approver_ids = @job.repository.final_approver_ids
-        if @job.owner_user_id && final_approver_ids.include?(@job.owner_user_id)
-          satisfied ? nil : "Waiting for owner to approve"
-        elsif !approver_ids.include?(@job.owner_user_id)
-          "Waiting for owner approval"
-        elsif (final_approver_ids & approver_ids).empty?
-          "Waiting for final approver"
-        end
-      end
 
       {
-        policy: policy,
-        satisfied: satisfied,
-        pending_description: pending_description,
+        policy: policy_name,
+        satisfied: policy_obj.satisfied?,
+        pending_description: policy_obj.pending_description,
         approvals_count: approvals.size
       }
     end

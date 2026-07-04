@@ -27,6 +27,14 @@ RSpec.describe ReviewPolicies::FinalSayPolicy do
     it "is satisfied when only the owner approves" do
       expect(described_class.new(job_with_approvals(repo, owner))).to be_satisfied
     end
+
+    it "returns waiting-for-owner description with no approvals" do
+      expect(described_class.new(job_with_approvals(repo)).pending_description).to eq("Waiting for owner to approve")
+    end
+
+    it "returns nil description when owner has approved" do
+      expect(described_class.new(job_with_approvals(repo, owner)).pending_description).to be_nil
+    end
   end
 
   context "when owner is not a final approver" do
@@ -46,6 +54,18 @@ RSpec.describe ReviewPolicies::FinalSayPolicy do
 
     it "is satisfied when owner and a final approver have both approved" do
       expect(described_class.new(job_with_approvals(repo, owner, final_approver))).to be_satisfied
+    end
+
+    it "returns waiting-for-owner description with no approvals" do
+      expect(described_class.new(job_with_approvals(repo)).pending_description).to eq("Waiting for owner approval")
+    end
+
+    it "returns waiting-for-final-approver description after owner approves" do
+      expect(described_class.new(job_with_approvals(repo, owner)).pending_description).to eq("Waiting for final approver")
+    end
+
+    it "returns nil description when fully satisfied" do
+      expect(described_class.new(job_with_approvals(repo, owner, final_approver)).pending_description).to be_nil
     end
   end
 end

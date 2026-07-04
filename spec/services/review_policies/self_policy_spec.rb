@@ -16,15 +16,18 @@ RSpec.describe ReviewPolicies::SelfPolicy do
   context "with no approvals" do
     let(:approvers) { [] }
     it { is_expected.not_to be_satisfied }
+    it { expect(policy.pending_description).to eq("Waiting for owner to approve") }
   end
 
   context "with owner approval" do
     let(:approvers) { [owner] }
     it { is_expected.to be_satisfied }
+    it { expect(policy.pending_description).to be_nil }
   end
 
   context "with only a non-owner approval" do
     let(:approvers) { [other] }
     it { is_expected.not_to be_satisfied }
+    it { expect(policy.pending_description).to eq("Waiting for owner to approve") }
   end
 end
