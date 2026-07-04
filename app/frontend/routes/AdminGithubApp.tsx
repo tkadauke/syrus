@@ -15,7 +15,7 @@ export function AdminGithubAppRegister() {
   })
 
   return (
-    <main aria-label="GitHub App registration" className="mx-auto max-w-5xl space-y-6 p-6">
+    <main aria-label="GitHub App registration" className="mx-auto max-w-6xl space-y-6 p-6">
       <PageHeader
         title="GitHub App registration"
         description="Register the singleton Syrus GitHub App. Repositories use App credentials only after the App is installed on their GitHub account or repository."
@@ -35,7 +35,7 @@ export function AdminGithubAppConfirm() {
   })
 
   return (
-    <main aria-label="GitHub App registered" className="mx-auto max-w-5xl space-y-6 p-6">
+    <main aria-label="GitHub App registered" className="mx-auto max-w-6xl space-y-6 p-6">
       <PageHeader
         title="GitHub App registered"
         description="Syrus stored the App credentials and queued an installation sync."
