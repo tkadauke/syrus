@@ -15,8 +15,10 @@ import {
   type AdminUserDetail,
   type AdminUserRow
 } from "../api/adminUsers"
+import { useT } from "../hooks/useT"
 
 export function AdminUsersIndex() {
+  const { t } = useT("admin")
   const location = useLocation()
   const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)
@@ -31,12 +33,12 @@ export function AdminUsersIndex() {
     <main aria-label="Admin users" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Users</h1>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("users.heading")}</h1>
         </div>
       </header>
 
-      {users.isPending ? <PanelMessage>Loading users...</PanelMessage> : null}
+      {users.isPending ? <PanelMessage>{t("users.loading")}</PanelMessage> : null}
       {users.isError ? <UsersError error={users.error} /> : null}
       {users.isSuccess ? (
         <AdminFiltersLayout
@@ -53,12 +55,12 @@ export function AdminUsersIndex() {
           smartFolders={
             <AdminSmartFolderNav
               activeFolderId={users.data.active_smart_folder_id}
-              allLabel="All users"
+              allLabel={t("users.all_users")}
               allPath={basePath}
               ariaLabel="Admin user smart folders"
               currentFilter={users.data.filter}
               folders={users.data.smart_folders}
-              heading="Smart folders"
+              heading={t("users.smart_folders")}
               onMutationSuccess={() => {
                 void queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
               }}
@@ -69,7 +71,7 @@ export function AdminUsersIndex() {
           }
         >
           <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{users.data.count} matching</div>
+            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{t("users.matching", { count: users.data.count })}</div>
             <UsersTable basePath={basePath} users={users.data.users} />
           </section>
         </AdminFiltersLayout>
@@ -81,6 +83,7 @@ export function AdminUsersIndex() {
 const adminUserLegacyFilterKeys = ["email", "admin", "has_github_token", "has_claude_token", "has_codex_token", "gh_rate"]
 
 export function AdminUserDetailRoute() {
+  const { t } = useT("admin")
   const params = useParams()
   const id = params.id || ""
   const location = useLocation()
@@ -94,11 +97,11 @@ export function AdminUserDetailRoute() {
   return (
     <main aria-label="Admin user detail" className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>Users</Link>
+        <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>{t("users.heading")}</Link>
         <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{user.data?.display_name || `User #${id}`}</h1>
       </header>
 
-      {user.isPending ? <PanelMessage>Loading user...</PanelMessage> : null}
+      {user.isPending ? <PanelMessage>{t("users.loading_user")}</PanelMessage> : null}
       {user.isError ? <UsersError error={user.error} /> : null}
       {user.isSuccess ? <UserDetail user={user.data} /> : null}
     </main>
@@ -106,22 +109,23 @@ export function AdminUserDetailRoute() {
 }
 
 function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: string }) {
-  if (users.length === 0) return <PanelMessage>No users match these filters.</PanelMessage>
+  const { t } = useT("admin")
+  if (users.length === 0) return <PanelMessage>{t("users.no_match")}</PanelMessage>
 
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2">User</th>
-            <th className="px-4 py-2">GitHub</th>
-            <th className="px-4 py-2">Admin</th>
-            <th className="px-4 py-2">Role</th>
-            <th className="px-4 py-2">Agent</th>
-            <th className="px-4 py-2">Scheduling</th>
-            <th className="px-4 py-2">Tokens</th>
-            <th className="px-4 py-2">GH API</th>
-            <th className="px-4 py-2">GH rate</th>
+            <th className="px-4 py-2">{t("users.col_user")}</th>
+            <th className="px-4 py-2">{t("users.col_github")}</th>
+            <th className="px-4 py-2">{t("users.col_admin")}</th>
+            <th className="px-4 py-2">{t("users.col_role")}</th>
+            <th className="px-4 py-2">{t("users.col_agent")}</th>
+            <th className="px-4 py-2">{t("users.col_scheduling")}</th>
+            <th className="px-4 py-2">{t("users.col_tokens")}</th>
+            <th className="px-4 py-2">{t("users.col_gh_api")}</th>
+            <th className="px-4 py-2">{t("users.col_gh_rate")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -132,12 +136,12 @@ function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: stri
                 {user.display_name !== user.email_address ? <div className="text-xs text-gray-500 dark:text-gray-400">{user.email_address}</div> : null}
               </td>
               <td className="px-4 py-2">{user.github_handle ? `@${user.github_handle}` : "-"}</td>
-              <td className="px-4 py-2">{user.admin ? "yes" : "-"}</td>
+              <td className="px-4 py-2">{user.admin ? t("users.yes") : "-"}</td>
               <td className="px-4 py-2">{roleLabel(user.role)}</td>
               <td className="px-4 py-2">{user.agent_provider}</td>
-              <td className="px-4 py-2">{user.scheduling_paused ? "paused" : "active"}</td>
+              <td className="px-4 py-2">{user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active")}</td>
               <td className="px-4 py-2 font-mono text-xs">{tokenSummary(user)}</td>
-              <td className="px-4 py-2">{user.github_api_blocked ? "blocked" : "ok"}</td>
+              <td className="px-4 py-2">{user.github_api_blocked ? t("users.blocked") : t("users.ok")}</td>
               <td className="px-4 py-2">{rateLimitLabel(user)}</td>
             </tr>
           ))}
@@ -148,18 +152,19 @@ function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: stri
 }
 
 function UserDetail({ user }: { user: AdminUserDetail }) {
+  const { t } = useT("admin")
   return (
     <>
       <section className="grid gap-4 md:grid-cols-2">
-        <InfoPanel title="Identity">
+        <InfoPanel title={t("users.identity")}>
           <Info label="Email" value={user.email_address} />
           <Info label="GitHub" value={user.github_handle ? `@${user.github_handle}` : "-"} />
-          <Info label="Admin" value={user.admin ? "yes" : "no"} />
+          <Info label="Admin" value={user.admin ? t("users.yes") : t("users.no")} />
           <Info label="Role" value={<RoleOverride user={user} />} />
-          <Info label="GitHub API blocked" value={user.github_api_blocked ? user.github_api_blocked_reason || "yes" : "no"} />
+          <Info label="GitHub API blocked" value={user.github_api_blocked ? user.github_api_blocked_reason || t("users.yes") : t("users.no")} />
           <Info label="Created" value={formatDate(user.created_at)} />
         </InfoPanel>
-        <InfoPanel title="Agent and Tokens">
+        <InfoPanel title={t("users.agent_tokens")}>
           <Info label="Agent provider" value={user.agent_provider} />
           <Info label="Codex auth mode" value={user.codex_auth_mode} />
           <Info label="Max turns" value={String(user.agent_max_turns)} />
@@ -169,15 +174,15 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
       </section>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-        <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Scheduling</h2>
+        <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("users.scheduling")}</h2>
         <div className="mt-3 flex items-center gap-4">
-          <span className="text-sm text-gray-700 dark:text-gray-200">Status: <strong>{user.scheduling_paused ? "paused" : "active"}</strong></span>
+          <span className="text-sm text-gray-700 dark:text-gray-200">{t("users.status_prefix")}<strong>{user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active")}</strong></span>
           <SchedulingButton user={user} />
         </div>
       </section>
 
-      <RecentTable title="Recent jobs" rows={user.recent_jobs.map((job) => [`#${job.id}`, job.state, job.kind, formatDate(job.created_at)])} />
-      <RecentTable title="Recent runs" rows={user.recent_runs.map((run) => [`#${run.id}`, run.state, run.trigger_kind, formatDate(run.started_at)])} />
+      <RecentTable title={t("users.recent_jobs")} rows={user.recent_jobs.map((job) => [`#${job.id}`, job.state, job.kind, formatDate(job.created_at)])} />
+      <RecentTable title={t("users.recent_runs")} rows={user.recent_runs.map((run) => [`#${run.id}`, run.state, run.trigger_kind, formatDate(run.started_at)])} />
     </>
   )
 }
@@ -207,6 +212,7 @@ function RoleOverride({ user }: { user: AdminUserDetail }) {
 }
 
 function SchedulingButton({ user }: { user: AdminUserDetail }) {
+  const { t } = useT("admin")
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: () => user.scheduling_paused ? unpauseUserScheduling(user.id) : pauseUserScheduling(user.id),
@@ -223,7 +229,7 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
       onClick={() => mutation.mutate()}
       type="button"
     >
-      {mutation.isPending ? "Saving..." : user.scheduling_paused ? "Resume scheduling" : "Pause scheduling"}
+      {mutation.isPending ? t("users.saving") : user.scheduling_paused ? t("users.resume_scheduling") : t("users.pause_scheduling")}
     </button>
   )
 }
@@ -247,11 +253,12 @@ function Info({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function RecentTable({ title, rows }: { title: string; rows: string[][] }) {
+  const { t } = useT("admin")
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200">{title}</div>
       {rows.length === 0 ? (
-        <PanelMessage>No rows yet.</PanelMessage>
+        <PanelMessage>{t("users.no_rows")}</PanelMessage>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -268,7 +275,8 @@ function RecentTable({ title, rows }: { title: string; rows: string[][] }) {
 }
 
 function UsersError({ error }: { error: Error }) {
-  const message = error instanceof ApiError ? error.message : "Unable to load users."
+  const { t } = useT("admin")
+  const message = error instanceof ApiError ? error.message : t("users.error_load")
 
   return <PanelMessage tone="error">{message}</PanelMessage>
 }

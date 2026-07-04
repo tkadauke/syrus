@@ -10,10 +10,12 @@ import {
 } from "../api/adminSettings"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { useT } from "../hooks/useT"
 
 const queryKey = ["admin", "settings"] as const
 
 export function AdminSettings() {
+  const { t } = useT("admin")
   const [notice, setNotice] = useState<string | null>(null)
   const settings = useQuery({
     queryKey,
@@ -23,12 +25,12 @@ export function AdminSettings() {
   return (
     <main aria-label="Admin settings" className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">App settings</h1>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("settings.heading")}</h1>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {settings.isPending ? <PanelMessage>Loading app settings...</PanelMessage> : null}
+      {settings.isPending ? <PanelMessage>{t("settings.loading")}</PanelMessage> : null}
       {settings.isError ? <SettingsError error={settings.error} /> : null}
       {settings.isSuccess ? <SettingsView onNotice={setNotice} payload={settings.data} /> : null}
     </main>
@@ -52,6 +54,7 @@ function SettingsView({ payload, onNotice }: { payload: AdminSettingsPayload; on
 }
 
 function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (message: string | null) => void }) {
+  const { t } = useT("admin")
   const queryClient = useQueryClient()
   const clearSecret = useMutation({
     mutationFn: () => clearAdminSettingSecret(secret.key),
@@ -66,7 +69,7 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
       <div>
         <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{secret.label}</div>
         <div className={`mt-1 text-xs ${secret.set ? "text-gray-500 dark:text-gray-400" : "text-amber-700 dark:text-amber-300"}`}>
-          {secret.set ? "Currently set. Blank update fields will not clear it." : "Not set."}
+          {secret.set ? t("settings.currently_set") : t("settings.not_set")}
         </div>
       </div>
       {secret.set ? (
@@ -81,15 +84,16 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
           }}
           type="button"
         >
-          {clearSecret.isPending ? "Clearing..." : "Clear"}
+          {clearSecret.isPending ? t("settings.clearing") : t("settings.clear")}
         </button>
       ) : null}
-      {clearSecret.isError ? <div className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearSecret.error, "Unable to clear secret.")}</div> : null}
+      {clearSecret.isError ? <div className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearSecret.error, t("settings.error_clear"))}</div> : null}
     </div>
   )
 }
 
 function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
+  const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [signupsOpen, setSignupsOpen] = useState(payload.settings.signups_open)
   const update = useMutation({
@@ -98,7 +102,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || "Settings updated.")
+      onNotice(updated.message || t("settings.settings_updated"))
     }
   })
 
@@ -123,9 +127,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           type="checkbox"
         />
         <span>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-signups-open">Open signups</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-signups-open">{t("settings.signups_open_label")}</label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-            When enabled, anyone can create an account at /users/new. When disabled, signup is invitation-only, but invitation links still work either way.
+            {t("settings.signups_open_help")}
           </span>
         </span>
       </div>
@@ -135,15 +139,16 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         disabled={update.isPending}
         type="submit"
       >
-        {update.isPending ? "Saving..." : "Save"}
+        {update.isPending ? t("settings.saving") : t("settings.save")}
       </button>
-      {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, "Unable to update settings.")}</p> : null}
+      {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("settings.error_update"))}</p> : null}
     </form>
   )
 }
 
 function SettingsError({ error }: { error: Error }) {
-  return <PanelMessage tone="error">{errorMessage(error, "Unable to load app settings.")}</PanelMessage>
+  const { t } = useT("admin")
+  return <PanelMessage tone="error">{errorMessage(error, t("settings.error_load"))}</PanelMessage>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {

@@ -7,10 +7,12 @@ import {
   type AdminFeaturesPayload
 } from "../api/adminFeatures"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 
 const queryKey = ["admin", "features"] as const
 
 export function AdminFeatures() {
+  const { t } = useT("admin")
   const features = useQuery({
     queryKey,
     queryFn: fetchAdminFeatures
@@ -19,23 +21,24 @@ export function AdminFeatures() {
   return (
     <main aria-label="Admin features" className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Features</h1>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("features.heading")}</h1>
       </header>
 
-      {features.isPending ? <PanelMessage>Loading features...</PanelMessage> : null}
-      {features.isError ? <PanelMessage tone="error">{errorMessage(features.error, "Unable to load features.")}</PanelMessage> : null}
+      {features.isPending ? <PanelMessage>{t("features.loading")}</PanelMessage> : null}
+      {features.isError ? <PanelMessage tone="error">{errorMessage(features.error, t("features.error_load"))}</PanelMessage> : null}
       {features.isSuccess ? <FeaturesView payload={features.data} /> : null}
     </main>
   )
 }
 
 function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
+  const { t } = useT("admin")
   if (payload.categories.length === 0) {
     return (
       <section className="rounded border border-dashed border-gray-300 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">No features declared</h2>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Feature controls will appear here after config/features.yml declares at least one feature.</p>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("features.no_features_heading")}</h2>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("features.no_features_body")}</p>
       </section>
     )
   }
@@ -55,6 +58,7 @@ function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
 }
 
 function FeatureCard({ feature }: { feature: AdminFeature }) {
+  const { t } = useT("admin")
   const queryClient = useQueryClient()
   const toggleFeature = useMutation({
     mutationFn: (enabled: boolean) => updateAdminFeature(feature.slug, enabled),
@@ -83,7 +87,7 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
           <p className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{feature.slug}</p>
         </div>
         <label className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
-          <span>{feature.enabled ? "Enabled" : "Disabled"}</span>
+          <span>{feature.enabled ? t("features.enabled") : t("features.disabled")}</span>
           <input
             checked={feature.enabled}
             className="sr-only peer"
@@ -95,7 +99,7 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
         </label>
       </div>
       {feature.description ? <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{feature.description}</p> : null}
-      {toggleFeature.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(toggleFeature.error, "Unable to update feature.")}</p> : null}
+      {toggleFeature.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(toggleFeature.error, t("features.error_update"))}</p> : null}
     </article>
   )
 }

@@ -12,8 +12,10 @@ import {
   type RepositoryScheduledTasksPayload
 } from "../api/scheduledTasks"
 import { RepositoryTabs } from "../components/RepositoryTabs"
+import { useT } from "../hooks/useT"
 
 export function RepositoryScheduledTasksRoute() {
+  const { t } = useT("settings")
   const location = useLocation()
   const params = useParams()
   const repositoryId = params.repositoryId || ""
@@ -25,7 +27,7 @@ export function RepositoryScheduledTasksRoute() {
 
   return (
     <main aria-label="Repository scheduled tasks" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {tasks.isPending ? <PanelMessage>Loading scheduled tasks...</PanelMessage> : null}
+      {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
       {tasks.isError ? <RepositoryScheduledTasksError error={tasks.error} /> : null}
       {tasks.isSuccess ? <RepositoryScheduledTasksView payload={tasks.data} prefix={routePrefix(location.pathname)} /> : null}
     </main>
@@ -33,6 +35,7 @@ export function RepositoryScheduledTasksRoute() {
 }
 
 function RepositoryScheduledTasksView({ payload, prefix }: { payload: RepositoryScheduledTasksPayload; prefix: string }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const queryKey = ["repositories", String(payload.repository.id), "scheduled_tasks"] as const
@@ -64,28 +67,28 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
       <RepositoryTabs active="scheduled_tasks" prefix={prefix} tabs={payload.tabs} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Scheduled tasks</h2>
-        <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={`${prefix}/repositories/${payload.repository.id}/scheduled_tasks/new`}>New scheduled task</Link>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("scheduled_tasks.heading")}</h2>
+        <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={`${prefix}/repositories/${payload.repository.id}/scheduled_tasks/new`}>{t("scheduled_tasks.new_task")}</Link>
       </div>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {toggle.isError ? <PanelMessage tone="error">{errorMessage(toggle.error, "Unable to update scheduled task.")}</PanelMessage> : null}
-      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete scheduled task.")}</PanelMessage> : null}
+      {toggle.isError ? <PanelMessage tone="error">{errorMessage(toggle.error, t("scheduled_tasks.error_update"))}</PanelMessage> : null}
+      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("scheduled_tasks.error_delete"))}</PanelMessage> : null}
 
       {payload.tasks.length === 0 ? (
         <section className="rounded border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          No scheduled tasks for this repository.
+          {t("scheduled_tasks.no_tasks")}
         </section>
       ) : (
         <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Schedule</th>
-                <th className="px-4 py-3">Next window</th>
-                <th className="px-4 py-3">State</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3">{t("scheduled_tasks.name")}</th>
+                <th className="px-4 py-3">{t("scheduled_tasks.schedule")}</th>
+                <th className="px-4 py-3">{t("scheduled_tasks.next_window")}</th>
+                <th className="px-4 py-3">{t("scheduled_tasks.state")}</th>
+                <th className="px-4 py-3 text-right">{t("scheduled_tasks.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -95,8 +98,8 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
                     <Link className="font-medium text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
                     <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{task.schedule_label || "none"}</td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDate(task.next_fire_at) || "none"}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{task.schedule_label || t("scheduled_tasks.none")}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDate(task.next_fire_at) || t("scheduled_tasks.none")}</td>
                   <td className="px-4 py-3"><StatePill state={task.state} /></td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
@@ -106,17 +109,17 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
                         onClick={() => toggle.mutate({ task, enabled: !task.active })}
                         type="button"
                       >
-                        {task.active ? "Disable" : "Enable"}
+                        {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
                       </button>
                       <button
                         className="rounded border border-red-200 dark:border-red-800 px-3 py-1 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
                         disabled={destroy.isPending}
                         onClick={() => {
-                          if (window.confirm("Delete this scheduled task?")) destroy.mutate(task)
+                          if (window.confirm(t("scheduled_tasks.confirm_delete"))) destroy.mutate(task)
                         }}
                         type="button"
                       >
-                        Delete
+                        {t("scheduled_tasks.delete")}
                       </button>
                     </div>
                   </td>
@@ -141,7 +144,8 @@ function StatePill({ state }: { state: string }) {
 }
 
 function RepositoryScheduledTasksError({ error }: { error: Error }) {
-  return <PanelMessage tone="error">{errorMessage(error, "Unable to load repository scheduled tasks.")}</PanelMessage>
+  const { t } = useT("settings")
+  return <PanelMessage tone="error">{errorMessage(error, t("scheduled_tasks.error_load"))}</PanelMessage>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {

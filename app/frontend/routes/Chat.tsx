@@ -99,6 +99,7 @@ import {
   type SlashCommandMatch
 } from "../lib/slashCommands"
 import { createReportIssue } from "../api/reportIssues"
+import { useT } from "../hooks/useT"
 
 const WHITEBOARD_SAVE_DEBOUNCE_MS = 500
 const CHAT_ENTER_SUBMIT_MIN_WIDTH = 1024
@@ -139,6 +140,7 @@ export function ChatRoute() {
   const queryKey = chatQueryKey(id, location.search)
   const prefix = routePrefix(location.pathname)
   const viewportStyle = useChatVisualViewportStyle()
+  const { t } = useT("chat")
   const chat = useQuery({
     queryKey,
     queryFn: () => fetchChat(id, location.search),
@@ -162,8 +164,8 @@ export function ChatRoute() {
       className="mx-auto flex h-full max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6"
       style={viewportStyle}
     >
-      {chat.isPending ? <PanelMessage>Loading chat...</PanelMessage> : null}
-      {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, "Unable to load chat.")}</PanelMessage> : null}
+      {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
+      {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, t("error_load_chat"))}</PanelMessage> : null}
       {chat.isSuccess ? <ChatView chatId={id} payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
     </main>
   )
@@ -172,6 +174,7 @@ export function ChatRoute() {
 export function SharedChatRoute() {
   const params = useParams()
   const token = params.token || ""
+  const { t } = useT("chat")
   const chat = useQuery({
     queryKey: ["shared-chat", token],
     queryFn: () => fetchSharedChat(token),
@@ -180,23 +183,24 @@ export function SharedChatRoute() {
 
   return (
     <main
-      aria-label="Shared chat"
+      aria-label={t("shared_chat_fallback_title")}
       className="mx-auto flex h-full max-w-[64rem] flex-col gap-4 overflow-hidden p-3 sm:p-6"
       style={useChatVisualViewportStyle()}
     >
-      {chat.isPending ? <PanelMessage>Loading shared chat...</PanelMessage> : null}
-      {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, "Unable to load shared chat.")}</PanelMessage> : null}
+      {chat.isPending ? <PanelMessage>{t("loading_shared_chat")}</PanelMessage> : null}
+      {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, t("error_load_shared_chat"))}</PanelMessage> : null}
       {chat.isSuccess ? <SharedChatView payload={chat.data} /> : null}
     </main>
   )
 }
 
 function SharedChatView({ payload }: { payload: SharedChatPayload }) {
+  const { t } = useT("chat")
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-700">
-        <h1 className="break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.chat.title || "Shared chat"}</h1>
-        <span className="rounded border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">View only</span>
+        <h1 className="break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.chat.title || t("shared_chat_fallback_title")}</h1>
+        <span className="rounded border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">{t("view_only")}</span>
       </header>
       <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
         <ReadOnlyMessageStream payload={payload} />
@@ -208,11 +212,12 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
 function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
   const items = renderChatMessages(payload.messages)
   const placeholderPayload = sharedChatRenderPayload(payload)
+  const { t } = useT("chat")
 
   if (items.length === 0) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
-        This shared chat has no messages.
+        {t("no_shared_chat_messages")}
       </div>
     )
   }
@@ -352,6 +357,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
   const [whiteboardFullscreen, setWhiteboardFullscreen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const { t } = useT("chat")
 
   const title = chatDisplayTitle(payload.chat)
 
@@ -378,10 +384,10 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
             <h1 className={`break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>{title}</h1>
           </div>
           <button
-            aria-label="Chat settings"
+            aria-label={t("chat_settings")}
             className="rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
             onClick={() => setSettingsOpen(true)}
-            title="Chat settings"
+            title={t("chat_settings")}
             type="button"
           >
             <GearIcon className="h-5 w-5" />
@@ -393,7 +399,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
 
       {!payload.chat_available ? (
         <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-          <div className="font-semibold">Claude credentials are required.</div>
+          <div className="font-semibold">{t("credentials_required_title")}</div>
           <p className="mt-1">Chat uses Claude. Add a Claude OAuth token in <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>Credentials</Link> to enable chat.</p>
         </section>
       ) : (
@@ -415,6 +421,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
 
 function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const location = useLocation()
+  const { t } = useT("chat")
   const streamRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const streamChatIdRef = useRef(payload.chat.id)
@@ -565,7 +572,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
     return (
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <div>{payload.chat.repository ? "Start a chat with this repository." : "Ask anything, or attach a repository for code context."}</div>
+          <div>{payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
           {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
@@ -576,8 +583,8 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
   return (
     <div className="relative h-full min-h-0">
       <div className="h-full min-h-0 space-y-4 overflow-y-auto p-3 pt-12 sm:p-4 sm:pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
-        {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">Loading older messages...</div> : null}
-        {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, "Unable to load older messages.")}</div> : null}
+        {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
+        {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
         {hiddenSystemMessageCount > 0 ? (
           <SystemMessagesToggle count={hiddenSystemMessageCount} expanded={showSystemMessages} onToggle={() => setShowSystemMessages((value) => !value)} />
         ) : null}
@@ -601,7 +608,7 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
           onClick={scrollToBottom}
           type="button"
         >
-          {newMessageCount} new {newMessageCount === 1 ? "message" : "messages"}
+          {t("new_messages_button", { count: newMessageCount })}
         </button>
       ) : null}
     </div>
@@ -642,10 +649,11 @@ function WaveLine({ patternId }: { patternId: string }) {
 }
 
 function SystemMessagesToggle({ count, expanded, onToggle }: { count: number; expanded: boolean; onToggle: () => void }) {
+  const { t } = useT("chat")
   return (
     <div className="flex justify-center">
       <button className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={onToggle} type="button">
-        {expanded ? "Hide system messages" : `Show ${count} hidden system ${count === 1 ? "message" : "messages"}`}
+        {expanded ? t("hide_system_messages") : t("show_system_messages", { count })}
       </button>
     </div>
   )
@@ -702,7 +710,8 @@ function AgentActivityIndicator({ running }: { running: boolean }) {
 }
 
 function SwitchingProviderIndicator({ provider }: { provider: string }) {
-  const label = `Switching to ${providerLabel(provider)}…`
+  const { t } = useT("chat")
+  const label = t("switching_to_provider", { provider: providerLabel(provider) })
   return (
     <div aria-label={label} aria-live="polite" className="flex justify-start" role="status">
       <div className="inline-flex items-center gap-2 rounded-full border border-amber-100 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -1700,6 +1709,7 @@ function ChildDependencyPill({ dependency, prefix }: { dependency: ChatProposalC
 function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { t } = useT("chat")
   const [text, setText] = useState(() => {
     try {
       return window.localStorage.getItem(CHAT_DRAFT_KEY_PREFIX + chatId) || ""
@@ -2406,10 +2416,10 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
         {clearConfirmationOpen ? (
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-            <span>Clear this chat's message history?</span>
+            <span>{t("clear_confirm")}</span>
             <span className="flex gap-2">
-              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} type="button">Clear</button>
-              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} type="button">Cancel</button>
+              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} type="button">{t("clear")}</button>
+              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} type="button">{t("cancel")}</button>
             </span>
           </div>
         ) : null}
@@ -2489,7 +2499,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
       <div className="flex items-end justify-between gap-3">
         <input
           accept="image/*,application/pdf"
-          aria-label="Chat attachments"
+          aria-label={t("chat_attachments")}
           className="hidden"
           disabled={send.isPending || systemAction.isPending}
           multiple
@@ -2500,7 +2510,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         <button
           aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
           aria-expanded={attachmentPopoverOpen}
-          aria-label="Add attachment"
+          aria-label={t("add_attachment")}
           aria-haspopup="dialog"
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
           disabled={send.isPending || systemAction.isPending}
@@ -2512,7 +2522,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         </button>
         {attachmentPopoverOpen ? (
           <div
-            aria-label="Add attachment"
+            aria-label={t("add_attachment")}
             className="absolute bottom-[4.25rem] left-3 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
             id="chat-attachment-popover"
             onKeyDown={handleAttachmentPopoverKeyDown}
@@ -2525,7 +2535,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
               type="button"
             >
               <UploadIcon className="h-4 w-4 shrink-0 text-gray-400" />
-              Upload file
+              {t("upload_file")}
             </button>
             <div className="border-t border-gray-100 dark:border-gray-800" />
             <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
@@ -2542,14 +2552,14 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             if (clearConfirmationOpen) setClearConfirmationOpen(false)
           }}
           onKeyDown={handleKeyDown}
-          placeholder={payload.switching_provider ? `Switching to ${providerLabel(payload.chat.chat_provider ?? "")}…` : agentActive ? "Queue a follow-up message..." : payload.chat.repository ? "Ask about this repository..." : "Ask anything — or attach a repository to give the agent context..."}
+          placeholder={payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
           ref={textareaRef}
           required
           rows={1}
           value={text}
         />
         <div className="flex items-center gap-2">
-          <button aria-label={agentActive ? "Enqueue message" : "Send message"} className={`${primaryButton()} inline-flex items-center justify-center`} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">
+          <button aria-label={agentActive ? t("enqueue_message") : t("send_message")} className={`${primaryButton()} inline-flex items-center justify-center`} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">
             {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}
           </button>
           {agentActive && !payload.switching_provider ? <StopButton payload={payload} queryKey={queryKey} /> : null}
@@ -2887,6 +2897,7 @@ function ChatWorkspace({
   const handledMessageDeepLinkRef = useRef<string | null>(null)
   const navigate = useNavigate()
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const { t } = useT("chat")
   const expanded = activeTab === "whiteboard" && whiteboardFullscreen
 
   useEffect(() => {
@@ -3025,7 +3036,7 @@ function ChatWorkspace({
       {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />}
       {expanded || panelCollapsed ? null : (
         <button
-          aria-label="Resize chat workspace"
+          aria-label={t("resize_workspace")}
           className="hidden cursor-col-resize rounded bg-transparent transition hover:bg-blue-100 focus:bg-blue-100 focus:outline-none lg:block dark:hover:bg-blue-950 dark:focus:bg-blue-950"
           onMouseDown={beginResize}
           type="button"
@@ -3034,10 +3045,10 @@ function ChatWorkspace({
       {!expanded && panelCollapsed ? (
         <div className="hidden lg:flex lg:flex-col lg:items-start lg:pt-3">
           <button
-            aria-label="Open workspace panel"
+            aria-label={t("open_workspace")}
             className="rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
             onClick={() => setPanelCollapsed(false)}
-            title="Open panel"
+            title={t("open_panel")}
             type="button"
           >
             <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -3069,6 +3080,7 @@ function ChatWorkspace({
 }
 
 function BookmarkPickerModal({ bookmarks, onClose, onSelect }: { bookmarks: ChatBookmark[]; onClose: () => void; onSelect: (messageId: number) => void }) {
+  const { t } = useT("chat")
   function selectBookmark(bookmark: ChatBookmark) {
     onSelect(bookmark.anchor_message_id ?? bookmark.chat_message_id)
     onClose()
@@ -3078,9 +3090,9 @@ function BookmarkPickerModal({ bookmarks, onClose, onSelect }: { bookmarks: Chat
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
       <section aria-labelledby="bookmark-picker-title" aria-modal="true" className="w-full max-w-md rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="bookmark-picker-title">Bookmarks</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="bookmark-picker-title">{t("bookmarks")}</h2>
           <button
-            aria-label="Close bookmarks"
+            aria-label={t("close_bookmarks")}
             className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             onClick={onClose}
             type="button"
@@ -3090,7 +3102,7 @@ function BookmarkPickerModal({ bookmarks, onClose, onSelect }: { bookmarks: Chat
         </header>
         <div className="max-h-[min(24rem,calc(100dvh-10rem))] overflow-y-auto p-2">
           {bookmarks.length === 0 ? (
-            <div className="px-2 py-6 text-center text-sm text-gray-500 dark:text-gray-400">No bookmarks yet</div>
+            <div className="px-2 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("no_bookmarks")}</div>
           ) : (
             <div className="space-y-1">
               {bookmarks.map((bookmark) => (
@@ -3114,6 +3126,7 @@ function BookmarkPickerModal({ bookmarks, onClose, onSelect }: { bookmarks: Chat
 
 function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
+  const { t } = useT("chat")
   const landing = payload.messages.length === 0 && payload.pending_actions.length === 0 && !hasSentFirstMessage
 
   useEffect(() => {
@@ -3123,7 +3136,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
   return (
     <section className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-3"}`}>
       {landing ? (
-        <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">What would you like to build?</h1>
+        <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
       ) : null}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`}>
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
@@ -3459,6 +3472,7 @@ function formatRelativeTime(value: string) {
 
 function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onClose: () => void }) {
   const queryClient = useQueryClient()
+  const { t } = useT("chat")
   const providerOptions = payload.chat.chat_provider_options || []
   const configuredExplicitOptions = providerOptions.filter((option) => option.value && option.configured)
   const showProviderSelector = configuredExplicitOptions.length > 1
@@ -3476,7 +3490,7 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
       <section aria-modal="true" aria-labelledby="chat-settings-title" className="w-full max-w-md rounded border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="dialog">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="chat-settings-title">Chat settings</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="chat-settings-title">{t("chat_settings")}</h2>
             <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{chatDisplayTitle(payload.chat)}</p>
           </div>
           <button aria-label="Close chat settings" className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">

@@ -11,10 +11,12 @@ import {
 import { ApiError } from "../api/client"
 import { CopyIcon } from "../components/CopyableJobSlug"
 import { NoticeToast } from "../components/NoticeToast"
+import { useT } from "../hooks/useT"
 
 const queryKey = ["admin", "invitations"] as const
 
 export function AdminInvitations() {
+  const { t } = useT("admin")
   const [notice, setNotice] = useState<string | null>(null)
   const invitations = useQuery({
     queryKey,
@@ -24,10 +26,10 @@ export function AdminInvitations() {
   return (
     <main aria-label="Admin invitations" className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Invitations</h1>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("invitations.heading")}</h1>
         <p className="mt-2 max-w-prose text-sm text-gray-600 dark:text-gray-300">
-          Generate one-time signup links. Default expiry is 7 days, and invitations work even when open signups are disabled.
+          {t("invitations.description")}
         </p>
       </header>
 
@@ -35,8 +37,8 @@ export function AdminInvitations() {
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Pending invitations</div>
-        {invitations.isPending ? <PanelMessage>Loading invitations...</PanelMessage> : null}
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200">{t("invitations.pending")}</div>
+        {invitations.isPending ? <PanelMessage>{t("invitations.loading")}</PanelMessage> : null}
         {invitations.isError ? <InvitationsError error={invitations.error} /> : null}
         {invitations.isSuccess ? <InvitationsTable invitations={invitations.data.invitations} onNotice={setNotice} /> : null}
       </section>
@@ -45,6 +47,7 @@ export function AdminInvitations() {
 }
 
 function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null) => void }) {
+  const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [emailAddress, setEmailAddress] = useState("")
   const create = useMutation({
@@ -52,7 +55,7 @@ function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null)
     onSuccess: (payload) => {
       queryClient.setQueryData(queryKey, payload)
       setEmailAddress("")
-      onNotice(payload.message || "Invitation created.")
+      onNotice(payload.message || t("invitations.invitation_created"))
     }
   })
 
@@ -64,10 +67,10 @@ function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null)
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">New invitation</h2>
+      <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("invitations.new_section")}</h2>
       <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={submit}>
         <label className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-          Email address
+          {t("invitations.email_label")}
           <input
             autoComplete="off"
             className="mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
@@ -82,26 +85,27 @@ function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null)
           disabled={create.isPending}
           type="submit"
         >
-          {create.isPending ? "Generating..." : "Generate"}
+          {create.isPending ? t("invitations.generating") : t("invitations.generate")}
         </button>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, "Unable to create invitation.")}</p> : null}
+      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("invitations.error_create"))}</p> : null}
     </section>
   )
 }
 
 function InvitationsTable({ invitations, onNotice }: { invitations: AdminInvitation[]; onNotice: (message: string | null) => void }) {
-  if (invitations.length === 0) return <PanelMessage>No pending invitations.</PanelMessage>
+  const { t } = useT("admin")
+  if (invitations.length === 0) return <PanelMessage>{t("invitations.no_pending")}</PanelMessage>
 
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2">Email</th>
-            <th className="px-4 py-2">Share URL</th>
-            <th className="px-4 py-2">Expires</th>
-            <th className="px-4 py-2">Invited by</th>
+            <th className="px-4 py-2">{t("invitations.col_email")}</th>
+            <th className="px-4 py-2">{t("invitations.col_share_url")}</th>
+            <th className="px-4 py-2">{t("invitations.col_expires")}</th>
+            <th className="px-4 py-2">{t("invitations.col_invited_by")}</th>
             <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -116,6 +120,7 @@ function InvitationsTable({ invitations, onNotice }: { invitations: AdminInvitat
 }
 
 function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; onNotice: (message: string | null) => void }) {
+  const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -123,7 +128,7 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
     mutationFn: () => revokeAdminInvitation(invitation.id),
     onSuccess: (payload: AdminInvitationsPayload) => {
       queryClient.setQueryData(queryKey, payload)
-      onNotice(payload.message || "Invitation revoked.")
+      onNotice(payload.message || t("invitations.revoke_confirm"))
     },
     onSettled: () => setConfirming(false)
   })
@@ -137,7 +142,7 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
   function copyUrl() {
     navigator.clipboard.writeText(invitation.share_url)
     setCopied(true)
-    onNotice("Link copied to clipboard.")
+    onNotice(t("invitations.link_copied"))
   }
 
   return (
@@ -159,7 +164,7 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
       <td className="whitespace-nowrap px-4 py-3 text-right">
         {confirming ? (
           <span className="inline-flex items-center gap-2 text-sm">
-            <span className="text-gray-700 dark:text-gray-200">Revoke this invitation?</span>
+            <span className="text-gray-700 dark:text-gray-200">{t("invitations.revoke_confirm")}</span>
             <button
               className="font-medium text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300"
               disabled={revoke.isPending}
@@ -169,7 +174,7 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
               }}
               type="button"
             >
-              {revoke.isPending ? "Revoking..." : "Yes, revoke"}
+              {revoke.isPending ? t("invitations.revoking") : t("invitations.revoke_yes")}
             </button>
             <button
               className="text-gray-500 dark:text-gray-400 underline hover:no-underline disabled:cursor-not-allowed"
@@ -177,7 +182,7 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
               onClick={() => setConfirming(false)}
               type="button"
             >
-              Cancel
+              {t("invitations.cancel")}
             </button>
           </span>
         ) : (
@@ -189,17 +194,18 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
             }}
             type="button"
           >
-            Revoke
+            {t("invitations.revoke")}
           </button>
         )}
-        {revoke.isError ? <div className="mt-1 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(revoke.error, "Unable to revoke invitation.")}</div> : null}
+        {revoke.isError ? <div className="mt-1 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(revoke.error, t("invitations.error_revoke"))}</div> : null}
       </td>
     </tr>
   )
 }
 
 function InvitationsError({ error }: { error: Error }) {
-  return <PanelMessage tone="error">{errorMessage(error, "Unable to load invitations.")}</PanelMessage>
+  const { t } = useT("admin")
+  return <PanelMessage tone="error">{errorMessage(error, t("invitations.error_load"))}</PanelMessage>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {

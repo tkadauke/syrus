@@ -3,10 +3,12 @@ import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { fetchAdminStuck, type StuckItem } from "../api/adminStuck"
 import { workflowSlug } from "../lib/slugs"
+import { useT } from "../hooks/useT"
 
 const POLL_INTERVAL_MS = 30_000
 
 export function AdminStuck() {
+  const { t } = useT("admin")
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const stuck = useQuery({
@@ -20,7 +22,7 @@ export function AdminStuck() {
       <header className="flex items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Stuck Things</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("stuck.heading")}</h1>
         </div>
         <button
           className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-500"
@@ -28,13 +30,13 @@ export function AdminStuck() {
           onClick={() => void stuck.refetch()}
           type="button"
         >
-          {stuck.isFetching ? "Refreshing..." : "Refresh"}
+          {stuck.isFetching ? t("stuck.refreshing") : t("stuck.refresh")}
         </button>
       </header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        {stuck.isPending ? <PanelMessage>Loading stuck items...</PanelMessage> : null}
-        {stuck.isError ? <PanelMessage tone="error">Unable to load stuck items.</PanelMessage> : null}
+        {stuck.isPending ? <PanelMessage>{t("stuck.loading")}</PanelMessage> : null}
+        {stuck.isError ? <PanelMessage tone="error">{t("stuck.error_load")}</PanelMessage> : null}
         {stuck.isSuccess ? <StuckTable items={stuck.data.items} prefix={prefix} /> : null}
       </section>
     </main>
@@ -42,10 +44,12 @@ export function AdminStuck() {
 }
 
 function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
+  const { t } = useT("admin")
+
   if (items.length === 0) {
     return (
       <div className="bg-emerald-50 dark:bg-emerald-950/40 p-6 text-sm text-emerald-800 dark:text-emerald-200">
-        Nothing stuck. Reaper, pruner, and worker pool are all keeping up.
+        {t("stuck.nothing_stuck")}
       </div>
     )
   }
@@ -55,12 +59,12 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2">Severity</th>
-            <th className="px-4 py-2">Kind</th>
-            <th className="px-4 py-2">Detail</th>
-            <th className="px-4 py-2">Run / Step / Workflow</th>
-            <th className="px-4 py-2">Age</th>
-            <th className="px-4 py-2 text-right">Links</th>
+            <th className="px-4 py-2">{t("stuck.col_severity")}</th>
+            <th className="px-4 py-2">{t("stuck.col_kind")}</th>
+            <th className="px-4 py-2">{t("stuck.col_detail")}</th>
+            <th className="px-4 py-2">{t("stuck.col_context")}</th>
+            <th className="px-4 py-2">{t("stuck.col_age")}</th>
+            <th className="px-4 py-2 text-right">{t("stuck.col_links")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
