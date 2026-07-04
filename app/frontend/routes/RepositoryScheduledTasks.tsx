@@ -12,6 +12,7 @@ import {
   type RepositoryScheduledTasksPayload
 } from "../api/scheduledTasks"
 import { RepositoryTabs } from "../components/RepositoryTabs"
+import { toRomanDate } from "../lib/romanCalendar"
 
 export function RepositoryScheduledTasksRoute() {
   const location = useLocation()
@@ -96,7 +97,11 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
                     <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{task.schedule_label || "none"}</td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDate(task.next_fire_at) || "none"}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                    {task.next_fire_at
+                      ? <span title={toRomanDate(task.next_fire_at)}>{formatDate(task.next_fire_at)}</span>
+                      : "none"}
+                  </td>
                   <td className="px-4 py-3"><StatePill state={task.state} /></td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
