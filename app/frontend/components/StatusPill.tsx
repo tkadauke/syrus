@@ -2,13 +2,35 @@ import type { ReactNode } from "react"
 
 type PillTone = "red" | "green" | "blue" | "gray" | "amber"
 
+const STATE_LATIN: Record<string, string> = {
+  // Job states
+  triaging:    "Deliberatur — It is being deliberated",
+  queued:      "In acie stat — It stands in the battle line",
+  open:        "Agitur — It is being done",
+  implemented: "Factum est — It is done",
+  approved:    "Probatum est — It is proven",
+  landing:     "Propinquat — It draws near",
+  merged:      "In annales scriptum — Written in the annals",
+  closed:      "Cecidit — It fell",
+  // Run / step states
+  running:     "Currit — It runs",
+  success:     "Successit — It has succeeded",
+  failed:      "Defecit — It has failed",
+  cancelled:   "Intermissum est — It has been interrupted",
+  invalid:     "Invalidum — Invalid",
+}
+
 export function StatusPill({ state }: { state: string }) {
   const normalized = state.toLowerCase()
   const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
     normalized.includes("success") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
       normalized.includes("running") || normalized.includes("queued") ? "blue" : "gray"
 
-  return <TonePill active={normalized === "running"} tone={tone}>{state.replaceAll("_", " ")}</TonePill>
+  return (
+    <TonePill active={normalized === "running"} tone={tone} title={STATE_LATIN[normalized]}>
+      {state.replaceAll("_", " ")}
+    </TonePill>
+  )
 }
 
 export function TonePill({ children, tone, active = false, title, ariaLabel }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string }) {
