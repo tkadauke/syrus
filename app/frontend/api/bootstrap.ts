@@ -17,6 +17,7 @@ export type BootstrapPayload = {
     chat_provider: "claude" | "codex" | null
     agent_max_turns: number
     theme: "light" | "dark"
+    locale: "en" | "de" | "la"
     notification_unread_count?: number
   } | null
   team_user_count: number

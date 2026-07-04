@@ -21,6 +21,7 @@ export type CredentialsUser = {
   agent_max_turns: number
   scheduling_paused: boolean
   auto_approve_mode: string
+  locale: string
   notification_preferences: {
     desktop_job_implemented: boolean
     desktop_job_failed: boolean
@@ -54,6 +55,7 @@ export type PersonalDocument = {
 }
 
 export type CredentialsOptions = {
+  locales: string[]
   agent_providers: string[]
   chat_providers: string[]
   roles: string[]
@@ -125,6 +127,7 @@ export type CredentialsInput = {
   agent_max_turns: number
   scheduling_paused: boolean
   auto_approve_mode: string
+  locale: string
   notification_preferences?: {
     desktop_job_implemented?: boolean
     desktop_job_failed?: boolean

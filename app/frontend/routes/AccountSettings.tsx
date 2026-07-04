@@ -3,6 +3,7 @@ import { createConsumer } from "@rails/actioncable"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
+import i18n from "../i18n"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
@@ -403,6 +404,24 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               type="number"
               value={values.agent_max_turns}
             />
+          </Field>
+        ) : null}
+
+        {section === "preferences" ? (
+          <Field label="Language">
+            <select
+              className={inputClass()}
+              onChange={(event) => {
+                const locale = event.target.value
+                setValues({ ...values, locale })
+                i18n.changeLanguage(locale)
+              }}
+              value={values.locale}
+            >
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+              <option value="la">Latina</option>
+            </select>
           </Field>
         ) : null}
 
@@ -910,7 +929,8 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     github_token: "",
     agent_max_turns: payload.user.agent_max_turns,
     scheduling_paused: payload.user.scheduling_paused,
-    auto_approve_mode: payload.user.auto_approve_mode
+    auto_approve_mode: payload.user.auto_approve_mode,
+    locale: payload.user.locale
   }
 }
 

@@ -4,6 +4,7 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   before_action :compute_system_alerts
+  around_action :switch_locale
   helper_method :current_user, :default_chat_path
 
   private
@@ -14,6 +15,11 @@ class ApplicationController < ActionController::Base
   # the underlying problem (e.g. updates their GH token).
   def compute_system_alerts
     @system_alerts = SystemAlerts.active_for(user: Current.user)
+  end
+
+  def switch_locale(&action)
+    locale = Current.user&.locale.presence || I18n.default_locale
+    I18n.with_locale(locale, &action)
   end
 
   def require_admin

@@ -43,6 +43,7 @@ module AppApi
         scheduling_paused: user.scheduling_paused,
         landing_paused: user.landing_paused,
         theme: user.theme,
+        locale: user.locale,
         agent_provider: user.agent_provider,
         chat_provider: user.chat_provider,
         agent_max_turns: user.agent_max_turns,

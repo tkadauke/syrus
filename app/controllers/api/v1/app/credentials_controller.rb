@@ -205,6 +205,7 @@ module Api
             agent_max_turns: user.agent_max_turns,
             scheduling_paused: user.scheduling_paused,
             auto_approve_mode: user.auto_approve_mode,
+            locale: user.locale,
             notification_preferences: {
               desktop_job_implemented: user.desktop_notification_enabled?(:desktop_job_implemented),
               desktop_job_failed: user.desktop_notification_enabled?(:desktop_job_failed)
@@ -248,6 +249,7 @@ module Api
 
         def credentials_options(user)
           {
+            locales: User::LOCALES,
             agent_providers: User::AGENT_PROVIDERS,
             chat_providers: User::CHAT_PROVIDERS.select { |provider| user.chat_provider_configured?(provider) },
             roles: User::ROLES,
@@ -276,7 +278,7 @@ module Api
                                 :profile_company, :profile_website,
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :github_token,
-                                :agent_max_turns, :scheduling_paused, :auto_approve_mode,
+                                :agent_max_turns, :scheduling_paused, :auto_approve_mode, :locale,
                                 { notification_preferences: [ :desktop_job_implemented, :desktop_job_failed ] } ])
         end
 

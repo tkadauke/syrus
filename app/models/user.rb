@@ -30,6 +30,7 @@ class User < ApplicationRecord
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
   THEMES = %w[ light dark ].freeze
   ROLES = %w[ developer product_owner ].freeze
+  LOCALES = %w[ en de la ].freeze
   CLEARABLE_CREDENTIALS = {
     "github_token" => "GitHub token",
     "claude_oauth_token" => "Claude OAuth token",
@@ -152,6 +153,7 @@ class User < ApplicationRecord
   validates :agent_provider, presence: true, inclusion: { in: AGENT_PROVIDERS }
   validates :chat_provider, inclusion: { in: CHAT_PROVIDERS }, allow_nil: true
   validates :theme, presence: true, inclusion: { in: THEMES }
+  validates :locale, presence: true, inclusion: { in: LOCALES }
   validates :first_name, :last_name, length: { maximum: 80 }
   validates :github_handle, length: { maximum: 100 }
   validates :profile_bio, length: { maximum: 1000 }
@@ -163,6 +165,7 @@ class User < ApplicationRecord
   validates :profile_location, :profile_company, length: { maximum: 100 }
   validates :profile_website, length: { maximum: 255 }
   after_initialize :seed_notification_preferences
+  after_initialize :seed_locale
   before_create :promote_first_user_to_admin
 
   def admin?
@@ -524,6 +527,10 @@ class User < ApplicationRecord
 
   def seed_notification_preferences
     self.notification_preferences = {} if has_attribute?(:notification_preferences) && read_attribute(:notification_preferences).nil?
+  end
+
+  def seed_locale
+    self.locale = "en" if has_attribute?(:locale) && locale.blank?
   end
 
   def normalized_notification_preferences(value)
