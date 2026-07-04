@@ -26,56 +26,54 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
   end
 
   it "rolls up spending across users for admins" do
-    travel_to Time.zone.local(2026, 7, 1) do
-    admin = Factories.user(admin: true, email_address: "admin@example.com")
-    other_user = Factories.user(email_address: "other@example.com")
-    admin_repo = Factories.repository(user: admin, owner: "acme", name: "syrus")
-    other_repo = Factories.repository(user: other_user, owner: "rome", name: "ledgers")
-    epic = Factories.epic(user: admin, repository: admin_repo, title: "Cost Senate")
-    admin_job = Factories.job(user: admin, repository: admin_repo, issue_number: 101)
-    other_job = Factories.job(user: other_user, repository: other_repo, issue_number: 202)
-    admin_job.update_columns(state: "closed", closure_reason: "pr_merged", epic_id: epic.id)
-    admin_run_date = 5.days.ago.to_date
-    other_run_date = 4.days.ago.to_date
-    set_run_cost(initial_run(admin_job), 1.25, created_at: admin_run_date.noon)
-    set_run_cost(initial_run(other_job), 2.50, created_at: other_run_date.noon)
-    ChatSession.create!(user: admin, cumulative_cost_usd: 0.75)
+    travel_to Time.zone.local(2026, 7, 1, 12, 0, 0) do
+      admin = Factories.user(admin: true, email_address: "admin@example.com")
+      other_user = Factories.user(email_address: "other@example.com")
+      admin_repo = Factories.repository(user: admin, owner: "acme", name: "syrus")
+      other_repo = Factories.repository(user: other_user, owner: "rome", name: "ledgers")
+      epic = Factories.epic(user: admin, repository: admin_repo, title: "Cost Senate")
+      admin_job = Factories.job(user: admin, repository: admin_repo, issue_number: 101)
+      other_job = Factories.job(user: other_user, repository: other_repo, issue_number: 202)
+      admin_job.update_columns(state: "closed", closure_reason: "pr_merged", epic_id: epic.id)
+      set_run_cost(initial_run(admin_job), 1.25, created_at: Time.zone.parse("2026-06-03 12:00:00"))
+      set_run_cost(initial_run(other_job), 2.50, created_at: Time.zone.parse("2026-06-04 12:00:00"))
+      ChatSession.create!(user: admin, cumulative_cost_usd: 0.75)
 
-    sign_in_as(admin)
-    get "/api/v1/app/insights/spending", params: { start_date: (admin_run_date - 1.day).iso8601, end_date: (other_run_date + 1.day).iso8601 }
+      sign_in_as(admin)
+      get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05" }
 
-    expect(response).to have_http_status(:ok)
-    body = parse_body
-    expect(body.dig("scope", "admin")).to eq(true)
-    expect(body.dig("totals", "lifetime_usd")).to eq(4.5)
-    expect(body.dig("totals", "workflow_lifetime_usd")).to eq(3.75)
-    expect(body.dig("totals", "chat_lifetime_usd")).to eq(0.75)
-    expect(body.dig("totals", "average_job_30d_usd")).to eq(1.875)
-    expect(body.dig("totals", "average_merged_pr_30d_usd")).to eq(1.25)
-    expect(body.dig("breakdowns", "repositories").map { |row| row["label"] }).to eq([ "rome/ledgers", "acme/syrus" ])
-    expect(body.dig("breakdowns", "epics").first).to include(
-      "label" => "Cost Senate",
-      "display_number" => epic.slug,
-      "jobs_count" => 1,
-      "total_usd" => 1.25,
-      "average_job_usd" => 1.25
-    )
-    expect(body.dig("breakdowns", "users").map { |row| row["label"] }).to eq([ "other@example.com", "admin@example.com" ])
-    expect(body.dig("breakdowns", "trigger_kinds").first).to include(
-      "trigger_kind" => "initial",
-      "jobs_count" => 2,
-      "runs_count" => 2,
-      "total_usd" => 3.75
-    )
-    expect(body.fetch("top_runs").first).to include(
-      "id" => initial_run(other_job).id,
-      "cost_usd" => 2.5,
-      "trigger_kind" => "initial"
-    )
-    expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
-      { "date" => admin_run_date.iso8601, "total_usd" => 1.25 },
-      { "date" => other_run_date.iso8601, "total_usd" => 2.5 }
-    )
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("scope", "admin")).to eq(true)
+      expect(body.dig("totals", "lifetime_usd")).to eq(4.5)
+      expect(body.dig("totals", "workflow_lifetime_usd")).to eq(3.75)
+      expect(body.dig("totals", "chat_lifetime_usd")).to eq(0.75)
+      expect(body.dig("totals", "average_job_30d_usd")).to eq(1.875)
+      expect(body.dig("totals", "average_merged_pr_30d_usd")).to eq(1.25)
+      expect(body.dig("breakdowns", "repositories").map { |row| row["label"] }).to eq([ "rome/ledgers", "acme/syrus" ])
+      expect(body.dig("breakdowns", "epics").first).to include(
+        "label" => "Cost Senate",
+        "display_number" => epic.slug,
+        "jobs_count" => 1,
+        "total_usd" => 1.25,
+        "average_job_usd" => 1.25
+      )
+      expect(body.dig("breakdowns", "users").map { |row| row["label"] }).to eq([ "other@example.com", "admin@example.com" ])
+      expect(body.dig("breakdowns", "trigger_kinds").first).to include(
+        "trigger_kind" => "initial",
+        "jobs_count" => 2,
+        "runs_count" => 2,
+        "total_usd" => 3.75
+      )
+      expect(body.fetch("top_runs").first).to include(
+        "id" => initial_run(other_job).id,
+        "cost_usd" => 2.5,
+        "trigger_kind" => "initial"
+      )
+      expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
+        { "date" => "2026-06-03", "total_usd" => 1.25 },
+        { "date" => "2026-06-04", "total_usd" => 2.5 }
+      )
     end
   end
 
