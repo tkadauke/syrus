@@ -62,6 +62,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       trust_clean_rebase_grade: r.trust_clean_rebase_grade,
       agent_provider: "",
       auto_approve_mode: r.auto_approve_mode,
+      feedback_policy: r.feedback_policy,
       github_owner_id: "",
       github_repository_id: ""
     })

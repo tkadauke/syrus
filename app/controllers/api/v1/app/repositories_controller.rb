@@ -466,6 +466,7 @@ module Api
             trust_clean_rebase_grade: repository.trust_clean_rebase_grade?,
             agent_provider: repository.agent_provider.to_s,
             auto_approve_mode: repository.auto_approve_mode,
+            feedback_policy: repository.feedback_policy,
             github_owner_id: repository.github_owner_id,
             github_repository_id: repository.github_repository_id,
             repository_path: repository.persisted? ? repository_path(repository) : nil
@@ -722,6 +723,7 @@ module Api
             :auto_merge_enabled,
             :trust_clean_rebase_grade,
             :auto_approve_mode,
+            :feedback_policy,
             :github_repository_id,
             :github_owner_id
           )

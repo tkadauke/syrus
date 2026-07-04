@@ -17,6 +17,7 @@ import { highlightCode, type SyntaxLanguage } from "../lib/syntaxHighlight"
 import { buttonClass, type ButtonTone } from "../lib/buttonClasses"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
+  applyPendingFeedback,
   createJobAttachments,
   deleteJobCommand,
   fetchJobDetail,
@@ -25,8 +26,10 @@ import {
   fetchJobSource,
   fetchJobSourceDiff,
   fetchJobTimeline,
+  ignorePendingFeedback,
   patchJobCommand,
   postJobCommand,
+  replacePendingFeedback,
   submitJobFeedback,
   type JobAttachment,
   type JobDependency,
@@ -38,7 +41,8 @@ import {
   type JobSourcePayload,
   type JobStep,
   type JobTestPlan,
-  type JobWorkflow
+  type JobWorkflow,
+  type PendingFeedbackComment
 } from "../api/jobs"
 
 type JobTab = "summary" | "workflows" | "attachments" | "source"
@@ -228,7 +232,7 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
 
       <TabNav active={activeTab} attachmentsCount={payload.attachments.length} workflowsCount={payload.job.workflows_count} onSelect={onSelectTab} />
 
-      {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} /> : null}
+      {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} /> : null}
       {activeTab === "workflows" ? <WorkflowsTab command={command} payload={payload} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} /> : null}
@@ -595,7 +599,7 @@ function TabNav({ active, workflowsCount, attachmentsCount, onSelect }: { active
   )
 }
 
-function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; queryKey: JobDetailQueryKey }) {
   const { t } = useT("jobs")
   return (
     <div className="space-y-4">
@@ -634,6 +638,8 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
           </section>
 
           <TestPlanPanel testPlan={payload.test_plan} />
+
+          <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
 
           <FeedbackHistoryPanel prefix={prefix} workflows={payload.workflows} />
 
@@ -683,6 +689,132 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
   )
 }
 
+function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: number; comments?: PendingFeedbackComment[]; queryKey: JobDetailQueryKey }) {
+  const queryClient = useQueryClient()
+  const [replaceId, setReplaceId] = useState<number | null>(null)
+  const [replaceBody, setReplaceBody] = useState("")
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const apply = useMutation({
+    mutationFn: (commentId: number) => applyPendingFeedback(jobId, commentId),
+    onSuccess: (data) => {
+      setNotice(data.message)
+      void queryClient.invalidateQueries({ queryKey })
+    }
+  })
+
+  const ignore = useMutation({
+    mutationFn: (commentId: number) => ignorePendingFeedback(jobId, commentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+    }
+  })
+
+  const replace = useMutation({
+    mutationFn: ({ commentId, body }: { commentId: number; body: string }) => replacePendingFeedback(jobId, commentId, body),
+    onSuccess: (data) => {
+      setReplaceId(null)
+      setReplaceBody("")
+      setNotice(data.message)
+      void queryClient.invalidateQueries({ queryKey })
+    }
+  })
+
+  if (comments.length === 0) return null
+
+  const isPending = apply.isPending || ignore.isPending || replace.isPending
+
+  return (
+    <section className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
+      <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">Pending feedback</h2>
+      <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+        These PR comments require your decision before Syrus acts on them.
+      </p>
+      {notice ? (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded bg-amber-100 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+          <span>{notice}</span>
+          <button className="ml-2 hover:underline" onClick={() => setNotice(null)} type="button">Dismiss</button>
+        </div>
+      ) : null}
+      {(apply.isError || ignore.isError || replace.isError) ? (
+        <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+          {apply.error instanceof Error ? apply.error.message : ignore.error instanceof Error ? ignore.error.message : replace.error instanceof Error ? replace.error.message : "Action failed."}
+        </p>
+      ) : null}
+      <div className="mt-3 space-y-3">
+        {comments.map((comment) => (
+          <div className="rounded border border-amber-200 bg-white p-3 dark:border-amber-800/40 dark:bg-gray-900" key={comment.id}>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+              {comment.github_handle ? <span className="font-medium">@{comment.github_handle}</span> : null}
+              <span className="capitalize">{comment.attributed_to}</span>
+              <span>·</span>
+              <span className="capitalize">{comment.pr_type} PR</span>
+              {comment.comment_created_at ? <span>· {formatDate(comment.comment_created_at)}</span> : null}
+            </div>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">{comment.body}</p>
+            {replaceId === comment.id ? (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  aria-label="Replacement feedback text"
+                  className="block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-blue-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                  onChange={(e) => setReplaceBody(e.target.value)}
+                  placeholder="Enter your replacement feedback text…"
+                  rows={3}
+                  value={replaceBody}
+                />
+                <div className="flex gap-2">
+                  <button
+                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isPending || !replaceBody.trim()}
+                    onClick={() => replace.mutate({ commentId: comment.id, body: replaceBody })}
+                    type="button"
+                  >
+                    Submit replacement
+                  </button>
+                  <button
+                    className="text-xs text-gray-500 hover:underline dark:text-gray-400"
+                    onClick={() => { setReplaceId(null); setReplaceBody("") }}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isPending}
+                  onClick={() => apply.mutate(comment.id)}
+                  type="button"
+                >
+                  Apply
+                </button>
+                <button
+                  className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                  disabled={isPending}
+                  onClick={() => { setReplaceId(comment.id); setReplaceBody("") }}
+                  type="button"
+                >
+                  Replace
+                </button>
+                <button
+                  className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400"
+                  disabled={isPending}
+                  onClick={() => ignore.mutate(comment.id)}
+                  type="button"
+                >
+                  Ignore
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWorkflow[]; prefix: string }) {
   const { t } = useT("jobs")
   const feedbackWorkflows = [...workflows]
@@ -712,7 +844,10 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
                 </div>
               </div>
               {workflow.trigger_kind === "chat_feedback" ? (
-                <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">{typeof chatFeedback === "string" ? chatFeedback : ""}</pre>
+                <>
+                  <FeedbackSourceBadge source={workflow.artifacts.feedback_source} />
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">{typeof chatFeedback === "string" ? chatFeedback : ""}</pre>
+                </>
               ) : (
                 <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{t("feedback_trigger_pr_review_text")}</p>
               )}
@@ -721,6 +856,29 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
         })}
       </div>
     </section>
+  )
+}
+
+function FeedbackSourceBadge({ source }: { source: unknown }) {
+  if (!source || typeof source !== "object") return null
+
+  const s = source as Record<string, unknown>
+  const attributedTo = typeof s.attributed_to === "string" ? s.attributed_to : null
+  const githubHandle = typeof s.github_handle === "string" ? s.github_handle : null
+  const action = typeof s.action === "string" ? s.action : null
+  const confirmedBy = typeof s.confirmed_by === "string" ? s.confirmed_by : null
+
+  if (!attributedTo && !githubHandle) return null
+
+  const label = [
+    githubHandle ? `@${githubHandle}` : null,
+    attributedTo,
+    confirmedBy ? `confirmed by ${confirmedBy}` : null,
+    action === "replace" ? "(replaced)" : null
+  ].filter(Boolean).join(" · ")
+
+  return (
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{label}</p>
   )
 }
 

@@ -5,7 +5,7 @@ class ChatFeedbackSubmission
     def success? = error.blank?
   end
 
-  def self.call(job:, feedback:, allowed_states:)
+  def self.call(job:, feedback:, allowed_states:, extra_artifacts: {})
     feedback = feedback.to_s.strip
     return Result.new(workflow: nil, error: "Feedback body can't be blank.") if feedback.blank?
 
@@ -18,9 +18,10 @@ class ChatFeedbackSubmission
       return Result.new(workflow: nil, error: "a chat_feedback workflow is already queued or running for this job")
     end
 
+    artifacts = { "chat_feedback" => feedback }.merge(extra_artifacts)
     workflow = Workflows::ChatFeedback.instantiate(
       job: job,
-      artifacts: { "chat_feedback" => feedback },
+      artifacts: artifacts,
       agent_provider: job.agent_provider
     )
     StepDispatcher.start_workflow(workflow)

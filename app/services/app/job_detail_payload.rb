@@ -34,6 +34,7 @@ module App
         summary: summary_json,
         test_plan: test_plan_json,
         feedback_history: feedback_history_json,
+        pending_feedback: pending_feedback_json,
         landing_queue_entry: landing_queue_entry_json,
         workflows: workflows_json,
         workflows_pagination: workflows_pagination_json,
@@ -134,6 +135,7 @@ module App
         auto_merge_enabled: repository.auto_merge_enabled,
         approval_propagates_to_github: repository.approval_propagates_to_github,
         review_policy: repository.review_policy,
+        feedback_policy: repository.feedback_policy,
         credential_mode: repository.credential_mode,
         repository_path: repository_path(repository)
       }
@@ -339,6 +341,27 @@ module App
       }
     end
 
+    def pending_feedback_json
+      return [] unless @job.repository.feedback_policy_confirm?
+
+      @job.pr_review_comments
+          .actionable_comments
+          .unactioned
+          .where.not(attributed_to: "job_owner")
+          .order(:comment_created_at, :id)
+          .map do |comment|
+        {
+          id: comment.id,
+          github_handle: comment.github_handle,
+          attributed_to: comment.attributed_to,
+          pr_type: comment.pr_type,
+          comment_kind: comment.comment_kind,
+          body: comment.body,
+          comment_created_at: iso8601(comment.comment_created_at)
+        }
+      end
+    end
+
     def feedback_history_json
       @job.workflows
         .select { |workflow| workflow.trigger_kind.in?(%w[chat_feedback pr_comment]) }
@@ -349,11 +372,14 @@ module App
             body = workflow.artifacts&.dig("chat_feedback")
             next unless body.present?
 
+            source = workflow.artifacts&.dig("feedback_source")
+
             {
               kind: "chat_feedback",
               body: body,
               created_at: iso8601(workflow.created_at),
-              state: workflow.state
+              state: workflow.state,
+              feedback_source: source
             }
           when "pr_comment"
             comments = Array(workflow.artifacts&.dig("pr_comments"))
@@ -368,7 +394,8 @@ module App
               kind: "pr_comment",
               body: body,
               created_at: iso8601(workflow.created_at),
-              state: workflow.state
+              state: workflow.state,
+              feedback_source: nil
             }
           end
         end
@@ -720,7 +747,8 @@ module App
         app_stack_base_path: "/api/v1/app/jobs/#{@job.id}/stack_base",
         app_mark_valid_path: "/api/v1/app/jobs/#{@job.id}/mark_valid",
         app_attachments_path: "/api/v1/app/jobs/#{@job.id}/attachments",
-        app_pin_path: "/api/v1/app/jobs/#{@job.id}/pin"
+        app_pin_path: "/api/v1/app/jobs/#{@job.id}/pin",
+        app_pending_feedback_path: "/api/v1/app/jobs/#{@job.id}/pending_feedback"
       }
     end
 

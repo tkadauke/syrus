@@ -379,6 +379,21 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           <Checkbox label="Add Syrus cost footer to PR descriptions" onChange={(checked) => setValues({ ...values, pr_cost_footer_enabled: checked })} value={values.pr_cost_footer_enabled} />
           <Checkbox label="Auto-merge approved Syrus PRs" onChange={(checked) => setValues({ ...values, auto_merge_enabled: checked })} value={values.auto_merge_enabled} />
           <Checkbox label="Trust clean rebases (skip re-grading after a conflict-free rebase)" onChange={(checked) => setValues({ ...values, trust_clean_rebase_grade: checked })} value={values.trust_clean_rebase_grade} />
+
+          <Field label="Feedback policy">
+            <select
+              aria-label="Feedback policy"
+              className={inputClass()}
+              onChange={(event) => setValues({ ...values, feedback_policy: event.target.value })}
+              value={values.feedback_policy}
+            >
+              <option value="confirm">Confirm — require job owner approval before acting on external/member comments</option>
+              <option value="auto">Auto — immediately queue a workflow for any actionable comment</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Job owner comments always trigger automatically regardless of this setting.
+            </p>
+          </Field>
         </section>
 
         <section className="space-y-3">
@@ -424,6 +439,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     trust_clean_rebase_grade: payload.repository.trust_clean_rebase_grade,
     agent_provider: payload.repository.agent_provider,
     auto_approve_mode: payload.repository.auto_approve_mode,
+    feedback_policy: payload.repository.feedback_policy,
     github_owner_id: payload.repository.github_owner_id == null ? "" : String(payload.repository.github_owner_id),
     github_repository_id: payload.repository.github_repository_id == null ? "" : String(payload.repository.github_repository_id)
   }

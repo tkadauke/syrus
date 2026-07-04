@@ -283,8 +283,8 @@ confirmation.
 
 | Policy | Behavior |
 | --- | --- |
-| `auto` (default) | Actionable comments from all commenter categories queue an implementation workflow automatically |
-| `confirm` | Only the job owner's actionable comments trigger automatic implementation; team member and external actionable comments are recorded but do not queue a workflow until confirmed by the operator |
+| `confirm` (default) | Only the job owner's actionable comments trigger automatic implementation; team member and external actionable comments are recorded but do not queue a workflow until confirmed by the operator |
+| `auto` | Actionable comments from all commenter categories queue an implementation workflow automatically |
 
 ### Comment attribution
 
@@ -305,6 +305,16 @@ Syrus polls all PR surfaces associated with a Job:
 - **Fork review PR** — the internal PR from the feature branch to the fork's default branch, polled until the upstream PR is created
 
 All three surfaces use the same attribution and classification pipeline.
+
+### Pending feedback (confirm policy)
+
+When `feedback_policy` is `confirm`, actionable comments from team members and external reviewers appear in a **Pending feedback** section on the job detail page. The job owner can choose one of three actions for each comment:
+
+- **Apply** — use the comment body as-is as the feedback prompt for a new iteration.
+- **Ignore** — dismiss the comment without taking action; it is recorded in the audit trail.
+- **Replace** — write a custom feedback prompt; the original comment is marked handled and the operator's text drives the next iteration.
+
+All three actions are recorded via the `actioned_by` field on the `pr_review_comments` audit row. The resulting `chat_feedback` workflow artifacts include a `feedback_source` field with the original commenter attribution and the action taken (`apply` or `replace`), visible in the feedback history panel.
 
 ## Worker Environment
 

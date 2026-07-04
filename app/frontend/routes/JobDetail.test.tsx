@@ -515,6 +515,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       name: "widgets",
       default_branch: "main",
       review_policy: "self",
+      feedback_policy: "confirm",
       repository_path: "/repositories/2"
     },
     epic: null,
@@ -529,6 +530,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     attachments: [],
     summary: null,
     test_plan: null,
+    pending_feedback: [],
     landing_queue_entry: null,
     workflows: [],
     workflows_pagination: {
@@ -588,7 +590,8 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_stack_base_path: "/api/v1/app/jobs/1/stack_base",
       app_mark_valid_path: "/api/v1/app/jobs/1/mark_valid",
       app_attachments_path: "/api/v1/app/jobs/1/attachments",
-      app_pin_path: "/api/v1/app/jobs/1/pin"
+      app_pin_path: "/api/v1/app/jobs/1/pin",
+      app_pending_feedback_path: "/api/v1/app/jobs/1/pending_feedback"
     },
     ...overrides
   }

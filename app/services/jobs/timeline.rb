@@ -36,6 +36,7 @@ module Jobs
       out.concat(creation_events)
       out.concat(transition_events)
       out.concat(retry_decision_events)
+      out.concat(feedback_iteration_events)
       out.compact.sort_by { |e| [ e.at || Time.zone.at(0), source_order(e.source) ] }
     end
 
@@ -44,7 +45,7 @@ module Jobs
     def source_order(source)
       # Stable tie-break when multiple events share a timestamp.
       # Created-at sorts before AASM start for the same record.
-      %w[ job workflow step run retry ].index(source) || 99
+      %w[ job workflow step run retry feedback ].index(source) || 99
     end
 
     def creation_events
@@ -282,6 +283,39 @@ module Jobs
       when "cancelled", "closed"                             then :cancel
       when "running", "landing"                              then :start
       else                                                        :info
+      end
+    end
+
+    def feedback_iteration_events
+      @job.pr_review_comments.where.not(actioned_at: nil).order(:actioned_at).map do |comment|
+        actioned_by = comment.actioned_by.to_s
+        auto = actioned_by == "auto_poll"
+        operator_action = actioned_by.start_with?("operator:") ? actioned_by.delete_prefix("operator:") : nil
+
+        title = if auto
+          "PR comment actioned automatically (#{comment.attributed_to})"
+        elsif operator_action == "ignore"
+          "PR comment ignored by operator (#{comment.attributed_to})"
+        elsif operator_action == "replace"
+          "PR comment replaced by operator and applied (#{comment.attributed_to})"
+        elsif operator_action == "apply"
+          "PR comment applied by operator (#{comment.attributed_to})"
+        else
+          "PR comment actioned (#{comment.attributed_to})"
+        end
+
+        handle = comment.github_handle.present? ? "@#{comment.github_handle}" : nil
+        detail = [ handle, comment.pr_type, actioned_by ].compact.join(" · ")
+
+        Event.new(
+          at: comment.actioned_at,
+          kind: operator_action == "ignore" ? :cancel : :info,
+          source: "feedback",
+          transition_source: auto ? "system" : "operator",
+          title: title,
+          detail: detail.presence,
+          ref: {}
+        )
       end
     end
 

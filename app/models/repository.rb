@@ -14,7 +14,7 @@ class Repository < ApplicationRecord
   # rebase instead of re-running the landing graders. Trades a small
   # logical-conflict risk for landing throughput. See Steps::ForcePush.
   attribute :trust_clean_rebase_grade, :boolean, default: false
-  attribute :feedback_policy, :string, default: "auto"
+  attribute :feedback_policy, :string, default: "confirm"
 
   belongs_to :user, optional: true
   belongs_to :installation, optional: true

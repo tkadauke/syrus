@@ -676,7 +676,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_04_212042) do
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
-    t.string "feedback_policy", default: "auto", null: false
+    t.string "feedback_policy", default: "confirm", null: false
     t.bigint "github_owner_id"
     t.bigint "github_repository_id"
     t.integer "installation_id"
