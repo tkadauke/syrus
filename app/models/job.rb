@@ -396,25 +396,7 @@ class Job < ApplicationRecord
   # the existing job_approvals. Used by the approve action and the
   # landing queue to gate the job's transition to :approved.
   def approval_satisfied?
-    policy = repository.review_policy
-    case policy
-    when "self"
-      job_approvals.where(user_id: owner_user_id).exists?
-    when "two_person"
-      job_approvals.where(user_id: owner_user_id).exists? &&
-        job_approvals.where.not(user_id: owner_user_id).exists?
-    when "final_say"
-      final_approver_ids = repository.final_approver_ids
-      if final_approver_ids.include?(owner_user_id)
-        # Owner is a final approver — collapses to self-review
-        job_approvals.where(user_id: owner_user_id).exists?
-      else
-        job_approvals.where(user_id: owner_user_id).exists? &&
-          job_approvals.where(user_id: final_approver_ids).exists?
-      end
-    else
-      false
-    end
+    ReviewPolicies.for(repository.review_policy).new(self).satisfied?
   end
 
   # Returns true when +user+ is eligible to add a JobApproval vote.
