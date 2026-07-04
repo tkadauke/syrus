@@ -421,4 +421,70 @@ RSpec.describe ChatPendingAction do
     expect(action).not_to be_valid
     expect(action.errors[:repository]).to be_present
   end
+
+  describe "outcome notification callback" do
+    it "creates a system message and enqueues ChatTurnJob when confirmed" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+
+      expect {
+        action.confirm!
+      }.to change { chat_session.messages.where(role: "system").count }.by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      message = chat_session.messages.where(role: "system").last
+      expect(message.content["source"]).to eq(ChatPendingActionOutcomeNotification::SOURCE)
+      expect(message.content["outcome"]).to eq("confirmed")
+      expect(message.content["text"]).to include("confirmed").and include("pause_landing_queue")
+    end
+
+    it "creates a system message and enqueues ChatTurnJob when rejected" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+
+      expect {
+        action.reject!
+      }.to change { chat_session.messages.where(role: "system").count }.by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      message = chat_session.messages.where(role: "system").last
+      expect(message.content["outcome"]).to eq("rejected")
+      expect(message.content["text"]).to include("rejected")
+    end
+
+    it "creates a system message and enqueues ChatTurnJob when cancelled" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+
+      expect {
+        action.cancel!
+      }.to change { chat_session.messages.where(role: "system").count }.by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      message = chat_session.messages.where(role: "system").last
+      expect(message.content["outcome"]).to eq("cancelled")
+      expect(message.content["text"]).to include("dismissed")
+    end
+
+    it "does not enqueue ChatTurnJob when state does not change" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      action.confirm!
+
+      expect {
+        action.update!(updated_at: Time.current)
+      }.not_to have_enqueued_job(ChatTurnJob)
+    end
+
+    it "includes the job_id detail for job-scoped actions" do
+      allow(AppEvents).to receive(:broadcast)
+      job = direct_job
+      action = chat_session.pending_actions.create!(action: "cancel_job", payload: { "job_id" => job.id })
+
+      action.reject!
+
+      message = chat_session.messages.where(role: "system").last
+      expect(message.content["text"]).to include("job_id: #{job.id}")
+    end
+  end
 end

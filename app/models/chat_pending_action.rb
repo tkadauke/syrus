@@ -55,6 +55,7 @@ class ChatPendingAction < ApplicationRecord
   before_validation :derive_owner_from_chat_session
   after_create_commit :broadcast_pending_action_created
   after_update_commit :broadcast_pending_action_state_updated, if: :broadcastable_state_change?
+  after_update_commit :notify_chat_of_outcome
 
   validates :action, inclusion: { in: ACTIONS }, allow_nil: true
   validates :action_type, inclusion: { in: ACTION_TYPES }, allow_nil: true
@@ -400,6 +401,19 @@ class ChatPendingAction < ApplicationRecord
   def document_filename(title)
     basename = title.to_s.parameterize.presence || "document"
     "#{basename.first(80)}.md"
+  end
+
+  def notify_chat_of_outcome
+    return unless saved_change_to_state?
+    return unless confirmed? || rejected? || cancelled?
+
+    text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
+    message = chat_session.messages.create!(
+      role: "system",
+      content: { "text" => text, "source" => ChatPendingActionOutcomeNotification::SOURCE, "outcome" => state }
+    )
+    chat_session.update!(last_message_at: Time.current)
+    ChatTurnJob.perform_later(chat_session_id, message.id)
   end
 
   def broadcastable_state_change?
