@@ -18,6 +18,16 @@ describe("StatusPill", () => {
     expect(screen.getByTitle("In annales scriptum — Written in the annals")).toBeInTheDocument()
   })
 
+  it("adds Latin tooltip for unmergeable state", () => {
+    render(<StatusPill state="unmergeable" />)
+    expect(screen.getByTitle("Bellum Civile — Civil war between branches")).toBeInTheDocument()
+  })
+
+  it("adds Latin tooltip for mergeable state", () => {
+    render(<StatusPill state="mergeable" />)
+    expect(screen.getByTitle("Concordia — Harmony")).toBeInTheDocument()
+  })
+
   it("renders without a title for unknown states", () => {
     render(<StatusPill state="custom_state" />)
     const pill = screen.getByText("custom state").closest("[data-status-pill]")

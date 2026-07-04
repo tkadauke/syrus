@@ -18,6 +18,9 @@ const STATE_LATIN: Record<string, string> = {
   failed:      "Defecit — It has failed",
   cancelled:   "Intermissum est — It has been interrupted",
   invalid:     "Invalidum — Invalid",
+  // Merge state
+  unmergeable: "Bellum Civile — Civil war between branches",
+  mergeable:   "Concordia — Harmony",
 }
 
 export function StatusPill({ state }: { state: string }) {
