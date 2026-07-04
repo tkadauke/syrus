@@ -26,7 +26,7 @@ module ReviewPolicies
     end
 
     def owner_is_final_approver?
-      @job.owner_user_id && final_approver_ids.include?(@job.owner_user_id)
+      final_approver_ids.include?(effective_owner_id)
     end
   end
 end

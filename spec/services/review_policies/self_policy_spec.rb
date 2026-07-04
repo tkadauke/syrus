@@ -30,4 +30,27 @@ RSpec.describe ReviewPolicies::SelfPolicy do
     it { is_expected.not_to be_satisfied }
     it { expect(policy.pending_description).to eq("Waiting for owner to approve") }
   end
+
+  context "when owner_user_id is nil (falls back to user_id)" do
+    def job_with_approvals(*approvers)
+      job = Factories.job_record(user: owner, owner_user_id: nil, repository: repo, state: "implemented")
+      approvers.each { |u| JobApproval.create!(job: job, user: u) }
+      job
+    end
+
+    context "with no approvals" do
+      let(:approvers) { [] }
+      it { is_expected.not_to be_satisfied }
+    end
+
+    context "with the creator's approval" do
+      let(:approvers) { [owner] }
+      it { is_expected.to be_satisfied }
+    end
+
+    context "with only a non-creator approval" do
+      let(:approvers) { [other] }
+      it { is_expected.not_to be_satisfied }
+    end
+  end
 end

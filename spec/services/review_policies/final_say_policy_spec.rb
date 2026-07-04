@@ -68,4 +68,52 @@ RSpec.describe ReviewPolicies::FinalSayPolicy do
       expect(described_class.new(job_with_approvals(repo, owner, final_approver)).pending_description).to be_nil
     end
   end
+
+  context "when owner_user_id is nil (falls back to user_id)" do
+    def job_with_approvals(repo, *approvers)
+      job = Factories.job_record(user: owner, owner_user_id: nil, repository: repo, state: "implemented")
+      approvers.each { |u| JobApproval.create!(job: job, user: u) }
+      job
+    end
+
+    context "when the creator is a final approver (collapses to self)" do
+      let(:repo) { repo_with_final_approvers(owner) }
+
+      it "is not satisfied with no approvals" do
+        expect(described_class.new(job_with_approvals(repo))).not_to be_satisfied
+      end
+
+      it "is satisfied when only the creator approves" do
+        expect(described_class.new(job_with_approvals(repo, owner))).to be_satisfied
+      end
+    end
+
+    context "when the creator is not a final approver" do
+      let(:repo) { repo_with_final_approvers(final_approver) }
+
+      it "is not satisfied with creator approval alone" do
+        expect(described_class.new(job_with_approvals(repo, owner))).not_to be_satisfied
+      end
+
+      it "is not satisfied with final approver approval alone" do
+        expect(described_class.new(job_with_approvals(repo, final_approver))).not_to be_satisfied
+      end
+
+      it "is satisfied when creator and a final approver have both approved" do
+        expect(described_class.new(job_with_approvals(repo, owner, final_approver))).to be_satisfied
+      end
+
+      it "returns waiting-for-owner description with no approvals" do
+        expect(described_class.new(job_with_approvals(repo)).pending_description).to eq("Waiting for owner approval")
+      end
+
+      it "returns waiting-for-final-approver description after creator approves" do
+        expect(described_class.new(job_with_approvals(repo, owner)).pending_description).to eq("Waiting for final approver")
+      end
+
+      it "returns nil description when fully satisfied" do
+        expect(described_class.new(job_with_approvals(repo, owner, final_approver)).pending_description).to be_nil
+      end
+    end
+  end
 end

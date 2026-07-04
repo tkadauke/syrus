@@ -14,8 +14,12 @@ module ReviewPolicies
 
     private
 
+    def effective_owner_id
+      @effective_owner_id ||= @job.owner_user_id.presence || @job.user_id
+    end
+
     def owner_approved?
-      @job.job_approvals.where(user_id: @job.owner_user_id).exists?
+      @job.job_approvals.where(user_id: effective_owner_id).exists?
     end
   end
 end
