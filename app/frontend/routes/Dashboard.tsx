@@ -891,11 +891,16 @@ export function epicGroupKey(job: DashboardJobItem) {
   return job.epic ? `epic-${job.epic.id}` : `job-${job.id}`
 }
 
-// True when this row begins a new landing unit relative to the previous row.
+// True when this row begins a new landing unit relative to the previous row,
+// but only at epic group boundaries — consecutive standalone (epicless) jobs
+// are the same kind of landing unit and do not get a separator between them.
 // Only meaningful when the list is ordered by queue position.
 export function startsNewEpicGroup(items: DashboardJobItem[], index: number, enabled: boolean) {
   if (!enabled || index === 0) return false
-  return epicGroupKey(items[index]) !== epicGroupKey(items[index - 1])
+  const currentKey = epicGroupKey(items[index])
+  const prevKey = epicGroupKey(items[index - 1])
+  if (currentKey === prevKey) return false
+  return currentKey.startsWith("epic-") || prevKey.startsWith("epic-")
 }
 
 function JobsTable({
@@ -969,7 +974,7 @@ function JobsTable({
                 onToggleOne={onToggleOne}
                 prefix={prefix}
                 selectedIds={selectedIds}
-                topSeparator={index > 0}
+                topSeparator={index > 0 && (group.key.startsWith("epic:") || landingQueueGroups[index - 1].key.startsWith("epic:"))}
               />
             ))
           ) : (

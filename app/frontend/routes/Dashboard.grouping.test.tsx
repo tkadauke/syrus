@@ -27,8 +27,8 @@ describe("startsNewEpicGroup", () => {
     expect(startsNewEpicGroup(items, 3, true)).toBe(true)
   })
 
-  it("separates each epicless job (a single-job landing unit) from the previous one", () => {
-    expect(startsNewEpicGroup(items, 4, true)).toBe(true)
+  it("does not separate consecutive epicless jobs (no epic boundary)", () => {
+    expect(startsNewEpicGroup(items, 4, true)).toBe(false)
   })
 
   it("separates an Epic that follows epicless jobs", () => {
