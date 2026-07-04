@@ -1,0 +1,126 @@
+{
+  "title": "Dashboard",
+  "loading": "Wird geladen...",
+  "load_error": "Dashboard konnte nicht geladen werden.",
+
+  "new_epic": "Neues Epic",
+  "new_job": "Neue Aufgabe",
+
+  "tab_epics": "Epics",
+  "tab_jobs": "Aufgaben",
+  "tab_workflows": "Arbeitsabläufe",
+  "subjects": "Dashboard-Bereiche",
+
+  "ownership_scope_label": "Dashboard-Eigentümerbereich",
+  "owner_filter_label": "Dashboard-Inhaber",
+  "view_label": "Dashboard-Ansicht",
+  "controls_label": "Dashboard-Steuerung",
+
+  "folders_and_filters": "Ordner und Filter",
+  "show": "Anzeigen",
+  "hide": "Ausblenden",
+
+  "columns": "Spalten",
+  "visible_columns": "Sichtbare Spalten",
+  "kanban_lanes": "Kanban-Spalten",
+  "preferences_error": "Dashboard-Einstellungen konnten nicht aktualisiert werden.",
+
+  "readiness_title": "Systemstatus benötigt Aufmerksamkeit",
+  "readiness_description": "Syrus kann möglicherweise keine Arbeit aufnehmen oder ausführen, bis diese Prüfungen bestanden sind.",
+  "open_settings": "Einstellungen öffnen",
+  "optional": "optional",
+
+  "no_match": "Keine {{subject}} entsprechen dieser Ansicht.",
+  "no_lanes": "Keine Kanban-Spalten konfiguriert.",
+  "no_items_in_lane": "Keine {{subject}}",
+
+  "empty_title": "Noch keine {{subject}}",
+  "empty_description": "Noch keine {{subject}} vorhanden. Aufgaben aus einer direkten Eingabe oder einem markierten GitHub-Issue erstellen.",
+  "setup_credentials_description": "Zuerst Anmeldedaten einrichten, damit Syrus mit GitHub und dem ausgewählten Agenten kommunizieren kann.",
+  "setup_description": "Zuerst Setup abschließen, damit Syrus Aufgaben für ein Repository ausführen kann.",
+  "open_setup": "Setup öffnen",
+  "create_epic": "Epic erstellen",
+  "create_direct_job": "Direktaufgabe erstellen",
+
+  "load_more": "Mehr laden",
+  "load_more_lane": "Mehr aus {{lane}} laden",
+
+  "selected_count": "{{count}} ausgewählt",
+  "bulk_action_error": "Massenoperation fehlgeschlagen.",
+  "retry": "Wiederholen",
+  "claim": "Beanspruchen",
+  "release": "Freigeben",
+  "approve": "Genehmigen",
+  "close_action": "Schließen",
+  "move_to_in_progress": "In Bearbeitung verschieben",
+  "close_confirm_one": "{{count}} ausgewählte Aufgabe schließen?",
+  "close_confirm_other": "{{count}} ausgewählte Aufgaben schließen?",
+
+  "select_all_jobs": "Alle Aufgaben auswählen",
+  "select_all_epics": "Alle Epics auswählen",
+  "select_item": "{{title}} auswählen",
+
+  "blocker_one": "{{count}} Blocker",
+  "blocker_other": "{{count}} Blocker",
+
+  "approved": "Genehmigt",
+  "not_approved": "Nicht genehmigt",
+  "generating_title": "Titel wird generiert...",
+  "unclaimed": "Nicht beansprucht",
+  "claimed_by_you": "Von Ihnen beansprucht",
+  "chat_link": "Chat",
+  "standalone": "eigenständig",
+  "epic_attribution": "Epic: {{title}}",
+  "epic_attribution_by_id": "Epic #{{id}}",
+
+  "epic_progress": "{{done}}/{{total}} erledigt",
+  "epic_updated": "Epic aktualisiert.",
+  "epic_move_error": "Epic konnte nicht verschoben werden.",
+
+  "needs_attention": "Aufmerksamkeit erforderlich",
+  "needs_attention_title": "Alle Aufgaben geschlossen – Epic als erledigt markieren oder Folgeaufgabe erstellen.",
+
+  "showing_pagination": "Zeige {{first}}–{{last}} von {{total}}",
+  "previous": "Zurück",
+  "next": "Weiter",
+
+  "started_at": "Gestartet {{date}}",
+  "finished_at": "Beendet {{date}}",
+
+  "ascending": "Aufsteigend",
+  "descending": "Absteigend",
+  "sort_by": "Sortieren nach {{label}} {{direction}}",
+
+  "column_label": {
+    "checkbox": "Kontrollkästchen",
+    "epic": "Epic",
+    "state": "Status",
+    "owner": "Inhaber",
+    "repository": "Repository",
+    "updated": "Aktualisiert",
+    "created_at": "Erstellt am",
+    "updated_at": "Aktualisiert am",
+    "done_at": "Fertig am",
+    "archived_at": "Archiviert am",
+    "issue": "Aufgabe",
+    "title": "Titel",
+    "landing_queue_position": "Warteschlange",
+    "latest": "Neueste",
+    "workflows_count": "Anzahl Arbeitsabläufe",
+    "started": "Gestartet",
+    "started_at": "Gestartet am",
+    "finished_at": "Beendet am",
+    "approved_at": "Genehmigt am",
+    "dependencies_overridden_at": "Abhängigkeiten überschrieben am",
+    "last_feedback_addressed_at": "Letztes Feedback behoben am",
+    "last_seen_comment_at": "Letzter Kommentar gesehen am",
+    "pr_mergeable_checked_at": "PR-Zusammenführbarkeit geprüft am",
+    "workflow": "Arbeitsablauf",
+    "workflow_title": "Arbeitsablauf",
+    "job": "Auftrag",
+    "trigger": "Auslöser",
+    "finished": "Abgeschlossen",
+    "agent": "Agent",
+    "cleaned_up_at": "Bereinigt am"
+  }
+}

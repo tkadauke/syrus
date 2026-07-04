@@ -1,3 +1,84 @@
 {
-  "title": "Epics"
+  "title": "Epics",
+
+  "loading": "Epic wird geladen...",
+  "load_error": "Epic konnte nicht geladen werden.",
+  "form_loading": "Epicformular wird geladen...",
+  "form_load_error": "Epicformular konnte nicht geladen werden.",
+  "command_error": "Epic-Befehl fehlgeschlagen.",
+  "dependency_error": "Abhängigkeiten konnten nicht aktualisiert werden.",
+  "save_error": "Epic konnte nicht gespeichert werden.",
+
+  "claim": "Beanspruchen",
+  "unclaim": "Freigeben",
+  "edit": "Bearbeiten",
+  "cancel": "Abbrechen",
+  "add_button": "Hinzufügen",
+  "add_job": "+ Aufgabe hinzufügen",
+  "more_actions": "Weitere Aktionen",
+
+  "description": "Beschreibung",
+  "blocked": "Blockiert",
+
+  "dependencies": "Abhängigkeiten",
+  "depends_on": "Abhängig von",
+  "depended_on_by": "Wird benötigt von",
+  "add_dependency": "Abhängigkeit hinzufügen",
+  "search_placeholder": "Epics nach Namen suchen...",
+  "searching": "Suche läuft...",
+  "no_matches": "Keine Treffer",
+  "remove_dependency": "Abhängigkeit von {{title}} entfernen",
+  "none": "Keine",
+
+  "no_external_dependencies": "Keine externen Abhängigkeiten",
+  "dependency_graph": "Abhängigkeitsgraph",
+  "rendering_graph": "Abhängigkeitsgraph wird gerendert...",
+  "graph_render_error": "Abhängigkeitsgraph konnte nicht gerendert werden: {{message}}",
+  "epic_dep_one": "{{count}} Epic-Abhängigkeit",
+  "epic_dep_other": "{{count}} Epic-Abhängigkeiten",
+  "job_blocker_one": "{{count}} Aufgaben-Blocker",
+  "job_blocker_other": "{{count}} Aufgaben-Blocker",
+
+  "history": "Verlauf",
+  "no_history": "Noch keine Titel- oder Beschreibungsänderungen.",
+  "title_before": "Titel vorher",
+  "title_after": "Titel nachher",
+  "description_before": "Beschreibung vorher",
+  "description_after": "Beschreibung nachher",
+  "empty_value": "(leer)",
+
+  "jobs_section": "Aufgaben",
+  "no_jobs": "Keine Aufgaben in diesem Epic.",
+
+  "details": "Details",
+  "owner": "Inhaber",
+  "owner_label": "Inhaber {{email}}",
+  "unclaimed": "Nicht beansprucht",
+  "active_members": "Aktive Mitglieder",
+  "repository": "Repository",
+  "updated_label": "Aktualisiert",
+  "updated_relative": "aktualisiert {{time}}",
+  "jobs_count_one": "{{count}} Aufgabe",
+  "jobs_count_other": "{{count}} Aufgaben",
+  "dep_one": "{{count}} Abhängigkeit",
+  "dep_other": "{{count}} Abhängigkeiten",
+
+  "needs_attention": "Aufmerksamkeit erforderlich",
+  "needs_attention_title": "Alle Aufgaben geschlossen – Epic als erledigt markieren oder Folgeaufgabe erstellen.",
+
+  "state_chip": {
+    "merged": "Gelandet",
+    "blocked_by_epic": "Blockiert"
+  },
+
+  "new_epic": "Neues Epic",
+  "edit_epic": "Epic bearbeiten",
+  "back_to_epic": "Zurück zum Epic",
+  "form_title": "Titel",
+  "form_repository": "Repository",
+  "select_repository": "Repository auswählen",
+  "github_issue_url": "GitHub-Issue-URL",
+  "saving": "Wird gespeichert...",
+  "create": "Epic erstellen",
+  "save": "Epic speichern"
 }

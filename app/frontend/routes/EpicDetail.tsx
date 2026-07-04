@@ -6,6 +6,7 @@ import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { CloseIcon } from "../components/CloseIcon"
+import { useT } from "../hooks/useT"
 import {
   addEpicDependency,
   archiveEpic,
@@ -38,6 +39,7 @@ type EpicCommand =
   | { kind: "unclaim" }
 
 export function EpicDetailRoute() {
+  const { t } = useT("epics")
   const params = useParams()
   const location = useLocation()
   const id = params.id || ""
@@ -50,14 +52,15 @@ export function EpicDetailRoute() {
 
   return (
     <main aria-label="Epic" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {epic.isPending ? <PanelMessage>Loading Epic...</PanelMessage> : null}
-      {epic.isError ? <PanelMessage tone="error">{errorMessage(epic.error, "Unable to load Epic.")}</PanelMessage> : null}
+      {epic.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
+      {epic.isError ? <PanelMessage tone="error">{errorMessage(epic.error, t("load_error"))}</PanelMessage> : null}
       {epic.isSuccess ? <EpicDetail payload={epic.data} prefix={prefix} /> : null}
     </main>
   )
 }
 
 function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: string }) {
+  const { t } = useT("epics")
   const queryClient = useQueryClient()
   const queryKey = ["epics", String(payload.epic.id)] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
@@ -105,9 +108,9 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           <Link className="font-mono hover:underline" to={withRoutePrefix(payload.epic.repository.repository_path, prefix)}>{payload.epic.repository.slug}</Link>
-          <span> · {payload.epic.jobs_count} {payload.epic.jobs_count === 1 ? "Job" : "Jobs"}</span>
-          <span> · {ownerLabel(payload.epic)}</span>
-          <span> · updated {formatRelative(payload.epic.updated_at)}</span>
+          <span> · {t("jobs_count", { count: payload.epic.jobs_count })}</span>
+          <span> · {epicOwnerLabel(payload.epic, t)}</span>
+          <span> · {t("updated_relative", { time: formatRelative(payload.epic.updated_at) })}</span>
         </p>
 
         {(payload.state_transitions.length > 0 || payload.epic.claimable || !payload.epic.archived) ? (
@@ -119,7 +122,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
                 onClick={() => command.mutate({ kind: "claim" })}
                 type="button"
               >
-                Claim
+                {t("claim")}
               </button>
             ) : null}
             {payload.epic.claimable && payload.epic.owned_by_current_user ? (
@@ -129,11 +132,11 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
                 onClick={() => command.mutate({ kind: "unclaim" })}
                 type="button"
               >
-                Unclaim
+                {t("unclaim")}
               </button>
             ) : null}
             {!payload.epic.archived ? (
-              <Link className={primaryButton()} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>Edit</Link>
+              <Link className={primaryButton()} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>{t("edit")}</Link>
             ) : null}
             {payload.state_transitions.length > 0 ? (
               <EpicActionsMenu disabled={command.isPending} onTransition={runTransition} transitions={payload.state_transitions} />
@@ -147,22 +150,22 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
             <StateChips jobs={payload.jobs} />
             {payload.summary.dependency_edge_count > 0 ? (
               <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
-                {payload.summary.dependency_edge_count} {payload.summary.dependency_edge_count === 1 ? "dep" : "deps"}
+                {t("dep", { count: payload.summary.dependency_edge_count })}
               </span>
             ) : null}
-            {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason || "Blocked"}</span> : null}
+            {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason || t("blocked")}</span> : null}
           </div>
         </div>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Epic command failed.")}</PanelMessage> : null}
+      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
 
       <div className="grid gap-6 lg:grid-cols-[62%_38%]">
         <div className="space-y-6">
           {payload.epic.description.trim() ? (
             <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Description</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("description")}</h2>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
             </section>
           ) : null}
@@ -193,6 +196,7 @@ function DependenciesSection({
   dependents: EpicDependencyRecord[]
   prefix: string
 }) {
+  const { t } = useT("epics")
   const [selectedDependency, setSelectedDependency] = useState<EpicSearchOption | null>(null)
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -206,8 +210,8 @@ function DependenciesSection({
   return (
     <section className="space-y-4">
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Dependencies</h2>
-        <h3 className="mt-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Depends on</h3>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("dependencies")}</h2>
+        <h3 className="mt-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("depends_on")}</h3>
         {dependencies.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {dependencies.map((dependency) => (
@@ -217,11 +221,11 @@ function DependenciesSection({
                   <StatePill state={dependency.state} />
                 </span>
                 <button
-                  aria-label={`Remove dependency on ${dependency.title}`}
+                  aria-label={t("remove_dependency", { title: dependency.title })}
                   className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/70 dark:text-red-300 dark:hover:bg-red-950/40"
                   disabled={command.isPending}
                   onClick={() => command.mutate({ kind: "remove", dependsOnEpicId: dependency.epic_id })}
-                  title={`Remove dependency on ${dependency.title}`}
+                  title={t("remove_dependency", { title: dependency.title })}
                   type="button"
                 >
                   <CloseIcon className="h-4 w-4" />
@@ -230,7 +234,7 @@ function DependenciesSection({
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-gray-400 dark:text-gray-500">None</p>
+          <p className="mt-2 text-gray-400 dark:text-gray-500">{t("none")}</p>
         )}
         <form className="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800" onSubmit={submit}>
           <EpicDependencyTypeahead
@@ -239,12 +243,12 @@ function DependenciesSection({
             onChange={setSelectedDependency}
             selected={selectedDependency}
           />
-          <button className={secondaryButton()} disabled={command.isPending || !selectedDependency} type="submit">Add</button>
+          <button className={secondaryButton()} disabled={command.isPending || !selectedDependency} type="submit">{t("add_button")}</button>
         </form>
-        {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, "Unable to update dependencies.")}</p> : null}
+        {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, t("dependency_error"))}</p> : null}
       </div>
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Depended on by</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("depended_on_by")}</h2>
         {dependents.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {dependents.map((dependent) => (
@@ -255,7 +259,7 @@ function DependenciesSection({
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-gray-400 dark:text-gray-500">None</p>
+          <p className="mt-2 text-gray-400 dark:text-gray-500">{t("none")}</p>
         )}
       </div>
     </section>
@@ -273,6 +277,7 @@ function EpicDependencyTypeahead({
   onChange: (option: EpicSearchOption | null) => void
   selected: EpicSearchOption | null
 }) {
+  const { t } = useT("epics")
   const [query, setQuery] = useState(selected?.label || "")
   const [options, setOptions] = useState<EpicSearchOption[]>([])
   const [loading, setLoading] = useState(false)
@@ -331,12 +336,12 @@ function EpicDependencyTypeahead({
 
   return (
     <label className="relative min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-      Add dependency
+      {t("add_dependency")}
       <input
         aria-autocomplete="list"
         className="mt-1 w-full min-w-64 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
         onChange={(event) => updateQuery(event.target.value)}
-        placeholder="Search Epics by name..."
+        placeholder={t("search_placeholder")}
         type="search"
         value={query}
       />
@@ -354,7 +359,7 @@ function EpicDependencyTypeahead({
               </button>
             ))
           ) : (
-            <div className="px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500">{loading ? "Searching..." : "No matches"}</div>
+            <div className="px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500">{loading ? t("searching") : t("no_matches")}</div>
           )}
         </div>
       ) : null}
@@ -363,15 +368,16 @@ function EpicDependencyTypeahead({
 }
 
 function DependencyGraph({ graph }: { graph: EpicGraph }) {
-  if (graph.empty) return <p className="text-sm text-gray-500 dark:text-gray-400">No external dependencies</p>
+  const { t } = useT("epics")
+  if (graph.empty) return <p className="text-sm text-gray-500 dark:text-gray-400">{t("no_external_dependencies")}</p>
 
   return (
     <details className="group rounded border border-gray-200 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" open={graph.initially_open}>
       <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
         <span className="flex items-center gap-2">
           <span className="text-gray-400 transition-transform group-open:rotate-90 dark:text-gray-500">▶</span>
-          <span className="font-medium">Dependency graph</span>
-          <span className="text-gray-500 dark:text-gray-400">({graph.epic_dependency_count} {graph.epic_dependency_count === 1 ? "epic dep" : "epic deps"}, {graph.job_blocker_count} {graph.job_blocker_count === 1 ? "job blocker" : "job blockers"})</span>
+          <span className="font-medium">{t("dependency_graph")}</span>
+          <span className="text-gray-500 dark:text-gray-400">({t("epic_dep", { count: graph.epic_dependency_count })}, {t("job_blocker", { count: graph.job_blocker_count })})</span>
         </span>
       </summary>
       <div className="border-t border-gray-100 p-3 dark:border-gray-800">
@@ -382,6 +388,7 @@ function DependencyGraph({ graph }: { graph: EpicGraph }) {
 }
 
 function MermaidGraph({ definition }: { definition: string }) {
+  const { t } = useT("epics")
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -406,7 +413,7 @@ function MermaidGraph({ definition }: { definition: string }) {
         if (!cancelled) setSvg(renderedSvg)
       })
       .catch((caught: unknown) => {
-        if (!cancelled) setError(`Dependency graph could not render: ${caught instanceof Error ? caught.message : String(caught)}`)
+        if (!cancelled) setError(t("graph_render_error", { message: caught instanceof Error ? caught.message : String(caught) }))
       })
 
     return () => {
@@ -417,19 +424,20 @@ function MermaidGraph({ definition }: { definition: string }) {
   return (
     <div className="overflow-x-auto rounded bg-gray-50 p-3 dark:bg-gray-950">
       {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
-      {!error && !svg ? <p className="text-sm text-gray-500 dark:text-gray-400">Rendering dependency graph...</p> : null}
+      {!error && !svg ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("rendering_graph")}</p> : null}
       {svg ? <div className="min-w-[28rem] text-center text-gray-700 dark:text-gray-200" dangerouslySetInnerHTML={{ __html: svg }} /> : null}
     </div>
   )
 }
 
 function HistorySection({ versions }: { versions: EpicVersionRecord[] }) {
+  const { t } = useT("epics")
   return (
     <details className="group rounded border border-gray-200 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
       <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
         <span className="flex items-center gap-2">
           <span className="text-gray-400 transition-transform group-open:rotate-90 dark:text-gray-500">▶</span>
-          <span className="font-medium">History</span>
+          <span className="font-medium">{t("history")}</span>
           <span className="text-gray-500 dark:text-gray-400">({versions.length})</span>
         </span>
       </summary>
@@ -444,21 +452,21 @@ function HistorySection({ versions }: { versions: EpicVersionRecord[] }) {
                 </div>
                 {version.title_before !== null || version.title_after !== null ? (
                   <div className="grid gap-2 md:grid-cols-2">
-                    <DiffValue label="Title before" value={version.title_before} />
-                    <DiffValue label="Title after" value={version.title_after} />
+                    <DiffValue label={t("title_before")} value={version.title_before} />
+                    <DiffValue label={t("title_after")} value={version.title_after} />
                   </div>
                 ) : null}
                 {version.description_before !== null || version.description_after !== null ? (
                   <div className="grid gap-2 md:grid-cols-2">
-                    <DiffValue label="Description before" value={version.description_before} multiline />
-                    <DiffValue label="Description after" value={version.description_after} multiline />
+                    <DiffValue label={t("description_before")} value={version.description_before} multiline />
+                    <DiffValue label={t("description_after")} value={version.description_after} multiline />
                   </div>
                 ) : null}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">No title or description changes yet.</p>
+          <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">{t("no_history")}</p>
         )}
       </div>
     </details>
@@ -466,22 +474,24 @@ function HistorySection({ versions }: { versions: EpicVersionRecord[] }) {
 }
 
 function DiffValue({ label, multiline = false, value }: { label: string; multiline?: boolean; value: string | null }) {
+  const { t } = useT("epics")
   return (
     <div>
       <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
       <pre className={`mt-1 whitespace-pre-wrap break-words rounded border border-gray-200 bg-gray-50 p-2 font-mono text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 ${multiline ? "min-h-20" : ""}`}>
-        {value?.trim() ? value : "(empty)"}
+        {value?.trim() ? value : t("empty_value")}
       </pre>
     </div>
   )
 }
 
 export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { epicRepositorySlug?: string; jobs: EpicDetailJob[]; newJobPath: string; prefix: string }) {
+  const { t } = useT("epics")
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Jobs</h2>
-        <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(newJobPath, prefix)}>+ Add Job</Link>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("jobs_section")}</h2>
+        <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(newJobPath, prefix)}>{t("add_job")}</Link>
       </div>
       {jobs.length > 0 ? (
         <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-700">
@@ -512,7 +522,7 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
           ))}
         </ul>
       ) : (
-        <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">No Jobs in this Epic.</p>
+        <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">{t("no_jobs")}</p>
       )}
     </section>
   )
@@ -543,10 +553,6 @@ export function ProgressBar({ jobs, totalCount }: { jobs: EpicDetailJob[]; total
 
 const STATE_CHIP_ORDER = ["merged", "approved", "implemented", "blocked_by_epic", "open", "triaging", "landing", "landing_failed", "closed", "preempted", "pending"]
 
-const STATE_CHIP_LABELS: Record<string, string> = {
-  merged: "Landed",
-  blocked_by_epic: "Blocked",
-}
 
 const STATE_CHIP_STYLES: Record<string, string> = {
   open: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
@@ -563,6 +569,7 @@ const STATE_CHIP_STYLES: Record<string, string> = {
 }
 
 export function StateChips({ jobs }: { jobs: EpicDetailJob[] }) {
+  const { t } = useT("epics")
   const counts = new Map<string, number>()
   for (const job of jobs) {
     counts.set(job.state, (counts.get(job.state) || 0) + 1)
@@ -582,7 +589,7 @@ export function StateChips({ jobs }: { jobs: EpicDetailJob[] }) {
     <>
       {sortedStates.map((state) => (
         <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATE_CHIP_STYLES[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`} key={state}>
-          {counts.get(state)} {STATE_CHIP_LABELS[state] ?? humanize(state)}
+          {counts.get(state)} {t(`state_chip.${state}`, { defaultValue: humanize(state) })}
         </span>
       ))}
     </>
@@ -590,20 +597,21 @@ export function StateChips({ jobs }: { jobs: EpicDetailJob[] }) {
 }
 
 function DetailsPanel({ epic, jobs, prefix }: { epic: EpicDetailPayload["epic"]; jobs: EpicDetailJob[]; prefix: string }) {
+  const { t } = useT("epics")
   const owner = epic.owner_user || epic.owner
   const activeMembers = uniqueActiveMembers(jobs)
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Details</h2>
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("details")}</h2>
       <dl className="mt-3 space-y-3">
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Owner</dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-200">{owner ? owner.email_address : "Unclaimed"}</dd>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("owner")}</dt>
+          <dd className="mt-0.5 text-gray-700 dark:text-gray-200">{owner ? owner.email_address : t("unclaimed")}</dd>
         </div>
         {activeMembers.length > 0 ? (
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Active members</dt>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("active_members")}</dt>
             <dd className="mt-0.5 space-y-0.5">
               {activeMembers.map((member) => (
                 <div className="text-gray-700 dark:text-gray-200" key={member.id}>{member.email_address}</div>
@@ -612,7 +620,7 @@ function DetailsPanel({ epic, jobs, prefix }: { epic: EpicDetailPayload["epic"];
           </div>
         ) : null}
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Repository</dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository")}</dt>
           <dd className="mt-0.5">
             <Link className="font-mono text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(epic.repository.repository_path, prefix)}>
               {epic.repository.slug}
@@ -620,7 +628,7 @@ function DetailsPanel({ epic, jobs, prefix }: { epic: EpicDetailPayload["epic"];
           </dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Updated</dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("updated_label")}</dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-200" title={formatDateTime(epic.updated_at)}>{formatRelative(epic.updated_at)}</dd>
         </div>
       </dl>
@@ -680,15 +688,16 @@ function StatePill({ state }: { state: string }) {
 }
 
 function EpicStuckBadge({ stuck }: { stuck: boolean }) {
+  const { t } = useT("epics")
   if (!stuck) return null
 
   return (
     <span
-      aria-label="Needs attention"
+      aria-label={t("needs_attention")}
       className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:ring-amber-800"
-      title="All jobs closed - mark this epic done or file a follow-up."
+      title={t("needs_attention_title")}
     >
-      Needs attention
+      {t("needs_attention")}
     </span>
   )
 }
@@ -719,6 +728,7 @@ function EpicActionsMenu({
   onTransition: (transition: EpicStateTransition) => void
   transitions: EpicStateTransition[]
 }) {
+  const { t } = useT("epics")
   const [open, setOpen] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
 
@@ -727,7 +737,7 @@ function EpicActionsMenu({
       <button
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="More actions"
+        aria-label={t("more_actions")}
         className={secondaryButton()}
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
@@ -762,9 +772,9 @@ function humanize(value: string) {
   return value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
 }
 
-function ownerLabel(epic: EpicDetailPayload["epic"]) {
+function epicOwnerLabel(epic: EpicDetailPayload["epic"], t: (key: string, opts?: Record<string, unknown>) => string) {
   const owner = epic.owner_user || epic.owner
-  return owner ? `Owner ${owner.email_address}` : "Unclaimed"
+  return owner ? t("owner_label", { email: owner.email_address }) : t("unclaimed")
 }
 
 function formatRelative(value: string) {
