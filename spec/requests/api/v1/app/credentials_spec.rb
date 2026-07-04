@@ -443,4 +443,40 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
     expect(non_admin.reload.api_token).to be_nil
   end
+
+  it "returns locale in the credentials payload" do
+    user.update!(locale: "de")
+    sign_in_as(user)
+
+    get "/api/v1/app/credentials"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("user", "locale")).to eq("de")
+  end
+
+  it "updates the user locale via PATCH" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/credentials", params: { user: { locale: "la" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.locale).to eq("la")
+    expect(parse_body.dig("user", "locale")).to eq("la")
+  end
+
+  it "rejects invalid locales" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/credentials", params: { user: { locale: "klingon" } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+
+  it "returns available locales in credentials options" do
+    sign_in_as(user)
+
+    get "/api/v1/app/credentials"
+
+    expect(parse_body.dig("options", "locales")).to eq(%w[en de la])
+  end
 end

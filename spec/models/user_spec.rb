@@ -694,4 +694,35 @@ RSpec.describe User do
       expect(setup_user.first_run_setup_complete?).to be true
     end
   end
+
+  describe "locale" do
+    it "defaults to 'en' when not specified" do
+      user = User.create!(attrs)
+      expect(user.locale).to eq("en")
+    end
+
+    it "stores and retrieves a supported locale" do
+      user = User.create!(attrs.merge(locale: "de"))
+      expect(user.reload.locale).to eq("de")
+
+      user.update!(locale: "la")
+      expect(user.reload.locale).to eq("la")
+    end
+
+    it "rejects locales not in the allowed list" do
+      user = User.new(attrs.merge(locale: "fr"))
+      expect(user).not_to be_valid
+      expect(user.errors[:locale]).to be_present
+    end
+
+    it "seeds a blank locale to 'en' via after_initialize" do
+      user = User.new(attrs.merge(locale: ""))
+      expect(user.locale).to eq("en")
+      expect(user).to be_valid
+    end
+
+    it "seeds locale column in the database" do
+      expect(User.column_names).to include("locale")
+    end
+  end
 end

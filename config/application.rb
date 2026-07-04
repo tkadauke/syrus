@@ -20,6 +20,9 @@ module Syrus
       g.test_framework :rspec, fixture: false, view_specs: false, helper_specs: false, routing_specs: false
     end
 
+    config.i18n.available_locales = %i[en de la]
+    config.i18n.default_locale = :en
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files

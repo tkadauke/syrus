@@ -384,7 +384,8 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       agent_provider: "claude",
       chat_provider: null,
       agent_max_turns: 200,
-      theme: "light"
+      theme: "light",
+      locale: "en"
     },
     team_user_count: 1,
     app: { revision: "dev", revision_url: null },
