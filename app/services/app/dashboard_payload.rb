@@ -9,6 +9,7 @@ module App
     DEFAULT_VIEW = "list"
     DEFAULT_OWNERSHIP_SCOPE = "mine"
     FOLDER_PREFERENCE_DEFAULTS = {
+      [ "epic", "null" ] => { "view" => "kanban" },
       [ "epic", "epics_mine" ] => { "view" => "kanban" },
       [ "epic", "epics_claimable" ] => { "view" => "list" },
       [ "job", "landing_queue" ] => { "sort_column" => "landing_queue_position", "sort_direction" => "asc" }
