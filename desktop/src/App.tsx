@@ -1273,20 +1273,23 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                               <button
                                 type="button"
                                 onClick={() => toggleEpic(entry.epicId)}
-                                className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50"
+                                className="w-full flex flex-col px-3 py-1 text-gray-500 hover:bg-gray-50"
                               >
-                                <DisclosureIcon collapsed={epicCollapsed} />
-                                <span className="flex-1 min-w-0 truncate text-left">EPIC-{entry.epicId}: {entry.epicTitle}</span>
-                                <span className="ml-auto text-gray-400">{entry.jobs.length}</span>
-                                {epicFullyImplemented(entry.jobs) && (
-                                  <span
-                                    role="button"
-                                    onClick={(e) => { e.stopPropagation(); void checkoutEpicComplete(entry.epicId, group.repositorySlug) }}
-                                    className="ml-2 text-xs text-blue-600 hover:underline cursor-pointer"
-                                  >
-                                    Checkout
-                                  </span>
-                                )}
+                                <div className="flex items-center gap-1 w-full">
+                                  <DisclosureIcon collapsed={epicCollapsed} />
+                                  <span className="text-xs font-semibold">EPIC-{entry.epicId}</span>
+                                  <span className="ml-auto text-xs text-gray-400">{entry.jobs.length}</span>
+                                  {epicFullyImplemented(entry.jobs) && (
+                                    <span
+                                      role="button"
+                                      onClick={(e) => { e.stopPropagation(); void checkoutEpicComplete(entry.epicId, group.repositorySlug) }}
+                                      className="ml-2 text-xs text-blue-600 hover:underline cursor-pointer"
+                                    >
+                                      Checkout
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-gray-400 truncate w-full pl-5 text-left">{entry.epicTitle}</span>
                               </button>
                             </li>,
                             ...(!epicCollapsed ? entry.jobs.map((job) => (
