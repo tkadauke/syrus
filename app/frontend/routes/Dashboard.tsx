@@ -16,7 +16,6 @@ import { workflowSlug } from "../lib/slugs"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { bulkDashboardEpics, bulkDashboardJobs, fetchDashboard, recordDashboardFilterUsage, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkEpicAction, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLane, type DashboardPayload, type DashboardRepository, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
 import type { LandingQueueBlockerJob } from "../api/jobs"
-import { CloseIcon } from "../components/CloseIcon"
 
 const KANBAN_CARDS_PER_PAGE = 20
 
@@ -146,9 +145,8 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
 
 function OwnershipControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   const navigate = useNavigate()
-  if (payload.subject === "epic") return null
+  if (payload.subject === "epic" || payload.subject === "job") return null
   if (payload.ownership.team_user_count <= 1) return null
-  if (payload.subject === "job") return <JobOwnerFilterChip payload={payload} pathname={pathname} search={search} />
 
   function scopeLink(scope: string) {
     return dashboardLinkFromSearch(pathname, search, {
@@ -183,87 +181,6 @@ function OwnershipControls({ payload, pathname, search }: { payload: DashboardPa
         >
           {payload.controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
         </select>
-      ) : null}
-    </div>
-  )
-}
-
-export function JobOwnerFilterChip({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  const navigate = useNavigate()
-  const [open, setOpen] = useState(false)
-  const popupRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
-  const currentScope = payload.ownership.scope
-  const defaultScope = "team"
-
-  const scopeEntry = payload.controls.ownership_scopes.find((s) => s.value === currentScope)
-  const ownerEntry = currentScope === "user"
-    ? payload.controls.owners.find((o) => String(o.id) === String(payload.ownership.owner_id))
-    : null
-  const scopeLabel = ownerEntry ? ownerEntry.label : (scopeEntry?.label ?? currentScope)
-  const isDefaultScope = currentScope === defaultScope
-
-  function scopeLink(scope: string) {
-    return dashboardLinkFromSearch(pathname, search, {
-      ownership_scope: scope === defaultScope ? null : scope,
-      owner_id: scope === "user" ? payload.ownership.owner_id : null,
-      page: null
-    })
-  }
-
-  return (
-    <div className="relative" ref={popupRef}>
-      <span className="inline-flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800">
-        <button
-          aria-label={`Owner is ${scopeLabel}`}
-          className="inline-flex items-baseline gap-1 text-left"
-          onClick={() => setOpen((v) => !v)}
-          type="button"
-        >
-          <span className="font-medium text-gray-700 dark:text-gray-200">Owner</span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">is</span>
-          <span className="font-mono text-gray-900 dark:text-white">{scopeLabel}</span>
-        </button>
-        {!isDefaultScope ? (
-          <Link
-            aria-label="Reset Owner filter"
-            className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-            to={scopeLink(defaultScope)}
-          >
-            <CloseIcon className="h-3.5 w-3.5" />
-          </Link>
-        ) : null}
-      </span>
-      {open ? (
-        <div className="absolute right-0 top-full z-20 mt-2 min-w-[10rem] rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
-          {payload.controls.ownership_scopes.map((scope) => (
-            <Link
-              className={`block px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 ${payload.ownership.scope === scope.value ? "font-medium text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-200"}`}
-              key={scope.value}
-              onClick={() => setOpen(false)}
-              role="menuitem"
-              to={scopeLink(scope.value)}
-            >
-              {scope.label}
-            </Link>
-          ))}
-          {currentScope === "user" ? (
-            <div className="border-t border-gray-100 p-2 dark:border-gray-800">
-              <label className="sr-only" htmlFor="job-owner-user-filter">Specific owner</label>
-              <select
-                className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                id="job-owner-user-filter"
-                onChange={(event) =>
-                  navigate(dashboardLinkFromSearch(pathname, search, { ownership_scope: "user", owner_id: event.target.value, page: null }))
-                }
-                value={payload.ownership.owner_id ?? ""}
-              >
-                {payload.controls.owners.map((owner) => (
-                  <option key={owner.id} value={owner.id}>{owner.label}</option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-        </div>
       ) : null}
     </div>
   )

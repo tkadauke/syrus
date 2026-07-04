@@ -28,7 +28,10 @@ module Filters
       if chip.bucket.to_s == "fk" || (chip.respond_to?(:typeahead) && chip.typeahead)
         meta["typeahead"] = true
       else
-        meta["values"] = humanize_values(dynamic_values(chip, user) || chip.values)
+        v = (chip.respond_to?(:schema_values) && user ? chip.schema_values(user) : nil) ||
+            dynamic_values(chip, user) ||
+            chip.values
+        meta["values"] = humanize_values(v)
       end
       meta["expansions"] = chip.expansions if chip.respond_to?(:expansions)
       meta
