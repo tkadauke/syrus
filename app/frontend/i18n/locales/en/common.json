@@ -1,3 +1,18 @@
 {
-  "app_name": "Syrus"
+  "app_name": "Syrus",
+  "loading": "Loading...",
+  "show_more": "Show more",
+  "show_less": "Show less",
+  "workflows": "Workflows",
+  "errors": {
+    "not_found_heading": "There’s nothing here.",
+    "not_found_description": "This address leads nowhere. You may have followed a broken link, or the page may have moved.",
+    "server_error_heading": "Something has gone wrong.",
+    "server_error_description": "An error occurred on the server. The application owner should inspect the logs when convenient.",
+    "unprocessable_heading": "That request was rejected.",
+    "unprocessable_description": "The server found this submission unacceptable as presented. Review your input and try again. If you’re the application owner, check the logs.",
+    "bad_request_heading": "The server could not read that.",
+    "bad_request_description": "This request was malformed or could not be parsed. Please check the address and try again.",
+    "return_to_dashboard": "Return to dashboard"
+  }
 }

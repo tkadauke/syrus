@@ -1,3 +1,14 @@
 {
-  "title": "Administratio"
+  "title": "Administratio",
+  "nav_overview": "Overview",
+  "nav_queue": "Queue",
+  "nav_stuck": "Stuck",
+  "nav_processes": "Processes",
+  "nav_users": "Users",
+  "nav_console": "Console",
+  "nav_installations": "Installations",
+  "nav_github_app": "GitHub App",
+  "nav_invitations": "Invitations",
+  "nav_settings": "Settings",
+  "nav_features": "Features"
 }
