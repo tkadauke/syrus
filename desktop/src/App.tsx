@@ -1273,7 +1273,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                               <button
                                 type="button"
                                 onClick={() => toggleEpic(entry.epicId)}
-                                className="w-full flex flex-col px-3 py-1 text-gray-500 hover:bg-gray-50"
+                                className="w-full flex flex-col overflow-hidden px-3 py-1 text-gray-500 hover:bg-gray-50"
                               >
                                 <div className="flex items-center gap-1 w-full">
                                   <DisclosureIcon collapsed={epicCollapsed} />
@@ -1289,7 +1289,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-[10px] text-gray-400 truncate w-full pl-5 text-left">{entry.epicTitle}</span>
+                                <span className="text-[11px] text-gray-400 truncate min-w-0 pl-5 text-left">{entry.epicTitle}</span>
                               </button>
                             </li>,
                             ...(!epicCollapsed ? entry.jobs.map((job) => (
