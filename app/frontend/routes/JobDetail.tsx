@@ -313,7 +313,7 @@ function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { error: Err
       <form className="space-y-3" onSubmit={submit}>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-feedback-title">Give feedback</h2>
         <textarea
-          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           disabled={isPending}
           onChange={(event) => setBody(event.target.value)}
           placeholder="What should be changed?"
@@ -464,7 +464,7 @@ function RetryFeedbackDialog({ command, path, onClose }: { command: ReturnType<t
           </label>
           <textarea
             autoFocus
-            className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             id="retry-feedback-text"
             onChange={(event) => setFeedback(event.target.value)}
             required
