@@ -153,6 +153,7 @@ describe("App", () => {
     fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
     expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
     expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
+    expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("title", "Curia — The Roman Senate house")
     expect(within(accountNav).getByRole("button", { name: "Sign out" })).toBeInTheDocument()
     expect(screen.getAllByText("dev").length).toBeGreaterThan(0)
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -580,6 +581,7 @@ describe("App", () => {
       fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
       expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
+      expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("title", "Curia — The Roman Senate house")
       expect(within(accountNav).getByRole("button", { name: "Sign out" })).toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/chats",
@@ -722,6 +724,7 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(screen.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/app-shell/profiles/1")
       expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
+      expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("title", "Curia — The Roman Senate house")
       expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "Switch to dark mode" }))

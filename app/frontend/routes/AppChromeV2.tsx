@@ -332,7 +332,7 @@ function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: R
 
   return (
     <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <nav aria-label="Admin" className="flex gap-2 overflow-x-auto px-4 py-3 text-sm">
+      <nav aria-label="Admin" title="Curia — The Roman Senate house" className="flex gap-2 overflow-x-auto px-4 py-3 text-sm">
         {items.map((item) => {
           const active = item.paths.some((path) => adminNavItemActive(normalizedPath, path))
 
@@ -988,7 +988,7 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>Profile</Link>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>Settings</Link>
           {showTeamProfile ? <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>My Profile</Link> : null}
-          {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} to={`${prefix}/admin`}>Admin</Link> : null}
+          {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>Admin</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <form action="/session" method="post">
             {csrfToken ? <input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
