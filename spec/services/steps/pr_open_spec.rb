@@ -135,7 +135,7 @@ RSpec.describe Steps::PrOpen do
     allow(handler).to receive(:push_branch)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
-    expect(PullRequestOpener).to receive(:new).with(repository, client: client, head_repository: nil).and_return(opener)
+    expect(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
     expect(opener).to receive(:open).with(
       branch: "syrus/issue-42-#{job.id}",
       title: "T",
@@ -149,7 +149,7 @@ RSpec.describe Steps::PrOpen do
     expect(job.reload.pr_repository_id).to eq(repository.id)
   end
 
-  context "when the Job has a cross-fork target_repository" do
+  context "when the Job has a cross-fork target_repository (fork review mode)" do
     let(:upstream) { Factories.repository(user: user, owner: "upstream-org", name: "widgets") }
     let(:fork_job) do
       j = Factories.job(repository: repository, issue_number: 55, target_repository: upstream)
@@ -160,7 +160,7 @@ RSpec.describe Steps::PrOpen do
     let!(:fork_implement_step) { Step.create!(workflow: fork_workflow, kind: "implement", position: 0) }
     let!(:fork_pr_open_step) { Step.create!(workflow: fork_workflow, kind: "pr_open", position: 1) }
 
-    it "opens PR on the upstream with the fork's owner in the head ref and saves pr_repository_id" do
+    it "opens a fork review PR on the fork (not the upstream) and saves fork_review_pr_number" do
       fork_run = Run.create!(
         job: fork_job,
         step: fork_pr_open_step,
@@ -169,30 +169,48 @@ RSpec.describe Steps::PrOpen do
       )
       handler = described_class.new(fork_run)
       workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-55-#{fork_job.id}")
-      upstream_client = instance_double(GithubClient, access_token: "upstream-tok")
+      fork_client = instance_double(GithubClient, access_token: "fork-tok")
       opener = instance_double(PullRequestOpener)
 
       allow(handler).to receive(:workspace).and_return(workspace)
       allow(handler).to receive(:push_branch)
-      allow(handler).to receive(:pr_title_and_body).and_return([ "U", "V" ])
-      allow(GithubClient).to receive(:for).with(repository: upstream, user: fork_job.user).and_return(upstream_client)
-      expect(PullRequestOpener).to receive(:new).with(
-        upstream,
-        client: upstream_client,
-        head_repository: repository
-      ).and_return(opener)
+      allow(handler).to receive(:pr_title_and_body).and_return([ "Add greeting", "Body text" ])
+      allow(GithubClient).to receive(:for).with(repository: repository, user: fork_job.user).and_return(fork_client)
+      expect(PullRequestOpener).to receive(:new).with(repository, client: fork_client).and_return(opener)
       expect(opener).to receive(:open).with(
         branch: "syrus/issue-55-#{fork_job.id}",
-        title: "U",
-        body: "V",
+        title: "[Review] Add greeting — approve to send to upstream-org/#{upstream.name}",
+        body: a_string_including("Staging review", "upstream-org/#{upstream.name}", "Body text"),
         job: fork_job
-      ).and_return(200)
+      ).and_return(201)
 
       handler.call
 
       fork_job.reload
-      expect(fork_job.pr_number).to eq(200)
-      expect(fork_job.pr_repository_id).to eq(upstream.id)
+      expect(fork_job.fork_review_pr_number).to eq(201)
+      expect(fork_job.pr_number).to be_nil
+      expect(fork_job.pr_repository_id).to be_nil
+      expect(fork_job.state).to eq("implemented")
+    end
+
+    it "is idempotent when the fork review PR already exists" do
+      fork_job.update!(fork_review_pr_number: 99)
+      fork_run = Run.create!(
+        job: fork_job,
+        step: fork_pr_open_step,
+        trigger_kind: fork_workflow.trigger_kind,
+        agent_provider: fork_workflow.agent_provider
+      )
+      handler = described_class.new(fork_run)
+      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-55-#{fork_job.id}")
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:push_branch)
+      expect(PullRequestOpener).not_to receive(:new)
+
+      handler.call
+
+      expect(fork_job.reload.fork_review_pr_number).to eq(99)
+      expect(fork_job.reload.state).to eq("implemented")
     end
   end
 

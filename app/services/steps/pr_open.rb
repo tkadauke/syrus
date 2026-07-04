@@ -32,19 +32,58 @@ module Steps
       log("pr_open: pushing branch and opening PR (#{workflow.slug})")
 
       push_branch
-      if job.pr_number.present?  # idempotent for retry
+
+      if job.pr_number.present?  # idempotent: upstream PR already open (non-fork or post-approval)
         log("pr_open: branch pushed for existing PR ##{job.pr_number}")
         transition_job_to_implemented!
         return
       end
 
+      if cross_fork?
+        open_fork_review_pr
+      else
+        open_pr
+      end
+    end
+
+    private
+
+    # Opens a staging review PR on the fork (feature branch → fork default branch).
+    # The operator (or any reviewer) approves this PR; PollForkReviewPrJob detects
+    # the approval and calls ForkReviewApprover, which closes this PR and opens
+    # the real upstream PR. The fork review PR is a review artifact only — never
+    # intended to be merged as a landing step.
+    def open_fork_review_pr
+      if job.fork_review_pr_number.present?  # idempotent for retry
+        log("pr_open: branch pushed for existing fork review PR ##{job.fork_review_pr_number}")
+        transition_job_to_implemented!
+        return
+      end
+
+      title, body = pr_title_and_body
+      fork_client = GithubClient.for(repository: repository, user: job.user)
+      pr_number = PullRequestOpener.new(repository, client: fork_client).open(
+        branch: workspace.branch_name,
+        title: fork_review_pr_title(title),
+        body: fork_review_pr_body(body),
+        job: job
+      )
+      log("pr_open: opened fork review PR ##{pr_number} on #{repository.slug} (#{fork_review_pr_title(title).inspect})")
+      job.update!(
+        fork_review_pr_number: pr_number,
+        branch_name: workspace.branch_name
+      )
+      transition_job_to_implemented!
+    end
+
+    # Opens a PR on the job's effective target repository (non-fork path).
+    def open_pr
       title, body = pr_title_and_body
       target_repo = job.effective_target_repository
       opener_client = GithubClient.for(repository: target_repo, user: job.user)
       pr_number = PullRequestOpener.new(
         target_repo,
-        client: opener_client,
-        head_repository: cross_fork? ? repository : nil
+        client: opener_client
       ).open(
         branch: workspace.branch_name,
         title: title,
@@ -61,7 +100,19 @@ module Steps
       refresh_stack_footer
     end
 
-    private
+    def fork_review_pr_title(base_title)
+      target_slug = job.target_repository&.slug || "upstream"
+      "[Review] #{base_title} — approve to send to #{target_slug}"
+    end
+
+    def fork_review_pr_body(base_body)
+      target_slug = job.target_repository&.slug || "upstream"
+      header = <<~HEADER.strip
+        > **Staging review** — approve or merge this PR to create a pull request on #{target_slug}.
+        > This PR is a review artifact and will not be merged into this repository as a landing step.
+      HEADER
+      "#{header}\n\n#{base_body}"
+    end
 
     # AASM events on Job mutate in-memory state via the after-callback but
     # don't persist; the save! is required for the transition to land in
@@ -221,7 +272,7 @@ module Steps
     end
 
     def cross_fork?
-      job.target_repository_id.present? && job.target_repository_id != job.repository_id
+      job.in_fork_review_mode?
     end
 
     def refresh_stack_footer
