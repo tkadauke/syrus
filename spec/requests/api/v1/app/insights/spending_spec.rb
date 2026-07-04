@@ -26,6 +26,7 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
   end
 
   it "rolls up spending across users for admins" do
+    travel_to Time.zone.local(2026, 7, 1) do
     admin = Factories.user(admin: true, email_address: "admin@example.com")
     other_user = Factories.user(email_address: "other@example.com")
     admin_repo = Factories.repository(user: admin, owner: "acme", name: "syrus")
@@ -73,6 +74,7 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       { "date" => "2026-06-03", "total_usd" => 1.25 },
       { "date" => "2026-06-04", "total_usd" => 2.5 }
     )
+    end
   end
 
   it "scopes non-admin spending to the signed-in user" do
