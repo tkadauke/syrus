@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createEmptyChat, fetchChat, fetchChats, fetchMoreChatsForGroup, fetchNewChat, hideChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
@@ -27,6 +28,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { t } = useTranslation(["nav", "chat"])
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
   const shouldLoadChromeBootstrap = initialBootstrap == null && !isAuthPath(normalizedPath)
@@ -55,21 +57,22 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     : children ?? <Outlet />
 
   const terminalSessionCount = useTerminalSessionCount(Boolean(data?.feature_flags?.terminal && user))
-  const navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
-    ...(inOnboarding ? [{ label: "Setup", to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
+  const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
+    ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
     ...(tabsHidden ? [] : [
-      { label: "Dashboard", to: `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
-      { label: "Spending", to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
-      { label: "Repositories", to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
-      { label: "Schedules", to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> },
+      { id: "dashboard", label: t("nav:dashboard"), to: `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
+      { id: "spending", label: t("nav:spending"), to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
+      { id: "repositories", label: t("nav:repositories"), to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
+      { id: "schedules", label: t("nav:schedules"), to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> },
       ...(data?.feature_flags?.terminal ? [{
-        label: "Terminal",
+        id: "terminal",
+        label: t("nav:terminal"),
         to: `${prefix}/terminal`,
         active: normalizedPath.startsWith("/terminal"),
         icon: <TerminalIcon />,
         badge: terminalSessionCount
       }] : []),
-      ...(data && data.team_user_count > 1 ? [{ label: "Team", to: `${prefix}/profiles`, active: normalizedPath.startsWith("/profiles"), icon: <TeamIcon /> }] : [])
+      ...(data && data.team_user_count > 1 ? [{ id: "team", label: t("nav:team"), to: `${prefix}/profiles`, active: normalizedPath.startsWith("/profiles"), icon: <TeamIcon /> }] : [])
     ])
   ] : []
 
@@ -89,7 +92,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
       navigate(withRoutePrefix(created.redirect_to, prefix))
     } catch (_error) {
-      setNotice("Unable to start chat.")
+      setNotice(t("chat:unable_to_start"))
     }
   }
 
@@ -169,7 +172,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           user={user}
         />
         <div
-          aria-label="Resize sidebar"
+          aria-label={t("nav:resize_sidebar")}
           aria-orientation="vertical"
           aria-valuemax={SIDEBAR_MAX_WIDTH}
           aria-valuemin={SIDEBAR_MIN_WIDTH}
@@ -185,7 +188,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       {mobileBrandFloating && !drawerOpen ? (
         <>
           <button
-            aria-label="Open sidebar"
+            aria-label={t("nav:open_sidebar")}
             className="fixed left-3 top-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded border border-gray-200 bg-white text-gray-900 shadow-lg hover:bg-gray-50 hover:text-blue-600 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-900 dark:hover:text-blue-300 lg:hidden"
             onClick={() => setDrawerOpen(true)}
             type="button"
@@ -220,7 +223,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       <main className="min-w-0 flex-1 overflow-auto" onScroll={handleMainScroll} ref={mainRef}>
         <div className="flex w-full items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
           <button
-            aria-label="Open sidebar"
+            aria-label={t("nav:open_sidebar")}
             className="min-w-0 text-left text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-300"
             onClick={() => setDrawerOpen(true)}
             type="button"
@@ -310,23 +313,23 @@ function SystemAlertItem({ alert, prefix }: { alert: NonNullable<BootstrapPayloa
   )
 }
 
-const adminNavItems = [
-  { label: "Overview", to: "/admin", paths: ["/admin"] },
-  { label: "Queue", to: "/admin/queue", paths: ["/admin/queue"] },
-  { label: "Stuck", to: "/admin/stuck", paths: ["/admin/stuck"] },
-  { label: "Processes", to: "/admin/processes", paths: ["/admin/processes"] },
-  { label: "Users", to: "/admin/users", paths: ["/admin/users"] },
-  { label: "Console", to: "/admin/console", paths: ["/admin/console"] },
-  { label: "Installations", to: "/admin/installations", paths: ["/admin/installations"] },
-  { label: "GitHub App", to: "/admin/github_app/register", paths: ["/admin/github_app"] },
-  { label: "Invitations", to: "/invitations", paths: ["/invitations"] },
-  { label: "Settings", to: "/settings/edit", paths: ["/settings/edit"] }
-]
-
 function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: Record<string, boolean>; normalizedPath: string; prefix: string }) {
+  const { t } = useTranslation("admin")
+  const adminNavItems = [
+    { label: t("admin:nav_overview"), to: "/admin", paths: ["/admin"] },
+    { label: t("admin:nav_queue"), to: "/admin/queue", paths: ["/admin/queue"] },
+    { label: t("admin:nav_stuck"), to: "/admin/stuck", paths: ["/admin/stuck"] },
+    { label: t("admin:nav_processes"), to: "/admin/processes", paths: ["/admin/processes"] },
+    { label: t("admin:nav_users"), to: "/admin/users", paths: ["/admin/users"] },
+    { label: t("admin:nav_console"), to: "/admin/console", paths: ["/admin/console"] },
+    { label: t("admin:nav_installations"), to: "/admin/installations", paths: ["/admin/installations"] },
+    { label: t("admin:nav_github_app"), to: "/admin/github_app/register", paths: ["/admin/github_app"] },
+    { label: t("admin:nav_invitations"), to: "/invitations", paths: ["/invitations"] },
+    { label: t("admin:nav_settings"), to: "/settings/edit", paths: ["/settings/edit"] }
+  ]
   const items = [
     ...adminNavItems.slice(0, -1),
-    ...(hasFeatureFlags(featureFlags) ? [{ label: "Features", to: "/admin/features", paths: ["/admin/features"] }] : []),
+    ...(hasFeatureFlags(featureFlags) ? [{ label: t("admin:nav_features"), to: "/admin/features", paths: ["/admin/features"] }] : []),
     adminNavItems[adminNavItems.length - 1]
   ]
 
@@ -365,7 +368,7 @@ function SidebarContent({
 }: {
   csrfToken?: string
   dashboardSubnavEnabled: boolean
-  navItems: Array<{ label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
+  navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
   onCloseDrawer: () => void
   onNotice: (message: string | null) => void
   onStartChat: () => void
@@ -374,15 +377,16 @@ function SidebarContent({
   showTeamProfile: boolean
   user: BootstrapPayload["current_user"] | undefined
 }) {
-  const dashboardActive = navItems.some((item) => item.label === "Dashboard" && item.active)
+  const { t } = useTranslation("nav")
+  const dashboardActive = navItems.some((item) => item.id === "dashboard" && item.active)
   const [dashboardNavOpen, setDashboardNavOpen] = useState(dashboardActive)
 
   useEffect(() => {
     setDashboardNavOpen(dashboardActive)
   }, [dashboardActive])
 
-  function handlePrimaryNavClick(item: { label: string; active: boolean }, event: MouseEvent<HTMLAnchorElement>) {
-    if (item.label === "Dashboard" && dashboardSubnavEnabled) {
+  function handlePrimaryNavClick(item: { id: string; active: boolean }, event: MouseEvent<HTMLAnchorElement>) {
+    if (item.id === "dashboard" && dashboardSubnavEnabled) {
       if (item.active) {
         event.preventDefault()
         setDashboardNavOpen((open) => !open)
@@ -406,7 +410,7 @@ function SidebarContent({
           <div className="flex items-center gap-1">
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
-              aria-label="Close sidebar"
+              aria-label={t("nav:close_sidebar")}
               className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300 lg:hidden"
               onClick={onCloseDrawer}
               type="button"
@@ -425,7 +429,7 @@ function SidebarContent({
             type="button"
           >
             <PlusIcon />
-            <span>New Chat</span>
+            <span>{t("nav:new_chat")}</span>
           </button>
           <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
         </div>
@@ -433,17 +437,17 @@ function SidebarContent({
           <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
             {navItems.map((item) => {
               const link = (
-                <Link className={sidebarLinkClass(item.active)} key={item.label} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
+                <Link className={sidebarLinkClass(item.active)} key={item.id} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
                   {item.icon}
                   <span>{item.label}</span>
                   {item.badge ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span> : null}
                 </Link>
               )
 
-              if (item.label !== "Dashboard") return link
+              if (item.id !== "dashboard") return link
 
               return (
-                <div className="space-y-1" key={item.label}>
+                <div className="space-y-1" key={item.id}>
                   {link}
                   {dashboardSubnavEnabled ? (
                     <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
@@ -475,6 +479,7 @@ function SidebarContent({
 function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { t } = useTranslation("nav")
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [query, setQuery] = useState(() => searchQueryFromLocation(location.search))
   const userEditedRef = useRef(false)
@@ -526,7 +531,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 
   return (
     <form className="relative" onSubmit={submitSearch} role="search">
-      <label className="sr-only" htmlFor="sidebar-global-search">Search Syrus</label>
+      <label className="sr-only" htmlFor="sidebar-global-search">{t("nav:search_label")}</label>
       <SearchIcon />
       <input
         className="block h-9 w-full rounded border border-gray-200 bg-gray-50 py-1.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-blue-400 dark:focus:bg-gray-950 dark:focus:ring-blue-400"
@@ -535,7 +540,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
           userEditedRef.current = true
           setQuery(event.target.value)
         }}
-        placeholder="Search..."
+        placeholder={t("nav:search_placeholder")}
         ref={inputRef}
         type="search"
         value={query}
@@ -586,10 +591,11 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
 }
 
 function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseDrawer: () => void; payload: DashboardPayload; prefix: string }) {
+  const { t } = useTranslation(["epics", "jobs", "common"])
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
-    { key: "epic", label: "Epics", path: "/dashboard/epics" },
-    { key: "job", label: "Jobs", path: "/dashboard/jobs" },
-    { key: "workflow", label: "Workflows", path: "/dashboard/workflows" }
+    { key: "epic", label: t("epics:title"), path: "/dashboard/epics" },
+    { key: "job", label: t("jobs:title"), path: "/dashboard/jobs" },
+    { key: "workflow", label: t("common:workflows"), path: "/dashboard/workflows" }
   ]
 
   return (
@@ -620,6 +626,7 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { t } = useTranslation(["common", "chat"])
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
   const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
@@ -709,7 +716,7 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
       onNotice(null)
       void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
     }).catch(() => {
-      onNotice("Unable to update chat pin.")
+      onNotice(t("chat:unable_to_update_pin"))
     })
   }
 
@@ -777,7 +784,7 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
                         {chat.pinned ? (
                           <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-300" />
                         ) : null}
-                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat)}</span>
+                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat, t("chat:new_title"))}</span>
                       </Link>
                       <RecentChatActionsMenu
                         chat={chat}
@@ -799,7 +806,7 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
                       onClick={() => showMore(section)}
                       type="button"
                     >
-                      {loading ? "Loading..." : "Show more"}
+                      {loading ? t("common:loading") : t("common:show_more")}
                     </button>
                   ) : null}
                   {canShowLess ? (
@@ -808,7 +815,7 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
                       onClick={() => showLess(section.key)}
                       type="button"
                     >
-                      Show less
+                      {t("common:show_less")}
                     </button>
                   ) : null}
                 </div>
@@ -849,6 +856,7 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
 }) {
   const location = useLocation()
   const queryClient = useQueryClient()
+  const { t } = useTranslation("chat")
   const [open, setOpen] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
@@ -868,7 +876,7 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
     <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={menuRef}>
       <button
         aria-expanded={open}
-        aria-label={`Chat actions for ${sidebarChatTitle(chat)}`}
+        aria-label={`Chat actions for ${sidebarChatTitle(chat, t("chat:new_title"))}`}
         className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 opacity-0 hover:bg-blue-100 hover:text-blue-700 focus:opacity-100 dark:text-gray-400 dark:hover:bg-blue-900 dark:hover:text-blue-200 group-hover:opacity-100"
         onClick={() => setOpen((value) => !value)}
         type="button"
@@ -878,10 +886,10 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
       {open ? (
         <div className="absolute bottom-full right-0 z-20 mb-1 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950">
           {loadingBookmarks ? (
-            <div className="px-3 py-2 text-gray-400 dark:text-gray-500">Loading bookmarks...</div>
+            <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:loading_bookmarks")}</div>
           ) : bookmarks.length > 0 ? (
             <>
-              <div className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Bookmarks</div>
+              <div className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">{t("chat:bookmarks")}</div>
               {bookmarks.map((bookmark) => {
                 const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
 
@@ -898,7 +906,7 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
               })}
             </>
           ) : (
-            <div className="px-3 py-2 text-gray-400 dark:text-gray-500">No bookmarks yet</div>
+            <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:no_bookmarks")}</div>
           )}
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -909,7 +917,7 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
             type="button"
           >
             <PinIcon className="h-4 w-4 shrink-0" />
-            {chat.pinned ? "Unpin chat" : "Pin chat"}
+            {chat.pinned ? t("chat:unpin") : t("chat:pin")}
           </button>
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button
@@ -922,7 +930,7 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
             type="button"
           >
             <HideIcon />
-            <span>Hide Chat</span>
+            <span>{t("chat:hide")}</span>
           </button>
         </div>
       ) : null}
@@ -938,6 +946,7 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
   user: NonNullable<BootstrapPayload["current_user"]>
 }) {
   const queryClient = useQueryClient()
+  const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
   const [theme, setTheme] = useState(user.theme)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
@@ -977,23 +986,23 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
       {open ? (
         <div className="absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950">
           <button
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? t("nav:switch_to_light_mode") : t("nav:switch_to_dark_mode")}
             className="flex w-full items-center gap-2 px-4 py-2 text-left text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
             onClick={toggleTheme}
             type="button"
           >
             {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-            <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+            <span>{theme === "dark" ? t("nav:light_mode") : t("nav:dark_mode")}</span>
           </button>
-          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>Profile</Link>
-          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>Settings</Link>
-          {showTeamProfile ? <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>My Profile</Link> : null}
-          {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} to={`${prefix}/admin`}>Admin</Link> : null}
+          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:profile")}</Link>
+          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
+          {showTeamProfile ? <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:my_profile")}</Link> : null}
+          {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <form action="/session" method="post">
             {csrfToken ? <input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
             <input name="_method" type="hidden" value="delete" />
-            <button className={popupButtonClass()} type="submit">Sign out</button>
+            <button className={popupButtonClass()} type="submit">{t("nav:sign_out")}</button>
           </form>
         </div>
       ) : null}
@@ -1129,9 +1138,9 @@ function timestampValue(value?: string | null) {
   return Number.isNaN(timestamp) ? 0 : timestamp
 }
 
-function sidebarChatTitle(chat: Pick<ChatNavRecord, "title" | "title_pending">) {
-  if (chat.title_pending) return "New chat"
-  return chat.title?.trim() || "New chat"
+function sidebarChatTitle(chat: Pick<ChatNavRecord, "title" | "title_pending">, newChatTitle: string) {
+  if (chat.title_pending) return newChatTitle
+  return chat.title?.trim() || newChatTitle
 }
 
 function storedSidebarWidth() {

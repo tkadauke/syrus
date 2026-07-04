@@ -1,3 +1,12 @@
 {
-  "title": "Chat"
+  "title": "Chat",
+  "unable_to_start": "Unable to start chat.",
+  "unable_to_update_pin": "Unable to update chat pin.",
+  "loading_bookmarks": "Loading bookmarks...",
+  "bookmarks": "Bookmarks",
+  "no_bookmarks": "No bookmarks yet",
+  "unpin": "Unpin chat",
+  "pin": "Pin chat",
+  "hide": "Hide Chat",
+  "new_title": "New chat"
 }

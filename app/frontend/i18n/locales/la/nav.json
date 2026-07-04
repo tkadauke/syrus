@@ -1,3 +1,35 @@
 {
-  "dashboard": "Tabula"
+  "dashboard": "Tabula",
+  "setup": "Setup",
+  "spending": "Spending",
+  "repositories": "Repositories",
+  "schedules": "Schedules",
+  "terminal": "Terminal",
+  "team": "Team",
+  "new_chat": "New Chat",
+  "search_placeholder": "Search...",
+  "search_label": "Search Syrus",
+  "profile": "Profile",
+  "settings": "Settings",
+  "my_profile": "My Profile",
+  "admin": "Admin",
+  "sign_out": "Sign out",
+  "light_mode": "Light mode",
+  "dark_mode": "Dark mode",
+  "switch_to_light_mode": "Switch to light mode",
+  "switch_to_dark_mode": "Switch to dark mode",
+  "open_sidebar": "Open sidebar",
+  "close_sidebar": "Close sidebar",
+  "resize_sidebar": "Resize sidebar",
+  "onboarding": {
+    "configure_credentials_title": "Connect credentials first",
+    "configure_credentials_description": "Syrus needs both GitHub access and an agent provider before it can poll repositories or run jobs.",
+    "configure_credentials_action": "Open credentials",
+    "add_repository_title": "Add your first repository",
+    "add_repository_description": "Credentials are ready. Add a repository so Syrus knows where to watch issues and where direct jobs can run.",
+    "add_repository_action": "Add repository",
+    "start_first_chat_title": "Meet Syrus in chat",
+    "start_first_chat_description": "Credentials and a repository are ready. Chat with Syrus to create and land your first Epic — it will explain how Jobs and Epics flow through the pipeline.",
+    "start_first_chat_action": "Start Syrus chat"
+  }
 }

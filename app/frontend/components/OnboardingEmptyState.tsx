@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 
@@ -11,24 +12,6 @@ type OnboardingEmptyStateProps = {
   fallbackTitle: string
   prefix: string
   setupStatus?: SetupStatus | null
-}
-
-const setupCopy: Record<NonNullable<SetupStatus["next_step"]>, { title: string; description: string; action: string }> = {
-  configure_credentials: {
-    title: "Connect credentials first",
-    description: "Syrus needs both GitHub access and an agent provider before it can poll repositories or run jobs.",
-    action: "Open credentials"
-  },
-  add_repository: {
-    title: "Add your first repository",
-    description: "Credentials are ready. Add a repository so Syrus knows where to watch issues and where direct jobs can run.",
-    action: "Add repository"
-  },
-  start_first_chat: {
-    title: "Meet Syrus in chat",
-    description: "Credentials and a repository are ready. Chat with Syrus to create and land your first Epic — it will explain how Jobs and Epics flow through the pipeline.",
-    action: "Start Syrus chat"
-  }
 }
 
 export function useSetupStatus() {
@@ -51,7 +34,27 @@ export function OnboardingEmptyState({
   prefix,
   setupStatus
 }: OnboardingEmptyStateProps) {
+  const { t } = useTranslation("nav")
   const nextStep = setupStatus?.next_step || null
+
+  const setupCopy: Record<NonNullable<SetupStatus["next_step"]>, { title: string; description: string; action: string }> = {
+    configure_credentials: {
+      title: t("nav:onboarding.configure_credentials_title"),
+      description: t("nav:onboarding.configure_credentials_description"),
+      action: t("nav:onboarding.configure_credentials_action")
+    },
+    add_repository: {
+      title: t("nav:onboarding.add_repository_title"),
+      description: t("nav:onboarding.add_repository_description"),
+      action: t("nav:onboarding.add_repository_action")
+    },
+    start_first_chat: {
+      title: t("nav:onboarding.start_first_chat_title"),
+      description: t("nav:onboarding.start_first_chat_description"),
+      action: t("nav:onboarding.start_first_chat_action")
+    }
+  }
+
   const copy = nextStep ? setupCopy[nextStep] : null
   const actionPath = setupStatus?.next_step_path || fallbackActionPath || null
   const actionText = copy?.action || fallbackActionText
