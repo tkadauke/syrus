@@ -369,6 +369,15 @@ class Job < ApplicationRecord
     pr_repository || repository
   end
 
+  # True when the job is working in a fork and targeting a different upstream
+  # repository. In this mode, pr_open creates a fork review PR (feature branch
+  # → fork default branch) as a staging artifact rather than opening the
+  # upstream PR directly. The upstream PR is created by ForkReviewApprover
+  # after the fork review PR is approved or merged.
+  def in_fork_review_mode?
+    target_repository_id.present? && target_repository_id != repository_id
+  end
+
   def blocked_by_epic_before_execution?
     return false unless epic
     return false if epic.releases_jobs_for_execution?

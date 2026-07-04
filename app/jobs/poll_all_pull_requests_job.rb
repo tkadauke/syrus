@@ -25,5 +25,15 @@ class PollAllPullRequestsJob < ApplicationJob
        .find_each do |job|
       PollExternalPrJob.perform_later(job.id)
     end
+
+    # Fan-out to fork review PR polling for jobs in fork review mode that have
+    # not yet had their upstream PR created. Once pr_number is set the job
+    # transitions to normal polling via PollPullRequestJob above.
+    Job.joins(:repository)
+       .merge(Repository.active)
+       .open_threads.where(pr_number: nil).where.not(fork_review_pr_number: nil)
+       .find_each do |job|
+      PollForkReviewPrJob.perform_later(job.id)
+    end
   end
 end

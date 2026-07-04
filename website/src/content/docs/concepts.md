@@ -23,7 +23,10 @@ The Job owns the long-lived identifiers:
 
 - repository and user
 - issue number, when the source is a GitHub issue
-- PR number, once Syrus opens one
+- fork review PR number — the staging PR on the fork (feature branch → fork
+  default branch) opened when the job targets a different upstream repository;
+  closed after approval
+- PR number, once Syrus opens one (on the upstream when cross-fork)
 - PR repository — the repository where the PR lives; differs from the working
   repository when Syrus opens a cross-fork PR against an upstream
 - branch name, reused by follow-up attempts

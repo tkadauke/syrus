@@ -49,4 +49,32 @@ RSpec.describe PollAllPullRequestsJob do
       described_class.perform_now
     }.not_to have_enqueued_job(PollExternalPrJob).with(closed_external.id)
   end
+
+  it "fans out to PollForkReviewPrJob for open Jobs in fork review mode (fork_review_pr_number set, no pr_number)" do
+    upstream = Factories.repository(user: user)
+    fork_in_review = Factories.job(repository: repo, issue_number: 7, target_repository: upstream).tap do |j|
+      j.update!(fork_review_pr_number: 20)
+    end
+    # Upstream PR already created — PollPullRequestJob takes over, not PollForkReviewPrJob
+    fork_upstream_pr_exists = Factories.job(repository: repo, issue_number: 8, target_repository: upstream).tap do |j|
+      j.update!(fork_review_pr_number: 21, pr_number: 22)
+    end
+    # Closed — must NOT be polled
+    closed_fork = Factories.job(repository: repo, issue_number: 9, target_repository: upstream).tap do |j|
+      j.update!(fork_review_pr_number: 23)
+      j.close_with_reason!("manual")
+    end
+
+    expect {
+      described_class.perform_now
+    }.to have_enqueued_job(PollForkReviewPrJob).with(fork_in_review.id).once
+
+    expect {
+      described_class.perform_now
+    }.not_to have_enqueued_job(PollForkReviewPrJob).with(fork_upstream_pr_exists.id)
+
+    expect {
+      described_class.perform_now
+    }.not_to have_enqueued_job(PollForkReviewPrJob).with(closed_fork.id)
+  end
 end
