@@ -10,6 +10,21 @@ module Steps
   # Job that already opened a PR), skip PR creation and just push
   # the new commits.
   class PrOpen < Base
+    PUBLILIUS_SYRUS_QUOTES = [
+      { latin: "Bis dat qui cito dat.", english: "He gives twice who gives quickly." },
+      { latin: "Malum est consilium quod mutari non potest.", english: "It is a bad plan that admits of no modification." },
+      { latin: "Deliberandum est diu quod statuendum est semel.", english: "What is decided once must be deliberated long." },
+      { latin: "Nimium altercando veritas amittitur.", english: "By too much arguing, truth is lost." },
+      { latin: "Dum differt vita transcurrit.", english: "While we delay, life passes by." },
+      { latin: "Ex vitio alterius sapiens emendat suum.", english: "The wise man corrects his faults by observing those of others." },
+      { latin: "Ibi semper est victoria ubi concordia est.", english: "Where there is unity there is always victory." },
+      { latin: "Nemo scit quid possit nisi qui tentavit.", english: "No one knows what they can do until they try." },
+      { latin: "Iniuriam qui facturus est iam facit.", english: "One who is about to do an injustice already does it." },
+      { latin: "Bona opinio hominum tutior pecunia est.", english: "The good opinion of men is safer than money." },
+      { latin: "Furor fit laesa saepius patientia.", english: "Patience when too often injured turns to rage." },
+      { latin: "Dum aliquid superest, nihil perisse putandum est.", english: "While something remains, nothing should be thought lost." },
+    ].freeze
+
     class BranchDiverged < StepFailed; end
 
     def call
@@ -197,6 +212,8 @@ module Steps
         parts << "Triggered by @#{handle}"
       end
       parts << ""
+      parts << latin_quote_footer
+      parts << ""
       parts << "---"
       implement_run = workflow.steps.where(kind: "implement").last&.latest_run
       parts << attribution_footer(implement_run)
@@ -254,6 +271,11 @@ module Steps
         lines << notes
       end
       lines.join("\n")
+    end
+
+    def latin_quote_footer
+      q = PUBLILIUS_SYRUS_QUOTES.sample
+      "> *\"#{q[:latin]}\"* — [Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_Syrus)"
     end
 
     def template_title

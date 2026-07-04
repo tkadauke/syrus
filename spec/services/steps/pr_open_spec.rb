@@ -60,6 +60,23 @@ RSpec.describe Steps::PrOpen do
     expect(body).to include("Exercise the artifact-backed PR copy path.")
   end
 
+  it "includes a Latin Publilius Syrus blockquote in the composed body" do
+    body = composed_body_for(provider: "claude", turns: 3)
+
+    expect(body).to match(/^> \*"[^"]+"/)
+    expect(body).to include("[Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_Syrus)")
+  end
+
+  it "places the Latin quote immediately before the --- separator" do
+    body = composed_body_for(provider: "claude", turns: 3)
+
+    lines = body.lines.map(&:chomp)
+    separator_index = lines.index("---")
+    expect(separator_index).to be_present
+    quote_line = lines[0...separator_index].reverse.find { |l| l.start_with?(">") }
+    expect(quote_line).to match(/^> \*"[^"]+"/)
+  end
+
   it "persists the Job's :implemented state after opening a new PR" do
     job.update!(state: "running")
     pr_open_run = Run.create!(
