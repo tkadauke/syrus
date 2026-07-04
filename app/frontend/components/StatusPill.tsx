@@ -4,7 +4,7 @@ type PillTone = "red" | "green" | "blue" | "gray" | "amber"
 
 const STATE_LATIN: Record<string, string> = {
   // Job states
-  triaging:    "Deliberatur — It is being deliberated",
+  triaging:    "Auspicia consuluntur — The omens are being consulted",
   queued:      "In acie stat — It stands in the battle line",
   open:        "Agitur — It is being done",
   implemented: "Factum est — It is done",
