@@ -96,11 +96,18 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
 
       <RepositoryTabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      <RepositorySummary payload={payload} />
-      <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-      <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-      <CredentialNotice payload={payload} />
-      <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
+      <div className="grid gap-6 lg:grid-cols-[62%_38%]">
+        <div className="space-y-6">
+          <RepositorySummary payload={payload} />
+          <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+          <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+          <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
+        </div>
+        <div className="space-y-6">
+          <RepositoryDetailsCard payload={payload} prefix={prefix} />
+          <CredentialNotice payload={payload} />
+        </div>
+      </div>
     </>
   )
 }
@@ -328,9 +335,7 @@ function IssueLabel({ color, name }: { color: string; name: string }) {
 
 
 function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
-  const location = useLocation()
   const repository = payload.repository
-  const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const nonzeroCounts = [
     { label: "running", value: payload.counts.running, tone: "blue" as const },
     { label: "queued", value: payload.counts.queued, tone: "gray" as const },
@@ -338,47 +343,70 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   ].filter((count) => count.value > 0)
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-        <StatusPill tone={repository.polling_enabled ? "green" : "gray"}>{repository.polling_enabled ? "polling enabled" : "polling paused"}</StatusPill>
-        <span>{payload.credential_status.label}</span>
-        <span className="text-gray-300 dark:text-gray-600">·</span>
-        <span>Agent: {repository.agent_provider_label || `user default (${repository.effective_agent_provider_label})`}</span>
-        {nonzeroCounts.map((count) => (
-          <StatusPill key={count.label} tone={count.tone}>{count.value} {count.label}</StatusPill>
-        ))}
-      </div>
-      <details className="text-sm text-gray-600 dark:text-gray-400">
-        <summary className="cursor-pointer select-none text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">Repository details</summary>
-        <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-          <div><dt className="text-xs uppercase text-gray-400 dark:text-gray-500">Working repo</dt><dd className="font-mono text-gray-700 dark:text-gray-300">{repository.slug}</dd></div>
-          <div><dt className="text-xs uppercase text-gray-400 dark:text-gray-500">Working branch</dt><dd className="font-mono text-gray-700 dark:text-gray-300">{repository.default_branch}</dd></div>
-          {repository.upstream_slug ? (
-            <div>
-              <dt className="text-xs uppercase text-gray-400 dark:text-gray-500">Upstream repo</dt>
-              <dd className="font-mono text-gray-700 dark:text-gray-300">{repository.upstream_slug}{repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}</dd>
-            </div>
-          ) : null}
-          <div><dt className="text-xs uppercase text-gray-400 dark:text-gray-500">Trigger label</dt><dd><code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{repository.trigger_label}</code></dd></div>
+    <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+      <StatusPill tone={repository.polling_enabled ? "green" : "gray"}>{repository.polling_enabled ? "polling enabled" : "polling paused"}</StatusPill>
+      <span>{payload.credential_status.label}</span>
+      <span className="text-gray-300 dark:text-gray-600">·</span>
+      <span>Agent: {repository.agent_provider_label || `user default (${repository.effective_agent_provider_label})`}</span>
+      {nonzeroCounts.map((count) => (
+        <StatusPill key={count.label} tone={count.tone}>{count.value} {count.label}</StatusPill>
+      ))}
+    </div>
+  )
+}
+
+function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
+  const repository = payload.repository
+
+  return (
+    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Repository details</h2>
+      <dl className="mt-3 space-y-3">
+        <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Working repo</dt>
+          <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.slug}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Working branch</dt>
+          <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.default_branch}</dd>
+        </div>
+        {repository.upstream_slug ? (
           <div>
-            <dt className="text-xs uppercase text-gray-400 dark:text-gray-500">Syrus owner</dt>
-            <dd>
-              {repository.owner_user.profile_path ? (
-                <Link className="text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
-              ) : (
-                repository.owner_user.display_name || repository.owner_user.email_address
-              )}
-            </dd>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Upstream repo</dt>
+            <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.upstream_slug}{repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}</dd>
           </div>
-          <div><dt className="text-xs uppercase text-gray-400 dark:text-gray-500">Added</dt><dd>{formatDate(repository.created_at)}</dd></div>
-          {repository.github_rate_limit ? (
-            <div><dt className="text-xs uppercase text-gray-400 dark:text-gray-500">GitHub quota</dt><dd><strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} ({repository.github_rate_limit.resource})</dd></div>
-          ) : null}
-          {payload.credential_status.mode === "app" && payload.credential_status.installation_account ? (
-            <div><dt className="text-xs uppercase text-gray-400 dark:text-gray-500">Credential</dt><dd>Syrus App via {payload.credential_status.installation_account}</dd></div>
-          ) : null}
-        </dl>
-      </details>
+        ) : null}
+        <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Trigger label</dt>
+          <dd className="mt-0.5"><code className="rounded bg-gray-100 px-1 dark:bg-gray-800">{repository.trigger_label}</code></dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Syrus owner</dt>
+          <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
+            {repository.owner_user.profile_path ? (
+              <Link className="text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
+            ) : (
+              repository.owner_user.display_name || repository.owner_user.email_address
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Added</dt>
+          <dd className="mt-0.5 text-gray-700 dark:text-gray-300">{formatDate(repository.created_at)}</dd>
+        </div>
+        {repository.github_rate_limit ? (
+          <div>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">GitHub quota</dt>
+            <dd className="mt-0.5 text-gray-700 dark:text-gray-300"><strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} ({repository.github_rate_limit.resource})</dd>
+          </div>
+        ) : null}
+        {payload.credential_status.mode === "app" && payload.credential_status.installation_account ? (
+          <div>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Credential</dt>
+            <dd className="mt-0.5 text-gray-700 dark:text-gray-300">Syrus App via {payload.credential_status.installation_account}</dd>
+          </div>
+        ) : null}
+      </dl>
     </section>
   )
 }
