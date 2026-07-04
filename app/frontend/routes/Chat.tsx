@@ -890,6 +890,30 @@ function countIncomingVisibleMessages(messages: ChatMessageItem[], previousMaxMe
   }).length
 }
 
+function formatMessageTimestamp(createdAt: string): string {
+  const date = new Date(createdAt)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMinutes = Math.floor(diffMs / 60_000)
+  const diffHours = Math.floor(diffMinutes / 60)
+
+  if (diffMinutes < 1) return "just now"
+  if (diffMinutes < 60) return `${diffMinutes}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+
+  const m = date.getMonth() + 1
+  const d = date.getDate()
+  const hh = date.getHours()
+  const mm = String(date.getMinutes()).padStart(2, "0")
+  const period = hh >= 12 ? "pm" : "am"
+  const h = hh % 12 || 12
+
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${m}/${d} ${h}:${mm}${period}`
+  }
+  return `${m}/${d}/${date.getFullYear()} ${h}:${mm}${period}`
+}
+
 function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const search = queryKey[2]
@@ -923,6 +947,15 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
 
   return (
     <div className={`absolute right-0 top-0 z-10 flex gap-1 ${open ? "flex" : "hidden group-hover/message:flex"}`} ref={menuRef}>
+      {item.created_at ? (
+        <time
+          className="flex items-center rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-400 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
+          dateTime={item.created_at}
+          title={new Date(item.created_at).toLocaleString()}
+        >
+          {formatMessageTimestamp(item.created_at)}
+        </time>
+      ) : null}
       <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={handleCopy} type="button">
         {copied ? "Copied!" : "Copy"}
       </button>

@@ -12716,6 +12716,102 @@ describe("App", () => {
     })
   })
 
+  it("shows relative timestamp on chat message with created_at within the last hour", async () => {
+    const recentCreatedAt = new Date(Date.now() - 4 * 60 * 1000).toISOString()
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Discuss aqueducts." },
+          text: "Discuss aqueducts.",
+          bookmarkable: true,
+          created_at: recentCreatedAt
+        }
+      ]
+    })), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    const timeEl = screen.getByRole("time")
+    expect(timeEl).toHaveTextContent("4m ago")
+    expect(timeEl).toHaveAttribute("dateTime", recentCreatedAt)
+  })
+
+  it("shows absolute timestamp on chat message with created_at more than 24 hours ago (same year)", async () => {
+    const now = new Date()
+    const pastDate = new Date(now.getFullYear(), 0, 15, 10, 29, 0)
+    const oldCreatedAt = pastDate.toISOString()
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Discuss aqueducts." },
+          text: "Discuss aqueducts.",
+          bookmarkable: true,
+          created_at: oldCreatedAt
+        }
+      ]
+    })), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    const timeEl = screen.getByRole("time")
+    expect(timeEl).toHaveTextContent("1/15 10:29am")
+    expect(timeEl).toHaveAttribute("dateTime", oldCreatedAt)
+  })
+
+  it("shows year in timestamp on chat message with created_at from a previous year", async () => {
+    const previousYearDate = new Date(new Date().getFullYear() - 1, 6, 5, 22, 29, 0)
+    const oldCreatedAt = previousYearDate.toISOString()
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Discuss aqueducts." },
+          text: "Discuss aqueducts.",
+          bookmarkable: true,
+          created_at: oldCreatedAt
+        }
+      ]
+    })), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    const timeEl = screen.getByRole("time")
+    expect(timeEl).toHaveTextContent(`7/5/${new Date().getFullYear() - 1} 10:29pm`)
+    expect(timeEl).toHaveAttribute("dateTime", oldCreatedAt)
+  })
+
   it("renders pending action cards inline in chat messages", async () => {
     const pendingMessage = {
       type: "message",
