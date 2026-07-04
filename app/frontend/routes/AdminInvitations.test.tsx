@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -18,10 +18,10 @@ describe("AdminInvitations", () => {
     renderRoute(<AdminInvitations />)
 
     const copyButton = await screen.findByRole("button", { name: "Copy signup link for foo@bar.com" })
-    fireEvent.click(copyButton)
+    act(() => { fireEvent.click(copyButton) })
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://example.com/users/new?token=abc123")
-    expect(await screen.findByText("Link copied to clipboard.")).toBeInTheDocument()
+    expect(screen.getByText("Link copied to clipboard.")).toBeInTheDocument()
   })
 
   it("does not navigate when the share URL is clicked", async () => {

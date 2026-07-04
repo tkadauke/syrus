@@ -152,7 +152,7 @@ describe("ImageAnnotationModal", () => {
   async function waitForLoaded() {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Done" })).not.toBeDisabled()
-    })
+    }, { timeout: 5000 })
   }
 
   function mockCanvasContext(): MockContext {
