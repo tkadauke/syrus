@@ -58,15 +58,33 @@ module Filters
       when "repository_id"
         scope.where("repositories.name LIKE ?", pattern)
       when "epic_id"
-        scope.where("epics.title LIKE ?", pattern)
+        epic_number = slug_number(query, "EPIC")
+        if epic_number
+          scope.where("epics.title LIKE ? OR epics.number = ?", pattern, epic_number)
+        else
+          scope.where("epics.title LIKE ?", pattern)
+        end
       when "parent_job_id", "job_id"
-        scope.where("jobs.issue_title LIKE ?", pattern)
+        job_id = slug_number(query, "JOB")
+        if job_id
+          scope.where("jobs.issue_title LIKE ? OR jobs.id = ?", pattern, job_id)
+        else
+          scope.where("jobs.issue_title LIKE ?", pattern)
+        end
       when "tags"
         scope.where("tags.name LIKE ?", pattern)
       when "hostname"
         scope.where("spawned_processes.hostname LIKE ?", pattern)
       else
         scope
+      end
+    end
+
+    def slug_number(query, prefix)
+      if (m = query.match(/\A\s*#{Regexp.escape(prefix)}-(\d+)\s*\z/i))
+        m[1].to_i
+      elsif query.match?(/\A\s*\d+\s*\z/)
+        query.strip.to_i
       end
     end
 

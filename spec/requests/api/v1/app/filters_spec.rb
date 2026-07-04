@@ -47,7 +47,7 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     )
   end
 
-  it "searches jobs by title only" do
+  it "searches jobs by title but not by issue number or branch name" do
     user = Factories.user
     repo = Factories.repository(user:)
     by_title = Factories.job_record(user:, repository: repo, issue_number: 10, issue_title: "Add typeahead")
@@ -64,6 +64,26 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
 
     get "/api/v1/app/filters/fk_options", params: { field: "job_id", q: "fk-options" }
     expect(parse_body["options"].map { |row| row["value"] }).not_to include(by_branch.id)
+  end
+
+  it "searches jobs and epics by slug" do
+    user = Factories.user
+    repo = Factories.repository(user:)
+    job = Factories.job_record(user:, repository: repo, issue_number: 10, issue_title: "Unrelated title")
+    epic = Factories.epic(user:, repository: repo, title: "Unrelated epic")
+    sign_in_as(user)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "job_id", q: "JOB-#{job.id}" }
+    expect(parse_body["options"].map { |row| row["value"] }).to include(job.id)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "job_id", q: job.id.to_s }
+    expect(parse_body["options"].map { |row| row["value"] }).to include(job.id)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "epic_id", q: "EPIC-#{epic.number}" }
+    expect(parse_body["options"].map { |row| row["value"] }).to include(epic.id)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "epic_id", q: epic.number.to_s }
+    expect(parse_body["options"].map { |row| row["value"] }).to include(epic.id)
   end
 
   it "caps search responses at 50 results" do
