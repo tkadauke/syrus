@@ -81,9 +81,12 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def react_to_pr_reviews
-    latest_approval = @client.pr_reviews(@slug, @job.pr_number)
-                             .select { |review| review.state == "APPROVED" }
-                             .max_by { |review| review_submitted_at(review) || Time.at(0) }
+    reviews = @client.pr_reviews(@slug, @job.pr_number)
+    approved_reviews = reviews.select { |review| review.state == "APPROVED" }
+
+    Job::GithubReviewApprovalSyncer.sync(job: @job, reviews: approved_reviews)
+
+    latest_approval = approved_reviews.max_by { |review| review_submitted_at(review) || Time.at(0) }
     return unless latest_approval
 
     submitted_at = review_submitted_at(latest_approval) || Time.current

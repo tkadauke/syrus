@@ -236,6 +236,48 @@ RSpec.describe PollMergeStateJob do
     described_class.perform_now(external.id)
   end
 
+  describe "review approval sync on approve_for_landing" do
+    it "creates a JobApproval for a Syrus user whose GitHub review triggered landing approval" do
+      reviewer = Factories.user(github_handle: "reviewer")
+      submitted = 1.hour.ago
+      allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([
+        OpenStruct.new(state: "APPROVED", user: OpenStruct.new(login: "reviewer"), submitted_at: submitted.iso8601)
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.job_approvals.count }.by(1)
+
+      approval = job.job_approvals.find_by(user: reviewer)
+      expect(approval).to be_present
+      expect(approval.approved_at).to be_within(1.second).of(submitted)
+    end
+
+    it "does not create a duplicate JobApproval when one already exists for the reviewer" do
+      reviewer = Factories.user(github_handle: "reviewer")
+      job.job_approvals.create!(user: reviewer, approved_at: 2.hours.ago)
+      allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([
+        OpenStruct.new(state: "APPROVED", user: OpenStruct.new(login: "reviewer"), submitted_at: 1.hour.ago.iso8601)
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.job_approvals.count }
+    end
+
+    it "does not create a JobApproval for an external approver with no Syrus account" do
+      allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([
+        OpenStruct.new(state: "APPROVED", user: OpenStruct.new(login: "outsider"), submitted_at: 1.hour.ago.iso8601)
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { JobApproval.count }
+
+      expect(job.reload).to be_approved
+    end
+  end
+
   describe "finalizing preempted Jobs whose external PR is terminal" do
     def preempted_job(external_pr_number: 99)
       job = Factories.job(user: user, repository: repository, pr_number: nil)

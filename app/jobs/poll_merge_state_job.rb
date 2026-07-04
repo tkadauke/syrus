@@ -81,9 +81,18 @@ class PollMergeStateJob < ApplicationJob
   def approve_for_landing
     return unless @job.may_approve?
 
+    sync_github_review_approvals
     @job.approve_for_landing!
     audit("landing_queue: approved PR ##{@job.pr_number}; queued for landing")
     Rails.logger.info("[PollMergeStateJob] #{@job.slug} PR ##{@job.pr_number} approved and clean; queued for landing")
+  end
+
+  def sync_github_review_approvals
+    return unless @job.pr_number.present?
+
+    pr_repo = @job.effective_pr_repository
+    reviews = @client.pr_reviews(pr_repo.slug, @job.pr_number)
+    Job::GithubReviewApprovalSyncer.sync(job: @job, reviews: reviews)
   end
 
   def dispatch_rebase

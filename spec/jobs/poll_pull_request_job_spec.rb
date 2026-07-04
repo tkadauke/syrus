@@ -685,6 +685,89 @@ RSpec.describe PollPullRequestJob do
     end
   end
 
+  describe "review approval sync" do
+    before do
+      stub_pr
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+    end
+
+    it "creates a JobApproval for a known Syrus user who left an APPROVED review" do
+      reviewer = Factories.user(github_handle: "reviewer")
+      submitted = 1.hour.ago
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: submitted.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          user: { login: "reviewer" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.job_approvals.count }.by(1)
+
+      approval = job.job_approvals.find_by(user: reviewer)
+      expect(approval).to be_present
+      expect(approval.approved_at).to be_within(1.second).of(submitted)
+    end
+
+    it "creates JobApproval records for each Syrus user with an APPROVED review" do
+      alice = Factories.user(github_handle: "alice")
+      bob   = Factories.user(github_handle: "bob")
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: 2.hours.ago.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          user: { login: "alice" } },
+        { id: 2, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-2",
+          user: { login: "bob" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.job_approvals.map(&:user)).to contain_exactly(alice, bob)
+    end
+
+    it "does not create a duplicate JobApproval when one already exists for the reviewer" do
+      reviewer = Factories.user(github_handle: "reviewer")
+      job.job_approvals.create!(user: reviewer, approved_at: 2.hours.ago)
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          user: { login: "reviewer" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.job_approvals.count }
+    end
+
+    it "does not create a JobApproval for a reviewer with no Syrus account" do
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          user: { login: "outsider" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { JobApproval.count }
+    end
+
+    it "does not create a JobApproval for a dismissed review" do
+      Factories.user(github_handle: "reviewer")
+      stub_reviews([
+        { id: 1, state: "DISMISSED", submitted_at: 1.hour.ago.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          user: { login: "reviewer" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { JobApproval.count }
+    end
+  end
+
   describe "branch deletion on merge" do
     let(:branch_name) { job.branch_name }
     let(:delete_ref_url) { "https://api.github.com/repos/acme/widgets/git/refs/heads/#{branch_name}" }
