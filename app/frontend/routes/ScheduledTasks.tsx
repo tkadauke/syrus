@@ -4,6 +4,7 @@ import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
+import { buttonClass } from "../lib/buttonClasses"
 import { NoticeToast } from "../components/NoticeToast"
 import {
   archiveScheduledTask,
@@ -264,19 +265,19 @@ function TaskActions({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {task.editable ? <Link className={secondaryButton()} to={`${basePath}/${task.id}/edit`}>Edit</Link> : null}
+      {task.editable ? <Link className={buttonClass("secondary")} to={`${basePath}/${task.id}/edit`}>Edit</Link> : null}
       {task.pausable ? (
-        <button className={secondaryButton()} disabled={command.isPending} onClick={() => command.mutate("pause")} type="button">Pause</button>
+        <button className={buttonClass("secondary")} disabled={command.isPending} onClick={() => command.mutate("pause")} type="button">Pause</button>
       ) : null}
       {task.resumable ? (
-        <button className={secondaryButton()} disabled={command.isPending} onClick={() => command.mutate("resume")} type="button">Resume</button>
+        <button className={buttonClass("secondary")} disabled={command.isPending} onClick={() => command.mutate("resume")} type="button">Resume</button>
       ) : null}
       {task.fireable ? (
-        <button className={secondaryButton()} disabled={command.isPending} onClick={() => command.mutate("fire")} type="button">Fire now</button>
+        <button className={buttonClass("secondary")} disabled={command.isPending} onClick={() => command.mutate("fire")} type="button">Fire now</button>
       ) : null}
       {task.editable ? (
         <button
-          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
+          className={buttonClass("danger-outline")}
           disabled={archive.isPending}
           onClick={() => {
             if (window.confirm("Archive this scheduled task?")) archive.mutate()
@@ -443,10 +444,6 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
 
 function inputClass() {
   return "block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-blue-600"
-}
-
-function secondaryButton() {
-  return "rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-300 dark:disabled:text-gray-600"
 }
 
 function tasksBase(pathname: string) {

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@
 import { type FormEvent, type ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
+import { buttonClass } from "../lib/buttonClasses"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
@@ -114,7 +115,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
           <div className="flex flex-wrap items-center gap-2">
             {payload.epic.claimable && payload.epic.owner_status === "unclaimed" ? (
               <button
-                className={secondaryButton()}
+                className={buttonClass("secondary")}
                 disabled={command.isPending}
                 onClick={() => command.mutate({ kind: "claim" })}
                 type="button"
@@ -124,7 +125,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
             ) : null}
             {payload.epic.claimable && payload.epic.owned_by_current_user ? (
               <button
-                className={secondaryButton()}
+                className={buttonClass("secondary")}
                 disabled={command.isPending}
                 onClick={() => command.mutate({ kind: "unclaim" })}
                 type="button"
@@ -133,7 +134,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
               </button>
             ) : null}
             {!payload.epic.archived ? (
-              <Link className={primaryButton()} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>Edit</Link>
+              <Link className={buttonClass("primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>Edit</Link>
             ) : null}
             {payload.state_transitions.length > 0 ? (
               <EpicActionsMenu disabled={command.isPending} onTransition={runTransition} transitions={payload.state_transitions} />
@@ -245,7 +246,7 @@ function DependenciesSection({
             onChange={setSelectedDependency}
             selected={selectedDependency}
           />
-          <button className={secondaryButton()} disabled={command.isPending || !selectedDependency} type="submit">Add</button>
+          <button className={buttonClass("secondary")} disabled={command.isPending || !selectedDependency} type="submit">Add</button>
         </form>
         {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, "Unable to update dependencies.")}</p> : null}
       </div>
@@ -691,14 +692,6 @@ function PanelMessage({ children, tone = "success" }: { children: ReactNode; ton
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
-function primaryButton() {
-  return "rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500"
-}
-
-function secondaryButton() {
-  return "rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-}
-
 function EpicActionsMenu({
   disabled,
   onTransition,
@@ -717,7 +710,7 @@ function EpicActionsMenu({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="More actions"
-        className={secondaryButton()}
+        className={buttonClass("secondary")}
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
         type="button"

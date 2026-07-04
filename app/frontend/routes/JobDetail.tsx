@@ -12,6 +12,7 @@ import { StatusPill } from "../components/StatusPill"
 import { Markdown } from "../lib/Markdown"
 import { workflowSlug } from "../lib/slugs"
 import { highlightCode, type SyntaxLanguage } from "../lib/syntaxHighlight"
+import { buttonClass, type ButtonTone } from "../lib/buttonClasses"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   createJobAttachments,
@@ -44,7 +45,6 @@ type CommandInput =
   | { method: "post"; path: string; body?: unknown; confirm?: string }
   | { method: "patch"; path: string; body?: unknown; confirm?: string }
   | { method: "delete"; path: string; confirm?: string }
-type ButtonTone = "primary" | "secondary" | "success" | "danger" | "danger-outline"
 type HeaderAction = {
   key: string
   label: string
@@ -514,7 +514,7 @@ function TagsPanel({ payload, command, embedded = false, canManageTags }: { payl
             {canManageTags ? (
               <button
                 aria-label={`Remove ${tag.name}`}
-                className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300"
+                className="inline-flex h-4 w-4 items-center justify-center rounded text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                 disabled={command.isPending}
                 onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_tags_path}/${tag.id}` })}
                 title={`Remove ${tag.name}`}
@@ -2267,18 +2267,6 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
     muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
-}
-
-function buttonClass(tone: ButtonTone) {
-  const base = "inline-flex items-center rounded px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-  const tones = {
-    primary: "bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400",
-    secondary: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800",
-    success: "bg-emerald-600 text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400",
-    danger: "bg-red-600 text-white hover:bg-red-500 dark:bg-red-500 dark:hover:bg-red-400",
-    "danger-outline": "border border-red-300 bg-white text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/30"
-  }
-  return `${base} ${tones[tone]}`
 }
 
 function menuButtonClass(tone: ButtonTone) {
