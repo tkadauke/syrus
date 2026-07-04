@@ -38,7 +38,7 @@ module Api
           epic = Current.user.epics.new(epic_params)
 
           if epic.save
-            render json: saved_payload(epic, message: "Epic created."), status: :created
+            render json: saved_payload(epic, message: I18n.t("api.epics.created")), status: :created
           else
             render_error("validation_failed", epic.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -49,11 +49,11 @@ module Api
           attrs = epic_params
 
           if attrs[:repository_id].present? && attrs[:repository_id].to_i != epic.repository_id
-            return render_error("forbidden", "You do not have access to the target repository.", status: :forbidden) unless membership_on_repo?(attrs[:repository_id])
+            return render_error("forbidden", I18n.t("api.epics.access_forbidden"), status: :forbidden) unless membership_on_repo?(attrs[:repository_id])
           end
 
           if epic.update(attrs)
-            render json: saved_payload(epic, message: "Epic updated.")
+            render json: saved_payload(epic, message: I18n.t("api.epics.updated"))
           else
             render_error("validation_failed", epic.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -62,10 +62,10 @@ module Api
         def archive
           epic = find_epic
           message = if epic.archived?
-            "Epic already archived."
+            I18n.t("api.epics.archived_already")
           else
             epic.archive!
-            "Epic archived."
+            I18n.t("api.epics.archived")
           end
 
           render json: detail_payload(epic.reload, message: message)
@@ -82,17 +82,17 @@ module Api
             epic.claim_unowned_child_jobs!(Current.user)
           end
 
-          render json: detail_payload(epic.reload, message: "Epic claimed.")
+          render json: detail_payload(epic.reload, message: I18n.t("api.epics.claimed"))
         rescue ArgumentError => e
           render_error("claim_not_allowed", e.message, status: :unprocessable_content)
         end
 
         def unclaim
           epic = find_epic
-          return render_error("epic_not_owned", "Epic is not claimed.", status: :unprocessable_content) if epic.owner_user_id.blank? && !epic.claimed?
+          return render_error("epic_not_owned", I18n.t("api.epics.not_claimed"), status: :unprocessable_content) if epic.owner_user_id.blank? && !epic.claimed?
 
           unless epic.owner_user_id == Current.user.id || Current.user.admin?
-            return render_error("forbidden", "Only the owner or an admin can unclaim this Epic.", status: :forbidden)
+            return render_error("forbidden", I18n.t("api.epics.unclaim_forbidden"), status: :forbidden)
           end
 
           epic.with_lock do
@@ -101,7 +101,7 @@ module Api
             epic.unclaim!(claimant: Current.user, force: Current.user.admin? || epic.owner_id.blank?)
           end
 
-          render json: detail_payload(epic.reload, message: "Epic unclaimed.")
+          render json: detail_payload(epic.reload, message: I18n.t("api.epics.unclaimed"))
         rescue ArgumentError => e
           render_error("unclaim_not_allowed", e.message, status: :unprocessable_content)
         end
@@ -109,15 +109,15 @@ module Api
         def reassign
           epic = find_epic
           owner_param = params[:owner_user_id].presence || params[:owner_id].presence
-          return render_error("forbidden", "Admin access required.", status: :forbidden) if params[:owner_user_id].present? && !Current.user.admin?
+          return render_error("forbidden", I18n.t("api.epics.admin_forbidden"), status: :forbidden) if params[:owner_user_id].present? && !Current.user.admin?
 
           owner = User.find_by(id: owner_param)
-          return render_error("owner_not_found", "Owner user not found.", status: :not_found) unless owner
+          return render_error("owner_not_found", I18n.t("api.epics.owner_not_found"), status: :not_found) unless owner
 
           if epic.owner_user_id == owner.id
             return render_error(
               "epic_already_owned",
-              "Epic is already assigned to #{owner.email_address}.",
+              I18n.t("api.epics.already_assigned", email: owner.email_address),
               status: :conflict
             )
           end
@@ -127,7 +127,7 @@ module Api
             epic.reassign_child_jobs_to_owner!(owner)
           end
 
-          render json: detail_payload(epic.reload, message: "Epic reassigned.")
+          render json: detail_payload(epic.reload, message: I18n.t("api.epics.reassigned"))
         rescue ActionController::ParameterMissing, ArgumentError => e
           render_error("reassign_not_allowed", e.message, status: :unprocessable_content)
         end
@@ -140,11 +140,11 @@ module Api
             override: ActiveModel::Type::Boolean.new.cast(params[:override])
           )
 
-          render json: detail_payload(epic.reload, message: "Epic updated.")
+          render json: detail_payload(epic.reload, message: I18n.t("api.epics.updated"))
         rescue ArgumentError
-          render_error("unknown_state", "Unknown Epic state.", status: :unprocessable_content)
+          render_error("unknown_state", I18n.t("api.epics.unknown_state"), status: :unprocessable_content)
         rescue UnavailableTransition
-          render_error("transition_not_allowed", "That Epic transition is not available.", status: :unprocessable_content)
+          render_error("transition_not_allowed", I18n.t("api.epics.transition_not_allowed"), status: :unprocessable_content)
         end
 
         def add_dependency
@@ -153,7 +153,7 @@ module Api
           dependency = epic.dependencies.build(depends_on_epic: depends_on_epic)
 
           if dependency.save
-            render json: detail_payload(epic.reload, message: "Dependency added.")
+            render json: detail_payload(epic.reload, message: I18n.t("api.epics.dependency_added"))
           else
             render_error("validation_failed", dependency.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -163,7 +163,7 @@ module Api
           epic = find_epic
           epic.dependencies.where(depends_on_epic_id: params[:depends_on_epic_id]).destroy_all
 
-          render json: detail_payload(epic.reload, message: "Dependency removed.")
+          render json: detail_payload(epic.reload, message: I18n.t("api.epics.dependency_removed"))
         end
 
         private
@@ -382,12 +382,12 @@ module Api
 
         def reassign_legacy_owner(epic)
           owner_user = User.find_by(id: params[:owner_id])
-          return render_error("owner_not_found", "Owner user not found.", status: :not_found) unless owner_user
+          return render_error("owner_not_found", I18n.t("api.epics.owner_not_found"), status: :not_found) unless owner_user
 
           epic.reassign!(owner_user, actor: Current.user)
           epic.update!(owner_user: owner_user) unless epic.owner_user_id == owner_user.id
 
-          render json: detail_payload(epic.reload, message: "Epic reassigned.")
+          render json: detail_payload(epic.reload, message: I18n.t("api.epics.reassigned"))
         end
 
         def owner_user_json(owner_user)
@@ -401,9 +401,9 @@ module Api
 
         def render_epic_already_owned(epic)
           message = if epic.owner_user_id == Current.user.id
-            "Epic is already claimed by you."
+            I18n.t("api.epics.already_claimed_by_you")
           else
-            "Epic is already claimed by #{epic.owner_user&.email_address || "another user"}."
+            I18n.t("api.epics.already_claimed", email: epic.owner_user&.email_address || I18n.t("api.epics.another_user"))
           end
 
           render_error("epic_already_owned", message, status: :conflict)
@@ -411,10 +411,9 @@ module Api
 
         def render_epic_ownership_changed(epic)
           message = if epic.owner_user_id.blank?
-            "Epic ownership changed before the request completed; it is now unclaimed."
+            I18n.t("api.epics.ownership_changed_unclaimed")
           else
-            "Epic ownership changed before the request completed; " \
-              "it is now assigned to #{epic.owner_user&.email_address || "another user"}."
+            I18n.t("api.epics.ownership_changed", email: epic.owner_user&.email_address || I18n.t("api.epics.another_user"))
           end
 
           render_error("epic_ownership_changed", message, status: :conflict)
@@ -436,7 +435,7 @@ module Api
 
           render_error(
             "forbidden",
-            "Product owners cannot advance Epics beyond backlog.",
+            I18n.t("api.epics.product_owner_forbidden"),
             status: :forbidden
           )
         end

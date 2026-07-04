@@ -16,7 +16,7 @@ module Api
 
           def reap_stale_runs
             ReapStaleRunsJob.perform_now
-            render json: { ok: true, message: "ReapStaleRunsJob ran inline." }
+            render json: { ok: true, message: I18n.t("api.admin_queue.reap_ran") }
           end
 
           private

@@ -1,14 +1,14 @@
 <p>
-  <%= @inviter.display_name %> invited you to join Syrus.
+  <%= t(".invited", inviter: @inviter.display_name) %>
 </p>
 
 <p>
-  Accept the invitation on
-  <%= link_to "this signup page", new_user_url(token: @invitation.token) %>.
+  <%= t(".accept_intro") %>
+  <%= link_to t(".accept_link"), new_user_url(token: @invitation.token) %>.
 </p>
 
 <% if @invitation.expires_at.present? %>
   <p>
-    This invitation expires on <%= l(@invitation.expires_at, format: :long) %>.
+    <%= t(".expires", date: l(@invitation.expires_at, format: :long)) %>
   </p>
 <% end %>

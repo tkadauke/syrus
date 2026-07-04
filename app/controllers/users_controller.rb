@@ -37,7 +37,7 @@ class UsersController < ApplicationController
     return if @invitation&.usable?
     return if first_signup?
     return if AppSetting.signups_open?
-    redirect_to new_session_path, alert: "Sign-up is invitation-only — ask the admin for a link."
+    redirect_to new_session_path, alert: t("users.signup_invitation_only")
   end
 
   def first_signup?
@@ -45,7 +45,7 @@ class UsersController < ApplicationController
   end
 
   def signup_notice
-    return "Welcome — you're the first user, so you're the admin." if @user.admin?
-    "Welcome to Syrus."
+    return t("users.welcome_admin") if @user.admin?
+    t("users.welcome")
   end
 end

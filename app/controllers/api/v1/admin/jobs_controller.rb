@@ -58,26 +58,26 @@ module Api
         def create
           attrs = job_params
           repository = find_active_repository(attrs)
-          return render_error("validation_failed", "Repository not found or not active.", status: :unprocessable_content) unless repository
+          return render_error("validation_failed", I18n.t("api.direct_jobs.repository_not_found"), status: :unprocessable_content) unless repository
 
           prompt_text = attrs[:prompt].to_s.strip
-          return render_error("validation_failed", "Prompt can't be blank.", status: :unprocessable_content) if prompt_text.blank?
+          return render_error("validation_failed", I18n.t("api.direct_jobs.prompt_blank"), status: :unprocessable_content) if prompt_text.blank?
 
           agent_provider = attrs[:agent_provider].to_s.presence
           if agent_provider.present? && !repository.user.agent_provider_configured?(agent_provider)
-            return render_error("validation_failed", "That agent is not configured for the repository owner.", status: :unprocessable_content)
+            return render_error("validation_failed", I18n.t("api.direct_jobs.agent_not_configured"), status: :unprocessable_content)
           end
 
           priority = attrs[:priority].to_s.presence || "medium"
           unless Job::PRIORITIES.include?(priority)
-            return render_error("validation_failed", "Priority must be one of: #{Job::PRIORITIES.to_sentence}.", status: :unprocessable_content)
+            return render_error("validation_failed", I18n.t("api.direct_jobs.invalid_priority", priorities: Job::PRIORITIES.to_sentence), status: :unprocessable_content)
           end
 
           epic = find_epic(repository, attrs[:epic_id])
-          return render_error("validation_failed", "Epic not found in that repository.", status: :unprocessable_content) if attrs[:epic_id].present? && !epic
+          return render_error("validation_failed", I18n.t("api.direct_jobs.epic_not_found"), status: :unprocessable_content) if attrs[:epic_id].present? && !epic
 
           owner_user = find_owner_user(attrs[:owner_user_id])
-          return render_error("validation_failed", "Owner user not found.", status: :unprocessable_content) if attrs[:owner_user_id].present? && !owner_user
+          return render_error("validation_failed", I18n.t("api.direct_jobs.owner_not_found"), status: :unprocessable_content) if attrs[:owner_user_id].present? && !owner_user
 
           selected_agent_provider = agent_provider || repository.effective_agent_provider
           title = attrs[:title].to_s.strip.presence
@@ -97,7 +97,7 @@ module Api
           job.advance_after_triage! if job.may_advance_after_triage?
 
           render json: {
-            message: "Direct job created.",
+            message: I18n.t("api.direct_jobs.created"),
             job: serialize(job.reload)
           }, status: :created
         end

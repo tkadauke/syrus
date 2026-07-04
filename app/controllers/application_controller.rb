@@ -24,7 +24,7 @@ class ApplicationController < ActionController::Base
 
   def require_admin
     return if Current.user&.admin?
-    redirect_to root_path, alert: "Admin access required."
+    redirect_to root_path, alert: t("application.admin_required")
   end
 
   def current_user

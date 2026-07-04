@@ -1,2 +1,156 @@
 la:
   hello: "Salve munde"
+
+  passwords_mailer:
+    reset:
+      subject: "Tessera tua renovanda est"
+      intro: "Tesseram tuam renovare potes in"
+      link_text: "hac pagina renovationis tesserae"
+      expires: "Hic nexus post %{time} exspirat."
+
+  invitation_mailer:
+    invite:
+      subject: "Ad Syrum invitatus es"
+      invited: "%{inviter} te invitavit ut Syro iungeris."
+      accept_intro: "Invitationem accipe in"
+      accept_link: "hac pagina inscriptionis"
+      expires: "Haec invitatio die %{date} exspirat."
+
+  sessions:
+    rate_limited: "Post paululum iterum tempta."
+    invalid_credentials: "Aliam inscriptionem electronicam vel tesseram tempta."
+
+  passwords:
+    rate_limited: "Post paululum iterum tempta."
+    reset_sent: "Instructiones renovationis tesserae missae sunt (si usori cum illo inscriptionis electronicae loco existit)."
+    reset_success: "Tessera renovata est."
+    mismatch: "Tesserae non congruebant."
+    token_invalid: "Nexus renovationis tesserae invalidus est vel exspiravit."
+
+  users:
+    signup_invitation_only: "Inscriptio per invitationem solum fieri potest — pete nexum ab administratore."
+    welcome_admin: "Salve — primus usor es, itaque administrator es."
+    welcome: "Syro salve."
+
+  application:
+    admin_required: "Accessus administratoris necessarius est."
+
+  api:
+    base:
+      unauthorized: "Da validum signum API per `Authorization: Bearer <signum>`."
+      admin_required: "Termini API administratoris signum usori administratoris requirunt."
+      sign_in_required: "Intra ut API applicationis utaris."
+      admin_forbidden: "Accessus administratoris necessarius est."
+
+    auth:
+      invalid_credentials: "Aliam inscriptionem electronicam vel tesseram tempta."
+      password_reset_sent: "Instructiones renovationis tesserae missae sunt (si usori cum illo inscriptionis electronicae loco existit)."
+      password_reset_success: "Tessera renovata est."
+      password_mismatch: "Tesserae non congruebant."
+      token_invalid: "Nexus renovationis tesserae invalidus est vel exspiravit."
+      signup_closed: "Inscriptio per invitationem solum fieri potest - pete nexum ab administratore."
+      welcome_admin: "Salve — primus usor es, itaque administrator es."
+      welcome: "Syro salve."
+
+    repositories:
+      already_in_workspace: "%{slug} iam in spatio tuo laboris est."
+      added: "Repositorium %{slug} additum est."
+      updated: "Repositorium %{slug} renovatum est."
+      comment_blank: "Commentarium vacuum esse non potest."
+      comment_added: "Commentarium ad #%{number} additum est."
+      comment_failed: "Commentarium addere non potuit: %{error}"
+      issue_closed: "Quaestio #%{number} clausa est."
+      issue_close_failed: "Quaestionem claudere non potuit: %{error}"
+      issue_delegated: "Quaestio #%{number} Syro delegata est."
+      issue_delegate_failed: "Quaestionem delegare non potuit: %{error}"
+      select_issue: "Elige saltem unam quaestionem."
+      choose_action: "Elige actionem."
+      archived_first: "%{slug} in archivo est — prius e archivo remove."
+      archived: "%{slug} in archivum repositum est."
+      unarchived: "%{slug} e archivo remotum est. Indagationem itera ut ingestio incipiat."
+      no_failed_jobs: "Nulla opera defecta iteranda sunt."
+      developer_required: "Accessus programmatoris vel administratoris necessarius est."
+      not_triage: "Opus non expectat liberationem ad trianam."
+      polling: "Repositorium %{slug} nunc indagatur."
+      released_triage: "%{slug} ad trianam liberatum est."
+      no_github_token: "Nullum signum GitHub configuratum — adde unum in rebus compositis."
+      github_error: "Error GitHub: %{error}"
+      circuit_open: "%{label} aegrotare videtur; iterationes automaticae pausatae sunt."
+      circuit_open_until: "%{label} aegrotare videtur usque ad %{until}; iterationes automaticae pausatae sunt."
+      retry_enqueued:
+        one: "Iteratio pro uno opere defecto cum %{provider} in ordinem posita est."
+        other: "Iteratio pro %{count} operibus defectis cum %{provider} in ordinem posita est."
+      bulk_delegated:
+        one: "Una quaestio Syro delegata est."
+        other: "%{count} quaestiones Syro delegatae sunt."
+      bulk_closed:
+        one: "Una quaestio clausa est."
+        other: "%{count} quaestiones clausae sunt."
+      bulk_delegate_failed: "Quaestiones delegare non potuit: %{error}"
+      bulk_close_failed: "Quaestiones claudere non potuit: %{error}"
+
+    job_pins:
+      pinned: "Opus adfixa est."
+      unpinned: "Opus defixum est."
+
+    tags:
+      created: "Signum creatum est."
+      updated: "Signum renovatum est."
+      deleted: "Signum deletum est."
+
+    epics:
+      created: "Epos creatum est."
+      updated: "Epos renovatum est."
+      archived_already: "Epos iam in archivo est."
+      archived: "Epos in archivum repositum est."
+      claimed: "Epos vindicatum est."
+      unclaimed: "Epos liberatum est."
+      reassigned: "Epos reassignatum est."
+      dependency_added: "Dependentia addita est."
+      dependency_removed: "Dependentia remota est."
+      not_claimed: "Epos non vindicatum est."
+      unclaim_forbidden: "Solus dominus vel administrator hoc Epos liberare potest."
+      another_user: "alio usore"
+      already_claimed_by_you: "Epos iam a te vindicatum est."
+      already_claimed: "Epos iam a %{email} vindicatum est."
+      ownership_changed_unclaimed: "Dominium Epotis mutatum est antequam petitio confecta est; nunc liberum est."
+      ownership_changed: "Dominium Epotis mutatum est antequam petitio confecta est; nunc %{email} assignatum est."
+      unknown_state: "Status Epotis ignotus est."
+      transition_not_allowed: "Haec transitus Epotis non praesto est."
+      product_owner_forbidden: "Possessores producti Epos ultra acervum avancere non possunt."
+      access_forbidden: "Ad repositorium destinatum accessum non habes."
+      owner_not_found: "Usor dominus non inventus est."
+      already_assigned: "Epos iam %{email} assignatum est."
+      admin_forbidden: "Accessus administratoris necessarius est."
+
+    admin_queue:
+      reap_ran: "ReapStaleRunsJob in linea cursum dedit."
+
+    admin_features:
+      not_found: "Proprium non inventum est."
+
+    admin_invitations:
+      created: "Invitatio pro %{email} creata est."
+      revoked: "Invitatio revocata est."
+
+    admin_settings:
+      updated: "Res compositae renovatae sunt."
+      unknown_secret: "Arcanum ignotum."
+      secret_cleared: "%{label} deletum est."
+
+    direct_jobs:
+      repository_not_found: "Repositorium non inventum vel non activum."
+      prompt_blank: "Incitamentum vacuum esse non potest."
+      agent_not_configured: "Hic agens pro possessore repositorii non configuratus est."
+      invalid_priority: "Prioritas una ex his esse debet: %{priorities}."
+      epic_not_found: "Epos in illo repositorio non inventum est."
+      owner_not_found: "Usor dominus non inventus est."
+      created: "Opus directum creatum est."
+
+    admin_workflows:
+      not_failed: "%{slug} statum `%{state}` habet, non `failed`."
+      workspace_cleaned_up: "Spatium laboris iam purgatum est; utere 'Ab initio incipe'."
+      no_failed_step: "Nullus gradus defectus in %{slug} inventus est."
+
+    admin_transcripts:
+      no_session: "Nulla sessio agentis pro Cursu #%{id} capta est."

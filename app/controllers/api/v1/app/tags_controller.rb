@@ -10,7 +10,7 @@ module Api
           tag = Current.user.tags.new(tag_params)
 
           if tag.save
-            render json: tags_payload.merge(message: "Tag created."), status: :created
+            render json: tags_payload.merge(message: I18n.t("api.tags.created")), status: :created
           else
             render_error("validation_failed", tag.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -21,7 +21,7 @@ module Api
           tag = Current.user.tags.find(params[:id])
 
           if tag.update(tag_params)
-            render json: tags_payload.merge(message: "Tag updated.")
+            render json: tags_payload.merge(message: I18n.t("api.tags.updated"))
           else
             render_error("validation_failed", tag.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -32,7 +32,7 @@ module Api
           tag = Current.user.tags.find(params[:id])
           tag.destroy!
 
-          render json: tags_payload.merge(message: "Tag deleted.")
+          render json: tags_payload.merge(message: I18n.t("api.tags.deleted"))
         end
 
         private

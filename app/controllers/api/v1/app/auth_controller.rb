@@ -31,7 +31,7 @@ module Api
             start_new_session_for(user)
             render json: { redirect_to: after_authentication_path }
           else
-            render_error("invalid_credentials", "Try another email address or password.", status: :unprocessable_content)
+            render_error("invalid_credentials", I18n.t("api.auth.invalid_credentials"), status: :unprocessable_content)
           end
         end
 
@@ -55,7 +55,7 @@ module Api
           end
 
           render json: {
-            message: "Password reset instructions sent (if user with that email address exists).",
+            message: I18n.t("api.auth.password_reset_sent"),
             redirect_to: new_session_path
           }
         end
@@ -64,12 +64,12 @@ module Api
           user = User.find_by_password_reset_token!(params[:token])
           if user.update(params.permit(:password, :password_confirmation))
             user.sessions.destroy_all
-            render json: { message: "Password has been reset.", redirect_to: new_session_path }
+            render json: { message: I18n.t("api.auth.password_reset_success"), redirect_to: new_session_path }
           else
-            render_error("validation_failed", user.errors.full_messages.to_sentence.presence || "Passwords did not match.", status: :unprocessable_content)
+            render_error("validation_failed", user.errors.full_messages.to_sentence.presence || I18n.t("api.auth.password_mismatch"), status: :unprocessable_content)
           end
         rescue ActiveSupport::MessageVerifier::InvalidSignature
-          render_error("invalid_token", "Password reset link is invalid or has expired.", status: :unprocessable_content)
+          render_error("invalid_token", I18n.t("api.auth.token_invalid"), status: :unprocessable_content)
         end
 
         private
@@ -97,13 +97,13 @@ module Api
         end
 
         def render_signup_forbidden
-          render_error("signup_closed", "Sign-up is invitation-only - ask the admin for a link.", status: :forbidden)
+          render_error("signup_closed", I18n.t("api.auth.signup_closed"), status: :forbidden)
         end
 
         def signup_notice(user)
-          return "Welcome - you're the first user, so you're the admin." if user.admin?
+          return I18n.t("api.auth.welcome_admin") if user.admin?
 
-          "Welcome to Syrus."
+          I18n.t("api.auth.welcome")
         end
 
         def invitation_payload(invitation)

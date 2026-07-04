@@ -1,2 +1,156 @@
 de:
   hello: "Hallo Welt"
+
+  passwords_mailer:
+    reset:
+      subject: "Passwort zurücksetzen"
+      intro: "Du kannst dein Passwort auf"
+      link_text: "dieser Passwort-Reset-Seite"
+      expires: "Dieser Link läuft in %{time} ab."
+
+  invitation_mailer:
+    invite:
+      subject: "Du wurdest zu Syrus eingeladen"
+      invited: "%{inviter} hat dich eingeladen, Syrus beizutreten."
+      accept_intro: "Nimm die Einladung auf"
+      accept_link: "dieser Anmeldeseite"
+      expires: "Diese Einladung läuft am %{date} ab."
+
+  sessions:
+    rate_limited: "Bitte versuche es später erneut."
+    invalid_credentials: "Bitte versuche eine andere E-Mail-Adresse oder ein anderes Passwort."
+
+  passwords:
+    rate_limited: "Bitte versuche es später erneut."
+    reset_sent: "Anweisungen zum Zurücksetzen des Passworts wurden gesendet (falls ein Benutzer mit dieser E-Mail-Adresse existiert)."
+    reset_success: "Passwort wurde zurückgesetzt."
+    mismatch: "Passwörter stimmten nicht überein."
+    token_invalid: "Passwort-Reset-Link ist ungültig oder abgelaufen."
+
+  users:
+    signup_invitation_only: "Registrierung ist nur auf Einladung möglich — frag den Administrator nach einem Link."
+    welcome_admin: "Willkommen — du bist der erste Benutzer und damit Administrator."
+    welcome: "Willkommen bei Syrus."
+
+  application:
+    admin_required: "Administrator-Zugriff erforderlich."
+
+  api:
+    base:
+      unauthorized: "Bitte gib ein gültiges API-Token via `Authorization: Bearer <token>` an."
+      admin_required: "Admin-API-Endpunkte erfordern das Token eines Administrator-Benutzers."
+      sign_in_required: "Bitte melde dich an, um die App-API zu verwenden."
+      admin_forbidden: "Administrator-Zugriff erforderlich."
+
+    auth:
+      invalid_credentials: "Bitte versuche eine andere E-Mail-Adresse oder ein anderes Passwort."
+      password_reset_sent: "Anweisungen zum Zurücksetzen des Passworts wurden gesendet (falls ein Benutzer mit dieser E-Mail-Adresse existiert)."
+      password_reset_success: "Passwort wurde zurückgesetzt."
+      password_mismatch: "Passwörter stimmten nicht überein."
+      token_invalid: "Passwort-Reset-Link ist ungültig oder abgelaufen."
+      signup_closed: "Registrierung ist nur auf Einladung möglich - frag den Administrator nach einem Link."
+      welcome_admin: "Willkommen — du bist der erste Benutzer und damit Administrator."
+      welcome: "Willkommen bei Syrus."
+
+    repositories:
+      already_in_workspace: "%{slug} ist bereits in deinem Arbeitsbereich."
+      added: "Repository %{slug} hinzugefügt."
+      updated: "Repository %{slug} aktualisiert."
+      comment_blank: "Kommentar darf nicht leer sein."
+      comment_added: "Kommentar zu #%{number} hinzugefügt."
+      comment_failed: "Kommentar konnte nicht hinzugefügt werden: %{error}"
+      issue_closed: "Issue #%{number} geschlossen."
+      issue_close_failed: "Issue konnte nicht geschlossen werden: %{error}"
+      issue_delegated: "Issue #%{number} an Syrus delegiert."
+      issue_delegate_failed: "Issue konnte nicht delegiert werden: %{error}"
+      select_issue: "Bitte mindestens ein Issue auswählen."
+      choose_action: "Bitte eine Aktion auswählen."
+      archived_first: "%{slug} ist archiviert — bitte zuerst de-archivieren."
+      archived: "%{slug} archiviert."
+      unarchived: "%{slug} de-archiviert. Polling wieder aktivieren, um die Aufnahme zu starten."
+      no_failed_jobs: "Keine fehlgeschlagenen Jobs zum Wiederholen."
+      developer_required: "Entwickler- oder Administrator-Zugriff erforderlich."
+      not_triage: "Job wartet nicht auf Triage-Freigabe."
+      polling: "Polling von %{slug} gestartet."
+      released_triage: "%{slug} für Triage freigegeben."
+      no_github_token: "Kein GitHub-Token konfiguriert — bitte in den Einstellungen hinzufügen."
+      github_error: "GitHub-Fehler: %{error}"
+      circuit_open: "%{label} scheint beeinträchtigt zu sein; automatische Wiederholungen sind pausiert."
+      circuit_open_until: "%{label} scheint beeinträchtigt zu sein bis %{until}; automatische Wiederholungen sind pausiert."
+      retry_enqueued:
+        one: "Wiederholung für 1 fehlgeschlagenen Job mit %{provider} eingereiht."
+        other: "Wiederholung für %{count} fehlgeschlagene Jobs mit %{provider} eingereiht."
+      bulk_delegated:
+        one: "1 Issue an Syrus delegiert."
+        other: "%{count} Issues an Syrus delegiert."
+      bulk_closed:
+        one: "1 Issue geschlossen."
+        other: "%{count} Issues geschlossen."
+      bulk_delegate_failed: "Issues konnten nicht delegiert werden: %{error}"
+      bulk_close_failed: "Issues konnten nicht geschlossen werden: %{error}"
+
+    job_pins:
+      pinned: "Job angeheftet."
+      unpinned: "Job losgelöst."
+
+    tags:
+      created: "Tag erstellt."
+      updated: "Tag aktualisiert."
+      deleted: "Tag gelöscht."
+
+    epics:
+      created: "Epic erstellt."
+      updated: "Epic aktualisiert."
+      archived_already: "Epic ist bereits archiviert."
+      archived: "Epic archiviert."
+      claimed: "Epic beansprucht."
+      unclaimed: "Epic freigegeben."
+      reassigned: "Epic neu zugewiesen."
+      dependency_added: "Abhängigkeit hinzugefügt."
+      dependency_removed: "Abhängigkeit entfernt."
+      not_claimed: "Epic ist nicht beansprucht."
+      unclaim_forbidden: "Nur der Eigentümer oder ein Administrator kann dieses Epic freigeben."
+      another_user: "einem anderen Benutzer"
+      already_claimed_by_you: "Epic ist bereits von dir beansprucht."
+      already_claimed: "Epic ist bereits von %{email} beansprucht."
+      ownership_changed_unclaimed: "Epic-Eigentümerschaft hat sich geändert, bevor die Anfrage abgeschlossen wurde; es ist jetzt frei."
+      ownership_changed: "Epic-Eigentümerschaft hat sich geändert, bevor die Anfrage abgeschlossen wurde; es ist jetzt %{email} zugewiesen."
+      unknown_state: "Unbekannter Epic-Zustand."
+      transition_not_allowed: "Dieser Epic-Übergang ist nicht verfügbar."
+      product_owner_forbidden: "Product Owner können Epics nicht über Backlog hinaus voranbringen."
+      access_forbidden: "Du hast keinen Zugriff auf das Ziel-Repository."
+      owner_not_found: "Eigentümer-Benutzer nicht gefunden."
+      already_assigned: "Epic ist bereits %{email} zugewiesen."
+      admin_forbidden: "Administrator-Zugriff erforderlich."
+
+    admin_queue:
+      reap_ran: "ReapStaleRunsJob wurde inline ausgeführt."
+
+    admin_features:
+      not_found: "Feature nicht gefunden."
+
+    admin_invitations:
+      created: "Einladung für %{email} erstellt."
+      revoked: "Einladung widerrufen."
+
+    admin_settings:
+      updated: "Einstellungen aktualisiert."
+      unknown_secret: "Unbekanntes Geheimnis."
+      secret_cleared: "%{label} gelöscht."
+
+    direct_jobs:
+      repository_not_found: "Repository nicht gefunden oder nicht aktiv."
+      prompt_blank: "Prompt darf nicht leer sein."
+      agent_not_configured: "Dieser Agent ist für den Repository-Eigentümer nicht konfiguriert."
+      invalid_priority: "Priorität muss eine der folgenden sein: %{priorities}."
+      epic_not_found: "Epic nicht in diesem Repository gefunden."
+      owner_not_found: "Eigentümer-Benutzer nicht gefunden."
+      created: "Direkter Job erstellt."
+
+    admin_workflows:
+      not_failed: "%{slug} hat den Zustand `%{state}`, nicht `failed`."
+      workspace_cleaned_up: "Arbeitsbereich wurde bereits bereinigt; bitte 'Neu starten' verwenden."
+      no_failed_step: "Kein fehlgeschlagener Schritt auf %{slug} gefunden."
+
+    admin_transcripts:
+      no_session: "Keine Agent-Sitzung für Run #%{id} aufgezeichnet."

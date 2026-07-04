@@ -44,13 +44,13 @@ module Api
         end
 
         def request_authentication
-          render_error("unauthorized", "Sign in to use the app API.", status: :unauthorized)
+          render_error("unauthorized", I18n.t("api.base.sign_in_required"), status: :unauthorized)
         end
 
         def require_admin
           return if Current.user&.admin?
 
-          render_error("forbidden", "Admin access required.", status: :forbidden)
+          render_error("forbidden", I18n.t("api.base.admin_forbidden"), status: :forbidden)
         end
 
         def render_error(code, message, status:)

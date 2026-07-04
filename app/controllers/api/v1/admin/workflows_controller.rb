@@ -37,17 +37,17 @@ module Api
           workflow = Workflow.find(params[:id])
 
           unless workflow.failed?
-            render_error("workflow_not_failed", "#{workflow.slug} is `#{workflow.state}`, not `failed`.", status: :unprocessable_content)
+            render_error("workflow_not_failed", I18n.t("api.admin_workflows.not_failed", slug: workflow.slug, state: workflow.state), status: :unprocessable_content)
             return
           end
           unless workflow.retry_available?
-            render_error("workspace_cleaned_up", "Workspace already cleaned up; use Start over.", status: :unprocessable_content)
+            render_error("workspace_cleaned_up", I18n.t("api.admin_workflows.workspace_cleaned_up"), status: :unprocessable_content)
             return
           end
 
           failed_step = workflow.steps.where(state: "failed").order(:position).first
           unless failed_step
-            render_error("no_failed_step", "No failed step found on #{workflow.slug}.", status: :unprocessable_content)
+            render_error("no_failed_step", I18n.t("api.admin_workflows.no_failed_step", slug: workflow.slug), status: :unprocessable_content)
             return
           end
 

@@ -1,4 +1,4 @@
-You can reset your password on
+<%= t(".intro") %>
 <%= edit_password_url(@user.password_reset_token) %>
 
-This link will expire in <%= distance_of_time_in_words(0, @user.password_reset_token_expires_in) %>.
+<%= t(".expires", time: distance_of_time_in_words(0, @user.password_reset_token_expires_in)) %>

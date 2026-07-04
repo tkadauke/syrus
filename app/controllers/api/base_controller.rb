@@ -31,7 +31,7 @@ module Api
 
     def request_http_token_authentication(realm = "Syrus API", message = nil)
       render_error("unauthorized",
-                   "Provide a valid API token via `Authorization: Bearer <token>`.",
+                   I18n.t("api.base.unauthorized"),
                    status: :unauthorized)
     end
 
@@ -41,7 +41,7 @@ module Api
 
     def require_admin_api
       return if current_api_user&.admin?
-      render_error("forbidden", "Admin API endpoints require an admin user's token.", status: :forbidden)
+      render_error("forbidden", I18n.t("api.base.admin_required"), status: :forbidden)
     end
 
     def render_error(code, message, status:)

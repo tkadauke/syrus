@@ -26,7 +26,7 @@ module Api
           run = Run.find(params[:run_id])
           session = run.claude_session
           unless session
-            render_error("not_found", "No agent session captured for Run ##{run.id}.", status: :not_found)
+            render_error("not_found", I18n.t("api.admin_transcripts.no_session", id: run.id), status: :not_found)
             return
           end
           send_data session.transcript_jsonl,

@@ -11,7 +11,7 @@ module Api
             setting = AppSetting.current
 
             if setting.update(settings_params)
-              render json: settings_payload.merge(message: "Settings updated.")
+              render json: settings_payload.merge(message: I18n.t("api.admin_settings.updated"))
             else
               render_error("validation_failed", setting.errors.full_messages.to_sentence,
                            status: :unprocessable_content)
@@ -20,10 +20,10 @@ module Api
 
           def clear_secret
             label = AppSetting.clearable_secrets[params[:secret].to_s]
-            return render_error("unknown_secret", "Unknown secret.", status: :unprocessable_content) unless label
+            return render_error("unknown_secret", I18n.t("api.admin_settings.unknown_secret"), status: :unprocessable_content) unless label
 
             AppSetting.current.clear_secret!(params[:secret])
-            render json: settings_payload.merge(message: "#{label} cleared.")
+            render json: settings_payload.merge(message: I18n.t("api.admin_settings.secret_cleared", label: label))
           end
 
           private

@@ -7,7 +7,7 @@ module Api
           Current.user.job_pins.find_or_create_by!(job: job)
           broadcast_pin_change(job, pinned: true)
 
-          render json: pin_payload(job, pinned: true, message: "Job pinned.")
+          render json: pin_payload(job, pinned: true, message: I18n.t("api.job_pins.pinned"))
         end
 
         def destroy
@@ -15,7 +15,7 @@ module Api
           Current.user.job_pins.find_by(job: job)&.destroy!
           broadcast_pin_change(job, pinned: false)
 
-          render json: pin_payload(job, pinned: false, message: "Job unpinned.")
+          render json: pin_payload(job, pinned: false, message: I18n.t("api.job_pins.unpinned"))
         end
 
         private

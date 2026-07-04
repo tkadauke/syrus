@@ -29,3 +29,161 @@
 
 en:
   hello: "Hello world"
+
+  # Mailer content — subject uses Rails auto-lookup (<mailer_name>.<action>.subject)
+  # view body content uses ERB lazy-lookup (same scope as subject)
+  passwords_mailer:
+    reset:
+      subject: "Reset your password"
+      intro: "You can reset your password on"
+      link_text: "this password reset page"
+      expires: "This link will expire in %{time}."
+
+  invitation_mailer:
+    invite:
+      subject: "You're invited to Syrus"
+      invited: "%{inviter} invited you to join Syrus."
+      accept_intro: "Accept the invitation on"
+      accept_link: "this signup page"
+      expires: "This invitation expires on %{date}."
+
+  # Web controller flash messages
+  sessions:
+    rate_limited: "Try again later."
+    invalid_credentials: "Try another email address or password."
+
+  passwords:
+    rate_limited: "Try again later."
+    reset_sent: "Password reset instructions sent (if user with that email address exists)."
+    reset_success: "Password has been reset."
+    mismatch: "Passwords did not match."
+    token_invalid: "Password reset link is invalid or has expired."
+
+  users:
+    signup_invitation_only: "Sign-up is invitation-only — ask the admin for a link."
+    welcome_admin: "Welcome — you're the first user, so you're the admin."
+    welcome: "Welcome to Syrus."
+
+  application:
+    admin_required: "Admin access required."
+
+  # API messages
+  api:
+    base:
+      unauthorized: "Provide a valid API token via `Authorization: Bearer <token>`."
+      admin_required: "Admin API endpoints require an admin user's token."
+      sign_in_required: "Sign in to use the app API."
+      admin_forbidden: "Admin access required."
+
+    auth:
+      invalid_credentials: "Try another email address or password."
+      password_reset_sent: "Password reset instructions sent (if user with that email address exists)."
+      password_reset_success: "Password has been reset."
+      password_mismatch: "Passwords did not match."
+      token_invalid: "Password reset link is invalid or has expired."
+      signup_closed: "Sign-up is invitation-only - ask the admin for a link."
+      welcome_admin: "Welcome - you're the first user, so you're the admin."
+      welcome: "Welcome to Syrus."
+
+    repositories:
+      already_in_workspace: "%{slug} is already in your workspace."
+      added: "Repository %{slug} added."
+      updated: "Repository %{slug} updated."
+      comment_blank: "Comment cannot be blank."
+      comment_added: "Comment added to #%{number}."
+      comment_failed: "Failed to add comment: %{error}"
+      issue_closed: "Issue #%{number} closed."
+      issue_close_failed: "Failed to close issue: %{error}"
+      issue_delegated: "Issue #%{number} delegated to Syrus."
+      issue_delegate_failed: "Failed to delegate issue: %{error}"
+      select_issue: "Select at least one issue."
+      choose_action: "Choose a bulk action."
+      archived_first: "%{slug} is archived — unarchive it first."
+      archived: "%{slug} archived."
+      unarchived: "%{slug} unarchived. Re-enable polling to start ingestion again."
+      no_failed_jobs: "No failed jobs to retry."
+      developer_required: "Developer or admin access required."
+      not_triage: "Job is not waiting for triage release."
+      polling: "Polling %{slug} now."
+      released_triage: "Released %{slug} for triage."
+      no_github_token: "No GitHub token configured — add one in Settings."
+      github_error: "GitHub error: %{error}"
+      circuit_open: "%{label} appears degraded; automatic retries are paused."
+      circuit_open_until: "%{label} appears degraded until %{until}; automatic retries are paused."
+      retry_enqueued:
+        one: "Retry enqueued for 1 failed job with %{provider}."
+        other: "Retry enqueued for %{count} failed jobs with %{provider}."
+      bulk_delegated:
+        one: "1 issue delegated to Syrus."
+        other: "%{count} issues delegated to Syrus."
+      bulk_closed:
+        one: "1 issue closed."
+        other: "%{count} issues closed."
+      bulk_delegate_failed: "Failed to delegate issues: %{error}"
+      bulk_close_failed: "Failed to close issues: %{error}"
+
+    job_pins:
+      pinned: "Job pinned."
+      unpinned: "Job unpinned."
+
+    tags:
+      created: "Tag created."
+      updated: "Tag updated."
+      deleted: "Tag deleted."
+
+    epics:
+      created: "Epic created."
+      updated: "Epic updated."
+      archived_already: "Epic already archived."
+      archived: "Epic archived."
+      claimed: "Epic claimed."
+      unclaimed: "Epic unclaimed."
+      reassigned: "Epic reassigned."
+      dependency_added: "Dependency added."
+      dependency_removed: "Dependency removed."
+      not_claimed: "Epic is not claimed."
+      unclaim_forbidden: "Only the owner or an admin can unclaim this Epic."
+      another_user: "another user"
+      already_claimed_by_you: "Epic is already claimed by you."
+      already_claimed: "Epic is already claimed by %{email}."
+      ownership_changed_unclaimed: "Epic ownership changed before the request completed; it is now unclaimed."
+      ownership_changed: "Epic ownership changed before the request completed; it is now assigned to %{email}."
+      unknown_state: "Unknown Epic state."
+      transition_not_allowed: "That Epic transition is not available."
+      product_owner_forbidden: "Product owners cannot advance Epics beyond backlog."
+      access_forbidden: "You do not have access to the target repository."
+      owner_not_found: "Owner user not found."
+      already_assigned: "Epic is already assigned to %{email}."
+      admin_forbidden: "Admin access required."
+
+    admin_queue:
+      reap_ran: "ReapStaleRunsJob ran inline."
+
+    admin_features:
+      not_found: "Feature not found."
+
+    admin_invitations:
+      created: "Invitation created for %{email}."
+      revoked: "Invitation revoked."
+
+    admin_settings:
+      updated: "Settings updated."
+      unknown_secret: "Unknown secret."
+      secret_cleared: "%{label} cleared."
+
+    direct_jobs:
+      repository_not_found: "Repository not found or not active."
+      prompt_blank: "Prompt can't be blank."
+      agent_not_configured: "That agent is not configured for the repository owner."
+      invalid_priority: "Priority must be one of: %{priorities}."
+      epic_not_found: "Epic not found in that repository."
+      owner_not_found: "Owner user not found."
+      created: "Direct job created."
+
+    admin_workflows:
+      not_failed: "%{slug} is `%{state}`, not `failed`."
+      workspace_cleaned_up: "Workspace already cleaned up; use Start over."
+      no_failed_step: "No failed step found on %{slug}."
+
+    admin_transcripts:
+      no_session: "No agent session captured for Run #%{id}."

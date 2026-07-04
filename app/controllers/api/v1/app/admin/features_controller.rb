@@ -9,7 +9,7 @@ module Api
 
           def update
             feature = declared_feature(params[:slug])
-            return render_error("not_found", "Feature not found.", status: :not_found) unless feature
+            return render_error("not_found", I18n.t("api.admin_features.not_found"), status: :not_found) unless feature
 
             if feature.update(enabled: feature_params.fetch(:enabled))
               render json: { feature: feature_payload(feature) }

@@ -36,4 +36,5 @@ RSpec.describe "Locale switching", type: :request do
 
     expect(I18n.locale).to eq(I18n.default_locale)
   end
+
 end

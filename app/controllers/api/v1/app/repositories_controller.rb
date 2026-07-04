@@ -83,20 +83,20 @@ module Api
             repository.repository_memberships.find_or_create_by!(user: Current.user) { |m| m.role = "owner" }
           else
             if repository.repository_memberships.exists?(user: Current.user)
-              render_error("validation_failed", "#{repository.slug} is already in your workspace.", status: :unprocessable_content)
+              render_error("validation_failed", I18n.t("api.repositories.already_in_workspace", slug: repository.slug), status: :unprocessable_content)
               return
             end
             repository.repository_memberships.create!(user: Current.user, role: "collaborator")
           end
 
-          render json: saved_payload(repository, message: "Repository #{repository.slug} added."), status: :created
+          render json: saved_payload(repository, message: I18n.t("api.repositories.added", slug: repository.slug)), status: :created
         end
 
         def update
           repository = find_repository
 
           if repository.update(repository_params)
-            render json: saved_payload(repository, message: "Repository #{repository.slug} updated.")
+            render json: saved_payload(repository, message: I18n.t("api.repositories.updated", slug: repository.slug))
           else
             render_error("validation_failed", repository.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -107,7 +107,7 @@ module Api
           issue_number = params.require(:issue_number).to_i
           body = params[:comment_body].to_s.strip
           if body.blank?
-            render_error("validation_failed", "Comment cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repositories.comment_blank"), status: :unprocessable_content)
             return
           end
 
@@ -118,9 +118,9 @@ module Api
             on_behalf_of: Current.user
           )
 
-          render json: repository_issues_payload(repository, state: issue_state, message: "Comment added to ##{issue_number}.")
+          render json: repository_issues_payload(repository, state: issue_state, message: I18n.t("api.repositories.comment_added", number: issue_number))
         rescue Octokit::Error => e
-          render_error("github_error", "Failed to add comment: #{e.message}", status: :bad_gateway)
+          render_error("github_error", I18n.t("api.repositories.comment_failed", error: e.message), status: :bad_gateway)
         end
 
         def close_issue
@@ -128,9 +128,9 @@ module Api
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).close_issue(repository.slug, issue_number)
 
-          render json: repository_issues_payload(repository, state: issue_state, message: "Issue ##{issue_number} closed.")
+          render json: repository_issues_payload(repository, state: issue_state, message: I18n.t("api.repositories.issue_closed", number: issue_number))
         rescue Octokit::Error => e
-          render_error("github_error", "Failed to close issue: #{e.message}", status: :bad_gateway)
+          render_error("github_error", I18n.t("api.repositories.issue_close_failed", error: e.message), status: :bad_gateway)
         end
 
         def delegate_issue
@@ -138,16 +138,16 @@ module Api
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
 
-          render json: repository_issues_payload(repository, state: issue_state, message: "Issue ##{issue_number} delegated to Syrus.")
+          render json: repository_issues_payload(repository, state: issue_state, message: I18n.t("api.repositories.issue_delegated", number: issue_number))
         rescue Octokit::Error => e
-          render_error("github_error", "Failed to delegate issue: #{e.message}", status: :bad_gateway)
+          render_error("github_error", I18n.t("api.repositories.issue_delegate_failed", error: e.message), status: :bad_gateway)
         end
 
         def bulk_issues
           repository = find_repository
           issue_numbers = selected_issue_numbers
           if issue_numbers.empty?
-            render_error("validation_failed", "Select at least one issue.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repositories.select_issue"), status: :unprocessable_content)
             return
           end
 
@@ -157,39 +157,39 @@ module Api
           when "close"
             bulk_close_issues(repository, issue_numbers)
           else
-            render_error("validation_failed", "Choose a bulk action.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repositories.choose_action"), status: :unprocessable_content)
           end
         end
 
         def poll
           repository = find_repository
           if repository.archived?
-            render_error("validation_failed", "#{repository.slug} is archived — unarchive it first.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repositories.archived_first", slug: repository.slug), status: :unprocessable_content)
             return
           end
 
           PollRepositoryJob.perform_later(repository.id, force: true)
-          message = "Polling #{repository.slug} now."
+          message = I18n.t("api.repositories.polling", slug: repository.slug)
           render json: repository_command_payload(repository, message: message)
         end
 
         def archive
           repository = find_repository
           repository.archive!
-          render json: repositories_payload(message: "#{repository.slug} archived.")
+          render json: repositories_payload(message: I18n.t("api.repositories.archived", slug: repository.slug))
         end
 
         def unarchive
           repository = find_repository
           repository.unarchive!
-          render json: repositories_payload(message: "#{repository.slug} unarchived. Re-enable polling to start ingestion again.")
+          render json: repositories_payload(message: I18n.t("api.repositories.unarchived", slug: repository.slug))
         end
 
         def retry_failed_jobs
           repository = find_repository
           eligible = retryable_failed_jobs(repository)
           if eligible.empty?
-            render_error("validation_failed", "No failed jobs to retry.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repositories.no_failed_jobs"), status: :unprocessable_content)
             return
           end
 
@@ -212,20 +212,20 @@ module Api
           render json: repository_detail_payload(
             repository.reload,
             page: detail_page,
-            message: "Retry enqueued for #{helpers.pluralize(retried, 'failed job')} with #{agent_provider.titleize}."
+            message: I18n.t("api.repositories.retry_enqueued", count: retried, provider: agent_provider.titleize)
           )
         end
 
         def release_needs_triage_job
           repository = find_repository
           unless can_release_triage_jobs?
-            render_error("forbidden", "Developer or admin access required.", status: :forbidden)
+            render_error("forbidden", I18n.t("api.repositories.developer_required"), status: :forbidden)
             return
           end
 
           job = repository.jobs.find(params.require(:job_id))
           unless job.needs_triage?
-            render_error("validation_failed", "Job is not waiting for triage release.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repositories.not_triage"), status: :unprocessable_content)
             return
           end
 
@@ -238,7 +238,7 @@ module Api
           render json: repository_detail_payload(
             repository.reload,
             page: detail_page,
-            message: "Released #{job.slug} for triage."
+            message: I18n.t("api.repositories.released_triage", slug: job.slug)
           )
         end
 
@@ -303,9 +303,9 @@ module Api
           begin
             issues = GithubClient.for(repository: repository, user: Current.user).list_all_issues(repository.slug, state: state).first(50)
           rescue ArgumentError
-            error_message = "No GitHub token configured — add one in Settings."
+            error_message = I18n.t("api.repositories.no_github_token")
           rescue Octokit::Error => e
-            error_message = "GitHub error: #{e.message}"
+            error_message = I18n.t("api.repositories.github_error", error: e.message)
           end
 
           {
@@ -536,8 +536,11 @@ module Api
 
         def provider_circuit_message(circuit)
           label = agent_provider_label(circuit.provider)
-          until_text = circuit.retry_after ? " until #{circuit.retry_after.to_fs(:db)}" : ""
-          "#{label} appears degraded#{until_text}; automatic retries are paused."
+          if circuit.retry_after
+            I18n.t("api.repositories.circuit_open_until", label: label, until: circuit.retry_after.to_fs(:db))
+          else
+            I18n.t("api.repositories.circuit_open", label: label)
+          end
         end
 
         def credential_status_json(repository)
@@ -734,10 +737,10 @@ module Api
           render json: repository_issues_payload(
             repository,
             state: issue_state,
-            message: "#{helpers.pluralize(issue_numbers.size, 'issue')} delegated to Syrus."
+            message: I18n.t("api.repositories.bulk_delegated", count: issue_numbers.size)
           )
         rescue Octokit::Error => e
-          render_error("github_error", "Failed to delegate issues: #{e.message}", status: :bad_gateway)
+          render_error("github_error", I18n.t("api.repositories.bulk_delegate_failed", error: e.message), status: :bad_gateway)
         end
 
         def bulk_close_issues(repository, issue_numbers)
@@ -749,10 +752,10 @@ module Api
           render json: repository_issues_payload(
             repository,
             state: issue_state,
-            message: "#{helpers.pluralize(issue_numbers.size, 'issue')} closed."
+            message: I18n.t("api.repositories.bulk_closed", count: issue_numbers.size)
           )
         rescue Octokit::Error => e
-          render_error("github_error", "Failed to close issues: #{e.message}", status: :bad_gateway)
+          render_error("github_error", I18n.t("api.repositories.bulk_close_failed", error: e.message), status: :bad_gateway)
         end
 
         def agent_provider_label(provider)
