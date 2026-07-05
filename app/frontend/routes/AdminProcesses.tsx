@@ -30,7 +30,7 @@ export function AdminProcessesIndex() {
   return (
     <main aria-label="Admin processes" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
         <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("processes.heading")}</h1>
       </header>
 
@@ -51,12 +51,12 @@ export function AdminProcessesIndex() {
           smartFolders={
             <AdminSmartFolderNav
               activeFolderId={processes.data.active_smart_folder_id}
-              allLabel="Active + recent"
+              allLabel={"Active + recent" /* TODO: missing i18n key */}
               allPath={basePath}
               ariaLabel="Admin process smart folders"
               currentFilter={processes.data.filter}
               folders={processes.data.smart_folders}
-              heading="Processes"
+              heading={t("processes.heading")}
               onMutationSuccess={() => {
                 void queryClient.invalidateQueries({ queryKey: ["admin", "processes"] })
               }}
@@ -68,6 +68,7 @@ export function AdminProcessesIndex() {
         >
           <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+              {/* TODO: missing i18n key */}
               {processes.data.running_total} running · {processes.data.processes.length} shown
             </div>
             <ProcessesTable basePath={basePath} processes={processes.data.processes} />
@@ -81,6 +82,7 @@ export function AdminProcessesIndex() {
 const adminProcessLegacyFilterKeys = ["state", "kind", "hostname", "run_id", "workflow_id", "since"]
 
 export function AdminProcessDetail() {
+  const { t } = useT("admin")
   const params = useParams()
   const id = params.id || ""
   const location = useLocation()
@@ -95,12 +97,12 @@ export function AdminProcessDetail() {
   return (
     <main aria-label="Admin process detail" className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>Processes</Link>
+        <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
         <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">Process {id ? `#${id}` : ""}</h1>
       </header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        {process.isPending ? <PanelMessage>Loading process...</PanelMessage> : null}
+        {process.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
         {process.isError ? <ProcessError error={process.error} /> : null}
         {process.isSuccess ? <ProcessDetail prefix={prefix} process={process.data} /> : null}
       </section>
@@ -109,6 +111,7 @@ export function AdminProcessDetail() {
 }
 
 function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayload[]; basePath: string }) {
+  // TODO: missing i18n key — "No processes match this filter."
   if (processes.length === 0) return <PanelMessage>No processes match this filter.</PanelMessage>
 
   return (
@@ -116,6 +119,7 @@ function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayl
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
+            {/* TODO: missing i18n keys for column headers below */}
             <th className="px-3 py-2">Kind</th>
             <th className="px-3 py-2">Command</th>
             <th className="px-3 py-2">Host / PID</th>
@@ -140,12 +144,12 @@ function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayl
               <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatDate(process.started_at)}</td>
               <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
                 {formatDate(process.last_chunk_at)}
-                {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-[0.65rem] font-semibold uppercase text-amber-900 dark:text-amber-100">stale</span> : null}
+                {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-[0.65rem] font-semibold uppercase text-amber-900 dark:text-amber-100">stale{/* TODO: missing i18n key */}</span> : null}
               </td>
               <td className="px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatDuration(process.duration_s)}</td>
               <td className="px-3 py-2 align-top text-xs"><Outcome process={process} /></td>
               <td className="space-x-3 whitespace-nowrap px-3 py-2 text-right align-top text-xs">
-                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={`${basePath}/${process.id}`}>Detail</Link>
+                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={`${basePath}/${process.id}`}>Detail{/* TODO: missing i18n key */}</Link>
                 <KillButton process={process} />
               </td>
             </tr>
@@ -170,6 +174,7 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         <KillButton process={process} />
       </div>
 
+      {/* TODO: missing i18n keys for all dt labels below (Hostname, PID / PGID, Workdir, Started, Last chunk, Finished, Duration, Outcome, Wall timeout, Silent timeout, Run, Workflow, Kill requested) */}
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
         <dt className="text-gray-500 dark:text-gray-400">Hostname</dt>
         <dd className="font-mono text-gray-900 dark:text-gray-100">{process.hostname || "-"}</dd>
@@ -241,6 +246,7 @@ function KillButton({ process }: { process: SpawnedProcessPayload }) {
       onClick={() => kill.mutate()}
       type="button"
     >
+      {/* TODO: missing i18n keys for "Kill" and "Killing..." */}
       {kill.isPending ? "Killing..." : "Kill"}
     </button>
   )
@@ -249,7 +255,7 @@ function KillButton({ process }: { process: SpawnedProcessPayload }) {
 function HostMetrics({ metrics }: { metrics: Record<string, unknown> }) {
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Host metrics</h3>
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Host metrics{/* TODO: missing i18n key */}</h3>
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         {Object.entries(metrics).map(([key, value]) => (
           <div key={key}>

@@ -59,7 +59,7 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
     <main aria-label="Admin queue" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header className="flex items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
           <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("queue.heading")}</h1>
         </div>
         <button

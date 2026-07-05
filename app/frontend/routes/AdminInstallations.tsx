@@ -23,7 +23,7 @@ export function AdminInstallations() {
   return (
     <main aria-label="Admin installations" className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Admin</p>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
         <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("installations.heading")}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {t("installations.description")}
@@ -91,6 +91,7 @@ function RefreshButton() {
 
 function CredentialModeComparison() {
   const { t } = useT("admin")
+  // TODO: missing i18n keys for comparison table row content below
   const rows = [
     ["Used when no active App installation exists", "Used when the App is registered and installed on the repo account"],
     ["All actions appear as you", "Actions appear as the App bot"],

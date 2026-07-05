@@ -157,6 +157,7 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
     <>
       <section className="grid gap-4 md:grid-cols-2">
         <InfoPanel title={t("users.identity")}>
+          {/* TODO: missing i18n keys for Info labels: Email, GitHub, Admin, Role, GitHub API blocked, Created */}
           <Info label="Email" value={user.email_address} />
           <Info label="GitHub" value={user.github_handle ? `@${user.github_handle}` : "-"} />
           <Info label="Admin" value={user.admin ? t("users.yes") : t("users.no")} />
@@ -165,6 +166,7 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
           <Info label="Created" value={formatDate(user.created_at)} />
         </InfoPanel>
         <InfoPanel title={t("users.agent_tokens")}>
+          {/* TODO: missing i18n keys for Info labels: Agent provider, Codex auth mode, Max turns, Tokens, GH rate */}
           <Info label="Agent provider" value={user.agent_provider} />
           <Info label="Codex auth mode" value={user.codex_auth_mode} />
           <Info label="Max turns" value={String(user.agent_max_turns)} />
