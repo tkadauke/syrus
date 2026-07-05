@@ -49,6 +49,85 @@ RSpec.describe Steps::SummarizeAmend do
     `git -C #{@ws_path} log -1 --format='%B'`.strip
   end
 
+  describe "skipping agent when upstream step already submitted summary" do
+    let(:respond_step) do
+      Step.create!(workflow: workflow, kind: "respond", position: 0, next_step_id: step.id)
+    end
+    let(:respond_run) do
+      r = Run.create!(job: job, step: respond_step, trigger_kind: "pr_comment",
+                      agent_pr_title: "Address review feedback: extract helper",
+                      agent_pr_body:  "Extracted into a helper method.",
+                      agent_summary:  "Pulled logic into a shared helper.")
+      r.start!; r.succeed!; r.save!
+      r
+    end
+
+    before { respond_run }
+
+    it "does not invoke the agent" do
+      expect(handler).not_to receive(:run_agent)
+      handler.call
+    end
+
+    it "promotes amend_commit_subject from the upstream run onto workflow artifacts" do
+      handler.call
+      expect(workflow.reload.artifact("amend_commit_subject")).to eq("Address review feedback: extract helper")
+    end
+
+    it "promotes amend_commit_body and summary from the upstream run" do
+      handler.call
+      workflow.reload
+      expect(workflow.artifact("amend_commit_body")).to eq("Extracted into a helper method.")
+      expect(workflow.artifact("summary")).to eq("Pulled logic into a shared helper.")
+    end
+
+    it "rewrites the commit message using the upstream run's pr_title" do
+      handler.call
+      expect(commit_message).to start_with("Address review feedback: extract helper")
+    end
+
+    context "when an analyze_and_fix run already submitted summary" do
+      let(:analyze_step) do
+        Step.create!(workflow: workflow, kind: "analyze_and_fix", position: 0, next_step_id: step.id)
+      end
+      let(:analyze_run) do
+        r = Run.create!(job: job, step: analyze_step, trigger_kind: "ci_failure",
+                        agent_pr_title: "Fix failing CI: update timeout",
+                        agent_pr_body:  "Increased test timeout.")
+        r.start!; r.succeed!; r.save!
+        r
+      end
+
+      before { analyze_run }
+
+      it "does not invoke the agent" do
+        expect(handler).not_to receive(:run_agent)
+        handler.call
+      end
+
+      it "promotes amend_commit_subject from the analyze_and_fix run" do
+        handler.call
+        expect(workflow.reload.artifact("amend_commit_subject")).to eq("Fix failing CI: update timeout")
+      end
+    end
+
+    context "when the upstream respond run has no agent_pr_title" do
+      let(:blank_respond_run) do
+        r = Run.create!(job: job, step: respond_step, trigger_kind: "pr_comment")
+        r.start!; r.succeed!; r.save!
+        r
+      end
+
+      before { blank_respond_run }
+
+      it "invokes the agent normally" do
+        stub_agent(title: "Address feedback via agent", body: nil)
+        expect(handler).to receive(:run_agent)
+        handler.call
+      end
+    end
+  end
+
   describe "commit message rewrite" do
     it "amends the placeholder commit subject to the agent-authored title" do
       stub_agent(title: "Address review feedback: tighten docstring", body: "Tightened the docs.")

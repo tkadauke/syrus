@@ -13,6 +13,14 @@ module Steps
 
     def call
       workspace.setup
+
+      if (upstream_run = upstream_run_with_summary)
+        log("upstream step already called submit_summary — skipping agent call")
+        promote_artifacts!(from: upstream_run)
+        rewrite_amend_commit_message!
+        return
+      end
+
       run.update!(prompt: Prompts::SummarizeAmend.new.to_s) if run.prompt.blank?
 
       log("invoking agent for summarize_amend step (#{workflow.slug}, --resume)")
@@ -24,15 +32,26 @@ module Steps
 
     private
 
-    def promote_artifacts!
-      run.reload
-      raise StepFailed, "agent didn't call submit_summary" if run.agent_pr_title.blank?
+    def upstream_run_with_summary
+      workflow.steps.where(kind: %w[respond analyze_and_fix])
+        .order(:position)
+        .flat_map { |step| step.runs.select(&:succeeded?) }
+        .max_by(&:created_at)
+        .then { |r| r if r&.agent_pr_title.present? }
+    end
+
+    def promote_artifacts!(from: nil)
+      unless from
+        run.reload
+      end
+      source = from || run
+      raise StepFailed, "agent didn't call submit_summary" if source.agent_pr_title.blank?
 
       # Each round overwrites — the artifact represents the most
       # recent commit message / body for THIS workflow.
-      workflow.set_artifact!("amend_commit_subject", run.agent_pr_title)
-      workflow.set_artifact!("amend_commit_body",    run.agent_pr_body)  if run.agent_pr_body.present?
-      workflow.set_artifact!("summary",              run.agent_summary)  if run.agent_summary.present?
+      workflow.set_artifact!("amend_commit_subject", source.agent_pr_title)
+      workflow.set_artifact!("amend_commit_body",    source.agent_pr_body)  if source.agent_pr_body.present?
+      workflow.set_artifact!("summary",              source.agent_summary)  if source.agent_summary.present?
     end
 
     def rewrite_amend_commit_message!

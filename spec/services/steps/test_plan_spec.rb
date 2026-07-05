@@ -20,6 +20,13 @@ RSpec.describe Steps::TestPlan do
     allow(handler).to receive(:workspace).and_return(fake_ws)
   end
 
+  it "skips the agent call when the implement step already called submit_test_plan" do
+    workflow.set_artifact!("test_plan", { steps: [ "Run bin/rspec" ], notes: nil })
+
+    expect(handler).not_to receive(:run_agent)
+    handler.call
+  end
+
   it "sets the test-plan prompt, invokes the agent with a short turn budget, and verifies the artifact" do
     expect(handler).to receive(:run_agent) do |prompt:, max_turns:|
       expect(prompt).to include("submit_test_plan")

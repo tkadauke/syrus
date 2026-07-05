@@ -9,6 +9,11 @@ module Steps
       workspace.setup
       raise StepFailed, "#{workflow.slug} has no completed implement run for test_plan" if missing_required_implement_run?
 
+      if workflow.artifact("test_plan").present?
+        log("implement step already called submit_test_plan — skipping agent call")
+        return
+      end
+
       run.update!(prompt: Prompts::TestPlan.new.to_s) if run.prompt.blank?
 
       log("invoking agent for test_plan step (#{workflow.slug}, --resume from implement)")

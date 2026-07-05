@@ -164,13 +164,18 @@ Key steps:
   member PRs.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
-  If the implement step already called `submit_summary` (artifacts contain
-  `agent_pr_title`), the summarize step skips the agent call entirely and
-  promotes artifacts directly — saving a full agent turn.
+  If the upstream agentic step (`implement` for `summarize`; `respond` or
+  `analyze_and_fix` for `summarize_amend`) already called `submit_summary`
+  (the run has `agent_pr_title` set), the step skips the agent call entirely
+  and promotes artifacts directly — saving a full agent turn and avoiding
+  failures when the MCP sidecar is slow to connect.
 - **`test_plan`** — Short agentic step in the initial Workflow after
   `summarize`. It asks the agent to call `submit_test_plan` with concise
   reviewer-facing checks; `pr_open` appends them as a Test Plan section
   headed by a copy-pasteable `syrus checkout JOB-<id>` command.
+  If the `implement` step already called `submit_test_plan` (the
+  `test_plan` workflow artifact is already populated), the step skips
+  the agent call entirely.
 - **`pr_open`** —
   Non-agentic: run service code (`PullRequestOpener`) to push the branch and
   open the PR if needed.
