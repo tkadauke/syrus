@@ -662,6 +662,10 @@ class Job < ApplicationRecord
   end
 
   def start_pending_workflows_if_dependencies_satisfied!
+    # If a job is stuck in blocked_by_epic because the epic unblock fired before
+    # job-level deps were met, re-evaluate now that a dep may have resolved.
+    release_epic_block! if may_release_epic_block? && dependencies_satisfied?
+
     return false unless queued? || running? || implemented?
     return false unless stack_ready_for_execution?
     return false unless ready_for_execution?

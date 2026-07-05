@@ -1315,6 +1315,37 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job).to be_stack_ready_for_execution
       expect(job.reload.parent_job).to eq(prerequisite)
     end
+
+    it "releases blocked_by_epic and starts the workflow when a same-epic dep resolves after the epic is already in_progress" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      prerequisite = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 42,
+        state: "implemented", branch_name: "syrus/issue-42", pr_number: 7
+      )
+      job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, state: "blocked_by_epic")
+      workflow = Workflows::Initial.instantiate(job: job)
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+      expect(job).to be_blocked_by_epic
+      expect(workflow.first_step.runs).to be_empty
+
+      expect {
+        prerequisite.approve!(via: "operator")
+        prerequisite.save!
+      }.to change { job.reload.state }.from("blocked_by_epic").to("queued")
+        .and change { workflow.first_step.runs.reload.count }.by(1)
+    end
+
+    it "does not release blocked_by_epic when epic is in_progress but job-level dep is still unsatisfied" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 42, state: "queued")
+      job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, state: "blocked_by_epic")
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+      job.start_pending_workflows_if_dependencies_satisfied!
+
+      expect(job.reload).to be_blocked_by_epic
+    end
   end
 
   describe "#effective_base_branch" do
