@@ -1005,7 +1005,7 @@ describe("repositoryless chat compose", () => {
 
     renderRoute()
 
-    expect(await screen.findByText("Ask anything, or attach a repository for code context.")).toBeInTheDocument()
+    expect(await screen.findByText("Ask anything, or attach a repository to give the agent context...")).toBeInTheDocument()
     const textarea = await screen.findByPlaceholderText("Ask anything — or attach a repository to give the agent context...")
     fireEvent.change(textarea, { target: { value: "Can you help me plan a release?" } })
 
