@@ -108,6 +108,8 @@ export type DashboardJobItem = {
   owner_badge: DashboardOwnerBadge | null
   tags: DashboardTag[]
   source_chat: JobSourceChat | null
+  needs_attention: boolean
+  needs_attention_reason: string | null
   paths: {
     job_path: string
     source_path: string

@@ -97,6 +97,8 @@ class Job < ApplicationRecord
   scope :direct_kind, -> { where(kind: "direct") }
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
+  scope :with_needs_attention, -> { where(needs_attention: true) }
+  scope :in_grace_period, -> { where.not(grace_period_expires_at: nil).where("grace_period_expires_at > ?", Time.current) }
   scope :with_latest_workflow_snapshot, -> {
     latest_workflow_id = Job.latest_workflow_snapshot_sql("id")
     latest_workflow_state = Job.latest_workflow_snapshot_sql("state")
@@ -718,6 +720,49 @@ class Job < ApplicationRecord
     update!(updates) if updates.any?
 
     skip
+  end
+
+  # --- needs_attention flag --------------------------------------------------
+
+  def set_needs_attention!(reason:)
+    now = Time.current
+    update!(
+      needs_attention: true,
+      needs_attention_reason: reason,
+      needs_attention_since: needs_attention_since || now
+    )
+  end
+
+  def clear_needs_attention!
+    return unless needs_attention?
+
+    update!(
+      needs_attention: false,
+      needs_attention_reason: nil,
+      needs_attention_since: nil
+    )
+  end
+
+  # --- grace period ----------------------------------------------------------
+
+  def start_grace_period!(duration:)
+    expires_at = Time.current + duration
+    update!(grace_period_expires_at: expires_at)
+    GracePeriodExpiryJob.set(wait_until: expires_at).perform_later(id)
+  end
+
+  def cancel_grace_period!
+    return unless grace_period_expires_at.present?
+
+    update!(grace_period_expires_at: nil)
+  end
+
+  def in_grace_period?
+    grace_period_expires_at.present? && grace_period_expires_at > Time.current
+  end
+
+  def grace_period_expired?
+    grace_period_expires_at.present? && grace_period_expires_at <= Time.current
   end
 
   # Called by RunJob after a non-rebase run fails. Increments the

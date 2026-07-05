@@ -398,6 +398,7 @@ class LandingQueueProcessor
     # with a clear blocked_reason; once the repo flips
     # auto_merge_enabled=true the queue picks it up immediately.
     return blocked("auto-merge not enabled for repository") unless job.repository.auto_merge_enabled?
+    return blocked("review requested changes") if job.needs_attention_reason == "upstream_pr_changes_requested"
     return blocked("missing pull request") if job.pr_number.blank?
     return blocked("active workflow") if job.workflows.active.exists?
     return blocked(MERGEABILITY_WAIT_REASON) if waiting_for_github_mergeability?(job)

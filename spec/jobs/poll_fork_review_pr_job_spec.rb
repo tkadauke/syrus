@@ -110,4 +110,134 @@ RSpec.describe PollForkReviewPrJob do
 
     described_class.perform_now(job.id)
   end
+
+  context "CHANGES_REQUESTED reviews" do
+    it "sets needs_attention when the latest review per reviewer is CHANGES_REQUESTED" do
+      stub_fork_pr
+      stub_reviews([
+        {
+          state: "CHANGES_REQUESTED",
+          submitted_at: 1.hour.ago.iso8601,
+          user: { login: "reviewer1" }
+        }
+      ])
+      expect(ForkReviewApprover).not_to receive(:new)
+
+      described_class.perform_now(job.id)
+      expect(job.reload.needs_attention?).to be true
+      expect(job.reload.needs_attention_reason).to eq("fork_pr_changes_requested")
+    end
+
+    it "blocks approval handling when CHANGES_REQUESTED is outstanding" do
+      stub_fork_pr
+      stub_reviews([
+        {
+          state: "CHANGES_REQUESTED",
+          submitted_at: 2.hours.ago.iso8601,
+          user: { login: "reviewer1" }
+        },
+        {
+          state: "APPROVED",
+          submitted_at: 1.hour.ago.iso8601,
+          user: { login: "reviewer2" },
+          html_url: "https://github.com/acme/#{fork_repo.name}/pull/7#pullrequestreview-99"
+        }
+      ])
+      expect(ForkReviewApprover).not_to receive(:new)
+
+      described_class.perform_now(job.id)
+      expect(job.reload.needs_attention_reason).to eq("fork_pr_changes_requested")
+    end
+
+    it "allows approval when reviewer's latest review supersedes the CHANGES_REQUESTED" do
+      stub_fork_pr
+      stub_reviews([
+        {
+          state: "CHANGES_REQUESTED",
+          submitted_at: 2.hours.ago.iso8601,
+          user: { login: "reviewer1" }
+        },
+        {
+          state: "APPROVED",
+          submitted_at: 1.hour.ago.iso8601,
+          user: { login: "reviewer1" },
+          html_url: "https://github.com/acme/#{fork_repo.name}/pull/7#pullrequestreview-42"
+        }
+      ])
+      approver = instance_double(ForkReviewApprover)
+      expect(ForkReviewApprover).to receive(:new).and_return(approver)
+      expect(approver).to receive(:call)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "clears needs_attention when CHANGES_REQUESTED is resolved" do
+      job.update!(needs_attention: true, needs_attention_reason: "fork_pr_changes_requested", needs_attention_since: 1.hour.ago)
+      stub_fork_pr
+      stub_reviews([
+        {
+          state: "DISMISSED",
+          submitted_at: 30.minutes.ago.iso8601,
+          user: { login: "reviewer1" }
+        }
+      ])
+      approver = instance_double(ForkReviewApprover)
+      allow(ForkReviewApprover).to receive(:new).and_return(approver)
+      allow(approver).to receive(:call)
+
+      described_class.perform_now(job.id)
+      expect(job.reload.needs_attention?).to be false
+    end
+  end
+
+  context "fork PR closed without merge" do
+    it "sets needs_attention and starts a grace period when the fork PR is closed without merge" do
+      stub_fork_pr(state: "closed", merged: false)
+      stub_reviews([])
+
+      expect { described_class.perform_now(job.id) }
+        .to change { job.reload.needs_attention? }.from(false).to(true)
+        .and change { job.reload.grace_period_expires_at }.from(nil)
+
+      expect(job.reload.needs_attention_reason).to eq("fork_pr_closed")
+    end
+
+    it "schedules GracePeriodExpiryJob when the fork PR is closed" do
+      stub_fork_pr(state: "closed", merged: false)
+      stub_reviews([])
+      expect(GracePeriodExpiryJob).to receive(:set).and_call_original
+
+      described_class.perform_now(job.id)
+    end
+
+    it "does not start a second grace period if already in one" do
+      expires_at = 12.hours.from_now
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: "fork_pr_closed",
+        needs_attention_since: 1.hour.ago,
+        grace_period_expires_at: expires_at
+      )
+      stub_fork_pr(state: "closed", merged: false)
+      stub_reviews([])
+
+      described_class.perform_now(job.id)
+      expect(job.reload.grace_period_expires_at.to_i).to eq(expires_at.to_i)
+    end
+
+    it "clears needs_attention and grace period when the fork PR is reopened" do
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: "fork_pr_closed",
+        needs_attention_since: 2.hours.ago,
+        grace_period_expires_at: 22.hours.from_now
+      )
+      stub_fork_pr(state: "open", merged: false)
+      stub_reviews([])
+
+      described_class.perform_now(job.id)
+      expect(job.reload.needs_attention?).to be false
+      expect(job.reload.grace_period_expires_at).to be_nil
+    end
+  end
 end

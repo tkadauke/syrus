@@ -806,6 +806,8 @@ module App
         owner_badge: owner_badge_for(owner_user),
         tags: job.tags.map { |tag| tag_json(tag) },
         source_chat: App::JobSourceChat.for(job),
+        needs_attention: job.needs_attention?,
+        needs_attention_reason: job.needs_attention_reason,
         paths: {
           job_path: job_path(job),
           source_path: source_job_path(job)

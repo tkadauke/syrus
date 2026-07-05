@@ -194,6 +194,8 @@ module Api
             finished_at: job.finished_at&.iso8601,
             current_step: ::App::Presentation.current_step_caption(job),
             latest_run_id: job.runs.max_by { |run| run.created_at || Time.zone.at(0) }&.id,
+            needs_attention: job.needs_attention?,
+            needs_attention_reason: job.needs_attention_reason,
             workflow: workflow && {
               id: workflow.id,
               state: workflow.state,

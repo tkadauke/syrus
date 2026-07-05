@@ -40,7 +40,13 @@ class PollPullRequestJob < ApplicationJob
     @job.user.clear_gh_api_blocked!
 
     return close_with("pr_merged") if @pr.merged
-    return close_with(closed_pull_request_reason) if @pr.state == "closed"
+    return handle_upstream_pr_reopened if upstream_pr_was_reopened?
+
+    if @pr.state == "closed"
+      handle_upstream_pr_closed
+      return
+    end
+
     return close_with("syrus_stop") if has_label?(@pr, "syrus-stop")
 
     react_to_pr_reviews
@@ -56,12 +62,105 @@ class PollPullRequestJob < ApplicationJob
 
   private
 
+  # ----- upstream PR closed / grace period -----------------------------------
+
+  def upstream_pr_was_reopened?
+    @pr.state == "open" && @job.needs_attention_reason == "upstream_pr_closed"
+  end
+
+  def handle_upstream_pr_reopened
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: upstream PR reopened; clearing grace period")
+    @job.clear_needs_attention!
+    @job.cancel_grace_period!
+    # Resume normal polling for this cycle.
+    react_to_pr_reviews
+    react_to_pr_comments
+    react_to_ci_failures
+  end
+
+  def handle_upstream_pr_closed
+    if @job.in_grace_period? && @job.needs_attention_reason == "upstream_pr_closed"
+      # Still in grace period, still closed — do nothing until expiry or reopen.
+      return
+    end
+
+    reason = closed_pull_request_reason
+    if reason == "pr_merged"
+      # Shouldn't reach here (we guard on @pr.merged above), but handle defensively.
+      close_with("pr_merged")
+      return
+    end
+
+    if reason == "no_changes"
+      close_with("no_changes")
+      return
+    end
+
+    # Closed without merge: set needs_attention + start grace period.
+    @job.set_needs_attention!(reason: "upstream_pr_closed")
+    return if @job.grace_period_expires_at.present?
+
+    duration = @job.repository.upstream_pr_grace_period_days.days
+    @job.start_grace_period!(duration: duration)
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: upstream PR closed; grace period #{duration / 86400}d started")
+
+    StackRebaseCoordinator.parent_closed(@job)
+  end
+
+  # ----- upstream PR review state --------------------------------------------
+
+  def react_to_pr_reviews
+    reviews = @client.pr_reviews(@slug, @job.pr_number)
+    react_to_review_state(reviews)
+    react_to_approval(reviews)
+  end
+
+  def react_to_review_state(reviews)
+    if changes_requested?(reviews)
+      @job.set_needs_attention!(reason: "upstream_pr_changes_requested")
+    elsif @job.needs_attention_reason == "upstream_pr_changes_requested"
+      # All CHANGES_REQUESTED reviews are now APPROVED or DISMISSED.
+      @job.clear_needs_attention!
+    end
+  end
+
+  def react_to_approval(reviews)
+    latest_approval = reviews
+                       .select { |review| review.state == "APPROVED" }
+                       .max_by { |review| review_submitted_at(review) || Time.at(0) }
+    return unless latest_approval
+
+    submitted_at = review_submitted_at(latest_approval) || Time.current
+    return if @job.approved_at && @job.approved_at >= submitted_at
+
+    @job.record_github_review_approval!(
+      approved_at: submitted_at,
+      review_url: latest_approval.respond_to?(:html_url) ? latest_approval.html_url : nil
+    )
+  end
+
+  # Returns true if any reviewer's *latest* review is CHANGES_REQUESTED.
+  def changes_requested?(reviews)
+    latest_per_reviewer(reviews).any? { |review| review.state == "CHANGES_REQUESTED" }
+  end
+
+  def latest_per_reviewer(reviews)
+    reviews
+      .group_by { |review| review.respond_to?(:user) ? review.user&.login : nil }
+      .values
+      .map { |reviewer_reviews| reviewer_reviews.max_by { |r| review_submitted_at(r) || Time.at(0) } }
+      .compact
+  end
+
+  # ----- close ---------------------------------------------------------------
+
   def close_with(reason)
     Rails.logger.info("[PollPullRequestJob] closing #{@job.slug}: #{reason}")
     @job.runs.active.find_each do |r|
       r.cancel! if r.may_cancel?
       r.save!
     end
+    @job.update!(grace_period_expires_at: nil)
     @job.close_with_reason!(reason)
     StackRebaseCoordinator.parent_closed(@job) if reason == "pr_closed"
     if reason == "pr_merged" && @job.branch_name.present?
@@ -78,31 +177,6 @@ class PollPullRequestJob < ApplicationJob
 
   def has_label?(pr, name)
     Array(pr.labels).any? { |l| l.name == name }
-  end
-
-  def react_to_pr_reviews
-    latest_approval = @client.pr_reviews(@slug, @job.pr_number)
-                             .select { |review| review.state == "APPROVED" }
-                             .max_by { |review| review_submitted_at(review) || Time.at(0) }
-    return unless latest_approval
-
-    submitted_at = review_submitted_at(latest_approval) || Time.current
-    return if @job.approved_at && @job.approved_at >= submitted_at
-
-    @job.record_github_review_approval!(
-      approved_at: submitted_at,
-      review_url: latest_approval.respond_to?(:html_url) ? latest_approval.html_url : nil
-    )
-  end
-
-  def review_submitted_at(review)
-    value = review.respond_to?(:submitted_at) ? review.submitted_at : nil
-    return value if value.respond_to?(:to_time) && !value.is_a?(String)
-    return if value.blank?
-
-    Time.zone.parse(value.to_s)
-  rescue ArgumentError
-    nil
   end
 
   # ----- pr_comment branch ------------------------------------------------
@@ -296,5 +370,15 @@ class PollPullRequestJob < ApplicationJob
         full_log_url: full_log_url
       ).parse
     )
+  end
+
+  def review_submitted_at(review)
+    value = review.respond_to?(:submitted_at) ? review.submitted_at : nil
+    return value if value.respond_to?(:to_time) && !value.is_a?(String)
+    return if value.blank?
+
+    Time.zone.parse(value.to_s)
+  rescue ArgumentError
+    nil
   end
 end

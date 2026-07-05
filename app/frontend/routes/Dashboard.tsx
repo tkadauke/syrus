@@ -696,8 +696,11 @@ function KanbanLane({
 function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardItem; onDragEnd: () => void; onDragStart: (epic: DashboardEpicItem, event: DragEvent<HTMLElement>) => void; prefix: string }) {
   if (item.type === "job") {
     return (
-      <article className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-        <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
+      <article className={`rounded border p-3 shadow-sm ${item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
+        <div className="flex items-start justify-between gap-1">
+          <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
+          {item.needs_attention ? <span aria-label="Needs attention" className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
+        </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
           <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
@@ -1233,7 +1236,10 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
-        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
+        <div className="flex items-center gap-1.5">
+          <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
+          {job.needs_attention ? <span aria-label="Needs attention" className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
+        </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}

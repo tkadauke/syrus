@@ -92,11 +92,15 @@ RSpec.describe PollPullRequestJob do
       expect(job.closure_reason).to eq("pr_merged")
     end
 
-    it "closes the Job with reason=pr_closed when the PR is closed but not merged" do
+    it "starts a grace period and sets needs_attention when the upstream PR is closed but not merged" do
       allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
       stub_pr(state: "closed", merged: false)
       described_class.perform_now(job.id)
-      expect(job.reload.closure_reason).to eq("pr_closed")
+      reloaded = job.reload
+      expect(reloaded.state).not_to eq("closed")
+      expect(reloaded.needs_attention?).to be true
+      expect(reloaded.needs_attention_reason).to eq("upstream_pr_closed")
+      expect(reloaded.grace_period_expires_at).to be_present
     end
 
     it "closes the Job with reason=no_changes when a closed PR has no unique patches left" do
@@ -718,6 +722,123 @@ RSpec.describe PollPullRequestJob do
       described_class.perform_now(job.id)
 
       expect(delete_stub).not_to have_been_requested
+    end
+  end
+
+  describe "upstream PR closed grace period" do
+    it "does not close immediately when upstream PR is closed without merge" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
+      stub_pr(state: "closed", merged: false)
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.state).not_to eq("closed")
+    end
+
+    it "sets needs_attention with upstream_pr_closed reason" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
+      stub_pr(state: "closed", merged: false)
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.needs_attention?).to be true
+      expect(job.reload.needs_attention_reason).to eq("upstream_pr_closed")
+    end
+
+    it "sets grace_period_expires_at based on the repository setting" do
+      repository.update!(upstream_pr_grace_period_days: 3)
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
+      stub_pr(state: "closed", merged: false)
+
+      described_class.perform_now(job.id)
+
+      expires = job.reload.grace_period_expires_at
+      expect(expires).to be_present
+      expect(expires).to be_within(5.minutes).of(3.days.from_now)
+    end
+
+    it "does not start a second grace period when already in one" do
+      original_expires_at = 5.days.from_now
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: "upstream_pr_closed",
+        needs_attention_since: 2.days.ago,
+        grace_period_expires_at: original_expires_at
+      )
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
+      stub_pr(state: "closed", merged: false)
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.grace_period_expires_at.to_i).to eq(original_expires_at.to_i)
+    end
+
+    it "clears needs_attention and grace period when the upstream PR is reopened" do
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: "upstream_pr_closed",
+        needs_attention_since: 2.days.ago,
+        grace_period_expires_at: 5.days.from_now
+      )
+      stub_pr(state: "open")
+      stub_reviews([])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.needs_attention?).to be false
+      expect(job.reload.grace_period_expires_at).to be_nil
+    end
+  end
+
+  describe "CHANGES_REQUESTED reviews" do
+    it "sets needs_attention when reviewer's latest review is CHANGES_REQUESTED" do
+      stub_pr
+      stub_reviews([
+        { state: "CHANGES_REQUESTED", submitted_at: 1.hour.ago.iso8601, html_url: nil, user: { login: "reviewer1" } }
+      ])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.needs_attention?).to be true
+      expect(job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
+    end
+
+    it "clears needs_attention when CHANGES_REQUESTED is resolved by APPROVED" do
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: "upstream_pr_changes_requested",
+        needs_attention_since: 1.hour.ago
+      )
+      stub_pr
+      stub_reviews([
+        { state: "APPROVED", submitted_at: 30.minutes.ago.iso8601, html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-99", user: { login: "reviewer1" } }
+      ])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.needs_attention?).to be false
+    end
+
+    it "blocks auto-merge (via landing queue) when CHANGES_REQUESTED is outstanding" do
+      repository.update!(auto_merge_enabled: true)
+      job.update!(needs_attention: true, needs_attention_reason: "upstream_pr_changes_requested")
+      job.mark_implemented! if job.may_mark_implemented?
+      job.save!
+      job.approve!(via: "operator") if job.may_approve?
+      job.save!
+
+      entry = LandingQueueProcessor.entries(Job.where(id: job.id)).first
+      expect(entry).to be_present
+      expect(entry.blocked_reason).to eq("review requested changes")
     end
   end
 end

@@ -582,9 +582,45 @@ function TabNav({ active, workflowsCount, attachmentsCount, onSelect }: { active
   )
 }
 
+function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) {
+  if (!job.needs_attention) return null
+
+  const messages: Record<string, string> = {
+    fork_pr_closed: "The fork review PR was closed without being merged.",
+    fork_pr_changes_requested: "A reviewer has requested changes on the fork review PR. The upstream PR will not be created until all outstanding review requests are resolved (approved or dismissed).",
+    upstream_pr_closed: "The upstream PR was closed without being merged.",
+    upstream_pr_changes_requested: "A reviewer has requested changes on the upstream PR. Auto-merge is paused until the review is resolved (approved or dismissed)."
+  }
+
+  const message = job.needs_attention_reason ? messages[job.needs_attention_reason] ?? `Needs attention: ${job.needs_attention_reason}` : "This job needs attention."
+
+  const gracePeriodText = job.grace_period_expires_at ? (() => {
+    const expires = new Date(job.grace_period_expires_at)
+    const now = new Date()
+    const ms = expires.getTime() - now.getTime()
+    if (ms <= 0) return "Grace period has expired."
+    const totalSeconds = Math.floor(ms / 1000)
+    const days = Math.floor(totalSeconds / 86400)
+    const hours = Math.floor((totalSeconds % 86400) / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    if (days > 0) return `Branch cleanup in ${days}d ${hours}h unless the PR is reopened.`
+    if (hours > 0) return `Branch cleanup in ${hours}h ${minutes}m unless the PR is reopened.`
+    return `Branch cleanup in ${minutes}m unless the PR is reopened.`
+  })() : null
+
+  return (
+    <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+      <p className="font-medium">Action needed</p>
+      <p className="mt-1">{message}</p>
+      {gracePeriodText ? <p className="mt-1 text-amber-700 dark:text-amber-300">{gracePeriodText}</p> : null}
+    </div>
+  )
+}
+
 function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   return (
     <div className="space-y-4">
+      <NeedsAttentionBanner job={payload.job} />
       {payload.landing_queue_entry ? (
         <PanelMessage>
           In landing queue: position #{payload.landing_queue_entry.position}

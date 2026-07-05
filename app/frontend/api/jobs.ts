@@ -82,6 +82,10 @@ export type JobRecord = {
   updated_at: string | null
   started_at: string | null
   finished_at: string | null
+  needs_attention: boolean
+  needs_attention_reason: string | null
+  needs_attention_since: string | null
+  grace_period_expires_at: string | null
 }
 
 export type JobOwnerUser = {

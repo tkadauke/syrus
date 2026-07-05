@@ -120,7 +120,11 @@ module App
         created_at: iso8601(@job.created_at),
         updated_at: iso8601(@job.updated_at),
         started_at: iso8601(@job.started_at),
-        finished_at: iso8601(@job.finished_at)
+        finished_at: iso8601(@job.finished_at),
+        needs_attention: @job.needs_attention?,
+        needs_attention_reason: @job.needs_attention_reason,
+        needs_attention_since: iso8601(@job.needs_attention_since),
+        grace_period_expires_at: iso8601(@job.grace_period_expires_at)
       }
     end
 
