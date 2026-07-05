@@ -184,78 +184,10 @@ syrus_release_upload_dir() {
   gh release upload "$version" "${assets[@]}"
 }
 
-syrus_release_require_clean_tree() {
-  if ! git diff --quiet || ! git diff --cached --quiet; then
-    echo "Working tree has uncommitted changes. Commit or stash before releasing." >&2
-    return 1
-  fi
-}
-
-syrus_release_ensure_tag() {
-  local version="${1:?usage: syrus_release_ensure_tag VERSION}"
-
-  if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
-    echo "Release tag already exists locally: $version" >&2
-    return 1
-  fi
-
-  git tag -a "$version" -m "Release $version"
-}
-
-syrus_release_push_tag() {
-  local version="${1:?usage: syrus_release_push_tag VERSION}"
-
-  git push origin "$version"
-}
-
-syrus_release_ensure_github_release() {
-  local version="${1:?usage: syrus_release_ensure_github_release VERSION}"
-  local notes_file="${2:-}"
-  local -a args
-
-  syrus_release_require_command gh
-
-  if gh release view "$version" >/dev/null 2>&1; then
-    echo "GitHub release already exists: $version" >&2
-    return 1
-  fi
-
-  args=(release create "$version" --title "Syrus $version")
-  if [ -n "$notes_file" ]; then
-    if [ ! -s "$notes_file" ]; then
-      echo "Release notes file is missing or empty: $notes_file" >&2
-      return 1
-    fi
-    args+=(--notes-file "$notes_file")
-  else
-    args+=(--notes "Local Syrus release $version.")
-  fi
-
-  gh "${args[@]}"
-}
+# Tagging, GitHub-release creation, and the clean-tree / new-version guards
+# that used to live here were retired with bin/release's publish path — the
+# Release workflow (.github/workflows/release.yml) owns all of that now.
 
 syrus_release_fetch_tags() {
   git fetch --tags --quiet
-}
-
-syrus_release_assert_new_version() {
-  local version="${1:?usage: syrus_release_assert_new_version VERSION}"
-  local remote_tag
-
-  if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
-    echo "Release tag already exists locally: $version" >&2
-    return 1
-  fi
-
-  remote_tag="$(git ls-remote --tags origin "refs/tags/$version" 2>/dev/null || true)"
-  if [ -n "$remote_tag" ]; then
-    echo "Release tag already exists on origin: $version" >&2
-    return 1
-  fi
-
-  syrus_release_require_command gh
-  if gh release view "$version" >/dev/null 2>&1; then
-    echo "GitHub release already exists: $version" >&2
-    return 1
-  fi
 }

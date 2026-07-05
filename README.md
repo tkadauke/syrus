@@ -272,12 +272,15 @@ npm --prefix desktop run dev       # desktop app, local development
 npm --prefix desktop run build     # packaged app in desktop/out
 ```
 
-Maintainers cut releases with `bin/release` (coordinates the CLI, desktop
-app, and Docker image scripts and generates release notes):
+Maintainers cut releases from CI — **Actions → "Release"**, pick a version
+bump, and the pipeline builds, signs, and publishes the CLI, both desktop
+apps, and the backend image atomically (see [`docs/releasing.md`](docs/releasing.md)).
+The `bin/release*` scripts are local build/verify tools only:
 
 ```bash
-bin/release v0.4.0            # or --next-patch / --next-minor
-bin/release-notes v0.4.0      # preview notes without releasing
+bin/release v0.0.0-local --desktop   # build desktop artifacts locally, no publish
+bin/publish-image X.Y.Z              # build + test + push the image (local/fork)
+bin/release-notes v0.4.0             # preview Claude-written notes
 ```
 
 ### Production configuration

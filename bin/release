@@ -1,37 +1,38 @@
 #!/usr/bin/env bash
-# Build (and optionally publish) Syrus release artifacts from this checkout.
+# Build Syrus release artifacts LOCALLY, for inspection and verification.
 #
-# NOTE: the canonical release path is the CI pipeline — Actions -> "Release"
-# (.github/workflows/release.yml), which signs, notarizes, and publishes
-# everything atomically. See docs/releasing.md. This script is kept for LOCAL
-# artifact builds and verification (especially `--no-upload`); the CLI tarball
-# release also still runs through here. Prefer the workflow for real releases.
+# This does NOT publish. The canonical release path is the CI pipeline —
+# Actions -> "Release" (.github/workflows/release.yml), which computes the
+# version, signs, generates notes, moves the image :latest, and publishes
+# everything atomically. See docs/releasing.md. Use this script to build the
+# CLI and/or desktop artifacts on your own machine (e.g. to verify a signing
+# or packaging change) before cutting a real release through the workflow.
 #
 # Usage:
-#   bin/release [VERSION] [--next-patch|--next-minor] [--cli] [--desktop] [--image] [--all]
-#                       [--no-upload] [--skip-tests] [--skip-install]
-#                       [--multi-arch] [--launch-desktop]
+#   bin/release [VERSION] [--cli] [--desktop] [--all]
+#               [--skip-tests] [--skip-install] [--launch-desktop]
 #
-# Defaults to --all. With upload enabled, this refuses existing versions,
-# creates/pushes the git tag, generates Claude-written GitHub release notes,
-# ensures the GitHub release exists, uploads CLI/Desktop artifacts, and publishes
-# the Docker image. Use --no-upload for local artifact builds only; when no
-# VERSION is provided, --no-upload defaults to v0.0.0-local.
+#   VERSION            version string for artifact naming; defaults to
+#                      v0.0.0-local. (The real version is chosen by the
+#                      Release workflow, not here.)
+#   --cli / --desktop  build only that component; --all (default) builds both.
+#   --skip-tests       skip the component test gates.
+#   --skip-install     desktop: skip the dependency install step.
+#   --launch-desktop   desktop: open the packaged app when the build finishes.
+#
+# Artifacts land under dist/releases/<version>/{cli,desktop}/. Nothing is
+# tagged, uploaded, or pushed. To publish an image locally use
+# bin/publish-image; to preview release notes use bin/release-notes.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/bin/release-lib"
 
 VERSION=""
-UPLOAD=1
 SKIP_TESTS=0
 SKIP_INSTALL=0
-MULTI_ARCH=0
 LAUNCH_DESKTOP=0
-NEXT_BUMP=""
 SELECTED=()
-UPLOAD_DIRS=()
-IMAGE_SELECTED=0
 
 usage() {
   awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"
@@ -50,33 +51,36 @@ select_component() {
   SELECTED+=("$component")
 }
 
+# Flags that used to publish a real release. That job moved to CI; point the
+# operator at the workflow (or the direct local tools) instead of silently
+# doing something different.
+retired_publish_flag() {
+  cat >&2 <<MSG
+bin/release no longer publishes releases — that is the Release workflow's job
+(Actions -> "Release", .github/workflows/release.yml; see docs/releasing.md).
+
+  $1
+
+This script builds local CLI/desktop artifacts only. For a local image push
+use bin/publish-image; to preview notes use bin/release-notes.
+MSG
+  exit 2
+}
+
 for arg in "$@"; do
   case "$arg" in
-    --next-patch)
-      if [ -n "$NEXT_BUMP" ]; then
-        echo "Specify only one of --next-patch or --next-minor." >&2
-        usage >&2
-        exit 2
-      fi
-      NEXT_BUMP=patch
-      ;;
-    --next-minor)
-      if [ -n "$NEXT_BUMP" ]; then
-        echo "Specify only one of --next-patch or --next-minor." >&2
-        usage >&2
-        exit 2
-      fi
-      NEXT_BUMP=minor
-      ;;
     --cli) select_component cli ;;
     --desktop) select_component desktop ;;
-    --image) select_component image ;;
-    --all) SELECTED=(cli desktop image) ;;
-    --no-upload) UPLOAD=0 ;;
+    --all) SELECTED=(cli desktop) ;;
     --skip-tests) SKIP_TESTS=1 ;;
     --skip-install) SKIP_INSTALL=1 ;;
-    --multi-arch) MULTI_ARCH=1 ;;
     --launch-desktop) LAUNCH_DESKTOP=1 ;;
+    # Accepted as a no-op: local-only is now the only mode.
+    --no-upload) ;;
+    --next-patch|--next-minor)
+      retired_publish_flag "Versioning is chosen by the workflow; pass an explicit VERSION for local artifact naming, or omit it for v0.0.0-local." ;;
+    --image|--multi-arch)
+      retired_publish_flag "Image publishing moved to CI. Use bin/publish-image directly for a local push." ;;
     --help|-h) usage; exit 0 ;;
     -*) echo "Unknown flag: $arg" >&2; usage >&2; exit 2 ;;
     *)
@@ -90,37 +94,17 @@ for arg in "$@"; do
   esac
 done
 
-if [ -n "$NEXT_BUMP" ] && [ -n "$VERSION" ]; then
-  echo "Specify either VERSION or --next-$NEXT_BUMP, not both." >&2
-  usage >&2
-  exit 2
-fi
-
 if [ "${#SELECTED[@]}" -eq 0 ]; then
-  SELECTED=(cli desktop image)
+  SELECTED=(cli desktop)
 fi
 
-if [ -n "$NEXT_BUMP" ]; then
-  if [ "$UPLOAD" = 1 ]; then
-    syrus_release_fetch_tags
-  fi
-  VERSION="$(syrus_release_next_version "$NEXT_BUMP")"
-  echo "== Using next $NEXT_BUMP release: $VERSION =="
-fi
-
-if [ -z "$VERSION" ] && [ "$UPLOAD" = 0 ]; then
+if [ -z "$VERSION" ]; then
   VERSION="$(syrus_release_local_version)"
 fi
 
 syrus_release_validate_version "$VERSION"
 
-if [ "$UPLOAD" = 1 ]; then
-  syrus_release_require_clean_tree
-  syrus_release_fetch_tags
-  syrus_release_assert_new_version "$VERSION"
-else
-  echo "== Local release build only (--no-upload) =="
-fi
+echo "== Local artifact build only — nothing is published (release path: Actions -> Release) =="
 
 for component in "${SELECTED[@]}"; do
   case "$component" in
@@ -128,7 +112,7 @@ for component in "${SELECTED[@]}"; do
       args=("$VERSION")
       [ "$SKIP_TESTS" = 1 ] && args+=(--skip-tests)
       "$ROOT/bin/release-cli" "${args[@]}"
-      UPLOAD_DIRS+=("$(syrus_release_output_dir "$VERSION" cli)")
+      echo "   built: $(syrus_release_output_dir "$VERSION" cli)"
       ;;
     desktop)
       args=("$VERSION")
@@ -136,10 +120,7 @@ for component in "${SELECTED[@]}"; do
       [ "$SKIP_INSTALL" = 1 ] && args+=(--skip-install)
       [ "$LAUNCH_DESKTOP" = 1 ] && args+=(--launch)
       "$ROOT/bin/release-desktop" "${args[@]}"
-      UPLOAD_DIRS+=("$(syrus_release_output_dir "$VERSION" desktop)")
-      ;;
-    image)
-      IMAGE_SELECTED=1
+      echo "   built: $(syrus_release_output_dir "$VERSION" desktop)"
       ;;
     *)
       echo "Unknown component: $component" >&2
@@ -148,31 +129,6 @@ for component in "${SELECTED[@]}"; do
   esac
 done
 
-if [ "$UPLOAD" = 1 ]; then
-  RELEASE_NOTES_FILE="$(syrus_release_notes_file "$VERSION")"
-  "$ROOT/bin/release-notes" "$VERSION"
-
-  syrus_release_ensure_tag "$VERSION"
-  syrus_release_push_tag "$VERSION"
-  syrus_release_ensure_github_release "$VERSION" "$RELEASE_NOTES_FILE"
-
-  for output_dir in "${UPLOAD_DIRS[@]:-}"; do
-    echo
-    echo "== Uploading artifacts from $output_dir to GitHub release $VERSION =="
-    syrus_release_upload_dir "$VERSION" "$output_dir"
-  done
-fi
-
-if [ "$IMAGE_SELECTED" = 1 ]; then
-  if [ "$UPLOAD" = 1 ]; then
-    args=("$VERSION")
-    [ "$SKIP_TESTS" = 1 ] && args+=(--skip-tests)
-    [ "$MULTI_ARCH" = 1 ] && args+=(--multi-arch)
-    "$ROOT/bin/release-image" "${args[@]}"
-  else
-    echo "== Skipping Docker image publish because --no-upload was provided =="
-  fi
-fi
-
 echo
-echo "Release complete: $VERSION"
+echo "Local build complete: $VERSION"
+echo "Artifacts under dist/releases/$VERSION/. To publish, run the Release workflow."

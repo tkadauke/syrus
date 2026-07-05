@@ -1242,17 +1242,17 @@ session outcome.
   flows still share the same helper and can opt into the registry-backed
   BuildKit cache. See CLAUDE.md "Deploy target" for platform-specific
   notes.
-- Local release publishing is orchestrated by `bin/release`, with
-  component scripts for CLI archives (`bin/release-cli`), desktop app
-  packages (`bin/release-desktop`), and the single-host Docker image
-  (`bin/release-image`, delegating to `bin/publish-image`). Shared
-  version, checksum, upload, and duplicate-version guards live in
-  `bin/release-lib`: upload mode requires a clean tree, fetches tags,
-  refuses an already-used local/remote tag or GitHub release, creates and
-  pushes the release tag, uploads CLI/Desktop artifacts to the GitHub
-  release, and publishes the image. Local artifact builds use
-  `--no-upload`, write under `dist/releases/<version>/<component>/`, and
-  keep generated release outputs ignored by git.
+- Releases are cut by the CI pipeline (`.github/workflows/release.yml`) —
+  a manual dispatch that computes the version, builds and signs the CLI,
+  both desktop apps, and the backend image, and publishes them atomically
+  (see `docs/releasing.md`). The `bin/release*` scripts are LOCAL
+  build/verify tools: `bin/release` builds CLI/desktop artifacts under
+  `dist/releases/<version>/<component>/` (no tagging or publishing);
+  `bin/release-cli` / `bin/release-desktop` are the per-component builders;
+  `bin/publish-image` builds, integration-tests, and pushes the image (used
+  directly and by the workflow); `bin/release-notes` previews Claude-written
+  notes. Shared version/checksum/output-dir helpers live in
+  `bin/release-lib`.
 
 ## What's intentionally not here
 
