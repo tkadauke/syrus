@@ -458,6 +458,10 @@ export function markChatRead(id: string | number) {
   return patchJson<void>(`/api/v1/app/chats/${id}/mark_read`)
 }
 
+export function markChatUnread(id: string | number) {
+  return patchJson<void>(`/api/v1/app/chats/${id}/mark_unread`)
+}
+
 export function hideChat(id: string | number) {
   return patchJson<{ message: string; chat: ChatNavRecord }>(`/api/v1/app/chats/${id}/hide`)
 }

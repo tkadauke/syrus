@@ -248,6 +248,104 @@ describe("AppChromeV2 recent chats", () => {
     })
   })
 
+  it("shows Mark as read on unread chat and Mark as unread on read chat", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/chats/1" || String(input) === "/api/v1/app/chats/2") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({ id: 1, title: "Unread chat", unread: true }),
+            chatNav({ id: 2, title: "Read chat", unread: false })
+          ]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Unread chat" }))
+    expect(await screen.findByRole("button", { name: "Mark as read" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Unread chat" }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Read chat" }))
+    expect(await screen.findByRole("button", { name: "Mark as unread" })).toBeInTheDocument()
+  })
+
+  it("marks a chat as read from the context menu and updates the sidebar indicator", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/1/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      if (path === "/api/v1/app/chats/1") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [chatNav({ id: 1, title: "Unread chat", unread: true })]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Unread chat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Mark as read" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1/mark_read", expect.objectContaining({ method: "PATCH" }))
+      const cacheData = queryClient.getQueryData<chatsApi.ChatsIndexPayload>(["chats", "recent"])
+      expect(cacheData?.groups[0].chats[0].unread).toBe(false)
+    })
+  })
+
+  it("marks a chat as unread from the context menu and updates the sidebar indicator", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/1/mark_unread" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      if (path === "/api/v1/app/chats/1") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [chatNav({ id: 1, title: "Read chat", unread: false })]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Read chat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Mark as unread" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1/mark_unread", expect.objectContaining({ method: "PATCH" }))
+      const cacheData = queryClient.getQueryData<chatsApi.ChatsIndexPayload>(["chats", "recent"])
+      expect(cacheData?.groups[0].chats[0].unread).toBe(true)
+    })
+  })
+
   it("keeps Hide Chat below the pin action in the context menu", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/chats/1") {

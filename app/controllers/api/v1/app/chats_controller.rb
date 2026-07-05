@@ -343,6 +343,12 @@ module Api
           head :no_content
         end
 
+        def mark_unread
+          find_chat_session.update_columns(last_read_at: nil)
+
+          head :no_content
+        end
+
         def hide
           chat_session = find_chat_session
           chat_session.update!(hidden_at: Time.current)

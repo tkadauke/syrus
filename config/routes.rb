@@ -146,6 +146,7 @@ Rails.application.routes.draw do
         post "chats/:chat_id/whiteboard_snapshots", to: "whiteboard_snapshots#create", constraints: { chat_id: /\d+/ }
         get "chats/:chat_id/whiteboard_snapshots/:id", to: "whiteboard_snapshots#show", constraints: { chat_id: /\d+/, id: /\d+/ }
         patch "chats/:id/mark_read", to: "chats#mark_read", constraints: { id: /\d+/ }
+        patch "chats/:id/mark_unread", to: "chats#mark_unread", constraints: { id: /\d+/ }
         patch "chats/:id/hide", to: "chats#hide", constraints: { id: /\d+/ }
         patch "chats/:id/unhide", to: "chats#unhide", constraints: { id: /\d+/ }
         post "chats/:id/rename", to: "chats#rename", constraints: { id: /\d+/ }

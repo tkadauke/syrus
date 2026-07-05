@@ -1,9 +1,9 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createEmptyChat, fetchChat, fetchChats, fetchMoreChatsForGroup, fetchNewChat, hideChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
+import { createEmptyChat, fetchChat, fetchChats, fetchMoreChatsForGroup, fetchNewChat, hideChat, markChatRead, markChatUnread, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
@@ -16,7 +16,7 @@ import { NotificationsBell } from "../components/Notifications"
 import { PinIcon } from "../components/PinIcon"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { updateRecentChatCache } from "../lib/chatCache"
+import { updateChatUnread, updateRecentChatCache } from "../lib/chatCache"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 import { chatQueryKey } from "./Chat"
 
@@ -904,6 +904,22 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
   const bookmarks = chatData?.bookmarks ?? []
   const loadingBookmarks = open && !chatData && chatBookmarks.isPending
 
+  const markRead = useMutation({
+    mutationFn: () => markChatRead(chat.id),
+    onSuccess: () => {
+      updateChatUnread(queryClient, chat.id, false)
+      setOpen(false)
+    }
+  })
+
+  const markUnread = useMutation({
+    mutationFn: () => markChatUnread(chat.id),
+    onSuccess: () => {
+      updateChatUnread(queryClient, chat.id, true)
+      setOpen(false)
+    }
+  })
+
   return (
     <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={menuRef}>
       <button
@@ -950,6 +966,14 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
           >
             <PinIcon className="h-4 w-4 shrink-0" />
             {chat.pinned ? "Unpin chat" : "Pin chat"}
+          </button>
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            disabled={markRead.isPending || markUnread.isPending}
+            onClick={() => chat.unread ? markRead.mutate() : markUnread.mutate()}
+            type="button"
+          >
+            {chat.unread ? "Mark as read" : "Mark as unread"}
           </button>
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button

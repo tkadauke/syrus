@@ -534,6 +534,33 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(group["chats"].map { |candidate| candidate.fetch("id") }).to eq([ newer_chat.id, chat.id ])
   end
 
+  it "marks a chat unread for the signed-in user" do
+    sign_in_as(user)
+    chat = ChatSession.create!(
+      user: user,
+      repository: repository,
+      title: "Read chat",
+      last_message_at: 1.hour.ago,
+      last_read_at: Time.current
+    )
+    foreign_chat = ChatSession.create!(user: Factories.user, last_message_at: Time.current, last_read_at: Time.current)
+
+    patch "/api/v1/app/chats/#{chat.id}/mark_unread"
+
+    expect(response).to have_http_status(:no_content)
+    expect(chat.reload.last_read_at).to be_nil
+    expect(foreign_chat.reload.last_read_at).to be_present
+  end
+
+  it "rejects unauthenticated mark_unread requests" do
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.hour.ago, last_read_at: Time.current)
+
+    patch "/api/v1/app/chats/#{chat.id}/mark_unread"
+
+    expect(response).to have_http_status(:unauthorized)
+    expect(chat.reload.last_read_at).to be_present
+  end
+
   it "hides and restores a chat for the signed-in user" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, title: "Planning", last_message_at: Time.current)

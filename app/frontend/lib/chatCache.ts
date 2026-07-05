@@ -30,6 +30,19 @@ export function refreshRecentChats(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
 }
 
+export function updateChatUnread(queryClient: QueryClient, id: number, unread: boolean) {
+  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+    if (!current) return current
+    return {
+      ...current,
+      groups: current.groups.map((group) => ({
+        ...group,
+        chats: group.chats.map((chat) => chat.id === id ? { ...chat, unread } : chat)
+      }))
+    }
+  })
+}
+
 function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
   const candidate = chat as ChatNavRecord
 
