@@ -487,7 +487,7 @@ function SidebarContent({
               if (item.id !== "dashboard") return link
 
               return (
-                <div className="space-y-1" key={item.id}>
+                <div key={item.id}>
                   {link}
                   {dashboardSubnavEnabled ? (
                     <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
@@ -618,7 +618,7 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
     <div
       {...inertAttributes}
       aria-hidden={!expanded}
-      className={`grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+      className={`grid overflow-hidden transition-[grid-template-rows,margin-top] duration-200 ease-out ${expanded ? "grid-rows-[1fr] mt-1" : "grid-rows-[0fr]"}`}
     >
       <div className={`min-h-0 overflow-hidden transition-opacity duration-150 ease-out ${expanded ? "opacity-100 delay-75" : "opacity-0"}`}>
         <div className="space-y-3 pl-7 pt-1">
