@@ -1,18 +1,18 @@
 {
   "app_name": "Syrus",
-  "loading": "Loading...",
-  "show_more": "Show more",
-  "show_less": "Show less",
+  "loading": "Laden...",
+  "show_more": "Mehr anzeigen",
+  "show_less": "Weniger anzeigen",
   "workflows": "Workflows",
   "errors": {
-    "not_found_heading": "There's nothing here.",
-    "not_found_description": "This address leads nowhere. You may have followed a broken link, or the page may have moved.",
-    "server_error_heading": "Something has gone wrong.",
-    "server_error_description": "An error occurred on the server. The application owner should inspect the logs when convenient.",
-    "unprocessable_heading": "That request was rejected.",
-    "unprocessable_description": "The server found this submission unacceptable as presented. Review your input and try again. If you're the application owner, check the logs.",
-    "bad_request_heading": "The server could not read that.",
-    "bad_request_description": "This request was malformed or could not be parsed. Please check the address and try again.",
-    "return_to_dashboard": "Return to dashboard"
+    "not_found_heading": "Hier ist nichts.",
+    "not_found_description": "Diese Adresse führt nirgendwohin. Möglicherweise haben Sie einem defekten Link gefolgt, oder die Seite wurde verschoben.",
+    "server_error_heading": "Etwas ist schiefgelaufen.",
+    "server_error_description": "Auf dem Server ist ein Fehler aufgetreten. Der Anwendungsbesitzer sollte die Protokolle bei Gelegenheit prüfen.",
+    "unprocessable_heading": "Diese Anfrage wurde abgelehnt.",
+    "unprocessable_description": "Der Server hat diese Eingabe in der vorliegenden Form als unzulässig befunden. Überprüfen Sie Ihre Eingabe und versuchen Sie es erneut. Falls Sie der Anwendungsbesitzer sind, prüfen Sie die Protokolle.",
+    "bad_request_heading": "Der Server konnte die Anfrage nicht lesen.",
+    "bad_request_description": "Diese Anfrage war fehlerhaft oder konnte nicht verarbeitet werden. Bitte prüfen Sie die Adresse und versuchen Sie es erneut.",
+    "return_to_dashboard": "Zurück zum Dashboard"
   }
 }
