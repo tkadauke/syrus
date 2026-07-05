@@ -104,4 +104,32 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result).not_to be_success
     expect(result.error).to eq("Epic is not ready for a merge-train rebuild: child Jobs not yet approved: #{job.slug}.")
   end
+
+  Workflow::LANDING_TRIGGER_KINDS.each do |trigger_kind|
+    it "clears landing_failure_reason on the job when retrying a failed #{trigger_kind} step" do
+      job = Factories.job_record(state: "implemented", landing_failure_reason: "#{trigger_kind} workflow failed")
+      workflow = Workflow.create!(job: job, trigger_kind: trigger_kind)
+      workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+      step = Step.create!(workflow: workflow, kind: "grader_collect", position: 1)
+      step.update_columns(state: "failed", started_at: 9.minutes.ago, finished_at: 8.minutes.ago)
+
+      result = described_class.call(workflow: workflow)
+
+      expect(result).to be_success
+      expect(job.reload.landing_failure_reason).to be_nil
+    end
+  end
+
+  it "does not clear landing_failure_reason when retrying a non-landing workflow step" do
+    job = Factories.job_record(state: "failed", landing_failure_reason: "old landing failure")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    step = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
+    step.update_columns(state: "failed", started_at: 9.minutes.ago, finished_at: 8.minutes.ago)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(job.reload.landing_failure_reason).to eq("old landing failure")
+  end
 end

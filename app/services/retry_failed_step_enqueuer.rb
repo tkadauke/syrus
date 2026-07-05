@@ -28,6 +28,11 @@ class RetryFailedStepEnqueuer
     failed_step.reopen!
     failed_step.save!
 
+    if workflow.landing_workflow?
+      job = workflow.job
+      job.update_columns(landing_failure_reason: nil) if job.landing_failure_reason.present?
+    end
+
     run = failed_step.runs.create!(
       job: workflow.job,
       trigger_kind: workflow.trigger_kind,
