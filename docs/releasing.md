@@ -27,7 +27,7 @@ atomically.
 | --- | --- |
 | `bump` | `patch` / `minor` (default) / `major`. The version is computed from the higher of the latest release tag and `desktop/package.json`, then bumped. |
 | `version` | Optional explicit override, e.g. `v1.2.3` or a pre-release `v1.2.3-beta.1` (auto-flagged as a GitHub pre-release). Overrides `bump`. |
-| `dry_run` | Build and stage **everything** (image built + integration-tested, apps built unsigned, CLI cross-compiled) but publish nothing. The rehearsal. |
+| `dry_run` | Build and stage **everything** (image built + integration-tested, apps **signed + notarized / Azure-signed**, CLI cross-compiled) but publish nothing — no tag, no release, no image push, no `:latest` move. The full rehearsal: the build jobs are identical to a real release, so signing is validated every dry run. The staged artifacts (`staged-mac` / `staged-windows` / `staged-cli`) are downloadable from the run for inspection. |
 
 ### The pipeline (`.github/workflows/release.yml`)
 
@@ -90,9 +90,12 @@ with `bin/release-notes vX.Y.Z` (Claude-authored) and paste them in.
 | Azure Trusted Signing | see [`windows-signing.md`](./windows-signing.md) | `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` (secrets) + the four `AZURE_SIGN_*` identifiers (secrets or repo variables) |
 | GHCR `syrus-local` package visibility | github.com/users/tkadauke/packages | **must be public** — every end user's install pulls it anonymously |
 
-Prove the Azure setup without cutting a release with the **"Sign Windows build
-(test)"** workflow (manual dispatch). The Apple credentials can be validated by
-a `dry_run` release, or locally (below).
+Validate both signing paths (Apple **and** Azure) without cutting a release
+with a **dry-run release**: **Actions → "Release" → Run workflow → check
+`dry_run`**. It builds + signs + notarizes / Azure-signs every artifact and
+stages them (`staged-mac` / `staged-windows` / `staged-cli`, downloadable from
+the run) but publishes nothing. The Apple credentials can also be validated
+locally (below).
 
 ## Signing / building locally
 

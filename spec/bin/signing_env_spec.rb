@@ -6,9 +6,8 @@ require "tmpdir"
 
 # Local desktop signing: bin/signing-env lets bin/release-desktop sign and
 # notarize a macOS build (and, in principle, a Windows one) using the same
-# env var names release.yml / sign-windows-test.yml set from repo
-# secrets, but read from ~/.config/syrus/ instead — see docs/releasing.md
-# and docs/windows-signing.md.
+# env var names release.yml sets from repo secrets, but read from
+# ~/.config/syrus/ instead — see docs/releasing.md and docs/windows-signing.md.
 RSpec.describe "bin/signing-env" do
   let(:script_path) { File.expand_path("../../bin/signing-env", __dir__) }
   let(:script) { File.read(script_path, encoding: "UTF-8") }

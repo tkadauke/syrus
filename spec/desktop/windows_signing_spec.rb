@@ -17,38 +17,31 @@ RSpec.describe "Windows code signing (Azure Artifact Signing)" do
   end
 
   let(:builder_config) { read(desktop_root, "electron-builder.yml") }
-  let(:sign_workflow_path) { File.join(repo_root, ".github/workflows/sign-windows-test.yml") }
-  let(:sign_workflow) { read(sign_workflow_path) }
+  # Windows signing lives in the release pipeline's build-windows job. There is
+  # no separate signing-test workflow — a dry-run release signs Windows the
+  # same way, so the release job IS the harness.
+  let(:release_workflow) { read(repo_root, ".github/workflows/release.yml") }
 
   it "never commits azureSignOptions as static config" do
     expect(builder_config).not_to include("azureSignOptions")
   end
 
-  it "is valid YAML and runs only on manual dispatch" do
-    workflow = YAML.safe_load(sign_workflow)
-    # YAML 1.1 treats the bare key `on:` as the boolean `true` — Psych
-    # parses it that way, not as the string "on".
-    triggers = workflow[true] || workflow["on"]
-    expect(triggers.keys).to eq(["workflow_dispatch"])
-    expect(workflow.dig("jobs", "sign-windows", "runs-on")).to eq("windows-latest")
-  end
-
-  it "guards on all required secrets before attempting a build" do
+  it "guards on all required Azure config before attempting a build" do
     required = %w[AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SIGN_ENDPOINT AZURE_SIGN_ACCOUNT_NAME AZURE_SIGN_CERT_PROFILE AZURE_SIGN_PUBLISHER_NAME]
-    required.each { |var| expect(sign_workflow).to include(var) }
-    expect(sign_workflow).to match(/Guard: Azure signing secrets present/)
+    required.each { |var| expect(release_workflow).to include(var) }
+    expect(release_workflow).to match(/Guard: Azure signing configuration present/)
   end
 
   it "injects azureSignOptions via CLI overrides, not the committed config" do
-    expect(sign_workflow).to include("-c.win.azureSignOptions.publisherName=")
-    expect(sign_workflow).to include("-c.win.azureSignOptions.endpoint=")
-    expect(sign_workflow).to include("-c.win.azureSignOptions.certificateProfileName=")
-    expect(sign_workflow).to include("-c.win.azureSignOptions.codeSigningAccountName=")
+    expect(release_workflow).to include("-c.win.azureSignOptions.publisherName=")
+    expect(release_workflow).to include("-c.win.azureSignOptions.endpoint=")
+    expect(release_workflow).to include("-c.win.azureSignOptions.certificateProfileName=")
+    expect(release_workflow).to include("-c.win.azureSignOptions.codeSigningAccountName=")
   end
 
-  it "verifies the resulting signature is Valid before uploading anything" do
-    expect(sign_workflow).to include("Get-AuthenticodeSignature")
-    expect(sign_workflow).to match(/if \(\$sig\.Status -ne "Valid"\)/)
+  it "verifies the resulting signature is Valid before staging anything" do
+    expect(release_workflow).to include("Get-AuthenticodeSignature")
+    expect(release_workflow).to match(/if \(\$sig\.Status -ne "Valid"\)/)
   end
 
   it "documents the exact secrets in windows-signing.md" do

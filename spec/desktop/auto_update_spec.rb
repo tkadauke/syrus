@@ -97,11 +97,14 @@ RSpec.describe "desktop auto-update and release pipeline" do
   end
 
   it "release workflow only ships signed builds and STAGES them (never publishes mid-build)" do
-    # Signing is a hard requirement; electron-builder would otherwise silently
-    # skip it and ship unsigned.
-    expect(release_workflow).to include("Refusing to publish an unsigned release")
-    expect(release_workflow).to include("Refusing to publish an unsigned Windows release")
+    # Signing is a hard requirement — even a dry run signs (it's the fragile
+    # part worth rehearsing). Both platform guards refuse to build without it,
+    # and forceCodeSigning turns electron-builder's silent skip into a failure.
+    expect(release_workflow.scan("A signed build is required").length).to be >= 2
     expect(release_workflow.scan("-c.forceCodeSigning=true").length).to be >= 2
+    # The signed build/sign steps are NOT gated on a real run — dry runs sign
+    # too. There is no unsigned dry-run build step anymore.
+    expect(release_workflow).not_to include("Build unsigned (dry run)")
     # Build jobs stage artifacts — they never publish to the release directly
     # (only the atomic publish job does). So no build uses --publish always.
     expect(release_workflow).not_to include("--publish always")

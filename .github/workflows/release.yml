@@ -15,15 +15,18 @@
 #   pointer, and (stub) kicks the website. If any build fails, `publish` never
 #   runs: no release, no moved `:latest`, no half-shipped state.
 #
-# - dry_run builds EVERYTHING (image is built + integration-tested, apps build
-#   unsigned, cli cross-compiles) and stages the artifacts for inspection, but
-#   publishes nothing. It is the rehearsal that replaces the old
-#   "workflow_dispatch is implicitly a dry run" behavior.
+# - dry_run does a FULL rehearsal — image built + integration-tested, apps
+#   SIGNED + notarized / Azure-signed, cli cross-compiled — and stages every
+#   artifact for inspection, but publishes nothing (no tag, no release, no
+#   image push, no :latest move). dry_run gates only PUBLISH; the build jobs
+#   are identical to a real release, so signing (the fragile part) is
+#   validated every rehearsal. This is why there's no separate signing-test
+#   workflow.
 #
-# - Signing is REQUIRED for a real (non-dry) release: an unsigned macOS build
-#   is Gatekeeper-blocked and breaks Squirrel.Mac auto-update; an unsigned
-#   Windows build never ships. Credential PREFLIGHTS fail in seconds so a bad
-#   secret does not waste a 20-minute build.
+# - Signing is REQUIRED (dry or real): an unsigned macOS build is
+#   Gatekeeper-blocked and breaks Squirrel.Mac auto-update; an unsigned Windows
+#   build never ships. Credential PREFLIGHTS fail in seconds so a bad secret
+#   does not waste a 20-minute build.
 #
 # - Attacker-influenceable values (the version, the bump) reach `run:` bodies
 #   only through `env:`, never inline `${{ }}` interpolation.
@@ -69,7 +72,7 @@ jobs:
       prerelease: ${{ steps.compute.outputs.prerelease }}
       dry_run: ${{ steps.compute.outputs.dry_run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # need the full tag history to compute the next version
 
@@ -138,9 +141,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      # Log in here (not only inside bin/publish-image) so the BuildKit registry
+      # cache can read/write even on dry --no-push runs, where publish-image
+      # skips its own login.
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Build, integration-test, and push the versioned image
         env:
@@ -151,12 +164,15 @@ jobs:
           # a GHCR_TOKEN secret (a PAT with write:packages) and it's used here.
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
+          # Reuse layers across runs via the registry BuildKit cache — turns a
+          # cold ~17min build into a few minutes once warm. First run seeds it.
+          SYRUS_DOCKER_REGISTRY_CACHE: "1"
         run: |
           set -euo pipefail
           # bin/publish-image builds the worker image, runs bin/test-docker
           # against it, and pushes ONLY on success. --skip-latest keeps :latest
-          # untouched (publish moves it); --no-push turns a dry run into a
-          # build+test rehearsal that never contacts the registry.
+          # untouched (publish moves it); --no-push builds + integration-tests
+          # without pushing the image (a dry rehearsal that still warms cache).
           if [ "$DRY" = "true" ]; then
             bin/publish-image "$VERSION" --no-push
           else
@@ -170,8 +186,8 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: cli/go.mod
 
@@ -180,7 +196,7 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: bin/release-cli "$TAG"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: staged-cli
           path: dist/releases/${{ needs.prepare.outputs.tag }}/cli/
@@ -196,16 +212,17 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # Signing runs on dry runs too — it's the fragile part worth rehearsing.
+      # dry_run only gates PUBLISH, not the build/sign.
       - name: "Guard: signing secrets present"
-        if: needs.prepare.outputs.dry_run == 'false'
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           if [[ -z "$CSC_LINK" || -z "$APPLE_API_KEY_P8" ]]; then
-            echo "::error::Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). Refusing to publish an unsigned release."
+            echo "::error::Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). A signed build is required — set them in repo secrets (dry runs sign too)."
             exit 1
           fi
 
@@ -214,7 +231,6 @@ jobs:
       # cert (an "Apple Development" cert signs then FAILS notarization), refuse
       # expired certs, and prove the notary API key works with a cheap call.
       - name: "Preflight: Apple signing credentials"
-        if: needs.prepare.outputs.dry_run == 'false'
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -265,7 +281,7 @@ jobs:
           fi
           rm -f "$KEY"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -283,7 +299,6 @@ jobs:
 
       # notarytool needs the App Store Connect API key (a .p8 secret) as a file.
       - name: Write App Store Connect API key
-        if: needs.prepare.outputs.dry_run == 'false'
         env:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/apple_api_key.p8"
@@ -292,7 +307,6 @@ jobs:
       # hard failures. --publish never: we STAGE, we don't upload. One retry,
       # but never on a deterministic notarization "Invalid" verdict.
       - name: Build, sign, and notarize
-        if: needs.prepare.outputs.dry_run == 'false'
         timeout-minutes: 60
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -315,14 +329,8 @@ jobs:
           sleep 90
           build
 
-      - name: Build unsigned (dry run)
-        if: needs.prepare.outputs.dry_run == 'true'
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm --prefix desktop run build -- --publish never
-
       - name: Fetch notarytool developer log
-        if: failure() && needs.prepare.outputs.dry_run == 'false'
+        if: failure()
         env:
           APPLE_API_KEY: ${{ runner.temp }}/apple_api_key.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
@@ -336,8 +344,8 @@ jobs:
           cp "$RUNNER_TEMP/notary_developer_log.json" . 2>/dev/null || true
 
       - name: Upload failure diagnostics
-        if: failure() && needs.prepare.outputs.dry_run == 'false'
-        uses: actions/upload-artifact@v4
+        if: failure()
+        uses: actions/upload-artifact@v7
         with:
           name: mac-release-diagnostics
           path: |
@@ -349,7 +357,6 @@ jobs:
       # stapler runs against the .app — the DMG container carries no ticket of
       # its own (Error 65 there is expected, not a failure).
       - name: Verify signature, notarization, and update feed
-        if: needs.prepare.outputs.dry_run == 'false'
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -376,12 +383,10 @@ jobs:
           cp desktop/out/Syrus-*.dmg desktop/out/Syrus-*.zip "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/*.blockmap "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/latest-mac.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
-          if [ "${{ needs.prepare.outputs.dry_run }}" = "false" ]; then
-            cp "desktop/out/Syrus-$VERSION-arm64.dmg" "$RUNNER_TEMP/staged/Syrus.dmg"
-            cp "desktop/out/Syrus-$VERSION-x64.dmg" "$RUNNER_TEMP/staged/Syrus-Intel.dmg"
-          fi
+          cp "desktop/out/Syrus-$VERSION-arm64.dmg" "$RUNNER_TEMP/staged/Syrus.dmg"
+          cp "desktop/out/Syrus-$VERSION-x64.dmg" "$RUNNER_TEMP/staged/Syrus-Intel.dmg"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: staged-mac
           path: ${{ runner.temp }}/staged/
@@ -397,10 +402,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # Azure signing runs on dry runs too (it's the fragile part worth
+      # rehearsing); dry_run only gates PUBLISH.
       - name: "Guard: Azure signing configuration present"
-        if: needs.prepare.outputs.dry_run == 'false'
         shell: bash
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -416,14 +422,13 @@ jobs:
             if [ -z "${!var}" ]; then missing+=("$var"); fi
           done
           if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::Azure signing configuration missing: ${missing[*]} — see docs/windows-signing.md. Refusing to publish an unsigned Windows release."
+            echo "::error::Azure signing configuration missing: ${missing[*]} — see docs/windows-signing.md. A signed build is required — set them in repo secrets/variables (dry runs sign too)."
             exit 1
           fi
 
       # A 401 here is a credential problem; a 403 later at sign time is a
       # role/profile problem (different fixes — see the runbook).
       - name: "Preflight: Azure credentials"
-        if: needs.prepare.outputs.dry_run == 'false'
         shell: pwsh
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -444,7 +449,7 @@ jobs:
             exit 1
           }
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -462,7 +467,6 @@ jobs:
       # electron-builder installs the TrustedSigning module on first use; do it
       # once here (with retries) to dodge transient gallery failures.
       - name: "Preflight: TrustedSigning module"
-        if: needs.prepare.outputs.dry_run == 'false'
         shell: pwsh
         run: |
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
@@ -482,7 +486,6 @@ jobs:
       # electron-builder.yml (its mere presence forces signing on every unsigned
       # dev cross-build). Inject it here, only in a job that has the credentials.
       - name: Build and sign
-        if: needs.prepare.outputs.dry_run == 'false'
         timeout-minutes: 45
         shell: bash
         env:
@@ -503,12 +506,7 @@ jobs:
             "-c.win.azureSignOptions.certificateProfileName=${AZURE_SIGN_CERT_PROFILE}" \
             "-c.win.azureSignOptions.codeSigningAccountName=${AZURE_SIGN_ACCOUNT_NAME}"
 
-      - name: Build unsigned (dry run)
-        if: needs.prepare.outputs.dry_run == 'true'
-        run: npm --prefix desktop run build -- --win --publish never
-
       - name: Verify signatures and update feed
-        if: needs.prepare.outputs.dry_run == 'false'
         shell: pwsh
         run: |
           $exes = Get-ChildItem -Path desktop/out -Filter "Syrus-Setup-*.exe"
@@ -530,12 +528,10 @@ jobs:
           cp desktop/out/Syrus-Setup-*.exe "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/*.blockmap "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/latest.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
-          if [ "${{ needs.prepare.outputs.dry_run }}" = "false" ]; then
-            cp "desktop/out/Syrus-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/Syrus-Setup.exe"
-            cp "desktop/out/Syrus-Setup-$VERSION-arm64.exe" "$RUNNER_TEMP/staged/Syrus-Setup-arm64.exe"
-          fi
+          cp "desktop/out/Syrus-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/Syrus-Setup.exe"
+          cp "desktop/out/Syrus-Setup-$VERSION-arm64.exe" "$RUNNER_TEMP/staged/Syrus-Setup-arm64.exe"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: staged-windows
           path: ${{ runner.temp }}/staged/
@@ -553,12 +549,12 @@ jobs:
     if: needs.prepare.outputs.dry_run == 'false'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Download staged artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: staged
           pattern: staged-*
@@ -574,7 +570,7 @@ jobs:
       #    user-owned package). imagetools copies the manifest — no rebuild. If
       #    this fails, no release is created.
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

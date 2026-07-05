@@ -3,10 +3,10 @@
 Status: phases 1–2 (foundation, local install) shipped on
 `desktop-app/13-windows`; phase 3 (parity polish) planned; phase 4
 partially in place — the `build-windows` job and Azure
-Trusted Signing wiring exist (`release.yml`,
-`sign-windows-test.yml`), pending SmartScreen reputation and website
-download buttons. Owner-facing summary of every deliberate decision, so
-later phases don't re-litigate them.
+Trusted Signing wiring exist in `release.yml` (validated by a dry-run
+release), pending SmartScreen reputation and website download buttons.
+Owner-facing summary of every deliberate decision, so later phases don't
+re-litigate them.
 
 ## Product contract
 
@@ -143,11 +143,12 @@ the Cloud (~$58, SimplySign; headless CI is hacky), SSL.com IV +
 eSigner. Both still ride the slower OV-style reputation ramp.
 
 **Setup runbook and exact repo secrets: [`windows-signing.md`](./windows-signing.md).**
-`.github/workflows/sign-windows-test.yml` is the manual-dispatch proving
-ground for the Azure chain — it validates certificate profile, identity,
-and signing without cutting a release. The live `build-windows` job in
-`release.yml` depends on the same configuration and refuses to
-publish unsigned artifacts.
+The Azure chain is validated by a **dry-run release** — the `build-windows`
+job in `release.yml` builds, Azure-signs, and stages the `.exe` (verifying
+certificate profile, identity, and signing) while publishing nothing. The
+build jobs are identical on a dry and a real run, so the same job that
+rehearses signing is the one that ships it — and it refuses to build unsigned
+artifacts.
 
 ### Field notes: the "Missing Shortcut" failure (July 2026 UTM test)
 

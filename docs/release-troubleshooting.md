@@ -5,11 +5,13 @@ red X to a cause in minutes: find your error string in the triage table,
 jump to the section, run the Check, apply the Fix. It covers the macOS
 signing/notarization path (`CSC_LINK` + notarytool) and the Windows Azure
 Artifact Signing path (both live in `release.yml` — `build-mac` and
-`build-windows` — which now run in **parallel**;
-`.github/workflows/sign-windows-test.yml` is the manual-dispatch harness
-for proving the Azure setup without cutting a release). Setup docs live in
-[`releasing.md`](./releasing.md) and [`windows-signing.md`](./windows-signing.md);
-this doc assumes setup was once working.
+`build-windows` — which run in **parallel**). To prove signing without
+cutting a release, run a **dry-run release** (`dry_run = true`): the build
+jobs are identical on a dry and a real run — they sign and stage every
+artifact — and only `publish` / `publish-website` are skipped. Setup docs
+live in [`releasing.md`](./releasing.md) and
+[`windows-signing.md`](./windows-signing.md); this doc assumes setup was once
+working.
 
 The pipeline is **manually dispatched** (`workflow_dispatch`) — you pick a
 `bump` (patch/minor/major, default minor) or an explicit `version`, and an
@@ -52,7 +54,7 @@ Grep the failed run's log for the string in column one.
 | `The staple and validate action failed! Error 65` | stapling a mutated artifact, or CDN lag | [4.4](#44-stapler-failures) |
 | `skipped macOS application code signing` | silent skip — no usable identity | [6.1](#61-green-build-unsigned-artifact) |
 | `skipped macOS notarization` | silent skip — notarize creds absent | [6.1](#61-green-build-unsigned-artifact) |
-| `Azure signing configuration missing:` (release) / `Missing secrets/variables:` (test harness) | Azure secrets/vars not configured | [5](#5-windows-azure-artifact-signing) |
+| `Azure signing configuration missing:` | Azure secrets/vars not configured | [5](#5-windows-azure-artifact-signing) |
 | `No match was found for the specified search criteria for the provider 'NuGet'` | PSGallery bootstrap flake | [5.1](#51-module-install-failures) |
 | `being used by another process` / `SignTool failed with exit code 3` | concurrent-signing race | [5.2](#52-the-concurrent-signing-race) |
 | `Status: 403 (Forbidden)` (codesigning.azure.net) | SP role / identity validation / name mismatch | [5.3](#53-403-forbidden) |
@@ -82,16 +84,21 @@ the workflow working as designed, not bugs:
    tagged until `publish`. Fix: re-dispatch with a different `bump`, or
    pass an explicit `version` override that isn't taken. (The guard is
    skipped on a dry run.)
-2. **`Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8)`** (`build-mac`,
-   "Guard: signing secrets present") — the secrets were removed or the run
-   happened in a context that can't see them. Restore them (see the
-   [setup checklist](./releasing.md#one-time-setup-checklist)) and re-run.
-   The workflow refuses to publish unsigned on purpose — Squirrel.Mac would
-   strand the installed base. (Skipped on a dry run.)
-3. **`Azure signing configuration missing: <names>`** (`build-windows`,
-   "Guard: Azure signing configuration present") — one or more of the four
-   `AZURE_SIGN_*` identifiers or the three client credentials are absent.
-   See [5](#5-windows-azure-artifact-signing). (Skipped on a dry run.)
+2. **`Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). A signed build
+   is required — set them in repo secrets (dry runs sign too).`**
+   (`build-mac`, "Guard: signing secrets present") — the secrets were removed
+   or the run happened in a context that can't see them. Restore them (see the
+   [setup checklist](./releasing.md#one-time-setup-checklist)) and re-run. A
+   signed build is required on purpose — Squirrel.Mac would strand the
+   installed base — and this guard fires on **dry runs too**, because a dry
+   run signs everything (it only skips publishing).
+3. **`Azure signing configuration missing: <names> — see
+   docs/windows-signing.md. A signed build is required — set them in repo
+   secrets/variables (dry runs sign too).`** (`build-windows`, "Guard: Azure
+   signing configuration present") — one or more of the four `AZURE_SIGN_*`
+   identifiers or the three client credentials are absent. This guard fires on
+   dry runs too (a dry run Azure-signs). See
+   [5](#5-windows-azure-artifact-signing).
 
 The backend image is built, integration-tested, and pushed **inside CI** by
 the `build-image` job (`bin/publish-image $VERSION --multi-arch
@@ -268,13 +275,15 @@ job on every manual dispatch (in parallel with `build-mac`); its guard
 fails the run when any of the four `AZURE_SIGN_*` identifiers (or the
 client credentials) are absent — add the listed ones per the
 [secrets table](./windows-signing.md#6-repo-secrets).
-`sign-windows-test.yml` exercises the same chain by manual dispatch
-without cutting a release (the workflow file must be on the default
-branch for the button to exist — the fork workaround is in
-[windows-signing.md §7](./windows-signing.md#7-test-it)); its guard says
-`Missing secrets/variables: <names>`. Note `azureSignOptions` is
-injected via CLI dot-paths, never committed to `electron-builder.yml` —
-its mere presence would force signing on every unsigned dev build.
+A **dry-run release** exercises the same chain without cutting a release —
+the `build-windows` job is identical on a dry and a real run, so it signs
+and stages the `.exe` while publishing nothing (the workflow file must be on
+the default branch for the Run-workflow button to exist — the fork
+workaround is in
+[windows-signing.md §7](./windows-signing.md#7-test-it)). Note
+`azureSignOptions` is injected via CLI dot-paths, never committed to
+`electron-builder.yml` — its mere presence would force signing on every
+unsigned dev build.
 
 ### 5.1 Module install failures
 
@@ -417,9 +426,11 @@ its mere presence would force signing on every unsigned dev build.
   empty env var, or `CSC_IDENTITY_AUTO_DISCOVERY=false` anywhere in the
   env — which disables signing *even when `CSC_LINK` is set*
   ([#7515](https://github.com/electron-userland/electron-builder/issues/7515)).
-  In our workflow that variable is intentionally set **only** on the
-  "Build unsigned (dry run)" step (the `dry_run == 'true'` path); if it ever
-  migrates to job-level env, real (non-dry) releases silently unsign.
+  The `build-mac` job never sets that variable — signing runs identically on
+  dry and real releases (`dry_run` gates only `publish`, not the build) — so
+  if `CSC_IDENTITY_AUTO_DISCOVERY=false` ever appears in the job env, every
+  release silently unsigns. The `--publish never` flag stages instead of
+  uploading; it does **not** disable signing.
 - **Check:** grep every release log for `skipped` — cheap and decisive.
   The workflow's defenses are the "Guard: signing secrets present" step
   (catches *absent* secrets, not invalid ones) and the post-build verify
@@ -536,8 +547,9 @@ Battle scars for the local leg:
 3. **Windows cannot be bisected locally from a Mac.** `Invoke-TrustedSigning`
    is Windows-only; the windows loader in `bin/signing-env` deliberately
    no-ops on Darwin ([windows-signing.md §8](./windows-signing.md#8-local-signing-and-why-it-doesnt-work-from-this-mac)).
-   The bisect tool there is `sign-windows-test.yml` via manual dispatch —
-   from a fork while the workflow isn't on the default branch.
+   The bisect tool there is a **dry-run release** — the `build-windows` job
+   signs on `windows-latest` and stages the `.exe` without publishing —
+   run from a fork while `release.yml` isn't on the default branch.
 4. The notary service is account-scoped, not machine-scoped: your local
    `notarytool history` / `log` sees CI's submissions too
    ([4.1](#41-invalid-verdict-pull-the-developer-log)). That's usually

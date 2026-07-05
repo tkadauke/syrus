@@ -3,8 +3,9 @@
 Background and the decision rationale live in
 [`windows-desktop-plan.md`](./windows-desktop-plan.md#code-signing-researched-july-2026).
 This doc is the concrete setup runbook: portal steps once, then the repo
-secrets that make `release.yml`'s `build-windows` job (and the
-`sign-windows-test.yml` manual-dispatch harness) sign real installers.
+secrets that make `release.yml`'s `build-windows` job sign real installers.
+A dry-run release exercises that same job — the build jobs are identical on a
+dry and a real run — so there is no separate signing-test workflow.
 
 Azure Artifact Signing (formerly "Trusted Signing") is Microsoft's
 low-friction alternative to a traditional Authenticode certificate: $9.99/mo,
@@ -109,8 +110,8 @@ rejected for identity validation.
 
 Add these under the repo's **Settings → Secrets and variables → Actions →
 Secrets** (on whichever repo runs the workflow — currently `tkadauke/syrus`
-for `release.yml`; use your fork for `sign-windows-test.yml` if
-you're testing there first):
+for `release.yml`; use your fork if you're rehearsing a dry-run release there
+first):
 
 | Secret | Value | Sensitive? |
 | --- | --- | --- |
@@ -134,8 +135,8 @@ The first three (`AZURE_TENANT_ID`/`AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`)
 are read directly by the Azure SDK's `EnvironmentCredential` — nothing in
 this repo needs to reference them by name. The other four are threaded
 into `electron-builder`'s `win.azureSignOptions` via CLI dot-path overrides
-in the workflow (see `sign-windows-test.yml`) — **not** committed as static
-YAML in `desktop/electron-builder.yml`, because the mere presence of
+in the workflow (see `release.yml`'s `build-windows` job) — **not** committed
+as static YAML in `desktop/electron-builder.yml`, because the mere presence of
 `azureSignOptions` makes electron-builder attempt Azure signing
 unconditionally (unlike the macOS `CSC_LINK` path, there's no
 "absent → skip silently" fallback), which would break every unsigned
@@ -143,20 +144,23 @@ local/dev Windows cross-build done on this Mac.
 
 ## 7. Test it
 
-Run **Actions → Sign Windows build (test) → Run workflow** (manual
-dispatch only — this never fires automatically). It builds both archs,
-signs via Azure, and runs `Get-AuthenticodeSignature` to verify the result
-is `Valid` before uploading the installers as a workflow artifact.
+Run **Actions → "Release" → Run workflow → check `dry_run`**. A dry-run
+release runs the real `build-windows` job — it builds both archs, signs via
+Azure, and runs `Get-AuthenticodeSignature` to verify the result is `Valid`
+before staging the `.exe` installers as the `staged-windows` workflow
+artifact (downloadable from the run for inspection). A dry run publishes
+nothing: no tag, no release, no image push, no `:latest` move. The build jobs
+are identical to a real release, so this validates signing without shipping.
 
 **GitHub gotcha: `workflow_dispatch` workflows only appear in the Actions
 tab when the workflow file exists on the repository's default branch.**
-While this file lives only on a feature branch, the button simply isn't
-there (and `gh workflow run` can't find it either). Until the branch
-merges, test from a fork: push the feature branch to the fork's `main`
-(`git push <fork> <branch>:main --force` — fine when the fork's main has
-nothing unique), add the same secrets/variables to the fork, and dispatch
-there. The signing account doesn't care which repo the request comes
-from — only the Azure credentials matter.
+While `release.yml` lives only on a feature branch, the Run-workflow button
+simply isn't there (and `gh workflow run` can't find it either). Until the
+branch merges, rehearse from a fork: push the feature branch to the fork's
+`main` (`git push <fork> <branch>:main --force` — fine when the fork's main
+has nothing unique), add the same secrets/variables to the fork, and dispatch
+a dry-run release there. The signing account doesn't care which repo the
+request comes from — only the Azure credentials matter.
 
 Prerequisites worth double-checking before the first run: identity
 validation shows **Completed**, the certificate profile shows **Active**,
@@ -185,12 +189,13 @@ no-op on Darwin/Linux so it can't produce a false sense of "signed" here.
 
 ## 9. Going live (done — July 2026)
 
-`release.yml` now carries a `build-windows` job: on every
-`vX.Y.Z` tag it builds, Azure-signs, and publishes the Windows NSIS
-installers alongside the mac DMGs (sequenced after the mac job so both
-publish into one GitHub release). The Azure configuration from §6 is
-required — the job's guard refuses to publish an unsigned Windows
-release, and a token-acquisition preflight fails in seconds instead of
-after a full build. `sign-windows-test.yml` remains the manual-dispatch
-workflow for validating the Azure setup without touching the live
-release cadence.
+`release.yml` now carries a `build-windows` job: on every release it
+builds, Azure-signs, and stages the Windows NSIS installers, which the
+final `publish` job ships alongside the mac DMGs in one GitHub release
+(`build-windows` runs in parallel with `build-mac`). The Azure
+configuration from §6 is required — the job's guard fails the run when it's
+absent (a signed build is required; dry runs sign too), and a
+token-acquisition preflight fails in seconds instead of after a full build.
+To validate the Azure setup without touching the live release cadence, run a
+dry-run release (§7): the same `build-windows` job signs and stages the
+`.exe`, but nothing is published.
