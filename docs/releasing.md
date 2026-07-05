@@ -1,90 +1,108 @@
-# Releasing Syrus (desktop app + backend image)
+# Releasing Syrus
 
-A release is a git tag `vX.Y.Z` on `tkadauke/syrus`. One tag ships **both**
-halves as a tested pair:
+A release ships everything Syrus distributes, as one tested set, from a single
+manual workflow run:
 
-- **GitHub Release `vX.Y.Z`** — `Syrus-X.Y.Z-{arm64,x64}.dmg` + `.zip`,
-  `latest-mac.yml` (the auto-update feed), blockmaps, and a stable-named
-  `Syrus.dmg` copy (arm64) for the website's
-  `releases/latest/download/Syrus.dmg` permalink.
-- **GHCR image `ghcr.io/tkadauke/syrus-local:X.Y.Z`** — the backend the DMG's
-  bundled installer pins (`desktop/scripts/stage-backend-assets.mjs` writes
-  the pin into the app's `manifest.json`).
+- **CLI** — `syrus_vX.Y.Z_{darwin,linux}_{amd64,arm64}.tar.gz` + checksums.
+- **Desktop apps** — signed, notarized macOS `Syrus-X.Y.Z-{arm64,x64}.dmg` +
+  `.zip` + `latest-mac.yml`, and Azure-signed Windows
+  `Syrus-Setup-X.Y.Z-{x64,arm64}.exe` + `latest.yml`, plus stable-named
+  aliases for the website permalinks (`Syrus.dmg`, `Syrus-Intel.dmg`,
+  `Syrus-Setup.exe`).
+- **Backend image** — `ghcr.io/tkadauke/syrus-local:X.Y.Z`, built and
+  integration-tested in CI, with `:latest` moved to it.
+- **GitHub Release `vX.Y.Z`** — auto-generated notes, every artifact above.
 
 Backend upgrades ride app auto-update: a new app version carries a new image
-pin, and on the next launch the app compares the pin against the local
-install's `.env` and offers to update — accepting re-runs the bundled
-installer (pull, recreate, health-gate). The pin is only written on release
-builds (`SYRUS_RELEASE_BUILD=1`, set by the release workflow); local packaging
-stages `:latest` so dev builds never prompt. `:latest` keeps being published
-for the clone-and-`install.sh` audience; nothing changes for them.
+pin (`SYRUS_RELEASE_BUILD=1` writes it into the app's `manifest.json`), and on
+the next launch the app offers to update the local backend.
 
-## Runbook
+## How to cut a release
 
-1. Bump `desktop/package.json` `version` to `X.Y.Z` and update
-   `docs/release_notes.md`; merge to `main`.
-2. Publish the backend image first (human-gated — it runs the
-   `bin/test-docker` integration suite):
+**Actions → "Release" → Run workflow.** Pick the **bump** and run. That's it —
+the pipeline computes the version, builds and signs everything, and publishes
+atomically.
 
-   ```bash
-   bin/publish-image X.Y.Z --multi-arch
-   ```
+| Input | Meaning |
+| --- | --- |
+| `bump` | `patch` / `minor` (default) / `major`. The version is computed from the higher of the latest release tag and `desktop/package.json`, then bumped. |
+| `version` | Optional explicit override, e.g. `v1.2.3` or a pre-release `v1.2.3-beta.1` (auto-flagged as a GitHub pre-release). Overrides `bump`. |
+| `dry_run` | Build and stage **everything** (image built + integration-tested, apps built unsigned, CLI cross-compiled) but publish nothing. The rehearsal. |
 
-3. Tag and push:
+### The pipeline (`.github/workflows/release.yml`)
 
-   ```bash
-   git tag vX.Y.Z && git push origin vX.Y.Z
-   ```
+```
+prepare ─┬─ build-image   (build + bin/test-docker + push :X.Y.Z, NOT :latest)
+         ├─ build-cli     (cross-compile tarballs → staged)
+         ├─ build-mac     (sign + notarize + staple → staged)
+         └─ build-windows (Azure-sign → staged)
+                    │  all four must pass
+                    ▼
+                 publish   (ATOMIC: create tag + release + notes,
+                            upload every staged artifact,
+                            move image :latest → :X.Y.Z,
+                            commit the version bump to main)
+                    ▼
+             publish-website  (stub)
+```
 
-4. `.github/workflows/release-desktop.yml` takes over: guards (version
-   matches tag; image tag exists on GHCR; signing secrets present), builds,
-   signs, notarizes, staples, verifies, and publishes the Release.
+Nothing is user-visible until `publish`. The build jobs only *stage* artifacts
+and push a *versioned* image tag; if any of them fails, `publish` never runs —
+no tag, no release, no moved `:latest`. macOS and Windows build in parallel
+(the old create-release 422 race is gone because neither job touches the
+release). A dry run skips `publish` and `publish-website` entirely.
 
-Every `vX.Y.Z` tag ships a desktop build — even for backend-only changes.
-That keeps electron-updater's invariant intact: the newest release always
-carries `latest-mac.yml`. Pre-releases use `X.Y.Z-beta.N` plus GitHub's
-prerelease flag; electron-updater skips prereleases by default.
+## Versioning convention
 
-## When the release run goes red
+Semantic versioning. The pipeline computes the next version and owns it:
 
-Go straight to [`release-troubleshooting.md`](./release-troubleshooting.md)
-— a symptom-indexed runbook for red `release-desktop.yml` (and
-`sign-windows-test.yml`) runs. Start at its 60-second triage table: grep
-the run log for the error string, and the table maps it to a cause and a
-fix section (macOS cert/keychain/notarization/stapling, Windows Azure
-signing, electron-builder's silent-skip and publish traps). It also covers
-reproducing the exact signing path locally via `bin/release-desktop` to
-bisect credential problems from CI problems. Note the first three guard
-steps fail on purpose with self-explanatory `::error` messages — those are
-release-ordering mistakes, not pipeline bugs.
+- **`minor`** is the default — the normal cadence for a release with features
+  and fixes.
+- **`patch`** is for hotfix-only releases.
+- **`major`** must be chosen explicitly (never automatic) — for breaking
+  changes.
+- Pre-releases use `vX.Y.Z-beta.N` via the `version` input; electron-updater
+  skips pre-releases by default.
 
-## One-time setup checklist
+`publish` commits the bump to `desktop/package.json` on `main`, so dev builds
+and the next release start from the right base. If a branch-protection rule
+blocks that push, the release still succeeds and the *tag* carries the version
+forward — the next release self-corrects. (To let CI push the bump, allow the
+release workflow to bypass protection on `main`.)
+
+## Release notes
+
+Auto-generated by GitHub from the merged PRs since the last release
+(`gh release create --generate-notes`). Edit the release afterward if you want
+to add highlights. For richer, grouped prose you can pre-write notes locally
+with `bin/release-notes vX.Y.Z` (Claude-authored) and paste them in.
+
+## One-time setup
 
 | Item | Where | Notes |
 | --- | --- | --- |
-| Apple Developer Program membership | developer.apple.com | $99/yr; identity verification can take days — start early |
-| Developer ID Application certificate | Xcode → Settings → Accounts → Manage Certificates → + → **Developer ID Application**, or the developer portal | Export as `.p12` with the private key. The type must literally read **"Developer ID Application"** — an "Apple Development" or "Apple Distribution" cert signs locally and then fails notarization on every binary. Only the account holder can create Developer ID certs. `bin/signing-env` warns at build start if the p12 is the wrong type. |
+| Apple Developer Program membership | developer.apple.com | $99/yr; identity verification can take days |
+| Developer ID Application certificate | Xcode → Manage Certificates → **Developer ID Application** | Export `.p12` with the private key. The type must literally read **"Developer ID Application"** — an "Apple Development" cert signs locally then fails notarization on every binary. |
 | `CSC_LINK` | repo secret | base64 of the `.p12` (`base64 -i cert.p12`) |
 | `CSC_KEY_PASSWORD` | repo secret | the `.p12` export password |
-| App Store Connect API key (`.p8`) | appstoreconnect.apple.com → Users and Access → Integrations | Developer role suffices for notarytool |
-| `APPLE_API_KEY_P8` | repo secret | contents of the `.p8` |
-| `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | repo secrets | shown on the same page |
+| App Store Connect API key (`.p8`) | appstoreconnect.apple.com → Integrations | Developer role suffices for notarytool |
+| `APPLE_API_KEY_P8` / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER` | repo secrets | the key contents + its ids |
+| Azure Trusted Signing | see [`windows-signing.md`](./windows-signing.md) | `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` (secrets) + the four `AZURE_SIGN_*` identifiers (secrets or repo variables) |
 | GHCR `syrus-local` package visibility | github.com/users/tkadauke/packages | **must be public** — every end user's install pulls it anonymously |
 
-Secrets live on `tkadauke/syrus` (Settings → Secrets and variables →
-Actions). The auto-update feed (`publish:` in `desktop/electron-builder.yml`)
-is baked into shipped apps — moving Releases to another repo later strands
-installed apps on the old feed.
+Prove the Azure setup without cutting a release with the **"Sign Windows build
+(test)"** workflow (manual dispatch). The Apple credentials can be validated by
+a `dry_run` release, or locally (below).
 
-## Signing locally
+## Signing / building locally
 
-`bin/release-desktop` (via `bin/signing-env`) reads the same credentials
-from `~/.config/syrus/` instead of repo secrets, so a signed, notarized
-build works identically on your own machine — useful for verifying
-signing/notarization changes without spending a CI run or a real tag.
-electron-builder reads `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_API_KEY`,
-`APPLE_API_KEY_ID`, and `APPLE_API_ISSUER` straight from the environment;
-nothing else changes between a local build and CI.
+`bin/publish-image X.Y.Z` (image) and `bin/release-desktop` (via
+`bin/signing-env`) reproduce the exact CI build on your own machine — useful
+for verifying signing or image changes without spending a release run. These
+stay as local tools; the canonical release path is the CI workflow above.
+
+For a local **signed + notarized** macOS build, `bin/signing-env` reads the
+same credentials CI gets from repo secrets, from `~/.config/syrus/` instead:
 
 1. `~/.config/syrus/mac-signing.env` (`chmod 600`), dotenv-style:
 
@@ -96,44 +114,29 @@ nothing else changes between a local build and CI.
    ```
 
 2. `~/.config/syrus/apple-api-key.p8` (`chmod 600`) — the App Store Connect
-   API key file itself, downloaded once from
-   <https://appstoreconnect.apple.com/access/integrations/api> (App Store
-   Connect only lets you download it once; keep a copy somewhere safe).
+   API key file itself (downloadable once from App Store Connect).
 
-With both present, `bin/release-desktop` signs and notarizes exactly like
-`release-desktop.yml` does. Without them, it falls back to today's
-unsigned local build — nothing breaks if you skip this. This file is not
-read by anything else and is never committed; it plays the same role
-locally that repo secrets play in CI.
+With both present, `bin/release-desktop` signs and notarizes exactly like the
+CI pipeline; without them it falls back to an unsigned local build. Neither
+file is committed — they play the role repo secrets play in CI. Windows local
+signing is documented in [`windows-signing.md`](./windows-signing.md)
+(`~/.config/syrus/windows-signing.env`).
 
 ## Why unsigned releases are blocked
 
-The workflow refuses to publish a tag build without signing secrets:
+The pipeline refuses to publish a non-dry release without signing secrets:
 
 - macOS Sequoia shows unsigned downloads a hard "Apple could not verify…"
-  block (the right-click → Open bypass is gone).
+  block.
 - electron-updater on macOS rides Squirrel.Mac, which refuses to install an
   update into an unsigned or differently-signed app — one unsigned release
   would strand the installed base off the update path.
+- Windows SmartScreen penalizes unsigned installers, and the pipeline never
+  ships an unsigned `.exe`.
 
-## Testing the pipeline without credentials
+## When a run goes red
 
-- `workflow_dispatch` → "Release desktop app" builds unsigned artifacts and
-  publishes nothing (only `v*` tag pushes publish).
-- Local packaging check: `npm --prefix desktop run build` (unsigned without
-  the Apple env vars) or `npx electron-builder --dir` for an unpacked app.
-- Signing verification, once credentials exist (run from a clean, non-Dropbox
-  clone — cloud-synced xattrs break codesign nondeterministically):
-
-  ```bash
-  codesign --verify --deep --strict desktop/out/mac-arm64/Syrus.app
-  spctl -a -t exec -vv desktop/out/mac-arm64/Syrus.app   # expect "Notarized Developer ID"
-  xcrun stapler validate desktop/out/Syrus-*.dmg
-  ```
-
-- Auto-update loop without touching the real feed: build signed `0.0.1` and
-  `0.0.2`, serve `0.0.2`'s zip + `latest-mac.yml` from a local HTTP server,
-  point the `0.0.1` build at it with a `dev-app-update.yml`
-  (`autoUpdater.forceDevUpdateConfig`), and watch the tray gain
-  "Restart to update". Then rehearse for real with a `v0.x.y-beta.1`
-  prerelease tag.
+Go straight to [`release-troubleshooting.md`](./release-troubleshooting.md) —
+a symptom-indexed runbook. The credential preflights fail in seconds with
+self-explanatory `::error` messages; those are setup mistakes, not pipeline
+bugs.

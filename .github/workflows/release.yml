@@ -1,0 +1,663 @@
+# One manual, atomic release for everything Syrus ships: the CLI, the macOS
+# and Windows desktop apps, and the backend Docker image. See docs/releasing.md
+# for the runbook and docs/release-troubleshooting.md when a run goes red.
+#
+# The shape (and the why behind it):
+#
+# - MANUALLY triggered (workflow_dispatch). You pick the bump — the pipeline
+#   computes the version, so there is no "tag first, hope it matches" dance.
+#   `major` requires choosing it explicitly; `minor` is the default.
+#
+# - ATOMIC. Nothing is user-visible until the very end. The build jobs
+#   (image, cli, mac, windows) each produce STAGED artifacts and push only a
+#   *versioned* backend image tag — never `:latest`. Only the final `publish`
+#   job creates the git tag, the GitHub Release, moves the image `:latest`
+#   pointer, and (stub) kicks the website. If any build fails, `publish` never
+#   runs: no release, no moved `:latest`, no half-shipped state.
+#
+# - dry_run builds EVERYTHING (image is built + integration-tested, apps build
+#   unsigned, cli cross-compiles) and stages the artifacts for inspection, but
+#   publishes nothing. It is the rehearsal that replaces the old
+#   "workflow_dispatch is implicitly a dry run" behavior.
+#
+# - Signing is REQUIRED for a real (non-dry) release: an unsigned macOS build
+#   is Gatekeeper-blocked and breaks Squirrel.Mac auto-update; an unsigned
+#   Windows build never ships. Credential PREFLIGHTS fail in seconds so a bad
+#   secret does not waste a 20-minute build.
+#
+# - Attacker-influenceable values (the version, the bump) reach `run:` bodies
+#   only through `env:`, never inline `${{ }}` interpolation.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (ignored when 'version' is set)"
+        type: choice
+        options: [patch, minor, major]
+        default: minor
+      version:
+        description: "Explicit version override, e.g. v1.2.3 or v1.2.3-beta.1 (optional)"
+        type: string
+        default: ""
+      dry_run:
+        description: "Build + stage everything, publish nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # create the tag/release and push the version-bump commit
+  packages: write # push the backend image to GHCR
+
+# One release at a time; never cancel a half-finished publish.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Decide the version. Base it on the HIGHER of the latest release tag and the
+  # committed desktop/package.json, so a version bumped during development is
+  # never walked backwards, then apply the requested bump.
+  # ---------------------------------------------------------------------------
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.compute.outputs.version }} # X.Y.Z (no leading v)
+      tag: ${{ steps.compute.outputs.tag }} # vX.Y.Z
+      prerelease: ${{ steps.compute.outputs.prerelease }}
+      dry_run: ${{ steps.compute.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the full tag history to compute the next version
+
+      - name: Compute the release version
+        id: compute
+        env:
+          BUMP: ${{ inputs.bump }}
+          OVERRIDE: ${{ inputs.version }}
+          DRY: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --quiet || true
+          pkg="$(node -p "require('./desktop/package.json').version")"
+
+          if [ -n "$OVERRIDE" ]; then
+            ver="${OVERRIDE#v}"
+          else
+            latest_tag="$(git tag --list 'v*' | sed -nE 's/^v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' | sort -V | tail -1)"
+            # Base = the higher of the newest release tag and package.json.
+            base="$(printf '%s\n%s\n' "${latest_tag:-0.0.0}" "${pkg%%-*}" | sort -V | tail -1)"
+            IFS=. read -r MA MI PA <<<"$base"
+            case "$BUMP" in
+              patch) PA=$((PA + 1)) ;;
+              minor) MI=$((MI + 1)); PA=0 ;;
+              major) MA=$((MA + 1)); MI=0; PA=0 ;;
+              *) echo "::error::unknown bump '$BUMP'"; exit 1 ;;
+            esac
+            ver="$MA.$MI.$PA"
+          fi
+
+          if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::computed version '$ver' is not valid semver"; exit 1
+          fi
+
+          prerelease=false
+          [[ "$ver" == *-* ]] && prerelease=true
+
+          {
+            echo "version=$ver"
+            echo "tag=v$ver"
+            echo "prerelease=$prerelease"
+            echo "dry_run=$DRY"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Release v$ver  (bump=${OVERRIDE:+explicit }$BUMP · prerelease=$prerelease · dry_run=$DRY)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "Guard: tag and release are not already taken"
+        if: inputs.dry_run == false
+        env:
+          TAG: ${{ steps.compute.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::tag $TAG already exists — pick a different bump/version."; exit 1
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::GitHub release $TAG already exists."; exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Build the backend image, run the integration gate against it, and push ONLY
+  # the versioned tag. `:latest` moves in `publish`, after every app succeeds.
+  # ---------------------------------------------------------------------------
+  build-image:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build, integration-test, and push the versioned image
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DRY: ${{ needs.prepare.outputs.dry_run }}
+          # GITHUB_TOKEN can push to ghcr.io/tkadauke/syrus-local only if that
+          # package is linked to this repo with write access. If it isn't, set
+          # a GHCR_TOKEN secret (a PAT with write:packages) and it's used here.
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          # bin/publish-image builds the worker image, runs bin/test-docker
+          # against it, and pushes ONLY on success. --skip-latest keeps :latest
+          # untouched (publish moves it); --no-push turns a dry run into a
+          # build+test rehearsal that never contacts the registry.
+          if [ "$DRY" = "true" ]; then
+            bin/publish-image "$VERSION" --no-push
+          else
+            bin/publish-image "$VERSION" --multi-arch --skip-latest
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Cross-compile the CLI and stage the tarballs + checksums.
+  # ---------------------------------------------------------------------------
+  build-cli:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Build CLI release tarballs
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: bin/release-cli "$TAG"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staged-cli
+          path: dist/releases/${{ needs.prepare.outputs.tag }}/cli/
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # macOS: sign + notarize + staple, then STAGE (never publish). The signed
+  # .app is verified before its artifacts are uploaded.
+  # ---------------------------------------------------------------------------
+  build-mac:
+    needs: prepare
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: signing secrets present"
+        if: needs.prepare.outputs.dry_run == 'false'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          if [[ -z "$CSC_LINK" || -z "$APPLE_API_KEY_P8" ]]; then
+            echo "::error::Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). Refusing to publish an unsigned release."
+            exit 1
+          fi
+
+      # Catch bad Apple credentials in seconds, before the ~15-minute build:
+      # decode the p12, check the password, require a "Developer ID Application"
+      # cert (an "Apple Development" cert signs then FAILS notarization), refuse
+      # expired certs, and prove the notary API key works with a cheap call.
+      - name: "Preflight: Apple signing credentials"
+        if: needs.prepare.outputs.dry_run == 'false'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          P12="$RUNNER_TEMP/preflight.p12"
+          PEM="$RUNNER_TEMP/preflight.pem"
+          if ! printf '%s' "$CSC_LINK" | base64 -d > "$P12" 2>/dev/null; then
+            echo "::error::CSC_LINK is not valid base64 — re-export with: base64 -i cert.p12 (single line)."
+            exit 1
+          fi
+          if ! openssl pkcs12 -in "$P12" -nokeys -passin env:CSC_KEY_PASSWORD -out "$PEM" 2>/dev/null; then
+            if ! openssl pkcs12 -in "$P12" -nokeys -legacy -passin env:CSC_KEY_PASSWORD -out "$PEM" 2>/dev/null; then
+              echo "::error::Could not open the p12 with CSC_KEY_PASSWORD — wrong password or corrupted p12."
+              exit 1
+            fi
+          fi
+          SUBJECT=$(openssl x509 -in "$PEM" -noout -subject)
+          echo "cert subject: $SUBJECT"
+          if ! grep -q "Developer ID Application" <<<"$SUBJECT"; then
+            echo "::error::CSC_LINK is not a 'Developer ID Application' certificate ($SUBJECT). Apple Development / Distribution certs sign locally but FAIL notarization."
+            exit 1
+          fi
+          if ! openssl x509 -in "$PEM" -noout -checkend 0; then
+            echo "::error::The Developer ID certificate has EXPIRED. Create a new one and update CSC_LINK/CSC_KEY_PASSWORD."
+            exit 1
+          fi
+          if ! openssl x509 -in "$PEM" -noout -checkend 2592000; then
+            echo "::warning::The Developer ID certificate expires within 30 days — rotate CSC_LINK soon."
+          fi
+          rm -f "$P12" "$PEM"
+          if [[ ! "$APPLE_API_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "::error::APPLE_API_KEY_ID doesn't look like a 10-character key id — is it swapped with APPLE_API_ISSUER?"
+            exit 1
+          fi
+          if [[ ! "$APPLE_API_ISSUER" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::error::APPLE_API_ISSUER doesn't look like a UUID — is it swapped with APPLE_API_KEY_ID?"
+            exit 1
+          fi
+          KEY="$RUNNER_TEMP/preflight_key.p8"
+          printf '%s' "$APPLE_API_KEY_P8" > "$KEY"
+          if ! xcrun notarytool history --key "$KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --output-format json > /dev/null; then
+            echo "::error::notarytool rejected the App Store Connect API key. It must be a TEAM key with the Developer role."
+            exit 1
+          fi
+          rm -f "$KEY"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix desktop
+
+      # The pipeline owns the version: stamp it into package.json before the
+      # build so the produced app carries the release version.
+      - name: Set version
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: npm --prefix desktop version "$VERSION" --no-git-tag-version --allow-same-version
+
+      # notarytool needs the App Store Connect API key (a .p8 secret) as a file.
+      - name: Write App Store Connect API key
+        if: needs.prepare.outputs.dry_run == 'false'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/apple_api_key.p8"
+
+      # forceCodeSigning turns electron-builder's silent skip-signing paths into
+      # hard failures. --publish never: we STAGE, we don't upload. One retry,
+      # but never on a deterministic notarization "Invalid" verdict.
+      - name: Build, sign, and notarize
+        if: needs.prepare.outputs.dry_run == 'false'
+        timeout-minutes: 60
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ runner.temp }}/apple_api_key.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          SYRUS_RELEASE_BUILD: "1"
+        run: |
+          set -o pipefail
+          build() {
+            npm --prefix desktop run build -- --publish never -c.forceCodeSigning=true 2>&1 | tee "$RUNNER_TEMP/build.log"
+          }
+          if build; then exit 0; fi
+          if grep -q '"status":"Invalid"\|status: Invalid' "$RUNNER_TEMP/build.log"; then
+            echo "::error::Notarization verdict was Invalid — deterministic, not retrying. See the developer log artifact."
+            exit 1
+          fi
+          echo "::warning::Build/notarization failed with a non-deterministic error — retrying once in 90s."
+          sleep 90
+          build
+
+      - name: Build unsigned (dry run)
+        if: needs.prepare.outputs.dry_run == 'true'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm --prefix desktop run build -- --publish never
+
+      - name: Fetch notarytool developer log
+        if: failure() && needs.prepare.outputs.dry_run == 'false'
+        env:
+          APPLE_API_KEY: ${{ runner.temp }}/apple_api_key.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          ID=$(grep -oE '"id"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' "$RUNNER_TEMP/build.log" | tail -1 | grep -oE '[0-9a-f-]{36}') || true
+          if [[ -n "${ID:-}" ]]; then
+            xcrun notarytool log "$ID" --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" "$RUNNER_TEMP/notary_developer_log.json" || true
+          fi
+          cp "$RUNNER_TEMP/build.log" . 2>/dev/null || true
+          cp "$RUNNER_TEMP/notary_developer_log.json" . 2>/dev/null || true
+
+      - name: Upload failure diagnostics
+        if: failure() && needs.prepare.outputs.dry_run == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-release-diagnostics
+          path: |
+            build.log
+            notary_developer_log.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # stapler runs against the .app — the DMG container carries no ticket of
+      # its own (Error 65 there is expected, not a failure).
+      - name: Verify signature, notarization, and update feed
+        if: needs.prepare.outputs.dry_run == 'false'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          for APP in desktop/out/mac-arm64/Syrus.app desktop/out/mac/Syrus.app; do
+            codesign --verify --deep --strict "$APP"
+            codesign -dv --verbose=2 "$APP" 2>&1 | grep "Developer ID Application"
+            spctl -a -t exec -vv "$APP" 2>&1 | grep "Notarized Developer ID"
+            xcrun stapler validate "$APP"
+          done
+          test -f desktop/out/latest-mac.yml
+          grep -q "Syrus-$VERSION-arm64.zip" desktop/out/latest-mac.yml
+          test -f "desktop/out/Syrus-$VERSION-arm64.zip"
+          test -f "desktop/out/Syrus-$VERSION-x64.zip"
+
+      # Collect everything the release needs, plus stable-named aliases for the
+      # website permalinks (Syrus.dmg = Apple Silicon, Syrus-Intel.dmg = Intel).
+      - name: Stage macOS artifacts
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/staged"
+          cp desktop/out/Syrus-*.dmg desktop/out/Syrus-*.zip "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          cp desktop/out/*.blockmap "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          cp desktop/out/latest-mac.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          if [ "${{ needs.prepare.outputs.dry_run }}" = "false" ]; then
+            cp "desktop/out/Syrus-$VERSION-arm64.dmg" "$RUNNER_TEMP/staged/Syrus.dmg"
+            cp "desktop/out/Syrus-$VERSION-x64.dmg" "$RUNNER_TEMP/staged/Syrus-Intel.dmg"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staged-mac
+          path: ${{ runner.temp }}/staged/
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Windows: Azure Trusted Signing, then STAGE. Runs in parallel with macOS —
+  # neither creates the release now, so the old create-release 422 race is gone.
+  # ---------------------------------------------------------------------------
+  build-windows:
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: Azure signing configuration present"
+        if: needs.prepare.outputs.dry_run == 'false'
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT || vars.AZURE_SIGN_ENDPOINT }}
+          AZURE_SIGN_ACCOUNT_NAME: ${{ secrets.AZURE_SIGN_ACCOUNT_NAME || vars.AZURE_SIGN_ACCOUNT_NAME }}
+          AZURE_SIGN_CERT_PROFILE: ${{ secrets.AZURE_SIGN_CERT_PROFILE || vars.AZURE_SIGN_CERT_PROFILE }}
+          AZURE_SIGN_PUBLISHER_NAME: ${{ secrets.AZURE_SIGN_PUBLISHER_NAME || vars.AZURE_SIGN_PUBLISHER_NAME }}
+        run: |
+          missing=()
+          for var in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SIGN_ENDPOINT AZURE_SIGN_ACCOUNT_NAME AZURE_SIGN_CERT_PROFILE AZURE_SIGN_PUBLISHER_NAME; do
+            if [ -z "${!var}" ]; then missing+=("$var"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Azure signing configuration missing: ${missing[*]} — see docs/windows-signing.md. Refusing to publish an unsigned Windows release."
+            exit 1
+          fi
+
+      # A 401 here is a credential problem; a 403 later at sign time is a
+      # role/profile problem (different fixes — see the runbook).
+      - name: "Preflight: Azure credentials"
+        if: needs.prepare.outputs.dry_run == 'false'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          $body = @{
+            grant_type    = "client_credentials"
+            client_id     = $env:AZURE_CLIENT_ID
+            client_secret = $env:AZURE_CLIENT_SECRET
+            scope         = "https://codesigning.azure.net/.default"
+          }
+          try {
+            $null = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$($env:AZURE_TENANT_ID)/oauth2/v2.0/token" -Body $body
+            Write-Host "Azure token acquisition OK"
+          } catch {
+            Write-Host "::error::Azure credential preflight failed: $($_.Exception.Message). Check AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET (single-tenant app registration; secrets expire)."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix desktop
+
+      - name: Set version
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: npm --prefix desktop version "$VERSION" --no-git-tag-version --allow-same-version
+
+      # electron-builder installs the TrustedSigning module on first use; do it
+      # once here (with retries) to dodge transient gallery failures.
+      - name: "Preflight: TrustedSigning module"
+        if: needs.prepare.outputs.dry_run == 'false'
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          $attempts = 0
+          while ($true) {
+            try {
+              Install-Module -Name TrustedSigning -Force -Scope CurrentUser -ErrorAction Stop
+              break
+            } catch {
+              $attempts += 1
+              if ($attempts -ge 3) { Write-Host "::error::Could not install the TrustedSigning module: $($_.Exception.Message)"; exit 1 }
+              Start-Sleep -Seconds 20
+            }
+          }
+
+      # win.azureSignOptions is intentionally NOT in the checked-in
+      # electron-builder.yml (its mere presence forces signing on every unsigned
+      # dev cross-build). Inject it here, only in a job that has the credentials.
+      - name: Build and sign
+        if: needs.prepare.outputs.dry_run == 'false'
+        timeout-minutes: 45
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT || vars.AZURE_SIGN_ENDPOINT }}
+          AZURE_SIGN_ACCOUNT_NAME: ${{ secrets.AZURE_SIGN_ACCOUNT_NAME || vars.AZURE_SIGN_ACCOUNT_NAME }}
+          AZURE_SIGN_CERT_PROFILE: ${{ secrets.AZURE_SIGN_CERT_PROFILE || vars.AZURE_SIGN_CERT_PROFILE }}
+          AZURE_SIGN_PUBLISHER_NAME: ${{ secrets.AZURE_SIGN_PUBLISHER_NAME || vars.AZURE_SIGN_PUBLISHER_NAME }}
+          SYRUS_RELEASE_BUILD: "1"
+        run: |
+          AZURE_SIGN_ENDPOINT="${AZURE_SIGN_ENDPOINT%/}"
+          npm --prefix desktop run build -- --win --publish never \
+            -c.forceCodeSigning=true \
+            "-c.win.azureSignOptions.publisherName=${AZURE_SIGN_PUBLISHER_NAME}" \
+            "-c.win.azureSignOptions.endpoint=${AZURE_SIGN_ENDPOINT}" \
+            "-c.win.azureSignOptions.certificateProfileName=${AZURE_SIGN_CERT_PROFILE}" \
+            "-c.win.azureSignOptions.codeSigningAccountName=${AZURE_SIGN_ACCOUNT_NAME}"
+
+      - name: Build unsigned (dry run)
+        if: needs.prepare.outputs.dry_run == 'true'
+        run: npm --prefix desktop run build -- --win --publish never
+
+      - name: Verify signatures and update feed
+        if: needs.prepare.outputs.dry_run == 'false'
+        shell: pwsh
+        run: |
+          $exes = Get-ChildItem -Path desktop/out -Filter "Syrus-Setup-*.exe"
+          if ($exes.Count -eq 0) { throw "No Syrus-Setup-*.exe artifacts found under desktop/out" }
+          foreach ($exe in $exes) {
+            $sig = Get-AuthenticodeSignature -FilePath $exe.FullName
+            Write-Host "$($exe.Name): $($sig.Status) ($($sig.SignerCertificate.Subject))"
+            if ($sig.Status -ne "Valid") { throw "$($exe.Name) is not validly signed (status: $($sig.Status))" }
+          }
+          if (-not (Test-Path "desktop/out/latest.yml")) { throw "latest.yml missing - Windows auto-update feed would be broken" }
+
+      - name: Stage Windows artifacts
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/staged"
+          cp desktop/out/Syrus-Setup-*.exe "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          cp desktop/out/*.blockmap "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          cp desktop/out/latest.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          if [ "${{ needs.prepare.outputs.dry_run }}" = "false" ]; then
+            cp "desktop/out/Syrus-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/Syrus-Setup.exe"
+            cp "desktop/out/Syrus-Setup-$VERSION-arm64.exe" "$RUNNER_TEMP/staged/Syrus-Setup-arm64.exe"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staged-windows
+          path: ${{ runner.temp }}/staged/
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # The single atomic commit point. Only reached when EVERY build succeeded.
+  # Creates the tag + release with generated notes, uploads every staged
+  # artifact, moves the image `:latest` pointer, and bumps package.json on main.
+  # Skipped entirely on a dry run.
+  # ---------------------------------------------------------------------------
+  publish:
+    needs: [prepare, build-image, build-cli, build-mac, build-windows]
+    if: needs.prepare.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download staged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: staged
+          pattern: staged-*
+          merge-multiple: true
+
+      # Order matters for atomicity: the LAST irreversible action is the one
+      # most likely to succeed (the GitHub release). Everything riskier — the
+      # image :latest move and the main-branch push — happens first, so a
+      # failure there aborts BEFORE any release exists.
+
+      # 1. Move :latest to the versioned image the build jobs already pushed +
+      #    tested. Same token as build-image (GITHUB_TOKEN can't always write a
+      #    user-owned package). imagetools copies the manifest — no rebuild. If
+      #    this fails, no release is created.
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Move image :latest to the released version
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/tkadauke/syrus-local"
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
+
+      # 2. Bump desktop/package.json on main so the tag points at a commit whose
+      #    version matches the shipped apps, and dev builds / the next release
+      #    start from the right base. If branch protection blocks the push, the
+      #    release still happens off the pre-bump commit (non-fatal); the next
+      #    release recomputes from the tag.
+      - name: Commit the version bump to main
+        id: bump
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          target="$GITHUB_SHA"
+          npm --prefix desktop version "$VERSION" --no-git-tag-version --allow-same-version
+          if git diff --quiet -- desktop/package.json desktop/package-lock.json; then
+            echo "package.json already at $VERSION — nothing to commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add desktop/package.json desktop/package-lock.json
+            git commit -m "Release $TAG"
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              target="$(git rev-parse HEAD)"
+            else
+              echo "::warning::Could not push the version bump to ${GITHUB_REF_NAME} (branch protection?). Tagging the pre-bump commit; bump desktop/package.json manually."
+              git reset --hard "$GITHUB_SHA"
+            fi
+          fi
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+
+      # 3. The atomic moment: tag (at the bump commit when it landed) + release +
+      #    generated notes + every staged asset, in one call. LAST.
+      - name: Create the GitHub release
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          TARGET: ${{ steps.bump.outputs.target }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=(release create "$TAG" --title "Syrus $TAG" --generate-notes --target "$TARGET")
+          if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi
+          # Upload every staged file as a release asset (download-artifact
+          # merge-multiple flattens them, but stay depth-agnostic to be safe).
+          mapfile -t assets < <(find staged -type f | sort)
+          if [ "${#assets[@]}" -eq 0 ]; then echo "::error::no staged artifacts to publish"; exit 1; fi
+          gh release create "${args[@]}" "${assets[@]}"
+
+  # ---------------------------------------------------------------------------
+  # STUB. The public website is markdown under website/src/ with no in-repo
+  # build/deploy yet. When one exists, this job should rebuild the site and
+  # deploy it so its download links resolve to the just-published release.
+  # Wired in now so the release pipeline already has the seam.
+  # ---------------------------------------------------------------------------
+  publish-website:
+    needs: [prepare, publish]
+    if: needs.prepare.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: (stub) Rebuild and deploy the website
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          echo "TODO: rebuild the website from website/src/ and deploy it for $TAG."
+          echo
+          echo "The site is currently static markdown with no in-repo build or"
+          echo "deploy target. Download links already use the stable"
+          echo "releases/latest/download/ permalinks (Syrus.dmg, Syrus-Intel.dmg,"
+          echo "Syrus-Setup.exe), which this release refreshed — so no rebuild is"
+          echo "strictly required today. When the site gains a build+host target"
+          echo "(e.g. Astro + Pages/Netlify), replace this stub with: build the"
+          echo "site, inject \$TAG / download URLs, and deploy."
+          echo "::notice::Website publish is a stub — see .github/workflows/release.yml."

@@ -3,7 +3,7 @@
 Background and the decision rationale live in
 [`windows-desktop-plan.md`](./windows-desktop-plan.md#code-signing-researched-july-2026).
 This doc is the concrete setup runbook: portal steps once, then the repo
-secrets that make `release-desktop.yml`'s `release-windows` job (and the
+secrets that make `release.yml`'s `build-windows` job (and the
 `sign-windows-test.yml` manual-dispatch harness) sign real installers.
 
 Azure Artifact Signing (formerly "Trusted Signing") is Microsoft's
@@ -109,7 +109,7 @@ rejected for identity validation.
 
 Add these under the repo's **Settings → Secrets and variables → Actions →
 Secrets** (on whichever repo runs the workflow — currently `tkadauke/syrus`
-for `release-desktop.yml`; use your fork for `sign-windows-test.yml` if
+for `release.yml`; use your fork for `sign-windows-test.yml` if
 you're testing there first):
 
 | Secret | Value | Sensitive? |
@@ -185,7 +185,7 @@ no-op on Darwin/Linux so it can't produce a false sense of "signed" here.
 
 ## 9. Going live (done — July 2026)
 
-`release-desktop.yml` now carries a `release-windows` job: on every
+`release.yml` now carries a `build-windows` job: on every
 `vX.Y.Z` tag it builds, Azure-signs, and publishes the Windows NSIS
 installers alongside the mac DMGs (sequenced after the mac job so both
 publish into one GitHub release). The Azure configuration from §6 is

@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Build and publish Syrus release artifacts from this checkout.
+# Build (and optionally publish) Syrus release artifacts from this checkout.
+#
+# NOTE: the canonical release path is the CI pipeline — Actions -> "Release"
+# (.github/workflows/release.yml), which signs, notarizes, and publishes
+# everything atomically. See docs/releasing.md. This script is kept for LOCAL
+# artifact builds and verification (especially `--no-upload`); the CLI tarball
+# release also still runs through here. Prefer the workflow for real releases.
 #
 # Usage:
 #   bin/release [VERSION] [--next-patch|--next-minor] [--cli] [--desktop] [--image] [--all]

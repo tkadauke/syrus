@@ -2,8 +2,8 @@
 
 Status: phases 1–2 (foundation, local install) shipped on
 `desktop-app/13-windows`; phase 3 (parity polish) planned; phase 4
-partially in place — the `release-windows` publishing job and Azure
-Trusted Signing wiring exist (`release-desktop.yml`,
+partially in place — the `build-windows` job and Azure
+Trusted Signing wiring exist (`release.yml`,
 `sign-windows-test.yml`), pending SmartScreen reputation and website
 download buttons. Owner-facing summary of every deliberate decision, so
 later phases don't re-litigate them.
@@ -145,8 +145,8 @@ eSigner. Both still ride the slower OV-style reputation ramp.
 **Setup runbook and exact repo secrets: [`windows-signing.md`](./windows-signing.md).**
 `.github/workflows/sign-windows-test.yml` is the manual-dispatch proving
 ground for the Azure chain — it validates certificate profile, identity,
-and signing without cutting a release. The live `release-windows` job in
-`release-desktop.yml` depends on the same configuration and refuses to
+and signing without cutting a release. The live `build-windows` job in
+`release.yml` depends on the same configuration and refuses to
 publish unsigned artifacts.
 
 ### Field notes: the "Missing Shortcut" failure (July 2026 UTM test)
@@ -217,8 +217,8 @@ staged in `$PLUGINSDIR\7z-out` under TEMP before being copied.
    popover placement (bottom taskbars open upward), full-color tray icon
    with a bitmap-drawn unread dot (nativeImage can't rasterize SVG), and
    instance-takeover on win32.
-   The `release-windows` publishing job also exists now
-   (release-desktop.yml; hard-requires the Azure signing config — it
+   The `build-windows` job also exists now
+   (release.yml; hard-requires the Azure signing config — it
    never publishes unsigned artifacts).
    Still open from this phase: `podman machine start`/`podman compose`
    support (Docker Desktop-only for now — exit 12/10 copy says so).
@@ -226,8 +226,8 @@ staged in `$PLUGINSDIR\7z-out` under TEMP before being copied.
    item (`setLoginItemSettings`), first-run "pin the tray icon" hint,
    per-monitor DPI QA on a real multi-monitor machine.
 4. **Signing + GA.** Authenticode signing in CI (runbook:
-   docs/windows-signing.md), SmartScreen reputation, `release-windows`
-   job with stable aliases, website download buttons out of beta.
+   docs/windows-signing.md), SmartScreen reputation, the `build-windows`
+   release job with stable aliases, website download buttons out of beta.
 
 ## Testing without nested virtualization (Windows 11 on UTM)
 

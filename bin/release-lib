@@ -34,7 +34,7 @@ syrus_release_latest_stable_version() {
 }
 
 syrus_release_next_version() {
-  local bump="${1:?usage: syrus_release_next_version patch|minor}"
+  local bump="${1:?usage: syrus_release_next_version patch|minor|major}"
   local latest major minor patch
 
   latest="$(syrus_release_latest_stable_version)"
@@ -46,6 +46,11 @@ syrus_release_next_version() {
       ;;
     minor)
       minor=$((minor + 1))
+      patch=0
+      ;;
+    major)
+      major=$((major + 1))
+      minor=0
       patch=0
       ;;
     *)

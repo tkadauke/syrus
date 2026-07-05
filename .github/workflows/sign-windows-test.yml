@@ -1,9 +1,9 @@
-# Validates Azure Artifact Signing end-to-end on a real Windows runner
-# without touching the live release pipeline. Windows isn't part of a real
-# `vX.Y.Z` release yet (no local installer, no website download link — see
-# docs/windows-desktop-plan.md); this workflow exists purely so the signing
-# setup (docs/windows-signing.md) can be proven working before it's merged
-# into release-desktop.yml.
+# Proves Azure Artifact Signing end-to-end on a real Windows runner WITHOUT
+# cutting a release. The real release pipeline (release.yml, build-windows job)
+# signs and ships Windows the same way; this manual harness lets you validate
+# the Azure setup (docs/windows-signing.md) — a new certificate profile, a
+# rotated client secret, a fresh service principal — before a release depends
+# on it. Keep the signing invocation here in sync with release.yml.
 name: Sign Windows build (test)
 
 on:

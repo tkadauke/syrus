@@ -1,7 +1,7 @@
 # Packaging for the Syrus desktop app. Signing + notarization activate when
 # the Apple credentials are present in the environment (CSC_LINK,
 # CSC_KEY_PASSWORD, APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER —
-# see .github/workflows/release-desktop.yml); local builds without them
+# see .github/workflows/release.yml); local builds without them
 # produce unsigned artifacts for development only. Never ship an unsigned
 # release build: Gatekeeper blocks it and auto-update refuses to install it.
 appId: app.syrus.desktop

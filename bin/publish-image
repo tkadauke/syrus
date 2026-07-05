@@ -10,12 +10,17 @@
 # pushes ONLY if those pass — nothing reaches GHCR from a broken image.
 #
 # Usage:
-#   bin/publish-image [VERSION] [--multi-arch] [--skip-tests]
+#   bin/publish-image [VERSION] [--multi-arch] [--skip-tests] [--skip-latest] [--no-push]
 #     VERSION       extra tag to push alongside :latest (e.g. 0.2.0)
 #     --multi-arch  build + push linux/amd64 AND linux/arm64 (slower, under QEMU;
 #                   needed only for Intel/Linux recipients). Default: this host's
 #                   architecture only (arm64 on Apple Silicon).
 #     --skip-tests  push without running the integration gate (not recommended)
+#     --skip-latest push ONLY :VERSION, never move :latest (requires VERSION).
+#                   The atomic release pipeline uses this so :latest moves only
+#                   after every app has built and signed. (release.yml)
+#     --no-push     build the image and run the integration gate, then STOP —
+#                   nothing is pushed. For dry-run pipeline rehearsals.
 #
 # Reads the GHCR token from $GHCR_TOKEN or ~/.config/syrus/ghcr-token (chmod 600),
 # the same place bin/deploy looks. Needs write:packages.
@@ -35,23 +40,38 @@ GHCR_USER="${GHCR_USER:-tkadauke}"
 VERSION=""
 MULTI=0
 SKIP_TESTS=0
+SKIP_LATEST=0
+NO_PUSH=0
 
 for arg in "$@"; do
   case "$arg" in
     --multi-arch) MULTI=1 ;;
     --skip-tests) SKIP_TESTS=1 ;;
+    --skip-latest) SKIP_LATEST=1 ;;
+    --no-push) NO_PUSH=1 ;;
     --help|-h) awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"; exit 0 ;;
     -*) echo "Unknown flag: $arg (try --help)" >&2; exit 2 ;;
     *)  VERSION="$arg" ;;
   esac
 done
 
+if [ "$SKIP_LATEST" = 1 ] && [ -z "$VERSION" ]; then
+  echo "--skip-latest requires a VERSION (there would be no tag to push)." >&2
+  exit 2
+fi
+
 syrus_require_docker_daemon
 syrus_disable_buildx_attestations
-TOKEN="$(syrus_read_ghcr_token "$HOME/.config/syrus/ghcr-token")"
+# --no-push never contacts the registry, so it needs no token (dry runs on a
+# machine without GHCR creds still work).
+TOKEN=""
+if [ "$NO_PUSH" = 0 ]; then
+  TOKEN="$(syrus_read_ghcr_token "$HOME/.config/syrus/ghcr-token")"
+fi
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
 
-tags=(-t "$IMAGE:latest")
+tags=()
+if [ "$SKIP_LATEST" = 0 ]; then tags+=(-t "$IMAGE:latest"); fi
 if [ -n "$VERSION" ]; then tags+=(-t "$IMAGE:$VERSION"); fi
 cache_args=()
 if syrus_registry_cache_enabled; then
@@ -60,15 +80,25 @@ if syrus_registry_cache_enabled; then
 fi
 
 echo "== Tags =="
-echo "   $IMAGE:latest"
+if [ "$SKIP_LATEST" = 0 ]; then echo "   $IMAGE:latest"; fi
 if [ -n "$VERSION" ]; then echo "   $IMAGE:$VERSION"; fi
 echo "   (GIT_SHA=$GIT_SHA)"
 if [ "${#cache_args[@]}" -gt 0 ]; then
   echo "   build cache: $CACHE_REF"
 fi
 
-echo "== Logging in to ghcr.io as $GHCR_USER =="
-syrus_ghcr_login "$GHCR_USER" "$TOKEN"
+# The tag the local build lands under and the integration suite runs against.
+# Under --skip-latest there is no :latest tag, so use :VERSION.
+if [ "$SKIP_LATEST" = 0 ]; then
+  TEST_TAG="$IMAGE:latest"
+else
+  TEST_TAG="$IMAGE:$VERSION"
+fi
+
+if [ "$NO_PUSH" = 0 ]; then
+  echo "== Logging in to ghcr.io as $GHCR_USER =="
+  syrus_ghcr_login "$GHCR_USER" "$TOKEN"
+fi
 
 # Always build a local single-arch image first — this is what the integration
 # suite runs against, and what the default path pushes. Nothing leaves this host
@@ -92,7 +122,13 @@ if [ "$SKIP_TESTS" = 1 ]; then
   echo "== Skipping integration tests (--skip-tests) =="
 else
   echo "== Running integration tests against the built image =="
-  SYRUS_IMAGE="$IMAGE:latest" ./bin/test-docker
+  SYRUS_IMAGE="$TEST_TAG" ./bin/test-docker
+fi
+
+if [ "$NO_PUSH" = 1 ]; then
+  echo
+  echo "== --no-push: image built and tested, nothing pushed =="
+  exit 0
 fi
 
 # Tests passed — push.
@@ -109,15 +145,15 @@ if [ "$MULTI" = 1 ]; then
     .
 else
   echo "== Pushing the tested image =="
-  docker push "$IMAGE:latest"
+  if [ "$SKIP_LATEST" = 0 ]; then docker push "$IMAGE:latest"; fi
   if [ -n "$VERSION" ]; then docker push "$IMAGE:$VERSION"; fi
 fi
 
-syrus_verify_pushed "$IMAGE" "latest" "$TOKEN"
+if [ "$SKIP_LATEST" = 0 ]; then syrus_verify_pushed "$IMAGE" "latest" "$TOKEN"; fi
 if [ -n "$VERSION" ]; then syrus_verify_pushed "$IMAGE" "$VERSION" "$TOKEN"; fi
 
 echo
 echo "Published:"
-echo "   $IMAGE:latest"
+if [ "$SKIP_LATEST" = 0 ]; then echo "   $IMAGE:latest"; fi
 if [ -n "$VERSION" ]; then echo "   $IMAGE:$VERSION"; fi
-echo "Verify:  docker manifest inspect $IMAGE:latest >/dev/null && echo OK"
+echo "Verify:  docker manifest inspect $IMAGE:${VERSION:-latest} >/dev/null && echo OK"

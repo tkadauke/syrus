@@ -1,23 +1,34 @@
 # Desktop release troubleshooting
 
-`.github/workflows/release-desktop.yml` went red. This doc gets you from the
+`.github/workflows/release.yml` went red. This doc gets you from the
 red X to a cause in minutes: find your error string in the triage table,
 jump to the section, run the Check, apply the Fix. It covers the macOS
 signing/notarization path (`CSC_LINK` + notarytool) and the Windows Azure
-Artifact Signing path (live in `release-desktop.yml`'s `release-windows`
-job on every `v*` tag; `.github/workflows/sign-windows-test.yml` is the
-manual-dispatch harness for proving the Azure setup without cutting a
-release). Setup docs live in
+Artifact Signing path (both live in `release.yml` — `build-mac` and
+`build-windows` — which now run in **parallel**;
+`.github/workflows/sign-windows-test.yml` is the manual-dispatch harness
+for proving the Azure setup without cutting a release). Setup docs live in
 [`releasing.md`](./releasing.md) and [`windows-signing.md`](./windows-signing.md);
 this doc assumes setup was once working.
 
+The pipeline is **manually dispatched** (`workflow_dispatch`) — you pick a
+`bump` (patch/minor/major, default minor) or an explicit `version`, and an
+optional `dry_run`. There is no tag trigger; `prepare` computes the version
+from the higher of the latest tag and `desktop/package.json`, then guards
+that the tag/release don't already exist. The four build jobs (`build-image`,
+`build-cli`, `build-mac`, `build-windows`) each produce **staged** artifacts
+and push only a *versioned* backend image — never `:latest`. Only the final
+`publish` job creates the tag + GitHub Release, uploads every staged asset,
+moves the image `:latest` pointer, and commits the version bump to main. If
+any build fails, `publish` never runs — no release, no half-shipped state.
+
 Two orientation facts before you grep:
 
-- The mac job does almost everything in one step — **"Build, sign,
-  notarize, and publish"** runs electron-builder, which signs, notarizes,
-  staples, *and* uploads to the GitHub Release (`--publish always`). A
-  failure there can leave a partially-populated release behind (see
-  [6.2](#62-github-upload-failures)).
+- The mac job's heavy step is **"Build, sign, and notarize"** — it runs
+  electron-builder with `--publish never`, so it signs, notarizes, and
+  staples but does **not** upload anything. A separate **"Stage macOS
+  artifacts"** step copies the outputs; the `publish` job uploads them
+  later. A failure in `build-mac` therefore leaves the release untouched.
 - electron-builder's default failure mode for bad signing config is a
   **silent skip, not an error** — the build goes green and ships an
   unsigned app. The workflow's guard and verify steps exist to catch
@@ -29,8 +40,7 @@ Grep the failed run's log for the string in column one.
 
 | Grep for | Most likely cause | Go to |
 | --- | --- | --- |
-| `does not match the tag` | tagged before merging the version bump | [2](#2-guard-failures-the-deliberate-reds) |
-| `not found (or the package is private)` | backend image not on GHCR yet | [2](#2-guard-failures-the-deliberate-reds) |
+| `tag vX.Y.Z already exists` / `GitHub release vX.Y.Z already exists` | computed version collides with a prior release | [2](#2-guard-failures-the-deliberate-reds) |
 | `Signing secrets missing` | `CSC_LINK` / `APPLE_API_KEY_P8` repo secrets absent | [2](#2-guard-failures-the-deliberate-reds) |
 | `Env CSC_LINK is not correct, cannot resolve` | base64 mangled (newlines, lost padding) | [3.2](#32-mangled-csc_link-or-wrong-p12-password) |
 | `MAC verification failed during PKCS12 import` | wrong `CSC_KEY_PASSWORD` or corrupted p12 | [3.2](#32-mangled-csc_link-or-wrong-p12-password) |
@@ -42,7 +52,7 @@ Grep the failed run's log for the string in column one.
 | `The staple and validate action failed! Error 65` | stapling a mutated artifact, or CDN lag | [4.4](#44-stapler-failures) |
 | `skipped macOS application code signing` | silent skip — no usable identity | [6.1](#61-green-build-unsigned-artifact) |
 | `skipped macOS notarization` | silent skip — notarize creds absent | [6.1](#61-green-build-unsigned-artifact) |
-| `Missing secrets/variables:` | Azure secrets/vars not configured | [5](#5-windows-azure-artifact-signing) |
+| `Azure signing configuration missing:` (release) / `Missing secrets/variables:` (test harness) | Azure secrets/vars not configured | [5](#5-windows-azure-artifact-signing) |
 | `No match was found for the specified search criteria for the provider 'NuGet'` | PSGallery bootstrap flake | [5.1](#51-module-install-failures) |
 | `being used by another process` / `SignTool failed with exit code 3` | concurrent-signing race | [5.2](#52-the-concurrent-signing-race) |
 | `Status: 403 (Forbidden)` (codesigning.azure.net) | SP role / identity validation / name mismatch | [5.3](#53-403-forbidden) |
@@ -50,8 +60,9 @@ Grep the failed run's log for the string in column one.
 | `is not validly signed (status:` | our verify step caught a bad/unsigned exe | [5.4](#54-publishername-and-cn-mismatches), [5.6](#56-timestamping) |
 | Windows 403 after months of green, no config diff | identity validation expired (2-year clock) | [5.5](#55-identity-validation-expiry) |
 | `timestamp.acs.microsoft.com` errors | flaky ACS timestamp server | [5.6](#56-timestamping) |
-| `HttpError: 422` / `asset_already_exists` | re-run against a release that already has assets | [6.2](#62-github-upload-failures) |
-| `403` from `uploads.github.com` | `GITHUB_TOKEN` lost `contents: write` | [6.2](#62-github-upload-failures) |
+| `no staged artifacts to publish` | a build job produced no assets to upload | [6.2](#62-publish-job-failures) |
+| `imagetools create` failure moving `:latest` | GHCR packages-write permission / auth | [6.2](#62-publish-job-failures) |
+| `Could not push the version bump` | branch protection blocked the bump (non-fatal) | [6.2](#62-publish-job-failures) |
 | `Cannot find latest-mac.yml` (client logs) | broken/partial update feed | [6.3](#63-update-feed-integrity) |
 
 Nothing matched? Decide which of the three buckets you're in via
@@ -60,23 +71,33 @@ environment, or external service.
 
 ## 2. Guard failures (the deliberate reds)
 
-The first three tag-build steps fail fast with explicit `::error` messages.
-These are the workflow working as designed, not bugs:
+Several early steps fail fast with explicit `::error` messages. These are
+the workflow working as designed, not bugs:
 
-1. **`desktop/package.json version (X) does not match the tag (Y)`** —
-   you tagged before the version-bump PR merged. Fix: merge the bump,
-   delete the tag (`git push origin :refs/tags/vX.Y.Z`), re-tag the right
-   commit, push again.
-2. **`ghcr.io/tkadauke/syrus-local:X.Y.Z not found (or the package is
-   private)`** — release ordering violated. Run
-   `bin/publish-image X.Y.Z --multi-arch` first (it gates on
-   `bin/test-docker`), confirm the package is public, then re-run the
-   workflow — no re-tag needed.
-3. **`Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8)`** — the
-   secrets were removed or the run happened in a context that can't see
-   them. Restore them (see the [setup checklist](./releasing.md#one-time-setup-checklist))
-   and re-run. The workflow refuses to publish unsigned on purpose —
-   Squirrel.Mac would strand the installed base.
+1. **`tag vX.Y.Z already exists`** / **`GitHub release vX.Y.Z already
+   exists`** (`prepare` job, "Guard: tag and release are not already
+   taken") — the version `prepare` computed (from the higher of the latest
+   tag and `desktop/package.json`, plus your `bump`) collides with a
+   release that already shipped. This is not a re-tag problem — nothing is
+   tagged until `publish`. Fix: re-dispatch with a different `bump`, or
+   pass an explicit `version` override that isn't taken. (The guard is
+   skipped on a dry run.)
+2. **`Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8)`** (`build-mac`,
+   "Guard: signing secrets present") — the secrets were removed or the run
+   happened in a context that can't see them. Restore them (see the
+   [setup checklist](./releasing.md#one-time-setup-checklist)) and re-run.
+   The workflow refuses to publish unsigned on purpose — Squirrel.Mac would
+   strand the installed base. (Skipped on a dry run.)
+3. **`Azure signing configuration missing: <names>`** (`build-windows`,
+   "Guard: Azure signing configuration present") — one or more of the four
+   `AZURE_SIGN_*` identifiers or the three client credentials are absent.
+   See [5](#5-windows-azure-artifact-signing). (Skipped on a dry run.)
+
+The backend image is built, integration-tested, and pushed **inside CI** by
+the `build-image` job (`bin/publish-image $VERSION --multi-arch
+--skip-latest`) — there is no longer any "publish the image by hand before
+tagging" step, and no "image not found on GHCR" guard. If `build-image`
+fails, read its `bin/publish-image` / `bin/test-docker` output directly.
 
 ## 3. macOS signing
 
@@ -222,28 +243,30 @@ These are the workflow working as designed, not bugs:
 ### 4.4 Stapler failures
 
 - **Symptom (grep):** `The staple and validate action failed! Error 65` —
-  either during the build or in our **"Verify signature and stapled
-  notarization"** step (`xcrun stapler validate` on each DMG).
+  either during the build or in our **"Verify signature, notarization, and
+  update feed"** step (`xcrun stapler validate` on each `.app`). The staple
+  runs against the `.app`, not the DMG container — Error 65 on a DMG is
+  expected, not a failure.
 - **Cause:** no ticket exists for that artifact's cdhash: notarization
   never completed / ended Invalid, the artifact was modified after
   notarization (cdhash changed), or the ticket hasn't propagated to
   Apple's CDN yet
   ([Apple forums](https://developer.apple.com/forums/thread/115670)).
 - **Check:** `notarytool history` — was the submission `Accepted`? Compare
-  the DMG's cdhash (`codesign -dvv`) against the cdhash list in the
+  the `.app`'s cdhash (`codesign -dvv`) against the cdhash list in the
   notary log.
 - **Fix:** for CDN lag, retry `stapler validate` after 30–60 s. Otherwise
-  fix the upstream notarization and re-run. **Heads-up:** this verify step
-  runs *after* `--publish always`, so a red here means versioned assets
-  are already on the public release — clean them up before re-running
-  (see [6.2](#62-github-upload-failures)) so the retry doesn't 422.
+  fix the upstream notarization and re-run. Because `build-mac` uses
+  `--publish never` and only STAGES its outputs, a red here uploads
+  nothing — the GitHub Release stays untouched, so a re-run has no stale
+  assets to collide with.
 
 ## 5. Windows (Azure Artifact Signing)
 
-Windows signing runs live in `release-desktop.yml`'s `release-windows`
-job on every `v*` tag; its guard fails the run when any of the four
-`AZURE_SIGN_*` identifiers (or the client credentials) are absent — add
-the listed ones per the
+Windows signing runs live in `release.yml`'s `build-windows`
+job on every manual dispatch (in parallel with `build-mac`); its guard
+fails the run when any of the four `AZURE_SIGN_*` identifiers (or the
+client credentials) are absent — add the listed ones per the
 [secrets table](./windows-signing.md#6-repo-secrets).
 `sign-windows-test.yml` exercises the same chain by manual dispatch
 without cutting a release (the workflow file must be on the default
@@ -395,8 +418,8 @@ its mere presence would force signing on every unsigned dev build.
   env — which disables signing *even when `CSC_LINK` is set*
   ([#7515](https://github.com/electron-userland/electron-builder/issues/7515)).
   In our workflow that variable is intentionally set **only** on the
-  "Build unsigned (dry run)" step (`workflow_dispatch` path); if it ever
-  migrates to job-level env, tag builds silently unsign.
+  "Build unsigned (dry run)" step (the `dry_run == 'true'` path); if it ever
+  migrates to job-level env, real (non-dry) releases silently unsign.
 - **Check:** grep every release log for `skipped` — cheap and decisive.
   The workflow's defenses are the "Guard: signing secrets present" step
   (catches *absent* secrets, not invalid ones) and the post-build verify
@@ -409,25 +432,47 @@ its mere presence would force signing on every unsigned dev build.
   unsigned local dev builds. If adding it, inject via CLI override in the
   release workflow only.
 
-### 6.2 GitHub upload failures
+### 6.2 Publish-job failures
 
-- **Symptom (grep):** `HttpError: 422` with `asset_already_exists`, or a
-  `403` against `uploads.github.com` during publish.
-- **Cause:** **422** — a re-run against a tag whose release already
-  carries assets from a prior (possibly half-finished) run; GitHub
-  refuses duplicate asset names
-  ([#3559](https://github.com/electron-userland/electron-builder/issues/3559)).
-  This is the natural aftermath of any failure *after* the publish step
-  started (e.g. a verify failure — [4.4](#44-stapler-failures)). **403** —
-  the token lost `contents: write` (the workflow sets it at top level;
-  suspect an org-policy change or a run from a context without secrets).
-- **Check:** `gh release view vX.Y.Z` — list what's already attached and
-  from which run.
-- **Fix:** for 422, delete the stale assets
-  (`gh release delete-asset vX.Y.Z <name>`) or the whole release (keep
-  the tag) and re-run. The "Upload stable-named DMG aliases" step already
-  uses `--clobber`, so only electron-builder's own uploads collide. For
-  403, restore the `permissions: contents: write` grant.
+The `publish` job is the single atomic commit point — it runs only after
+every build job succeeded, and it does three things in sequence: create the
+release with all staged assets, move the image `:latest` pointer, and commit
+the version bump to main. Each has its own failure signature.
+
+- **`no staged artifacts to publish`** ("Create the GitHub release" step) —
+  `publish` downloads the `staged-*` upload-artifacts, `find`s every file,
+  and aborts if the set is empty. This means a build job went green but
+  produced nothing to stage (its `upload-artifact` steps use
+  `if-no-files-found: error`, so an empty stage normally reds the build job
+  first — reaching this error implies the artifacts expired or the download
+  matched nothing). **Check:** open each build job's "Stage …" step and its
+  `upload-artifact` step; confirm `staged-cli` / `staged-mac` /
+  `staged-windows` exist under the run's artifacts and haven't passed their
+  7-day retention. **Fix:** re-dispatch the whole pipeline — the builds are
+  cheap relative to a broken release, and nothing was published.
+
+- **`imagetools create` fails moving `:latest`** ("Move image :latest to the
+  released version" step) — `docker buildx imagetools create -t
+  ghcr.io/tkadauke/syrus-local:latest ...:$VERSION` copies the already-pushed
+  multi-arch manifest onto `:latest`. A failure here is auth/permissions on
+  GHCR, not a build problem: the versioned image already exists (build-image
+  pushed it). **Note the GitHub Release is already live at this point** — the
+  create-release step ran first. **Check:** the "Log in to GHCR" step
+  succeeded (it uses `github.actor` + `GITHUB_TOKEN`); the top-level
+  `permissions:` still grants `packages: write`; the `syrus-local` package
+  isn't locked to a different owner. **Fix:** restore the packages-write
+  grant / GHCR permission and re-run just this move by hand:
+  `docker buildx imagetools create -t ghcr.io/tkadauke/syrus-local:latest
+  ghcr.io/tkadauke/syrus-local:X.Y.Z`. The release does not need re-cutting.
+
+- **`Could not push the version bump to <branch>`** ("Commit the version bump
+  to main" step) — this is a **`::warning`, not a failure**: the step catches
+  a rejected push (branch protection on `main`) and continues green. The
+  release is already published and the tag carries the version forward; only
+  `desktop/package.json` on `main` is stale. **Fix:** bump
+  `desktop/package.json`/`package-lock.json` to `X.Y.Z` in a normal PR (or
+  let the next release self-correct — `prepare` bases the next version on the
+  higher of the latest tag and package.json, so the tag already floors it).
 
 ### 6.3 Update feed integrity
 
@@ -446,14 +491,18 @@ its mere presence would force signing on every unsigned dev build.
   the comment in `desktop/electron-builder.yml` saying zip is REQUIRED
   is not decorative.
 - **Check:** `gh release view vX.Y.Z` and confirm the full set: both DMGs,
-  both zips, `latest-mac.yml`, every `*.blockmap`. The stable-named
-  `Syrus.dmg` / `Syrus-Intel.dmg` aliases are *outside* the feed
-  (website permalinks only) — clobbering those is always safe.
-- **Fix:** re-run the failed job to re-attach missing assets. Never
-  hand-edit, rename, or re-upload a published asset — every client hash
-  check fails against a modified file. If the ymls and binaries have
-  diverged beyond repair, ship a patch release; that's cheaper than
-  un-breaking a poisoned feed.
+  both zips, `latest-mac.yml` (mac feed), `Syrus-Setup-*.exe` + `latest.yml`
+  (Windows feed), and every `*.blockmap`. The build jobs verify these are
+  present before staging (`grep -q "Syrus-$VERSION-arm64.zip"
+  latest-mac.yml`, `Test-Path desktop/out/latest.yml`), and `publish`
+  uploads whatever was staged in one `gh release create`. The stable-named
+  `Syrus.dmg` / `Syrus-Intel.dmg` / `Syrus-Setup.exe` aliases are *outside*
+  the feed (website permalinks only) — clobbering those is always safe.
+- **Fix:** re-dispatch the pipeline so the feed is regenerated and uploaded
+  as a matched set. Never hand-edit, rename, or re-upload a published asset —
+  every client hash check fails against a modified file. If the ymls and
+  binaries have diverged beyond repair, ship a patch release; that's cheaper
+  than un-breaking a poisoned feed.
 
 ## 7. Reproduce locally to bisect
 
