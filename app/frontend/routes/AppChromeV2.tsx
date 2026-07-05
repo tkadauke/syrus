@@ -521,7 +521,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
   const navigate = useNavigate()
   const { t } = useTranslation("nav")
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const [query, setQuery] = useState(() => searchQueryFromLocation(location.search))
+  const [query, setQuery] = useState(() => searchQueryFromLocation(location.search, location.pathname))
   const userEditedRef = useRef(false)
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
@@ -537,8 +537,8 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 
   useEffect(() => {
     userEditedRef.current = false
-    setQuery(searchQueryFromLocation(location.search))
-  }, [location.search])
+    setQuery(searchQueryFromLocation(location.search, location.pathname))
+  }, [location.search, location.pathname])
 
   useEffect(() => {
     if (!userEditedRef.current) return
@@ -589,7 +589,8 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
   )
 }
 
-function searchQueryFromLocation(search: string) {
+function searchQueryFromLocation(search: string, pathname: string) {
+  if (!pathname.includes("/search")) return ""
   return new URLSearchParams(search).get("q") || ""
 }
 

@@ -375,6 +375,29 @@ describe("AppChromeV2 recent chats", () => {
   })
 })
 
+describe("SidebarSearchForm", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("populates the search field from the URL when on the search page", () => {
+    renderAppChrome(<div />, {
+      initialEntries: ["/app-shell/search?q=hello%20world"]
+    })
+
+    expect(screen.getByLabelText("Search Syrus")).toHaveValue("hello world")
+  })
+
+  it("does not populate the search field with the dashboard filter param", () => {
+    renderAppChrome(<div />, {
+      initialEntries: ["/app-shell/dashboard/jobs?q=eyJhbmQiOlt7ImZwZWNlIjpOYXhUZU1"]
+    })
+
+    expect(screen.getByLabelText("Search Syrus")).toHaveValue("")
+  })
+})
+
 describe("chatSectionsFromPayload", () => {
   it("deduplicates loaded chats that overlap with main query groups", () => {
     const sections = chatSectionsFromPayload(
