@@ -298,6 +298,7 @@ Each user owns their own profile, credentials, defaults, and preferences:
 - **Agent Settings** stores the default agent provider, max-turn setting, and auto-approval fallback.
 - **Preferences** stores account-level toggles such as scheduling pause.
 - Light or dark app theme is toggled from the account area.
+- **Language** — operators can select their preferred display language from the profile settings page. Supported locales are English (`en`), German (`de`), and Latin (`la`). The preference is stored per-user and applied to all app chrome and shared UI text.
 
 Credentials are stored with Active Record Encryption in the Syrus database,
 so every web, worker, console, and migration context that reads users needs
