@@ -234,4 +234,19 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(response).to have_http_status(:not_found)
     expect(other_job.reload).to be_open
   end
+
+  it "resolves a job by its human-readable slug for lifecycle actions" do
+    slugged_job = Factories.job(
+      repository: repo,
+      issue_number: 99,
+      issue_title: "Repair the forum floor"
+    )
+    slugged_job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+
+    expect {
+      post "/api/v1/app/jobs/#{slugged_job[:slug]}/run_again", as: :json
+    }.to change { slugged_job.reload.workflows.where(trigger_kind: "retry").count }.by(1)
+
+    expect(response).to have_http_status(:ok)
+  end
 end

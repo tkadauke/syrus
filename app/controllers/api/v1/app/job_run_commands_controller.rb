@@ -194,7 +194,7 @@ module Api
         private
 
         def find_job
-          Current.user.jobs.includes(:repository, :runs, workflows: :steps).find(params[:job_id])
+          find_job_by_ref(Current.user.jobs.includes(:repository, :runs, workflows: :steps), params[:job_id])
         end
 
         def find_workflow(job)

@@ -246,6 +246,11 @@ syrus job test-plan 456
 syrus job open 456
 ```
 
+Commands that accept a Job ID also accept `JOB-<n>` (e.g. `JOB-456`) and
+human-readable slugs derived from the job title (e.g.
+`syrus job show repair-aqueduct`). The same applies to `syrus checkout`,
+`syrus test-plan`, and `syrus approve`.
+
 `job create` prompts for a title and multi-line description, defaults to
 the current checkout repository, and accepts `--repo owner/name` and
 `--yes`.
@@ -264,7 +269,8 @@ committed or stashed first. After a successful checkout, the CLI runs any
 stops if one fails. Pass `--no-hooks` to skip those commands for one
 checkout.
 
-`syrus checkout EPIC-N --complete` automatically selects the single branch
+`syrus checkout EPIC-N --complete` (where `N` is a numeric ID or a
+human-readable slug such as `EPIC-add-auth-system`) automatically selects the single branch
 that contains all of the Epic's implemented changes and checks it out, without
 opening the interactive picker. It uses a two-step algorithm:
 
@@ -283,10 +289,12 @@ branch is explicitly built on top of another.
 
 ## Test Plans
 
-The top-level test-plan shortcut accepts `JOB-123` slugs:
+The top-level test-plan shortcut accepts a numeric ID, a `JOB-<n>` slug,
+or a human-readable slug derived from the job title:
 
 ```bash
 syrus test-plan JOB-456
+syrus test-plan repair-aqueduct
 ```
 
 When you are already on a Syrus Job branch, the argument is optional:

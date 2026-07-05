@@ -914,4 +914,22 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["merge_train_branch"]).to be_nil
   end
+
+  it "resolves an epic by its human-readable slug" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the aqueduct walls")
+
+    get "/api/v1/app/epics/#{epic[:slug]}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "id")).to eq(epic.id)
+  end
+
+  it "returns 404 for an unknown epic slug" do
+    sign_in_as(user)
+
+    get "/api/v1/app/epics/does-not-exist"
+
+    expect(response).to have_http_status(:not_found)
+  end
 end

@@ -4,6 +4,8 @@ module Api
       # JSON API for the browser SPA and app-scoped CLI calls. Browser
       # requests use session cookies; CLI requests may use bearer tokens.
       class BaseController < ApplicationController
+        include JobEpicRefFinder
+
         TokenSession = Struct.new(:user, keyword_init: true) do
           def destroy; end
         end

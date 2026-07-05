@@ -83,6 +83,7 @@ class Job < ApplicationRecord
   before_validation :set_target_repository_from_epic, on: :create
   before_validation :defer_stale_closed_epic_assignment
   before_validation :sync_epic_title
+  before_create :generate_slug
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
   enum :triaging_reason, TRIAGING_REASONS.index_with(&:itself), prefix: true, validate: true
@@ -761,6 +762,21 @@ class Job < ApplicationRecord
   end
 
   private
+
+  def generate_slug
+    base = issue_title.to_s.parameterize.presence
+    return unless base
+
+    base = base.first(50)
+    n = 1
+    candidate = base
+    loop do
+      break unless Job.where(slug: candidate).exists?
+      candidate = "#{base.first(46)}-#{n}"
+      n += 1
+    end
+    self[:slug] = candidate
+  end
 
   def saved_change_to_implemented?
     saved_change_to_state? && implemented?

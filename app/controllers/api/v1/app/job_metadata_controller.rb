@@ -100,7 +100,7 @@ module Api
         private
 
         def find_job
-          Current.user.jobs.includes(:repository, :tags, dependencies: [ :created_by_user, depends_on_job: :repository ]).find(params[:job_id])
+          find_job_by_ref(Current.user.jobs.includes(:repository, :tags, dependencies: [ :created_by_user, depends_on_job: :repository ]), params[:job_id])
         end
 
         def find_or_create_tag_from_params

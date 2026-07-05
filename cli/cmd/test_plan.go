@@ -15,6 +15,7 @@ import (
 )
 
 var jobSlugPattern = regexp.MustCompile(`(?i)^JOB-(\d+)$`)
+var jobIDPattern = regexp.MustCompile(`(?i)^(?:JOB-)?(\d+)$`)
 var jobBranchPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^syrus/issue-\d+-(\d+)$`),
 	regexp.MustCompile(`^syrus/direct-(\d+)$`),
@@ -50,13 +51,18 @@ func NewTestPlanCommand() *cobra.Command {
 	}
 }
 
+// parseJobID parses a job identifier for the test-plan command. Accepts the
+// JOB-<n> format, bare numeric IDs, and human-readable slugs. Numeric IDs
+// and the JOB- prefix are normalized; slugs are forwarded as-is to the API.
 func parseJobID(slug string) (string, error) {
-	matches := jobSlugPattern.FindStringSubmatch(slug)
-	if matches == nil {
-		return "", errors.New("job must use JOB-<id> format")
+	trimmed := strings.TrimSpace(slug)
+	if trimmed == "" {
+		return "", errors.New("job ID is required")
 	}
-
-	return matches[1], nil
+	if matches := jobIDPattern.FindStringSubmatch(trimmed); matches != nil {
+		return matches[1], nil
+	}
+	return trimmed, nil
 }
 
 func runTestPlanCommand(cmd *cobra.Command, args []string) error {
@@ -125,7 +131,7 @@ func runTestPlan(ctx context.Context, slug string, stdout io.Writer) error {
 	}
 
 	if payload.TestPlan == nil || len(payload.TestPlan.Steps) == 0 {
-		fmt.Fprintf(stdout, "No test plan available for JOB-%s yet — the job may still be implementing.\n", jobID)
+		fmt.Fprintf(stdout, "No test plan available for %s yet — the job may still be implementing.\n", displayJobRef(jobID))
 		return nil
 	}
 

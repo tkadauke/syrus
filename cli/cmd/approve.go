@@ -40,7 +40,7 @@ func NewApproveCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Approved JOB-%s. Landing will begin shortly.\n", jobID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Approved %s. Landing will begin shortly.\n", displayJobRef(jobID))
 			return nil
 		},
 	}
@@ -48,14 +48,16 @@ func NewApproveCommand() *cobra.Command {
 
 func normalizeJobID(value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
-	trimmed = strings.TrimPrefix(trimmed, "JOB-")
 	if trimmed == "" {
 		return "", errors.New("job ID is required")
 	}
-	for _, r := range trimmed {
-		if r < '0' || r > '9' {
+	upper := strings.ToUpper(trimmed)
+	if strings.HasPrefix(upper, "JOB-") {
+		rest := strings.TrimSpace(trimmed[4:])
+		if rest == "" {
 			return "", fmt.Errorf("invalid job ID %q", value)
 		}
+		return rest, nil
 	}
 	return trimmed, nil
 }

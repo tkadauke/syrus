@@ -262,15 +262,19 @@ func epicCompleteFindTip(ctx context.Context, runner gitRunner, branches []strin
 
 func parseEpicRef(input string) (string, string, error) {
 	ref := strings.TrimSpace(input)
+	if ref == "" {
+		return "", "", errors.New("epic id is required")
+	}
 	upper := strings.ToUpper(ref)
-	if !strings.HasPrefix(upper, "EPIC-") {
-		return "", "", fmt.Errorf("invalid epic id %q", input)
+	if strings.HasPrefix(upper, "EPIC-") {
+		id := strings.TrimSpace(ref[5:])
+		if id == "" {
+			return "", "", fmt.Errorf("invalid epic id %q", input)
+		}
+		return "EPIC-" + id, id, nil
 	}
-	id := strings.TrimSpace(ref[5:])
-	if id == "" {
-		return "", "", fmt.Errorf("invalid epic id %q", input)
-	}
-	return "EPIC-" + id, id, nil
+	// Treat as a human-readable slug; forward as-is to the API.
+	return ref, ref, nil
 }
 
 type epicCandidate struct {

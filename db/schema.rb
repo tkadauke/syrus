@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_05_035429) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_05_182922) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -372,6 +372,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_035429) do
     t.integer "owner_user_id"
     t.json "pending_epic_dependency_refs", null: false
     t.integer "repository_id", null: false
+    t.string "slug"
     t.string "state", default: "backlog", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
@@ -381,6 +382,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_035429) do
     t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["owner_user_id"], name: "index_epics_on_owner_user_id"
     t.index ["repository_id"], name: "index_epics_on_repository_id"
+    t.index ["slug"], name: "index_epics_on_slug", unique: true
     t.index ["user_id", "state"], name: "index_epics_on_user_id_and_state"
     t.index ["user_id"], name: "index_epics_on_user_id"
   end
@@ -575,6 +577,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_035429) do
     t.integer "repository_id", null: false
     t.integer "scheduled_task_id"
     t.boolean "skip_prepare", default: false, null: false
+    t.string "slug"
     t.string "stack_base", default: "auto", null: false
     t.datetime "started_at"
     t.string "state", default: "triaging", null: false
@@ -598,6 +601,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_035429) do
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
     t.index ["scheduled_task_id"], name: "index_jobs_on_scheduled_task_id"
+    t.index ["slug"], name: "index_jobs_on_slug", unique: true
     t.index ["stack_base"], name: "index_jobs_on_stack_base"
     t.index ["state", "approved_at", "id"], name: "index_jobs_on_state_and_approved_at_and_id"
     t.index ["target_repository_id"], name: "index_jobs_on_target_repository_id"

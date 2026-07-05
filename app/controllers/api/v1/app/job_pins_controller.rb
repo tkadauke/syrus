@@ -21,7 +21,7 @@ module Api
         private
 
         def find_job
-          Current.user.jobs.find(params[:job_id])
+          find_job_by_ref(Current.user.jobs, params[:job_id])
         end
 
         def pin_payload(job, pinned:, message:)

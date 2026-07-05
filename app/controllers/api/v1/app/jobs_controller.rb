@@ -221,20 +221,20 @@ module Api
         end
 
         def find_job_by_param(key)
-          Current.user.jobs
-                      .includes(
-                        :repository,
-                        :epic,
-                        :scheduled_task,
-                        :owner_user,
-                        :claimed_by_user,
-                        :tags,
-                        job_attachments: { file_attachment: :blob },
-                        dependencies: [ :created_by_user, depends_on_job: :repository ],
-                        dependent_links: [ job: :repository ],
-                        runs: [ :job_logs, :run_health_snapshots, :claude_session, :run_diagnostic, :run_failure_classification ]
-                      )
-                      .find(params[key])
+          scope = Current.user.jobs
+                              .includes(
+                                :repository,
+                                :epic,
+                                :scheduled_task,
+                                :owner_user,
+                                :claimed_by_user,
+                                :tags,
+                                job_attachments: { file_attachment: :blob },
+                                dependencies: [ :created_by_user, depends_on_job: :repository ],
+                                dependent_links: [ job: :repository ],
+                                runs: [ :job_logs, :run_health_snapshots, :claude_session, :run_diagnostic, :run_failure_classification ]
+                              )
+          find_job_by_ref(scope, params[key])
         end
       end
     end

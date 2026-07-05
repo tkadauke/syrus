@@ -22,7 +22,7 @@ module Api
         private
 
         def find_job
-          Current.user.jobs.includes(:claimed_by_user).find(params[:job_id])
+          find_job_by_ref(Current.user.jobs.includes(:claimed_by_user), params[:job_id])
         end
 
         def render_claim(job, message:)

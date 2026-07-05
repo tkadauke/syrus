@@ -76,6 +76,11 @@ omitted, Syrus derives a short deterministic title from the prompt.
 
 ## Submit Job Feedback
 
+All job and epic endpoints accept a numeric ID, the `JOB-<n>` / `EPIC-<n>`
+prefix format, or a human-readable slug derived from the issue or epic title
+(e.g. `/api/v1/app/jobs/repair-aqueduct`). Slugs are auto-generated at Job /
+Epic creation and are unique per instance.
+
 `POST /api/v1/app/jobs/:id/chat_feedback` lets the authenticated job owner
 submit follow-up feedback directly, without confirming a chat pending action.
 The Job must belong to the token user and be in `implemented` or `failed`

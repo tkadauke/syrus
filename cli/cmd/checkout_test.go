@@ -850,6 +850,130 @@ func TestCheckoutWithoutCompleteIgnoresCompleteFlag(t *testing.T) {
 	}
 }
 
+func TestParseJobRefAcceptsSlugs(t *testing.T) {
+	cases := []struct {
+		input   string
+		wantRef string
+		wantID  string
+		isErr   bool
+	}{
+		{"JOB-42", "JOB-42", "42", false},
+		{"job-42", "JOB-42", "42", false},
+		{"42", "JOB-42", "42", false},
+		{"add-user-avatar-upload", "JOB-add-user-avatar-upload", "add-user-avatar-upload", false},
+		{"my-feature", "JOB-my-feature", "my-feature", false},
+		{"", "", "", true},
+		{"JOB-", "", "", true},
+	}
+	for _, tc := range cases {
+		ref, id, err := parseJobRef(tc.input)
+		if tc.isErr {
+			if err == nil {
+				t.Errorf("parseJobRef(%q) expected error, got ref=%q id=%q", tc.input, ref, id)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseJobRef(%q) error: %v", tc.input, err)
+			continue
+		}
+		if ref != tc.wantRef || id != tc.wantID {
+			t.Errorf("parseJobRef(%q) = (%q, %q), want (%q, %q)", tc.input, ref, id, tc.wantRef, tc.wantID)
+		}
+	}
+}
+
+func TestParseEpicRefAcceptsSlugs(t *testing.T) {
+	cases := []struct {
+		input   string
+		wantRef string
+		wantID  string
+		isErr   bool
+	}{
+		{"EPIC-42", "EPIC-42", "42", false},
+		{"epic-99", "EPIC-99", "99", false},
+		{"EPIC-add-auth-system", "EPIC-add-auth-system", "add-auth-system", false},
+		{"add-auth-system", "add-auth-system", "add-auth-system", false},
+		{"", "", "", true},
+		{"EPIC-", "", "", true},
+	}
+	for _, tc := range cases {
+		ref, id, err := parseEpicRef(tc.input)
+		if tc.isErr {
+			if err == nil {
+				t.Errorf("parseEpicRef(%q) expected error, got ref=%q id=%q", tc.input, ref, id)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseEpicRef(%q) error: %v", tc.input, err)
+			continue
+		}
+		if ref != tc.wantRef || id != tc.wantID {
+			t.Errorf("parseEpicRef(%q) = (%q, %q), want (%q, %q)", tc.input, ref, id, tc.wantRef, tc.wantID)
+		}
+	}
+}
+
+func TestCheckoutCommandAcceptsJobSlug(t *testing.T) {
+	var requestedPath string
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requestedPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "syrus/issue-42-456", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "add-user-avatar-upload"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if requestedPath != "/api/v1/app/jobs/add-user-avatar-upload" {
+		t.Fatalf("unexpected request path: %s", requestedPath)
+	}
+}
+
+func TestCheckoutCommandAcceptsEpicSlugWithPrefix(t *testing.T) {
+	var requestedPath string
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requestedPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	originalPicker := epicPickerFunc
+	epicPickerFunc = func(epicRef string, candidates []epicCandidate) (*api.JobItem, error) {
+		t.Fatal("picker should not be called for a single sink")
+		return nil, nil
+	}
+	t.Cleanup(func() { epicPickerFunc = originalPicker })
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "syrus/issue-45", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "EPIC-add-auth-system"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if requestedPath != "/api/v1/app/epics/add-auth-system" {
+		t.Fatalf("unexpected request path: %s", requestedPath)
+	}
+}
+
 func checkoutServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(handler)

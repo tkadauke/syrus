@@ -6,6 +6,7 @@ module Api
   # cookies; no CSRF (this is API-key auth, not session auth).
   class BaseController < ActionController::API
     include ActionController::HttpAuthentication::Token::ControllerMethods
+    include JobEpicRefFinder
 
     before_action :authenticate_via_api_token
 

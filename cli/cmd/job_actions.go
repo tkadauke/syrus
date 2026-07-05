@@ -270,6 +270,17 @@ func epicSlug(number any) string {
 	return fmt.Sprintf("EPIC-%v", number)
 }
 
+// displayJobRef formats a job identifier for user-facing output. Numeric IDs
+// are shown with the JOB- prefix; slugs are shown as-is.
+func displayJobRef(ref string) string {
+	for _, r := range ref {
+		if r < '0' || r > '9' {
+			return ref
+		}
+	}
+	return "JOB-" + ref
+}
+
 type testPlanStep struct {
 	Title string
 	Notes string

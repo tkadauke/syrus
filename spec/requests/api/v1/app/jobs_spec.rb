@@ -774,4 +774,18 @@ RSpec.describe "App API job detail", type: :request do
 
     expect(response).to have_http_status(:not_found)
   end
+
+  it "resolves a job by its human-readable slug" do
+    # `job` has issue_title "Repair aqueduct", so its slug is "repair-aqueduct"
+    get "/api/v1/app/jobs/#{job[:slug]}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("job", "id")).to eq(job.id)
+  end
+
+  it "returns 404 for an unknown job slug" do
+    get "/api/v1/app/jobs/does-not-exist"
+
+    expect(response).to have_http_status(:not_found)
+  end
 end

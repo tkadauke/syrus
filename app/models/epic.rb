@@ -36,6 +36,7 @@ class Epic < ApplicationRecord
 
   after_initialize :default_pending_epic_dependency_refs
   before_validation :assign_number, on: :create
+  before_create :generate_slug
   after_create :resolve_pending_child_jobs
   after_create :seed_parsed_epic_dependencies
   after_create :resolve_pending_epic_dependencies_targeting_self
@@ -305,6 +306,21 @@ class Epic < ApplicationRecord
   end
 
   private
+
+  def generate_slug
+    base = title.to_s.parameterize.presence
+    return unless base
+
+    base = base.first(50)
+    n = 1
+    candidate = base
+    loop do
+      break unless Epic.where(slug: candidate).exists?
+      candidate = "#{base.first(46)}-#{n}"
+      n += 1
+    end
+    self[:slug] = candidate
+  end
 
   def release_child_jobs_if_ready!
     return false unless dependencies_done?

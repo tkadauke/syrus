@@ -62,45 +62,45 @@ Rails.application.routes.draw do
         get "jobs/new", to: "direct_jobs#new"
         get "jobs", to: "jobs#index"
         post "jobs", to: "direct_jobs#create"
-        get "jobs/:id/source", to: "jobs#source", constraints: { id: /\d+/ }
-        get "jobs/:id/source_diff", to: "jobs#source_diff", constraints: { id: /\d+/ }
-        get "jobs/:id/timeline", to: "jobs#timeline", constraints: { id: /\d+/ }
-        get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /\d+/ }
-        get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /\d+/ }
-        get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /\d+/, run_id: /\d+/ }
-        get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /\d+/, run_id: /\d+/ }
-        get "jobs/:id", to: "jobs#show", constraints: { id: /\d+/ }
-        post "jobs/:job_id/pin", to: "job_pins#create", constraints: { job_id: /\d+/ }
-        delete "jobs/:job_id/pin", to: "job_pins#destroy", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/attachments", to: "job_attachments#create", constraints: { job_id: /\d+/ }
-        delete "jobs/:job_id/attachments/:id", to: "job_attachments#destroy", constraints: { job_id: /\d+/, id: /\d+/ }
-        post "jobs/:job_id/tags", to: "job_metadata#add_tag", constraints: { job_id: /\d+/ }
-        delete "jobs/:job_id/tags/:tag_id", to: "job_metadata#remove_tag", constraints: { job_id: /\d+/, tag_id: /\d+/ }
-        post "jobs/:job_id/claim", to: "job_claims#create", constraints: { job_id: /\d+/ }
-        delete "jobs/:job_id/claim", to: "job_claims#destroy", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/dependencies", to: "job_metadata#add_dependency", constraints: { job_id: /\d+/ }
-        delete "jobs/:job_id/dependencies/:dependency_id", to: "job_metadata#remove_dependency", constraints: { job_id: /\d+/, dependency_id: /\d+/ }
-        post "jobs/:job_id/dependencies/override", to: "job_metadata#override_dependencies", constraints: { job_id: /\d+/ }
-        patch "jobs/:job_id/stack_base", to: "job_metadata#stack_base", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/mark_valid", to: "job_metadata#mark_valid", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/start", to: "job_lifecycle#start", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/run_again", to: "job_lifecycle#run_again", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/approve", to: "job_lifecycle#approve", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/unapprove", to: "job_lifecycle#unapprove", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/reopen", to: "job_lifecycle#reopen", constraints: { job_id: /\d+/ }
-        post "jobs/:id/chat_feedback", to: "jobs#chat_feedback", constraints: { id: /\d+/ }
-        post "jobs/:job_id/poll_feedback", to: "job_run_commands#poll_feedback", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/rebase", to: "job_run_commands#rebase", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/check_mergeability", to: "job_run_commands#check_mergeability", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/resume", to: "job_run_commands#resume", constraints: { job_id: /\d+/ }
-        post "jobs/:job_id/runs/:run_id/stop", to: "job_run_commands#stop_run", constraints: { job_id: /\d+/, run_id: /\d+/ }
-        post "jobs/:job_id/runs/:run_id/diagnose", to: "job_run_commands#diagnose", constraints: { job_id: /\d+/, run_id: /\d+/ }
-        post "jobs/:job_id/workflows/:workflow_id/retry_step", to: "job_run_commands#retry_step", constraints: { job_id: /\d+/, workflow_id: /\d+/ }
-        post "jobs/:job_id/workflows/:workflow_id/push_commits", to: "job_run_commands#push_commits", constraints: { job_id: /\d+/, workflow_id: /\d+/ }
-        post "jobs/:job_id/workflows/:workflow_id/force_push_branch", to: "job_run_commands#force_push_branch", constraints: { job_id: /\d+/, workflow_id: /\d+/ }
-        post "jobs/:job_id/workflows/:workflow_id/discard_branch_output", to: "job_run_commands#discard_branch_output", constraints: { job_id: /\d+/, workflow_id: /\d+/ }
+        get "jobs/:id/source", to: "jobs#source", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/source_diff", to: "jobs#source_diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/timeline", to: "jobs#timeline", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
+        get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
+        get "jobs/:id", to: "jobs#show", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/pin", to: "job_pins#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        delete "jobs/:job_id/pin", to: "job_pins#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/attachments", to: "job_attachments#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        delete "jobs/:job_id/attachments/:id", to: "job_attachments#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        post "jobs/:job_id/tags", to: "job_metadata#add_tag", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        delete "jobs/:job_id/tags/:tag_id", to: "job_metadata#remove_tag", constraints: { job_id: /[a-zA-Z0-9_-]+/, tag_id: /\d+/ }
+        post "jobs/:job_id/claim", to: "job_claims#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        delete "jobs/:job_id/claim", to: "job_claims#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/dependencies", to: "job_metadata#add_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        delete "jobs/:job_id/dependencies/:dependency_id", to: "job_metadata#remove_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/, dependency_id: /\d+/ }
+        post "jobs/:job_id/dependencies/override", to: "job_metadata#override_dependencies", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        patch "jobs/:job_id/stack_base", to: "job_metadata#stack_base", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/mark_valid", to: "job_metadata#mark_valid", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/start", to: "job_lifecycle#start", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/run_again", to: "job_lifecycle#run_again", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/approve", to: "job_lifecycle#approve", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/unapprove", to: "job_lifecycle#unapprove", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/reopen", to: "job_lifecycle#reopen", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:id/chat_feedback", to: "jobs#chat_feedback", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/poll_feedback", to: "job_run_commands#poll_feedback", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/rebase", to: "job_run_commands#rebase", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/check_mergeability", to: "job_run_commands#check_mergeability", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/resume", to: "job_run_commands#resume", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/runs/:run_id/stop", to: "job_run_commands#stop_run", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
+        post "jobs/:job_id/runs/:run_id/diagnose", to: "job_run_commands#diagnose", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
+        post "jobs/:job_id/workflows/:workflow_id/retry_step", to: "job_run_commands#retry_step", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
+        post "jobs/:job_id/workflows/:workflow_id/push_commits", to: "job_run_commands#push_commits", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
+        post "jobs/:job_id/workflows/:workflow_id/force_push_branch", to: "job_run_commands#force_push_branch", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
+        post "jobs/:job_id/workflows/:workflow_id/discard_branch_output", to: "job_run_commands#discard_branch_output", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
         resources :terminal_sessions, only: %i[ index create show destroy ] do
           member do
             post :kill
@@ -108,17 +108,17 @@ Rails.application.routes.draw do
         end
         get "epics", to: "epics#index"
         get "epics/new", to: "epics#new"
-        get "epics/:id", to: "epics#show", constraints: { id: /\d+/ }
-        get "epics/:id/edit", to: "epics#edit", constraints: { id: /\d+/ }
+        get "epics/:id", to: "epics#show", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/edit", to: "epics#edit", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics", to: "epics#create"
-        patch "epics/:id", to: "epics#update", constraints: { id: /\d+/ }
-        patch "epics/:id/archive", to: "epics#archive", constraints: { id: /\d+/ }
-        patch "epics/:id/claim", to: "epics#claim", constraints: { id: /\d+/ }
-        patch "epics/:id/unclaim", to: "epics#unclaim", constraints: { id: /\d+/ }
-        patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /\d+/ }
-        patch "epics/:id/state", to: "epics#update_state", constraints: { id: /\d+/ }
-        post "epics/:id/dependencies", to: "epics#add_dependency", constraints: { id: /\d+/ }
-        delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /\d+/, depends_on_epic_id: /\d+/ }
+        patch "epics/:id", to: "epics#update", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        patch "epics/:id/archive", to: "epics#archive", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        patch "epics/:id/claim", to: "epics#claim", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        patch "epics/:id/unclaim", to: "epics#unclaim", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        patch "epics/:id/state", to: "epics#update_state", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        post "epics/:id/dependencies", to: "epics#add_dependency", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"
         get "filters/suggestions", to: "filters#suggestions"
         get "insights/spending", to: "insights/spending#show"
@@ -382,8 +382,8 @@ Rails.application.routes.draw do
     query.present? ? "/dashboard/epics?#{query}" : "/dashboard/epics"
   }, as: :epics
   get "epics/new", to: "spa#show", as: :new_epic
-  get "epics/:id", to: "spa#show", as: :epic, constraints: { id: /\d+/ }
-  get "epics/:id/edit", to: "spa#show", as: :edit_epic, constraints: { id: /\d+/ }
+  get "epics/:id", to: "spa#show", as: :epic, constraints: { id: /[a-zA-Z0-9_-]+/ }
+  get "epics/:id/edit", to: "spa#show", as: :edit_epic, constraints: { id: /[a-zA-Z0-9_-]+/ }
   get "tags", to: "spa#show", as: :tags
   get "cron_templates", to: "spa#show", as: :cron_templates
   get "cron_templates/new", to: "spa#show", as: :new_cron_template
@@ -400,8 +400,8 @@ Rails.application.routes.draw do
   get "settings/agent", to: "spa#show", as: :agent_settings
   get "settings/preferences", to: "spa#show", as: :account_preferences
   get "jobs/new", to: "spa#show", as: :new_job
-  get "jobs/:id/source", to: "spa#show", as: :source_job, constraints: { id: /\d+/ }
-  get "jobs/:id", to: "spa#show", as: :job, constraints: { id: /\d+/ }
+  get "jobs/:id/source", to: "spa#show", as: :source_job, constraints: { id: /[a-zA-Z0-9_-]+/ }
+  get "jobs/:id", to: "spa#show", as: :job, constraints: { id: /[a-zA-Z0-9_-]+/ }
   get "admin", to: "spa#show", as: :admin_root
   get "admin/queue", to: "spa#show", as: :admin_queue_root
   get "admin/queue/:tab", to: "spa#show", as: :admin_queue, constraints: { tab: /active|pending|failed|recurring|workers/ }

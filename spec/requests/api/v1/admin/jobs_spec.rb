@@ -43,6 +43,21 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.content_type).to include("application/json")
     end
+
+    it "resolves a job by its human-readable slug" do
+      slugged = Factories.job(user: admin, issue_title: "Invite the statues to speak")
+
+      get "/api/v1/admin/jobs/#{slugged[:slug]}", headers: auth(admin_token)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["id"]).to eq(slugged.id)
+    end
+
+    it "returns 404 for an unknown job slug via the admin API" do
+      get "/api/v1/admin/jobs/does-not-exist", headers: auth(admin_token)
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe "POST /jobs" do

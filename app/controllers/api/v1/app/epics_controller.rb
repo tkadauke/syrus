@@ -420,7 +420,7 @@ module Api
         end
 
         def find_epic
-          Epic.accessible_to(Current.user).includes(:owner_user).find(params[:id])
+          find_epic_by_ref(Epic.accessible_to(Current.user).includes(:owner_user), params[:id])
         end
 
         def membership_on_repo?(repository_id)

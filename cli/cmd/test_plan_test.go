@@ -197,17 +197,85 @@ func TestJobIDFromBranchParsesKnownSyrusBranches(t *testing.T) {
 	}
 }
 
-func TestPlanRequiresJobSlug(t *testing.T) {
-	var stderr bytes.Buffer
+func TestPlanAcceptsHumanSlug(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var requestedURL string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedURL = r.URL.String()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"job":{"id":42,"issue_title":"My feature"},"test_plan":{"steps":["Open the app"],"notes":""}}`))
+	}))
+	defer server.Close()
+	writeCredentials(t, home, server.URL, "token")
+
 	command := NewTestPlanCommand()
-	command.SetErr(&stderr)
+	command.SetOut(&bytes.Buffer{})
+	command.SetArgs([]string{"my-feature-slug"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if requestedURL != "/api/v1/app/jobs/my-feature-slug" {
+		t.Fatalf("unexpected request URL: %s", requestedURL)
+	}
+}
+
+func TestPlanAcceptsNumericIDWithoutPrefix(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var requestedURL string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedURL = r.URL.String()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"job":{"id":456,"issue_title":"Add feature"},"test_plan":{"steps":["Step 1"],"notes":""}}`))
+	}))
+	defer server.Close()
+	writeCredentials(t, home, server.URL, "token")
+
+	command := NewTestPlanCommand()
+	command.SetOut(&bytes.Buffer{})
 	command.SetArgs([]string{"456"})
 
-	err := command.Execute()
-	if err == nil {
-		t.Fatal("expected error")
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "job must use JOB-<id> format") {
+	if requestedURL != "/api/v1/app/jobs/456" {
+		t.Fatalf("unexpected request URL: %s", requestedURL)
+	}
+}
+
+func TestParseJobIDAcceptsSlug(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"JOB-123", "123"},
+		{"job-456", "456"},
+		{"789", "789"},
+		{"my-feature-slug", "my-feature-slug"},
+		{"add-user-avatar-upload", "add-user-avatar-upload"},
+	}
+	for _, tc := range cases {
+		got, err := parseJobID(tc.input)
+		if err != nil {
+			t.Errorf("parseJobID(%q) error: %v", tc.input, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("parseJobID(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestParseJobIDRejectsEmpty(t *testing.T) {
+	_, err := parseJobID("")
+	if err == nil {
+		t.Fatal("expected error for empty input")
+	}
+	if !strings.Contains(err.Error(), "required") {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
