@@ -627,4 +627,53 @@ RSpec.describe Workflow do
       expect { Workflows::PrFeedback.after_success(wf) }.not_to change { job.reload.last_feedback_addressed_at }
     end
   end
+
+  describe "coverage hit map blob helpers" do
+    let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
+
+    let(:hit_map) do
+      {
+        "app/models/user.rb" => { "1" => 3, "2" => 0, "5" => 1 },
+        "app/models/post.rb" => { "10" => 1 }
+      }
+    end
+
+    describe "#attach_coverage_hit_map!" do
+      it "attaches a gzip-compressed JSON blob" do
+        wf.attach_coverage_hit_map!(hit_map)
+        expect(wf.coverage_hit_map).to be_attached
+        expect(wf.coverage_hit_map.filename.to_s).to eq("coverage_hit_map.json.gz")
+        expect(wf.coverage_hit_map.content_type).to eq("application/gzip")
+      end
+    end
+
+    describe "#coverage_hit_map_data" do
+      it "returns nil when no blob is attached" do
+        expect(wf.coverage_hit_map_data).to be_nil
+      end
+
+      it "decompresses and parses the stored hit map" do
+        wf.attach_coverage_hit_map!(hit_map)
+        result = wf.coverage_hit_map_data
+        expect(result).to eq(hit_map)
+      end
+
+      it "round-trips integer hit counts faithfully" do
+        wf.attach_coverage_hit_map!(hit_map)
+        result = wf.reload.coverage_hit_map_data
+        expect(result.dig("app/models/user.rb", "1")).to eq(3)
+        expect(result.dig("app/models/user.rb", "2")).to eq(0)
+      end
+    end
+
+    describe "#purge_coverage_hit_map!" do
+      it "removes the attachment" do
+        wf.attach_coverage_hit_map!(hit_map)
+        expect(wf.coverage_hit_map).to be_attached
+
+        wf.purge_coverage_hit_map!
+        expect(wf.reload.coverage_hit_map).not_to be_attached
+      end
+    end
+  end
 end
