@@ -145,6 +145,13 @@ RSpec.describe "desktop auto-update and release pipeline" do
     # before it is invisible (draft) or reversible (:latest), and a failure
     # rolls it all back — no half-published state.
     expect(release_workflow).to match(/release create "\$TAG" --draft/)
+    # The `release create` subcommand lives in the args array, so the call must
+    # be `gh "${args[@]}"` — never `gh release create "${args[@]}"`, which would
+    # double the subcommand (`gh release create release create …`) and make gh
+    # treat the extra `create` as a missing asset file. (Regression: this bug
+    # broke the first real publish; dry runs skip publish so it was never hit.)
+    expect(release_workflow).to include('gh "${args[@]}" "${assets[@]}"')
+    expect(release_workflow).not_to include('gh release create "${args[@]}"')
     expect(release_workflow).to include("--draft=false") # the go-live flip
     rollback = release_workflow[/name: Roll back on failure[\s\S]{0,900}/]
     expect(rollback).to include("if: failure()")

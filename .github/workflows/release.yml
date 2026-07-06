@@ -624,11 +624,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # args already carries the `release create` subcommand, so it is
+          # invoked below as `gh "${args[@]}"`. Prefixing the call with the
+          # subcommand again would double it (gh would then treat the extra
+          # `create` token as a missing asset file and fail the whole publish).
           args=(release create "$TAG" --draft --title "Syrus $TAG" --generate-notes --target "$TARGET")
           if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi
           mapfile -t assets < <(find staged -type f | sort)
           if [ "${#assets[@]}" -eq 0 ]; then echo "::error::no staged artifacts to publish"; exit 1; fi
-          gh release create "${args[@]}" "${assets[@]}"
+          gh "${args[@]}" "${assets[@]}"
 
       # Move :latest to the released image (imagetools copies the manifest — no
       # rebuild). Reversible by cleanup below.
