@@ -326,6 +326,24 @@ RSpec.describe Job do
       expect(job.may_reopen?).to be true
     end
 
+    it "purges coverage hit maps on all workflows when the job closes" do
+      job = Factories.job
+      hit_map = instance_double(ActiveStorage::Attached::One, attached?: true)
+      allow_any_instance_of(Workflow).to receive(:coverage_hit_map).and_return(hit_map)
+      expect_any_instance_of(Workflow).to receive(:purge_coverage_hit_map!)
+
+      job.reload.close!
+    end
+
+    it "skips coverage hit map purge for workflows without an attached map" do
+      job = Factories.job
+      hit_map = instance_double(ActiveStorage::Attached::One, attached?: false)
+      allow_any_instance_of(Workflow).to receive(:coverage_hit_map).and_return(hit_map)
+      expect_any_instance_of(Workflow).not_to receive(:purge_coverage_hit_map!)
+
+      job.reload.close!
+    end
+
     it "reopen! transitions closed → triaging and clears closure_reason + finished_at" do
       job = Factories.job
       job.close_with_reason!("cancelled")

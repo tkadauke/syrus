@@ -95,6 +95,83 @@ RSpec.describe CoverageSnapshot do
     end
   end
 
+  describe ".on_branch" do
+    it "returns only snapshots for the given branch" do
+      main_snap    = create_snapshot(branch: "main")
+      feature_snap = create_snapshot(branch: "feature/x")
+
+      results = described_class.on_branch("main")
+      expect(results).to include(main_snap)
+      expect(results).not_to include(feature_snap)
+    end
+  end
+
+  describe ".since" do
+    it "returns snapshots created at or after the given time" do
+      old_snap = create_snapshot
+      old_snap.update_columns(created_at: 10.days.ago)
+      new_snap = create_snapshot
+
+      results = described_class.since(5.days.ago)
+      expect(results).to include(new_snap)
+      expect(results).not_to include(old_snap)
+    end
+  end
+
+  describe ".daily_averages" do
+    it "returns daily averages grouped by date on the default branch" do
+      repository.update!(default_branch: "main")
+
+      snap1 = create_snapshot(branch: "main", lines_pct: 80, branches_pct: 60, functions_pct: 90)
+      snap1.update_columns(created_at: 2.days.ago.beginning_of_day + 1.hour)
+      snap2 = create_snapshot(branch: "main", lines_pct: 90, branches_pct: 70, functions_pct: 100)
+      snap2.update_columns(created_at: 2.days.ago.beginning_of_day + 2.hours)
+      snap3 = create_snapshot(branch: "main", lines_pct: 50, branches_pct: 40, functions_pct: 60)
+      snap3.update_columns(created_at: 1.day.ago.beginning_of_day + 1.hour)
+
+      results = described_class.daily_averages(repository: repository).to_a
+
+      expect(results.size).to eq(2)
+      two_days_row = results.find { |r| r.date.to_s == 2.days.ago.to_date.to_s }
+      one_day_row  = results.find { |r| r.date.to_s == 1.day.ago.to_date.to_s }
+
+      expect(two_days_row.avg_lines_pct.to_f).to be_within(0.01).of(85.0)
+      expect(two_days_row.avg_branches_pct.to_f).to be_within(0.01).of(65.0)
+      expect(two_days_row.avg_functions_pct.to_f).to be_within(0.01).of(95.0)
+      expect(one_day_row.avg_lines_pct.to_f).to be_within(0.01).of(50.0)
+    end
+
+    it "excludes snapshots on other branches" do
+      repository.update!(default_branch: "main")
+      feature_snap = create_snapshot(branch: "feature/x", lines_pct: 70, branches_pct: 50, functions_pct: 80)
+      feature_snap.update_columns(created_at: 1.day.ago)
+
+      results = described_class.daily_averages(repository: repository)
+      expect(results).to be_empty
+    end
+
+    it "excludes snapshots older than the requested days window" do
+      repository.update!(default_branch: "main")
+      old_snap = create_snapshot(branch: "main", lines_pct: 99)
+      old_snap.update_columns(created_at: 40.days.ago)
+
+      results = described_class.daily_averages(repository: repository, days: 30)
+      expect(results).to be_empty
+    end
+
+    it "returns results in ascending date order" do
+      repository.update!(default_branch: "main")
+      snap_yesterday = create_snapshot(branch: "main", lines_pct: 70)
+      snap_yesterday.update_columns(created_at: 1.day.ago.beginning_of_day + 1.hour)
+      snap_today = create_snapshot(branch: "main", lines_pct: 80)
+      snap_today.update_columns(created_at: Time.current.beginning_of_day + 1.hour)
+
+      results = described_class.daily_averages(repository: repository)
+      dates = results.map { |r| r.date.to_s }
+      expect(dates).to eq(dates.sort)
+    end
+  end
+
   describe ".on_default_branch" do
     it "returns snapshots whose branch matches the repository default_branch" do
       repository.update!(default_branch: "main")
