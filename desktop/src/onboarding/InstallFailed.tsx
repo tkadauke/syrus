@@ -11,8 +11,8 @@ type InstallFailedProps = {
 
 const FRIENDLY_MESSAGES: Record<number, string> = {
   12: "Docker is available but Docker Compose isn't. OrbStack and Docker Desktop both bundle it — updating your runtime usually fixes this.",
-  30: "Downloading the Syrus image failed. This usually means a network problem — check your connection and try again.",
-  31: "The registry refused the Syrus image download — the package is private, this build's tag was never published, or this machine isn't logged in to ghcr.io. If this is a dev build, push the image (bin/build-local-image --push) or make the package public, then retry.",
+  30: "Downloading the Syrus image failed. This usually means a network problem — check your connection and try again. The log lines below show the exact error.",
+  31: "The registry refused the Syrus image download. Most often this is a stale saved Docker login: run `docker logout ghcr.io` in a terminal, then retry — the image is public and needs no login. (Otherwise: the package is private or this build's tag was never published; for a dev build, push it with bin/build-local-image --push.)",
   32: "This build references a Syrus image tag that doesn't exist in the registry — the image was never published for this build. If this is a dev build, push it with bin/build-local-image --push and retry.",
   40: "Docker Compose couldn't start the Syrus containers.",
   41: "The containers started, but Syrus never answered. It may still be booting — retrying is usually safe."

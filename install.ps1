@@ -415,13 +415,29 @@ function Run-Docker {
       # an unauthorized pull is indistinguishable from a missing private repo.
       [Console]::Error.WriteLine("")
       [Console]::Error.WriteLine("Couldn't pull $image. See the error above.")
-      if ($pullError -cmatch "[Dd]enied|[Uu]nauthorized|authentication required|[Ff]orbidden") {
-        [Console]::Error.WriteLine("The registry refused the download - the package is private, the tag was")
-        [Console]::Error.WriteLine("never published, or this machine isn't logged in. Either make the package")
-        [Console]::Error.WriteLine("public, or log in once:")
+      if ($pullError -cmatch "error getting credentials|credential helper|credentials store") {
+        # Docker's credential helper choked on a stored (usually stale) login.
+        # Docker sends stored ghcr.io credentials on EVERY pull, and GHCR
+        # rejects an expired token even for public images - the fix is to log
+        # OUT, not in. Checked before the generic denied branch: this message
+        # contains neither "denied" nor "unauthorized" and used to misclassify
+        # as a network problem (exit 30).
+        [Console]::Error.WriteLine("Docker has stored login credentials for the registry that it can no longer")
+        [Console]::Error.WriteLine("read (or that have expired). The image is public - no login is needed.")
+        [Console]::Error.WriteLine("Clear the stale credentials and retry:")
+        [Console]::Error.WriteLine("    docker logout ghcr.io")
+        [Console]::Error.WriteLine("Then re-run .\install.ps1 --docker.")
+        Fail "stored Docker credentials for the registry are broken - run: docker logout ghcr.io" 31
+      } elseif ($pullError -cmatch "[Dd]enied|[Uu]nauthorized|authentication required|[Ff]orbidden") {
+        [Console]::Error.WriteLine("The registry refused the download. The most common cause is STALE stored")
+        [Console]::Error.WriteLine("credentials: docker sends any saved ghcr.io login with every pull, and an")
+        [Console]::Error.WriteLine("expired token is rejected even for public images. Clear it and retry:")
+        [Console]::Error.WriteLine("    docker logout ghcr.io")
+        [Console]::Error.WriteLine("If that doesn't help, the package may be private or the tag unpublished -")
+        [Console]::Error.WriteLine("make the package public, or log in with a valid token:")
         [Console]::Error.WriteLine("    echo <YOUR_PAT_with_read:packages> | docker login ghcr.io -u <your-username> --password-stdin")
         [Console]::Error.WriteLine("Then re-run .\install.ps1 --docker.")
-        Fail "access to $image was denied (private package, unpublished tag, or not logged in)" 31
+        Fail "access to $image was denied (stale login, private package, or unpublished tag)" 31
       } elseif ($pullError -cmatch "manifest unknown|not found") {
         [Console]::Error.WriteLine("The package exists but this tag doesn't - the build that produced this")
         [Console]::Error.WriteLine("installer references an image that was never published.")

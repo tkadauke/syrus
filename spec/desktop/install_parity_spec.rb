@@ -86,7 +86,8 @@ RSpec.describe "install.ps1 parity with install.sh" do
   it "shares the error-message fragments the GUI error screens key on" do
     [
       "undecryptable",
-      "denied (private package, unpublished tag, or not logged in)",
+      "denied (stale login, private package, or unpublished tag)",
+      "docker logout ghcr.io",
       "does not exist in the registry",
       "didn't become healthy",
       "docker compose up failed",
@@ -101,10 +102,26 @@ RSpec.describe "install.ps1 parity with install.sh" do
     # GHCR's anonymous-denied message mentions both "denied" and "does not
     # exist" - the denied branch must be checked first in both scripts.
     [sh, ps1].each do |text|
-      denied = text.index("denied (private package, unpublished tag, or not logged in)")
+      denied = text.index("denied (stale login, private package, or unpublished tag)")
       missing = text.index("does not exist in the registry")
       expect(denied).to be < missing
     end
+  end
+
+  it "classifies a broken credential helper as 31 with logout guidance, before the denied branch" do
+    # A stale keychain entry fails with "error getting credentials" — a message
+    # with neither "denied" nor "unauthorized" in it, which used to fall through
+    # to the misleading exit-30 "network problem" branch. Docker sends stored
+    # ghcr.io credentials on every pull and GHCR rejects an expired token even
+    # for PUBLIC images, so the fix is `docker logout ghcr.io`, not a login.
+    [sh, ps1].each do |text|
+      helper = text.index("error getting credentials")
+      denied = text.index("denied (stale login, private package, or unpublished tag)")
+      expect(helper).not_to be_nil
+      expect(helper).to be < denied
+    end
+    expect(sh).to include("stored Docker credentials for the registry are broken")
+    expect(ps1).to include("stored Docker credentials for the registry are broken")
   end
 
   it "defaults to the same image, project name, knobs, and --image charset" do

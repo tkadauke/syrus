@@ -126,10 +126,16 @@ PROMPT_HEADER
 
 # Progress/status go to stderr so --stdout emits ONLY the notes.
 echo "== Generating release notes for $VERSION with Claude ==" >&2
+# Sonnet 5: summarizing a commit log into grouped notes doesn't need an
+# Opus-tier model, and Sonnet is a fraction of the cost. Pinned on BOTH paths
+# so the local `claude` CLI doesn't silently use the maintainer's (possibly
+# much more expensive) default model. max_tokens leaves headroom for Sonnet 5's
+# adaptive thinking, which shares the output budget.
+NOTES_MODEL="claude-sonnet-5"
 if [ -n "$API_KEY" ]; then
   NOTES="$(
-    jq -n --arg p "$PROMPT" \
-      '{model:"claude-opus-4-8", max_tokens:4000, messages:[{role:"user", content:$p}]}' \
+    jq -n --arg m "$NOTES_MODEL" --arg p "$PROMPT" \
+      '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}' \
       | curl -fsS https://api.anthropic.com/v1/messages \
           -H "x-api-key: $API_KEY" \
           -H "anthropic-version: 2023-06-01" \
@@ -138,7 +144,7 @@ if [ -n "$API_KEY" ]; then
       | jq -r '.content[]? | select(.type == "text") | .text'
   )"
 else
-  NOTES="$(printf '%s' "$PROMPT" | claude --print)"
+  NOTES="$(printf '%s' "$PROMPT" | claude --model "$NOTES_MODEL" --print)"
 fi
 
 if [ -z "${NOTES//[[:space:]]/}" ]; then

@@ -181,6 +181,29 @@ RSpec.describe "install.sh GUI interface" do
     end
   end
 
+  it "classifies a broken credential helper as exit 31 with docker-logout guidance" do
+    Dir.mktmpdir do |stub_dir|
+      Dir.mktmpdir do |target|
+        # A stale keychain login fails with "error getting credentials" — no
+        # "denied"/"unauthorized" in the text, so it used to misclassify as the
+        # exit-30 "network problem". Docker sends stored ghcr.io credentials on
+        # every pull; GHCR rejects an expired token even for public images. The
+        # fix is `docker logout ghcr.io` — the guidance must say so.
+        write_docker_stub(stub_dir, volume_exists: false,
+          pull_error: "error getting credentials - err: exit status 1, out: `keychain cannot be accessed`")
+        out, _err, status = run_install(
+          "--docker", "--json", "--non-interactive", "--skip-runtime-install",
+          "--target-dir", target, "--image", "ghcr.io/example/syrus-backend:dev-abc", stub_dir: stub_dir
+        )
+
+        expect(status.exitstatus).to eq(31)
+        events = parse_events(out)
+        expect(events.last).to include("event" => "error", "code" => 31, "step" => "image_pull")
+        expect(events.last["message"]).to include("docker logout ghcr.io")
+      end
+    end
+  end
+
   it "classifies a missing tag on a readable package as exit 32" do
     Dir.mktmpdir do |stub_dir|
       Dir.mktmpdir do |target|

@@ -95,7 +95,7 @@ parsing text:
 | `12` | Docker Compose is not available. |
 | `20` | The `syrus_syrus-data` volume exists but `.env` is missing — the encryption-key guard. Restore the original `.env` or wipe with `docker compose down -v`. |
 | `30` | Image pull failed for a network or other unclassified reason, and no local copy of the image exists. |
-| `31` | The registry denied the pull (private package, unpublished tag, or not logged in) and no local copy exists. |
+| `31` | The registry denied the pull and no local copy exists. Most often this is a **stale saved Docker login** — docker sends any stored `ghcr.io` credentials with every pull, and an expired token is rejected even for public images. Run `docker logout ghcr.io` and retry. (Otherwise: private package or unpublished tag.) |
 | `32` | The image tag does not exist in the registry and no local copy exists. |
 | `40` | `docker compose up` failed. |
 | `41` | The stack started but never became healthy. |

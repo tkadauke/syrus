@@ -398,13 +398,31 @@ run_docker() {
       echo >&2
       echo "Couldn't pull $IMAGE. See the error above." >&2
       case "$pull_error" in
+        # Docker's credential helper choked on a stored (usually stale) login —
+        # e.g. "error getting credentials" from a broken keychain entry. Docker
+        # sends stored ghcr.io credentials on EVERY pull, and GHCR rejects an
+        # expired/revoked token even for public images, so the fix is to log
+        # OUT, not in. Checked before the generic denied branch: the helper's
+        # message contains neither "denied" nor "unauthorized" and used to
+        # misclassify as a network problem (exit 30).
+        *"error getting credentials"*|*"credential helper"*|*"credentials store"*)
+          echo "Docker has stored login credentials for the registry that it can no longer" >&2
+          echo "read (or that have expired). The image is public — no login is needed." >&2
+          echo "Clear the stale credentials and retry:" >&2
+          echo "    docker logout ghcr.io" >&2
+          echo "Then re-run ./install.sh --docker." >&2
+          die "stored Docker credentials for the registry are broken — run: docker logout ghcr.io" 31
+          ;;
         *[Dd]enied*|*[Uu]nauthorized*|*"authentication required"*|*[Ff]orbidden*)
-          echo "The registry refused the download — the package is private, the tag was" >&2
-          echo "never published, or this machine isn't logged in. Either make the package" >&2
-          echo "public, or log in once:" >&2
+          echo "The registry refused the download. The most common cause is STALE stored" >&2
+          echo "credentials: docker sends any saved ghcr.io login with every pull, and an" >&2
+          echo "expired token is rejected even for public images. Clear it and retry:" >&2
+          echo "    docker logout ghcr.io" >&2
+          echo "If that doesn't help, the package may be private or the tag unpublished —" >&2
+          echo "make the package public, or log in with a valid token:" >&2
           echo "    echo <YOUR_PAT_with_read:packages> | docker login ghcr.io -u <your-username> --password-stdin" >&2
           echo "Then re-run ./install.sh --docker." >&2
-          die "access to $IMAGE was denied (private package, unpublished tag, or not logged in)" 31
+          die "access to $IMAGE was denied (stale login, private package, or unpublished tag)" 31
           ;;
         *"manifest unknown"*|*"not found"*)
           echo "The package exists but this tag doesn't — the build that produced this" >&2
