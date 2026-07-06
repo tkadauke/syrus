@@ -4,11 +4,11 @@ A release ships everything Syrus distributes, as one tested set, from a single
 manual workflow run:
 
 - **CLI** — `syrus_vX.Y.Z_{darwin,linux}_{amd64,arm64}.tar.gz` + checksums.
-- **Desktop apps** — signed, notarized macOS `Syrus-X.Y.Z-{arm64,x64}.dmg` +
-  `.zip` + `latest-mac.yml`, and Azure-signed Windows
-  `Syrus-Setup-X.Y.Z-{x64,arm64}.exe` + `latest.yml`, plus stable-named
-  aliases for the website permalinks (`Syrus.dmg`, `Syrus-Intel.dmg`,
-  `Syrus-Setup.exe`).
+- **Desktop apps** — signed, notarized macOS `Syrus-X.Y.Z-universal.dmg` +
+  `.zip` + `latest-mac.yml` (one universal build for Apple Silicon + Intel),
+  and Azure-signed Windows `Syrus-Setup-X.Y.Z-x64.exe` + `latest.yml` (x64
+  only; runs on arm64 Windows via emulation), plus stable-named aliases for
+  the website permalinks (`Syrus.dmg`, `Syrus-Setup.exe`).
 - **Backend image** — `ghcr.io/tkadauke/syrus-local:X.Y.Z`, built and
   integration-tested in CI, with `:latest` moved to it.
 - **GitHub Release `vX.Y.Z`** — auto-generated notes, every artifact above.

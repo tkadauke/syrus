@@ -34,7 +34,7 @@ RSpec.describe "desktop CLI install" do
     # Per-platform filters: mac DMGs must not ship ~40 MB of windows exes and
     # vice versa.
     expect(config).to match(%r{mac:[\s\S]{0,900}- from: resources/cli\s+to: cli\s+filter: \["syrus-darwin-\*"\]})
-    expect(config).to match(%r{win:[\s\S]{0,400}- from: resources/cli\s+to: cli\s+filter: \["syrus-win32-\*"\]})
+    expect(config).to match(%r{win:[\s\S]{0,400}- from: resources/cli\s+to: cli\s+filter: \["syrus-win32-x64\*"\]})
 
     package = JSON.parse(read("package.json"))
     expect(package.dig("scripts", "build")).to include("stage:cli")

@@ -98,11 +98,11 @@ popover positioning). Windows specifics:
 
 ### Windows on ARM
 
-UTM/Parallels users and ARM laptops run Windows 11 ARM64. Electron ships
-win32-arm64; the NSIS target builds per-arch. We ship x64 **and** arm64
-installers (stable aliases `Syrus-Setup.exe` / `Syrus-Setup-arm64.exe`).
-The backend image is already multi-arch (amd64/arm64), so a local install
-under an ARM64 Docker Desktop/WSL2 works too.
+UTM/Parallels users and ARM laptops run Windows 11 ARM64, which runs x64
+installers and apps via built-in emulation — so we ship **x64 only** (stable
+alias `Syrus-Setup.exe`); one installer covers every Windows machine, native
+or emulated. The backend image is already multi-arch (amd64/arm64), so a
+local install under an ARM64 Docker Desktop/WSL2 works too.
 
 ### Auto-update
 

@@ -34,10 +34,11 @@ RSpec.describe "desktop Windows scaffold" do
     expect(Gem::Version.new(version)).to be >= Gem::Version.new("26.15.6")
   end
 
-  it "packages a per-user NSIS one-click installer with the brand .ico for x64 and arm64" do
+  it "packages a per-user NSIS one-click installer with the brand .ico (x64 only)" do
     config = read("electron-builder.yml")
     expect(config).to include("icon: build/icon.ico")
-    expect(config).to match(/win:[\s\S]{0,400}- target: nsis\s+arch: \[x64, arm64\]/)
+    # x64 only — arm64 Windows runs it via emulation, so one installer covers all.
+    expect(config).to match(/win:[\s\S]{0,600}- target: nsis\s+arch: \[x64\]/)
     expect(config).to match(/nsis:\s+oneClick: true\s+perMachine: false/)
     expect(File).to exist(File.join(desktop_root, "build/icon.ico"))
     expect(File).to exist(File.join(desktop_root, "scripts/make-ico.mjs"))

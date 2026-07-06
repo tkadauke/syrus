@@ -386,19 +386,18 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          for APP in desktop/out/mac-arm64/Syrus.app desktop/out/mac/Syrus.app; do
-            codesign --verify --deep --strict "$APP"
-            codesign -dv --verbose=2 "$APP" 2>&1 | grep "Developer ID Application"
-            spctl -a -t exec -vv "$APP" 2>&1 | grep "Notarized Developer ID"
-            xcrun stapler validate "$APP"
-          done
+          # One universal app that runs on both Apple Silicon and Intel.
+          APP="desktop/out/mac-universal/Syrus.app"
+          codesign --verify --deep --strict "$APP"
+          codesign -dv --verbose=2 "$APP" 2>&1 | grep "Developer ID Application"
+          spctl -a -t exec -vv "$APP" 2>&1 | grep "Notarized Developer ID"
+          xcrun stapler validate "$APP"
           test -f desktop/out/latest-mac.yml
-          grep -q "Syrus-$VERSION-arm64.zip" desktop/out/latest-mac.yml
-          test -f "desktop/out/Syrus-$VERSION-arm64.zip"
-          test -f "desktop/out/Syrus-$VERSION-x64.zip"
+          grep -q "Syrus-$VERSION-universal.zip" desktop/out/latest-mac.yml
+          test -f "desktop/out/Syrus-$VERSION-universal.zip"
 
-      # Collect everything the release needs, plus stable-named aliases for the
-      # website permalinks (Syrus.dmg = Apple Silicon, Syrus-Intel.dmg = Intel).
+      # Collect everything the release needs, plus the stable-named alias for
+      # the website permalink. One universal Syrus.dmg — no Intel split.
       - name: Stage macOS artifacts
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
@@ -408,8 +407,7 @@ jobs:
           cp desktop/out/Syrus-*.dmg desktop/out/Syrus-*.zip "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/*.blockmap "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/latest-mac.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
-          cp "desktop/out/Syrus-$VERSION-arm64.dmg" "$RUNNER_TEMP/staged/Syrus.dmg"
-          cp "desktop/out/Syrus-$VERSION-x64.dmg" "$RUNNER_TEMP/staged/Syrus-Intel.dmg"
+          cp "desktop/out/Syrus-$VERSION-universal.dmg" "$RUNNER_TEMP/staged/Syrus.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -553,8 +551,8 @@ jobs:
           cp desktop/out/Syrus-Setup-*.exe "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/*.blockmap "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/latest.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          # x64 only — runs natively on x64 and via emulation on arm64 Windows.
           cp "desktop/out/Syrus-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/Syrus-Setup.exe"
-          cp "desktop/out/Syrus-Setup-$VERSION-arm64.exe" "$RUNNER_TEMP/staged/Syrus-Setup-arm64.exe"
 
       - uses: actions/upload-artifact@v7
         with:

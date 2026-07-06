@@ -34,18 +34,28 @@ mac:
   # The Syrus CLI (pure-Go binaries staged by scripts/stage-cli.mjs).
   # Per-platform filters keep ~40 MB of the other OS's binaries out of each
   # package; Preferences installs from here — it powers the tray's Checkout
-  # and terminal/agent workflows.
+  # and terminal/agent workflows. Both darwin arches ride along so
+  # ensureCliCurrent can install the one matching the running arch.
   extraResources:
     - from: resources/cli
       to: cli
       filter: ["syrus-darwin-*"]
+  # The CLI binaries are single-arch Mach-O files, identical in both arch app
+  # builds. Without this, @electron/universal fails the merge ("Detected file
+  # ... same in both x64 and arm64 builds and not covered by the x64ArchFiles
+  # rule"). This tells it to keep them as-is (both arches' CLI end up bundled).
+  x64ArchFiles: "**/cli/*"
   target:
-    # zip is REQUIRED alongside dmg: electron-updater on macOS installs
-    # updates from the zip, and latest-mac.yml references it.
+    # ONE universal (arm64 + x64) build — a single Syrus.dmg that runs on both
+    # Apple Silicon and Intel, no Intel-vs-Apple-Silicon download split. Both
+    # per-arch CLI binaries ride along (filter syrus-darwin-* matches both);
+    # ensureCliCurrent installs the one matching the running arch.
+    # zip is REQUIRED alongside dmg: electron-updater installs updates from the
+    # zip, and latest-mac.yml references it.
     - target: dmg
-      arch: [arm64, x64]
+      arch: [universal]
     - target: zip
-      arch: [arm64, x64]
+      arch: [universal]
 dmg:
   title: Syrus ${version}
   iconSize: 128
@@ -69,14 +79,18 @@ dmg:
 win:
   icon: build/icon.ico
   artifactName: ${productName}-Setup-${version}-${arch}.${ext}
-  # Windows twin of the mac CLI FileSet above.
+  # Windows twin of the mac CLI FileSet above. x64 only (the app is x64).
   extraResources:
     - from: resources/cli
       to: cli
-      filter: ["syrus-win32-*"]
+      filter: ["syrus-win32-x64*"]
+  # x64 only: Windows 11 on ARM runs x64 installers and apps (and the bundled
+  # x64 CLI) via built-in emulation, so one x64 build covers every Windows
+  # machine. Native arm64 would be a marginal perf win for a rounding-error
+  # share of users; not worth a second artifact.
   target:
     - target: nsis
-      arch: [x64, arm64]
+      arch: [x64]
 nsis:
   oneClick: true
   perMachine: false

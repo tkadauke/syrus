@@ -1,7 +1,7 @@
 {
   "name": "syrus-desktop",
   "productName": "Syrus",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "description": "Syrus desktop shell",
   "author": "Syrus",
   "private": true,

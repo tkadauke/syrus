@@ -170,11 +170,12 @@ RSpec.describe "desktop auto-update and release pipeline" do
   it "release workflow verifies the signature, stapling, and stable download aliases" do
     expect(release_workflow).to include("codesign --verify --deep --strict")
     expect(release_workflow).to include("xcrun stapler validate")
-    # Website permalinks: Syrus.dmg (Apple Silicon), Syrus-Intel.dmg (Intel),
-    # Syrus-Setup.exe (Windows x64).
-    expect(release_workflow).to match(%r{"desktop/out/Syrus-\$VERSION-arm64\.dmg" "\$RUNNER_TEMP/staged/Syrus\.dmg"})
-    expect(release_workflow).to match(%r{"desktop/out/Syrus-\$VERSION-x64\.dmg" "\$RUNNER_TEMP/staged/Syrus-Intel\.dmg"})
+    # One universal macOS build → one Syrus.dmg permalink (no Intel split);
+    # Windows is x64-only → Syrus-Setup.exe.
+    expect(release_workflow).to match(%r{"desktop/out/Syrus-\$VERSION-universal\.dmg" "\$RUNNER_TEMP/staged/Syrus\.dmg"})
+    expect(release_workflow).not_to include("Syrus-Intel.dmg")
     expect(release_workflow).to match(%r{Syrus-Setup-\$VERSION-x64\.exe" "\$RUNNER_TEMP/staged/Syrus-Setup\.exe"})
+    expect(release_workflow).not_to include("Syrus-Setup-arm64.exe")
   end
 
   it "deploys the website via a reusable workflow, callable standalone too" do

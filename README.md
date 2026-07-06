@@ -47,14 +47,13 @@ window, and adds a menu-bar inbox. It's batteries-included: it also installs
 the `syrus` CLI and keeps it updated, and you sign in with your email and
 password — no API keys to copy.
 
-**macOS** — download, open, and double-click Syrus in the disk image. It
-installs itself to Applications and launches; the first-run setup handles
-the Docker backend. No terminal required.
+**macOS** — one universal download for both Apple Silicon and Intel:
+**[Syrus.dmg](https://github.com/tkadauke/syrus/releases/latest/download/Syrus.dmg)**.
+Open it and double-click Syrus in the disk image — it installs itself to
+Applications and launches; the first-run setup handles the Docker backend. No
+terminal required.
 
-- Apple Silicon: **[Syrus.dmg](https://github.com/tkadauke/syrus/releases/latest/download/Syrus.dmg)**
-- Intel: **[Syrus-Intel.dmg](https://github.com/tkadauke/syrus/releases/latest/download/Syrus-Intel.dmg)**
-
-Those links always point at the newest signed build; you can also browse every
+That link always points at the newest signed build; you can also browse every
 release and its checksums on the
 [Releases page](https://github.com/tkadauke/syrus/releases).
 

@@ -11,9 +11,8 @@ configuration. On macOS, double-click Syrus inside the DMG (the app
 installs itself into `~/Applications` and relaunches from there).
 
 **[Download Syrus for Mac](https://github.com/tkadauke/syrus/releases/latest/download/Syrus.dmg)**
-(Apple Silicon) ·
-**[Intel Macs](https://github.com/tkadauke/syrus/releases/latest/download/Syrus-Intel.dmg)** ·
-other artifacts on the [releases page](https://github.com/tkadauke/syrus/releases).
+— one universal build for both Apple Silicon and Intel · other artifacts on
+the [releases page](https://github.com/tkadauke/syrus/releases).
 
 **Windows** is in beta: the app installs and runs Syrus locally on Docker
 Desktop (or connects to an existing instance), with the same tray inbox
@@ -78,8 +77,7 @@ instances.)
 
 ## Requirements
 
-- macOS 13 or later (Apple Silicon DMG is the primary artifact; an
-  Intel build is published alongside it).
+- macOS 13 or later (one universal DMG runs on both Apple Silicon and Intel).
 - A Docker runtime for the local install: [OrbStack](https://orbstack.dev)
   (recommended; the app guides you through it), Docker Desktop, or
   Colima. Connecting to a remote Syrus instance needs no Docker at all.

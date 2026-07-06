@@ -530,7 +530,7 @@ own failure signature.
   present before staging (`grep -q "Syrus-$VERSION-arm64.zip"
   latest-mac.yml`, `Test-Path desktop/out/latest.yml`), and `publish`
   uploads whatever was staged in one `gh release create`. The stable-named
-  `Syrus.dmg` / `Syrus-Intel.dmg` / `Syrus-Setup.exe` aliases are *outside*
+  `Syrus.dmg` / `Syrus-Setup.exe` aliases are *outside*
   the feed (website permalinks only) — clobbering those is always safe.
 - **Fix:** re-dispatch the pipeline so the feed is regenerated and uploaded
   as a matched set. Never hand-edit, rename, or re-upload a published asset —
