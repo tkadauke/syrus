@@ -5,7 +5,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
-import { CopyableJobSlug } from "../components/CopyableJobSlug"
 import { dashboardApiSearch } from "../api/dashboard"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -1328,7 +1327,7 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
       <span className="inline-flex items-center">
         <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
         <span>/</span>
-        <CopyableJobSlug slug={`JOB-${job.id}`} />
+        <CopyableSlug slug={`JOB-${job.id}`} />
       </span>
     )
   }
@@ -1376,7 +1375,7 @@ function workflowTriggerClassName(triggerKind: string) {
 }
 
 function IssueMetadata({ job }: { job: DashboardJobItem }) {
-  if (!job.issue_number) return <CopyableJobSlug slug={`JOB-${job.id}`} />
+  if (!job.issue_number) return <CopyableSlug slug={`JOB-${job.id}`} />
 
   const label = `#${job.issue_number}`
 

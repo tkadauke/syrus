@@ -9,7 +9,7 @@ import {
   type AdminInvitationsPayload
 } from "../api/adminInvitations"
 import { ApiError } from "../api/client"
-import { CopyIcon } from "../components/CopyableJobSlug"
+import { CopyIcon } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { useT } from "../hooks/useT"
 
