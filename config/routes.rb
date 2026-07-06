@@ -206,6 +206,7 @@ Rails.application.routes.draw do
             post :unarchive
             post :retry_failed_jobs
             post :release_needs_triage_job
+            get :coverage_trend
           end
         end
         get "repositories/:repository_id/documents", to: "repository_documents#index"

@@ -242,6 +242,35 @@ module Api
           )
         end
 
+        def coverage_trend
+          repository = find_repository
+          days = [ params.fetch(:days, 30).to_i, 1 ].max
+
+          averages = CoverageSnapshot.daily_averages(repository: repository, days: days)
+          latest_snapshot = CoverageSnapshot.on_branch(repository.default_branch)
+                                            .order(created_at: :desc)
+                                            .first
+
+          trend = averages.map do |row|
+            {
+              "date" => row.date.to_s,
+              "lines_pct" => row.avg_lines_pct&.to_f&.round(2),
+              "branches_pct" => row.avg_branches_pct&.to_f&.round(2),
+              "functions_pct" => row.avg_functions_pct&.to_f&.round(2)
+            }
+          end
+
+          latest = if latest_snapshot
+            {
+              "lines_pct" => latest_snapshot.lines_pct&.to_f,
+              "branches_pct" => latest_snapshot.branches_pct&.to_f,
+              "functions_pct" => latest_snapshot.functions_pct&.to_f
+            }
+          end
+
+          render json: { "days" => days, "trend" => trend, "latest" => latest }
+        end
+
         private
 
         def form_payload(repository)
