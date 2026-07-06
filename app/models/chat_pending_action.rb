@@ -150,172 +150,13 @@ class ChatPendingAction < ApplicationRecord
     EMPTY_PAYLOAD_ACTIONS.include?(action_key)
   end
 
-  # Each branch returns an AR record to stash on `action.result`
+  # Each command object returns an AR record to stash on `action.result`
   # (polymorphic), or nil when the action is purely a mutation of
   # existing state. Anything else would blow up the polymorphic
   # assignment (which calls AR methods like `has_query_constraints?`
   # on the assigned object).
   def apply!
-    case action_key
-    when "cancel_job"
-      action_job.cancel_active_runs_and_close!("cancelled")
-      nil
-    when "retry_job"
-      job = action_job
-      result = RetryWorkflowEnqueuer.call(job: job)
-      raise ArgumentError, result.error unless result.success?
-
-      nil
-    when "rebase_job"
-      job = action_job
-      unless job.pr_number.present? || job.external_pr_number.present?
-        raise ArgumentError, "No PR on this Job to rebase."
-      end
-      if RebaseWorkflowSelector.active_for_stack?(job)
-        raise ArgumentError, "A rebase is already in progress — wait for it to finish."
-      end
-
-      workflow = RebaseWorkflowSelector.instantiate(job: job)
-      StepDispatcher.start_workflow(workflow)
-      nil
-    when "reopen_job"
-      job = action_user_job
-      raise ArgumentError, "Job isn't closed." unless job.may_reopen?
-
-      job.reopen!
-      job.save!
-      job
-    when "fire_scheduled_task_now"
-      task = action_scheduled_task
-      raise ArgumentError, "Task isn't fireable in its current state." if task.archived? || task.fired?
-
-      result = ScheduledTaskFire.new(task).call
-      result.fired? ? result.job : nil
-    when "create_repo_document"
-      repo = action_user_repository
-      document = repo.repository_documents.new(
-        user: user,
-        kind: "file",
-        title: payload.fetch("title").to_s
-      )
-      document.file.attach(
-        io: StringIO.new(payload.fetch("body").to_s),
-        filename: document_filename(document.title),
-        content_type: "text/markdown"
-      )
-      document.save!
-      document
-    when "delete_repo_document"
-      document = action_user_document
-      document.file.purge if document.file.attached?
-      document.destroy!
-      nil
-    when "poll_job_feedback"
-      job = action_user_job
-      unless job.open? && job.pr_number.present?
-        raise ArgumentError, "Can only check feedback on open Jobs that have a PR."
-      end
-
-      PollPullRequestJob.perform_later(job.id, manual: true)
-      nil
-    when "check_job_mergeability"
-      job = action_user_job
-      unless job.pr_number.present? || job.external_pr_number.present?
-        raise ArgumentError, "No PR on this Job to check."
-      end
-
-      PollRebaseJob.perform_later(job.id, bypass_cache: true)
-      nil
-    when "delegate_issue"
-      repo = action_user_repository
-      issue_number = Integer(payload.fetch("issue_number"), exception: false)
-      raise ArgumentError, "issue_number is required" unless issue_number&.positive?
-
-      GithubClient.for(repository: repo, user: user).add_label_to_issue(repo.slug, issue_number, repo.trigger_label)
-      nil
-    when "pause_landing_queue"
-      user.update!(landing_paused: true)
-      nil
-    when "resume_landing_queue"
-      user.update!(landing_paused: false)
-      LandingQueueProcessorJob.perform_later
-      nil
-    when "submit_chat_feedback"
-      job = action_job
-      result = ChatFeedbackSubmission.call(
-        job: job,
-        feedback: payload.fetch("feedback"),
-        allowed_states: %w[implemented approved]
-      )
-      raise ArgumentError, result.error unless result.success?
-
-      result.workflow
-    when "reopen_epic_and_attach_job"
-      epic = self.repository.epics.where(user: user).find(payload.fetch("epic_id"))
-      job = action_job
-
-      epic.in_progress! if epic.done?
-      job.update!(epic: epic, pending_epic_reference: {})
-      job.advance_after_triage! if job.may_advance_after_triage?
-      job
-    when "admin_kill_process"
-      process = SpawnedProcess.find(payload.fetch("process_id"))
-      process.request_kill!(user: user) if process.running?
-      nil
-    when "admin_reap_stale_runs"
-      ReapStaleRunsJob.perform_later
-      nil
-    when "admin_pause_polling"
-      Admin::Console::Payload.new(actor: user).pause_polling(source: "chat_mcp")
-      nil
-    when "admin_unpause_polling"
-      Admin::Console::Payload.new(actor: user).unpause_polling(source: "chat_mcp")
-      nil
-    when "admin_pause_runs"
-      Admin::Console::Payload.new(actor: user).pause_runs(source: "chat_mcp")
-      nil
-    when "admin_unpause_runs"
-      Admin::Console::Payload.new(actor: user).unpause_runs(source: "chat_mcp")
-      nil
-    when "admin_clear_github_cache"
-      Admin::Console::Payload.new(actor: user).clear_github_cache(user_id: nil, source: "chat_mcp")
-      nil
-    when "admin_pause_user_scheduling"
-      Admin::Users::Payload.new(params: {}, actor: user).pause_scheduling(payload.fetch("user_id"))
-      nil
-    when "admin_unpause_user_scheduling"
-      Admin::Users::Payload.new(params: {}, actor: user).unpause_scheduling(payload.fetch("user_id"))
-      nil
-    when "admin_retry_step"
-      workflow = Workflow.find(payload.fetch("workflow_id"))
-      step_slug = payload.fetch("step_slug").to_s
-      failed_step = RetryFailedStepEnqueuer.failed_step_for(workflow)
-      unless failed_step&.kind == step_slug
-        raise ArgumentError, "Step '#{step_slug}' is not the retryable failed step on #{workflow.slug}."
-      end
-
-      result = RetryFailedStepEnqueuer.call(workflow: workflow)
-      raise ArgumentError, result.error unless result.success?
-
-      result.run
-    when "admin_cleanup_workspace"
-      workflow = Workflow.find(payload.fetch("workflow_id"))
-      raise ArgumentError, "Workflow workspace is still in use by active steps or runs." unless workflow.cleanup_workspace!
-
-      nil
-    when "admin_refresh_installations"
-      SyncInstallationsJob.perform_later(user.id)
-      nil
-    else
-      ScheduledTask.create!(
-        user: user,
-        repository: self.repository,
-        kind: "cron",
-        name: payload.fetch("label"),
-        cron_expression: payload.fetch("cron_expression"),
-        prompt: payload.fetch("prompt")
-      )
-    end
+    PendingActions.for(action_key).new(self).execute
   end
 
   def known_action
@@ -323,40 +164,9 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def payload_matches_action
-    case action_key
-    when "cancel_job", "retry_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability"
-      errors.add(:payload, "job_id is required") unless payload["job_id"].present?
-    when "fire_scheduled_task_now"
-      errors.add(:payload, "scheduled_task_id is required") unless payload["scheduled_task_id"].present?
-    when "create_repo_document"
-      errors.add(:payload, "repository_id is required") unless payload["repository_id"].present?
-      errors.add(:payload, "title is required") if payload["title"].to_s.strip.blank?
-      errors.add(:payload, "body is required") if payload["body"].to_s.blank?
-    when "delete_repo_document"
-      errors.add(:payload, "document_id is required") unless payload["document_id"].present?
-    when "delegate_issue"
-      errors.add(:payload, "repository_id is required") unless payload["repository_id"].present?
-      errors.add(:payload, "issue_number is required") unless payload["issue_number"].present?
-    when "submit_chat_feedback"
-      errors.add(:payload, "job_id is required") unless payload["job_id"].present?
-      errors.add(:payload, "feedback is required") if payload["feedback"].to_s.strip.blank?
-    when "reopen_epic_and_attach_job"
-      errors.add(:payload, "job_id is required") unless payload["job_id"].present?
-      errors.add(:payload, "epic_id is required") unless payload["epic_id"].present?
-    when "admin_kill_process"
-      errors.add(:payload, "process_id is required") unless payload["process_id"].present?
-    when "admin_pause_user_scheduling", "admin_unpause_user_scheduling"
-      errors.add(:payload, "user_id is required") unless payload["user_id"].present?
-    when "admin_retry_step"
-      errors.add(:payload, "workflow_id is required") unless payload["workflow_id"].present?
-      errors.add(:payload, "step_slug is required") if payload["step_slug"].to_s.strip.blank?
-    when "admin_cleanup_workspace"
-      errors.add(:payload, "workflow_id is required") unless payload["workflow_id"].present?
-    when "schedule_recurring"
-      errors.add(:payload, "cron_expression is required") if payload["cron_expression"].to_s.strip.blank?
-      errors.add(:payload, "label is required") if payload["label"].to_s.strip.blank?
-      errors.add(:payload, "prompt is required") if payload["prompt"].to_s.strip.blank?
-    end
+    PendingActions.for(action_key).new(self).validate_payload(errors)
+  rescue PendingActions::UnknownAction
+    # unknown actions are caught by known_action validation
   end
 
   def queued_actions_are_job_scoped
@@ -373,34 +183,6 @@ class ChatPendingAction < ApplicationRecord
   def user_matches_chat_session
     return unless chat_session && user
     errors.add(:user, "must match chat session") if user_id != chat_session.user_id
-  end
-
-  def action_job
-    chat_session.repository.jobs.find(payload.fetch("job_id"))
-  end
-
-  def action_user_job
-    user.jobs.find(payload.fetch("job_id"))
-  end
-
-  def action_scheduled_task
-    ScheduledTask.alive.where(user: user).find(payload.fetch("scheduled_task_id"))
-  end
-
-  def action_user_repository
-    user.repositories.active.find(payload.fetch("repository_id"))
-  end
-
-  def action_user_document
-    Document.where(
-      attachable_type: "Repository",
-      attachable_id: user.repositories.active.select(:id)
-    ).find(payload.fetch("document_id"))
-  end
-
-  def document_filename(title)
-    basename = title.to_s.parameterize.presence || "document"
-    "#{basename.first(80)}.md"
   end
 
   def notify_chat_of_outcome

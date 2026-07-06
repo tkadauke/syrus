@@ -236,41 +236,16 @@ class IngestionClassifier
     end
 
     def run_once(prompt:, log_sink:, timeout:, max_turns:)
-      Dir.mktmpdir("syrus-ingestion-classifier") do |workspace_path|
-        case @provider
-        when "claude"
-          ClaudeInvocation.new(
-            workspace_path,
-            prompt: prompt,
-            oauth_token: @user.claude_oauth_token,
-            log_sink: log_sink,
-            runner: RunJob.agent_runner,
-            timeout: timeout,
-            max_turns: max_turns
-          ).run
-        when "codex"
-          codex_home = File.join(WorkflowWorkspace.data_root, "agent_homes", "ingestion_classifier", @user.id.to_s, "codex")
-          CodexAuth.with_refresh_lock(user: @user) do
-            codex_auth = CodexAuth.new(user: @user, codex_home: codex_home)
-            auth = codex_auth.prepare!
-            begin
-              CodexInvocation.new(
-                workspace_path,
-                prompt: prompt,
-                api_key: auth.api_key,
-                log_sink: log_sink,
-                runner: RunJob.agent_runner,
-                timeout: timeout,
-                codex_home: codex_home
-              ).run
-            ensure
-              codex_auth.persist_updated_auth_json
-            end
-          end
-        else
-          raise AgentProviders::ConfigurationError, "Unknown agent provider: #{@provider.inspect}"
-        end
-      end
+      AgentProviders.run_one_shot(
+        provider: @provider,
+        user: @user,
+        runner: RunJob.agent_runner,
+        scope: "ingestion-classifier",
+        prompt: prompt,
+        log_sink: log_sink,
+        timeout: timeout,
+        max_turns: max_turns
+      )
     end
   end
 end

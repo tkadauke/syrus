@@ -98,18 +98,23 @@ class ChatProposalFiler
       .transform_values(&:job)
   end
 
+  KIND_DISPATCH = {
+    "syrus_issue" => :create_direct_job,
+    "job"         => :create_direct_job,
+    "github_issue" => :create_github_issue_returning_nil,
+    "epic"        => :create_epic
+  }.freeze
+
   def create_record_for(proposal)
-    case proposal.kind
-    when "syrus_issue", "job"
-      create_direct_job(proposal)
-    when "github_issue"
-      file_github_issue(proposal)
-      nil
-    when "epic"
-      create_epic(proposal)
-    else
+    method_name = KIND_DISPATCH.fetch(proposal.kind) do
       raise ArgumentError, "unsupported proposal kind: #{proposal.kind}"
     end
+    send(method_name, proposal)
+  end
+
+  def create_github_issue_returning_nil(proposal)
+    file_github_issue(proposal)
+    nil
   end
 
   def create_direct_job(proposal)

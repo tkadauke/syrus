@@ -73,16 +73,7 @@ module App
     end
 
     def failed_step_label
-      case latest_workflow.trigger_kind
-      when "auto_merge"
-        "Retry landing step"
-      when "merge_train"
-        failed_step.kind == "merge_train_land" ? "Rebuild merge train" : "Retry merge train step"
-      when "rebase", "stack_rebase"
-        "Retry rebase step"
-      else
-        "Retry failed step"
-      end
+      Workflow::TriggerKind.retry_label_for(latest_workflow.trigger_kind, step_kind: failed_step&.kind)
     end
   end
 end

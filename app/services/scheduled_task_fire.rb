@@ -3,6 +3,8 @@ class ScheduledTaskFire
     def fired? = !skipped
   end
 
+  attr_reader :now
+
   def initialize(task, now: Time.current, require_due: false)
     @task = task
     @now = now
@@ -32,16 +34,9 @@ class ScheduledTaskFire
         return Result.new(job: nil, skipped: true, reason: "already_fired_window")
       end
 
-      case @task.pr_pileup_policy
-      when "skip"
-        if @task.has_open_pr?
-          @task.record_fire!(at: @now)
-          return Result.new(job: nil, skipped: true, reason: "prior_pr_open")
-        end
-      when "replace"
-        close_prior_open_prs
-      when "pile"
-        # fall through
+      policy = PrPileupPolicies.for(@task.pr_pileup_policy).new(@task, fire_service: self)
+      if (result = policy.check_pileup)
+        return result
       end
 
       rendered_prompt = Prompts::ScheduledTask.new(scheduled_task: @task, fired_at: @now).to_s
@@ -70,8 +65,6 @@ class ScheduledTaskFire
       Result.new(job: job, skipped: false, reason: nil)
     end
   end
-
-  private
 
   def close_prior_open_prs
     @task.open_pr_jobs.find_each do |old_job|

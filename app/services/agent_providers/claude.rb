@@ -76,6 +76,18 @@ module AgentProviders
       end
     end
 
+    def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
+      ClaudeInvocation.new(
+        workspace_path,
+        prompt: prompt,
+        oauth_token: user.claude_oauth_token,
+        log_sink: log_sink,
+        runner: runner,
+        timeout: timeout,
+        max_turns: max_turns
+      ).run
+    end
+
     def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:)
       ClaudeInvocation.new(
         workspace_path,

@@ -2,6 +2,27 @@ module AgentProviders
   class Codex < Base
     def self.provider = "codex"
 
+    def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
+      codex_home = File.join(WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "codex")
+      CodexAuth.with_refresh_lock(user: user) do
+        codex_auth = CodexAuth.new(user: user, codex_home: codex_home)
+        auth = codex_auth.prepare!
+        begin
+          CodexInvocation.new(
+            workspace_path,
+            prompt: prompt,
+            api_key: auth.api_key,
+            log_sink: log_sink,
+            runner: runner,
+            timeout: timeout,
+            codex_home: codex_home
+          ).run
+        ensure
+          codex_auth.persist_updated_auth_json
+        end
+      end
+    end
+
     private
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:, **_ignored)

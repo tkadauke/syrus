@@ -368,40 +368,32 @@ module App
 
     def feedback_history_json
       @job.workflows
-        .select { |workflow| workflow.trigger_kind.in?(%w[chat_feedback pr_comment]) }
+        .select { |workflow| Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind) }
         .sort_by { |workflow| workflow.created_at || Time.at(0) }
         .filter_map do |workflow|
-          case workflow.trigger_kind
-          when "chat_feedback"
-            body = workflow.artifacts&.dig("chat_feedback")
-            next unless body.present?
-
-            source = workflow.artifacts&.dig("feedback_source")
-            {
-              kind: "chat_feedback",
-              body: body,
-              created_at: iso8601(workflow.created_at),
-              state: workflow.state,
-              feedback_source: source
-            }
-          when "pr_comment"
-            comments = Array(workflow.artifacts&.dig("pr_comments"))
-            next if comments.empty?
-
-            body = comments.map do |comment|
-              author = comment["author"].present? ? "@#{comment["author"]}: " : ""
-              "#{author}#{comment["body"]}"
-            end.join("\n\n")
-
-            {
-              kind: "pr_comment",
-              body: body,
-              created_at: iso8601(workflow.created_at),
-              state: workflow.state,
-              feedback_source: nil
-            }
-          end
+          feedback_entry_for(workflow)
         end
+    end
+
+    def feedback_entry_for(workflow)
+      case Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind)
+      when :chat_feedback
+        body = workflow.artifacts&.dig("chat_feedback")
+        return unless body.present?
+
+        source = workflow.artifacts&.dig("feedback_source")
+        { kind: "chat_feedback", body: body, created_at: iso8601(workflow.created_at), state: workflow.state, feedback_source: source }
+      when :pr_comment
+        comments = Array(workflow.artifacts&.dig("pr_comments"))
+        return if comments.empty?
+
+        body = comments.map do |comment|
+          author = comment["author"].present? ? "@#{comment["author"]}: " : ""
+          "#{author}#{comment["body"]}"
+        end.join("\n\n")
+
+        { kind: "pr_comment", body: body, created_at: iso8601(workflow.created_at), state: workflow.state, feedback_source: nil }
+      end
     end
 
     def landing_queue_entry_json

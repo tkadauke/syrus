@@ -1,0 +1,36 @@
+# Load all PendingActions command classes so their `inherited` hooks
+# fire and populate PendingActions::REGISTRY. In production, eager_load
+# handles this automatically; this initializer covers development/test
+# where eager_load is disabled.
+Rails.application.config.to_prepare do
+  [
+    "pending_actions/base",
+    "pending_actions/cancel_job",
+    "pending_actions/retry_job",
+    "pending_actions/rebase_job",
+    "pending_actions/reopen_job",
+    "pending_actions/fire_scheduled_task_now",
+    "pending_actions/create_repo_document",
+    "pending_actions/delete_repo_document",
+    "pending_actions/poll_job_feedback",
+    "pending_actions/check_job_mergeability",
+    "pending_actions/delegate_issue",
+    "pending_actions/pause_landing_queue",
+    "pending_actions/resume_landing_queue",
+    "pending_actions/submit_chat_feedback",
+    "pending_actions/reopen_epic_and_attach_job",
+    "pending_actions/admin_kill_process",
+    "pending_actions/admin_reap_stale_runs",
+    "pending_actions/admin_pause_polling",
+    "pending_actions/admin_unpause_polling",
+    "pending_actions/admin_pause_runs",
+    "pending_actions/admin_unpause_runs",
+    "pending_actions/admin_clear_github_cache",
+    "pending_actions/admin_pause_user_scheduling",
+    "pending_actions/admin_unpause_user_scheduling",
+    "pending_actions/admin_retry_step",
+    "pending_actions/admin_cleanup_workspace",
+    "pending_actions/admin_refresh_installations",
+    "pending_actions/schedule_recurring",
+  ].each { |path| require_dependency path }
+end

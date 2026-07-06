@@ -422,6 +422,27 @@ RSpec.describe ChatPendingAction do
     expect(action.errors[:repository]).to be_present
   end
 
+  describe "PendingActions registry" do
+    it "raises UnknownAction for an unrecognized action key" do
+      expect {
+        PendingActions.for("totally_unknown_action")
+      }.to raise_error(PendingActions::UnknownAction, /unknown pending action/)
+    end
+
+    it "includes expected action keys in the registry" do
+      %w[cancel_job retry_job rebase_job schedule_recurring admin_kill_process pause_landing_queue].each do |key|
+        expect(PendingActions::REGISTRY).to have_key(key), "expected registry to include '#{key}'"
+      end
+    end
+
+    it "covers every ACTIONS entry and every ACTION_TYPES entry" do
+      all_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES
+      all_keys.each do |key|
+        expect(PendingActions::REGISTRY).to have_key(key), "registry missing '#{key}'"
+      end
+    end
+  end
+
   describe "outcome notification callback" do
     it "creates a system message and enqueues ChatTurnJob when confirmed" do
       allow(AppEvents).to receive(:broadcast)
