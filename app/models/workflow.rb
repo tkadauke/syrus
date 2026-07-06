@@ -372,6 +372,7 @@ class Workflow < ApplicationRecord
     trigger_kind == "coding_handoff"
   end
 
+
   # Compress json_data (a Hash) with gzip and attach it as the coverage_hit_map blob.
   # Hit map structure: { "app/models/user.rb" => { "1" => 3, "2" => 0, "5" => 1 } }
   # (line number string → hit count; absent line = not executable)
