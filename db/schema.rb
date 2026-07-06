@@ -341,6 +341,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_192118) do
     t.index ["run_id"], name: "index_claude_sessions_on_run_id", unique: true
   end
 
+  create_table "coverage_snapshots", force: :cascade do |t|
+    t.string "branch", null: false
+    t.decimal "branches_pct", precision: 5, scale: 2
+    t.datetime "created_at", null: false
+    t.json "data"
+    t.integer "file_count"
+    t.decimal "functions_pct", precision: 5, scale: 2
+    t.integer "job_id"
+    t.decimal "lines_pct", precision: 5, scale: 2
+    t.decimal "pr_delta_pct", precision: 5, scale: 2
+    t.integer "repository_id", null: false
+    t.string "sha", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id", null: false
+    t.index ["job_id"], name: "index_coverage_snapshots_on_job_id"
+    t.index ["repository_id", "branch"], name: "index_coverage_snapshots_on_repository_id_and_branch"
+    t.index ["repository_id", "created_at"], name: "index_coverage_snapshots_on_repository_id_and_created_at"
+    t.index ["repository_id"], name: "index_coverage_snapshots_on_repository_id"
+    t.index ["workflow_id"], name: "index_coverage_snapshots_on_workflow_id"
+  end
+
   create_table "cron_templates", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "cron_expression", null: false
@@ -1156,6 +1177,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_192118) do
   add_foreign_key "chat_wakeups", "users"
   add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"
+  add_foreign_key "coverage_snapshots", "jobs"
+  add_foreign_key "coverage_snapshots", "repositories"
+  add_foreign_key "coverage_snapshots", "workflows"
   add_foreign_key "cron_templates", "users"
   add_foreign_key "documents", "users"
   add_foreign_key "epic_dependencies", "epics"

@@ -9,6 +9,7 @@ class Workflow < ApplicationRecord
   belongs_to :user
   has_many :steps, -> { order(:position) }, dependent: :destroy
   has_many :auto_retry_attempts, dependent: :destroy
+  has_one_attached :coverage_hit_map
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
@@ -369,6 +370,35 @@ class Workflow < ApplicationRecord
 
   def coding_handoff_workflow?
     trigger_kind == "coding_handoff"
+  end
+
+  # Compress json_data (a Hash) with gzip and attach it as the coverage_hit_map blob.
+  # Hit map structure: { "app/models/user.rb" => { "1" => 3, "2" => 0, "5" => 1 } }
+  # (line number string → hit count; absent line = not executable)
+  def attach_coverage_hit_map!(json_data)
+    compressed = StringIO.new.tap do |io|
+      gz = Zlib::GzipWriter.new(io)
+      gz.write(JSON.generate(json_data))
+      gz.close
+    end.string
+    coverage_hit_map.attach(
+      io: StringIO.new(compressed),
+      filename: "coverage_hit_map.json.gz",
+      content_type: "application/gzip"
+    )
+  end
+
+  # Decompress and parse the attached hit map blob. Returns nil if no attachment.
+  def coverage_hit_map_data
+    return nil unless coverage_hit_map.attached?
+
+    compressed = coverage_hit_map.download
+    JSON.parse(Zlib::GzipReader.new(StringIO.new(compressed)).read)
+  end
+
+  # Detach and delete the coverage hit map blob.
+  def purge_coverage_hit_map!
+    coverage_hit_map.purge
   end
 
   private
