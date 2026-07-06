@@ -25,6 +25,8 @@
   "kanban_lanes": "Kanban lanes",
   "preferences_error": "Unable to update dashboard preferences.",
 
+  "system_readiness": "System readiness",
+  "lane_label": "{{title}} lane",
   "readiness_title": "System readiness needs attention",
   "readiness_description": "Syrus may not be able to pick up or run work until these checks pass.",
   "open_settings": "Open settings",

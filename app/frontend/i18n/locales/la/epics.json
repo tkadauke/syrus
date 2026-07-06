@@ -1,6 +1,8 @@
 {
   "title": "Epica",
 
+  "detail_label": "Epica",
+  "job_progress_label": "Progressus operum epicae",
   "loading": "Epica oneratur...",
   "load_error": "Epica onerari non potest.",
   "form_loading": "Forma epicae oneratur...",

@@ -1,6 +1,8 @@
 {
   "title": "Epics",
 
+  "detail_label": "Epic",
+  "job_progress_label": "Epic job progress",
   "loading": "Loading Epic...",
   "load_error": "Unable to load Epic.",
   "form_loading": "Loading epic form...",

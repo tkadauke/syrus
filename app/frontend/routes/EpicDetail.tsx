@@ -51,9 +51,8 @@ export function EpicDetailRoute() {
     enabled: id.length > 0
   })
 
-  // TODO: missing i18n key - no singular "Epic" key in epics.json (only "title": "Epics")
   return (
-    <main aria-label="Epic" className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <main aria-label={t("detail_label")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       {epic.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
       {epic.isError ? <PanelMessage tone="error">{errorMessage(epic.error, t("load_error"))}</PanelMessage> : null}
       {epic.isSuccess ? <EpicDetail payload={epic.data} prefix={prefix} /> : null}
@@ -538,15 +537,15 @@ const PROGRESS_SEGMENTS = [
 ]
 
 export function ProgressBar({ jobs, totalCount }: { jobs: EpicDetailJob[]; totalCount: number }) {
+  const { t } = useT("epics")
   const segments = PROGRESS_SEGMENTS.map(({ state, color }) => ({
     state,
     color,
     percent: totalCount > 0 ? (jobs.filter((j) => j.state === state).length / totalCount) * 100 : 0,
   }))
 
-  // TODO: missing i18n key - no "Epic job progress" key in epics.json
   return (
-    <div aria-label="Epic job progress" className="flex h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar">
+    <div aria-label={t("job_progress_label")} className="flex h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar">
       {segments.map(({ state, color, percent }) =>
         percent > 0 ? <div className={`h-2 transition-[width] ${color}`} key={state} style={{ width: `${percent}%` }} /> : null
       )}

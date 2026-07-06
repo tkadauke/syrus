@@ -84,9 +84,8 @@ function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: Non
   const failingChecks = readiness.checks.filter((check) => check.status !== "ok")
   if (failingChecks.length === 0) return null
 
-  // TODO: missing i18n key - no "System readiness" key in dashboard.json
   return (
-    <section aria-label="System readiness" className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
+    <section aria-label={t("system_readiness")} className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">{t("readiness_title")}</h2>
@@ -672,8 +671,7 @@ function KanbanLane({
 
   return (
     <section
-      // TODO: missing i18n key - no template for "${title} lane" in dashboard.json
-      aria-label={`${lane.title} lane`}
+      aria-label={t("lane_label", { title: lane.title })}
       className={`min-h-64 rounded border bg-gray-50 dark:bg-gray-950 ${draggingOver ? "border-blue-400 ring-2 ring-blue-100 dark:border-blue-500 dark:ring-blue-900" : "border-gray-200 dark:border-gray-700"}`}
       onDragOver={onDragOver}
       onDrop={onDrop}

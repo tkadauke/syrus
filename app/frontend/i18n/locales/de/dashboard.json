@@ -25,6 +25,8 @@
   "kanban_lanes": "Kanban-Spalten",
   "preferences_error": "Dashboard-Einstellungen konnten nicht aktualisiert werden.",
 
+  "system_readiness": "Systemstatus",
+  "lane_label": "{{title}}-Spalte",
   "readiness_title": "Systemstatus benötigt Aufmerksamkeit",
   "readiness_description": "Syrus kann möglicherweise keine Arbeit aufnehmen oder ausführen, bis diese Prüfungen bestanden sind.",
   "open_settings": "Einstellungen öffnen",

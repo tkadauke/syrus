@@ -25,6 +25,8 @@
   "kanban_lanes": "Viae Kanbani",
   "preferences_error": "Tabulae praeferentiae mutari non possunt.",
 
+  "system_readiness": "Status systematis",
+  "lane_label": "Via {{title}}",
   "readiness_title": "Status systematis attentione opus habet",
   "readiness_description": "Syrus opus non suscipere aut exsequi potest donec haec examina superantur.",
   "open_settings": "Optiones aperi",
