@@ -48,6 +48,10 @@ on:
         description: "Dry run — build + stage everything, publish nothing"
         type: boolean
         default: false
+      review_notes:
+        description: "I want to review the release notes before publishing (leaves the release as a draft)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write # create the git tag and the GitHub Release
@@ -71,6 +75,7 @@ jobs:
       tag: ${{ steps.compute.outputs.tag }} # vX.Y.Z
       prerelease: ${{ steps.compute.outputs.prerelease }}
       dry_run: ${{ steps.compute.outputs.dry_run }}
+      review_notes: ${{ steps.compute.outputs.review_notes }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -82,6 +87,7 @@ jobs:
           BUMP: ${{ inputs.bump }}
           OVERRIDE: ${{ inputs.version }}
           DRY: ${{ inputs.dry_run }}
+          REVIEW: ${{ inputs.review_notes }}
         run: |
           set -euo pipefail
           git fetch --tags --quiet || true
@@ -117,6 +123,7 @@ jobs:
             echo "tag=v$ver"
             echo "prerelease=$prerelease"
             echo "dry_run=$DRY"
+            echo "review_notes=$REVIEW"
           } >> "$GITHUB_OUTPUT"
           echo "### Release v$ver  (bump=${OVERRIDE:+explicit }$BUMP · prerelease=$prerelease · dry_run=$DRY)" >> "$GITHUB_STEP_SUMMARY"
 
@@ -482,16 +489,20 @@ jobs:
           grep -q "Syrus-$VERSION-universal.zip" desktop/out/latest-mac.yml
           test -f "desktop/out/Syrus-$VERSION-universal.zip"
 
-      # Collect everything the release needs, plus the stable-named alias for
-      # the website permalink. One universal Syrus.dmg — no Intel split.
+      # Stage only what's needed. Humans download ONE dmg — the stable-named
+      # `Syrus.dmg` permalink. macOS auto-update uses the versioned `.zip` +
+      # `latest-mac.yml` (Squirrel.Mac never touches the dmg), plus the
+      # `.zip.blockmap` for delta downloads. The *versioned* dmg and its
+      # blockmap are deliberately NOT staged: they'd be a byte-identical twin of
+      # Syrus.dmg that nothing references.
       - name: Stage macOS artifacts
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/staged"
-          cp desktop/out/Syrus-*.dmg desktop/out/Syrus-*.zip "$RUNNER_TEMP/staged/" 2>/dev/null || true
-          cp desktop/out/*.blockmap "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          cp "desktop/out/Syrus-$VERSION-universal.zip" "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          cp "desktop/out/Syrus-$VERSION-universal.zip.blockmap" "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/latest-mac.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp "desktop/out/Syrus-$VERSION-universal.dmg" "$RUNNER_TEMP/staged/Syrus.dmg"
 
@@ -634,8 +645,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/staged"
-          cp desktop/out/Syrus-Setup-*.exe "$RUNNER_TEMP/staged/" 2>/dev/null || true
-          cp desktop/out/*.blockmap "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          # Windows auto-update uses the versioned .exe itself (+ blockmap for
+          # deltas) + latest.yml, so unlike macOS the versioned installer stays.
+          # Syrus-Setup.exe is the stable website-permalink copy of it.
+          cp "desktop/out/Syrus-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/" 2>/dev/null || true
+          cp "desktop/out/Syrus-Setup-$VERSION-x64.exe.blockmap" "$RUNNER_TEMP/staged/" 2>/dev/null || true
           cp desktop/out/latest.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
           # x64 only — runs natively on x64 and via emulation on arm64 Windows.
           cp "desktop/out/Syrus-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/Syrus-Setup.exe"
@@ -716,6 +730,34 @@ jobs:
           if [ "${#assets[@]}" -eq 0 ]; then echo "::error::no staged artifacts to publish"; exit 1; fi
           gh "${args[@]}" "${assets[@]}"
 
+      # Replace the draft's mechanical --generate-notes body with Claude-written
+      # HIGHLIGHTS on top of GitHub's PR list: the LLM curates the story; the
+      # mechanical "Full changelog" below stays hallucination-proof (real PRs,
+      # correct attribution). Non-fatal — if CLAUDE_API_KEY is unset or the API
+      # errors, the mechanical notes GitHub already generated stand.
+      - name: Write LLM release notes (highlights over the mechanical changelog)
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${CLAUDE_API_KEY:-}" ]; then
+            echo "::warning::CLAUDE_API_KEY not set — keeping GitHub's mechanical notes."
+            exit 0
+          fi
+          mechanical="$(gh release view "$TAG" --json body -q .body)"
+          if ! highlights="$(bin/release-notes "$VERSION" --stdout)"; then
+            echo "::warning::LLM notes generation failed — keeping GitHub's mechanical notes."
+            exit 0
+          fi
+          {
+            printf '%s\n' "$highlights"
+            printf '\n---\n\n## Full changelog\n\n%s\n' "$mechanical"
+          } > "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+
       # Move :latest to the released image (imagetools copies the manifest — no
       # rebuild). Reversible by cleanup below.
       - name: Move image :latest to the released version
@@ -728,11 +770,27 @@ jobs:
 
       # THE go-live: flip the fully-built draft to published. One tiny API call,
       # the last irreversible action. Everything above is now proven good.
+      # Skipped when review_notes is set — the release stays a draft for a human
+      # to read the notes and click Publish. (:latest already moved above; that's
+      # the backend image, independent of the release's visibility.)
       - name: Publish the release
+        if: needs.prepare.outputs.review_notes != 'true'
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "$TAG" --draft=false
+
+      # review_notes path: leave the draft unpublished and point the maintainer at it.
+      - name: Hold the release as a draft for notes review
+        if: needs.prepare.outputs.review_notes == 'true'
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="$(gh release view "$TAG" --json url -q .url)"
+          echo "::notice::$TAG is a DRAFT for review — edit the notes and click Publish: $url"
+          echo "### 📝 Review the release notes, then click Publish: [$TAG]($url)" >> "$GITHUB_STEP_SUMMARY"
 
       # Ran only if any step above failed: undo everything so the run leaves no
       # half-published state. Best-effort (|| true) — a stuck resource is better
@@ -760,7 +818,10 @@ jobs:
   # ---------------------------------------------------------------------------
   publish-website:
     needs: [prepare, publish]
-    if: needs.prepare.outputs.dry_run == 'false'
+    # Skip while a release is held for notes review — deploy the site once it's
+    # actually published (re-run "Deploy website" manually, or it auto-runs on
+    # the next website/** push).
+    if: needs.prepare.outputs.dry_run == 'false' && needs.prepare.outputs.review_notes != 'true'
     uses: ./.github/workflows/deploy-website.yml
     with:
       release_tag: ${{ needs.prepare.outputs.tag }}

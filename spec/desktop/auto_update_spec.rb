@@ -153,6 +153,25 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(release_workflow).to match(/Free disk space/)
   end
 
+  it "writes LLM highlights over the mechanical changelog, with an optional review gate" do
+    workflow = YAML.safe_load(release_workflow)
+    # Hybrid notes: GitHub's mechanical --generate-notes stays (hallucination-proof
+    # PR list) AND Claude highlights are written on top via bin/release-notes.
+    expect(release_workflow).to include("--generate-notes")
+    expect(release_workflow).to match(%r{bin/release-notes "\$VERSION" --stdout})
+    expect(release_workflow).to include("Full changelog")
+    expect(release_workflow).to include("secrets.CLAUDE_API_KEY")
+    # Optional review gate: a review_notes input holds the release as a draft.
+    expect(release_workflow).to include("review_notes:")
+    expect(workflow.dig("jobs", "prepare", "outputs", "review_notes")).to be_a(String)
+    # The go-live flip is skipped when review_notes is set (draft stays for a human).
+    flip = release_workflow[/name: Publish the release[\s\S]{0,220}/]
+    expect(flip).to include("review_notes != 'true'")
+    expect(flip).to include("--draft=false")
+    # publish-website waits for a real publish, not a held draft.
+    expect(workflow.dig("jobs", "publish-website", "if")).to include("review_notes != 'true'")
+  end
+
   it "release publish is near-atomic: draft release, then flip, with rollback" do
     # The only visible go-live is flipping the draft to published; everything
     # before it is invisible (draft) or reversible (:latest), and a failure
@@ -199,6 +218,19 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(release_workflow).not_to include("Syrus-Intel.dmg")
     expect(release_workflow).to match(%r{Syrus-Setup-\$VERSION-x64\.exe" "\$RUNNER_TEMP/staged/Syrus-Setup\.exe"})
     expect(release_workflow).not_to include("Syrus-Setup-arm64.exe")
+    # Parsimony: macOS auto-update rides the .zip (+ blockmap) + latest-mac.yml;
+    # the versioned dmg would be a byte-identical twin of Syrus.dmg, so it (and
+    # its blockmap) is NOT staged. Don't reintroduce the blanket dmg/blockmap copy.
+    expect(release_workflow).to match(%r{cp "desktop/out/Syrus-\$VERSION-universal\.zip"})
+    expect(release_workflow).not_to include("cp desktop/out/Syrus-*.dmg")
+    expect(release_workflow).not_to match(%r{cp desktop/out/\*\.blockmap})
+  end
+
+  it "ships CLI tarballs for Linux only (macOS/Windows get the CLI via the desktop app)" do
+    cli = read(repo_root, "bin/release-cli")
+    expect(cli).to include("linux/arm64")
+    expect(cli).to include("linux/amd64")
+    expect(cli).not_to include("darwin/")
   end
 
   it "deploys the website via a reusable workflow, callable standalone too" do

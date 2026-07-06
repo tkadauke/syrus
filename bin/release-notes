@@ -2,11 +2,16 @@
 # Generate Claude-written GitHub release notes from git history.
 #
 # Usage:
-#   bin/release-notes VERSION
+#   bin/release-notes VERSION [--stdout]
 #   bin/release-notes --next-patch
 #   bin/release-notes --next-minor
 #
-# Writes dist/releases/<version>/RELEASE_NOTES.md.
+# Writes dist/releases/<version>/RELEASE_NOTES.md (or, with --stdout, prints the
+# notes to stdout and everything else to stderr — used by the release pipeline).
+#
+# LLM backend: if CLAUDE_API_KEY (or ANTHROPIC_API_KEY) is set, calls the
+# Anthropic Messages API with curl (the CI path). Otherwise pipes to the local
+# `claude` CLI (the maintainer-laptop path).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -14,6 +19,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 VERSION=""
 NEXT_BUMP=""
+STDOUT=0
 
 usage() {
   awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"
@@ -21,6 +27,7 @@ usage() {
 
 for arg in "$@"; do
   case "$arg" in
+    --stdout) STDOUT=1 ;;
     --next-patch)
       if [ -n "$NEXT_BUMP" ]; then
         echo "Specify only one of --next-patch or --next-minor." >&2
@@ -64,7 +71,16 @@ if [ -n "$NEXT_BUMP" ]; then
 fi
 
 syrus_release_validate_version "$VERSION"
-syrus_release_require_command claude
+
+# CI generates notes with the Anthropic API (CLAUDE_API_KEY / ANTHROPIC_API_KEY);
+# a maintainer's laptop uses the local `claude` CLI. Require whichever applies.
+API_KEY="${CLAUDE_API_KEY:-${ANTHROPIC_API_KEY:-}}"
+if [ -n "$API_KEY" ]; then
+  syrus_release_require_command curl
+  syrus_release_require_command jq
+else
+  syrus_release_require_command claude
+fi
 
 PREVIOUS_TAG="$(syrus_release_previous_stable_tag_for "$VERSION")"
 TARGET_REF="HEAD"
@@ -87,12 +103,8 @@ if [ -z "$COMMIT_LOG" ]; then
   COMMIT_LOG="(No commits found in $RANGE_LABEL.)"
 fi
 
-NOTES_FILE="$(syrus_release_notes_file "$VERSION")"
-mkdir -p "$(dirname "$NOTES_FILE")"
-
-echo "== Generating release notes for $VERSION with Claude =="
-{
-  cat <<PROMPT
+PROMPT="$(
+  cat <<PROMPT_HEADER
 You are writing GitHub release notes for Syrus.
 
 Write Markdown suitable for the GitHub release page. Be concise, factual, and user-facing.
@@ -107,20 +119,38 @@ Git range: $RANGE_LABEL
 Target ref: $TARGET_REF
 
 Commits:
-PROMPT
+PROMPT_HEADER
   printf '%s\n' "$COMMIT_LOG"
-  if [ -n "$DIFF_STAT" ]; then
-    cat <<PROMPT
+  [ -n "$DIFF_STAT" ] && printf '\nDiff stat:\n%s\n' "$DIFF_STAT"
+)"
 
-Diff stat:
-$DIFF_STAT
-PROMPT
-  fi
-} | claude --print > "$NOTES_FILE"
+# Progress/status go to stderr so --stdout emits ONLY the notes.
+echo "== Generating release notes for $VERSION with Claude ==" >&2
+if [ -n "$API_KEY" ]; then
+  NOTES="$(
+    jq -n --arg p "$PROMPT" \
+      '{model:"claude-opus-4-8", max_tokens:4000, messages:[{role:"user", content:$p}]}' \
+      | curl -fsS https://api.anthropic.com/v1/messages \
+          -H "x-api-key: $API_KEY" \
+          -H "anthropic-version: 2023-06-01" \
+          -H "content-type: application/json" \
+          --data-binary @- \
+      | jq -r '.content[]? | select(.type == "text") | .text'
+  )"
+else
+  NOTES="$(printf '%s' "$PROMPT" | claude --print)"
+fi
 
-if [ ! -s "$NOTES_FILE" ]; then
+if [ -z "${NOTES//[[:space:]]/}" ]; then
   echo "Claude produced empty release notes." >&2
   exit 1
 fi
 
-echo "Release notes written to $NOTES_FILE"
+if [ "$STDOUT" = 1 ]; then
+  printf '%s\n' "$NOTES"
+else
+  NOTES_FILE="$(syrus_release_notes_file "$VERSION")"
+  mkdir -p "$(dirname "$NOTES_FILE")"
+  printf '%s\n' "$NOTES" > "$NOTES_FILE"
+  echo "Release notes written to $NOTES_FILE" >&2
+fi

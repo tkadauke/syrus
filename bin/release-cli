@@ -63,9 +63,12 @@ else
   (cd "$ROOT/cli" && go test ./...)
 fi
 
+# Linux only: it's the sole platform with no desktop app, so the standalone
+# tarballs are the only way CI / servers / headless boxes get the CLI. macOS
+# (and Windows) users get the CLI bundled + auto-installed by the desktop app,
+# so darwin tarballs were pure redundancy. Add darwin back if a CLI-only-on-Mac
+# audience ever materializes.
 targets=(
-  darwin/arm64
-  darwin/amd64
   linux/arm64
   linux/amd64
 )
